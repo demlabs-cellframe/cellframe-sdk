@@ -143,10 +143,6 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
     if (!l_cli_port)
         return NULL;
     SOCKET l_socket = socket(AF_INET, SOCK_STREAM, 0);
-    setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int) );
-    setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int) );
-    DWORD l_to = DAP_CLI_HTTP_TIMEOUT;
-    setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&l_to, sizeof(l_to));
 #else
     if (!a_socket_path) {
         return NULL;
@@ -157,9 +153,6 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
         return NULL;
     }
     struct timeval l_to = {DAP_CLI_HTTP_TIMEOUT, 0};
-    setsockopt(l_socket, SOL_SOCKET, SO_SNDBUF, (void*) &buffsize, sizeof(buffsize));
-    setsockopt(l_socket, SOL_SOCKET, SO_RCVBUF, (void*) &buffsize, sizeof(buffsize));
-    setsockopt(l_socket, SOL_SOCKET, SO_RCVTIMEO, (void *)&l_to, sizeof(l_to));
 #endif
     // connect
     int l_addr_len;

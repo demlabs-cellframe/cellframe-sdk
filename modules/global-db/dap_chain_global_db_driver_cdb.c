@@ -57,28 +57,6 @@ static pcdb_instance s_cdb = NULL;
 static pthread_mutex_t cdb_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_rwlock_t cdb_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
-static inline void dap_cdb_uint_to_hex(char *arr, uint64_t val, short size) {
-    short i = 0;
-    for (i = 0; i < size; ++i) {
-        arr[i] = (char)(((uint64_t) val >> (8 * (size - 1 - i))) & 0xFFu);
-    }
-}
-
-static inline uint64_t dap_cdb_hex_to_uint(const char *arr, short size) {
-    uint64_t val = 0;
-    short i = 0;
-    for (i = 0; i < size; ++i){
-        uint8_t byte = (uint8_t) *arr++;
-        /*if (byte >= 'a' && byte <='f'){
-            byte = byte - 'a' + 10;
-        } else if (byte >= 'A' && byte <='F') {
-            byte = byte - 'A' + 10;
-        }*/
-        val = (val << 8) | (byte & 0xFFu);
-    }
-    return val;
-}
-
 static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const char *key, const char *val) {
     if (!key || !val) {
         a_obj = NULL;
@@ -86,14 +64,14 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     }
     int offset = 0;
     a_obj->key = dap_strdup(key);
-    a_obj->id = dap_cdb_hex_to_uint(val, sizeof(uint64_t));
+    a_obj->id = dap_hex_to_uint(val, sizeof(uint64_t));
     offset += sizeof(uint64_t);
-    a_obj->value_len = dap_cdb_hex_to_uint(val + offset, sizeof(unsigned long));
+    a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(unsigned long));
     offset += sizeof(unsigned long);
     a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
     memcpy(a_obj->value, val + offset, a_obj->value_len);
     offset += a_obj->value_len;
-    a_obj->timestamp = (time_t)dap_cdb_hex_to_uint(val + offset, sizeof(time_t));
+    a_obj->timestamp = (time_t)dap_hex_to_uint(val + offset, sizeof(time_t));
 }
 
 bool dap_cdb_get_last_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
@@ -132,7 +110,7 @@ bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, c
     UNUSED(expire);
     UNUSED(oid);
 
-    if (dap_cdb_hex_to_uint(val, sizeof(uint64_t)) < ((pobj_arg)arg)->id) {
+    if (dap_hex_to_uint(val, sizeof(uint64_t)) < ((pobj_arg)arg)->id) {
         return true;
     }
     pdap_store_obj_t l_obj = (pdap_store_obj_t)((pobj_arg)arg)->o;
@@ -216,6 +194,16 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
         return -1;
     }
     for (d = readdir(dir); d; d = readdir(dir)) {
+#ifdef _DIRENT_HAVE_D_TYPE
+        if (d->d_type != DT_DIR)
+            continue;
+#else
+        struct _stat buf;
+        int res = _stat(d->d_name, &buf);
+        if (!S_ISDIR(buf.st_mode) || !res) {
+            continue;
+        }
+#endif
         if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
             continue;
         }
@@ -499,16 +487,16 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         l_rec.key = dap_strdup(a_store_obj->key);
         int offset = 0;
         char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(unsigned long) + a_store_obj->value_len + sizeof(time_t));
-        dap_cdb_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
+        dap_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
         offset += sizeof(uint64_t);
-        dap_cdb_uint_to_hex(l_val + offset, a_store_obj->value_len, sizeof(unsigned long));
+        dap_uint_to_hex(l_val + offset, a_store_obj->value_len, sizeof(unsigned long));
         offset += sizeof(unsigned long);
         if(a_store_obj->value && a_store_obj->value_len){
             memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
         }
         offset += a_store_obj->value_len;
         unsigned long l_time = (unsigned long)a_store_obj->timestamp;
-        dap_cdb_uint_to_hex(l_val + offset, l_time, sizeof(time_t));
+        dap_uint_to_hex(l_val + offset, l_time, sizeof(time_t));
         offset += sizeof(time_t);
         l_rec.val = l_val;
         if (cdb_set2(l_cdb_i->cdb, l_rec.key, (int)strlen(l_rec.key), l_rec.val, offset, CDB_INSERTCACHE | CDB_OVERWRITE, 0) != CDB_SUCCESS) {

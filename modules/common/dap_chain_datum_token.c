@@ -50,32 +50,12 @@ const char *c_dap_chain_datum_token_flag_str[] = {
 };
 
 /**
- * @brief dap_chain_datum_token_tsd_create
- * @param a_type
- * @param a_data
- * @param a_data_size
- * @return
- */
-dap_chain_datum_token_tsd_t * dap_chain_datum_token_tsd_create(uint16_t a_type, const void * a_data, size_t a_data_size)
-{
-    dap_chain_datum_token_tsd_t * l_tsd = DAP_NEW_Z_SIZE(dap_chain_datum_token_tsd_t,
-                                                         sizeof(dap_chain_datum_token_tsd_t) + a_data_size );
-    if ( l_tsd ){
-        memcpy(l_tsd->data, a_data , a_data_size );
-        l_tsd->type = a_type;
-        l_tsd->size = a_data_size;
-    }
-    return l_tsd;
-
-}
-
-/**
  * @brief dap_chain_datum_token_tsd_get
  * @param a_token
  * @param a_token_size
  * @return
  */
-dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token, size_t a_token_size)
+dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token, size_t a_token_size)
 {
     // Check if token type could have tsd section
     size_t l_hdr_size = sizeof(*a_token);
@@ -100,7 +80,7 @@ dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token
         log_it(L_WARNING, "TSD size %zd overlaps with header, corrupted data");
     }else if (l_tsd_size +l_hdr_size == a_token_size){
         log_it(L_INFO, "No signatures at all, returning pointer to the top of data");
-        return (dap_chain_datum_token_tsd_t*) a_token->data_n_tsd;
+        return (dap_tsd_t*) a_token->data_n_tsd;
     }
 
     // Pass through signatures to find top of TSD section
@@ -114,7 +94,7 @@ dap_chain_datum_token_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token
         l_offset += dap_sign_get_size( l_sign);
     }
     if ( l_offset + l_hdr_size +l_tsd_size <= a_token_size  )
-        return (dap_chain_datum_token_tsd_t*) (a_token->data_n_tsd+l_offset);
+        return (dap_tsd_t*) (a_token->data_n_tsd+l_offset);
     else{
         log_it(L_WARNING, "Signatures overlaps with TSD section, corrupted data");
         return NULL;

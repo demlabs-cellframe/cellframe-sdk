@@ -28,6 +28,7 @@
 #include <errno.h>
 #include <assert.h>
 //#include <glib.h>
+#include <unistd.h>
 
 #ifndef _WIN32
 #include <poll.h>
@@ -1025,9 +1026,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create("stats", com_stats, NULL, "Print statistics",
                 "stats cpu");
 
+
+
     // Exit
     dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
                 "exit\n" );
+
+     // Export GDB to JSON
+     dap_chain_node_cli_cmd_item_create("gdb_export", cmd_gdb_export, NULL, "Export gdb to JSON",
+                                        "gdb_export filename <filename without extension>");
+
+     //Import GDB from JSON
+     dap_chain_node_cli_cmd_item_create("gdb_import", cmd_gdb_import, NULL, "Import gdb from JSON",
+                                        "gdb_import filename <filename without extension>");
 
     // create thread for waiting of clients
     pthread_t l_thread_id;

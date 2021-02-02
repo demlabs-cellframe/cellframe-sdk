@@ -59,7 +59,7 @@ typedef struct dap_http_client_internal {
     bool were_callbacks_called;
     size_t header_length;
     size_t content_length;
-
+    time_t ts_last_read;
     uint8_t *response;
     size_t response_size;
     size_t response_size_max;
@@ -85,8 +85,35 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt);
 static void s_http_read(dap_events_socket_t * a_es, void * arg);
 static void s_http_error(dap_events_socket_t * a_es, int a_arg);
 static bool s_timer_timeout_check(void * a_arg);
+static bool s_timer_timeout_after_connected_check(void * a_arg);
 
-uint64_t s_client_timeout_ms=10000;
+
+static bool s_debug_more=false;
+static uint64_t s_client_timeout_ms=10000;
+static time_t s_client_timeout_read_after_connect_ms=5000;
+static uint32_t s_max_attempts = 5;
+
+/**
+ * @brief dap_client_http_init
+ * @return
+ */
+int dap_client_http_init()
+{
+    s_debug_more = dap_config_get_item_bool_default(g_config,"dap_client","debug_more",false);
+    s_max_attempts = dap_config_get_item_uint32_default(g_config,"dap_client","max_tries",5);
+    s_client_timeout_ms = dap_config_get_item_uint32_default(g_config,"dap_client","timeout",10)*1000;
+    s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
+    return 0;
+}
+
+/**
+ * @brief dap_client_http_deinit
+ */
+void dap_client_http_deinit()
+{
+
+}
+
 
 /**
  * @brief dap_client_http_get_connect_timeout_ms
@@ -107,6 +134,51 @@ void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms)
 }
 
 /**
+ * @brief s_timer_timeout_after_connected_check
+ * @param a_arg
+ * @return
+ */
+static bool s_timer_timeout_after_connected_check(void * a_arg)
+{
+    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    assert(l_es_handler);
+    dap_events_socket_t * l_es = l_es_handler->esocket;
+    assert(l_es);
+    dap_events_t * l_events = dap_events_get_default();
+    assert(l_events);
+
+    dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
+    assert(l_worker);
+
+    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
+        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
+            if(s_debug_more)
+                log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
+            DAP_DEL_Z(l_es_handler)
+            return false;
+        }
+        dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
+        if ( time(NULL)- l_http_pvt->ts_last_read > s_client_timeout_read_after_connect_ms ){
+            log_it(L_WARNING,"Read after connect timeout for request http://%s:%u/%s, possible uplink is on heavy load or DPI between you",
+                   l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
+            if(l_http_pvt->error_callback) {
+                l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->obj);
+                l_http_pvt->were_callbacks_called = true;
+            }
+            l_http_pvt->is_closed_by_timeout = true;
+            log_it(L_INFO, "Close %s sock %u type %d by timeout",
+                   l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
+            dap_events_socket_remove_and_delete_unsafe(l_es, true);
+        }
+    }else
+        if(s_debug_more)
+            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+
+    DAP_DEL_Z(l_es_handler)
+    return false;
+}
+
+/**
  * @brief s_timer_timeout_check
  * @details Returns 'false' to prevent looping the checks
  * @param a_arg
@@ -121,12 +193,13 @@ static bool s_timer_timeout_check(void * a_arg)
     dap_events_t * l_events = dap_events_get_default();
     assert(l_events);
 
-    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker); // We're in own esocket context
+    dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
     assert(l_worker);
 
     if(dap_events_socket_check_unsafe(l_worker, l_es) ){
         if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
+            if(s_debug_more)
+                log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
             DAP_DEL_Z(l_es_handler)
             return false;
         }
@@ -143,9 +216,11 @@ static bool s_timer_timeout_check(void * a_arg)
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
             dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }else
-            log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
+            if(s_debug_more)
+                log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
     }else
-        log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+        if(s_debug_more)
+            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
 
     DAP_DEL_Z(l_es_handler)
     return false;
@@ -158,39 +233,40 @@ static bool s_timer_timeout_check(void * a_arg)
  */
 static void s_http_read(dap_events_socket_t * a_es, void * arg)
 {
-    dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
-    if(!l_client_http_internal) {
+    dap_client_http_pvt_t * l_http_pvt = PVT(a_es);
+    if(!l_http_pvt) {
         log_it(L_ERROR, "s_http_read: l_client_http_internal is NULL!");
         return;
     }
+    l_http_pvt->ts_last_read = time(NULL);
     // read data
-    l_client_http_internal->response_size += dap_events_socket_pop_from_buf_in(a_es,
-            l_client_http_internal->response + l_client_http_internal->response_size,
-            l_client_http_internal->response_size_max - l_client_http_internal->response_size);
+    l_http_pvt->response_size += dap_events_socket_pop_from_buf_in(a_es,
+            l_http_pvt->response + l_http_pvt->response_size,
+            l_http_pvt->response_size_max - l_http_pvt->response_size);
 
     // if buffer is overfull then read once more
-    if(l_client_http_internal->response_size >= DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX) {
-        log_it(L_ERROR, "s_http_read response_size(%d) overfull!!!", l_client_http_internal->response_size);
+    if(l_http_pvt->response_size >= DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX) {
+        log_it(L_ERROR, "s_http_read response_size(%d) overfull!!!", l_http_pvt->response_size);
     }
 
     // search http header
-    if(!l_client_http_internal->is_header_read && l_client_http_internal->response_size > 4
-            && !l_client_http_internal->content_length) {
-        for(size_t l_pos = 0; l_pos < l_client_http_internal->response_size - 4; l_pos++) {
-            uint8_t *l_str = l_client_http_internal->response + l_pos;
+    if(!l_http_pvt->is_header_read && l_http_pvt->response_size > 4
+            && !l_http_pvt->content_length) {
+        for(size_t l_pos = 0; l_pos < l_http_pvt->response_size - 4; l_pos++) {
+            uint8_t *l_str = l_http_pvt->response + l_pos;
             if(!dap_strncmp((const char*) l_str, "\r\n\r\n", 4)) {
-                l_client_http_internal->header_length = l_pos + 4;
-                l_client_http_internal->is_header_read = true;
+                l_http_pvt->header_length = l_pos + 4;
+                l_http_pvt->is_header_read = true;
                 //dap_events_socket_shrink_buf_in(a_es, l_client_internal->header_size);
                 break;
             }
         }
     }
     // process http header
-    if(l_client_http_internal->is_header_read) {
-        l_client_http_internal->response[l_client_http_internal->header_length - 1] = 0;
+    if(l_http_pvt->is_header_read) {
+        l_http_pvt->response[l_http_pvt->header_length - 1] = 0;
         // search strings in header
-        char **l_strings = dap_strsplit((char*) l_client_http_internal->response, "\r\n", -1);
+        char **l_strings = dap_strsplit((char*) l_http_pvt->response, "\r\n", -1);
         if(l_strings) {
             int i = 0;
             while(l_strings[i]) {
@@ -198,11 +274,11 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
                 char **l_values = dap_strsplit(l_string, ":", 2);
                 if(l_values && l_values[0] && l_values[1])
                     if(!dap_strcmp("Content-Length", l_values[0])) {
-                        l_client_http_internal->content_length = atoi(l_values[1]);
-                        l_client_http_internal->is_header_read = false;
+                        l_http_pvt->content_length = atoi(l_values[1]);
+                        l_http_pvt->is_header_read = false;
                     }
                 dap_strfreev(l_values);
-                if(l_client_http_internal->content_length)
+                if(l_http_pvt->content_length)
                     break;
                 i++;
             }
@@ -210,29 +286,29 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
         }
 
         // restore last symbol
-        l_client_http_internal->response[l_client_http_internal->header_length - 1] = '\n';
+        l_http_pvt->response[l_http_pvt->header_length - 1] = '\n';
     }
 
     // process data
-    if(l_client_http_internal->content_length) {
-        l_client_http_internal->is_header_read = false;
+    if(l_http_pvt->content_length) {
+        l_http_pvt->is_header_read = false;
 
         // received not enough data
-        if(l_client_http_internal->content_length
-                > (l_client_http_internal->response_size - l_client_http_internal->header_length)) {
+        if(l_http_pvt->content_length
+                > (l_http_pvt->response_size - l_http_pvt->header_length)) {
             return;
         }else{
             // process data
-            if(l_client_http_internal->response_callback)
-                l_client_http_internal->response_callback(
-                        l_client_http_internal->response + l_client_http_internal->header_length,
-                        l_client_http_internal->content_length, //l_client_internal->response_size - l_client_internal->header_size,
-                        l_client_http_internal->obj);
-            l_client_http_internal->response_size -= l_client_http_internal->header_length;
-            l_client_http_internal->response_size -= l_client_http_internal->content_length;
-            l_client_http_internal->header_length = 0;
-            l_client_http_internal->content_length = 0;
-            l_client_http_internal->were_callbacks_called = true;
+            if(l_http_pvt->response_callback)
+                l_http_pvt->response_callback(
+                        l_http_pvt->response + l_http_pvt->header_length,
+                        l_http_pvt->content_length, //l_client_internal->response_size - l_client_internal->header_size,
+                        l_http_pvt->obj);
+            l_http_pvt->response_size -= l_http_pvt->header_length;
+            l_http_pvt->response_size -= l_http_pvt->content_length;
+            l_http_pvt->header_length = 0;
+            l_http_pvt->content_length = 0;
+            l_http_pvt->were_callbacks_called = true;
         }
 
     }
@@ -328,7 +404,8 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
 static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
 {
     // call from dap_events_socket_delete(ev_socket, true);
-    log_it(L_DEBUG, "HTTP client delete");
+    if(s_debug_more)
+        log_it(L_DEBUG, "HTTP client delete");
 
     if(!a_http_pvt) {
         log_it(L_ERROR, "s_http_write: l_client_http_internal is NULL!");
@@ -420,23 +497,10 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     }
 #endif
     // set socket param
-    int buffsize = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
     struct timeval timeout;
     timeout.tv_sec = 10;
     timeout.tv_usec = 0;
-#ifdef DAP_OS_WINDOWS
-      setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDBUF, (char *)&buffsize, sizeof(int) );
-      setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int) );
-      if (setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
-          log_it(L_ERROR, "Set send timeout failed, WSA errno %d", WSAGetLastError());
-      if (setsockopt((SOCKET)l_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&timeout, sizeof(timeout)) < 0)
-          log_it(L_ERROR, "Set recv timeout failed, WSA errno %d", WSAGetLastError());
-#else
-    setsockopt(l_socket, SOL_SOCKET, SO_SNDBUF, (void*) &buffsize, sizeof(buffsize));
-    setsockopt(l_socket, SOL_SOCKET, SO_RCVBUF, (void*) &buffsize, sizeof(buffsize));
-    setsockopt(l_socket, SOL_SOCKET, SO_SNDTIMEO, (void*) &timeout, sizeof(timeout));
-    setsockopt(l_socket, SOL_SOCKET, SO_RCVTIMEO, (void*) &timeout, sizeof(timeout));
-#endif
+
     dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_socket, &l_s_callbacks);
 
     // create private struct
@@ -487,7 +551,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
     l_ev_socket->flags |= DAP_SOCK_CONNECTING;
-    l_ev_socket->type = DESCRIPTOR_TYPE_SOCKET;
+    l_ev_socket->type = DESCRIPTOR_TYPE_SOCKET_CLIENT;
     l_ev_socket->flags |= DAP_SOCK_READY_TO_WRITE;
 
     int l_err = connect(l_socket, (struct sockaddr *) &l_ev_socket->remote_addr, sizeof(struct sockaddr_in));
@@ -562,6 +626,10 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     // add to dap_worker
     //dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*) a_obj;
     //dap_events_new();
+    dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+    l_ev_socket_handler->esocket = a_esocket;
+    l_ev_socket_handler->uuid = a_esocket->uuid;
+    dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_after_connected_check,l_ev_socket_handler);
 
     char l_request_headers[1024] = { [0]='\0' };
     int l_offset = 0;

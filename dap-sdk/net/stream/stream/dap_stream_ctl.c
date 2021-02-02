@@ -120,6 +120,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         size_t l_channels_str_size = sizeof(ss->active_channels);
         char l_channels_str[sizeof(ss->active_channels)];
         dap_enc_key_type_t l_enc_type = s_socket_forward_key.type;
+        size_t l_enc_key_size = 32;
         int l_enc_headers = 0;
         bool l_is_legacy=true;
         char * l_tok_tmp = NULL;
@@ -135,6 +136,12 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                     //log_it(L_DEBUG,"Param: channels=%s",l_channels_str);
                 }else if(strcmp(l_subtok_name,"enc_type")==0){
                     l_enc_type = atoi(l_subtok_value);
+                    //log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
+                    l_is_legacy = false;
+                }else if(strcmp(l_subtok_name,"enc_key_size")==0){
+                    l_enc_key_size = (size_t) atoi(l_subtok_value);
+                    if (l_enc_key_size > l_dg->request_size )
+                        l_enc_key_size = 32;
                     //log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
                     l_is_legacy = false;
                 }else if(strcmp(l_subtok_name,"enc_headers")==0){

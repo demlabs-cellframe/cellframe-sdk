@@ -38,6 +38,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 
+struct dap_chain_node_info;
+struct dap_chain_node_client;
+
 typedef  enum dap_chain_net_state{
     NET_STATE_OFFLINE = 0,
     NET_STATE_LINKS_PREPARE,
@@ -48,6 +51,18 @@ typedef  enum dap_chain_net_state{
     NET_STATE_SYNC_CHAINS,
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
+
+static const char * g_net_state_str[]={
+    [NET_STATE_OFFLINE] = "NET_STATE_OFFLINE",
+    [NET_STATE_LINKS_PREPARE]="NET_STATE_LINKS_PREPARE",
+    [NET_STATE_LINKS_CONNECTING]="NET_STATE_LINKS_CONNECTING",
+    [NET_STATE_LINKS_ESTABLISHED]="NET_STATE_LINKS_ESTABLISHED",
+    [NET_STATE_ADDR_REQUEST]="NET_STATE_ADDR_REQUEST", // Waiting for address assign
+    [NET_STATE_SYNC_GDB]="NET_STATE_SYNC_GDB",
+    [NET_STATE_SYNC_CHAINS]="NET_STATE_SYNC_CHAINS",
+    [NET_STATE_ONLINE]="NET_STATE_ONLINE"
+};
+
 
 typedef struct dap_chain_net{
     struct {
@@ -82,6 +97,21 @@ inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { retur
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }//NET_STATE_ONLINE
+
+void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
+dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
+
+/**
+ * @brief dap_chain_net_state_to_str
+ * @param a_state
+ * @return
+ */
+static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state){
+    if(a_state< NET_STATE_OFFLINE || a_state > NET_STATE_ONLINE)
+        return "<Undefined net state>";
+    else
+        return g_net_state_str[a_state];
+}
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
@@ -147,3 +177,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
 void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a_callback);
 void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
                                       const char *a_key, const void *a_value, const size_t a_value_len);
+
+struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net, struct dap_chain_node_info *a_link_info);
+struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( dap_chain_net_t * a_net,struct dap_chain_node_info *a_link_info,
+                                                                               const char * a_channels);

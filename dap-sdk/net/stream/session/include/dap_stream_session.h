@@ -52,6 +52,7 @@ struct dap_stream_session {
     time_t time_created;
 
     uint8_t enc_type;
+    int32_t protocol_version;
 
     char *service_key;// auth string
     char active_channels[16];// channels for open

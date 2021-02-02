@@ -27,9 +27,9 @@
 
 #include "dap_common.h"
 #include "dap_events_socket.h"
-#include "dap_timerfd.h"
 
-#include "dap_proc_queue.h"
+typedef struct dap_proc_queue dap_proc_queue_t;
+typedef struct dap_timerfd dap_timerfd_t;
 typedef struct dap_worker
 {
     uint32_t id;

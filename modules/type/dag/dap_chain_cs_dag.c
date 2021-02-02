@@ -924,6 +924,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
         dap_chain_cs_dag_event_item_t  * l_atom_item;
         HASH_FIND(hh, PVT(DAP_CHAIN_CS_DAG(a_chain))->events, &l_atom_hash, sizeof(l_atom_hash),l_atom_item );
         l_atom_iter->cur_item = l_atom_item;
+        l_atom_iter->cur_hash = &l_atom_item->hash;
     }
     return l_atom_iter;
 
@@ -982,9 +983,11 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     if ( a_atom_iter->cur_item ){
         a_atom_iter->cur = ((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->event;
         a_atom_iter->cur_size = ((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->event_size;
+        a_atom_iter->cur_hash = &((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->hash;
     }else{
         a_atom_iter->cur = NULL;
         a_atom_iter->cur_size = 0;
+        a_atom_iter->cur_hash = NULL;
     }
 
     if (a_ret_size)
@@ -1089,6 +1092,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
         a_atom_iter->cur_item = l_event_item;
         a_atom_iter->cur = l_event_item->event;
         a_atom_iter->cur_size= l_event_item->event_size;
+        a_atom_iter->cur_hash = &l_event_item->hash;
         if(a_atom_size)
             *a_atom_size = l_event_item->event_size;
         return  l_event_item->event;
@@ -1125,6 +1129,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_
         // if l_event_item=NULL then items are over
         a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
         a_atom_iter->cur_size = a_atom_iter->cur ? l_event_item->event_size : 0;
+        a_atom_iter->cur_hash = l_event_item ? &l_event_item->hash : NULL;
     }
     if(a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;

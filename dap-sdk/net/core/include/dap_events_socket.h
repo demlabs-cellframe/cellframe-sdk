@@ -29,6 +29,13 @@
 
 #define DAP_EVENTS_SOCKET_MAX 8194
 
+#ifndef _WIN32
+typedef int SOCKET;
+#define closesocket close
+#define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
+#define SOCKET_ERROR    -1  // for win32 =  (-1)
+#endif
+
 // Caps for different platforms
 #if defined (DAP_OS_ANDROID)
 #define DAP_EVENTS_CAPS_POLL
@@ -130,14 +137,16 @@ typedef struct dap_events_socket_callbacks {
 #define DAP_EVENTS_SOCKET_BUF 100000
 
 typedef enum {
-    DESCRIPTOR_TYPE_SOCKET = 0,
+    DESCRIPTOR_TYPE_SOCKET_CLIENT = 0,
     DESCRIPTOR_TYPE_SOCKET_UDP,
     DESCRIPTOR_TYPE_SOCKET_LISTENING,
     DESCRIPTOR_TYPE_QUEUE,
     DESCRIPTOR_TYPE_PIPE,
     DESCRIPTOR_TYPE_TIMER,
     DESCRIPTOR_TYPE_EVENT,
-    DESCRIPTOR_TYPE_FILE
+    DESCRIPTOR_TYPE_FILE,
+    DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING,
+    DESCRIPTOR_TYPE_SOCKET_LOCAL_CLIENT,
 } dap_events_desc_type_t;
 
 typedef struct dap_events_socket {
@@ -249,6 +258,8 @@ extern "C" {
 
 int dap_events_socket_init(); //  Init clients module
 void dap_events_socket_deinit(); // Deinit clients module
+
+dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, dap_events_socket_callbacks_t* a_callbacks);
 
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);

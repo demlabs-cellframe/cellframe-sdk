@@ -84,7 +84,34 @@ void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high valu
  * @return
  */
 dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
+{
+    dap_timerfd_t* l_timerfd = dap_timerfd_create( a_timeout_ms, a_callback, a_callback_arg);
+    dap_worker_add_events_socket(l_timerfd->events_socket, a_worker);
+    return l_timerfd;
+}
 
+/**
+ * @brief dap_timerfd_start_on_proc_thread
+ * @param a_proc_thread
+ * @param a_timeout_ms
+ * @param a_callback
+ * @param a_callback_arg
+ * @return
+ */
+dap_timerfd_t* dap_timerfd_start_on_proc_thread(dap_proc_thread_t * a_proc_thread, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
+{
+    dap_timerfd_t* l_timerfd = dap_timerfd_create( a_timeout_ms, a_callback, a_callback_arg);
+    return l_timerfd;
+}
+
+/**
+ * @brief dap_timerfd_create
+ * @param a_timeout_ms
+ * @param a_callback
+ * @param a_callback_arg
+ * @return
+ */
+dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
 {
     dap_timerfd_t *l_timerfd = DAP_NEW(dap_timerfd_t);
 #if defined DAP_OS_UNIX
@@ -154,7 +181,7 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
     memset(&l_s_callbacks,0,sizeof (l_s_callbacks));
     l_s_callbacks.timer_callback = s_es_callback_timer;
 
-    dap_events_socket_t * l_events_socket = dap_events_socket_wrap_no_add(a_worker->events, l_tfd, &l_s_callbacks);
+    dap_events_socket_t * l_events_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_tfd, &l_s_callbacks);
     l_events_socket->type = DESCRIPTOR_TYPE_TIMER;
     // pass l_timerfd to events_socket
     l_events_socket->_inheritor = l_timerfd;
@@ -168,7 +195,6 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
 #ifdef DAP_OS_WINDOWS
     l_timerfd->th               = l_th;
 #endif
-    dap_worker_add_events_socket(l_events_socket, a_worker);
     return l_timerfd;
 }
 

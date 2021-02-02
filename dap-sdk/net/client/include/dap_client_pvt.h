@@ -51,6 +51,7 @@ typedef struct dap_client_internal
 
     dap_enc_key_type_t session_key_type;
     dap_enc_key_type_t session_key_open_type;
+    size_t session_key_block_size;
 
     dap_enc_key_t * session_key_open; // Open assymetric keys exchange
     dap_enc_key_t * session_key; // Symmetric private key for session encryption
@@ -89,6 +90,9 @@ typedef struct dap_client_internal
     bool is_encrypted_headers;
     bool is_close_session;// the last request in session, in the header will be added "SessionCloseAfterRequest: true"
     bool is_closed_by_timeout;
+    time_t ts_last_read;
+
+    bool is_always_reconnect; // Always reconnect ever number of tries are over
     dap_client_callback_data_size_t request_response_callback;
     dap_client_callback_int_t request_error_callback;
 

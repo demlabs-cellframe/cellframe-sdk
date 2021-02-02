@@ -29,14 +29,7 @@
 #include "dap_config.h"
 #include "uthash.h"
 
-#ifndef _WIN32
-#include <unistd.h> // for close
-#define closesocket close
-typedef int SOCKET;
-#define SOCKET_ERROR    -1  // for win32 =  (-1)
-#define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
-#endif
-
+#include "dap_events_socket.h"
 
 typedef int cmdfunc_t(int argc, char ** argv, void *arg_func, char **str_reply);
 

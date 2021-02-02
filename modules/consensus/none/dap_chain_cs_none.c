@@ -403,6 +403,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_iter->chain = a_chain;
     l_iter->cur = a_atom;
+    l_iter->cur_size = a_atom_size;
     return l_iter;
 }
 

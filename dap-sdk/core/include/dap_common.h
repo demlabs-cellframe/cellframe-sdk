@@ -182,11 +182,12 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 /*
  * 23: added support for encryption key type parameter and option to encrypt headers
+ * 24: Update hashes protocol
 */
-#define DAP_PROTOCOL_VERSION          23
-#define DAP_PROTOCOL_VERSION_DEFAULT  22 // used if version is not explicitly specified
+#define DAP_PROTOCOL_VERSION          24
+#define DAP_PROTOCOL_VERSION_DEFAULT  24 // used if version is not explicitly specified
 
-#define DAP_CLIENT_PROTOCOL_VERSION   23
+#define DAP_CLIENT_PROTOCOL_VERSION   24
 
 #if __SIZEOF_LONG__==8
 #define DAP_UINT64_FORMAT_X  "lX"
@@ -396,6 +397,23 @@ DAP_STATIC_INLINE void DAP_AtomicLock( dap_spinlock_t *lock )
 DAP_STATIC_INLINE void DAP_AtomicUnlock( dap_spinlock_t *lock )
 {
     __sync_lock_release( lock );
+}
+
+DAP_INLINE void dap_uint_to_hex(char *arr, uint64_t val, short size) {
+    short i = 0;
+    for (i = 0; i < size; ++i) {
+        arr[i] = (char)(((uint64_t) val >> (8 * (size - 1 - i))) & 0xFFu);
+    }
+}
+
+DAP_INLINE uint64_t dap_hex_to_uint(const char *arr, short size) {
+    uint64_t val = 0;
+    short i = 0;
+    for (i = 0; i < size; ++i){
+        uint8_t byte = (uint8_t) *arr++;
+        val = (val << 8) | (byte & 0xFFu);
+    }
+    return val;
 }
 
 extern char *g_sys_dir_path;

@@ -101,13 +101,13 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 
     if(strcmp(cl_st->http_client->url_path,"gd4y5yh78w42aaagh") == 0 ) {
         dap_enc_key_type_t l_pkey_exchange_type =DAP_ENC_KEY_TYPE_MSRLN ;
-        dap_enc_key_type_t l_enc_type = DAP_ENC_KEY_TYPE_IAES;
+        dap_enc_key_type_t l_enc_block_type = DAP_ENC_KEY_TYPE_IAES;
         size_t l_pkey_exchange_size=MSRLN_PKA_BYTES;
-        size_t l_block_key_size=DAP_ENC_KS_KEY_ID_SIZE;
+        size_t l_block_key_size=32;
         sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd,block_key_size=%zd",
-                                      &l_enc_type,&l_pkey_exchange_type,&l_pkey_exchange_size,&l_block_key_size);
+                                      &l_enc_block_type,&l_pkey_exchange_type,&l_pkey_exchange_size,&l_block_key_size);
 
-        log_it(L_DEBUG, "Stream encryption: %s\t public key exchange: %s",dap_enc_get_type_name(l_enc_type),
+        log_it(L_DEBUG, "Stream encryption: %s\t public key exchange: %s",dap_enc_get_type_name(l_enc_block_type),
                dap_enc_get_type_name(l_pkey_exchange_type));
         uint8_t alice_msg[cl_st->request_size];
         size_t l_decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
@@ -135,6 +135,11 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         }
 
         dap_enc_key_t* l_pkey_exchange_key = dap_enc_key_new(l_pkey_exchange_type);
+        if(! l_pkey_exchange_key){
+            log_it(L_WARNING, "Wrong http_enc request. Can't init PKey exchange with type %s", dap_enc_get_type_name(l_pkey_exchange_type) );
+            *return_code = Http_Status_BadRequest;
+            return;
+        }
         l_pkey_exchange_key->gen_bob_shared_key(l_pkey_exchange_key, alice_msg, l_pkey_exchange_size, (void**)&l_pkey_exchange_key->pub_key_data);
 
         dap_enc_ks_key_t * l_enc_key_ks = dap_enc_ks_new();
@@ -148,15 +153,15 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         size_t encrypt_msg_size = dap_enc_base64_encode(l_pkey_exchange_key->pub_key_data, l_pkey_exchange_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);
         encrypt_msg[encrypt_msg_size] = '\0';
 
-        l_enc_key_ks->key = dap_enc_key_new_generate(l_enc_type,
+        l_enc_key_ks->key = dap_enc_key_new_generate(l_enc_block_type,
                                                l_pkey_exchange_key->priv_key_data, // shared key
                                                l_pkey_exchange_key->priv_key_data_size,
-                                               l_enc_key_ks->id, l_block_key_size, 0);
+                                               l_enc_key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, l_block_key_size);
         dap_enc_ks_save_in_storage(l_enc_key_ks);
 
-        char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(l_block_key_size) + 1];
+        char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1];
 
-        size_t encrypt_id_size = dap_enc_base64_encode(l_enc_key_ks->id, l_block_key_size, encrypt_id, DAP_ENC_DATA_TYPE_B64);
+        size_t encrypt_id_size = dap_enc_base64_encode(l_enc_key_ks->id, sizeof (l_enc_key_ks->id), encrypt_id, DAP_ENC_DATA_TYPE_B64);
         encrypt_id[encrypt_id_size] = '\0';
 
         _enc_http_write_reply(cl_st, encrypt_id, encrypt_msg);

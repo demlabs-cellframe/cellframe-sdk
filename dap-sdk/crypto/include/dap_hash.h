@@ -37,6 +37,8 @@
 #define DAP_HASH_FAST_SIZE  32
 #define DAP_CHAIN_HASH_FAST_SIZE    32
 
+#define DAP_CHAIN_HASH_MAX_SIZE 63
+
 typedef enum dap_hash_type {
     DAP_HASH_TYPE_KECCAK = 0,
     DAP_HASH_TYPE_SLOW_0 = 1,
@@ -44,7 +46,7 @@ typedef enum dap_hash_type {
 
 typedef union dap_chain_hash_fast{
     uint8_t raw[DAP_CHAIN_HASH_FAST_SIZE];
-} dap_chain_hash_fast_t;
+} DAP_ALIGN_PACKED dap_chain_hash_fast_t;
 typedef dap_chain_hash_fast_t dap_hash_fast_t;
 
 #ifdef __cplusplus

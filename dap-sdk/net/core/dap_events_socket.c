@@ -28,16 +28,24 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+
 #ifndef _WIN32
 #include <sys/epoll.h>
+#include <sys/types.h>
 #include <sys/select.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+
+
 #else
 #include <winsock2.h>
 #include <windows.h>
 #include <mswsock.h>
 #include <io.h>
 #endif
+
+
 
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
@@ -139,7 +147,8 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     l_ret->socket = a_sock;
     l_ret->events = a_events;
     l_ret->uuid = dap_uuid_generate_uint128();
-    memcpy(&l_ret->callbacks, a_callbacks, sizeof(l_ret->callbacks) );
+    if (a_callbacks)
+        memcpy(&l_ret->callbacks, a_callbacks, sizeof(l_ret->callbacks) );
     l_ret->flags = DAP_SOCK_READY_TO_READ;
 
     l_ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
@@ -294,6 +303,55 @@ dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, 
     dap_events_socket_t * l_es = s_create_type_pipe(a_w, a_callback, a_flags);
     dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
+}
+
+/**
+ * @brief dap_events_socket_create
+ * @param a_type
+ * @param a_callbacks
+ * @return
+ */
+dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, dap_events_socket_callbacks_t* a_callbacks)
+{
+    int l_sock_type = SOCK_STREAM;
+    int l_sock_class = AF_INET;
+
+    switch(a_type){
+        case DESCRIPTOR_TYPE_SOCKET_CLIENT:
+        break;
+        case DESCRIPTOR_TYPE_SOCKET_UDP :
+            l_sock_type = SOCK_DGRAM;
+        break;
+        case DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING:
+#ifdef DAP_OS_UNIX
+            l_sock_class = AF_LOCAL;
+#elif DAP_OS_WIDNOWS
+#endif
+        break;
+        default:
+            log_it(L_CRITICAL,"Can't create socket type %d", a_type );
+            return NULL;
+    }
+
+#ifdef WIN32
+    SOCKET l_sock;
+#else
+    int l_sock;
+#endif
+    l_sock = socket(l_sock_class, l_sock_type | SOCK_NONBLOCK , 0);
+    if (l_sock == INVALID_SOCKET) {
+        log_it(L_ERROR, "Socket create error");
+        return NULL;
+    }
+
+    dap_events_socket_t * l_es =dap_events_socket_wrap_no_add(dap_events_get_default(),l_sock,a_callbacks);
+    if(!l_es){
+        log_it(L_CRITICAL,"Can't allocate memory for the new esocket");
+        return NULL;
+    }
+    l_es->type = a_type ;
+
+    return l_es;
 }
 
 /**
@@ -1290,14 +1348,14 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
         a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
 #ifdef DAP_OS_WINDOWS
         if (a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-            a_esocket->flags |= EPOLLONESHOT;
+            a_esocket->ev_base_flags |= EPOLLONESHOT;
 #endif
     }
     else {
         a_esocket->flags ^= DAP_SOCK_READY_TO_WRITE;
 #ifdef DAP_OS_WINDOWS
         if (a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-            a_esocket->flags ^= EPOLLONESHOT;
+            a_esocket->ev_base_flags ^= EPOLLONESHOT;
 #endif
 	}
     if( a_esocket->worker )
@@ -1354,9 +1412,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->_pvt)
     DAP_DEL_Z(a_esocket->buf_in)
     DAP_DEL_Z(a_esocket->buf_out)
-    if (a_esocket->type == DESCRIPTOR_TYPE_SOCKET) {
-        DAP_DEL_Z(a_esocket->remote_addr_str)
-    }
+    DAP_DEL_Z(a_esocket->remote_addr_str)
 #ifdef DAP_OS_WINDOWS
     if ( a_esocket->socket && (a_esocket->socket != INVALID_SOCKET)) {
         closesocket( a_esocket->socket );

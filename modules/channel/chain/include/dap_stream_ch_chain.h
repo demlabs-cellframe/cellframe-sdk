@@ -1,19 +1,19 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2018
+ * DeM Labs Ltd   https://demlabs.net
+ * CellFrame SDK https://gitlab.demlabs.net/cellframe/cellframe-sdk
+ * Copyright  (c) 2020
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DapChain SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DapChain SDK is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
+    DapChain SDK is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -29,6 +29,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain.h"
 #include "dap_chain_global_db_hist.h"
+#include "dap_chain_node_client.h"
 #include "dap_list.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
@@ -52,13 +53,24 @@ typedef struct dap_chain_pkt_item {
     byte_t *pkt_data;
 } dap_chain_pkt_item_t;
 
+typedef struct dap_stream_ch_chain_hash_item{
+    dap_hash_fast_t hash;
+    uint32_t size;
+    UT_hash_handle hh;
+} dap_stream_ch_chain_hash_item_t;
+
+
 typedef struct dap_stream_ch_chain {
     dap_stream_ch_t * ch;
 
-
     dap_stream_ch_chain_state_t state;
+    dap_chain_node_client_t * node_client; // Node client associated with stream
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
+
+
+    dap_stream_ch_chain_hash_item_t * remote_atoms; // Remote atoms
+    dap_stream_ch_chain_hash_item_t * remote_gdbs; // Remote gdbs
 
     // request section
     dap_chain_atom_iter_t *request_atom_iter;
@@ -67,7 +79,10 @@ typedef struct dap_stream_ch_chain {
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;
 
-    atomic_bool is_on_request; // Protects request section
+    bool request_updates_complete;
+
+    bool is_on_request; // Protects request section
+    bool is_on_reverse_request;
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
@@ -82,3 +97,4 @@ void dap_stream_ch_chain_deinit(void);
 
 inline static uint8_t dap_stream_ch_chain_get_id(void) { return (uint8_t) 'C'; }
 void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain);
+void dap_stream_ch_chain_create_sync_request_gdb(dap_stream_ch_chain_t * a_ch_chain, dap_chain_net_t * a_net);

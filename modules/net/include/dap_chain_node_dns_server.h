@@ -1,25 +1,26 @@
 /*
  * Authors:
  * Roman Khlopkov <roman.khlopkov@demlabs.net>
- * DeM Labs Inc.   https://demlabs.net
+ * Dmitriy Gerasimov <dmitriy.gerasmiov@demlabs.net>
+ * DeM Labs Ltd   https://demlabs.net
  * DeM Labs Open source community https://gitlab.demlabs.net
- * Copyright  (c) 2017-2020
+ * Copyright  (c) 2021
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DapChain SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+    DapChain SDK is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
+    DapChain SDK is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+    along with any DapChain SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #pragma once
@@ -28,10 +29,9 @@
 #include <pthread.h>
 #endif
 #include "dap_server.h"
-#include "uthash.h"
 #include "dap_chain_node.h"
+#include "uthash.h"
 
-#define DNS_LISTEN_PORT 53      // UDP
 #define DNS_TIME_TO_LIVE 600    // Seconds
 #define DNS_HEADER_SIZE 12
 #define DNS_ANSWER_SIZE 16
@@ -96,17 +96,13 @@ typedef struct _dap_dns_message_flags_bits_t {
     int qr : 1;             // 0 - query, 1 - response
 } dap_dns_message_flags_bits_t;
 
-typedef dap_chain_node_info_t *(*dap_dns_zone_callback_t) (char *hostname); // Callback for DNS zone operations
 
 typedef union _dap_dns_message_flags_t {
     dap_dns_message_flags_bits_t flags;
     int val;
 } dap_dns_message_flags_t;
 
-typedef struct _dap_dns_buf_t {
-    char *data;
-    uint32_t ptr;
-} dap_dns_buf_t;
+typedef dap_chain_node_info_t *(*dap_dns_zone_callback_t) (char *hostname); // Callback for DNS zone operations
 
 typedef struct _dap_dns_zone_hash_t {
     char *zone;
@@ -119,8 +115,10 @@ typedef struct _dap_dns_server_t {
     dap_dns_zone_hash_t *hash_table;
 } dap_dns_server_t;
 
+
+
 void dap_dns_server_start(dap_events_t *a_ev, uint16_t a_port);
 void dap_dns_server_stop();
 int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback);
 int dap_dns_zone_unregister(char *zone);
-int dap_dns_client_get_addr(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result);
+

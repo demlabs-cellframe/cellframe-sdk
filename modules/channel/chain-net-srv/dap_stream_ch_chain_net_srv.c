@@ -26,6 +26,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
+#include "dap_timerfd.h"
 
 #include "dap_chain.h"
 #include "dap_chain_datum_tx.h"

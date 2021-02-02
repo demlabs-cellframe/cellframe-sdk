@@ -23,6 +23,7 @@
 #include "dap_http_client.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
+#include "dap_client_http.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_worker.h"
 
@@ -43,6 +44,7 @@ int dap_client_init()
     if (s_is_first_time ){
         log_it(L_INFO, "Init DAP client module");
         dap_http_client_init();
+        dap_client_http_init();
         dap_client_pvt_init();
         s_is_first_time = false;
     }
@@ -591,4 +593,35 @@ const char * dap_client_get_stream_id(dap_client_t * a_client)
     if(!(a_client || !DAP_CLIENT_PVT(a_client)))
         return NULL;
     return DAP_CLIENT_PVT(a_client)->stream_id;
+}
+
+/**
+ * @brief dap_client_get_is_always_reconnect
+ * @param a_client
+ * @return
+ */
+bool dap_client_get_is_always_reconnect(dap_client_t * a_client)
+{
+    return DAP_CLIENT_PVT(a_client)->is_always_reconnect;
+}
+
+/**
+ * @brief dap_client_set_is_always_reconnect
+ * @param a_client
+ * @param a_value
+ */
+void dap_client_set_is_always_reconnect(dap_client_t * a_client, bool a_value)
+{
+    DAP_CLIENT_PVT(a_client)->is_always_reconnect = a_value;
+}
+
+/**
+ * @brief dap_client_from_esocket
+ * @param a_esocket
+ * @return
+ */
+dap_client_t * dap_client_from_esocket(dap_events_socket_t * a_esocket)
+{
+   dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_esocket->_inheritor;
+   return l_client_pvt?l_client_pvt->client: NULL;
 }

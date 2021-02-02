@@ -326,5 +326,4 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
  */
 void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 {
-    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
 }

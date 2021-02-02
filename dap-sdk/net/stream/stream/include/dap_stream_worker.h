@@ -22,6 +22,7 @@
 */
 #pragma once
 #include "dap_worker.h"
+#include "dap_proc_thread.h"
 #include "dap_stream_ch.h"
 
 typedef struct dap_stream_worker {
@@ -43,3 +44,8 @@ typedef struct dap_stream_worker_msg_io {
 } dap_stream_worker_msg_io_t;
 
 int dap_stream_worker_init();
+
+size_t dap_proc_thread_stream_ch_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker, dap_stream_ch_t *a_ch,
+                                        uint8_t a_type,const void * a_data, size_t a_data_size);
+size_t dap_proc_thread_stream_ch_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_stream_ch_t *a_ch,
+                                        uint8_t a_type,const char * a_format,...);

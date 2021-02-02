@@ -147,3 +147,10 @@ static inline size_t dap_chain_datum_size(dap_chain_datum_t * a_datum)
 
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
 
+
+static inline const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
+{
+    const char * l_ret;
+    DAP_DATUM_TYPE_STR(a_type_id,l_ret);
+    return l_ret;
+}

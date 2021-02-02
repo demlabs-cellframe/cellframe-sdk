@@ -81,6 +81,13 @@
 #endif
 #include "dap_chain_cell.h"
 
+
+#include "dap_enc_base64.h"
+#include <json-c/json.h>
+#ifdef DAP_OS_UNIX
+#include <dirent.h>
+#endif
+
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
@@ -94,8 +101,10 @@
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net_pkt.h"
+#include "dap_enc_base64.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
+
 
 /**
  * Find in base addr by alias
@@ -994,7 +1003,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 return -1;
             }
             // start connect
-            l_node_client = dap_chain_node_client_connect(l_remote_node_info);
+            l_node_client = dap_chain_node_client_connect(l_net,l_remote_node_info);
             if(!l_node_client) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "can't connect");
                 DAP_DELETE(l_remote_node_info);
@@ -1002,7 +1011,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             }
             // wait connected
             int timeout_ms = 7000; // 7 sec = 7000 ms
-            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
             // select new node addr
             if(l_is_auto && res){
                 if(l_remote_node_addr && l_nodes_count>1){
@@ -1128,7 +1137,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         //memcpy(&l_s_ch_chain->request, &l_sync_request, sizeof(l_sync_request));
 
         if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
-                l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
+                l_net->pub.id.uint64, 0, 0, &l_sync_request,
                 sizeof(l_sync_request))) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
             // clean client struct
@@ -1168,7 +1177,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
                 DAP_DELETE(l_hash);
             }
             if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
-                    l_net->pub.id, l_chain->id, l_remote_node_info->hdr.cell_id, &l_sync_request,
+                    l_net->pub.id.uint64, l_chain->id.uint64, l_remote_node_info->hdr.cell_id.uint64, &l_sync_request,
                     sizeof(l_sync_request))) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
                 // clean client struct
@@ -1221,14 +1230,14 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
             return -6;
         int timeout_ms = 5000; //5 sec = 5000 ms
         // start handshake
-        dap_chain_node_client_t *client = dap_chain_node_client_connect(node_info);
+        dap_chain_node_client_t *client = dap_chain_node_client_connect(l_net,node_info);
         if(!client) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "can't connect");
             DAP_DELETE(node_info);
             return -7;
         }
         // wait handshake
-        int res = dap_chain_node_client_wait(client, NODE_CLIENT_STATE_CONNECTED, timeout_ms);
+        int res = dap_chain_node_client_wait(client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
         if(res != 1) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "no response from node");
             // clean client struct
@@ -2457,10 +2466,10 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
                          l_str_flags++;
                      }
                      // Add flags as set_flags TDS section
-                     dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                     dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                              DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS, l_flags);
                      dap_list_append( l_tsd_list, l_tsd);
-                     l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                     l_tsd_total_size+= dap_tsd_size( l_tsd);
 
                 }else if ( strcmp( a_argv[l_arg_index],"-flags_unset" )==0){   // Flags
                     char ** l_str_flags = NULL;
@@ -2476,10 +2485,10 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
                         l_str_flags++;
                     }
                     // Add flags as unset_flags TDS section
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS, l_flags);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
 
                }else if ( strcmp( a_argv[l_arg_index],"-signs" )==0){
                     dap_cert_parse_str_list(l_arg_param, &l_certs, &l_certs_count);
@@ -2490,77 +2499,77 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
                     }
                 } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
                     uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
                     uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
                     l_signs_total = l_param_value;
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_allowed_add" )==0){ // Datum type allowed add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_allowed_remove" )==0){ // Datum type allowed remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_blocked_add" )==0){ // Datum type blocked add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_blocked_remove" )==0){ // Datum type blocked remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed_add" )==0){ // TX Receiver add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed_remove" )==0){ // TX Receiver remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked_add" )==0){ // TX Receiver blocked add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked_remove" )==0){ // TX Receiver blocked remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_allowed_add" )==0){ // TX Sender allowed add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_allowed_remove" )==0){ // TX Sender allowed remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_blocked_add" )==0){  // TX Sender blocked add
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_blocked_remove" )==0){  // TX Sender blocked remove
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Unknown param \"%s\"",a_argv[l_arg_index]);
                     return -20;
@@ -2595,8 +2604,8 @@ int com_token_update(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-                dap_chain_datum_token_tsd_t * l_tsd = (dap_chain_datum_token_tsd_t *) l_iter->data;
-                size_t l_tsd_size = dap_chain_datum_token_tsd_size( l_tsd);
+                dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
+                size_t l_tsd_size = dap_tsd_size( l_tsd);
                 memcpy(l_datum_token_update->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
                 l_datum_data_offset += l_tsd_size;
             }
@@ -2788,17 +2797,17 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                      }
                 } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
                     uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
                     uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
                     l_signs_total = l_param_value;
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_scalar(
+                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-signs" )==0){
                     dap_cert_parse_str_list(l_arg_param, &l_certs, &l_certs_count);
                     if(!l_certs_count) {
@@ -2807,35 +2816,35 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                         return -10;
                     }
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_allowed" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-datum_type_blocked" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_allowed" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_blocked" )==0){
-                    dap_chain_datum_token_tsd_t * l_tsd = dap_chain_datum_token_tsd_create_string(
+                    dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD, l_arg_param);
                     dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_chain_datum_token_tsd_size( l_tsd);
+                    l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Unknown param \"%s\"",a_argv[l_arg_index]);
                     return -20;
@@ -2873,45 +2882,45 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-                dap_chain_datum_token_tsd_t * l_tsd = (dap_chain_datum_token_tsd_t *) l_iter->data;
+                dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
                 if (l_tsd == NULL){
                     log_it(L_ERROR, "NULL tsd in list!");
                     continue;
                 }
                 switch (l_tsd->type){
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: {
-                        char *l_balance = dap_chain_balance_print(dap_chain_datum_token_tsd_get_scalar(l_tsd, uint128_t));
+                        char *l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint128_t));
                         log_it(L_DEBUG,"== TOTAL_SUPPLY: %s", l_balance);
                         DAP_DELETE(l_balance);
                     }
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
                         log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
-                                dap_chain_datum_token_tsd_get_scalar(l_tsd,uint16_t) );
+                                dap_tsd_get_scalar(l_tsd,uint16_t) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
                         log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
-                               dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                               dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
                         log_it(L_DEBUG,"== TX_SENDER_ALLOWED_ADD: %s",
-                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
                         log_it(L_DEBUG,"== TX_SENDER_BLOCKED_ADD: %s",
-                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
                         log_it(L_DEBUG,"== TX_RECEIVER_ALLOWED_ADD: %s",
-                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
                         log_it(L_DEBUG,"== TX_RECEIVER_BLOCKED_ADD: %s",
-                                dap_chain_datum_token_tsd_get_string_const(l_tsd) );
+                                dap_tsd_get_string_const(l_tsd) );
                     break;
                     default: log_it(L_DEBUG, "== 0x%04X: binary data %zd size ",l_tsd->type, l_tsd->size );
                 }
-                size_t l_tsd_size = dap_chain_datum_token_tsd_size( l_tsd);
+                size_t l_tsd_size = dap_tsd_size( l_tsd);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
                 l_datum_token->header_private_decl.tsd_total_size += l_tsd_size;
                 l_datum_data_offset += l_tsd_size;
@@ -4021,3 +4030,170 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
     return 0;
 }
 
+/**
+ * @brief cmd_gdb_export
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param a_str_reply
+ * @return
+ */
+int cmd_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply)
+{
+    int arg_index = 1;
+    const char *l_filename = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "filename", &l_filename);
+    if (!l_filename) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "gdb_export requires parameter 'filename'");
+        return -1;
+    }
+    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+
+    // NB! [TEMPFIX] Temporarily backward-compatible until migration to new databases locations (after updates)
+    const char *l_db_driver = dap_config_get_item_str(g_config, "resources", "dap_global_db_driver");
+    char l_db_concat[80];
+    dap_sprintf(l_db_concat, "%s/gdb-%s", l_db_path, l_db_driver);
+
+    struct dirent *d;
+    DIR *dir = opendir(l_db_concat);
+    if (!dir) {
+        // External "if" to check out old or new path.
+        log_it(L_WARNING, "Probably db directory is in old path. Checking out.");
+        dir = opendir(l_db_path);
+        if (!dir) {
+            log_it(L_ERROR, "Can't open db directory");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open db directory");
+            return -1;
+        }
+    }
+    char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
+    memset(l_path, '\0', sizeof(l_path));
+    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    /*FILE *l_json_file = fopen(l_path, "a");
+    if (!l_json_file) {
+        log_it(L_ERROR, "Can't open file %s", l_path);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open specified file");
+        return -1;
+    }*/
+    struct json_object *l_json = json_object_new_array();
+    for (d = readdir(dir); d; d = readdir(dir)) {
+        if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
+            continue;
+        }
+        size_t l_data_size = 0;
+        pdap_store_obj_t l_data = dap_chain_global_db_obj_gr_get(NULL, &l_data_size, d->d_name);
+        log_it(L_INFO, "Exporting group %s, number of records: %d", d->d_name, l_data_size);
+        if (!l_data_size) {
+            continue;
+        }
+
+        struct json_object *l_json_group = json_object_new_array();
+        struct json_object *l_json_group_inner = json_object_new_object();
+        json_object_object_add(l_json_group_inner, "group", json_object_new_string(d->d_name));
+
+        for (size_t i = 0; i < l_data_size; ++i) {
+            size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len) + 1;
+            char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
+            size_t l_enc_size = dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
+
+            struct json_object *jobj = json_object_new_object();
+            json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_data[i].id));
+            json_object_object_add(jobj, "key",     json_object_new_string(l_data[i].key));
+            json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
+            json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_data[i].value_len));
+            json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_data[i].timestamp));
+            json_object_array_add(l_json_group, jobj);
+
+            DAP_FREE(l_value_enc_str);
+        }
+        json_object_object_add(l_json_group_inner, "records", l_json_group);
+        json_object_array_add(l_json, l_json_group_inner);
+        dap_store_obj_free(l_data, l_data_size);
+    }
+    if (json_object_to_file(l_path, l_json) == -1) {
+#if JSON_C_MINOR_VERSION<15
+        log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );
+        dap_chain_node_cli_set_reply_text (a_str_reply, "Couldn't export JSON to file, error code %d", errno );
+#else
+        log_it(L_CRITICAL, "Couldn't export JSON to file, err '%s'", json_util_get_last_err());
+        dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+#endif
+         json_object_put(l_json);
+         return -1;
+    }
+    json_object_put(l_json);
+    return 0;
+}
+
+/**
+ * @brief cmd_gdb_import
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param a_str_reply
+ * @return
+ */
+int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply)
+{
+    int arg_index = 1;
+    const char *l_filename = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "filename", &l_filename);
+    if (!l_filename) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "gdb_import requires parameter 'filename'");
+        return -1;
+    }
+    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
+    memset(l_path, '\0', sizeof(l_path));
+    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    struct json_object *l_json = json_object_from_file(l_path);
+    if (!l_json) {
+#if JSON_C_MINOR_VERSION<15
+        log_it(L_CRITICAL, "Import error occured: code %d", errno);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Import error occured: code %d",errno);
+#else
+        log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
+        dap_chain_node_cli_set_reply_text(a_str_reply, json_util_get_last_err());
+#endif
+        return -1;
+    }
+    for (size_t i = 0, l_groups_count = json_object_array_length(l_json); i < l_groups_count; ++i) {
+        struct json_object *l_group_obj = json_object_array_get_idx(l_json, i);
+        if (!l_group_obj) {
+            continue;
+        }
+        struct json_object *l_json_group_name = json_object_object_get(l_group_obj, "group");
+        const char *l_group_name = json_object_get_string(l_json_group_name);
+        // proc group name
+        log_it(L_INFO, "Group %d: %s", i, l_group_name);
+        struct json_object *l_json_records = json_object_object_get(l_group_obj, "records");
+        size_t l_records_count = json_object_array_length(l_json_records);
+        pdap_store_obj_t l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
+        for (size_t j = 0; j < l_records_count; ++j) {
+            struct json_object *l_record, *l_id, *l_key, *l_value, *l_value_len, *l_ts;
+            l_record = json_object_array_get_idx(l_json_records, j);
+            l_id        = json_object_object_get(l_record, "id");
+            l_key       = json_object_object_get(l_record, "key");
+            l_value     = json_object_object_get(l_record, "value");
+            l_value_len = json_object_object_get(l_record, "value_len");
+            l_ts        = json_object_object_get(l_record, "timestamp");
+            //
+            l_group_store[j].id     = (uint64_t)json_object_get_int64(l_id);
+            l_group_store[j].key    = dap_strdup(json_object_get_string(l_key));
+            l_group_store[j].group  = dap_strdup(l_group_name);
+            l_group_store[j].timestamp = json_object_get_int64(l_ts);
+            l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
+            l_group_store[j].type   = 'a';
+            const char *l_value_str = json_object_get_string(l_value);
+            char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
+            size_t l_dec_size = dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
+            l_group_store[j].value  = (uint8_t*)l_val;
+        }
+        if (dap_chain_global_db_driver_appy(l_group_store, l_records_count)) {
+            log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
+        }
+        dap_store_obj_free(l_group_store, l_records_count);
+    }
+    json_object_put(l_json);
+    return 0;
+}
