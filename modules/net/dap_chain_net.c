@@ -1412,12 +1412,13 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
+        dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
         if(!l_net) {
             log_it(L_ERROR,"Can't create l_net");
             return -1;
         }
-        PVT(l_net)->load_mode = true;
-        PVT(l_net)->acl_idx = a_acl_idx;
+        l_net_pvt->load_mode = true;
+        l_net_pvt->acl_idx = a_acl_idx;
         l_net->pub.gdb_groups_prefix = dap_strdup (
                     dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix",
                                                     dap_config_get_item_str(l_cfg , "general" , "name" ) ) );
@@ -1429,30 +1430,30 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
         // for sync special groups - nodes
         char **l_gdb_sync_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "gdb_sync_nodes_addrs",
-                &PVT(l_net)->gdb_sync_nodes_addrs_count);
-        if(l_gdb_sync_nodes_addrs && PVT(l_net)->gdb_sync_nodes_addrs_count > 0) {
-            PVT(l_net)->gdb_sync_nodes_addrs = (dap_chain_node_addr_t*) DAP_NEW_Z_SIZE(char**,
-                    sizeof(dap_chain_node_addr_t)*PVT(l_net)->gdb_sync_nodes_addrs_count);
-            for(uint16_t i = 0; i < PVT(l_net)->gdb_sync_nodes_addrs_count; i++) {
-                dap_chain_node_addr_from_str(PVT(l_net)->gdb_sync_nodes_addrs + i, l_gdb_sync_nodes_addrs[i]);
+                &l_net_pvt->gdb_sync_nodes_addrs_count);
+        if(l_gdb_sync_nodes_addrs && l_net_pvt->gdb_sync_nodes_addrs_count > 0) {
+            l_net_pvt->gdb_sync_nodes_addrs = (dap_chain_node_addr_t*) DAP_NEW_Z_SIZE(char**,
+                    sizeof(dap_chain_node_addr_t)*l_net_pvt->gdb_sync_nodes_addrs_count);
+            for(uint16_t i = 0; i < l_net_pvt->gdb_sync_nodes_addrs_count; i++) {
+                dap_chain_node_addr_from_str(l_net_pvt->gdb_sync_nodes_addrs + i, l_gdb_sync_nodes_addrs[i]);
             }
         }
         // for sync special groups - groups
-        char **l_gdb_sync_groups = dap_config_get_array_str(l_cfg, "general", "gdb_sync_groups", &PVT(l_net)->gdb_sync_groups_count);
-        if(l_gdb_sync_groups && PVT(l_net)->gdb_sync_groups_count > 0) {
-            PVT(l_net)->gdb_sync_groups = (char **) DAP_NEW_SIZE(char**, sizeof(char*)*PVT(l_net)->gdb_sync_groups_count);
-            for(uint16_t i = 0; i < PVT(l_net)->gdb_sync_groups_count; i++) {
-                PVT(l_net)->gdb_sync_groups[i] = dap_strdup(l_gdb_sync_groups[i]);
+        char **l_gdb_sync_groups = dap_config_get_array_str(l_cfg, "general", "gdb_sync_groups", &l_net_pvt->gdb_sync_groups_count);
+        if(l_gdb_sync_groups && l_net_pvt->gdb_sync_groups_count > 0) {
+            l_net_pvt->gdb_sync_groups = (char **) DAP_NEW_SIZE(char**, sizeof(char*)*l_net_pvt->gdb_sync_groups_count);
+            for(uint16_t i = 0; i < l_net_pvt->gdb_sync_groups_count; i++) {
+                l_net_pvt->gdb_sync_groups[i] = dap_strdup(l_gdb_sync_groups[i]);
                 // added group to history log
-                dap_list_t *l_groups0 = dap_chain_global_db_driver_get_groups_by_mask(PVT(l_net)->gdb_sync_groups[i]);
+                dap_list_t *l_groups0 = dap_chain_global_db_driver_get_groups_by_mask(l_net_pvt->gdb_sync_groups[i]);
                 dap_list_t *l_groups = l_groups0;
                 while(l_groups) {
                     char *l_group_name = l_groups->data;
                     // do not use groups with names like *.del
                     if(dap_fnmatch("*.del", l_group_name, 0)) {
                         const char *l_history_group = dap_chain_global_db_add_history_extra_group(l_group_name,
-                                                        PVT(l_net)->gdb_sync_nodes_addrs,
-                                                        &PVT(l_net)->gdb_sync_nodes_addrs_count);
+                                                        l_net_pvt->gdb_sync_nodes_addrs,
+                                                        &l_net_pvt->gdb_sync_nodes_addrs_count);
                         dap_chain_global_db_add_history_extra_group_callback_notify(l_group_name,
                                 s_gbd_history_callback_notify, l_net);
                         // create history for group
@@ -1503,11 +1504,11 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name);
         // Check if seed nodes are present in local db alias
         char **l_seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
-                                                             ,&PVT(l_net)->seed_aliases_count);
-        PVT(l_net)->seed_aliases = PVT(l_net)->seed_aliases_count>0 ?
+                                                             ,&l_net_pvt->seed_aliases_count);
+        l_net_pvt->seed_aliases = l_net_pvt->seed_aliases_count>0 ?
                                    (char **)DAP_NEW_SIZE(char**, sizeof(char*)*PVT(l_net)->seed_aliases_count) : NULL;
         for(size_t i = 0; i < PVT(l_net)->seed_aliases_count; i++) {
-            PVT(l_net)->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
+            l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
         }
 
         uint16_t l_seed_nodes_addrs_len =0;
@@ -1590,7 +1591,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
 
         log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
-                PVT(l_net)->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
+                l_net_pvt->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
         // save new nodes from cfg file to db
         for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
                             i < l_seed_nodes_addrs_len &&
@@ -1601,9 +1602,9 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                               )
                                                                     ; i++ ){
             dap_chain_node_addr_t * l_seed_node_addr;
-            l_seed_node_addr = dap_chain_node_alias_find(l_net, PVT(l_net)->seed_aliases[i] );
+            l_seed_node_addr = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i] );
             //if (l_seed_node_addr == NULL){
-                log_it(L_NOTICE, "Update alias %s in database, prefill it",PVT(l_net)->seed_aliases[i]);
+                log_it(L_NOTICE, "Update alias %s in database, prefill it",l_net_pvt->seed_aliases[i]);
                 dap_chain_node_info_t * l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                 l_seed_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 dap_snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
@@ -1650,7 +1651,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             l_node_info->hdr.ext_addr_v6.s6_addr32[0] ){
                         int l_ret;
                         if ( (l_ret = dap_chain_node_info_save(l_net, l_node_info)) ==0 ){
-                            if (dap_chain_node_alias_register(l_net,PVT(l_net)->seed_aliases[i],l_seed_node_addr))
+                            if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i],l_seed_node_addr))
                                 log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list",NODE_ADDR_FP_ARGS(l_seed_node_addr) );
                             else {
                                 log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS(l_seed_node_addr));
@@ -1717,8 +1718,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 }
                 if(l_node_addr)
                     log_it(L_NOTICE, "Parse node addr " NODE_ADDR_FP_STR " successfully", NODE_ADDR_FP_ARGS(l_node_addr));
-                PVT(l_net)->node_addr = l_node_addr;
-                //}
+                l_net_pvt->node_addr = l_node_addr;
+
             }
             if ( l_node_addr ) {
                 char *l_addr_hash_str = dap_chain_node_addr_to_hash_str(l_node_addr);
@@ -1727,11 +1728,27 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if(!l_addr_hash_str){
                     log_it(L_ERROR,"Can't get hash string for node address!");
                 } else {
-                    PVT(l_net)->node_info = dap_chain_node_info_read (l_net, l_node_addr);
-                    if ( !PVT(l_net)->node_info ) { // If not present - create it
-                        PVT(l_net)->node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                        memcpy(&PVT(l_net)->node_info->hdr.address, l_node_addr,sizeof (*l_node_addr));
-                        dap_chain_node_info_save(l_net,PVT(l_net)->node_info);
+                    l_net_pvt->node_info = dap_chain_node_info_read (l_net, l_node_addr);
+                    if ( !l_net_pvt->node_info ) { // If not present - create it
+                        l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                        memcpy(&l_net_pvt->node_info->hdr.address, l_node_addr,sizeof (*l_node_addr));
+                        if (dap_config_get_item_bool_default(g_config,"server","enabled",false) ){
+                            const char * l_ext_addr_v4 = dap_config_get_item_str_default(g_config,"server","ext_address",NULL);
+                            const char * l_ext_addr_v6 = dap_config_get_item_str_default(g_config,"server","ext_address6",NULL);
+                            uint16_t l_ext_port = dap_config_get_item_uint16_default(g_config,"server","ext_port_tcp",0);
+                            uint16_t l_node_info_port = l_ext_port? l_ext_port :
+                                                    dap_config_get_item_uint16_default(g_config,"server","listen_port_tcp",8089);
+                            if (l_ext_addr_v4)
+                                inet_pton(AF_INET,l_ext_addr_v4,&l_net_pvt->node_info->hdr.ext_addr_v4 );
+                            if (l_ext_addr_v6)
+                                inet_pton(AF_INET6,l_ext_addr_v6,&l_net_pvt->node_info->hdr.ext_addr_v6 );
+                            l_net_pvt->node_info->hdr.ext_port =l_node_info_port;
+                            log_it(L_INFO,"Server is enabled on %s:%u",l_ext_addr_v4?l_ext_addr_v4:"<none>",
+                                   l_node_info_port);
+                        }else
+                            log_it(L_INFO,"Server is disabled, add only node address in nodelist");
+
+                        dap_chain_node_info_save(l_net,l_net_pvt->node_info);
                     }
                     log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016X ",
                            NODE_ADDR_FP_ARGS(l_node_addr),
