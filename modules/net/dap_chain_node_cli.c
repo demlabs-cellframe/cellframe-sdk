@@ -66,7 +66,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_node_cli.h"
-
+#include "console_colors.h"
 //#include "dap_chain_node_cli.h"
 
 #define LOG_TAG "chain_node_cli"
@@ -831,7 +831,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     if ( !l_conserver_enabled ) {
 
-        log_it( L_WARNING, "Console Server is dissabled." );
+        log_it( L_WARNING, "Console Server is disabled." );
         return 0;
     }
 
@@ -844,20 +844,30 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     }
 #endif
 
-    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, NULL, "Work with global database",
-            "global_db cells add -cell <cell id> \n"
-            "global_db flush \n\n"
+    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, NULL, CONSOLE_DESCRIPTION("Work with global database"),
+            CONSOLE_SYNTAX("global_db cells add -cell <cell id> \n")
+		CONSOLE_DETAILS("Adds cell (what is cell?) to the global DB processment \n")"\n"
+            CONSOLE_SYNTAX("global_db flush \n")
+		CONSOLE_DETAILS("Immediately stores changes in global_db local instance \n")"\n"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
 
-    dap_chain_node_cli_cmd_item_create("node", com_node, NULL, "Work with node",
-            "node add  -net <net name> -addr {<node address> | -alias <node alias>} {-port <port>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
-                    "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
-                    "node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
-                    "node alias -addr <node address> -alias <node alias>\n\n"
-                    "node connect {<node address> | -alias <node alias> | auto}\n\n"
-                    "node handshake {<node address> | -alias <node alias>}\n"
-                    "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
+    dap_chain_node_cli_cmd_item_create("node", com_node, NULL, CONSOLE_DESCRIPTION("Work with node table"),
+            CONSOLE_SYNTAX("node add  -net <net name> -addr {<node address> | -alias <node alias>} {-port <port>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n")
+	    CONSOLE_DETAILS("Adds node to the node table \n")
+	    CONSOLE_EXAMPLE("Some sample example \n") "\n"
+            CONSOLE_SYNTAX("node del  -net <net name> -addr <node address> | -alias <node alias>\n")
+	    CONSOLE_DETAILS("Deletes node from the node table \n")"\n"
+            CONSOLE_SYNTAX("node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n")
+	    CONSOLE_DETAILS("Creates link for the node (?) \n")"\n"
+            CONSOLE_SYNTAX("node alias -addr <node address> -alias <node alias>\n")
+	    CONSOLE_DETAILS("Creates alias for a node to address to \n")"\n"
+            CONSOLE_SYNTAX("node connect {<node address> | -alias <node alias> | auto}\n")
+	    CONSOLE_DETAILS("Manually connects to node and syncs with \n")"\n"
+            CONSOLE_SYNTAX("node handshake {<node address> | -alias <node alias>}\n")
+	    CONSOLE_DETAILS("Checks if node is accessible (connection without syncing) \n")"\n"
+            CONSOLE_SYNTAX("node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n")
+	    CONSOLE_DETAILS("Shows table node entries \n")"\n"
                                         );
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, NULL, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
