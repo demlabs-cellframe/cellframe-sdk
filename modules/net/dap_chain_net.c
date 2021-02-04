@@ -1752,10 +1752,10 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     }
                     log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016X ",
                            NODE_ADDR_FP_ARGS(l_node_addr),
-                           PVT(l_net)->node_info->hdr.links_number,
-                           PVT(l_net)->node_info->hdr.cell_id.uint64);
+                           l_net_pvt->node_info->hdr.links_number,
+                           l_net_pvt->node_info->hdr.cell_id.uint64);
                     // save cell_id
-                    l_net->pub.cell_id.uint64 = PVT(l_net)->node_info->hdr.cell_id.uint64;
+                    l_net->pub.cell_id.uint64 = l_net_pvt->node_info->hdr.cell_id.uint64;
                 }
             }
             else{
@@ -1824,12 +1824,12 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
         } else {
             log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
-            PVT(l_net)->load_mode = false;
+            l_net_pvt->load_mode = false;
 
             return -2;
         }
         // Do specific role actions post-chain created
-        switch ( PVT( l_net )->node_role.enums ) {
+        switch ( l_net_pvt->node_role.enums ) {
             case NODE_ROLE_ROOT_MASTER:{
                 // Set to process everything in datum pool
                 dap_chain_t * l_chain = NULL;
@@ -1843,7 +1843,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if (l_chain )
                    l_chain->is_datum_pool_proc = true;
 
-                PVT(l_net)->state_target = NET_STATE_ONLINE;
+                l_net_pvt->state_target = NET_STATE_ONLINE;
                 log_it(L_INFO,"Root node role established");
             } break;
             case NODE_ROLE_CELL_MASTER:
@@ -1868,12 +1868,12 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 //    DAP_DELETE (l_proc_chains);
                 //l_proc_chains = NULL;
 
-                PVT(l_net)->state_target = NET_STATE_ONLINE;
+                l_net_pvt->state_target = NET_STATE_ONLINE;
                 log_it(L_INFO,"Master node role established");
             } break;
             case NODE_ROLE_FULL:{
                 log_it(L_INFO,"Full node role established");
-                PVT(l_net)->state_target = NET_STATE_ONLINE;
+                l_net_pvt->state_target = NET_STATE_ONLINE;
             } break;
             case NODE_ROLE_LIGHT:
             default:
@@ -1882,13 +1882,13 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
 
         if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
-            PVT(l_net)->state_target = NET_STATE_OFFLINE;
+            l_net_pvt->state_target = NET_STATE_OFFLINE;
         }else{
-            PVT(l_net)->state = NET_STATE_LINKS_PREPARE;
+            l_net_pvt->state = NET_STATE_LINKS_PREPARE;
         }
 
-        PVT(l_net)->load_mode = false;
-        PVT(l_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
+        l_net_pvt->load_mode = false;
+        l_net_pvt->flags |= F_DAP_CHAIN_NET_GO_SYNC;
 
         // Start the proc thread
         log_it(L_NOTICE, "Сhain network \"%s\" initialized",l_net_item->name);

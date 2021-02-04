@@ -563,8 +563,8 @@ static void * s_proc_thread_function(void * a_arg)
                                     break;
                                 }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-                                    volatile char * l_ptr = (char *) l_cur->buf_out;
-                                    volatile void *l_ptr_in;
+                                    char * l_ptr = (char *) l_cur->buf_out;
+                                    void *l_ptr_in;
                                     memcpy(&l_ptr_in,l_ptr, sizeof (l_ptr_in) );
 
                                     l_bytes_sent = mq_send(l_cur->mqd, l_ptr, sizeof (l_ptr),0);

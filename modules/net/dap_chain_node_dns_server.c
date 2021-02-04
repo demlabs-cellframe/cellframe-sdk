@@ -261,7 +261,7 @@ void dap_dns_server_start(dap_events_t *a_ev, uint16_t a_port)
     s_dns_server = DAP_NEW_Z(dap_dns_server_t);
     dap_events_socket_callbacks_t l_cb = {};
     l_cb.read_callback = dap_dns_client_read;
-    s_dns_server->instance = dap_server_new(a_ev, NULL, a_port, DAP_SERVER_UDP, &l_cb);
+    s_dns_server->instance = dap_server_new(a_ev, NULL, a_port, SERVER_UDP, &l_cb);
     if (!s_dns_server->instance) {
         log_it(L_ERROR, "Can't start DNS server");
         return;
