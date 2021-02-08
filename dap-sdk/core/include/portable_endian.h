@@ -50,14 +50,29 @@
 
 # include <sys/endian.h>
 
+#if !defined(be16toh)
 # define be16toh(x) betoh16(x)
+#endif
+
+#if !defined(le16toh)
 # define le16toh(x) letoh16(x)
+#endif
 
+#if !defined(be32toh)
 # define be32toh(x) betoh32(x)
-# define le32toh(x) letoh32(x)
+#endif
 
+#if !defined(le32toh)
+# define le32toh(x) letoh32(x)
+#endif
+
+#if !defined(be64toh)
 # define be64toh(x) betoh64(x)
+#endif
+
+#if !defined(le64toh)
 # define le64toh(x) letoh64(x)
+#endif
 
 #elif defined(__WINDOWS__)
 

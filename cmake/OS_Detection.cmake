@@ -47,8 +47,6 @@ if(UNIX)
     if (APPLE)
         add_definitions ("-DDAP_OS_DARWIN -DDARWIN -DDAP_OS_BSD")
         set(DARWIN ON)
-    else()
-        add_definitions ("-DDAP_OS_LINUX")
     endif()
     
     if (${CMAKE_SYSTEM_NAME} MATCHES "BSD" )
