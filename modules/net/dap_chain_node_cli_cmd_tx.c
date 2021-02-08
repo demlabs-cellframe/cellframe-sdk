@@ -986,8 +986,28 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, const char *a_filter_t
             else
                 tx_hash_str = dap_enc_base58_from_hex_str_to_str(l_tx_hash_str);
 
+
             dap_string_append_printf(l_str_out, "transaction: %s hash: %s\n", l_list_tx_token ? "(emit)" : "", tx_hash_str);
             DAP_DELETE(tx_hash_str);
+
+            //Get sign
+            uint32_t l_tx_items_pos = 0;
+            uint32_t l_tx_items_size = l_tx->header.tx_items_size;
+            while (l_tx_items_pos < l_tx_items_size) {
+                uint8_t *item = l_tx->tx_items + l_tx_items_pos;
+                size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
+                if(dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_SIG){
+                    dap_chain_tx_sig_t *l_sig = (dap_chain_tx_sig_t*)item;
+                    dap_sign_t *l_sign = (dap_sign_t*) l_sig->sig;
+                    dap_chain_hash_fast_t *l_sign_hash = NULL;
+                    if(dap_sign_get_pkey_hash(l_sign, l_sign_hash)){
+                        char l_tx_sign_hash[70];
+                        dap_chain_hash_fast_to_str(l_sign_hash, l_tx_sign_hash, 70);
+                        dap_string_append_printf(l_str_out, "\tsign: %s \n", l_tx_sign_hash);
+                    }
+                }
+                l_tx_items_pos += l_item_tx_size;
+            }
 
             dap_list_t *l_list_tmp = l_list_out_items;
             while(l_list_tmp) {
