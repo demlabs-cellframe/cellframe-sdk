@@ -325,7 +325,8 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
         case DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING:
 #ifdef DAP_OS_UNIX
             l_sock_class = AF_LOCAL;
-#elif DAP_OS_WIDNOWS
+#elif defined DAP_OS_WINDOWS
+            l_sock_class = AF_UNIX;
 #endif
         break;
         default:
@@ -333,17 +334,18 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
             return NULL;
     }
 
-#ifdef WIN32
-    SOCKET l_sock;
+#ifdef DAP_OS_WINDOWS
+    SOCKET l_sock = socket(l_sock_class, l_sock_type, IPPROTO_IP);
+    u_long l_socket_flags = 1;
+    if (ioctlsocket((SOCKET)l_sock, (long)FIONBIO, &l_socket_flags))
+        log_it(L_ERROR, "Error ioctl %d", WSAGetLastError());
 #else
-    int l_sock;
-#endif
-    l_sock = socket(l_sock_class, l_sock_type | SOCK_NONBLOCK , 0);
+    int l_sock = socket(l_sock_class, l_sock_type | SOCK_NONBLOCK , 0);
     if (l_sock == INVALID_SOCKET) {
         log_it(L_ERROR, "Socket create error");
         return NULL;
     }
-
+#endif
     dap_events_socket_t * l_es =dap_events_socket_wrap_no_add(dap_events_get_default(),l_sock,a_callbacks);
     if(!l_es){
         log_it(L_CRITICAL,"Can't allocate memory for the new esocket");
