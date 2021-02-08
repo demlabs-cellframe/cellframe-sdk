@@ -64,12 +64,33 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  if(BUILD_64)
-    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64/KeccakP-1600-x86-64-gas.s )
-  else()
-    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/Inplace32BI/KeccakP-1600-inplace32BI.c )
-  endif()
+    if (LINUX)
+	if(BUILD_64)
+	    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64/KeccakP-1600-x86-64-gas.s )
+        else()
+	    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/Inplace32BI/KeccakP-1600-inplace32BI.c )
+        endif()
+    elseif(APPLE)
+	if(BUILD_64)
+	    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64/KeccakP-1600-x86-64-gas_Apple.s )
+	else()
+	    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/Inplace32BI/KeccakP-1600-inplace32BI.c )
+	endif()
+    elseif(BSD)
+	if(BUILD_64)
+            file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/Compact64/KeccakP-1600-compact64.c )
+	else()
+	    file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/Inplace32BI/KeccakP-1600-inplace32BI.c )
+        endif()
+    else()
+	file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/Inplace32BI/KeccakP-1600-inplace32BI.c )
+    endif()
+
 endif()
+
+
+
+
 
 add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${XKCP_SRCS} ${XKCP_SRCS2} ${CRYPTO_HEADERS} )
 

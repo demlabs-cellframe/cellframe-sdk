@@ -34,9 +34,12 @@ extern "C" {
     #define OS_TARGET OS_LINUX
 #elif defined(__APPLE__)         // MACOS
     #define OS_TARGET OS_MACOS
+#elif defined (DAP_OS_BSD)
+    #define OS_TARGET_OS_BSD
 #else
     #error -- "Unsupported OS"
 #endif
+
 
 
 // Definition of compiler
