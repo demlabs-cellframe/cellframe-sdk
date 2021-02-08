@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 project (dap_modules_dynamic_cdb)
 
 file(GLOB DAP_MODULES_DYNAMIC_CDB_SRCS *.c)

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 project (dap_chain_cs_none)
   
 file(GLOB DAP_CHAIN_CS_NO_CONSENSUS_SRC *.c)
