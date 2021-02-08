@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 project (dap_chain_net_srv)
 
 file(GLOB DAP_CHAIN_NET_SRV_SRCS *.c libmaxminddb/*.c)
