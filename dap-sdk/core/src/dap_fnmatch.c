@@ -21,6 +21,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
+
+#include "dap_common.h"
 #include "dap_fnmatch.h"
 
 
@@ -179,7 +181,7 @@ __wcschrnul (const wchar_t *s, wint_t c)
 # endif
 # define STRLEN(S) strlen(S)
 # define STRCAT(D, S) strcat (D, S)
-# define MEMPCPY(D, S, N) mempcpy (D, S, N)
+# define MEMPCPY(D, S, N) dap_mempcpy (D, S, N)
 # define MEMCHR(S, C, N) memchr (S, C, N)
 # define STRCOLL(S1, S2) strcoll (S1, S2)
 # define WIDE_CHAR_VERSION 0
