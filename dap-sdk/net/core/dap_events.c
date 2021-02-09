@@ -50,11 +50,16 @@
 #include <sys/timerfd.h>
 #endif
 
+
 #include <pthread.h>
 
 #ifdef DAP_OS_BSD
 #include <pthread_np.h>
+#include <sys/event.h>
+#include <err.h>
+#include <fcntl.h>
 typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
+
 #endif
 
 #if defined(DAP_OS_ANDROID)
@@ -257,11 +262,11 @@ int dap_events_start( dap_events_t *a_events )
         l_worker->id = i;
         l_worker->events = a_events;
         pthread_rwlock_init(&l_worker->esocket_rwlock,NULL);
-
-#ifdef DAP_EVENTS_CAPS_EPOLL
-        l_worker->epoll_fd = epoll_create( DAP_MAX_EVENTS_COUNT );
         pthread_mutex_init(& l_worker->started_mutex, NULL);
         pthread_cond_init( & l_worker->started_cond, NULL);
+
+#if defined(DAP_EVENTS_CAPS_EPOLL)
+        l_worker->epoll_fd = epoll_create( DAP_MAX_EVENTS_COUNT );
         //log_it(L_DEBUG, "Created event_fd %d for worker %u", l_worker->epoll_fd,i);
 #ifdef DAP_OS_WINDOWS
         if (!l_worker->epoll_fd) {
@@ -276,6 +281,10 @@ int dap_events_start( dap_events_t *a_events )
             DAP_DELETE(l_worker);
             return -1;
         }
+#elif defined(DAP_EVENTS_CAPS_POLL)
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+#else
+#error "Not defined worker init for your platform"
 #endif
         s_workers[i] = l_worker;
         pthread_mutex_lock(&l_worker->started_mutex);

@@ -31,6 +31,11 @@
 #include "wepoll.h"
 #elif defined (DAP_EVENTS_CAPS_POLL)
 #include <poll.h>
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+#include <pthread_np.h>
+#include <sys/event.h>
+#include <err.h>
+typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #else
 #error "Unimplemented poll for this platform"
 #endif
@@ -209,6 +214,22 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
         a_thread->poll[a_esocket->poll_index].revents |= POLLIN;
     if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE)
         a_thread->poll[a_esocket->poll_index].revents |= POLLOUT;
+        
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    u_short l_flags = a_esocket->kqueue_base_flags;
+    u_int   l_fflags = a_esocket->kqueue_base_fflags;
+    short l_filter = a_esocket->kqueue_base_filter;
+    if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
+	l_fflags |= NOTE_READ;
+    if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+    l_fflags |= NOTE_WRITE;
+    EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
+    
+    if( kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)!=1 ){
+        log_it(L_CRITICAL, "Can't add descriptor in proc thread kqueue , err: %d", errno);
+        return -1;
+    }
+        
 #else
 #error "Not defined dap_proc_thread.c::s_update_poll_flags() on your platform"
 #endif
@@ -404,6 +425,25 @@ static void * s_proc_thread_function(void * a_arg)
             l_thread->poll_count++;
         }
     }
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    // Create kqueue fd
+    l_thread->kqueue_fd = kqueue();
+    l_thread->kqueue_events_count_max = DAP_EVENTS_SOCKET_MAX;
+    l_thread->kqueue_events = DAP_NEW_Z_SIZE(struct kevent, l_worker->kqueue_events_count_max *sizeof(struct kevent));
+
+    dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->proc_queue->esocket);
+    dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->proc_event);
+
+    for (size_t n = 0; n< dap_events_worker_get_count(); n++){
+        // Queue asssign
+	dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_assign_input[n]);
+
+        // Queue IO
+	dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_io_input[n]);
+
+        // Queue callback
+	dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_callback_input[n]);
+    }
 
 #else
 #error "Unimplemented poll events analog for this platform"
@@ -416,13 +456,18 @@ static void * s_proc_thread_function(void * a_arg)
     // Main loop
     while (! l_thread->signal_kill){
 
+        int l_selected_sockets;
+        size_t l_sockets_max;
 #ifdef DAP_EVENTS_CAPS_EPOLL
         //log_it(L_DEBUG, "Epoll_wait call");
-        int l_selected_sockets = epoll_wait(l_thread->epoll_ctl, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
-        size_t l_sockets_max = (size_t)l_selected_sockets;
+        l_selected_sockets = epoll_wait(l_thread->epoll_ctl, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
+        l_sockets_max = (size_t)l_selected_sockets;
 #elif defined (DAP_EVENTS_CAPS_POLL)
-        int l_selected_sockets = poll(l_thread->poll,l_thread->poll_count,-1);
-        size_t l_sockets_max = l_thread->poll_count;
+        l_selected_sockets = poll(l_thread->poll,l_thread->poll_count,-1);
+        l_sockets_max = l_thread->poll_count;
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+        l_selected_sockets = kevent(l_thread->kqueue_fd,NULL,0,l_thread->kqueue_events,l_thread->kqueue_events_count_max,NULL);
+        l_sockets_max = l_thread->kqueue_events_count_max;
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
@@ -472,6 +517,11 @@ static void * s_proc_thread_function(void * a_arg)
             l_flag_nval = l_cur_events & POLLNVAL;
             l_flag_pri = l_cur_events & POLLPRI;
             l_flag_msg = l_cur_events & POLLMSG;
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+	    l_cur = (dap_events_socket_t*) l_thread->kqueue_events[n].udata;
+	    u_int l_cur_flags = l_thread->kqueue_events[n].fflags;
+            l_flag_write = l_cur_flags & EVFILT_WRITE;
+            l_flag_read  = l_cur_flags & EVFILT_READ;
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif

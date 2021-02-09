@@ -27,9 +27,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#if defined DAP_OS_UNIX
+
+
+#if defined DAP_OS_LINUX
 #include <sys/time.h>
 #include <sys/timerfd.h>
+#elif defined DAP_OS_BSD
+#include <sys/event.h>
 #elif defined DAP_OS_WINDOWS
 #define _MSEC -10000
 #endif

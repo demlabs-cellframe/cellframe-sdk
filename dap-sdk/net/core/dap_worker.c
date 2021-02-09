@@ -101,6 +101,7 @@ void *dap_worker_thread(void *arg)
     uint32_t l_tn = l_worker->id;
 
     dap_cpu_assign_thread_on(l_worker->id);
+    pthread_setspecific(l_worker->events->pth_key_worker, l_worker);
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
 #ifdef DAP_OS_WINDOWS
@@ -113,6 +114,18 @@ void *dap_worker_thread(void *arg)
 #ifdef DAP_EVENTS_CAPS_EPOLL
     struct epoll_event l_epoll_events[ DAP_EVENTS_SOCKET_MAX]= {{0}};
     log_it(L_INFO, "Worker #%d started with epoll fd %d and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    l_worker->kqueue_fd = kqueue();
+    if (l_worker->kqueue_fd == -1 ){
+	int l_errno = errno;
+	char l_errbuf[255];
+	strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
+	log_it (L_CRITICAL,"Can't create kqueue():\"\" code %d",l_errbuf,l_errno);
+        pthread_cond_broadcast(&l_worker->started_cond);
+	return NULL;
+    }
+    l_worker->kqueue_events_count_max = DAP_EVENTS_SOCKET_MAX;
+    l_worker->kqueue_events = DAP_NEW_Z_SIZE(struct kevent, l_worker->kqueue_events_count_max *sizeof(struct kevent));
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_worker->poll_count_max = DAP_EVENTS_SOCKET_MAX;
     l_worker->poll = DAP_NEW_Z_SIZE(struct pollfd,l_worker->poll_count_max*sizeof (struct pollfd));
@@ -137,16 +150,19 @@ void *dap_worker_thread(void *arg)
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker, s_connection_timeout * 1000 / 2,
                                                                   s_socket_all_check_activity, l_worker);
 
-    pthread_setspecific(l_worker->events->pth_key_worker, l_worker);
-    pthread_cond_broadcast(&l_worker->started_cond);
     bool s_loop_is_active = true;
     while(s_loop_is_active) {
+	int l_selected_sockets;
+	size_t l_sockets_max;
 #ifdef DAP_EVENTS_CAPS_EPOLL
-        int l_selected_sockets = epoll_wait(l_worker->epoll_fd, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
-        size_t l_sockets_max = l_selected_sockets;
+        l_selected_sockets = epoll_wait(l_worker->epoll_fd, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
+        l_sockets_max = l_selected_sockets;
 #elif defined(DAP_EVENTS_CAPS_POLL)
-        int l_selected_sockets = poll(l_worker->poll, l_worker->poll_count, -1);
-        size_t l_sockets_max = l_worker->poll_count;
+        l_selected_sockets = poll(l_worker->poll, l_worker->poll_count, -1);
+        l_sockets_max = l_worker->poll_count;
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+        l_selected_sockets = kevent(l_worker->kqueue_fd,NULL,0,l_worker->kqueue_events,l_worker->kqueue_events_count_max,NULL);
+        l_sockets_max = l_worker->kqueue_events_count_max;
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
@@ -197,6 +213,12 @@ void *dap_worker_thread(void *arg)
             l_flag_msg = l_cur_events & POLLMSG;
             l_cur = l_worker->poll_esocket[n];
             //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+	    l_cur = (dap_events_socket_t*) l_worker->kqueue_events[n].udata;
+	    u_int l_cur_flags = l_worker->kqueue_events[n].fflags;
+            l_flag_write = l_cur_flags & EVFILT_WRITE;
+            l_flag_read  = l_cur_flags & EVFILT_READ;
+
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif
@@ -546,7 +568,6 @@ void *dap_worker_thread(void *arg)
                         case DESCRIPTOR_TYPE_QUEUE:
                              if (l_cur->flags & DAP_SOCK_QUEUE_PTR && l_cur->buf_out_size>= sizeof (void*)){
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-
                                 l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
                                 l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
@@ -960,6 +981,18 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     a_worker->poll_esocket[a_worker->poll_count] = a_esocket;
     a_worker->poll_count++;
     return 0;
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+	u_short l_flags = a_esocket->kqueue_base_flags;
+	u_int   l_fflags = a_esocket->kqueue_base_fflags;
+	short l_filter = a_esocket->kqueue_base_filter;
+        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
+            l_fflags |= NOTE_READ;
+        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+            l_fflags |= NOTE_WRITE;
+            
+        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
+        return kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
+    
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
 #endif

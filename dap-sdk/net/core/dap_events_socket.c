@@ -29,20 +29,26 @@
 #include <assert.h>
 #include <errno.h>
 
-#ifndef _WIN32
+#if defined (DAP_OS_LINUX)
 #include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/select.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#elif defined (DAP_OS_BSD)
+#include <sys/types.h>
+#include <sys/select.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
-
-#else
+#elif defined (DAP_OS_WINDOWS)
 #include <winsock2.h>
 #include <windows.h>
 #include <mswsock.h>
 #include <io.h>
+
 #endif
 
 
@@ -51,6 +57,14 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #endif
+
+#ifdef DAP_OS_BSD
+#include <pthread_np.h>
+#include <sys/event.h>
+#include <err.h>
+typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
+#endif
+
 
 #include <fcntl.h>
 #include <pthread.h>
@@ -95,7 +109,6 @@ int dap_events_socket_init( )
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
 #include <sys/resource.h>
-
     struct rlimit l_mqueue_limit;
     l_mqueue_limit.rlim_cur = RLIM_INFINITY;
     l_mqueue_limit.rlim_max = RLIM_INFINITY;
@@ -161,6 +174,10 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     l_ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
     #elif defined(DAP_EVENTS_CAPS_POLL)
     l_ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
+    #elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    l_ret->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
+    l_ret->kqueue_base_fflags = NOTE_CLOSE | NOTE_CLOSE_WRITE | NOTE_DELETE | NOTE_REVOKE ;
+    l_ret->kqueue_base_filter = EVFILT_VNODE;
     #endif
 
     if ( a_sock!= 0 && a_sock != -1){
@@ -259,6 +276,10 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
+    l_es->kqueue_base_fflags = NOTE_CLOSE | NOTE_CLOSE_WRITE | NOTE_DELETE | NOTE_REVOKE ;
+    l_es->kqueue_base_filter = EVFILT_VNODE;
 #else
 #error "Not defined s_create_type_pipe for your platform"
 #endif
@@ -326,7 +347,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
 #ifdef DAP_OS_UNIX
             l_sock_class = AF_LOCAL;
 #elif defined DAP_OS_WINDOWS
-            l_sock_class = AF_UNIX;
+            l_sock_class = AF_INET;
 #endif
         break;
         default:
@@ -407,9 +428,16 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    // We don't create descriptor for kqueue at all
+    l_es->fd = -1;
+    l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
+    l_es->kqueue_base_fflags = NOTE_TRIGGER;
+    l_es->kqueue_base_filter = EVFILT_USER;
 #else
 #error "Not defined s_create_type_pipe for your platform"
 #endif
+
 #ifdef DAP_EVENTS_CAPS_QUEUE_MQUEUE
     l_es->mqd = a_es->mqd;
     char l_mq_name[64];
@@ -436,7 +464,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
         return NULL;
     }
     assert(l_es->mqd);
-#elif defined (DAP_EVENTS_CAPS_QUEUE_PIPE2)
+#elif defined (DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined (DAP_EVENTS_CAPS_QUEUE_PIPE)
     l_es->fd = a_es->fd2;
 #elif defined DAP_EVENTS_CAPS_MSMQ
     l_es->mqh       = a_es->mqh;
@@ -474,6 +502,9 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
         log_it(L_ERROR, "Can't open message queue for queue type, error: 0x%x", hr);
         return NULL;
     }
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    // We don't create descriptor for kqueue at all
+    l_es->fd = l_es->fd2 = -1;
 #else
 #error "Not defined dap_events_socket_queue_ptr_create_input() for this platform"
 #endif
@@ -512,17 +543,25 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
+    l_es->kqueue_base_fflags = NOTE_TRIGGER;
+    l_es->kqueue_base_filter = EVFILT_USER;
 #else
 #error "Not defined s_create_type_queue_ptr for your platform"
 #endif
 
 
-#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     int l_pipe[2];
     int l_errno;
     char l_errbuf[128];
     l_errbuf[0]=0;
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     if( pipe2(l_pipe,O_DIRECT | O_NONBLOCK ) < 0 ){
+#elif defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
+    if( pipe(l_pipe) < 0 ){
+#endif
         l_errno = errno;
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         switch (l_errno) {
@@ -531,10 +570,27 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         }
         DAP_DELETE(l_es);
         return NULL;
-    }//else
+    }
+    //else
      //   log_it(L_DEBUG, "Created one-way unnamed packet pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
+    
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
+    // If we have no pipe2() we should set nonblock mode via fcntl
+    if (l_es->fd > 0 && l_es->fd2 > 0 ) {
+	int l_flags = fcntl(l_es->fd, F_GETFL, 0);
+	if (l_flags != -1){
+	    l_flags |= O_NONBLOCK);
+	    fcntl(l_es->fd, F_SETFL, l_flags) == 0);
+	}
+	l_flags = fcntl(l_es->fd2, F_GETFL, 0);
+	if (l_flags != -1){
+	    l_flags |= O_NONBLOCK);
+	    fcntl(l_es->fd2, F_SETFL, l_flags) == 0);
+	}
+    }
+#endif
 
 #if !defined (DAP_OS_ANDROID)
     FILE* l_sys_max_pipe_size_fd = fopen("/proc/sys/fs/pipe-max-size", "r");
@@ -678,6 +734,9 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     if (hr != MQ_OK) {
         log_it(L_DEBUG, "Message queue %d NOT purged, possible data corruption, err %d", l_es->mq_num, hr);
     }
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    // We don't create descriptor for kqueue at all
+    l_es->fd = l_es->fd2 =  -1;
 
 #else
 #error "Not implemented s_create_type_queue_ptr() on your platform"
@@ -834,6 +893,10 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
+    l_es->kqueue_base_fflags = NOTE_CLOSE | NOTE_CLOSE_WRITE | NOTE_DELETE | NOTE_REVOKE ;
+    l_es->kqueue_base_filter = EVFILT_VNODE;
 #else
 #error "Not defined s_create_type_event for your platform"
 #endif
