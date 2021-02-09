@@ -847,8 +847,13 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             }
             for (u_int pad = 0; pad < l_mpvar[1].ulVal; pad += sizeof(void*)) {
                 memcpy(&l_queue_ptr, l_body + pad, sizeof(void*));
-                a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
+                if(a_esocket->callbacks.queue_ptr_callback)
+            	    a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
             }
+#elif defined DAP_EVENTS_CAPS_KQUEUE
+	    l_queue_ptr = (void*) a_esocket->kqueue_event_catched->ident;
+	    if(a_esocket->callbacks.queue_ptr_callback)
+		a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
 #else
 #error "No Queue fetch mechanism implemented on your platform"
 #endif
@@ -859,10 +864,13 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                 log_it(L_ERROR, "Queue socket %d received invalid data, error %d", a_esocket->socket, WSAGetLastError());
                 return -1;
             }
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+	    void * l_queue_ptr = (void*) a_esocket->kqueue_event_catched->ident;
+	    size_t l_queue_ptr_size = (size_t) a_esocket->kqueue_event_catched->data;
+            a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
 #else
             size_t l_read = read(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max );
 #endif
-            a_esocket->callbacks.queue_callback(a_esocket, a_esocket->buf_in, l_read);
         }
     }else{
         log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", a_esocket->socket);
@@ -895,8 +903,8 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
-    l_es->kqueue_base_fflags = NOTE_CLOSE | NOTE_CLOSE_WRITE | NOTE_DELETE | NOTE_REVOKE ;
-    l_es->kqueue_base_filter = EVFILT_VNODE;
+    l_es->kqueue_base_fflags = NOTE_TRIGGER;
+    l_es->kqueue_base_filter = EVFILT_USER;
 #else
 #error "Not defined s_create_type_event for your platform"
 #endif
@@ -958,6 +966,10 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
         l_es->port = l_addr.sin_port;
         //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    l_es->fd2 = l_es->fd = -1;
+#else 
+#error "Not defined s_create_type_event() on your platform"
 #endif
     return l_es;
 }
@@ -1025,6 +1037,10 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
             a_esocket->callbacks.event_callback(a_esocket, l_value);
             return;
         }
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+	unsigned int l_value = (unsigned int) a_esocket->kqueue_event_catched->data ;
+	a_esocket->callbacks.event_callback(a_esocket, l_value);
+
 #else
 #error "No Queue fetch mechanism implemented on your platform"
 #endif
@@ -1038,8 +1054,6 @@ typedef struct dap_events_socket_buf_item
     dap_events_socket_t * es;
     void *arg;
 } dap_events_socket_buf_item_t;
-
-int dap_events_socket_queue_ptr_send(dap_events_socket_t * a_es, void* a_arg);
 
 /**
  *  Waits on the socket

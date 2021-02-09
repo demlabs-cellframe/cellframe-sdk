@@ -218,6 +218,9 @@ void *dap_worker_thread(void *arg)
 	    u_int l_cur_flags = l_worker->kqueue_events[n].fflags;
             l_flag_write = l_cur_flags & EVFILT_WRITE;
             l_flag_read  = l_cur_flags & EVFILT_READ;
+            if( !l_cur)
+        	continue;
+    	    l_cur->kqueue_event_catched = &l_worker->kqueue_events[n];
 
 #else
 #error "Unimplemented fetch esocket after poll"

@@ -177,10 +177,7 @@ typedef struct dap_events_socket {
     };
 #endif
 
-#if defined(DAP_EVENTS_CAPS_PIPE_POSIX)
     int fd2;
-#endif
-
 
     dap_events_desc_type_t type;
     uint128_t uuid; // Unique UID
@@ -242,6 +239,8 @@ typedef struct dap_events_socket {
     uint32_t poll_index; // index in poll array on worker
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent kqueue_event;
+    struct kevent *kqueue_event_catched;
+    
     short kqueue_base_filter;
     u_short kqueue_base_flags;
     u_int kqueue_base_fflags;

@@ -519,6 +519,9 @@ static void * s_proc_thread_function(void * a_arg)
             l_flag_msg = l_cur_events & POLLMSG;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
 	    l_cur = (dap_events_socket_t*) l_thread->kqueue_events[n].udata;
+            if (!l_cur)
+        	continue;
+            l_cur->kqueue_event_catched = &l_thread->kqueue_events[n];
 	    u_int l_cur_flags = l_thread->kqueue_events[n].fflags;
             l_flag_write = l_cur_flags & EVFILT_WRITE;
             l_flag_read  = l_cur_flags & EVFILT_READ;
