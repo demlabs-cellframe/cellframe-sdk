@@ -50,6 +50,13 @@
 #include <sys/timerfd.h>
 #endif
 
+#include <pthread.h>
+
+#ifdef DAP_OS_BSD
+#include <pthread_np.h>
+typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
+#endif
+
 #if defined(DAP_OS_ANDROID)
 #define NO_POSIX_SHED
 #define NO_TIMER
@@ -62,7 +69,7 @@
 #include <mswsock.h>
 #include <ws2tcpip.h>
 #include <io.h>
-#include <pthread.h>
+
 #endif
 
 #include <utlist.h>
@@ -93,7 +100,11 @@ uint32_t dap_get_cpu_count( )
 #ifndef NO_POSIX_SHED
   cpu_set_t cs;
   CPU_ZERO( &cs );
+#if defined (DAP_OS_ANDROID) 
   sched_getaffinity( 0, sizeof(cs), &cs );
+#else
+  pthread_getaffinity_np(pthread_self(), sizeof(cs), &cs);
+#endif
 
   uint32_t count = 0;
   for ( int i = 0; i < 32; i++ ){
