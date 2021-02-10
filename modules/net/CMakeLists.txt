@@ -16,7 +16,7 @@ set(IPUTILS_INCLUDE_DIRS
      ../../3rdparty/iputils/traceroute/
     )
 
-if(NOT (WIN32))
+if(LINUX)
   file(GLOB IPUTILS_SRCS ../../3rdparty/iputils/*.c ../../3rdparty/iputils/traceroute/*.c)
   file(GLOB IPUTILS_HEADERS ../../3rdparty/iputils/*.h ${IPUTILS_INCLUDE_DIRS}*.h)
 endif()

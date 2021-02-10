@@ -67,7 +67,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     size_t l_addr_point = DNS_HEADER_SIZE + strlen(l_dns_client->name) + 2 + 2 * sizeof(uint16_t) + DNS_ANSWER_SIZE - sizeof(uint32_t);
     if (l_recieved < l_addr_point + sizeof(uint32_t)) {
         log_it(L_WARNING, "DNS answer incomplete");
-        l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EREMOTEIO );
+        l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EIO );
         l_dns_client->is_callbacks_called = true;
         a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
@@ -77,7 +77,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     int l_answers_count = ntohs(*(uint16_t *)l_cur);
     if (l_answers_count != 1) {
         log_it(L_WARNING, "Incorrect DNS answer format");
-        l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EMEDIUMTYPE );
+        l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EINVAL);
         l_dns_client->is_callbacks_called = true;
         a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         a_esocket->buf_in_size = a_esocket->buf_out_size = 0;

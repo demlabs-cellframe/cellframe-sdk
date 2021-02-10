@@ -73,8 +73,10 @@ if (CELLFRAME_MODULES MATCHES "srv-datum")
 endif()
 
 # Service VPN
-if (CELLFRAME_MODULES MATCHES "srv-vpn")
-    add_subdirectory(service/vpn)
+if(LINUX)
+    if (CELLFRAME_MODULES MATCHES "srv-vpn")
+	add_subdirectory(service/vpn)
+    endif()
 endif()
 
 # Service eXchange

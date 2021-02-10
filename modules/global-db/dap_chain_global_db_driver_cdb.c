@@ -197,9 +197,15 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
 #ifdef _DIRENT_HAVE_D_TYPE
         if (d->d_type != DT_DIR)
             continue;
-#else
+#elif defined(DAP_OS_LINUX)
         struct _stat buf;
         int res = _stat(d->d_name, &buf);
+        if (!S_ISDIR(buf.st_mode) || !res) {
+            continue;
+        }
+#elif defined (DAP_OS_BSD)        
+        struct stat buf;
+        int res = stat(d->d_name, &buf);
         if (!S_ISDIR(buf.st_mode) || !res) {
             continue;
         }
