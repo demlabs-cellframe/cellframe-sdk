@@ -50,7 +50,7 @@ typedef struct dap_timerfd {
 #ifdef DAP_OS_WINDOWS
 	SOCKET tfd;
     u_short port;
-#else
+#elif defined(DAP_OS_LINUX)
     int tfd; //timer file descriptor
 #endif
     dap_events_socket_t *events_socket;

@@ -246,7 +246,6 @@ typedef struct dap_events_socket {
     unsigned short kqueue_base_flags;
     unsigned int kqueue_base_fflags;
     int64_t kqueue_data;
-    uint64_t kqueue_ext[4];
 #endif
 
     dap_events_socket_callbacks_t callbacks;

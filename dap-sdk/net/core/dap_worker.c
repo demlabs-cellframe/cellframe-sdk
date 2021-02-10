@@ -231,7 +231,7 @@ void *dap_worker_thread(void *arg)
             }
             if(s_debug_reactor) {
                 log_it(L_DEBUG, "Worker #%u esocket %p type %d fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_worker->id, l_cur, l_cur->type, l_cur->socket,
-                    l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
+                    l_cur_flags, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
             }
 
@@ -614,6 +614,19 @@ void *dap_worker_thread(void *arg)
                                 l_errno = errno;
                                 if (l_bytes_sent == -1 && l_errno == EINVAL) // To make compatible with other
                                     l_errno = EAGAIN;                        // non-blocking sockets
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)                                    
+				struct kevent* l_event=&l_cur->kqueue_event;
+				void * l_ptr;
+				memcpy(l_ptr,l_cur->buf_out,sizeof(l_ptr) );
+				EV_SET(l_event,(uintptr_t) l_ptr, l_cur->kqueue_base_filter,l_cur->kqueue_base_flags, l_cur->kqueue_base_fflags,l_cur->kqueue_data, l_cur);
+				int l_n = kevent(l_worker->kqueue_fd,l_event,1,NULL,0,NULL);
+				if (l_n == 1)
+				    l_bytes_sent = sizeof(l_ptr);
+				else{
+				    l_errno = errno;
+				    log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_ptr, l_errno);
+				}
+                                    
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif

@@ -36,7 +36,6 @@ if (ANDROID)
     add_subdirectory(3rdparty/libmagic)
     add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
-
 endif()
 add_subdirectory(modules/)
 
