@@ -1149,7 +1149,24 @@ static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
  */
 int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, void * a_arg)
 {
-    volatile void * l_arg = a_arg;
+    void * l_arg = a_arg;
+#if defined (DAP_EVENTS_CAPS_KQUEUE)
+    if (a_es_input->pipe_out){
+	int l_ret;
+	struct kevent l_event={0};
+	dap_events_socket_t * l_es = a_es_input->pipe_out;
+	EV_SET(&l_event,(uintptr_t) a_arg, l_es->kqueue_base_filter,l_es->kqueue_base_flags, l_es->kqueue_base_fflags,0, l_es);
+        if(l_es->worker)
+	    l_ret=kevent(l_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
+        else if (l_es->proc_thread)
+	    l_ret=kevent(l_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
+        return l_ret==1?0 : -1;
+    }else{
+	log_it(L_ERROR,"No pipe_out pointer for queue socket, possible created wrong");
+	return -2;
+    }
+    
+#else    
     /*if (a_es_input->buf_out_size >= sizeof(void*)) {
         if (memcmp(a_es_input->buf_out + a_es_input->buf_out_size - sizeof(void*), a_arg, sizeof(void*))) {
             log_it(L_INFO, "Ptr 0x%x already present in input, drop it", a_arg);
@@ -1158,6 +1175,7 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
     }*/
     return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))
             == sizeof(l_arg) ? 0 : 1;
+#endif
 }
 
 /**
@@ -1225,7 +1243,17 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     } else {
         return 0;
     }
-
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    struct kevent l_event={0};
+    EV_SET(&l_event,(uintptr_t) a_arg, a_es->kqueue_base_filter,a_es->kqueue_base_flags, a_es->kqueue_base_fflags,0, a_es);
+    int l_n;
+    if(a_es->worker)
+        l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
+    else if (a_es->proc_thread)
+        l_n = kevent(a_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
+    else 
+	l_n = 0;
+    l_ret = l_n==1? sizeof(a_arg) : -1;
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
@@ -1262,13 +1290,24 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
         return l_errno;
     else
         return 1;
-#elif defined DAP_OS_WINDOWS
+#elif defined (DAP_OS_WINDOWS)
     a_es->buf_out[0] = (u_short)a_value;
     if(dap_sendto(a_es->socket, a_es->port, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
         return WSAGetLastError();
     } else {
         return 0;
     }
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    struct kevent l_event={0};
+    EV_SET(&l_event,0, a_es->kqueue_base_filter,a_es->kqueue_base_flags, a_es->kqueue_base_fflags,a_value, a_es);
+    int l_n;
+    if(a_es->worker)
+        l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
+    else if (a_es->proc_thread)
+        l_n = kevent(a_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
+    else
+	l_n = 0;
+    return l_n==1?0:-1;
 #else
 #error "Not implemented dap_events_socket_event_signal() for this platform"
 #endif
@@ -1387,6 +1426,33 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
                        a_esocket->worker->poll_count);
             }
         }
+    #elif defined (DAP_EVENTS_CAPS_KQUEUE)
+	if (a_esocket->socket != -1 ){ // Not everything we add in poll
+	    struct kevent * l_event = &a_esocket->kqueue_event;
+	    short l_filter  =a_esocket->kqueue_base_filter;
+	    u_short l_flags =a_esocket->kqueue_base_flags;
+	    u_int l_fflags =a_esocket->kqueue_base_fflags;
+	    
+
+            // Check & add
+	    if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+		l_filter |= EVFILT_READ;
+	    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
+		l_filter |= EVFILT_WRITE;
+	    
+	    EV_SET(l_event, a_esocket->socket, l_filter,l_flags,l_fflags,a_esocket->kqueue_data,a_esocket);
+	    if( a_esocket->worker){
+		if ( kevent(a_esocket->worker->kqueue_fd,l_event,1,NULL,0,NULL)!=1 ){
+		    int l_errno = errno;
+		    char l_errbuf[128];
+		    l_errbuf[0]=0;
+		    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+		    log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
+			    a_esocket->worker->kqueue_fd, l_errbuf, l_errno);
+        	}
+    	    }
+        }
+    
     #else
     #error "Not defined dap_events_socket_set_writable_unsafe for your platform"
     #endif
@@ -1497,12 +1563,10 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
         closesocket( a_esocket->socket );
 #else
         if ( a_esocket->socket && (a_esocket->socket != -1)) {
-        close( a_esocket->socket );
-#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
-        if( a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
+    	    close( a_esocket->socket );
+        if( a_esocket->fd2 > 0 ){
             close( a_esocket->fd2);
         }
-#endif
 
 #endif
     }
@@ -1519,7 +1583,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         log_it(L_INFO, "No worker assigned to esocket %d", a_es->socket);
         return;
     }
-#ifdef DAP_EVENTS_CAPS_EPOLL
+#if defined(DAP_EVENTS_CAPS_EPOLL)
 
     if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
         int l_errno = errno;
@@ -1529,6 +1593,19 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
                 a_worker->epoll_fd, l_errbuf, l_errno);
     } //else
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    if (a_es->socket != -1 ){
+	struct kevent * l_event = &a_es->kqueue_event;
+        EV_SET(l_event, a_es->socket, 0 ,EV_DELETE, 0,0,a_es);
+
+        if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) != 1 ) {
+            int l_errno = errno;
+            char l_errbuf[128];
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it( L_ERROR,"Can't remove event socket's handler %d from the epoll_fd %d  \"%s\" (%d)", a_es->socket,
+                a_worker->kqueue_fd, l_errbuf, l_errno);
+        } 
+    }
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (a_es->poll_index < a_worker->poll_count ){
         a_worker->poll[a_es->poll_index].fd = -1;

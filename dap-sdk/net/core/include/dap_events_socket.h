@@ -61,6 +61,7 @@ typedef int SOCKET;
     #define DAP_EVENTS_CAPS_EVENT_KEVENT
     #define DAP_EVENTS_CAPS_QUEUE_KEVENT
     #include <netinet/in.h>
+    #include <sys/event.h>
 #elif defined (DAP_OS_UNIX)
     #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_PIPE_POSIX
@@ -242,8 +243,8 @@ typedef struct dap_events_socket {
     struct kevent *kqueue_event_catched;
     
     short kqueue_base_filter;
-    u_short kqueue_base_flags;
-    u_int kqueue_base_fflags;
+    unsigned short kqueue_base_flags;
+    unsigned int kqueue_base_fflags;
     int64_t kqueue_data;
     uint64_t kqueue_ext[4];
 #endif
