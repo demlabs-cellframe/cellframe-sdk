@@ -55,7 +55,7 @@ typedef struct dap_proc_thread{
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     int kqueue_fd;
     struct kevent * kqueue_events;
-    int kqueue_events_count; 
+    int kqueue_events_count_max; 
 #else
 #error "No poll for proc thread for your platform"
 #endif

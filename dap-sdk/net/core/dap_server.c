@@ -21,16 +21,23 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef DAP_OS_WINDOWS
+#if defined(DAP_OS_WINDOWS)
 #include "wepoll.h"
 #include <ws2tcpip.h>
-#elif defined DAP_OS_UNIX
+
+#elif defined(DAP_OS_LINUX)
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/epoll.h>
 #include <netdb.h>
 #include <sys/timerfd.h>
+#elif defined (DAP_OS_BSD)
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <sys/event.h>
+#include <netdb.h>
 #endif
 
 #include <sys/types.h>

@@ -249,25 +249,7 @@ dap_events_socket_t * dap_proc_thread_create_queue_ptr(dap_proc_thread_t * a_thr
     if(l_es == NULL)
         return NULL;
     l_es->proc_thread = a_thread;
-#ifdef DAP_EVENTS_CAPS_EPOLL
-    l_es->ev.events      = l_es->ev_base_flags ;
-    l_es->ev.data.ptr    = l_es;
-    if( epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_ADD, l_es->socket, &l_es->ev) != 0 ){
-#ifdef DAP_OS_WINDOWS
-    errno = WSAGetLastError();
-#endif
-        log_it(L_CRITICAL, "Can't add queue input on epoll ctl, err: %d", errno);
-        return NULL;
-    }
-#elif defined(DAP_EVENTS_CAPS_POLL)
-    l_es->poll_index = a_thread->poll_count;
-    a_thread->poll[a_thread->poll_count].fd = l_es->fd;
-    a_thread->poll[a_thread->poll_count].events = l_es->poll_base_flags;
-    a_thread->esockets[a_thread->poll_count] = l_es;
-    a_thread->poll_count++;
-#else
-#error "Not defined dap_proc_thread_create_queue_ptr() on your platform"
-#endif
+    dap_proc_thread_assign_esocket_unsafe (a_thread, l_es);
     return l_es;
 }
 
@@ -282,13 +264,18 @@ static void * s_proc_thread_function(void * a_arg)
     dap_proc_thread_t * l_thread = (dap_proc_thread_t*) a_arg;
     assert(l_thread);
     dap_cpu_assign_thread_on(l_thread->cpu_id);
+    
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
-#ifdef DAP_OS_WINDOWS 
+#if defined(DAP_OS_WINDOWS)
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST))
         log_it(L_ERROR, "Couldn't set thread priority, err: %d", GetLastError());
-#else
+#elif defined (DAP_OS_LINUX)
     pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
+#elif defined (DAP_OS_BSD)
+    pthread_setschedparam(pthread_self(),SCHED_OTHER ,&l_shed_params);
+#else
+#error "Undefined set sched param"
 #endif
     l_thread->proc_queue = dap_proc_queue_create(l_thread);
 
@@ -429,7 +416,7 @@ static void * s_proc_thread_function(void * a_arg)
     // Create kqueue fd
     l_thread->kqueue_fd = kqueue();
     l_thread->kqueue_events_count_max = DAP_EVENTS_SOCKET_MAX;
-    l_thread->kqueue_events = DAP_NEW_Z_SIZE(struct kevent, l_worker->kqueue_events_count_max *sizeof(struct kevent));
+    l_thread->kqueue_events = DAP_NEW_Z_SIZE(struct kevent, l_thread->kqueue_events_count_max *sizeof(struct kevent));
 
     dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->proc_queue->esocket);
     dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->proc_event);
@@ -522,9 +509,9 @@ static void * s_proc_thread_function(void * a_arg)
             if (!l_cur)
         	continue;
             l_cur->kqueue_event_catched = &l_thread->kqueue_events[n];
-	    u_int l_cur_flags = l_thread->kqueue_events[n].fflags;
-            l_flag_write = l_cur_flags & EVFILT_WRITE;
-            l_flag_read  = l_cur_flags & EVFILT_READ;
+	    u_int l_cur_events = l_thread->kqueue_events[n].fflags;
+            l_flag_write = l_cur_events & EVFILT_WRITE;
+            l_flag_read  = l_cur_events & EVFILT_READ;
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif
@@ -616,8 +603,8 @@ static void * s_proc_thread_function(void * a_arg)
                                     break;
                                 }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-                                    volatile char * l_ptr = (char *) l_cur->buf_out;
-                                    volatile void *l_ptr_in;
+                                    char * l_ptr = (char *) l_cur->buf_out;
+                                    void *l_ptr_in;
                                     memcpy(&l_ptr_in,l_ptr, sizeof (l_ptr_in) );
 
                                     l_bytes_sent = mq_send(l_cur->mqd, l_ptr, sizeof (l_ptr),0);
@@ -631,6 +618,19 @@ static void * s_proc_thread_function(void * a_arg)
                                         l_errno = errno;
                                         log_it(L_WARNING,"mq_send %p errno: %d", l_ptr_in, l_errno);
                                     }
+                                #elif defined (DAP_EVENTS_CAPS_KQUEUE)
+				    struct kevent* l_event=&l_cur->kqueue_event;
+				    void * l_ptr;
+				    memcpy(l_ptr,l_cur->buf_out,sizeof(l_ptr) );
+				    
+				    EV_SET(l_event,(uintptr_t) l_ptr, l_cur->kqueue_base_filter,l_cur->kqueue_base_flags, l_cur->kqueue_base_fflags,0, l_cur);
+				    int l_n = kevent(l_thread->kqueue_fd,l_event,1,NULL,0,NULL);
+				    if (l_n == 1)
+					l_bytes_sent = sizeof(l_ptr);
+				    else{
+					l_errno = errno;
+                                        log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_ptr, l_errno);
+				    }
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
                                 #endif
@@ -679,6 +679,19 @@ static void * s_proc_thread_function(void * a_arg)
 #elif defined (DAP_EVENTS_CAPS_POLL)
                 l_thread->poll[n].fd = -1;
                 l_poll_compress = true;
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+		if (l_cur->socket != -1 ){
+		    struct kevent * l_event = &l_cur->kqueue_event;
+		    EV_SET(l_event, l_cur->socket, 0 ,EV_DELETE, 0,0,l_cur);
+		    if ( kevent( l_thread->kqueue_fd,l_event,1,NULL,0,NULL) != 1 ) {
+			int l_errno = errno;
+			char l_errbuf[128];
+			strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+			log_it( L_ERROR,"Can't remove event socket's handler %d from the epoll_fd %d  \"%s\" (%d)", l_cur->socket,
+				l_thread->kqueue_fd, l_errbuf, l_errno);
+    		    }
+		}
+
 #else
 #error "Unimplemented poll ctl analog for this platform"
 #endif
