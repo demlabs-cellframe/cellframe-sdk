@@ -179,6 +179,54 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
 }
 
 /**
+ * @brief dap_proc_thread_assign_esocket_unsafe
+ * @param a_thread
+ * @param a_esocket
+ * @return
+ */
+int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket)
+{
+#ifdef DAP_EVENTS_CAPS_EPOLL
+        // Init events for EPOLL
+        a_esocket->ev.events = a_esocket->ev_base_flags ;
+        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
+            a_esocket->ev.events |= EPOLLIN;
+        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+            a_esocket->ev.events |= EPOLLOUT;
+        a_esocket->ev.data.ptr = a_esocket;
+        return epoll_ctl(a_worker->epoll_fd, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    if (  a_thread->poll_count == a_thread->poll_count_max ){ // realloc
+        a_thread->poll_count_max *= 2;
+        log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %u", a_thread->poll_count, a_thread->poll_count_max);
+        a_thread->poll =DAP_REALLOC(a_thread->poll, a_thread->poll_count_max * sizeof(*a_thread->poll));
+        a_thread->esockets =DAP_REALLOC(a_thread->esockets, a_thread->poll_count_max * sizeof(*a_thread->esockets));
+    }
+
+    a_thread->poll[a_thread->poll_count].fd = a_thread->proc_queue->esocket->fd;
+    a_thread->poll[a_thread->poll_count].events = a_thread->proc_queue->esocket->poll_base_flags;
+    a_thread->esockets[a_thread->poll_count] = a_thread->proc_queue->esocket;
+    a_thread->poll_count++;
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    u_short l_flags = a_esocket->kqueue_base_flags;
+    u_int   l_fflags = a_esocket->kqueue_base_fflags;
+    short l_filter = a_esocket->kqueue_base_filter;
+        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
+            l_fflags |= NOTE_READ;
+        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+            l_fflags |= NOTE_WRITE;
+
+        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
+        return kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
+
+#else
+#error "Unimplemented new esocket on worker callback for current platform"
+#endif
+
+    return dap_proc_thread_esocket_update_poll_flags(a_thread,a_esocket);
+}
+
+/**
  * @brief dap_proc_thread_esocket_update_poll_flags
  * @param a_thread
  * @param a_esocket
@@ -373,10 +421,7 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->esockets = DAP_NEW_Z_SIZE(dap_events_socket_t*,l_thread->poll_count_max *sizeof (*l_thread->esockets));
 
     // Add proc queue
-    l_thread->poll[l_thread->poll_count].fd = l_thread->proc_queue->esocket->fd;
-    l_thread->poll[l_thread->poll_count].events = l_thread->proc_queue->esocket->poll_base_flags;
-    l_thread->esockets[l_thread->poll_count] = l_thread->proc_queue->esocket;
-    l_thread->poll_count++;
+    dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->proc_queue->esocket);
 
     // Add proc event
     l_thread->poll[l_thread->poll_count].fd = l_thread->proc_event->fd;

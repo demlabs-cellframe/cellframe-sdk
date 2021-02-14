@@ -184,7 +184,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
         pthread_rwlock_wrlock(&a_events->sockets_rwlock);
         HASH_ADD_INT(a_events->sockets, socket, l_ret);
         pthread_rwlock_unlock(&a_events->sockets_rwlock);
-    }else
+    }else if(s_debug_reactor)
         log_it(L_WARNING, "Be carefull, you've wrapped socket 0 or -1 so it wasn't added to global list. Do it yourself when possible");
 
     //log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );

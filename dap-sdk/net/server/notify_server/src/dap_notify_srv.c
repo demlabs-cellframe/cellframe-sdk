@@ -54,9 +54,11 @@ int dap_notify_server_init(const char * a_notify_socket_path)
     if (!s_notify_server)
         return -1;
 
+#ifdef DAP_OS_UNIX
     struct sockaddr_un l_sock_un={0};
     l_sock_un.sun_family = AF_LOCAL;
     strncpy(l_sock_un.sun_path, a_notify_socket_path, sizeof(l_sock_un.sun_path) - 1);
+#endif
 
     return 0;
 }
@@ -75,7 +77,7 @@ void dap_notify_server_deinit()
  */
 struct dap_events_socket * dap_notify_server_create_inter()
 {
-
+    return NULL;
 }
 
 /**
@@ -101,7 +103,7 @@ int dap_notify_server_send_f_inter(struct dap_events_socket * a_input, const cha
  */
 int dap_notify_server_send_f_mt(const char * a_format,...)
 {
-
+    return -1;
 }
 
 /**

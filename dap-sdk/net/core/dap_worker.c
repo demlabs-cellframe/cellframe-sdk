@@ -149,7 +149,7 @@ void *dap_worker_thread(void *arg)
     
     l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker, s_connection_timeout * 1000 / 2,
                                                                   s_socket_all_check_activity, l_worker);
-
+    pthread_cond_broadcast(&l_worker->started_cond);
     bool s_loop_is_active = true;
     while(s_loop_is_active) {
 	int l_selected_sockets;
@@ -187,30 +187,30 @@ void *dap_worker_thread(void *arg)
             bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
-            uint32_t l_cur_events = l_epoll_events[n].events;
-            l_flag_hup      = l_cur_events & EPOLLHUP;
-            l_flag_rdhup    = l_cur_events & EPOLLRDHUP;
-            l_flag_write    = l_cur_events & EPOLLOUT;
-            l_flag_read     = l_cur_events & EPOLLIN;
-            l_flag_error    = l_cur_events & EPOLLERR;
-            l_flag_pri      = l_cur_events & EPOLLPRI;
+            uint32_t l_cur_flags = l_epoll_events[n].events;
+            l_flag_hup      = l_cur_flags & EPOLLHUP;
+            l_flag_rdhup    = l_cur_flags & EPOLLRDHUP;
+            l_flag_write    = l_cur_flags & EPOLLOUT;
+            l_flag_read     = l_cur_flags & EPOLLIN;
+            l_flag_error    = l_cur_flags & EPOLLERR;
+            l_flag_pri      = l_cur_flags & EPOLLPRI;
             l_flag_nval     = false;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
-            short l_cur_events =l_worker->poll[n].revents;
+            short l_cur_flags =l_worker->poll[n].revents;
 
             if (l_worker->poll[n].fd == -1) // If it was deleted on previous iterations
                 continue;
 
-            if (!l_cur_events) // No events for this socket
+            if (!l_cur_flags) // No events for this socket
                 continue;
-            l_flag_hup =  l_cur_events& POLLHUP;
-            l_flag_rdhup = l_cur_events & POLLRDHUP;
-            l_flag_write = (l_cur_events & POLLOUT) || (l_cur_events &POLLRDNORM)|| (l_cur_events &POLLRDBAND ) ;
-            l_flag_read = l_cur_events & POLLIN || (l_cur_events &POLLWRNORM)|| (l_cur_events &POLLWRBAND );
-            l_flag_error = l_cur_events & POLLERR;
-            l_flag_nval = l_cur_events & POLLNVAL;
-            l_flag_pri = l_cur_events & POLLPRI;
-            l_flag_msg = l_cur_events & POLLMSG;
+            l_flag_hup =  l_cur_flags& POLLHUP;
+            l_flag_rdhup = l_cur_flags & POLLRDHUP;
+            l_flag_write = (l_cur_flags & POLLOUT) || (l_cur_flags &POLLRDNORM)|| (l_cur_flags &POLLRDBAND ) ;
+            l_flag_read = l_cur_flags & POLLIN || (l_cur_flags &POLLWRNORM)|| (l_cur_flags &POLLWRBAND );
+            l_flag_error = l_cur_flags & POLLERR;
+            l_flag_nval = l_cur_flags & POLLNVAL;
+            l_flag_pri = l_cur_flags & POLLPRI;
+            l_flag_msg = l_cur_flags & POLLMSG;
             l_cur = l_worker->poll_esocket[n];
             //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
