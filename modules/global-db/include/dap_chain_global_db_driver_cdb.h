@@ -22,7 +22,8 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cuttdb.h"
+//#include "cuttdb.h"
+#include "cdb_core.h"
 #include "dap_chain_global_db_driver.h"
 #define UNUSED(x) (void)(x)
 
