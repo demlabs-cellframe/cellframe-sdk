@@ -178,6 +178,12 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
 //    log_it(L_DEBUG, "<-- Proc event callback end");
 }
 
+
+int dap_proc_thread_assign_esocket_unsafe( dap_proc_thread_t* a_thread, dap_events_socket_t * a_esocket )
+{
+    return dap_proc_thread_esocket_update_poll_flags(a_thread,a_esocket);
+}
+
 /**
  * @brief dap_proc_thread_assign_esocket_unsafe
  * @param a_thread
@@ -257,6 +263,12 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
         return -1;
     }
 #elif defined (DAP_EVENTS_CAPS_POLL)
+    if (  a_thread->poll_count == a_thread->poll_count_max ){ // realloc
+        a_thread->poll_count_max *= 2;
+        log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %u", a_thread->poll_count, a_thread->poll_count_max);
+        a_thread->poll =DAP_REALLOC(a_thread->poll, a_thread->poll_count_max * sizeof(*a_thread->poll));
+        a_thread->poll_esocket =DAP_REALLOC(a_thread->poll_esocket, a_thread->poll_count_max * sizeof(*a_thread->poll_esocket));
+    }
     a_thread->poll[a_esocket->poll_index].events= a_esocket->poll_base_flags;
     if( a_esocket->flags & DAP_SOCK_READY_TO_READ)
         a_thread->poll[a_esocket->poll_index].revents |= POLLIN;

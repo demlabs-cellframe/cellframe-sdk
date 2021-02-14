@@ -1274,7 +1274,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
  */
 int com_traceroute(int argc, char** argv, void *arg_func, char **str_reply)
 {
-#ifndef _WIN32
+#ifdef DAP_OS_LINUX
     const char *addr = NULL;
     int hops = 0, time_usec = 0;
     if(argc > 1)
@@ -1342,8 +1342,10 @@ int com_traceroute(int argc, char** argv, void *arg_func, char **str_reply)
         }
     }
     return res;
+#else
+    dap_chain_node_cli_set_reply_text(str_reply, "Not realized for your platform");
+    return -1;
 #endif
-    return 0;
 }
 
 /**
@@ -1353,7 +1355,7 @@ int com_traceroute(int argc, char** argv, void *arg_func, char **str_reply)
  */
 int com_tracepath(int argc, char** argv, void *arg_func, char **str_reply)
 {
-#ifndef _WIN32
+#ifdef DAP_OS_LINUX
     const char *addr = NULL;
     int hops = 0, time_usec = 0;
     if(argc > 1)
@@ -1416,8 +1418,10 @@ int com_tracepath(int argc, char** argv, void *arg_func, char **str_reply)
         }
     }
     return res;
+#else
+        dap_chain_node_cli_set_reply_text(str_reply, "Not realized for your platform");
+        return -1;
 #endif
-    return 0;
 }
 
 /**
@@ -1427,7 +1431,7 @@ int com_tracepath(int argc, char** argv, void *arg_func, char **str_reply)
  */
 int com_ping(int argc, char** argv, void *arg_func, char **str_reply)
 {
-#ifndef _WIN32
+#ifdef DAP_OS_LINUX
 
     int n = 4;
     if(argc < 2) {
@@ -1480,8 +1484,10 @@ int com_ping(int argc, char** argv, void *arg_func, char **str_reply)
         }
     }
     return res;
+#else
+        dap_chain_node_cli_set_reply_text(str_reply, "Not realized for your platform");
+        return -1;
 #endif
-    return 0;
 }
 
 /**

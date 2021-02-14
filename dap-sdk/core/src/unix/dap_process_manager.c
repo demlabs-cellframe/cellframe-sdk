@@ -1,4 +1,4 @@
-#ifdef __linux__
+#ifdef DAP_OS_UNIX
 #include <stdio.h>
 #include <sys/types.h>
 #include <signal.h>
