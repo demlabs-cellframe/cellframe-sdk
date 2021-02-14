@@ -268,26 +268,10 @@ int dap_db_driver_cdb_flush(void) {
     cdb_instance *cur_cdb, *tmp;
     pthread_rwlock_rdlock(&cdb_rwlock);
     HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
-        cdb_close(cur_cdb->cdb);
-        char l_cdb_path[strlen(s_cdb_path) + strlen(cur_cdb->local_group) + 2];
-        memset(l_cdb_path, '\0', sizeof(l_cdb_path));
-        dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, cur_cdb->local_group);
-// Re-application of options might be required
-        cdb_options l_opts = { 1000000, 128, 1024 };
-        if (cdb_option(cur_cdb->cdb, l_opts.hsize, l_opts.pcacheMB, l_opts.rcacheMB) != CDB_SUCCESS) {
-            log_it(L_ERROR, "Options are inacceptable: \"%s\"", cdb_errmsg(cdb_errno(cur_cdb->cdb)));
-            ret = -1;
-            goto RET;
-        }
-        if(cdb_open(cur_cdb->cdb, l_cdb_path, CDB_CREAT | CDB_PAGEWARMUP) != CDB_SUCCESS) {
-            log_it(L_ERROR, "An error occured while opening CDB: \"%s\"", cdb_errmsg(cdb_errno(cur_cdb->cdb)));
-            ret = -2;
-            goto RET;
-        }
+        cdb_flushalldpage(cur_cdb->cdb);
     }
-    log_it(L_DEBUG, "All data dumped");
-RET:
     pthread_rwlock_unlock(&cdb_rwlock);
+    log_it(L_DEBUG, "All data dumped");
     return ret;
 }
 
