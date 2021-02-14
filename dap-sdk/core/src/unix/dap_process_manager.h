@@ -28,7 +28,7 @@
 extern "C" {
 #endif
 
-#ifdef __linux__
+#ifdef DAP_OS_UNIX
 
 #include <stdbool.h>
 #include <unistd.h>

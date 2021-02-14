@@ -217,7 +217,7 @@ static void* node_ping_background_proc(void *a_arg)
         if(!str_ip4)
             continue;
         int hops = 0, time_usec = 0;
-#ifndef _WIN32
+#ifdef DAP_OS_LINUX
         int res = traceroute_util(str_ip4, &hops, &time_usec);
 #endif
         DAP_DELETE(host4);
