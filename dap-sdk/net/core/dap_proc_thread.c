@@ -218,7 +218,7 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
             l_fflags |= NOTE_WRITE;
 
         EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
-        return kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
+        return kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
 
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
