@@ -1536,7 +1536,8 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 {
     if (a_esocket->events){ // It could be socket NOT from events
         if(!dap_events_socket_find_unsafe(a_esocket->socket, a_esocket->events)){
-            log_it(L_ERROR, "esocket %d type %d already deleted", a_esocket->socket, a_esocket->type);
+            if(s_debug_reactor)
+                log_it(L_ERROR, "esocket %d type %d already deleted", a_esocket->socket, a_esocket->type);
             /*dap_events_socket_t * es1 = NULL, *es2;
               HASH_ITER(hh, a_esocket->events->sockets, es1, es2) {
                 log_it(L_INFO, "Table: socket %d", es1->socket);

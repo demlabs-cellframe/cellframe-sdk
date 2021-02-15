@@ -26,6 +26,8 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <pthread.h>
+
 #ifdef DAP_OS_UNIX
 #include <unistd.h>
 #endif
@@ -38,7 +40,7 @@
 
 static sqlite3 *s_db = NULL;
 static char *s_filename_db = NULL;
-
+static pthread_rwlock_t s_db_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 // Value of one field in the table
 typedef struct _SQLITE_VALUE_
 {
@@ -119,7 +121,9 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
 
 int dap_db_driver_sqlite_deinit(void)
 {
+    pthread_rwlock_wrlock(&s_db_rwlock);
     dap_db_driver_sqlite_close(s_db);
+    pthread_rwlock_unlock(&s_db_rwlock);
     s_db = NULL;
     return sqlite3_shutdown();
 }
@@ -152,14 +156,14 @@ sqlite3* dap_db_driver_sqlite_open(const char *a_filename_utf8, int a_flags, cha
 {
     sqlite3 *l_db = NULL;
 
-    int l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_FULLMUTEX, NULL);
+    int l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_NOMUTEX, NULL);
     // if unable to open the database file
     if(l_rc == SQLITE_CANTOPEN) {
         log_it(L_WARNING,"No database on path %s, creating one from scratch", a_filename_utf8);
         if(l_db)
             sqlite3_close(l_db);
         // try to create database
-        l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_CREATE, NULL);
+        l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_NOMUTEX| SQLITE_OPEN_CREATE, NULL);
     }
 
     if(l_rc != SQLITE_OK) {
@@ -220,10 +224,12 @@ bool dap_db_driver_sqlite_set_pragma(sqlite3 *a_db, char *a_param, char *a_mode)
 int dap_db_driver_sqlite_flush()
 {
     log_it(L_DEBUG, "Start flush sqlite data base.");
+    pthread_rwlock_wrlock(&s_db_rwlock);
     dap_db_driver_sqlite_close(s_db);
     char *l_error_message;
     s_db = dap_db_driver_sqlite_open(s_filename_db, SQLITE_OPEN_READWRITE, &l_error_message);
     if(!s_db) {
+        pthread_rwlock_unlock(&s_db_rwlock);
         log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
         return -3;
@@ -238,6 +244,7 @@ int dap_db_driver_sqlite_flush()
 
     if(!dap_db_driver_sqlite_set_pragma(s_db, "page_size", "1024")) // DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF
         log_it(L_WARNING, "Can't set page_size\n");
+    pthread_rwlock_unlock(&s_db_rwlock);
     return 0;
 }
 
@@ -452,10 +459,14 @@ int dap_db_driver_sqlite_start_transaction(void)
 {
     if(s_db)
     {
-        if(SQLITE_OK == dap_db_driver_sqlite_exec(s_db, "BEGIN", NULL))
+        pthread_rwlock_wrlock(&s_db_rwlock);
+        if(SQLITE_OK == dap_db_driver_sqlite_exec(s_db, "BEGIN", NULL)){
+            pthread_rwlock_unlock(&s_db_rwlock);
             return 0;
-        else
+        }else{
+            pthread_rwlock_unlock(&s_db_rwlock);
             return -1;
+        }
     }
     else
         return -1;
@@ -468,10 +479,14 @@ int dap_db_driver_sqlite_end_transaction(void)
 {
     if(s_db)
     {
-        if(SQLITE_OK == dap_db_driver_sqlite_exec(s_db, "COMMIT", NULL))
+        pthread_rwlock_wrlock(&s_db_rwlock);
+        if(SQLITE_OK == dap_db_driver_sqlite_exec(s_db, "COMMIT", NULL)){
+            pthread_rwlock_unlock(&s_db_rwlock);
             return 0;
-        else
+        }else{
+            pthread_rwlock_unlock(&s_db_rwlock);
             return -1;
+        }
     }
     else
         return -1;
@@ -536,6 +551,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         return -1;
     }
     // execute request
+    pthread_rwlock_wrlock(&s_db_rwlock);
     int l_ret = dap_db_driver_sqlite_exec(s_db, l_query, &l_error_message);
     if(l_ret == SQLITE_ERROR) {
         dap_db_driver_sqlite_free(l_error_message);
@@ -566,6 +582,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         // repeat request
         l_ret = dap_db_driver_sqlite_exec(s_db, l_query, &l_error_message);
     }
+    pthread_rwlock_unlock(&s_db_rwlock);
     // missing database
     if(l_ret != SQLITE_OK) {
         log_it(L_ERROR, "sqlite apply error: %s", l_error_message);
@@ -622,7 +639,9 @@ dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group)
         return NULL;
     char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
     char *l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id DESC LIMIT 1", l_table_name);
+    pthread_rwlock_rdlock(&s_db_rwlock);
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
+    pthread_rwlock_unlock(&s_db_rwlock);
     sqlite3_free(l_str_query);
     DAP_DEL_Z(l_table_name);
     if(l_ret != SQLITE_OK) {
@@ -675,7 +694,9 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     else
         l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC",
                 l_table_name, a_id);
+    pthread_rwlock_rdlock(&s_db_rwlock);
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
+    pthread_rwlock_unlock(&s_db_rwlock);
     sqlite3_free(l_str_query);
     DAP_DEL_Z(l_table_name);
 
@@ -753,7 +774,9 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
         else
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC", l_table_name);
     }
+    pthread_rwlock_rdlock(&s_db_rwlock);
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
+    pthread_rwlock_unlock(&s_db_rwlock);
     sqlite3_free(l_str_query);
     DAP_DEL_Z(l_table_name);
     if(l_ret != SQLITE_OK) {
