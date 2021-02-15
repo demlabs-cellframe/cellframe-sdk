@@ -52,7 +52,7 @@
 #include "dap_http_header.h"
 #include "dap_http_client.h"
 
-#define LOG_TAG "dap_http"
+#define LOG_TAG "http"
 
 
 /**
@@ -61,18 +61,18 @@
  */
 int dap_http_init( )
 {
-  if ( dap_http_header_init() != 0 ) { // Init submodule for headers manipulations
-    log_it(L_CRITICAL,"Can't init HTTP headers processing submodule");
-    return -1;
-  }
+    if ( dap_http_header_init() != 0 ) { // Init submodule for headers manipulations
+        log_it(L_CRITICAL,"Can't init HTTP headers processing submodule");
+        return -1;
+    }
 
-  if ( dap_http_client_init() !=0 ) { // Init submodule for HTTP client event processing
-    log_it(L_CRITICAL,"Can't init HTTP client submodule");
-    return -2;
-  }
+    if ( dap_http_client_init() !=0 ) { // Init submodule for HTTP client event processing
+        log_it(L_CRITICAL,"Can't init HTTP client submodule");
+        return -2;
+    }
 
-  log_it( L_NOTICE, "Initialized HTTP server module" );
-  return 0;
+    log_it( L_NOTICE, "Initialized HTTP server module" );
+    return 0;
 }
 
 /**
@@ -80,32 +80,33 @@ int dap_http_init( )
  */
 void dap_http_deinit()
 {
-  dap_http_header_deinit( );
-  dap_http_client_deinit( );
+    dap_http_header_deinit( );
+    dap_http_client_deinit( );
 }
 
 
 /**
- * @brief dap_server_http_init Init HTTP server
- * @param sh Server instance
+ * @brief dap_server_http_init   Init HTTP server
+ * @param a_server               Server instance
+ * @param a_server_name          Server name
  * @return 0 if ok lesser number if error
  */
-int dap_http_new( dap_server_t *sh, const char * server_name )
+int dap_http_new( dap_server_t *a_server, const char * a_server_name )
 {
-  sh->_inheritor = calloc( 1, sizeof(dap_http_t) );
+    a_server->_inheritor = DAP_NEW_Z(dap_http_t);
 
-  dap_http_t *shttp = DAP_HTTP( sh );
+    dap_http_t *l_http = DAP_HTTP( a_server );
 
-  shttp->server = sh;
-  strncpy( shttp->server_name, server_name, sizeof(shttp->server_name)-1 );
+    l_http->server = a_server;
+    strncpy( l_http->server_name, a_server_name, sizeof(l_http->server_name)-1 );
 
-  sh->client_callbacks.new_callback    = dap_http_client_new;
-  sh->client_callbacks.delete_callback = dap_http_client_delete;
-  sh->client_callbacks.read_callback   = dap_http_client_read;
-  sh->client_callbacks.write_callback  = dap_http_client_write;
-  sh->client_callbacks.error_callback  = dap_http_client_error;
+    a_server->client_callbacks.new_callback    = dap_http_client_new;
+    a_server->client_callbacks.delete_callback = dap_http_client_delete;
+    a_server->client_callbacks.read_callback   = dap_http_client_read;
+    a_server->client_callbacks.write_callback  = dap_http_client_write;
+    a_server->client_callbacks.error_callback  = dap_http_client_error;
 
-  return 0;
+    return 0;
 }
 
 /**
@@ -113,59 +114,57 @@ int dap_http_new( dap_server_t *sh, const char * server_name )
  * @param sh Server's instance
  * @param arg Non-used argument
  */
-void dap_http_delete( dap_server_t *sh, void * arg )
+void dap_http_delete( dap_server_t *a_server, void * a_arg )
 {
-  (void) arg;
-  (void) sh;
-  dap_http_t *shttp = DAP_HTTP( sh );
-  dap_http_url_proc_t *up, *tmp;
+    (void) a_arg;
+    dap_http_t *l_http = DAP_HTTP( a_server );
+    dap_http_url_proc_t *l_url_proc, *l_tmp;
 
-  HASH_ITER( hh, shttp->url_proc ,up, tmp ) {
-    HASH_DEL(shttp->url_proc, up);
-    if( up->_inheritor )
-      free( up->_inheritor );
-    free( up );
-  }
+    HASH_ITER( hh, l_http->url_proc ,l_url_proc, l_tmp ) {
+        HASH_DEL(l_http->url_proc, l_url_proc);
+        if( l_url_proc->_inheritor )
+            DAP_DELETE(l_url_proc->_inheritor );
+        DAP_DELETE(l_url_proc );
+    }
 }
 
 
 /**
- * @brief dap_http_add_proc  Add custom procesor for the HTTP server
- * @param sh                Server's instance
- * @param url_path          Part of URL to be processed
- * @param read_callback     Callback for read in DATA state
- * @param write_callback    Callback for write in DATA state
- * @param error_callback    Callback for error processing
+ * @brief dap_http_add_proc   Add custom procesor for the HTTP server
+ * @param a_http              Server's instance
+ * @param a_url_path          Part of URL to be processed
+ * @param a_read_callback     Callback for read in DATA state
+ * @param a_write_callback    Callback for write in DATA state
+ * @param a_error_callback    Callback for error processing
  */
-void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
-                      ,dap_http_client_callback_t new_callback
-                      ,dap_http_client_callback_t delete_callback
-                      ,dap_http_client_callback_t headers_read_callback
-                      ,dap_http_client_callback_t headers_write_callback
-                      ,dap_http_client_callback_t data_read_callback
-                      ,dap_http_client_callback_t data_write_callback
-                      ,dap_http_client_callback_error_t error_callback
+void dap_http_add_proc(dap_http_t *a_http, const char *a_url_path, void *a_inheritor
+                      ,dap_http_client_callback_t a_new_callback
+                      ,dap_http_client_callback_t a_delete_callback
+                      ,dap_http_client_callback_t a_headers_read_callback
+                      ,dap_http_client_callback_t a_headers_write_callback
+                      ,dap_http_client_callback_t a_data_read_callback
+                      ,dap_http_client_callback_t a_data_write_callback
+                      ,dap_http_client_callback_error_t a_error_callback
 
                       )
 {
-  dap_http_url_proc_t *up = (dap_http_url_proc_t *) calloc( 1, sizeof(dap_http_url_proc_t) );
+    dap_http_url_proc_t *l_url_proc = DAP_NEW_Z(dap_http_url_proc_t);
 
-  strncpy( up->url, url_path, sizeof(up->url)-1 );
+    strncpy( l_url_proc->url, a_url_path, sizeof(l_url_proc->url)-1 );
 
-  up->new_callback    = new_callback;
-  up->delete_callback = delete_callback;
+    l_url_proc->new_callback    = a_new_callback;
+    l_url_proc->delete_callback = a_delete_callback;
 
-  up->data_read_callback = data_read_callback;
-  up->data_write_callback = data_write_callback;
-  up->headers_read_callback = headers_read_callback;
-  up->headers_write_callback = headers_write_callback;
-  up->error_callback = error_callback;
+    l_url_proc->data_read_callback = a_data_read_callback;
+    l_url_proc->data_write_callback = a_data_write_callback;
+    l_url_proc->headers_read_callback = a_headers_read_callback;
+    l_url_proc->headers_write_callback = a_headers_write_callback;
+    l_url_proc->error_callback = a_error_callback;
 
-  up->_inheritor = internal;
+    l_url_proc->_inheritor = a_inheritor;
 
-  HASH_ADD_STR( sh->url_proc, url, up );
+    HASH_ADD_STR( a_http->url_proc, url, l_url_proc );
 
-  log_it( L_DEBUG, "Added URL processor for '%s' path", up->url );
+    log_it( L_DEBUG, "Added URL processor for '%s' path", l_url_proc->url );
 }
-
 

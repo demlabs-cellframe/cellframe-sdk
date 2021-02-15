@@ -1,23 +1,25 @@
 /*
- Copyright (c) 2017-2018 (c) Project "DeM Labs Inc" https://github.com/demlabsinc
-  All rights reserved.
+ * Authors:
+ * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * DeM Labs Ltd.   https://demlabs.net
+ * Copyright  (c) 2021
+ * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of DAP SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Lesser General Public License as published by
+    DAP SDK is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
+    DAP SDK is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Lesser General Public License for more details.
+    GNU General Public License for more details.
 
-    You should have received a copy of the GNU Lesser General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 
 #include <stdio.h>
 #include <stdarg.h>
@@ -32,8 +34,10 @@
 #endif
 
 #include <pthread.h>
+#include <utlist.h>
 
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "dap_events_socket.h"
 #include "dap_http_client.h"
 #include "dap_http_header.h"
@@ -214,4 +218,21 @@ dap_http_header_t *dap_http_header_find( dap_http_header_t *top, const char *nam
       return ret;
 
   return ret;
+}
+
+/**
+ * @brief dap_http_headers_dup
+ * @param a_top
+ * @return
+ */
+dap_http_header_t * dap_http_headers_dup(dap_http_header_t * a_top)
+{
+    dap_http_header_t * l_hdr=NULL, * l_ret = NULL;
+    DL_FOREACH(a_top,l_hdr){
+        dap_http_header_t * l_hdr_copy = DAP_NEW_Z(dap_http_header_t);
+        l_hdr_copy->name = dap_strdup(l_hdr->name);
+        l_hdr_copy->value = dap_strdup(l_hdr->value);
+        DL_APPEND(l_ret,l_hdr_copy);
+    }
+    return l_ret;
 }

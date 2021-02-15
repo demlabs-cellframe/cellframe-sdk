@@ -62,6 +62,7 @@ typedef struct dap_http_client
     char out_content_type[256];
     time_t out_last_modified;
     bool out_connection_close;
+    size_t out_cache_position;
 
     dap_events_socket_t *esocket;
     struct dap_http * http;
@@ -82,15 +83,15 @@ typedef struct dap_http_client
 extern "C" {
 #endif
 
-int dap_http_client_init( );
-void dap_http_client_deinit( );
-void dap_http_client_new( dap_events_socket_t * cl,void *arg ); // Creates HTTP client's internal structure
-void dap_http_client_delete( dap_events_socket_t * cl,void *arg ); // Free memory for HTTP client's internal structure
+int dap_http_client_init(void);
+void dap_http_client_deinit(void);
+void dap_http_client_new( dap_events_socket_t *a_esocket, void *a_arg ); // Creates HTTP client's internal structure
+void dap_http_client_delete( dap_events_socket_t * a_esocket,void *a_arg ); // Free memory for HTTP client's internal structure
 
-void dap_http_client_read( dap_events_socket_t * cl,void *arg ); // Process read event
-void dap_http_client_write( dap_events_socket_t * cl,void *arg ); // Process write event
-void dap_http_client_error( dap_events_socket_t * cl,int arg ); // Process error event
-void dap_http_client_out_header_generate( dap_http_client_t *cl_ht );
+void dap_http_client_read( dap_events_socket_t * a_esocket,void *a_arg ); // Process read event
+void dap_http_client_write( dap_events_socket_t * a_esocket,void *a_arg ); // Process write event
+void dap_http_client_error( dap_events_socket_t * a_esocket,int a_arg ); // Process error event
+void dap_http_client_out_header_generate( dap_http_client_t *a_http_client );
 
 #ifdef __cplusplus
 }

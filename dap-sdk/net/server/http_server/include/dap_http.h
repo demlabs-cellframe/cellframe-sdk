@@ -26,6 +26,7 @@ See more details here <http://www.gnu.org/licenses/>.
 #include "dap_events_socket.h"
 #include "dap_http_header.h"
 #include "dap_http_client.h"
+#include "dap_http_cache.h"
 #include "uthash.h"
 
 struct dap_http;
@@ -36,6 +37,9 @@ struct dap_http_url_processor;
 typedef struct dap_http_url_proc{
     char url[512]; // First part of URL that will be processed
     struct dap_http * http; // Pointer to HTTP server instance
+
+    dap_http_cache_t * cache; // In memory cache, could be present or not
+    pthread_rwlock_t cache_rwlock;
 
     dap_http_client_callback_t new_callback; // Init internal structure
     dap_http_client_callback_t delete_callback; // Delete internal structure
@@ -77,3 +81,4 @@ void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
                              ,dap_http_client_callback_t data_write_callback
                              ,dap_http_client_callback_error_t error_callback ); // Add custom procesor for the HTTP server
 
+void dap_http_url_proc_cache_reset(dap_http_url_proc_t *a_url_proc);

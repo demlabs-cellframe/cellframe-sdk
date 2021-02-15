@@ -440,6 +440,19 @@ size_t dap_http_simple_reply(dap_http_simple_t *a_http_simple, void *a_data, siz
 }
 
 /**
+ * @brief dap_http_simple_make_cache_from_reply
+ * @param a_http_simple
+ * @param a_ts_expire
+ */
+dap_http_cache_t * dap_http_simple_make_cache_from_reply(dap_http_simple_t * a_http_simple, time_t a_ts_expire  )
+{
+    return dap_http_cache_update(a_http_simple->http_client->http->url_proc,
+                                 a_http_simple->reply_byte,
+                                 a_http_simple->reply_size,
+                                 a_http_simple->http_client->out_headers, a_ts_expire);
+}
+
+/**
  * @brief dap_http_simple_reply_f
  * @param shs
  * @param data
