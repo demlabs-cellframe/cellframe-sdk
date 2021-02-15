@@ -87,14 +87,8 @@ void dap_http_client_new( dap_events_socket_t *a_esocket, void *a_arg )
 
     pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
     if(l_http_client->http->url_proc->cache){
-        if (l_http_client->http->url_proc->cache->ts_expire < time(NULL) )
+        if ( ! l_http_client->http->url_proc->cache->ts_expire || l_http_client->http->url_proc->cache->ts_expire < time(NULL) )
             l_http_client->out_headers = dap_http_headers_dup(l_http_client->http->url_proc->cache->headers);
-        else{
-            pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
-            pthread_rwlock_wrlock(&l_http_client->http->url_proc->cache_rwlock);
-            dap_http_cache_delete(l_http_client->http->url_proc->cache);
-            l_http_client->http->url_proc->cache = NULL;
-        }
     }
     pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
     return;
@@ -553,10 +547,20 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
         case DAP_HTTP_CLIENT_STATE_DATA:{
             if ( l_http_client->proc ){
                 pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
-                if ( l_http_client->proc->cache == NULL && l_http_client->proc->data_write_callback ){
+                if  ( ( l_http_client->proc->cache == NULL && l_http_client->proc->data_write_callback ) ||
+                      ( l_http_client->proc->data_write_callback &&
+                        l_http_client->http->url_proc->cache->ts_expire >= time(NULL) )
+                    ){
+                    if (l_http_client->proc->cache){
+                        pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
+                        pthread_rwlock_wrlock(&l_http_client->http->url_proc->cache_rwlock);
+                        dap_http_cache_delete(l_http_client->http->url_proc->cache);
+                        l_http_client->http->url_proc->cache = NULL;
+                    }
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                     l_http_client->proc->data_write_callback( l_http_client, NULL );
                 }else if(l_http_client->proc->cache) {
+
                     size_t l_to_send=l_http_client->proc->cache->body_size-l_http_client->out_cache_position ;
                     size_t l_sent = dap_events_socket_write_unsafe(l_http_client->esocket,
                                                    l_http_client->proc->cache->body+l_http_client->out_cache_position,
