@@ -266,6 +266,13 @@ typedef struct dap_events_socket_handler{
     uint128_t uuid;
 } dap_events_socket_handler_t;
 
+typedef struct dap_events_socket_handler_hh{
+    dap_events_socket_t * esocket;
+    uint128_t uuid;
+    uint32_t worker_id;
+    UT_hash_handle hh;
+} dap_events_socket_handler_hh_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif

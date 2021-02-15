@@ -21,9 +21,9 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#include <stdint.h>
 
-int dap_notify_server_init(const char * a_notify_socket_path);
+int dap_notify_server_init();
 void dap_notify_server_deinit();
-struct dap_events_socket * dap_notify_server_create_inter();
-int dap_notify_server_send_f_inter(struct dap_events_socket * a_input, const char * a_format,...);
+int dap_notify_server_send_f_inter(uint32_t a_worker_id, const char * a_format,...);
 int dap_notify_server_send_f_mt(const char * a_format,...);

@@ -25,6 +25,10 @@
 #pragma once
 
 #include "dap_common.h"
+
+#ifdef DAP_OS_UNIX
+#include <sys/un.h>
+#endif
 #if defined( DAP_OS_LINUX)
 
 #include <netinet/in.h>
@@ -53,7 +57,7 @@
 #include "dap_cpu_monitor.h"
 #include "dap_events_socket.h"
 
-typedef enum dap_server_type {DAP_SERVER_TCP, DAP_SERVER_UDP} dap_server_type_t;
+typedef enum dap_server_type {SERVER_TCP, SERVER_UDP,SERVER_LOCAL} dap_server_type_t;
 
 
 
@@ -73,7 +77,13 @@ typedef struct dap_server {
 #endif
   dap_list_t *es_listeners;
 
+  dap_events_t * events;
+
   struct sockaddr_in listener_addr; // Kernel structure for listener's binded address
+
+#ifdef DAP_OS_UNIX
+  struct sockaddr_un listener_path; // Path to UNIX socket
+#endif
 
   void *_inheritor;  // Pointer to the internal data, HTTP for example
 
@@ -91,4 +101,6 @@ int dap_server_init( ); // Init server module
 void  dap_server_deinit( void ); // Deinit server module
 
 dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16_t a_port, dap_server_type_t a_type, dap_events_socket_callbacks_t *a_callbacks);
+dap_server_t* dap_server_new_local(dap_events_t *a_events, const char * a_path, const char * a_mode, dap_events_socket_callbacks_t *a_callbacks);
+
 void dap_server_delete(dap_server_t *a_server);
