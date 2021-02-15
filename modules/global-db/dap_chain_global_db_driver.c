@@ -547,7 +547,7 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
                 l_ret = 1;
             }
             if(l_ret_tmp < 0) {
-                log_it(L_ERROR, "Can't write item %s/%s\n", l_store_obj_cur->group, l_store_obj_cur->key);
+                log_it(L_ERROR, "Can't write item %s/%s (code %d)\n", l_store_obj_cur->group, l_store_obj_cur->key, l_ret_tmp);
                 l_ret -= 1;
             }
         }

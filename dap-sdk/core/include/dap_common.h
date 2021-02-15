@@ -483,6 +483,11 @@ void dap_usleep(time_t a_microseconds);
  */
 char* dap_ctime_r(time_t *a_time, char* a_buf);
 
+static inline void * dap_mempcpy(void * a_dest,const void * a_src,size_t n)
+{
+    return ((byte_t*) memcpy(a_dest,a_src,n))+n;
+}
+
 
 
 #ifdef __MINGW32__

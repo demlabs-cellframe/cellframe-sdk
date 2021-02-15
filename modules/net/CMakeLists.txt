@@ -16,7 +16,7 @@ set(IPUTILS_INCLUDE_DIRS
      ../../3rdparty/iputils/traceroute/
     )
 
-if(NOT (WIN32))
+if(LINUX)
   file(GLOB IPUTILS_SRCS ../../3rdparty/iputils/*.c ../../3rdparty/iputils/traceroute/*.c)
   file(GLOB IPUTILS_HEADERS ../../3rdparty/iputils/*.h ${IPUTILS_INCLUDE_DIRS}*.h)
 endif()
@@ -41,11 +41,15 @@ if(WIN32)
                             dap_chain_mempool dap_chain_global_db dap_chain_net_srv_stake dap_chain_cs_none)
 endif()
 
-if(UNIX)
+if(LINUX)
     target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_stream_ch_chain_net_srv dap_chain
       dap_chain_wallet dap_chain_net_srv dap_chain_mempool dap_chain_global_db dap_chain_net_srv_stake dap_chain_cs_none
       resolv )
+elseif(BSD)
+    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_stream_ch_chain_net_srv dap_chain
+      dap_chain_wallet dap_chain_net_srv dap_chain_mempool dap_chain_global_db dap_chain_net_srv_stake dap_chain_cs_none )
 endif()
+
 
 target_include_directories(${PROJECT_NAME} INTERFACE . )
 target_include_directories(${PROJECT_NAME} PUBLIC include)

@@ -43,6 +43,8 @@
 #define MSG_DONTWAIT 0
 #define MSG_NOSIGNAL 0
 #include "winsock.h"
+#elif defined(DAP_OS_BSD)
+
 #else
 #error "No poll headers for your platform"
 #endif

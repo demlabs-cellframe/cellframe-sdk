@@ -24,17 +24,26 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifdef DAP_OS_UNIX
+#ifdef DAP_OS_LINUX
 #include <netinet/in.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #include <sys/ioctl.h>
+#include <sys/epoll.h>
 #endif
+
+#ifdef DAP_OS_BSD
+#include <netinet/in.h>
+#include <net/if.h>
+#include <net/if_tun.h>
+#include <sys/ioctl.h>
+#endif
+
+
 
 #include <sys/select.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/epoll.h>
 #include <sys/un.h>
 
 #include <netinet/in.h>

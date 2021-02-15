@@ -8,8 +8,6 @@
 #include <memory.h>
 #ifdef __MACH__
 #include <sys/malloc.h>
-#else
-#include <malloc.h>
 #endif
 #include <stdlib.h>
 

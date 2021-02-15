@@ -81,7 +81,6 @@ int dap_notify_server_init()
     if (!s_notify_server)
         return -1;
 
-
     s_notify_server_queue = dap_events_socket_create_type_queue_ptr_mt(dap_events_worker_get_auto(),s_notify_server_callback_queue);
     uint32_t l_workers_count = dap_events_worker_get_count();
     s_notify_server_queue_inter = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof (dap_events_socket_t*)*l_workers_count );
@@ -100,6 +99,15 @@ int dap_notify_server_init()
 void dap_notify_server_deinit()
 {
 
+}
+
+/**
+ * @brief dap_notify_server_create_inter
+ * @return
+ */
+struct dap_events_socket * dap_notify_server_create_inter()
+{
+    return NULL;
 }
 
 /**

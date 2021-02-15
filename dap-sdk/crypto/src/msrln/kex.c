@@ -1,9 +1,6 @@
-﻿#include "msrln_priv.h"
-#if (OS_TARGET == OS_MACOS)
-    #include <stdio.h>
-#else
-    #include <malloc.h>
-#endif
+#include <stdio.h>
+#include <stdlib.h>
+#include "msrln_priv.h"
 
 #include "KeccakHash.h"
 #include "SimpleFIPS202.h"

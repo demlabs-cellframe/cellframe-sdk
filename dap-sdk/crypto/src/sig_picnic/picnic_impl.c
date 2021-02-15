@@ -22,7 +22,7 @@
 	#include <bcrypt.h>
 #elif defined (__APPLE__)
     #include "macos_specific_endian.h"
-#else
+#elif defined (DAP_OS_LINUX)
     #include <endian.h>
 #endif
 

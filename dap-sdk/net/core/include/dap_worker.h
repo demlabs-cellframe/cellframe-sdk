@@ -65,6 +65,7 @@ typedef struct dap_worker
 #if defined DAP_EVENTS_CAPS_MSMQ
     HANDLE msmq_events[MAXIMUM_WAIT_OBJECTS];
 #endif
+
 #if defined DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
@@ -74,6 +75,12 @@ typedef struct dap_worker
     size_t poll_count;
     size_t poll_count_max;
     bool poll_compress; // Some of fd's became NULL so arrays need to be reassigned
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    int kqueue_fd;
+    struct kevent * kqueue_events;
+    int kqueue_events_count_max;
+#else
+#error "Not defined worker for your platform"
 #endif
     pthread_cond_t started_cond;
     pthread_mutex_t started_mutex;

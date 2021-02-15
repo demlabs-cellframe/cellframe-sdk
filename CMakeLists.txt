@@ -1,5 +1,5 @@
 project(cellframe-sdk C)
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "2.8-19")
@@ -36,7 +36,6 @@ if (ANDROID)
     add_subdirectory(3rdparty/libmagic)
     add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
-
 endif()
 add_subdirectory(modules/)
 

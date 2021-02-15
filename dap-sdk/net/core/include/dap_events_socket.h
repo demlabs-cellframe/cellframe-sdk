@@ -55,10 +55,17 @@ typedef int SOCKET;
     #include <netinet/in.h>
     #include <sys/eventfd.h>
     #include <mqueue.h>
-#elif defined (DAP_OS_UNIX)
+#elif defined (DAP_OS_BSD)
     #define DAP_EVENTS_CAPS_KQUEUE
     #define DAP_EVENTS_CAPS_PIPE_POSIX
     #define DAP_EVENTS_CAPS_EVENT_KEVENT
+    #define DAP_EVENTS_CAPS_QUEUE_KEVENT
+    #include <netinet/in.h>
+    #include <sys/event.h>
+#elif defined (DAP_OS_UNIX)
+    #define DAP_EVENTS_CAPS_POLL
+    #define DAP_EVENTS_CAPS_PIPE_POSIX
+    #define DAP_EVENTS_CAPS_EVENT_PIPE
     #define DAP_EVENTS_CAPS_QUEUE_SOCKETPAIR
     #include <netinet/in.h>
 #elif defined (DAP_OS_WINDOWS)
@@ -161,7 +168,7 @@ typedef struct dap_events_socket {
         mqd_t mqd;
     };
     uint32_t mqd_id;
-#elif defined DAP_EVENTS_CAPS_MSMQ
+#elif defined(DAP_EVENTS_CAPS_MSMQ)
     };
     QUEUEHANDLE mqh, mqh_recv;
     u_int mq_num;
@@ -171,9 +178,8 @@ typedef struct dap_events_socket {
     };
 #endif
 
-#if defined DAP_EVENTS_CAPS_PIPE_POSIX
     int fd2;
-#endif
+
     dap_events_desc_type_t type;
     uint128_t uuid; // Unique UID
     // Related sockets (be careful - possible problems, delete them before )
@@ -232,6 +238,14 @@ typedef struct dap_events_socket {
 #elif defined (DAP_EVENTS_CAPS_POLL)
     short poll_base_flags;
     uint32_t poll_index; // index in poll array on worker
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    struct kevent kqueue_event;
+    struct kevent *kqueue_event_catched;
+    
+    short kqueue_base_filter;
+    unsigned short kqueue_base_flags;
+    unsigned int kqueue_base_fflags;
+    int64_t kqueue_data;
 #endif
 
     dap_events_socket_callbacks_t callbacks;
