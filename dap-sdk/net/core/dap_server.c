@@ -294,7 +294,7 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
         a_server->es_listeners = dap_list_append(a_server->es_listeners, l_es);
 
         if (l_es) {
-            l_es->type = a_server->type == DAP_SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
+            l_es->type = a_server->type == SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
             // Prepare for multi thread listening
             l_es->ev_base_flags = EPOLLIN;
 #ifdef EPOLLEXCLUSIVE
