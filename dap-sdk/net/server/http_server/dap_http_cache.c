@@ -36,8 +36,18 @@ dap_http_cache_t * dap_http_cache_update(struct dap_http_url_proc * a_url_proc, 
         l_ret->body_size = a_body_size;
     }
     l_ret->headers =  dap_http_headers_dup( a_headers);
+
+
     l_ret->ts_expire = a_ts_expire;
     l_ret->url_proc = a_url_proc;
+
+    //Here we cut off 'Date' header because we add it new on each cached request
+    dap_http_header_t * l_hdr_date= dap_http_header_find(l_ret->headers,"Date");
+    if(l_hdr_date)
+        dap_http_header_remove(&l_ret->headers,l_hdr_date);
+
+
+    // Reset current cache for url_proc and replace with our own
     pthread_rwlock_wrlock(&a_url_proc->cache_rwlock);
     dap_http_cache_delete(a_url_proc->cache);
     a_url_proc->cache = l_ret;
