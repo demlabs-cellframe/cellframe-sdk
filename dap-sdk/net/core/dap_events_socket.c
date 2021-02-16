@@ -736,7 +736,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     // We don't create descriptor for kqueue at all
-    l_es->fd = l_es->fd2 =  -1;
+    l_es->fd = l_es->fd2 = -1;
 
 #else
 #error "Not implemented s_create_type_queue_ptr() on your platform"
@@ -1251,9 +1251,13 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
     else if (a_es->proc_thread)
         l_n = kevent(a_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
-    else 
+    else {
+	log_it(L_WARNING,"Trying to send pointer in queue thats not assigned to any worker or proc thread");
 	l_n = 0;
+    }
+    l_errno = errno;
     l_ret = l_n==1? sizeof(a_arg) : -1;
+    
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
