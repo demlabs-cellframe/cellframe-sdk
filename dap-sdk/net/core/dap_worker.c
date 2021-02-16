@@ -968,7 +968,6 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
  */
 int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker )
 {
-
 #ifdef DAP_EVENTS_CAPS_EPOLL
         // Init events for EPOLL
         a_esocket->ev.events = a_esocket->ev_base_flags ;
@@ -1007,8 +1006,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
             l_fflags |= NOTE_WRITE;
             
         EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
-        return kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
-    
+        return kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : errno;
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
 #endif
