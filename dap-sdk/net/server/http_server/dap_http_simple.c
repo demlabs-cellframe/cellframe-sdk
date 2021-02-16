@@ -128,7 +128,7 @@ struct dap_http_url_proc * dap_http_simple_proc_add( dap_http_t *a_http, const c
 
     return dap_http_add_proc( a_http, a_url_path,
                      l_url_proc, // Internal structure
-                     s_http_client_new, // Contrustor
+                     NULL, // Contrustor
                      s_http_client_delete, //  Destructor
                      s_http_client_headers_read, NULL, // Headers read, write
                      s_http_client_data_read, s_http_client_data_write, // Data read, write
@@ -325,27 +325,6 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
     dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
     return true;
 }
-/**
- * @brief s_http_client_new
- * @param a_http_client
- * @param arg
- */
-static void s_http_client_new( dap_http_client_t *a_http_client, void *a_arg )
-{
-    (void) a_arg;
-    a_http_client->_inheritor = DAP_NEW_Z( dap_http_simple_t );
-    dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
-    dap_http_simple_url_proc_t * l_http_simple_url_proc = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc );
-    //  log_it(L_DEBUG,"dap_http_simple_headers_read");
-    //  Sleep(300);
-
-    l_http_simple->esocket = a_http_client->esocket;
-    l_http_simple->http_client = a_http_client;
-    l_http_simple->worker = a_http_client->esocket->worker;
-    l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
-    l_http_simple->reply_byte = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
-
-}
 
 static void s_http_client_delete( dap_http_client_t *a_http_client, void *arg )
 {
@@ -370,8 +349,17 @@ static void s_http_simple_delete( dap_http_simple_t *a_http_simple)
 static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *a_arg )
 {
     (void) a_arg;
+    a_http_client->_inheritor = DAP_NEW_Z( dap_http_simple_t );
     dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
-    assert(l_http_simple);
+    //  log_it(L_DEBUG,"dap_http_simple_headers_read");
+    //  Sleep(300);
+
+    l_http_simple->esocket = a_http_client->esocket;
+    l_http_simple->http_client = a_http_client;
+    l_http_simple->worker = a_http_client->esocket->worker;
+    l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
+    l_http_simple->reply_byte = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
+
     if( a_http_client->in_content_length ) {
         // dbg if( a_http_client->in_content_length < 3){
         if( a_http_client->in_content_length > 0){
