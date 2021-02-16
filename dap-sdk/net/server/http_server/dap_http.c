@@ -137,7 +137,7 @@ void dap_http_delete( dap_server_t *a_server, void * a_arg )
  * @param a_write_callback    Callback for write in DATA state
  * @param a_error_callback    Callback for error processing
  */
-void dap_http_add_proc(dap_http_t *a_http, const char *a_url_path, void *a_inheritor
+dap_http_url_proc_t * dap_http_add_proc(dap_http_t *a_http, const char *a_url_path, void *a_inheritor
                       ,dap_http_client_callback_t a_new_callback
                       ,dap_http_client_callback_t a_delete_callback
                       ,dap_http_client_callback_t a_headers_read_callback

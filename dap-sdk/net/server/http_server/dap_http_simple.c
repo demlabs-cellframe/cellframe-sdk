@@ -119,21 +119,20 @@ void dap_http_simple_module_deinit( void )
  * @param a_reply_size_max Maximum reply size
  * @param a_callback Callback for data processing
  */
-struct dap_http_simple_url_proc * dap_http_simple_proc_add( dap_http_t *a_http, const char *a_url_path, size_t a_reply_size_max, dap_http_simple_callback_t a_callback )
+struct dap_http_url_proc * dap_http_simple_proc_add( dap_http_t *a_http, const char *a_url_path, size_t a_reply_size_max, dap_http_simple_callback_t a_callback )
 {
     dap_http_simple_url_proc_t *l_url_proc = DAP_NEW_Z( dap_http_simple_url_proc_t );
 
     l_url_proc->proc_callback = a_callback;
     l_url_proc->reply_size_max = a_reply_size_max;
 
-    dap_http_add_proc( a_http, a_url_path,
+    return dap_http_add_proc( a_http, a_url_path,
                      l_url_proc, // Internal structure
                      s_http_client_new, // Contrustor
-                     NULL, //  Destructor
+                     s_http_client_delete, //  Destructor
                      s_http_client_headers_read, NULL, // Headers read, write
                      s_http_client_data_read, s_http_client_data_write, // Data read, write
                      NULL); // errror
-    return l_url_proc;
 }
 
 static void _free_user_agents_list()
@@ -324,7 +323,6 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
 
     s_set_writable_flags( l_http_simple);
     dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
-    s_http_simple_delete( l_http_simple );
     return true;
 }
 /**
@@ -337,6 +335,7 @@ static void s_http_client_new( dap_http_client_t *a_http_client, void *a_arg )
     (void) a_arg;
     a_http_client->_inheritor = DAP_NEW_Z( dap_http_simple_t );
     dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
+    dap_http_simple_url_proc_t * l_http_simple_url_proc = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc );
     //  log_it(L_DEBUG,"dap_http_simple_headers_read");
     //  Sleep(300);
 
@@ -372,7 +371,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
 {
     (void) a_arg;
     dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
-
+    assert(l_http_simple);
     if( a_http_client->in_content_length ) {
         // dbg if( a_http_client->in_content_length < 3){
         if( a_http_client->in_content_length > 0){
@@ -387,7 +386,6 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
             log_it(L_ERROR, "Not defined content-length %u in request", a_http_client->in_content_length);
     } else {
         log_it( L_DEBUG, "No data section, execution proc callback" );
-        a_http_client->_inheritor = NULL;
         dap_events_socket_remove_from_worker_unsafe(l_http_simple->esocket ,l_http_simple->worker);
         dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple);
 
@@ -455,8 +453,6 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
         // bool isOK=true;
         log_it( L_INFO,"Data for http_simple_request collected" );
         dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->worker);
-        a_http_client->_inheritor = NULL;
-        l_http_simple->http_client_uuid = a_http_client->esocket->uuid;
         dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input , s_proc_queue_callback, l_http_simple);
     }
 }

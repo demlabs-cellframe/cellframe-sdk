@@ -65,7 +65,7 @@ typedef struct dap_http_simple {
 
 #define DAP_HTTP_SIMPLE(a) ((dap_http_simple_t*) (a)->_inheritor )
 
-struct dap_http_simple_url_proc * dap_http_simple_proc_add( dap_http_t *sh, const char *url_path, size_t reply_size_max, dap_http_simple_callback_t cb ); // Add simple processor
+struct dap_http_url_proc * dap_http_simple_proc_add( dap_http_t *sh, const char *url_path, size_t reply_size_max, dap_http_simple_callback_t cb ); // Add simple processor
 
 int  dap_http_simple_module_init( void );
 void dap_http_simple_module_deinit(void);
