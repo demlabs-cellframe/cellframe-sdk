@@ -330,21 +330,9 @@ static void s_http_client_delete( dap_http_client_t *a_http_client, void *arg )
 {
     dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
     if (l_http_simple){
-        if(l_http_simple->reply_byte)
-            DAP_DELETE(l_http_simple->reply_byte);
+        DAP_DEL_Z(l_http_simple->reply_byte);
     }
 }
-
-static void s_http_simple_delete( dap_http_simple_t *a_http_simple)
-{
-    if (a_http_simple){
-        if(a_http_simple->reply_byte)
-            DAP_DELETE(a_http_simple->reply_byte);
-        DAP_DELETE(a_http_simple);
-    }
-}
-
-
 
 static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *a_arg )
 {
@@ -404,7 +392,7 @@ static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a
         //cl_ht->client->signal_close=cl_ht->keep_alive;
         a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         //dap_client_ready_to_write(cl_ht->client,false);
-        DAP_DELETE(l_http_simple->reply );
+        //DAP_DELETE(l_http_simple->reply );
     }
 }
 
@@ -474,7 +462,7 @@ dap_http_cache_t * dap_http_simple_make_cache_from_reply(dap_http_simple_t * a_h
     a_http_simple->http_client->out_content_length = a_http_simple->reply_size;
     a_http_simple->http_client->reply_status_code = 200;
     dap_http_client_out_header_generate(a_http_simple->http_client);
-    return dap_http_cache_update(a_http_simple->http_client->http->url_proc,
+    return dap_http_cache_update(a_http_simple->http_client->proc,
                                  a_http_simple->reply_byte,
                                  a_http_simple->reply_size,
                                  a_http_simple->http_client->out_headers,NULL,

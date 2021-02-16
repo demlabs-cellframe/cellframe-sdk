@@ -87,38 +87,6 @@ void dap_http_client_new( dap_events_socket_t *a_esocket, void *a_arg )
     l_http_client->state_read = DAP_HTTP_CLIENT_STATE_START;
     l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
 
-    if(l_http_client->http &&  l_http_client->http->url_proc){
-        // Check if present cache
-        pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
-        dap_http_cache_t * l_http_cache = l_http_client->http->url_proc->cache;
-        if(l_http_cache){
-            if ( ! l_http_cache->ts_expire || l_http_cache->ts_expire >= time(NULL) ){
-                l_http_client->out_headers = dap_http_headers_dup(l_http_cache->headers);
-                l_http_client->out_content_length = l_http_cache->body_size;
-                l_http_client->reply_status_code = l_http_cache->response_code;
-                if(l_http_cache->response_phrase)
-                    strncpy(l_http_client->reply_reason_phrase,l_http_cache->response_phrase,sizeof (l_http_client->reply_reason_phrase)-1);
-
-                if(s_debug_http)
-                    log_it(L_DEBUG,"%d Out: prepare cached headers", l_http_client->esocket->socket);
-
-            }else if (l_http_cache){
-                pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
-                pthread_rwlock_wrlock(&l_http_client->http->url_proc->cache_rwlock);
-                dap_http_cache_delete(l_http_cache);
-                l_http_client->http->url_proc->cache = NULL;
-                l_http_cache == NULL;
-            }
-        }
-        if (l_http_cache == NULL){
-            pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
-            // Call client constructor if we're not in cache mode
-            if(l_http_client->http->url_proc->new_callback)
-                l_http_client->http->url_proc->new_callback(l_http_client, NULL);
-
-        }else
-            pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
-    }
     return;
 }
 
@@ -438,6 +406,36 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
 
                 if ( url_proc ) {
                     l_http_client->state_read = DAP_HTTP_CLIENT_STATE_HEADERS;
+                    // Check if present cache
+                    pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
+                    dap_http_cache_t * l_http_cache = l_http_client->proc->cache;
+                    if(l_http_cache){
+                        if ( ! l_http_cache->ts_expire || l_http_cache->ts_expire >= time(NULL) ){
+                            l_http_client->out_headers = dap_http_headers_dup(l_http_cache->headers);
+                            l_http_client->out_content_length = l_http_cache->body_size;
+                            l_http_client->reply_status_code = l_http_cache->response_code;
+                            if(l_http_cache->response_phrase)
+                                strncpy(l_http_client->reply_reason_phrase,l_http_cache->response_phrase,sizeof (l_http_client->reply_reason_phrase)-1);
+
+                            if(s_debug_http)
+                                log_it(L_DEBUG,"%d Out: prepare cached headers", l_http_client->esocket->socket);
+
+                        }else if (l_http_cache){
+                            pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
+                            pthread_rwlock_wrlock(&l_http_client->proc->cache_rwlock);
+                            dap_http_cache_delete(l_http_cache);
+                            l_http_client->proc->cache = NULL;
+                            l_http_cache == NULL;
+                        }
+                    }
+                    if (l_http_cache == NULL){
+                        pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
+                        // Call client constructor
+                        if(l_http_client->proc->new_callback)
+                            l_http_client->proc->new_callback(l_http_client, NULL);
+                    }else
+                        pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
+
                 } else {
                     log_it( L_WARNING, "Input: unprocessed URL request %s is rejected", l_http_client->url_path );
                     s_report_error_and_restart( a_esocket, l_http_client );
@@ -477,12 +475,12 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                         }
                     }
 
-                    pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
-                    if ( l_http_client->http->url_proc->cache == NULL &&  l_http_client->proc->headers_read_callback ) {
-                        pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
+                    pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
+                    if ( l_http_client->proc->cache == NULL &&  l_http_client->proc->headers_read_callback ) {
+                        pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                         l_http_client->proc->headers_read_callback( l_http_client, NULL );
                     }else{
-                        pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
+                        pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                         if(s_debug_http)
                             log_it(L_DEBUG, "Cache is present, don't call underlaying callbacks");
                     }
@@ -502,13 +500,13 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                 size_t read_bytes = 0;
                 if(s_debug_http)
                     log_it(L_DEBUG, "dap_http_client_read: DAP_HTTP_CLIENT_STATE_DATA");
-                pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
+                pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                 if ( l_http_client->proc->cache == NULL && l_http_client->proc->data_read_callback ) {
-                    pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
+                    pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                     l_http_client->proc->data_read_callback( l_http_client, &read_bytes );
                     dap_events_socket_shrink_buf_in( a_esocket, read_bytes );
                 } else {
-                    pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
+                    pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                     a_esocket->buf_in_size = 0;
                     l_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
                     dap_events_socket_set_writable_unsafe(a_esocket, true);
@@ -592,16 +590,16 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 if  ( ( l_http_client->proc->cache == NULL &&
                         l_http_client->proc->data_write_callback ) ||
                       ( l_http_client->proc->data_write_callback &&
-                        l_http_client->http->url_proc->cache->ts_expire < time(NULL) &&
+                        l_http_client->proc->cache->ts_expire < time(NULL) &&
                         l_http_client->out_cache_position == NULL // Check if we haven't started
                                                                   // to share cached data
                         )
                     ){
                     if (l_http_client->proc->cache){
-                        pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
-                        pthread_rwlock_wrlock(&l_http_client->http->url_proc->cache_rwlock);
-                        dap_http_cache_delete(l_http_client->http->url_proc->cache);
-                        l_http_client->http->url_proc->cache = NULL;
+                        pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
+                        pthread_rwlock_wrlock(&l_http_client->proc->cache_rwlock);
+                        dap_http_cache_delete(l_http_client->proc->cache);
+                        l_http_client->proc->cache = NULL;
                         if(s_debug_http)
                             log_it(L_NOTICE,"Cache expired and dropped out");
                     }else if (s_debug_http)
