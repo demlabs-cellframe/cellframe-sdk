@@ -320,6 +320,8 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
         log_it(L_ERROR, "Request was processed with ERROR");
         l_http_simple->http_client->reply_status_code = Http_Status_InternalServerError;
     }
+    dap_http_client_out_header_generate(l_http_simple->http_client);
+
 
     s_set_writable_flags( l_http_simple);
     dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
