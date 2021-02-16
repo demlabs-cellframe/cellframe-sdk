@@ -69,8 +69,8 @@ typedef struct dap_http {
 int dap_http_init( ); // Init module
 void dap_http_deinit( ); // Deinit module
 
-int dap_http_new( dap_server_t *sh, const char *server_name ); // Create dap_http structure in the internal data field of dap_server_t instance
-void dap_http_delete( dap_server_t *sh, void *arg ); // Clear dap_http structure in the internal data field of dap_server_t instance
+int dap_http_new( dap_server_t *a_server, const char *a_server_name ); // Create dap_http structure in the internal data field of dap_server_t instance
+void dap_http_delete( dap_server_t *a_server, void *a_arg ); // Clear dap_http structure in the internal data field of dap_server_t instance
 
 void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
                              ,dap_http_client_callback_t new_callback
@@ -80,5 +80,3 @@ void dap_http_add_proc(dap_http_t *sh, const char *url_path, void *internal
                              ,dap_http_client_callback_t data_read_callback
                              ,dap_http_client_callback_t data_write_callback
                              ,dap_http_client_callback_error_t error_callback ); // Add custom procesor for the HTTP server
-
-void dap_http_url_proc_cache_reset(dap_http_url_proc_t *a_url_proc);

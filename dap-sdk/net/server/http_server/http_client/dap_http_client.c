@@ -36,6 +36,7 @@
 #include <pthread.h>
 
 #include "dap_common.h"
+#include "dap_config.h"
 #include "dap_events_socket.h"
 
 #include "dap_http.h"
@@ -47,7 +48,7 @@
 #define LOG_TAG "dap_http_client"
 
 static bool s_request_line_parse( dap_http_client_t *cl_ht, char *buf, size_t buf_length );
-
+static bool s_debug_http = false;
 
 /**
  * @brief dap_http_client_init Init HTTP client module
@@ -55,8 +56,9 @@ static bool s_request_line_parse( dap_http_client_t *cl_ht, char *buf, size_t bu
  */
 int dap_http_client_init( )
 {
-  log_it(L_NOTICE,"Initialized HTTP client module");
-  return 0;
+    log_it(L_NOTICE,"Initialized HTTP client module");
+    s_debug_http = dap_config_get_item_bool_default(g_config,"general","debug_http",false);
+    return 0;
 }
 
 /**
@@ -87,8 +89,12 @@ void dap_http_client_new( dap_events_socket_t *a_esocket, void *a_arg )
 
     pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
     if(l_http_client->http->url_proc->cache){
-        if ( ! l_http_client->http->url_proc->cache->ts_expire || l_http_client->http->url_proc->cache->ts_expire < time(NULL) )
+        if ( ! l_http_client->http->url_proc->cache->ts_expire || l_http_client->http->url_proc->cache->ts_expire < time(NULL) ){
             l_http_client->out_headers = dap_http_headers_dup(l_http_client->http->url_proc->cache->headers);
+            if(s_debug_http)
+                log_it(L_DEBUG,"%d Out: prepare cached headers", l_http_client->esocket->socket);
+
+        }
     }
     pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
     return;
@@ -334,7 +340,8 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
 
 //  log_it( L_DEBUG, "dap_http_client_read..." );
     do{
-        //log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %lu", l_http_client->state_read, a_esocket->buf_in_size );
+        if(s_debug_http)
+            log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %lu", l_http_client->state_read, a_esocket->buf_in_size );
         switch( l_http_client->state_read ) {
             case DAP_HTTP_CLIENT_STATE_START: { // Beginning of the session. We try to detect
                 char l_buf_line[4096];
@@ -547,26 +554,33 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
         case DAP_HTTP_CLIENT_STATE_DATA:{
             if ( l_http_client->proc ){
                 pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
-                if  ( ( l_http_client->proc->cache == NULL && l_http_client->proc->data_write_callback ) ||
+                if  ( ( l_http_client->proc->cache == NULL &&
+                        l_http_client->proc->data_write_callback ) ||
                       ( l_http_client->proc->data_write_callback &&
-                        l_http_client->http->url_proc->cache->ts_expire >= time(NULL) )
+                        l_http_client->http->url_proc->cache->ts_expire >= time(NULL) &&
+                        l_http_client->out_cache_position == NULL // Check if we haven't started
+                                                                  // to share cached data
+                        )
                     ){
                     if (l_http_client->proc->cache){
                         pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
                         pthread_rwlock_wrlock(&l_http_client->http->url_proc->cache_rwlock);
                         dap_http_cache_delete(l_http_client->http->url_proc->cache);
                         l_http_client->http->url_proc->cache = NULL;
+                        if(s_debug_http)
+                            log_it(L_NOTICE,"Cache expired and dropped out");
                     }
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                     l_http_client->proc->data_write_callback( l_http_client, NULL );
                 }else if(l_http_client->proc->cache) {
-
                     size_t l_to_send=l_http_client->proc->cache->body_size-l_http_client->out_cache_position ;
                     size_t l_sent = dap_events_socket_write_unsafe(l_http_client->esocket,
                                                    l_http_client->proc->cache->body+l_http_client->out_cache_position,
                                                    l_to_send );
                     if(l_sent){
                         if ( l_http_client->out_cache_position + l_sent >= l_http_client->proc->cache->body_size ){ // All is sent
+                            if(s_debug_http)
+                                log_it(L_DEBUG,"%d Out: All cached data over, signal to close connection", l_http_client->esocket->socket);
                             l_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                             dap_events_socket_set_writable_unsafe( a_esocket, false );

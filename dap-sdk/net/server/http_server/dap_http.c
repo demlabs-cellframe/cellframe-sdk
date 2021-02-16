@@ -162,6 +162,7 @@ void dap_http_add_proc(dap_http_t *a_http, const char *a_url_path, void *a_inher
     l_url_proc->error_callback = a_error_callback;
 
     l_url_proc->_inheritor = a_inheritor;
+    pthread_rwlock_init(& l_url_proc->cache_rwlock, NULL);
 
     HASH_ADD_STR( a_http->url_proc, url, l_url_proc );
 
