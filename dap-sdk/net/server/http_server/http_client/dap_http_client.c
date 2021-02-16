@@ -88,12 +88,23 @@ void dap_http_client_new( dap_events_socket_t *a_esocket, void *a_arg )
     l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
 
     pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
-    if(l_http_client->http->url_proc->cache){
-        if ( ! l_http_client->http->url_proc->cache->ts_expire || l_http_client->http->url_proc->cache->ts_expire >= time(NULL) ){
-            l_http_client->out_headers = dap_http_headers_dup(l_http_client->http->url_proc->cache->headers);
+    dap_http_cache_t * l_http_cache = l_http_client->http->url_proc->cache;
+    if(l_http_cache){
+        if ( ! l_http_cache->ts_expire || l_http_cache->ts_expire >= time(NULL) ){
+            l_http_client->out_headers = dap_http_headers_dup(l_http_cache->headers);
+            l_http_client->out_content_length = l_http_cache->body_size;
+            l_http_client->reply_status_code = l_http_cache->response_code;
+            if(l_http_cache->response_phrase)
+                strncpy(l_http_client->reply_reason_phrase,l_http_cache->response_phrase,sizeof (l_http_client->reply_reason_phrase)-1);
+
             if(s_debug_http)
                 log_it(L_DEBUG,"%d Out: prepare cached headers", l_http_client->esocket->socket);
 
+        }else if (l_http_cache){
+            pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
+            pthread_rwlock_wrlock(&l_http_client->http->url_proc->cache_rwlock);
+            dap_http_cache_delete(l_http_cache);
+            l_http_client->http->url_proc->cache = NULL;
         }
     }
     pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
@@ -594,7 +605,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                     if(l_sent){
                         if ( l_http_client->out_cache_position + l_sent >= l_http_client->proc->cache->body_size ){ // All is sent
                             if(s_debug_http)
-                                log_it(L_DEBUG,"%d Out: All cached data over, signal to close connection", l_http_client->esocket->socket);
+                                log_it(L_DEBUG,"Out %d: All cached data over, signal to close connection", l_http_client->esocket->socket);
                             l_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                             dap_events_socket_set_writable_unsafe( a_esocket, false );
@@ -615,33 +626,37 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
  * @brief dap_http_client_out_header_generate Produce general headers
  * @param cl_ht HTTP client instance
  */
-void dap_http_client_out_header_generate(dap_http_client_t *cl_ht)
+void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
 {
-  char buf[1024];
+    char buf[1024];
 
-  if ( cl_ht->reply_status_code == 200 ) {
+    if ( a_http_client->reply_status_code == 200 ) {
+        if (s_debug_http)
+            log_it(L_DEBUG, "Out headers generate for sock %d", a_http_client->esocket->socket);
+        if ( a_http_client->out_last_modified ) {
+            dap_time_to_str_rfc822( buf, sizeof(buf), a_http_client->out_last_modified );
+            dap_http_header_add( &a_http_client->out_headers, "Last-Modified", buf );
+        }
+        if ( a_http_client->out_content_type[0] ) {
+            dap_http_header_add(&a_http_client->out_headers,"Content-Type",a_http_client->out_content_type);
+            log_it(L_DEBUG,"output: Content-Type = '%s'",a_http_client->out_content_type);
+        }
+        if ( a_http_client->out_content_length ) {
+            dap_snprintf(buf,sizeof(buf),"%llu",(unsigned long long)a_http_client->out_content_length);
+            dap_http_header_add(&a_http_client->out_headers,"Content-Length",buf);
+            log_it(L_DEBUG,"output: Content-Length = %llu",a_http_client->out_content_length);
+        }
+    }else
+        if (s_debug_http)
+            log_it(L_WARNING, "Out headers: nothing generate for sock %d, http code %d", a_http_client->esocket->socket,
+                   a_http_client->reply_status_code);
 
-    if ( cl_ht->out_last_modified ) {
-      dap_time_to_str_rfc822( buf, sizeof(buf), cl_ht->out_last_modified );
-      dap_http_header_add( &cl_ht->out_headers, "Last-Modified", buf );
-    }
-    if ( cl_ht->out_content_type[0] ) {
-      dap_http_header_add(&cl_ht->out_headers,"Content-Type",cl_ht->out_content_type);
-      log_it(L_DEBUG,"output: Content-Type = '%s'",cl_ht->out_content_type);
-    }
-    if ( cl_ht->out_content_length ) {
-      dap_snprintf(buf,sizeof(buf),"%llu",(unsigned long long)cl_ht->out_content_length);
-      dap_http_header_add(&cl_ht->out_headers,"Content-Length",buf);
-      log_it(L_DEBUG,"output: Content-Length = %llu",cl_ht->out_content_length);
-    }
-  }
+    if ( a_http_client->out_connection_close || !a_http_client->keep_alive )
+        dap_http_header_add( &a_http_client->out_headers, "Connection","Close" );
 
-  if ( cl_ht->out_connection_close || !cl_ht->keep_alive )
-    dap_http_header_add( &cl_ht->out_headers, "Connection","Close" );
+    dap_http_header_add( &a_http_client->out_headers, "Server-Name", a_http_client->http->server_name );
 
-  dap_http_header_add( &cl_ht->out_headers, "Server-Name", cl_ht->http->server_name );
-
-  log_it( L_DEBUG,"Output: Headers generated" );
+    log_it( L_DEBUG,"Output: Headers generated" );
 }
 
 /**
