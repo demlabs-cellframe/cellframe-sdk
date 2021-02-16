@@ -26,8 +26,20 @@
 
 #define LOG_TAG "http_cache"
 
-dap_http_cache_t * dap_http_cache_update(struct dap_http_url_proc * a_url_proc, byte_t * a_body, size_t a_body_size,
-                                         dap_http_header_t * a_headers, time_t a_ts_expire )
+/**
+ * @brief dap_http_cache_update
+ * @param a_url_proc
+ * @param a_body
+ * @param a_body_size
+ * @param a_headers
+ * @param a_response_phrase
+ * @param a_respoonse_code
+ * @param ts_expire
+ * @return
+ */
+dap_http_cache_t * dap_http_cache_update(struct dap_http_url_proc * a_url_proc, const byte_t * a_body, size_t a_body_size,
+                                         dap_http_header_t * a_headers, const char * a_response_phrase, int a_respoonse_code,
+                                         time_t a_ts_expire )
 {
     dap_http_cache_t * l_ret = DAP_NEW_Z(dap_http_cache_t);
     if(a_body_size){
@@ -40,6 +52,9 @@ dap_http_cache_t * dap_http_cache_update(struct dap_http_url_proc * a_url_proc, 
 
     l_ret->ts_expire = a_ts_expire;
     l_ret->url_proc = a_url_proc;
+    if(a_response_phrase)
+        l_ret->response_phrase = strdup(a_response_phrase);
+    l_ret->response_code = a_respoonse_code;
 
     //Here we cut off 'Date' header because we add it new on each cached request
     dap_http_header_t * l_hdr_date= dap_http_header_find(l_ret->headers,"Date");

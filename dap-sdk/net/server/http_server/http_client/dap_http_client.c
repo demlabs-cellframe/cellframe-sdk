@@ -456,27 +456,39 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                         }
                     }
 
-                    if ( l_http_client->proc->headers_read_callback ) {
+                    pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
+                    if ( l_http_client->http->url_proc->cache == NULL &&  l_http_client->proc->headers_read_callback ) {
+                        pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
                         l_http_client->proc->headers_read_callback( l_http_client, NULL );
-                    }
+                    }else
+                        pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
 
                     // If no headers callback we go to the DATA processing
                     if( l_http_client->in_content_length ) {
-                        //log_it( L_DEBUG, "headers -> DAP_HTTP_CLIENT_STATE_DATA" );
+                        if(s_debug_http)
+                            log_it( L_DEBUG, "headers -> DAP_HTTP_CLIENT_STATE_DATA" );
                         l_http_client->state_read = DAP_HTTP_CLIENT_STATE_DATA;
+                    }else{ // No data, its over
+                        l_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
+                        dap_events_socket_set_writable_unsafe(a_esocket, true);
                     }
                 }
                 dap_events_socket_shrink_buf_in( a_esocket, l_eol_pos + 1 );
             } break;
             case DAP_HTTP_CLIENT_STATE_DATA:{
                 size_t read_bytes = 0;
-                //log_it(L_DEBUG, "dap_http_client_read: DAP_HTTP_CLIENT_STATE_DATA");
-                if ( l_http_client->proc->data_read_callback ) {
+                if(s_debug_http)
+                    log_it(L_DEBUG, "dap_http_client_read: DAP_HTTP_CLIENT_STATE_DATA");
+                pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
+                if ( l_http_client->proc->cache == NULL && l_http_client->proc->data_read_callback ) {
+                    pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
                     l_http_client->proc->data_read_callback( l_http_client, &read_bytes );
                     dap_events_socket_shrink_buf_in( a_esocket, read_bytes );
                 } else {
-                    log_it( L_WARNING, "data_read callback is NULL in DAP_HTTP_CLIENT_STATE_DATA" );
+                    pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
                     a_esocket->buf_in_size = 0;
+                    l_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
+                    dap_events_socket_set_writable_unsafe(a_esocket, true);
                 }
             } break;
             case DAP_HTTP_CLIENT_STATE_NONE: {

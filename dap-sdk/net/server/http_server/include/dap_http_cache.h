@@ -31,10 +31,12 @@ typedef struct dap_http_cache
     byte_t *body;
     size_t body_size;
     dap_http_header_t * headers;
-
+    char * response_phrase;
+    int    response_code;
     time_t ts_expire;
 } dap_http_cache_t;
 
-dap_http_cache_t * dap_http_cache_update(struct dap_http_url_proc * a_url_proc, byte_t * a_body, size_t a_body_size,
-                                         dap_http_header_t * a_headers, time_t ts_expire );
+dap_http_cache_t * dap_http_cache_update(struct dap_http_url_proc * a_url_proc, const byte_t * a_body, size_t a_body_size,
+                                         dap_http_header_t * a_headers, const char * a_response_phrase, int a_respoonse_code,
+                                         time_t a_ts_expire );
 void dap_http_cache_delete(dap_http_cache_t * a_http_cache);
