@@ -481,9 +481,11 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                     if ( l_http_client->http->url_proc->cache == NULL &&  l_http_client->proc->headers_read_callback ) {
                         pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
                         l_http_client->proc->headers_read_callback( l_http_client, NULL );
-                    }else
+                    }else{
                         pthread_rwlock_unlock(&l_http_client->http->url_proc->cache_rwlock);
-
+                        if(s_debug_http)
+                            log_it(L_DEBUG, "Cache is present, don't call underlaying callbacks");
+                    }
                     // If no headers callback we go to the DATA processing
                     if( l_http_client->in_content_length ) {
                         if(s_debug_http)
