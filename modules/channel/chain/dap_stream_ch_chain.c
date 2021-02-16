@@ -187,7 +187,7 @@ static bool s_stream_ch_delete_in_proc(dap_proc_thread_t * a_thread, void * a_ar
 {
     (void) a_thread;
     dap_stream_ch_chain_t * l_ch_chain=(dap_stream_ch_chain_t*) a_arg;
-    dap_stream_ch_chain_hash_item_t * l_item, *l_tmp;
+    dap_stream_ch_chain_hash_item_t * l_item = NULL, *l_tmp = NULL;
 
     // Clear remote atoms
     HASH_ITER(hh, l_ch_chain->remote_atoms, l_item, l_tmp){
@@ -307,7 +307,7 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
     if (l_iter && l_first_size) {
         // first packet
         if (!dap_hash_fast_is_blank(&l_sync_request->request.hash_from)) {
-            l_iter = l_chain->callback_atom_find_by_hash(l_sync_request->chain.request_atom_iter,
+            (void ) l_chain->callback_atom_find_by_hash(l_sync_request->chain.request_atom_iter,
                                                           &l_sync_request->request.hash_from, &l_first_size);
         }
 

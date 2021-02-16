@@ -89,7 +89,7 @@ void dap_http_client_new( dap_events_socket_t *a_esocket, void *a_arg )
 
     pthread_rwlock_rdlock(&l_http_client->http->url_proc->cache_rwlock);
     if(l_http_client->http->url_proc->cache){
-        if ( ! l_http_client->http->url_proc->cache->ts_expire || l_http_client->http->url_proc->cache->ts_expire < time(NULL) ){
+        if ( ! l_http_client->http->url_proc->cache->ts_expire || l_http_client->http->url_proc->cache->ts_expire >= time(NULL) ){
             l_http_client->out_headers = dap_http_headers_dup(l_http_client->http->url_proc->cache->headers);
             if(s_debug_http)
                 log_it(L_DEBUG,"%d Out: prepare cached headers", l_http_client->esocket->socket);
@@ -557,7 +557,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 if  ( ( l_http_client->proc->cache == NULL &&
                         l_http_client->proc->data_write_callback ) ||
                       ( l_http_client->proc->data_write_callback &&
-                        l_http_client->http->url_proc->cache->ts_expire >= time(NULL) &&
+                        l_http_client->http->url_proc->cache->ts_expire < time(NULL) &&
                         l_http_client->out_cache_position == NULL // Check if we haven't started
                                                                   // to share cached data
                         )
@@ -569,7 +569,9 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                         l_http_client->http->url_proc->cache = NULL;
                         if(s_debug_http)
                             log_it(L_NOTICE,"Cache expired and dropped out");
-                    }
+                    }else if (s_debug_http)
+                        log_it(L_DEBUG, "No cache so we call write callback");
+
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                     l_http_client->proc->data_write_callback( l_http_client, NULL );
                 }else if(l_http_client->proc->cache) {
