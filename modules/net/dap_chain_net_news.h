@@ -25,3 +25,4 @@
 #include "dap_http.h"
 
 int dap_chain_net_news_init(dap_http_t * a_http);
+void dap_chain_net_srv_vpn_cdb_news_cache_reset(void);

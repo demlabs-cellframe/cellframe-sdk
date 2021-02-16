@@ -115,7 +115,7 @@ void dap_http_simple_module_deinit( void )
  * @param a_reply_size_max Maximum reply size
  * @param a_callback Callback for data processing
  */
-void dap_http_simple_proc_add( dap_http_t *a_http, const char *a_url_path, size_t a_reply_size_max, dap_http_simple_callback_t a_callback )
+struct dap_http_simple_url_proc * dap_http_simple_proc_add( dap_http_t *a_http, const char *a_url_path, size_t a_reply_size_max, dap_http_simple_callback_t a_callback )
 {
     dap_http_simple_url_proc_t *l_url_proc = DAP_NEW_Z( dap_http_simple_url_proc_t );
 
@@ -129,6 +129,7 @@ void dap_http_simple_proc_add( dap_http_t *a_http, const char *a_url_path, size_
                      s_http_client_headers_read, NULL, // Headers read, write
                      s_http_client_data_read, s_http_client_data_write, // Data read, write
                      NULL); // errror
+    return l_url_proc;
 }
 
 static void _free_user_agents_list()
