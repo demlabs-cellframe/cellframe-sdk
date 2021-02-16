@@ -449,7 +449,7 @@ dap_http_cache_t * dap_http_simple_make_cache_from_reply(dap_http_simple_t * a_h
     return dap_http_cache_update(a_http_simple->http_client->http->url_proc,
                                  a_http_simple->reply_byte,
                                  a_http_simple->reply_size,
-                                 a_http_simple->http_client->out_headers, a_ts_expire);
+                                 a_http_simple->http_client->out_headers, NULL,200, a_ts_expire);
 }
 
 /**
