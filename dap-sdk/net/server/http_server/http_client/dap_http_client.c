@@ -588,12 +588,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
             if ( l_http_client->proc ){
                 pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                 if  ( ( l_http_client->proc->cache == NULL &&
-                        l_http_client->proc->data_write_callback ) ||
-                      ( l_http_client->proc->data_write_callback &&
-                        l_http_client->proc->cache->ts_expire < time(NULL) &&
-                        l_http_client->out_cache_position == NULL // Check if we haven't started
-                                                                  // to share cached data
-                        )
+                        l_http_client->proc->data_write_callback )
                     ){
                     if (l_http_client->proc->cache){
                         pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
