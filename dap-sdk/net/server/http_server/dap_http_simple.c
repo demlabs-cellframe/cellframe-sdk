@@ -376,8 +376,11 @@ static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a
     dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE( a_http_client );
     //  log_it(L_DEBUG,"dap_http_simple_data_write");
     //  Sleep(300);
-    if (!l_http_simple)
+    if (!l_http_simple){
+        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        log_it( L_WARNING, "No http_simple object in write callback, close connection" );
         return;
+    }
 
     if ( !l_http_simple->reply ) {
         a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
@@ -406,8 +409,12 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
     //  Sleep(300);
 
     dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
-    if(!l_http_simple)
+    if(!l_http_simple){
+        a_http_client->esocket->buf_in = 0;
+        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        log_it( L_WARNING, "No http_simple object in read callback, close connection" );
         return;
+    }
 
     size_t bytes_to_read = (a_http_client->esocket->buf_in_size + l_http_simple->request_size) < a_http_client->in_content_length ?
                             a_http_client->esocket->buf_in_size : ( a_http_client->in_content_length - l_http_simple->request_size );
