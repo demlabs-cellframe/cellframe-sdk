@@ -118,6 +118,8 @@ struct dap_events_socket * dap_notify_server_create_inter()
  */
 int dap_notify_server_send_f_inter(uint32_t a_worker_id, const char * a_format,...)
 {
+    if(!s_notify_server_queue_inter) // If not initialized - nothing to notify
+        return 0;
     if(a_worker_id>= dap_events_worker_get_count()){
         log_it(L_ERROR,"Wrong worker id %u for send_f_inter() function", a_worker_id);
         return -10;
@@ -139,6 +141,8 @@ int dap_notify_server_send_f_inter(uint32_t a_worker_id, const char * a_format,.
  */
 int dap_notify_server_send_f_mt(const char * a_format,...)
 {
+    if(!s_notify_server_queue) // If not initialized - nothing to notify
+        return 0;
     va_list va;
     va_start(va, a_format);
     size_t l_str_size=dap_vsnprintf(NULL,0,a_format,va);

@@ -121,11 +121,13 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
 
 int dap_db_driver_sqlite_deinit(void)
 {
-    pthread_rwlock_wrlock(&s_db_rwlock);
-    dap_db_driver_sqlite_close(s_db);
-    pthread_rwlock_unlock(&s_db_rwlock);
-    s_db = NULL;
-    return sqlite3_shutdown();
+    if (s_db){
+        pthread_rwlock_wrlock(&s_db_rwlock);
+        dap_db_driver_sqlite_close(s_db);
+        pthread_rwlock_unlock(&s_db_rwlock);
+        s_db = NULL;
+        return sqlite3_shutdown();
+    }
 }
 
 // additional function for sqlite to convert byte to number
@@ -514,7 +516,9 @@ char *dap_db_driver_sqlite_make_table_name(const char *a_group_name)
  */
 int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
 {
-    if(!a_store_obj || !a_store_obj->group)
+    if ( !s_db)
+        return -666;
+    if(!a_store_obj || !a_store_obj->group )
         return -1;
     char *l_query = NULL;
     char *l_error_message = NULL;
@@ -632,6 +636,9 @@ static void fill_one_item(const char *a_group, dap_store_obj_t *a_obj, SQLITE_RO
  */
 dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group)
 {
+    if ( !s_db)
+        return -666;
+
     dap_store_obj_t *l_obj = NULL;
     char *l_error_message = NULL;
     sqlite3_stmt *l_res;
@@ -681,6 +688,8 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     sqlite3_stmt *l_res;
     if(!a_group)
         return NULL;
+    if ( !s_db)
+        return -666;
 
     char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
     // no limit
@@ -753,6 +762,9 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     sqlite3_stmt *l_res;
     if(!a_group)
         return NULL;
+    if ( !s_db)
+        return -666;
+
     char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
     // no limit
     uint64_t l_count_out = 0;
