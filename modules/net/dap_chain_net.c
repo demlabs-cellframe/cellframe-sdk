@@ -543,10 +543,10 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
                             "net_id:0x%016" DAP_UINT64_FORMAT_X ","
                             "cell_id:0x%016"DAP_UINT64_FORMAT_X","
                             "address:\""NODE_ADDR_FP_STR"\","
-                            "stage:\"%s\""
-                        "}\n", a_node_client->net->pub.id, a_node_client->info->hdr.cell_id,
+                            "state:\"%s\""
+                        "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
-                                dap_client_stage_str(a_stage));
+                                dap_chain_node_client_state_to_str(a_node_client->state) );
 }
 
 /**
@@ -566,7 +566,7 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
                             "cell_id:0x%016"DAP_UINT64_FORMAT_X","
                             "address:\""NODE_ADDR_FP_STR"\","
                             "error:\%d"
-                        "}\n", a_node_client->net->pub.id, a_node_client->info->hdr.cell_id,
+                        "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
                                 a_error);
 }
@@ -600,7 +600,7 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
                             "net_id:0x%016" DAP_UINT64_FORMAT_X ","
                             "cell_id:0x%016"DAP_UINT64_FORMAT_X","
                             "address:\""NODE_ADDR_FP_STR"\""
-                        "}\n", a_node_client->net->pub.id, a_node_client->info->hdr.cell_id,
+                        "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
 }
 
@@ -645,7 +645,7 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
                             "net_id:0x%016" DAP_UINT64_FORMAT_X ","
                             "cell_id:0x%016"DAP_UINT64_FORMAT_X","
                             "address:\""NODE_ADDR_FP_STR"\""
-                        "}\n", l_net->pub.id, a_node_info->hdr.cell_id,
+                        "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
 
 }
@@ -673,7 +673,7 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
                             "cell_id:0x%016"DAP_UINT64_FORMAT_X","
                             "address:\""NODE_ADDR_FP_STR"\","
                             "error: %d"
-                        "}\n", l_net->pub.id, a_node_info->hdr.cell_id,
+                        "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),a_errno);
 
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
@@ -704,7 +704,7 @@ static void s_net_states_notify(dap_chain_net_t * l_net )
                                     "net_id: 0x%016" DAP_UINT64_FORMAT_X ","
                                     "state: \"%s\","
                                     "state_target:\"%s\""
-                                "}\n", l_net->pub.id,
+                                "}\n", l_net->pub.id.uint64,
                                        dap_chain_net_state_to_str( PVT(l_net)->state),
                                        dap_chain_net_state_to_str(PVT(l_net)->state_target));
 
@@ -739,7 +739,7 @@ static void s_net_links_notify(dap_chain_net_t * a_net )
                                         "ext_ipv6:\"%s\","
                                         "ext_port:%u"
                                         "state:\"%s\""
-                                    "}", i,NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->hdr.alias, l_info->hdr.cell_id,
+                                    "}", i,NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->hdr.alias, l_info->hdr.cell_id.uint64,
                                      l_ext_addr_v4, l_ext_addr_v6,l_info->hdr.ext_port
                                      , dap_chain_node_client_state_to_str(l_node_client->state) );
         }
@@ -751,7 +751,7 @@ static void s_net_links_notify(dap_chain_net_t * a_net )
                                     "class:\"NetLinks\","
                                     "net_id:0x%016" DAP_UINT64_FORMAT_X ","
                                     "links:%s"
-                                "}\n", a_net->pub.id,
+                                "}\n", a_net->pub.id.uint64,
                                        l_str_reply->str);
     dap_string_free(l_str_reply,true);
 

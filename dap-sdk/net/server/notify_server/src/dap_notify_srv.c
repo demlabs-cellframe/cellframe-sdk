@@ -145,7 +145,7 @@ int dap_notify_server_send_f_mt(const char * a_format,...)
     char * l_str = DAP_NEW_SIZE(char,l_str_size+1);
     dap_vsnprintf(l_str,l_str_size+1,a_format,va);
     va_end(va);
-    return dap_events_socket_queue_ptr_send(s_notify_server_callback_queue ,l_str);
+    return dap_events_socket_queue_ptr_send(s_notify_server_queue ,l_str);
 }
 
 /**

@@ -514,6 +514,7 @@ const char * dap_client_stage_str(dap_client_stage_t a_stage)
         case STAGE_STREAM_SESSION: return "STREAM_SESSION";
         case STAGE_STREAM_CONNECTED: return "STREAM_CONNECTED";
         case STAGE_STREAM_STREAMING: return "STREAM";
+        case STAGE_STREAM_ABORT: return "ABORT";
         default: return "UNDEFINED";
     }
 }
