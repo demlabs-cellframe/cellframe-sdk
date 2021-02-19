@@ -503,7 +503,6 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
                             log_it(L_WARNING,"Not accepted atom (code ATOM_PASS) with hash %s for %s:%s and moved into the treshold",  l_atom_hash_str, l_chain->net_name, l_chain->name);
                         }
-                        DAP_DELETE(l_atom_copy);
                     }else{
                         if (s_debug_more){
                             char l_atom_hash_str[72]={[0]='\0'};
@@ -511,7 +510,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                             log_it(L_WARNING,"Not accepted atom (code %d) with hash %s for %s:%s", l_atom_add_res, l_atom_hash_str, l_chain->net_name, l_chain->name);
                         }
                     }
-
+                    DAP_DEL_Z(l_atom_copy);
                 } else {
                     if (s_debug_more){
                         char l_atom_hash_str[72]={[0]='\0'};

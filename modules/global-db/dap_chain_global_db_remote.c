@@ -136,10 +136,8 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr)
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
     //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %llu", a_id);
-    dap_chain_hash_fast_t *l_hash = DAP_NEW(dap_chain_hash_fast_t);
-    memcpy(l_hash, a_hash, sizeof(*a_hash));
     return dap_chain_global_db_gr_set(dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name),
-                                      l_hash, sizeof(*l_hash), GROUP_LOCAL_NODE_LAST_ID);
+                                      a_hash, sizeof(*a_hash), GROUP_LOCAL_NODE_LAST_ID);
 }
 
 /**

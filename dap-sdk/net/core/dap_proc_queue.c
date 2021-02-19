@@ -75,6 +75,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         dap_proc_queue_item_t * l_item = DAP_NEW_Z(dap_proc_queue_item_t);
         if (! l_item){
             log_it(L_CRITICAL,"Can't allocate memory for callback item, exiting");
+            DAP_DELETE(l_msg);
             return;
         }
         l_item->callback = l_msg->callback;
@@ -98,7 +99,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     if (l_msg->signal_kill){ // Say to kill this object and delete its inherior dap_proc_queue_t
         a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
-    DAP_DEL_Z(l_msg)
+    DAP_DELETE(l_msg);
 }
 
 /**

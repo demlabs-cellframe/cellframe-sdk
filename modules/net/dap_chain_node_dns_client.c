@@ -127,13 +127,27 @@ static void s_dns_client_esocket_error_callback(dap_events_socket_t * a_esocket,
  */
 static bool s_dns_client_esocket_timeout_callback(void * a_arg)
 {
-    dap_events_socket_t * l_es = (dap_events_socket_t*) a_arg;
+    dap_events_socket_handler_t * l_es_handler = (dap_events_socket_handler_t *) a_arg;
+    assert(l_es_handler);
+    dap_events_socket_t * l_es = l_es_handler->esocket;
     assert(l_es);
     dap_events_t * l_events = dap_events_get_default();
     assert(l_events);
 
     dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
     assert(l_worker);
+
+    if(dap_events_socket_check_unsafe(l_worker ,l_es)){
+        if(dap_uint128_check_equal(l_es->uuid, l_es_handler->uuid)){ // Pointer is present but alien
+            DAP_DELETE(l_es_handler);
+            return false;
+        }else
+            DAP_DELETE(l_es_handler);
+    }else{ // No such pointer
+        DAP_DELETE(l_es_handler);
+        return false;
+    }
+
 
     struct dns_client * l_dns_client = (struct dns_client*) l_es->_inheritor;
 
@@ -236,8 +250,12 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
     dap_worker_t * l_worker = dap_events_worker_get_auto();
     dap_events_socket_write_unsafe(l_esocket,l_dns_client->dns_request->data, l_dns_client->dns_request->size );
     dap_events_socket_assign_on_worker_mt(l_esocket,l_worker);
+
+    dap_events_socket_handler_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+    l_es_handler->esocket = l_esocket;
+    l_es_handler->uuid = l_esocket->uuid;
     dap_timerfd_start_on_worker(l_worker, dap_config_get_item_uint64_default(g_config,"dns_client","request_timeout",10)*1000,
-                                 s_dns_client_esocket_timeout_callback,l_esocket);
+                                 s_dns_client_esocket_timeout_callback,l_es_handler);
 }
 
 

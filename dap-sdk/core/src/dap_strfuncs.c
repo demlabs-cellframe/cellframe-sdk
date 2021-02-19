@@ -238,13 +238,14 @@ int dap_strncmp(const char *a_str1, const char *a_str2, size_t a_n)
 char* dap_strdup(const char *a_str)
 {
     char *l_new_str;
-    size_t l_length;
 
-    if(a_str)
-    {
-        l_length = (size_t) (strlen(a_str) + 1);
-        l_new_str = DAP_NEW_SIZE(char, l_length);
-        memcpy(l_new_str, a_str, l_length);
+    if(a_str){
+        size_t l_length = (size_t) (strlen(a_str) + 1);
+        if(l_length){
+            l_new_str = DAP_NEW_SIZE(char, l_length);
+            memcpy(l_new_str, a_str, l_length);
+        }else
+            l_new_str = NULL;
     }
     else
         l_new_str = NULL;

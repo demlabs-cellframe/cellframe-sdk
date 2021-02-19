@@ -188,21 +188,25 @@ static bool s_timer_update_states_callback(void * a_arg )
     assert(l_es_handler);
     dap_events_socket_t * l_es = l_es_handler->esocket;
     uint128_t l_es_uuid = l_es_handler->uuid;
-    DAP_DEL_Z(l_es_handler);
     // check if esocket still in worker
     if(dap_events_socket_check_unsafe(l_worker,l_es)){
 
         // Check if its exactly ours!
         if (dap_uint128_check_equal(l_es->uuid,l_es_uuid)){
             dap_client_t * l_client = dap_client_from_esocket(l_es);
-            if(! l_client )
+            if(! l_client ){
+                DAP_DELETE(l_es_handler);
                 return false;
+            }
             dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;
-            if(! l_node_client) // No active node client
+            if(! l_node_client){ // No active node client
+                DAP_DELETE(l_es_handler);
                 return false;
-
-            if(! l_node_client->ch_chain) // No active ch channel
+            }
+            if(! l_node_client->ch_chain){ // No active ch channel
+                DAP_DELETE(l_es_handler);
                 return false;
+            }
             dap_stream_ch_chain_t * l_ch_chain = (dap_stream_ch_chain_t*) l_node_client->ch_chain->internal;
             assert(l_ch_chain);
             dap_chain_net_t * l_net = l_node_client->net;
@@ -225,10 +229,14 @@ static bool s_timer_update_states_callback(void * a_arg )
 
             }
             return true;
-        }else
+        }else{
+            DAP_DELETE(l_es_handler);
             return false;
-    }else
+        }
+    }else{
+        DAP_DELETE(l_es_handler);
         return false;
+    }
 }
 
 /**

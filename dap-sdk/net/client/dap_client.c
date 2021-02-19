@@ -120,6 +120,7 @@ void dap_client_set_uplink_unsafe(dap_client_t * a_client,const char* a_addr, ui
         log_it(L_ERROR,"Client is NULL for dap_client_set_uplink");
         return;
     }
+    DAP_DEL_Z(DAP_CLIENT_PVT(a_client)->uplink_addr);
     DAP_CLIENT_PVT(a_client)->uplink_addr = strdup(a_addr);
     DAP_CLIENT_PVT(a_client)->uplink_port = a_port;
 }

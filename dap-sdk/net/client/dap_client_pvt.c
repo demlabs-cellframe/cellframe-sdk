@@ -175,6 +175,9 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
     if(s_debug_more)
         log_it(L_INFO, "dap_client_pvt_delete 0x%x", a_client_pvt);
 
+    if(a_client_pvt->uplink_addr)
+        DAP_DELETE(a_client_pvt->uplink_addr);
+
     if(a_client_pvt->session_key_id)
         DAP_DELETE(a_client_pvt->session_key_id);
 
@@ -799,13 +802,17 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     }
 */
     int l_off;
-    char *l_path = DAP_NEW_S_SIZE(char, l_query_enc_size_max + l_sub_url_enc_size_max + 1);
+    size_t l_path_size= l_query_enc_size_max + l_sub_url_enc_size_max + 1;
+    char *l_path = DAP_NEW_S_SIZE(char, l_path_size);
+    l_path[0] = '\0';
     if(a_path) {
-        if(l_sub_url_size)
-        {
-            l_off = l_query_size
-                    ? dap_snprintf(l_path, l_query_enc_size_max + l_sub_url_enc_size_max + 1, "%s/%s?%s", a_path, l_sub_url_enc, l_query_enc)
-                    : dap_snprintf(l_path, l_sub_url_enc_size_max + 1, "%s/%s", a_path, l_sub_url_enc);
+        if(l_sub_url_size){
+            if(l_query_size){
+                dap_snprintf(l_path, l_path_size, "%s/%s?%s", a_path, l_sub_url_enc,
+                                   l_query_enc?l_query_enc:"");
+            }else{
+                dap_snprintf(l_path, l_path_size, "%s/%s", a_path, l_sub_url_enc);
+            }
         } else {
             dap_stpcpy(l_path, a_path);
         }

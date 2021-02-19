@@ -1859,29 +1859,29 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data
 
 /**
  * @brief dap_events_socket_write_f Write formatted text to the client
- * @param sc Conn instance
- * @param format Format
+ * @param a_es Conn instance
+ * @param a_format Format
  * @return Number of bytes that were placed into the buffer
  */
-size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * format,...)
+size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *a_es, const char * a_format,...)
 {
     //log_it(L_DEBUG,"dap_events_socket_write_f %u sock", sc->socket );
 
-    size_t l_max_data_size = sc->buf_out_size_max - sc->buf_out_size;
+    size_t l_max_data_size = a_es->buf_out_size_max - a_es->buf_out_size;
     if (! l_max_data_size)
         return 0;
 
-    va_list ap;
-    va_start(ap, format);
-    int ret=dap_vsnprintf((char*)sc->buf_out + sc->buf_out_size, l_max_data_size, format, ap);
-    va_end(ap);
-    if(ret > 0) {
-        sc->buf_out_size += (unsigned int)ret;
+    va_list l_ap;
+    va_start(l_ap, a_format);
+    int l_ret=dap_vsnprintf( ((char*)a_es->buf_out) + a_es->buf_out_size, l_max_data_size, a_format, l_ap);
+    va_end(l_ap);
+    if(l_ret > 0) {
+        a_es->buf_out_size += (unsigned int)l_ret;
     } else {
-        log_it(L_ERROR,"Can't write out formatted data '%s'", format);
+        log_it(L_ERROR,"Can't write out formatted data '%s'", a_format);
     }
-    dap_events_socket_set_writable_unsafe(sc, true);
-    return (ret > 0) ? (unsigned int)ret : 0;
+    dap_events_socket_set_writable_unsafe(a_es, true);
+    return (l_ret > 0) ? (unsigned int)l_ret : 0;
 }
 
 /**

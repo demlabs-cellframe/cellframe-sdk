@@ -647,7 +647,7 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
                             "address:\""NODE_ADDR_FP_STR"\""
                         "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-
+    DAP_DELETE(l_dns_request);
 }
 
 /**
@@ -687,10 +687,12 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
             pthread_rwlock_unlock(&l_net_pvt->rwlock);
             s_fill_links_from_root_aliases(l_net);
             dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
+            DAP_DELETE(l_dns_request);
             return;
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    DAP_DELETE(l_dns_request);
 }
 
 /**
