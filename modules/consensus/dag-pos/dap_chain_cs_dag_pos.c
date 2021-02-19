@@ -236,6 +236,19 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 log_it(L_WARNING, "Event is NOT signed with anything: sig pos %zd, event size %zd", a_dag_event_size);
                 return -4;
             }
+            size_t l_dag_event_size_without_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
+
+            int l_sign_verify_ret = dap_sign_verify(l_sign,a_dag_event,l_dag_event_size_without_sign);
+            if ( l_sign_verify_ret != 0){
+                log_it(L_WARNING, "Event's sign is incorrect: code %d", l_sign_verify_ret);
+                return -41;
+
+            }
+
+            if (!l_dag_event_size_without_sign){
+                log_it(L_WARNING,"Event has nothing except sign, nothing to verify so I pass it (who knows why we have it?)");
+                return 0;
+            }
 
             dap_chain_hash_fast_t l_pkey_hash;
             if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
@@ -243,6 +256,8 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 return -5;
             }
             dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
+
+
 
             if (l_sig_pos == 0) {
                 dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event,a_dag_event_size);
