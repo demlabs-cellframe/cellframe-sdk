@@ -103,6 +103,8 @@ static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
 
 static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
+static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void *a_arg);
+static void s_sync_out_chains_first_worker_callback(dap_worker_t *a_worker, void *a_arg);
 
 static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
 static void s_sync_out_gdb_first_gdb_worker_callback(dap_worker_t *a_worker, void *a_arg);
@@ -1348,7 +1350,9 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             bool l_was_sent_smth=false;
             // Process one chain from l_ch_chain->request_atom_iter
             // Pack loop to skip quicker
-            for(uint_fast16_t k=0; k<s_skip_in_reactor_count && l_ch_chain->request_atom_iter && l_ch_chain->request_atom_iter->cur; k++){
+            for(uint_fast16_t k=0; k<s_skip_in_reactor_count     &&
+                                   l_ch_chain->request_atom_iter &&
+                                   l_ch_chain->request_atom_iter->cur; k++){
                 // Check if present and skip if present
                 dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
                 HASH_FIND(hh,l_ch_chain->remote_atoms, l_ch_chain->request_atom_iter->cur_hash , sizeof (l_hash_item->hash), l_hash_item );
@@ -1361,10 +1365,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     }
                 }else{
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,
+                                  &l_hash_item->hash);
                     if(s_debug_more){
-                        dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,&l_hash_item->hash);
                         char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_hash_item->hash);
-
                         log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd) ", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size);
                         DAP_DELETE(l_atom_hash_str);
                     }
@@ -1375,9 +1379,21 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_ch_chain->stats_request_atoms_processed++;
 
                     l_hash_item->size = l_ch_chain->request_atom_iter->cur_size;
-                    // Because we sent this atom to remote - we record it to not to send it twice
-                    HASH_ADD(hh, l_ch_chain->remote_atoms, hash, sizeof (l_hash_item->hash), l_hash_item);
-                    //break; // If sent smth - break out from pack loop
+
+                    unsigned l_hash_item_hashv =0;
+                    dap_stream_ch_chain_hash_item_t *l_hash_item_check = NULL;
+
+                    HASH_VALUE(&l_hash_item->hash ,sizeof (l_hash_item->hash),
+                               l_hash_item_hashv);
+                    HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_atoms,&l_hash_item->hash ,sizeof (l_hash_item->hash),
+                                          l_hash_item_hashv,  l_hash_item_check);
+                    if (l_hash_item_check ==NULL ){
+                        // Because we sent this atom to remote - we record it to not to send it twice
+                        HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_atoms, hash, sizeof (l_hash_item->hash),l_hash_item_hashv,
+                                             l_hash_item);
+                    }else
+                        DAP_DELETE(l_hash_item);
+
                 }
                 // Then get next atom and populate new last
                 l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);

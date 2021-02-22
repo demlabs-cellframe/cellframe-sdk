@@ -1130,11 +1130,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_
         a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
         a_atom_iter->cur_size = a_atom_iter->cur ? l_event_item->event_size : 0;
         a_atom_iter->cur_hash = l_event_item ? &l_event_item->hash : NULL;
-    }
-    if(a_atom_size)
-        *a_atom_size = a_atom_iter->cur_size;
+        if(a_atom_size)
+            *a_atom_size = a_atom_iter->cur_size;
+        return a_atom_iter->cur;
+    }else
+        return NULL;
 
-    return a_atom_iter->cur;
 }
 
 /**
