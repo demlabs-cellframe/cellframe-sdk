@@ -4,6 +4,7 @@
 QMAKE_CFLAGS_DEBUG += -DDAP_DEBUG
 QMAKE_CXXFLAGS +=  -std=c++11
 QMAKE_CFLAGS +=  -std=gnu11
+
 unix {
     include(src/unix/unix.pri)
     DEFINES += DAP_OS_UNIX
@@ -12,15 +13,17 @@ android {
     DEFINES += DAP_OS_ANDROID DAP_OS_LINUX DAP_OS_UNIX
 }
 
-unix: !android {
+unix: !android : ! darwin {
     QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
     QMAKE_LFLAGS_DEBUG += -pg
     DEFINES += _GNU_SOURCE
     LIBS += -lrt -ljson-c -lmagic
 }
 darwin {
+    QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
+    DEFINES += _GNU_SOURCE
     include(src/darwin/darwin.pri)
-    DEFINES += DAP_OS_DARWIN
+    DEFINES += DAP_OS_DARWIN DAP_OS_BSD
     LIBS -= -lrt
 }
 

@@ -35,6 +35,11 @@
 #elif defined DAP_OS_WINDOWS
 #include <ws2tcpip.h>
 #endif
+
+#ifdef DAP_OS_DARWIN
+#define NOTE_READ NOTE_LOWAT
+#endif
+
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_math_ops.h"
@@ -214,13 +219,22 @@ void *dap_worker_thread(void *arg)
             l_cur = l_worker->poll_esocket[n];
             //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-	    l_cur = (dap_events_socket_t*) l_worker->kqueue_events[n].udata;
-	    u_int l_cur_flags = l_worker->kqueue_events[n].fflags;
+        struct kevent * l_kevent_selected = l_cur->kqueue_event_catched = &l_worker->kqueue_events[n];
+        l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+        assert(l_cur);
+#ifndef DAP_OS_DARWIN
+            u_int l_cur_flags = l_kevent_selected->flags;
+#else
+            uint32_t l_cur_flags = l_kevent_selected->fflags;
+#endif
+
+
             l_flag_write = l_cur_flags & EVFILT_WRITE;
             l_flag_read  = l_cur_flags & EVFILT_READ;
-            if( !l_cur)
-        	continue;
-    	    l_cur->kqueue_event_catched = &l_worker->kqueue_events[n];
+            l_flag_error = l_cur_flags & EVFILT_EXCEPT;
+            l_flag_nval = l_flag_pri = l_flag_msg = l_flag_hup=  0;
+            l_flag_rdhup = l_cur_flags & EVFILT_EXCEPT & NOTE_DELETE;
+
 
 #else
 #error "Unimplemented fetch esocket after poll"

@@ -32,6 +32,8 @@
 #include <stdint.h>
 
 #ifdef DAP_OS_UNIX
+#include <pthread.h>
+#include <fcntl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -46,21 +48,28 @@
 #include <signal.h>
 #include <sched.h>
 
-#ifdef DAP_OS_LINUX
+#if defined(DAP_OS_LINUX)
 #include <sys/timerfd.h>
 #endif
 
-
-#include <pthread.h>
-
-#ifdef DAP_OS_BSD
-#include <pthread_np.h>
+#if defined(DAP_OS_BSD)
 #include <sys/event.h>
 #include <err.h>
-#include <fcntl.h>
-typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
-
 #endif
+
+#if defined(DAP_OS_DARWIN)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+
+#include <mach/thread_policy.h>
+#include <mach/thread_act.h>
+#elif defined (DAP_OS_BSD)
+#include <pthread_np.h>
+typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
+#endif
+
+
+
 
 #if defined(DAP_OS_ANDROID)
 #define NO_POSIX_SHED
@@ -78,6 +87,7 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #endif
 
 #include <utlist.h>
+#include <pthread.h>
 
 #include "dap_common.h"
 #include "dap_strfuncs.h"
@@ -103,20 +113,31 @@ uint32_t dap_get_cpu_count( )
   return si.dwNumberOfProcessors;
 #else
 #ifndef NO_POSIX_SHED
+#ifndef DAP_OS_DARWIN
   cpu_set_t cs;
   CPU_ZERO( &cs );
+#endif
+
 #if defined (DAP_OS_ANDROID) 
   sched_getaffinity( 0, sizeof(cs), &cs );
+#elif defined (DAP_OS_DARWIN)
+  int count=0;
+  size_t count_len = sizeof(count);
+  sysctlbyname("hw.logicalcpu", &count, &count_len, NULL, 0);
+
 #else
   pthread_getaffinity_np(pthread_self(), sizeof(cs), &cs);
 #endif
 
+#ifndef DAP_OS_DARWIN
   uint32_t count = 0;
   for ( int i = 0; i < 32; i++ ){
     if ( CPU_ISSET(i, &cs) )
     count ++;
   }
+#endif
   return count;
+
 #else
   return 1;
 #endif
@@ -127,15 +148,23 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
 {
 #ifndef DAP_OS_WINDOWS
 #ifndef NO_POSIX_SHED
+
+#ifdef DAP_OS_DARWIN
+    pthread_t l_pthread_id = pthread_self();
+    mach_port_t l_pthread_mach_port = pthread_mach_thread_np(l_pthread_id);
+#else
     cpu_set_t mask;
     CPU_ZERO(&mask);
     CPU_SET(a_cpu_id, &mask);
-
+#endif
     int l_retcode;
-#ifndef __ANDROID__
-    l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
+#ifdef DAP_OS_DARWIN
+    thread_affinity_policy_data_t l_policy_data={.affinity_tag = a_cpu_id};
+    thread_policy_set(l_pthread_mach_port , THREAD_AFFINITY_POLICY, (thread_policy_t)&l_policy_data , 1);
+#elif defined(DAP_OS_ANDROID)
+    err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
 #else
-  err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
+    l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #endif
     if(l_retcode != 0)
     {

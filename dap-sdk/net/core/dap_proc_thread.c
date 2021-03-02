@@ -32,10 +32,17 @@
 #elif defined (DAP_EVENTS_CAPS_POLL)
 #include <poll.h>
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-#include <pthread_np.h>
+
 #include <sys/event.h>
 #include <err.h>
+
+#ifndef DAP_OS_DARWIN
+#include <pthread_np.h>
 typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
+#else
+#define NOTE_READ NOTE_LOWAT
+#endif
+
 #else
 #error "Unimplemented poll for this platform"
 #endif
@@ -557,21 +564,24 @@ static void * s_proc_thread_function(void * a_arg)
             l_flag_pri = l_cur_events & POLLPRI;
             l_flag_msg = l_cur_events & POLLMSG;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-	    l_cur = (dap_events_socket_t*) l_thread->kqueue_events[n].udata;
-            if (!l_cur)
-        	continue;
+            l_cur = (dap_events_socket_t*) l_thread->kqueue_events[n].udata;
+            assert(l_cur);
             l_cur->kqueue_event_catched = &l_thread->kqueue_events[n];
-	    u_int l_cur_events = l_thread->kqueue_events[n].fflags;
+#ifndef DAP_OS_DARWIN
+            u_int l_cur_events = l_thread->kqueue_events[n].flags;
+#else
+            uint32_t l_cur_events = l_thread->kqueue_events[n].fflags;
+#endif
+
             l_flag_write = l_cur_events & EVFILT_WRITE;
             l_flag_read  = l_cur_events & EVFILT_READ;
+            l_flag_error = l_cur_events & EVFILT_EXCEPT;
+            l_flag_nval = l_flag_pri = l_flag_msg = l_flag_hup=  0;
+            l_flag_rdhup = l_cur_events & EVFILT_EXCEPT & NOTE_DELETE;
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif
-
-            if(!l_cur) {
-                log_it(L_ERROR, "dap_events_socket NULL");
-                continue;
-            }
+            assert(l_cur);
             if(s_debug_reactor)
                 log_it(L_DEBUG, "Proc thread #%u esocket %p fd=%d type=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
                     l_cur->type, l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",

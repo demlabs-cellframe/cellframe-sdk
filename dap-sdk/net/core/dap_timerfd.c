@@ -156,8 +156,13 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
 #elif defined (DAP_OS_BSD)
     l_events_socket->kqueue_base_flags = EV_ADD | EV_ONESHOT | EV_DISPATCH;
     l_events_socket->kqueue_base_filter = EVFILT_TIMER;
+#ifdef DAP_OS_DARWIN
+    l_events_socket->kqueue_base_fflags = NOTE_USECONDS;
+    l_events_socket->kqueue_data =(int64_t) a_timeout_ms*1000;
+#else
     l_events_socket->kqueue_base_fflags = NOTE_MSECONDS;
     l_events_socket->kqueue_data =(int64_t) a_timeout_ms;
+#endif
     l_events_socket->socket = rand();
 #elif defined (DAP_OS_WINDOWS)
     HANDLE l_th = CreateWaitableTimer(NULL, true, NULL);

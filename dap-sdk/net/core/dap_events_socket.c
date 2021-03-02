@@ -59,10 +59,17 @@
 #endif
 
 #ifdef DAP_OS_BSD
-#include <pthread_np.h>
 #include <sys/event.h>
 #include <err.h>
+
+#ifndef DAP_OS_DARWIN
+#include <pthread_np.h>
 typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
+#else
+#define NOTE_READ NOTE_LOWAT
+
+#endif
+
 #endif
 
 
@@ -176,7 +183,11 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     l_ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
     #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_ret->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
-    l_ret->kqueue_base_fflags = NOTE_CLOSE | NOTE_CLOSE_WRITE | NOTE_DELETE | NOTE_REVOKE ;
+
+    l_ret->kqueue_base_fflags =  NOTE_DELETE | NOTE_REVOKE ;
+#if !defined(DAP_OS_DARWIN)
+    l_ret->kqueue_base_fflags |= NOTE_CLOSE | NOTE_CLOSE_WRITE ;
+#endif
     l_ret->kqueue_base_filter = EVFILT_VNODE;
     #endif
 
@@ -278,7 +289,10 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
-    l_es->kqueue_base_fflags = NOTE_CLOSE | NOTE_CLOSE_WRITE | NOTE_DELETE | NOTE_REVOKE ;
+    l_es->kqueue_base_fflags = NOTE_DELETE | NOTE_REVOKE ;
+#if !defined(DAP_OS_DARWIN)
+    l_es->kqueue_base_fflags |= NOTE_CLOSE | NOTE_CLOSE_WRITE ;
+#endif
     l_es->kqueue_base_filter = EVFILT_VNODE;
 #else
 #error "Not defined s_create_type_pipe for your platform"
@@ -361,7 +375,11 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
     if (ioctlsocket((SOCKET)l_sock, (long)FIONBIO, &l_socket_flags))
         log_it(L_ERROR, "Error ioctl %d", WSAGetLastError());
 #else
-    int l_sock = socket(l_sock_class, l_sock_type | SOCK_NONBLOCK , 0);
+    int l_sock = socket(l_sock_class, l_sock_type, 0);
+    int l_sock_flags = fcntl( l_sock, F_GETFL);
+    l_sock_flags |= O_NONBLOCK;
+    fcntl( l_sock, F_SETFL, l_sock_flags);
+
     if (l_sock == INVALID_SOCKET) {
         log_it(L_ERROR, "Socket create error");
         return NULL;

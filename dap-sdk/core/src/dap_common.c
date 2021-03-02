@@ -969,12 +969,14 @@ int dap_interval_timer_delete(void *a_timer)
     if (s_timers_count == 0) {
         pthread_mutex_destroy(&s_timers_lock);
     }
-#ifdef DAP_OS_UNIX
-    return timer_delete((timer_t)a_timer);
-#else
+#ifdef DAP_OS_DARWIN
     dispatch_source_cancel(a_timer);
     return 0;
+#elif defined(DAP_OS_UNIX)
+    // POSIX timer delete
+    return timer_delete((timer_t)a_timer);
 #endif  // DAP_OS_UNIX
+
 #endif  // _WIN32
 }
 
