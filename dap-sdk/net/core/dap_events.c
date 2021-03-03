@@ -335,7 +335,10 @@ int dap_events_start( dap_events_t *a_events )
     // Link queues between
     for( uint32_t i = 0; i < s_threads_count; i++) {
         dap_worker_t * l_worker = s_workers[i];
-        l_worker->queue_es_io_input = DAP_NEW_S_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
+        l_worker->queue_es_new_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
+        l_worker->queue_es_delete_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
+        l_worker->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
+        l_worker->queue_es_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
         for( uint32_t n = 0; n < s_threads_count; n++) {
             l_worker->queue_es_new_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_new);
             l_worker->queue_es_delete_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_delete);

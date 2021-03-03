@@ -12,6 +12,7 @@ INCLUDEPATH += \
             $$PWD/../net/server/http_server/http_client/include \
             $$PWD/../net/server/http_server/include \
             $$PWD/../net/server/enc_server/include \
+            $$PWD/../net/server/notify_server/include \
             $$PWD/../net/server/json_rpc/include \
             $$PWD/../net/server/http_server \
             $$PWD/../net/stream/session/include \

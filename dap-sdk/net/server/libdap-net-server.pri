@@ -12,14 +12,21 @@ SOURCES += $$PWD/enc_server/dap_enc_http.c \
     
 #http_server    
 HEADERS += $$PWD/http_server/include/dap_http.h \
+    $$PWD/http_server/include/dap_http_cache.h \
     $$PWD/http_server/include/dap_http_folder.h \
     $$PWD/http_server/include/http_status_code.h \
     $$PWD/http_server/include/dap_http_simple.h
 
 SOURCES += $$PWD/http_server/dap_http.c \
+    $$PWD/http_server/dap_http_cache.c \
     $$PWD/http_server/dap_http_folder.c \
     $$PWD/http_server/dap_http_simple.c
-    
+
+# notify server
+#notify_server
+HEADERS += $$PWD/notify_server/include/dap_notify_srv.h
+SOURCES += $$PWD/notify_server/src/dap_notify_srv.c
+
 include (../server/http_server/http_client/http.pri)
     
     
@@ -43,4 +50,6 @@ SOURCES += $$PWD/json_rpc/src/dap_json_rpc.c \
     $$PWD/json_rpc/src/dap_json_rpc_response_handler.c
     
 INCLUDEPATH += $$PWD/include
-
+darwin{
+    LIBS += -ljson-c -lmagic
+}

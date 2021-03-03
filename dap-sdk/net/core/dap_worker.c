@@ -219,9 +219,10 @@ void *dap_worker_thread(void *arg)
             l_cur = l_worker->poll_esocket[n];
             //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-        struct kevent * l_kevent_selected = l_cur->kqueue_event_catched = &l_worker->kqueue_events[n];
+        struct kevent * l_kevent_selected = &l_worker->kqueue_events[n];
         l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
         assert(l_cur);
+        l_cur->kqueue_event_catched = l_kevent_selected;
 #ifndef DAP_OS_DARWIN
             u_int l_cur_flags = l_kevent_selected->flags;
 #else
@@ -316,7 +317,8 @@ void *dap_worker_thread(void *arg)
                 dap_events_socket_set_writable_unsafe(l_cur, false);
                 l_cur->buf_out_size = 0;
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
+                if(l_cur->callbacks.error_callback)
+                    l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
             }
 
             /*if (l_flag_hup) {

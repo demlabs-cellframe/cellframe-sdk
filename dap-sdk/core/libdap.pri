@@ -24,7 +24,8 @@ darwin {
     DEFINES += _GNU_SOURCE
     include(src/darwin/darwin.pri)
     DEFINES += DAP_OS_DARWIN DAP_OS_BSD
-    LIBS -= -lrt
+    LIBS+ = -lrt -ljson-c -lmagic
+    QMAKE_LIBDIR += /usr/local/lib
 }
 
 win32 {

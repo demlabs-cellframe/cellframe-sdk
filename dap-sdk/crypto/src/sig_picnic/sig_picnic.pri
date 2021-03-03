@@ -5,7 +5,9 @@ HEADERS += $$PWD/hash.h \
     $$PWD/picnic_types.h \
     $$PWD/platform.h
 
-macos { HEADERS += $$PWD/macos_specific_endian.h }
+macos {
+    HEADERS += $$PWD/macos_specific_endian.h
+}
 
 SOURCES +=  $$PWD/hash.c \
     $$PWD/lowmc_constants.c \
