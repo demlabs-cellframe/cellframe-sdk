@@ -806,3 +806,26 @@ void dap_multi_sign_delete(dap_multi_sign_t *a_sign)
     }
     DAP_DELETE(a_sign);
 }
+
+/**
+ * @brief dap_sign_get_information Added in string information about signature
+ * @param a_sign Signature can be NULL
+ * @param a_str_out The output string pointer
+ */
+void dap_sign_get_information(dap_sign_t* a_sign, dap_string_t *a_str_out){
+    dap_string_append_printf(a_str_out, "Signature: \n");
+    if (a_sign != NULL){
+        dap_chain_hash_fast_t l_hash_pkey;
+        dap_string_append_printf(a_str_out, "\tType: %s\n",
+                                 dap_sign_type_to_str(a_sign->header.type));
+        if(dap_sign_get_pkey_hash(a_sign, &l_hash_pkey)){
+            dap_string_append_printf(a_str_out, "\tPublic key hash: %s\n", dap_chain_hash_fast_to_str_new(&l_hash_pkey));
+        }
+        dap_string_append_printf(a_str_out, "\tPublic key size: %u\n"
+                                            "\tSignature size: %u\n",
+                                 a_sign->header.sign_pkey_size,
+                                 a_sign->header.sign_size);
+    }else {
+        dap_string_append_printf(a_str_out, "! Signature has data, corrupted or not valid\n");
+    }
+}

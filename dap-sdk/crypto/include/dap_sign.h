@@ -30,6 +30,7 @@
 #include "dap_enc_key.h"
 #include "dap_pkey.h"
 #include "dap_hash.h"
+#include "dap_string.h"
 
 typedef enum {
     SIG_TYPE_NULL = 0x0000,
@@ -137,6 +138,8 @@ void dap_multi_sign_params_delete(dap_multi_sign_params_t *a_params);
 dap_multi_sign_t *dap_multi_sign_create(dap_multi_sign_params_t *a_params, const void *a_data, const size_t a_data_size);
 int dap_multi_sign_verify(dap_multi_sign_t *a_sign, const void *a_data, const size_t a_data_size);
 void dap_multi_sign_delete(dap_multi_sign_t *a_sign);
+
+void dap_sign_get_information(dap_sign_t* a_sign, dap_string_t *a_str_out);
 
 #ifdef __cplusplus
 }
