@@ -16,7 +16,9 @@
 #include "cdb_bgtask.h"
 #include <stdlib.h>
 #include <errno.h>
-#ifndef _WIN32
+#if defined(DAP_OS_DARWIN)
+#include <signal.h>
+#elif defined(_WIN32)
 #include <sys/signal.h>
 #else
 #include <signal.h>
