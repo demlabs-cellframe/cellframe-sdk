@@ -681,7 +681,9 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
 #ifndef _WIN32
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
+#ifndef DAP_OS_DARWIN
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+#endif
     pthread_cond_init(&l_node_client->wait_cond, &attr);
 #else
     l_node_client->wait_cond = CreateEventA( NULL, FALSE, FALSE, NULL );

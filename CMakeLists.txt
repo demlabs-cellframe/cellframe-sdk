@@ -2,9 +2,10 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.8-23")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.8-24")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 set(DAPSDK_MODULES "")
+message("Cellframe modules: ${CELLFRAME_MODULES}")
 
 if (CELLFRAME_MODULES MATCHES "core")
     SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto")
@@ -47,7 +48,7 @@ set(CELLFRAME_LIBS "")
 # Core libs from dap-sdk
 if (CELLFRAME_MODULES MATCHES "core")
     message("[+] Module 'core'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto m pthread)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_crypto m pthread)
 endif()
 
 # General chain libs

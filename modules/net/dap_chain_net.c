@@ -988,7 +988,9 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
 #ifndef _WIN32
     pthread_condattr_t l_attr;
     pthread_condattr_init( &l_attr );
+#ifndef DAP_OS_DARWIN
     pthread_condattr_setclock( &l_attr, CLOCK_MONOTONIC );
+#endif
     pthread_cond_init( &PVT(ret)->state_proc_cond, &l_attr );
 #else
     PVT(ret)->state_proc_cond = CreateEventA( NULL, FALSE, FALSE, NULL );

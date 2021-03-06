@@ -19,7 +19,9 @@
 
 enum {
     /* spinlock */
+#ifndef DAP_OS_DARWIN
     CDB_LOCKSPIN,
+#endif
     /* mutex, which may cause OS context switch, mainly used in where Disk IO happens */
     CDB_LOCKMUTEX,
 };

@@ -296,13 +296,13 @@ CDB *cdb_new()
     db = (CDB *)malloc(sizeof(CDB));
     /* I assume all operation in this layer is 'fast', so no mutex used here */
     for(int i = 0; i < MLOCKNUM; i++) 
-        db->mlock[i] = cdb_lock_new(CDB_LOCKSPIN);
-    db->dpclock = cdb_lock_new(CDB_LOCKSPIN);
-    db->pclock = cdb_lock_new(CDB_LOCKSPIN);
-    db->rclock = cdb_lock_new(CDB_LOCKSPIN);
-    db->stlock = cdb_lock_new(CDB_LOCKSPIN);
-    db->oidlock = cdb_lock_new(CDB_LOCKSPIN);
-    db->bflock = cdb_lock_new(CDB_LOCKSPIN);
+        db->mlock[i] = cdb_lock_new(CDB_LOCKMUTEX);
+    db->dpclock = cdb_lock_new(CDB_LOCKMUTEX);
+    db->pclock = cdb_lock_new(CDB_LOCKMUTEX);
+    db->rclock = cdb_lock_new(CDB_LOCKMUTEX);
+    db->stlock = cdb_lock_new(CDB_LOCKMUTEX);
+    db->oidlock = cdb_lock_new(CDB_LOCKMUTEX);
+    db->bflock = cdb_lock_new(CDB_LOCKMUTEX);
     db->bgtask = cdb_bgtask_new();
     /* every thread should has its own errno */
     db->errkey = (pthread_key_t *)malloc(sizeof(pthread_key_t));

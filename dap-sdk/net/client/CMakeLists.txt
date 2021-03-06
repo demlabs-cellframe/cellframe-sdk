@@ -9,7 +9,7 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CLIENT_HEADERS} ${DAP_CLIENT_SOURCES})
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server dap_enc_server dap_stream dap_session dap_stream_ch json-c)
 
-if(UNIX AND NOT ANDROID)
+if(UNIX AND NOT ANDROID AND NOT DARWIN)
     target_link_libraries(${PROJECT_NAME} rt)
 endif()
 

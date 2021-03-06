@@ -167,5 +167,6 @@ dap_http_url_proc_t * dap_http_add_proc(dap_http_t *a_http, const char *a_url_pa
     HASH_ADD_STR( a_http->url_proc, url, l_url_proc );
 
     log_it( L_DEBUG, "Added URL processor for '%s' path", l_url_proc->url );
+    return l_url_proc;
 }
 

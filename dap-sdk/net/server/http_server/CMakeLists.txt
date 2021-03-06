@@ -21,6 +21,10 @@ target_include_directories(${PROJECT_NAME} INTERFACE . http_client/include/)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../3rdparty/uthash/src)
 
+if(DARWIN)
+    target_include_directories(${PROJECT_NAME} PRIVATE /usr/local/include)
+endif()
+
 if(WIN32)
   target_link_libraries(dap_http_server dap_core dap_crypto dap_server_core magic regex tre intl iconv
   KERNEL32
