@@ -26,6 +26,9 @@ darwin {
     DEFINES += DAP_OS_DARWIN DAP_OS_BSD
     LIBS+ = -lrt -ljson-c -lmagic
     QMAKE_LIBDIR += /usr/local/lib
+
+    QMAKE_CFLAGS_DEBUG += -gdwarf-2
+    QMAKE_CXXFLAGS_DEBUG += -gdwarf-2
 }
 
 win32 {

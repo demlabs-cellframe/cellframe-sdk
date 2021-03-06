@@ -285,7 +285,7 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
 	l_fflags |= NOTE_READ;
     if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
     l_fflags |= NOTE_WRITE;
-    EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
+    EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags, l_fflags,0, a_esocket);
     
     if( kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)!=1 ){
         log_it(L_CRITICAL, "Can't add descriptor in proc thread kqueue , err: %d", errno);
@@ -482,13 +482,13 @@ static void * s_proc_thread_function(void * a_arg)
 
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
         // Queue asssign
-	dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_assign_input[n]);
+        dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_assign_input[n]);
 
         // Queue IO
-	dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_io_input[n]);
+        dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_io_input[n]);
 
         // Queue callback
-	dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_callback_input[n]);
+        dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_callback_input[n]);
     }
 
 #else
@@ -513,7 +513,7 @@ static void * s_proc_thread_function(void * a_arg)
         l_sockets_max = l_thread->poll_count;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
         l_selected_sockets = kevent(l_thread->kqueue_fd,NULL,0,l_thread->kqueue_events,l_thread->kqueue_events_count_max,NULL);
-        l_sockets_max = l_thread->kqueue_events_count_max;
+        l_sockets_max = l_selected_sockets;
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
@@ -564,20 +564,21 @@ static void * s_proc_thread_function(void * a_arg)
             l_flag_pri = l_cur_events & POLLPRI;
             l_flag_msg = l_cur_events & POLLMSG;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-            l_cur = (dap_events_socket_t*) l_thread->kqueue_events[n].udata;
+            struct kevent * l_kevent = &l_thread->kqueue_events[n];
+            l_cur = (dap_events_socket_t*) l_kevent->udata;
             assert(l_cur);
-            l_cur->kqueue_event_catched = &l_thread->kqueue_events[n];
+            l_cur->kqueue_event_catched = l_kevent;
 #ifndef DAP_OS_DARWIN
-            u_int l_cur_events = l_thread->kqueue_events[n].flags;
+            u_int l_cur_events = l_thread->kqueue_events[n].fflags;
 #else
             uint32_t l_cur_events = l_thread->kqueue_events[n].fflags;
 #endif
 
-            l_flag_write = l_cur_events & EVFILT_WRITE;
-            l_flag_read  = l_cur_events & EVFILT_READ;
-            l_flag_error = l_cur_events & EVFILT_EXCEPT;
+            l_flag_write = l_thread->kqueue_events[n].filter & EVFILT_WRITE;
+            l_flag_read  = l_thread->kqueue_events[n].filter & EVFILT_READ;
+            l_flag_error = l_thread->kqueue_events[n].flags & EV_ERROR;
             l_flag_nval = l_flag_pri = l_flag_msg = l_flag_hup=  0;
-            l_flag_rdhup = l_cur_events & EVFILT_EXCEPT & NOTE_DELETE;
+            l_flag_rdhup = l_thread->kqueue_events[n].filter & EVFILT_EXCEPT &&  l_cur_events&&NOTE_DELETE;
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif
@@ -681,18 +682,18 @@ static void * s_proc_thread_function(void * a_arg)
                                         log_it(L_WARNING,"mq_send %p errno: %d", l_ptr_in, l_errno);
                                     }
                                 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-				    struct kevent* l_event=&l_cur->kqueue_event;
-				    void * l_ptr;
-				    memcpy(l_ptr,l_cur->buf_out,sizeof(l_ptr) );
-				    
-				    EV_SET(l_event,(uintptr_t) l_ptr, l_cur->kqueue_base_filter,l_cur->kqueue_base_flags, l_cur->kqueue_base_fflags,0, l_cur);
-				    int l_n = kevent(l_thread->kqueue_fd,l_event,1,NULL,0,NULL);
-				    if (l_n == 1)
-					l_bytes_sent = sizeof(l_ptr);
-				    else{
-					l_errno = errno;
-                                        log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_ptr, l_errno);
-				    }
+                                    struct kevent* l_event=&l_cur->kqueue_event;
+                                    void * l_ptr;
+                                    memcpy(l_ptr,l_cur->buf_out,sizeof(l_ptr) );
+
+                                    EV_SET(l_event,(uintptr_t) l_ptr, l_cur->kqueue_base_filter,l_cur->kqueue_base_flags| EV_ADD, l_cur->kqueue_base_fflags,0, l_cur);
+                                    int l_n = kevent(l_thread->kqueue_fd,l_event,1,NULL,0,NULL);
+                                    if (l_n == 1)
+                                    l_bytes_sent = sizeof(l_ptr);
+                                    else{
+                                    l_errno = errno;
+                                                        log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_ptr, l_errno);
+                                    }
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
                                 #endif
@@ -745,7 +746,7 @@ static void * s_proc_thread_function(void * a_arg)
 		if (l_cur->socket != -1 ){
 		    struct kevent * l_event = &l_cur->kqueue_event;
 		    EV_SET(l_event, l_cur->socket, 0 ,EV_DELETE, 0,0,l_cur);
-		    if ( kevent( l_thread->kqueue_fd,l_event,1,NULL,0,NULL) != 1 ) {
+            if ( kevent( l_thread->kqueue_fd,l_event,1,NULL,0,NULL) != 1 ) {
 			int l_errno = errno;
 			char l_errbuf[128];
 			strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));

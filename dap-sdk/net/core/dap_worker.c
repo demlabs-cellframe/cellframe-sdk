@@ -121,16 +121,17 @@ void *dap_worker_thread(void *arg)
     log_it(L_INFO, "Worker #%d started with epoll fd %d and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_worker->kqueue_fd = kqueue();
-    if (l_worker->kqueue_fd == -1 ){
-	int l_errno = errno;
-	char l_errbuf[255];
-	strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
-	log_it (L_CRITICAL,"Can't create kqueue():\"\" code %d",l_errbuf,l_errno);
-        pthread_cond_broadcast(&l_worker->started_cond);
-	return NULL;
+        if (l_worker->kqueue_fd == -1 ){
+        int l_errno = errno;
+        char l_errbuf[255];
+        strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
+        log_it (L_CRITICAL,"Can't create kqueue():\"\" code %d",l_errbuf,l_errno);
+            pthread_cond_broadcast(&l_worker->started_cond);
+        return NULL;
     }
+    l_worker->kqueue_events_selected_count_max = 100;
     l_worker->kqueue_events_count_max = DAP_EVENTS_SOCKET_MAX;
-    l_worker->kqueue_events = DAP_NEW_Z_SIZE(struct kevent, l_worker->kqueue_events_count_max *sizeof(struct kevent));
+    l_worker->kqueue_events_selected = DAP_NEW_Z_SIZE(struct kevent, l_worker->kqueue_events_selected_count_max *sizeof(struct kevent));
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_worker->poll_count_max = DAP_EVENTS_SOCKET_MAX;
     l_worker->poll = DAP_NEW_Z_SIZE(struct pollfd,l_worker->poll_count_max*sizeof (struct pollfd));
@@ -166,8 +167,9 @@ void *dap_worker_thread(void *arg)
         l_selected_sockets = poll(l_worker->poll, l_worker->poll_count, -1);
         l_sockets_max = l_worker->poll_count;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-        l_selected_sockets = kevent(l_worker->kqueue_fd,NULL,0,l_worker->kqueue_events,l_worker->kqueue_events_count_max,NULL);
-        l_sockets_max = l_worker->kqueue_events_count_max;
+        l_selected_sockets = kevent(l_worker->kqueue_fd,NULL,0,l_worker->kqueue_events_selected,l_worker->kqueue_events_selected_count_max,
+                                                        NULL);
+        l_sockets_max = l_selected_sockets;
 #else
 #error "Unimplemented poll wait analog for this platform"
 #endif
@@ -219,7 +221,7 @@ void *dap_worker_thread(void *arg)
             l_cur = l_worker->poll_esocket[n];
             //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-        struct kevent * l_kevent_selected = &l_worker->kqueue_events[n];
+        struct kevent * l_kevent_selected = &l_worker->kqueue_events_selected[n];
         l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
         assert(l_cur);
         l_cur->kqueue_event_catched = l_kevent_selected;
@@ -230,11 +232,11 @@ void *dap_worker_thread(void *arg)
 #endif
 
 
-            l_flag_write = l_cur_flags & EVFILT_WRITE;
-            l_flag_read  = l_cur_flags & EVFILT_READ;
-            l_flag_error = l_cur_flags & EVFILT_EXCEPT;
+            l_flag_write = l_kevent_selected->filter &  EVFILT_WRITE;
+            l_flag_read  = l_kevent_selected->filter & EVFILT_READ;
+            l_flag_error = l_kevent_selected->flags & EV_ERROR;
             l_flag_nval = l_flag_pri = l_flag_msg = l_flag_hup=  0;
-            l_flag_rdhup = l_cur_flags & EVFILT_EXCEPT & NOTE_DELETE;
+            l_flag_rdhup = l_kevent_selected->filter & EVFILT_EXCEPT && l_kevent_selected->fflags && NOTE_DELETE;
 
 
 #else
@@ -696,6 +698,9 @@ void *dap_worker_thread(void *arg)
                         log_it(L_INFO, "Process signal to close %s sock %u type %d [thread %u]",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn);
                     dap_events_socket_remove_and_delete_unsafe( l_cur, false);
+#ifdef DAP_EVENTS_CAPS_KQUEUE
+                    l_worker->kqueue_events_count--;
+#endif
                 } else if (l_cur->buf_out_size ) {
                     if(s_debug_reactor)
                         log_it(L_INFO, "Got signal to close %s sock %u [thread %u] type %d but buffer is not empty(%zd)",
@@ -1016,13 +1021,33 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
 	u_short l_flags = a_esocket->kqueue_base_flags;
 	u_int   l_fflags = a_esocket->kqueue_base_fflags;
 	short l_filter = a_esocket->kqueue_base_filter;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-            l_fflags |= NOTE_READ;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-            l_fflags |= NOTE_WRITE;
-            
-        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
-        return kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : errno;
+    if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
+        l_fflags |= NOTE_READ;
+    if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+        l_fflags |= NOTE_WRITE;
+
+    EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
+    if(kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL) != -1 ){
+        a_worker->kqueue_events_count++;
+/*        if (  a_worker->kqueue_events_count == (size_t) a_worker->kqueue_events_count_max ){ // realloc
+            if(a_worker->kqueue_events_count_max > (INT32_MAX -a_worker->kqueue_events_count_max ) ){
+                log_it(L_CRITICAL,"Reached esocket count limit, can't add more than %d", a_worker->kqueue_events_count_max);
+                a_worker->kqueue_events_count--;
+                return -999;
+            }
+            a_worker->kqueue_events_count_max *= 2;
+            log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %u", a_worker->poll_count, a_worker->poll_count_max);
+            a_worker->poll =DAP_REALLOC(a_worker->poll, a_worker->poll_count_max * sizeof(*a_worker->poll));
+            a_worker->poll_esocket =DAP_REALLOC(a_worker->poll_esocket, a_worker->poll_count_max * sizeof(*a_worker->poll_esocket));
+        }*/
+        return 0;
+    }else{
+        int l_errno = errno;
+        char l_errbuf[128]={};
+        strerror_r(errno,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR,"Can't add socket on kqueue: %s (code %d)", l_errbuf,l_errno);
+        return l_errno;
+    }
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
 #endif

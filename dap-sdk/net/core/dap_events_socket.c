@@ -288,7 +288,7 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
+    l_es->kqueue_base_flags = EV_ENABLE | EV_CLEAR;
     l_es->kqueue_base_fflags = NOTE_DELETE | NOTE_REVOKE ;
 #if !defined(DAP_OS_DARWIN)
     l_es->kqueue_base_fflags |= NOTE_CLOSE | NOTE_CLOSE_WRITE ;
@@ -449,8 +449,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     // We don't create descriptor for kqueue at all
     l_es->fd = -1;
-    l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
-    l_es->kqueue_base_fflags = NOTE_TRIGGER;
+    l_es->pipe_out = a_es;
+    l_es->kqueue_base_flags = EV_ENABLE | EV_CLEAR | EV_ONESHOT;
     l_es->kqueue_base_filter = EVFILT_USER;
 #else
 #error "Not defined s_create_type_pipe for your platform"
@@ -530,6 +530,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->flags = DAP_SOCK_QUEUE_PTR;
     l_es->_pvt = DAP_NEW_Z(struct queue_ptr_input_pvt);
     l_es->callbacks.delete_callback  = s_socket_type_queue_ptr_input_callback_delete;
+    l_es->callbacks.queue_ptr_callback = a_es->callbacks.queue_ptr_callback;
     return l_es;
 }
 
@@ -562,8 +563,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
-    l_es->kqueue_base_fflags = NOTE_TRIGGER;
+    l_es->kqueue_base_flags =  EV_ENABLE | EV_CLEAR |EV_ONESHOT;
     l_es->kqueue_base_filter = EVFILT_USER;
 #else
 #error "Not defined s_create_type_queue_ptr for your platform"
@@ -871,7 +871,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #elif defined DAP_EVENTS_CAPS_KQUEUE
 	    l_queue_ptr = (void*) a_esocket->kqueue_event_catched->ident;
 	    if(a_esocket->callbacks.queue_ptr_callback)
-		a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
+            a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
 #else
 #error "No Queue fetch mechanism implemented on your platform"
 #endif
@@ -920,8 +920,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    l_es->kqueue_base_flags = EV_ADD | EV_ENABLE | EV_CLEAR;
-    l_es->kqueue_base_fflags = NOTE_TRIGGER;
+    l_es->kqueue_base_flags =  EV_ENABLE | EV_CLEAR;
     l_es->kqueue_base_filter = EVFILT_USER;
 #else
 #error "Not defined s_create_type_event for your platform"
@@ -1170,18 +1169,21 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
     void * l_arg = a_arg;
 #if defined (DAP_EVENTS_CAPS_KQUEUE)
     if (a_es_input->pipe_out){
-	int l_ret;
-	struct kevent l_event={0};
-	dap_events_socket_t * l_es = a_es_input->pipe_out;
-	EV_SET(&l_event,(uintptr_t) a_arg, l_es->kqueue_base_filter,l_es->kqueue_base_flags, l_es->kqueue_base_fflags,0, l_es);
+        int l_ret;
+        struct kevent l_event={0};
+        dap_events_socket_t * l_es = a_es_input->pipe_out;
+        assert(l_es);
+        EV_SET(&l_event,(uintptr_t) a_arg, l_es->kqueue_base_filter,l_es->kqueue_base_flags | EV_ADD, l_es->kqueue_base_fflags,0, l_es);
         if(l_es->worker)
-	    l_ret=kevent(l_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
+            l_ret=kevent(l_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
         else if (l_es->proc_thread)
-	    l_ret=kevent(l_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
-        return l_ret==1?0 : -1;
+            l_ret=kevent(l_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
+        else
+            l_ret=-100;
+        return l_ret!=-1?0 : -1;
     }else{
-	log_it(L_ERROR,"No pipe_out pointer for queue socket, possible created wrong");
-	return -2;
+        log_it(L_ERROR,"No pipe_out pointer for queue socket, possible created wrong");
+        return -2;
     }
     
 #else    
@@ -1263,18 +1265,23 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     }
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent l_event={0};
-    EV_SET(&l_event,(uintptr_t) a_arg, a_es->kqueue_base_filter,a_es->kqueue_base_flags, a_es->kqueue_base_fflags,0, a_es);
+    EV_SET(&l_event,(uintptr_t) a_arg, a_es->kqueue_base_filter,a_es->kqueue_base_flags| EV_ADD, a_es->kqueue_base_fflags,0, a_es);
     int l_n;
     if(a_es->worker)
         l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
     else if (a_es->proc_thread)
         l_n = kevent(a_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
     else {
-	log_it(L_WARNING,"Trying to send pointer in queue thats not assigned to any worker or proc thread");
-	l_n = 0;
+        log_it(L_WARNING,"Trying to send pointer in queue thats not assigned to any worker or proc thread");
+        l_n = 0;
     }
-    l_errno = errno;
-    l_ret = l_n==1? sizeof(a_arg) : -1;
+    if(l_n != -1 ){
+        l_ret = sizeof (a_arg);
+    }else{
+        log_it(L_ERROR,"Sending kevent error code %d", l_n);
+        l_errno = errno;
+        l_ret = -1;
+    }
     
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
@@ -1321,7 +1328,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     }
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent l_event={0};
-    EV_SET(&l_event,0, a_es->kqueue_base_filter,a_es->kqueue_base_flags, a_es->kqueue_base_fflags,a_value, a_es);
+    EV_SET(&l_event,0, a_es->kqueue_base_filter,a_es->kqueue_base_flags| EV_ADD, a_es->kqueue_base_fflags,a_value, a_es);
     int l_n;
     if(a_es->worker)
         l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
@@ -1358,30 +1365,30 @@ void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
 dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks )
 {
-  assert( a_events );
-  assert( a_callbacks );
-  assert( a_server );
+    assert( a_events );
+    assert( a_callbacks );
+    assert( a_server );
 
-  //log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
-  dap_events_socket_t * l_es = DAP_NEW_Z( dap_events_socket_t ); if (!l_es) return NULL;
+    //log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
+    dap_events_socket_t * l_es = DAP_NEW_Z( dap_events_socket_t ); if (!l_es) return NULL;
 
-  l_es->socket = a_sock;
-  l_es->events = a_events;
-  l_es->server = a_server;
-  l_es->uuid = dap_uuid_generate_uint128();
-  memcpy(&l_es->callbacks,a_callbacks, sizeof ( l_es->callbacks) );
-  l_es->buf_out_size_max = l_es->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
-  l_es->buf_in = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max+1);
-  l_es->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max+1);
-  l_es->buf_in_size = l_es->buf_out_size = 0;
-  l_es->flags = DAP_SOCK_READY_TO_READ;
-  l_es->last_time_active = l_es->last_ping_request = time( NULL );
+    l_es->socket = a_sock;
+    l_es->events = a_events;
+    l_es->server = a_server;
+    l_es->uuid = dap_uuid_generate_uint128();
+    memcpy(&l_es->callbacks,a_callbacks, sizeof ( l_es->callbacks) );
+    l_es->buf_out_size_max = l_es->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
+    l_es->buf_in = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max+1);
+    l_es->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max+1);
+    l_es->buf_in_size = l_es->buf_out_size = 0;
+    l_es->flags = DAP_SOCK_READY_TO_READ;
+    l_es->last_time_active = l_es->last_ping_request = time( NULL );
 
-  pthread_rwlock_wrlock( &a_events->sockets_rwlock );
-  HASH_ADD_INT(a_events->sockets, socket, l_es);
-  pthread_rwlock_unlock( &a_events->sockets_rwlock );
+    pthread_rwlock_wrlock( &a_events->sockets_rwlock );
+    HASH_ADD_INT(a_events->sockets, socket, l_es);
+    pthread_rwlock_unlock( &a_events->sockets_rwlock );
 
-  return l_es;
+    return l_es;
 }
 
 /**
@@ -1462,18 +1469,18 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
 	    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
 		l_filter |= EVFILT_WRITE;
 	    
-	    EV_SET(l_event, a_esocket->socket, l_filter,l_flags,l_fflags,a_esocket->kqueue_data,a_esocket);
+        EV_SET(l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
 	    if( a_esocket->worker){
-		if ( kevent(a_esocket->worker->kqueue_fd,l_event,1,NULL,0,NULL)!=1 ){
-		    int l_errno = errno;
-		    char l_errbuf[128];
-		    l_errbuf[0]=0;
-		    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-		    log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
-			    a_esocket->worker->kqueue_fd, l_errbuf, l_errno);
+            if ( kevent(a_esocket->worker->kqueue_fd,l_event,1,NULL,0,NULL)!=1 ){
+                int l_errno = errno;
+                char l_errbuf[128];
+                l_errbuf[0]=0;
+                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
+                    a_esocket->worker->kqueue_fd, l_errbuf, l_errno);
         	}
-    	    }
         }
+     }
     
     #else
     #error "Not defined dap_events_socket_set_writable_unsafe for your platform"
@@ -1618,9 +1625,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     if (a_es->socket != -1 ){
-	struct kevent * l_event = &a_es->kqueue_event;
+        struct kevent * l_event = &a_es->kqueue_event;
         EV_SET(l_event, a_es->socket, 0 ,EV_DELETE, 0,0,a_es);
-
         if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) != 1 ) {
             int l_errno = errno;
             char l_errbuf[128];

@@ -77,8 +77,12 @@ typedef struct dap_worker
     bool poll_compress; // Some of fd's became NULL so arrays need to be reassigned
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     int kqueue_fd;
+    struct kevent * kqueue_events_selected;
     struct kevent * kqueue_events;
+    size_t kqueue_events_count;
+
     int kqueue_events_count_max;
+    int kqueue_events_selected_count_max;
 #else
 #error "Not defined worker for your platform"
 #endif
