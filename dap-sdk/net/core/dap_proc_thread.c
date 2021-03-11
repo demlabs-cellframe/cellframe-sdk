@@ -43,6 +43,10 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #define NOTE_READ NOTE_LOWAT
 #endif
 
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL SO_NOSIGPIPE
+#endif
+
 #else
 #error "Unimplemented poll for this platform"
 #endif

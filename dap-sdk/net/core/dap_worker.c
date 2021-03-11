@@ -38,6 +38,11 @@
 
 #ifdef DAP_OS_DARWIN
 #define NOTE_READ NOTE_LOWAT
+
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL SO_NOSIGPIPE
+#endif
+
 #endif
 
 #include "dap_common.h"
