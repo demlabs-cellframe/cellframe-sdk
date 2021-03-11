@@ -63,7 +63,7 @@ int dap_notify_server_init()
 
 
     const char * l_notify_socket_path = dap_config_get_item_str_default(g_config, "notify_server", "listen_path",NULL);
-    uint16_t l_notify_socket_path_mode = dap_config_get_item_uint16_default(g_config, "notify_server", "listen_path_mode",0600);
+    const char * l_notify_socket_path_mode = dap_config_get_item_str_default(g_config, "notify_server", "listen_path_mode","0600");
 
     const char * l_notify_socket_address = dap_config_get_item_str_default(g_config, "notify_server", "listen_address",NULL);
     uint16_t l_notify_socket_port = dap_config_get_item_uint16_default(g_config, "notify_server", "listen_port",0);
