@@ -221,7 +221,7 @@ dap_config_t * dap_config_open(const char * a_name)
 
                                             if (l_param_value[0] == '[') {
                                                 if(l_param_value[1] == ']') {
-                                                    log_it(L_WARNING, "Empty array!");
+                                                    //log_it(L_WARNING, "Empty array!");
                                                     continue;
                                                 }
 

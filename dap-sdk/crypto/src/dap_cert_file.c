@@ -28,6 +28,7 @@
 #include "dap_common.h"
 #include "dap_enc.h"
 #include "dap_enc_key.h"
+#include "dap_file_utils.h"
 #include "dap_cert_file.h"
 
 #define LOG_TAG "dap_cert_file"
@@ -42,6 +43,10 @@ static const char s_key_inheritor[] = "Inheritor";
  */
 int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
 {
+    char * l_file_dir = dap_path_get_dirname(a_cert_file_path);
+    dap_mkdir_with_parents(l_file_dir);
+    DAP_DELETE(l_file_dir);
+
     FILE * l_file = fopen(a_cert_file_path,"wb");
     if( l_file ){
         uint32_t l_data_size = 0;

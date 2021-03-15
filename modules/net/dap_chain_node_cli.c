@@ -3,24 +3,24 @@
  * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2019
+ * Cellframe  https://cellframe.net
+ * Copyright  (c) 2019-2021
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of Cellframe SDK
 
- DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
+ Cellframe SDK is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation, either version 3 of the License, or
  (at your option) any later version.
 
- DAP is distributed in the hope that it will be useful,
+ Cellframe SDK is distributed in the hope that it will be useful,
  but WITHOUT ANY WARRANTY; without even the implied warranty of
  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  GNU General Public License for more details.
 
  You should have received a copy of the GNU General Public License
- along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+ along with any Cellframe SDK based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdio.h>
@@ -61,6 +61,7 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
+#include "dap_file_utils.h"
 #include "dap_list.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_client.h"
@@ -1046,6 +1047,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port_tcp",0);
 
     const char * l_listen_unix_socket_path = dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_path");
+
+
+
     const char * l_listen_unix_socket_permissions_str = dap_config_get_item_str( g_config, "conserver", "listen_unix_socket_permissions");
     mode_t l_listen_unix_socket_permissions = 0770;
 
@@ -1069,8 +1073,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
         //int gdsg = sizeof(struct sockaddr_un);
 
+        // Creatuing directory if not created
+        char * l_listen_unix_socket_path_dir = dap_path_get_dirname(l_listen_unix_socket_path);
+        dap_mkdir_with_parents(l_listen_unix_socket_path_dir);
+        DAP_DELETE(l_listen_unix_socket_path_dir);
+
         if ( access( l_listen_unix_socket_path , R_OK) != -1 )
             unlink( l_listen_unix_socket_path );
+
 
         // connecting the address with a socket
         if( bind(sockfd, (const struct sockaddr*) &l_server_addr, sizeof(struct sockaddr_un)) == SOCKET_ERROR) {

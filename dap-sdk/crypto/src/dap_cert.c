@@ -32,6 +32,7 @@
 #include "utlist.h"
 #include "dap_common.h"
 #include "dap_config.h"
+#include "dap_file_utils.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_cert.h"
@@ -521,7 +522,7 @@ void dap_cert_add_folder(const char *a_folder_path)
         l_cert_folder_item->name = dap_strdup(a_folder_path);
         HASH_ADD_STR(s_cert_folders, name, l_cert_folder_item);
     }
-
+    dap_mkdir_with_parents(a_folder_path);
     DIR * l_dir = opendir(a_folder_path);
     if( l_dir ) {
         struct dirent * l_dir_entry;

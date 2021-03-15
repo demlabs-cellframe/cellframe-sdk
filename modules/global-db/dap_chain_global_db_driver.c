@@ -30,6 +30,7 @@
 #include <assert.h>
 
 #include "dap_common.h"
+#include "dap_file_utils.h"
 #include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_hash.h"
@@ -87,6 +88,7 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
     // Setup driver name
     s_used_driver = dap_strdup(a_driver_name);
 
+    dap_mkdir_with_parents(a_filename_db);
     // Compose path
     char l_db_path_ext[strlen(a_driver_name) + strlen(a_filename_db) + 6];
     dap_snprintf(l_db_path_ext, sizeof(l_db_path_ext), "%s/gdb-%s", a_filename_db, a_driver_name);

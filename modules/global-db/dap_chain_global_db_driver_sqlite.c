@@ -663,7 +663,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group)
     sqlite3_free(l_str_query);
     DAP_DEL_Z(l_table_name);
     if(l_ret != SQLITE_OK) {
-        log_it(L_ERROR, "read last l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        //log_it(L_ERROR, "read last l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         dap_db_driver_sqlite_free(l_error_message);
         return NULL;
     }
@@ -672,7 +672,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group)
     l_ret = dap_db_driver_sqlite_fetch_array(l_res, &l_row);
     if(l_ret != SQLITE_ROW && l_ret != SQLITE_DONE)
     {
-        log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        //log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
     }
     if(l_ret == SQLITE_ROW && l_row) {
         l_obj = DAP_NEW_Z(dap_store_obj_t);
@@ -724,7 +724,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     DAP_DEL_Z(l_table_name);
 
     if(l_ret != SQLITE_OK) {
-        log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        //log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         dap_db_driver_sqlite_free(l_error_message);
         return NULL;
     }
@@ -737,7 +737,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
         l_ret = dap_db_driver_sqlite_fetch_array(l_res, &l_row);
         if(l_ret != SQLITE_ROW && l_ret != SQLITE_DONE)
         {
-            log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+           // log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         }
         if(l_ret == SQLITE_ROW && l_row) {
             // realloc memory
@@ -809,7 +809,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     sqlite3_free(l_str_query);
     DAP_DEL_Z(l_table_name);
     if(l_ret != SQLITE_OK) {
-        log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        //log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         dap_db_driver_sqlite_free(l_error_message);
         return NULL;
     }
@@ -822,7 +822,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
         l_ret = dap_db_driver_sqlite_fetch_array(l_res, &l_row);
         if(l_ret != SQLITE_ROW && l_ret != SQLITE_DONE)
         {
-            log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+           // log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         }
         if(l_ret == SQLITE_ROW && l_row) {
             // realloc memory
