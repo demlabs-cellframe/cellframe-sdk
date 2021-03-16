@@ -70,10 +70,15 @@ void _dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_ha
     DAP_FREE(l_hash_processed);
 }
 
-void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum, dap_string_t *a_str_out, const char *a_hash_out_type, dap_chain_tx_hash_processed_ht_t *l_tx_hash_processed){
+void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
+                                  dap_string_t *a_str_out,
+                                  const char *a_hash_out_type,
+                                  bool save_processed_tx,
+                                  dap_chain_tx_hash_processed_ht_t *l_tx_hash_processed,
+                                  size_t *l_tx_num){
     dap_chain_hash_fast_t l_tx_hash;
     dap_hash_fast(a_datum, dap_chain_datum_tx_get_size(a_datum), &l_tx_hash);
-    if (l_tx_hash_processed != NULL){
+    if (save_processed_tx){
         dap_chain_tx_hash_processed_ht_t *l_sht = NULL;
         HASH_FIND(hh, l_tx_hash_processed, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_sht);
         if (l_sht != NULL)
@@ -81,6 +86,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum, dap_string_t *a
         l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
         memcpy(&l_sht->hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
         HASH_ADD(hh, l_tx_hash_processed, hash, sizeof(dap_chain_hash_fast_t), l_sht);
+        (*l_tx_num)++;
     }
     char *l_tx_hash_user_str;
     char l_tx_hash_str[70];
@@ -1054,8 +1060,8 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, const char *a_filter_t
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
             //
             //calc tx hash
-            _dap_chain_datum_tx_out_data(l_tx, l_str_out, a_hash_out_type, l_tx_hash_processed);
-            l_tx_num++;
+            _dap_chain_datum_tx_out_data(l_tx, l_str_out, a_hash_out_type, true, l_tx_hash_processed, &l_tx_num);
+//            l_tx_num++;
 
             /*dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
 
@@ -1536,19 +1542,21 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get ledger for net %s", l_net_str);
             return -2;
         }
-        dap_chain_hash_fast_t *l_tx_hash;
+        dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
         if(dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash)){
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get hash_fast from %s", l_tx_hash_str);
             return -2;
         }
-        dap_chain_datum_t *l_datum = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_hash);
-        if (l_datum == NULL){
+        dap_chain_datum_tx_t *l_datum_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_hash);
+        if (l_datum_tx == NULL){
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get datum from transaction hash %s", l_tx_hash_str);
             return -2;
         }
-        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
-        dap_string_t *l_str;
-        _dap_chain_datum_tx_out_data(l_tx, l_str, l_hash_out_type, NULL);
+        dap_string_t *l_str = dap_string_new("");
+//        dap_string_t *l_str = NULL;
+        _dap_chain_datum_tx_out_data(l_datum_tx, l_str, l_hash_out_type, false, NULL, NULL);
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_str->str);
+        dap_string_free(l_str, true);
     }
     else{
         dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter 'list' or 'tx' or 'info'");
