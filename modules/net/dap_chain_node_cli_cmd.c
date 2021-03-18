@@ -1728,13 +1728,13 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
             if(l_addr_tokens_size > 0)
                 dap_string_append_printf(l_string_ret, "balance:\n");
             else
-                dap_string_append_printf(l_string_ret, "balance:\xA0""0");
+                dap_string_append_printf(l_string_ret, "balance: 0");
             for(size_t i = 0; i < l_addr_tokens_size; i++) {
                 if(l_addr_tokens[i]) {
                     uint128_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
-                    dap_string_append_printf(l_string_ret, "\t\xA0""%s (%s) %s", l_balance_coins,
+                    dap_string_append_printf(l_string_ret, "\t%s (%s) %s", l_balance_coins,
                             l_balance_datoshi, l_addr_tokens[i]);
                     if(i < l_addr_tokens_size - 1)
                         dap_string_append_printf(l_string_ret, "\n");
