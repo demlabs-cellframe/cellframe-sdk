@@ -47,6 +47,8 @@
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 
+#define LOG_TAG "file_utils"
+
 /**
  * Check the directory path for unsupported symbols
  *
@@ -282,6 +284,7 @@ bool dap_path_is_absolute(const char *a_file_name)
  */
 char* dap_path_get_dirname(const char *a_file_name)
 {
+    log_it(L_DEBUG,"dap_path_get_dirname(a_file_name=\"%s\")", a_file_name);
     char *l_base;
     size_t l_len;
 
@@ -313,6 +316,7 @@ char* dap_path_get_dirname(const char *a_file_name)
             return dap_strdup (l_drive_colon_dot);
         }
 #endif
+        log_it(L_DEBUG,"l_base is NULL, return dup of .");
         return dap_strdup(".");
     }
 
@@ -367,9 +371,9 @@ char* dap_path_get_dirname(const char *a_file_name)
 
     l_len = (uint32_t) 1 + l_base - a_file_name;
     l_base = DAP_NEW_SIZE(char, l_len + 1);
-    memmove(l_base, a_file_name, l_len);
+    memcpy(l_base, a_file_name, l_len);
     l_base[l_len] = 0;
-
+    log_it(L_DEBUG,"l_base=%s",l_base);
     return l_base;
 }
 
