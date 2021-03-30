@@ -156,6 +156,18 @@ typedef enum {
     DESCRIPTOR_TYPE_SOCKET_LOCAL_CLIENT,
 } dap_events_desc_type_t;
 
+
+// To transfer esocket link with some pre-sized data
+typedef struct dap_events_socket_w_data{
+    struct dap_events_socket * esocket;
+    union{
+        byte_t * data;
+        void * ptr;
+        uint64_t value;
+    };
+    size_t size;
+} dap_events_socket_w_data_t;
+
 typedef struct dap_events_socket {
     union {
 #ifdef DAP_OS_WINDOWS
@@ -241,7 +253,9 @@ typedef struct dap_events_socket {
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent kqueue_event;
     struct kevent *kqueue_event_catched;
-    
+
+    dap_events_socket_w_data_t kqueue_event_catched_data;
+
     short kqueue_base_filter;
     unsigned short kqueue_base_flags;
     unsigned int kqueue_base_fflags;
@@ -266,6 +280,8 @@ typedef struct dap_events_socket_handler{
     dap_events_socket_t * esocket;
     uint128_t uuid;
 } dap_events_socket_handler_t;
+
+
 
 typedef struct dap_events_socket_handler_hh{
     dap_events_socket_t * esocket;

@@ -154,16 +154,21 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     }
     l_events_socket->socket = l_tfd;
 #elif defined (DAP_OS_BSD)
-    l_events_socket->kqueue_base_flags = EV_ADD | EV_ONESHOT | EV_DISPATCH;
+    l_events_socket->kqueue_base_flags = EV_ONESHOT;
     l_events_socket->kqueue_base_filter = EVFILT_TIMER;
+    l_events_socket->socket = arc4random();
 #ifdef DAP_OS_DARWIN
-    l_events_socket->kqueue_base_fflags = NOTE_USECONDS;
-    l_events_socket->kqueue_data =(int64_t) a_timeout_ms*1000;
+    // We have all timers not accurate but more power safe
+    // Usualy we don't need exactly 1-5-10 seconds so let it be so
+    // TODO make absolute timer without power-saving flags
+    l_events_socket->kqueue_base_fflags = NOTE_BACKGROUND;
+    l_events_socket->kqueue_data =(int64_t) a_timeout_ms;
 #else
     l_events_socket->kqueue_base_fflags = NOTE_MSECONDS;
     l_events_socket->kqueue_data =(int64_t) a_timeout_ms;
 #endif
-    l_events_socket->socket = rand();
+
+
 #elif defined (DAP_OS_WINDOWS)
     HANDLE l_th = CreateWaitableTimer(NULL, true, NULL);
     if (!l_th) {

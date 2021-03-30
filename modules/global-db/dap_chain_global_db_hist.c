@@ -1246,7 +1246,7 @@ static void *s_list_thread_proc(void *arg)
         if(!is_process)
             break;
         // calculating how many items required to read
-        uint64_t l_item_count =(uint64_t) min(10, (int64_t)l_item_last - (int64_t)l_item_start + 1);
+        size_t l_item_count =(uint64_t) min(10, (int64_t)l_item_last - (int64_t)l_item_start + 1);
         dap_store_obj_t *l_objs = NULL;
         // read next 1...10 items
         if(l_item_count > 0)

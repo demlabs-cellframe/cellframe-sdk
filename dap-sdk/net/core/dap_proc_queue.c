@@ -45,6 +45,7 @@ dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread)
     dap_proc_queue_t * l_queue = DAP_NEW_Z(dap_proc_queue_t); if (!l_queue) return NULL;
     l_queue->proc_thread = a_thread;
     l_queue->esocket = dap_events_socket_create_type_queue_ptr_unsafe(NULL,s_queue_esocket_callback);
+    l_queue->esocket->proc_thread = a_thread;
     l_queue->esocket->_inheritor = l_queue;
     return l_queue;
 }

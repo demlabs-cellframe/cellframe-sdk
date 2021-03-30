@@ -158,8 +158,9 @@ void *dap_worker_thread(void *arg)
     l_worker->queue_callback    = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_callback_callback);
     l_worker->event_exit        = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback);
     
-    l_worker->timer_check_activity = dap_timerfd_start_on_worker( l_worker, s_connection_timeout * 1000 / 2,
-                                                                  s_socket_all_check_activity, l_worker);
+    l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
+                                                        s_socket_all_check_activity, l_worker);
+    dap_worker_add_events_socket_unsafe(  l_worker->timer_check_activity->events_socket, l_worker);
     pthread_cond_broadcast(&l_worker->started_cond);
     bool s_loop_is_active = true;
     while(s_loop_is_active) {
@@ -227,7 +228,21 @@ void *dap_worker_thread(void *arg)
             //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
         struct kevent * l_kevent_selected = &l_worker->kqueue_events_selected[n];
-        l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+        if ( l_kevent_selected->filter & EVFILT_USER){ // If we have USER event it sends little different pointer
+            dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
+            l_cur = l_es_w_data->esocket;
+            assert(l_cur);
+            memcpy(&l_cur->kqueue_event_catched_data, l_es_w_data, sizeof (*l_es_w_data)); // Copy event info for further processing
+            l_kevent_selected->filter |= EVFILT_READ; // We have all logic expected read flag on because of different realizations
+            void * l_ptr = &l_cur->kqueue_event_catched_data;
+            if(l_es_w_data != l_ptr){
+                DAP_DELETE(l_es_w_data);
+            }else if (s_debug_reactor){
+                log_it(L_DEBUG,"Own event signal without actual event data");
+            }
+        }else{
+            l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+        }
         assert(l_cur);
         l_cur->kqueue_event_catched = l_kevent_selected;
 #ifndef DAP_OS_DARWIN
@@ -638,22 +653,27 @@ void *dap_worker_thread(void *arg)
                                 if (l_bytes_sent == -1 && l_errno == EINVAL) // To make compatible with other
                                     l_errno = EAGAIN;                        // non-blocking sockets
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)                                    
-				struct kevent* l_event=&l_cur->kqueue_event;
-				void * l_ptr;
-				memcpy(l_ptr,l_cur->buf_out,sizeof(l_ptr) );
-				EV_SET(l_event,(uintptr_t) l_ptr, l_cur->kqueue_base_filter,l_cur->kqueue_base_flags, l_cur->kqueue_base_fflags,l_cur->kqueue_data, l_cur);
-				int l_n = kevent(l_worker->kqueue_fd,l_event,1,NULL,0,NULL);
-				if (l_n == 1)
-				    l_bytes_sent = sizeof(l_ptr);
-				else{
-				    l_errno = errno;
-				    log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_ptr, l_errno);
-				}
+                                struct kevent* l_event=&l_cur->kqueue_event;
+                                dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
+                                l_es_w_data->esocket = l_cur;
+                                memcpy(&l_es_w_data->ptr, l_cur->buf_out,sizeof(l_cur));
+                                EV_SET(l_event,l_cur->socket, l_cur->kqueue_base_filter,l_cur->kqueue_base_flags, l_cur->kqueue_base_fflags,l_cur->kqueue_data, l_es_w_data);
+                                int l_n = kevent(l_worker->kqueue_fd,l_event,1,NULL,0,NULL);
+                                if (l_n == 1){
+                                    l_bytes_sent = sizeof(l_cur);
+                                }else{
+                                    l_errno = errno;
+                                    log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_es_w_data, l_errno);
+                                    DAP_DELETE(l_es_w_data);
+                                }
                                     
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
-                            }
+                            }else{
+                                 assert("Not implemented non-ptr queue send from outgoing buffer");
+                                 // TODO Implement non-ptr queue output
+                             }
                         break;
                         case DESCRIPTOR_TYPE_PIPE:
                         case DESCRIPTOR_TYPE_FILE:
@@ -765,7 +785,9 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         return;
     }
 
-    //log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
+    if(s_debug_reactor)
+        log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
+
     if(dap_events_socket_check_unsafe( l_worker, l_es_new)){
         // Socket already present in worker, it's OK
         return;
@@ -1031,7 +1053,8 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
         l_fflags |= NOTE_WRITE;
 
-    EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
+    EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD | l_flags , l_fflags,
+           a_esocket->kqueue_data, a_esocket);
     if(kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL) != -1 ){
         a_worker->kqueue_events_count++;
 /*        if (  a_worker->kqueue_events_count == (size_t) a_worker->kqueue_events_count_max ){ // realloc
@@ -1045,6 +1068,9 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
             a_worker->poll =DAP_REALLOC(a_worker->poll, a_worker->poll_count_max * sizeof(*a_worker->poll));
             a_worker->poll_esocket =DAP_REALLOC(a_worker->poll_esocket, a_worker->poll_count_max * sizeof(*a_worker->poll_esocket));
         }*/
+        if(s_debug_reactor)
+            log_it(L_DEBUG,"Added ident %d in kqueue()", a_esocket->socket);
+
         return 0;
     }else{
         int l_errno = errno;
