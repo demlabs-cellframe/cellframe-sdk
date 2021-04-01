@@ -235,7 +235,9 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
         EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
         return kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
 */
-    // Nothing to do
+    // Nothing to do if its input
+    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE && a_esocket->pipe_out)
+        return 0;
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
 #endif
@@ -292,18 +294,19 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
     u_int   l_fflags = a_esocket->kqueue_base_fflags;
     short l_filter = a_esocket->kqueue_base_filter;
     if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-        l_fflags |= NOTE_READ;
+        l_filter |= EVFILT_READ;
     if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-        l_fflags |= NOTE_WRITE;
+        l_filter |= EVFILT_WRITE;
     if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, EVFILT_USER,EV_ADD ,NOTE_FFCOPY,
+        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, EVFILT_USER,EV_ADD|EV_CLEAR ,0,
                a_esocket->kqueue_data,
                &a_esocket->kqueue_event_catched_data );
     else
         EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags, l_fflags,
                a_esocket->kqueue_data, a_esocket);
     int l_ret = kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL);
-    if( l_ret !=1 ){
+    if((l_ret != -1) && ( l_ret != 0  &&
+            (a_esocket->type == DESCRIPTOR_TYPE_QUEUE||(a_esocket->type == DESCRIPTOR_TYPE_EVENT )) ) ) {
         int l_errno = errno;
         char l_errbuf[128];
         l_errbuf[0]='\0';
@@ -585,6 +588,8 @@ static void * s_proc_thread_function(void * a_arg)
             l_flag_msg = l_cur_events & POLLMSG;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
             struct kevent * l_kevent = &l_thread->kqueue_events[n];
+            l_flag_hup=l_flag_rdhup=l_flag_read=l_flag_write=l_flag_error=l_flag_nval=l_flag_msg =l_flag_pri = false;
+
             if (l_kevent->filter & EVFILT_USER){
                 dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t*) l_kevent->udata;
                 assert(l_es_w_data);
@@ -595,10 +600,24 @@ static void * s_proc_thread_function(void * a_arg)
                     DAP_DELETE(l_es_w_data);
                 else if (s_debug_reactor)
                     log_it(L_DEBUG,"Own event signal without actual event data");
-                l_kevent->filter |= EVFILT_READ;
+                if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
+                                               // we must drop write flag and set read flag
+                    l_flag_read = true;
+                }else{
+                    l_flag_write = true;
+                }
             }else{
                 l_cur = (dap_events_socket_t*) l_kevent->udata;
                 assert(l_cur);
+
+                switch (l_kevent->filter) {
+                    case EVFILT_TIMER:
+                    case EVFILT_READ: l_flag_read = true; break;
+                    case EVFILT_WRITE: l_flag_write = true; break;
+                    case EVFILT_EXCEPT : l_flag_rdhup = true; break;
+                    default: log_it(L_CRITICAL,"Unknown filter type in polling, exit thread"); return NULL;
+                }
+
             }
             l_cur->kqueue_event_catched = l_kevent;
 #ifndef DAP_OS_DARWIN
@@ -607,11 +626,6 @@ static void * s_proc_thread_function(void * a_arg)
             uint32_t l_cur_events = l_thread->kqueue_events[n].fflags;
 #endif
 
-            l_flag_write = l_kevent->filter & EVFILT_WRITE;
-            l_flag_read  = l_kevent->filter & EVFILT_READ;
-            l_flag_error = l_kevent->flags & EV_ERROR;
-            l_flag_nval = l_flag_pri = l_flag_msg = l_flag_hup=  0;
-            l_flag_rdhup = l_kevent->filter & EVFILT_EXCEPT &&  l_cur_events&&NOTE_DELETE;
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif
@@ -715,13 +729,21 @@ static void * s_proc_thread_function(void * a_arg)
                                         log_it(L_WARNING,"mq_send %p errno: %d", l_ptr_in, l_errno);
                                     }
                                 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-                                    struct kevent* l_event=&l_cur->kqueue_event;
+
+                                    // Select socket and kqueue fd to send the event
+                                    dap_events_socket_t * l_es_output = l_cur->pipe_out ? l_cur->pipe_out : l_cur;
+                                    int l_kqueue_fd = l_es_output->worker ? l_es_output->worker->kqueue_fd : l_es_output->proc_thread ? l_es_output->proc_thread->kqueue_fd : -1;
+
+                                    struct kevent l_event;
                                     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
-                                    l_es_w_data->esocket = l_cur;
+                                    l_es_w_data->esocket = l_es_output;
+
                                     memcpy(&l_es_w_data->ptr,l_cur->buf_out,sizeof(l_es_w_data->ptr) );
-                                    EV_SET(l_event,l_cur->socket, l_cur->kqueue_base_filter,l_cur->kqueue_base_flags| EV_ADD, l_cur->kqueue_base_fflags,0, l_es_w_data);
-                                    int l_n = kevent(l_thread->kqueue_fd,l_event,1,NULL,0,NULL);
-                                    if (l_n == 1)
+                                    EV_SET(&l_event,l_es_output->socket, EVFILT_USER,0,NOTE_TRIGGER ,0, l_es_w_data);
+
+
+                                    int l_n =  l_kqueue_fd==-1 ? -1 : kevent(l_kqueue_fd,&l_event,1,NULL,0,NULL);
+                                    if (l_n != -1)
                                         l_bytes_sent = sizeof(l_es_w_data->ptr);
                                     else{
                                         l_errno = errno;
@@ -748,15 +770,27 @@ static void * s_proc_thread_function(void * a_arg)
 
                             memmove(l_cur->buf_out, l_cur->buf_out+l_bytes_sent, l_cur->buf_out_size );
                         }else{
+#ifndef DAP_EVENTS_CAPS_KQUEUE
                             l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
                             dap_proc_thread_esocket_update_poll_flags(l_thread, l_cur);
+#else
+                            log_it(L_WARNING,"(!) Write event receieved but nothing in buffer");
+                            sleep(500); // to prevent shitting the log files
+#endif
                         }
                     }
 
                 }else{
+                    // TODO Make this code platform-independent
+#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
                     log_it(L_DEBUG,"(!) Write event receieved but nothing in buffer, switching off this flag");
                     l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
                     dap_proc_thread_esocket_update_poll_flags(l_thread, l_cur);
+                    // TODO Make this code platform-independent
+#else
+                    log_it(L_WARNING,"(!) Write event receieved but nothing in buffer");
+                    sleep(500); // to prevent shitting the log files
+#endif
                 }
 
 
@@ -841,10 +875,15 @@ static void * s_proc_thread_function(void * a_arg)
 bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_worker_t * a_worker, dap_events_socket_t *a_esocket  )
 {
     dap_events_socket_t * l_es_assign_input = a_thread->queue_assign_input[a_worker->id];
-    //log_it(L_DEBUG,"Remove esocket %p from proc thread and send it to worker #%u",a_esocket, a_worker->id);
+    if(s_debug_reactor)
+        log_it(L_DEBUG,"Remove esocket %p from proc thread and send it to worker #%u",a_esocket, a_worker->id);
+
     dap_events_socket_assign_on_worker_inter(l_es_assign_input, a_esocket);
+    // TODO Make this code platform-independent
+#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_assign_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_assign_input);
+#endif
     return true;
 }
 
@@ -862,8 +901,11 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
 {
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
     dap_events_socket_write_inter(l_es_io_input,a_esocket, a_data, a_data_size);
+    // TODO Make this code platform-independent
+#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
+#endif
     return 0;
 }
 
@@ -896,8 +938,11 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
     va_end(ap_copy);
 
     dap_events_socket_write_inter(l_es_io_input,a_esocket, l_data, l_data_size);
+    // TODO Make this code platform-independent
+#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
+#endif
     return 0;
 }
 
@@ -915,7 +960,9 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
     l_msg->arg = a_arg;
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
 
+    // TODO Make this code platform-independent
+#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     a_thread->queue_callback_input[a_worker_id]->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, a_thread->queue_callback_input[a_worker_id]);
-
+#endif
 }
