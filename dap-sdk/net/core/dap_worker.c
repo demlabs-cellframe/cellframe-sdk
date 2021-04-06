@@ -798,12 +798,24 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }
 
     if(s_debug_reactor)
-        log_it(L_DEBUG, "Received event socket %p to add on worker", l_es_new);
+        log_it(L_DEBUG, "Received event socket %p (ident %d type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
 
+#ifdef DAP_EVENTS_CAPS_KQUEUE
+    if(l_es_new->socket!=0 && l_es_new->socket != -1 &&
+            l_es_new->type != DESCRIPTOR_TYPE_EVENT &&
+        l_es_new->type != DESCRIPTOR_TYPE_QUEUE &&
+        l_es_new->type != DESCRIPTOR_TYPE_TIMER
+            )
+#else
+    if(l_es_new->socket!=0 && l_es_new->socket != -1)
+
+#endif
     if(dap_events_socket_check_unsafe( l_worker, l_es_new)){
         // Socket already present in worker, it's OK
         return;
     }
+
+
     switch( l_es_new->type){
 
         case DESCRIPTOR_TYPE_SOCKET_UDP:
@@ -993,6 +1005,15 @@ static bool s_socket_all_check_activity( void * a_arg)
  */
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
 {
+/*
+#ifdef DAP_EVENTS_CAPS_KQUEUE
+    a_events_socket->worker = a_worker;
+    if(dap_worker_add_events_socket_unsafe(a_events_socket, a_worker)!=0)
+        a_events_socket->worker = NULL;
+
+#else*/
+    if(s_debug_reactor)
+        log_it(L_DEBUG,"Worker add esocket %d", a_events_socket->socket);
     int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
     if(l_ret != 0 ){
         char l_errbuf[128];
@@ -1000,6 +1021,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
         strerror_r(l_ret, l_errbuf, sizeof(l_errbuf));
         log_it(L_ERROR, "Can't send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
     }
+//#endif
 }
 
 /**
@@ -1060,41 +1082,67 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     if ( a_esocket->type == DESCRIPTOR_TYPE_EVENT && a_esocket->pipe_out){
         return 0;
     }
-
+    struct kevent l_event;
     u_short l_flags = a_esocket->kqueue_base_flags;
 	u_int   l_fflags = a_esocket->kqueue_base_fflags;
 	short l_filter = a_esocket->kqueue_base_filter;
-    if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-        l_filter |= EVFILT_READ;
-    if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-        l_fflags |= EVFILT_WRITE;
-
-    EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD | l_flags , l_fflags,
-           a_esocket->kqueue_data, a_esocket);
-    if(kevent ( a_worker->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL) != -1 ){
-        a_worker->kqueue_events_count++;
-/*        if (  a_worker->kqueue_events_count == (size_t) a_worker->kqueue_events_count_max ){ // realloc
-            if(a_worker->kqueue_events_count_max > (INT32_MAX -a_worker->kqueue_events_count_max ) ){
-                log_it(L_CRITICAL,"Reached esocket count limit, can't add more than %d", a_worker->kqueue_events_count_max);
-                a_worker->kqueue_events_count--;
-                return -999;
-            }
-            a_worker->kqueue_events_count_max *= 2;
-            log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %u", a_worker->poll_count, a_worker->poll_count_max);
-            a_worker->poll =DAP_REALLOC(a_worker->poll, a_worker->poll_count_max * sizeof(*a_worker->poll));
-            a_worker->poll_esocket =DAP_REALLOC(a_worker->poll_esocket, a_worker->poll_count_max * sizeof(*a_worker->poll_esocket));
-        }*/
-        if(s_debug_reactor)
-            log_it(L_DEBUG,"Added ident %d in kqueue()", a_esocket->socket);
-
-        return 0;
-    }else{
-        int l_errno = errno;
-        char l_errbuf[128]={};
-        strerror_r(errno,l_errbuf,sizeof (l_errbuf));
-        log_it(L_ERROR,"Can't add socket on kqueue: %s (code %d)", l_errbuf,l_errno);
-        return l_errno;
+    int l_kqueue_fd =a_worker->kqueue_fd;
+    if ( l_kqueue_fd == -1 ){
+        log_it(L_ERROR, "Esocket is not assigned with anything ,exit");
     }
+    // Check & add
+    bool l_is_error=false;
+    int l_errno=0;
+    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
+        EV_SET(&l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
+        if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL)!=0){
+            l_is_error = true;
+            l_errno = errno;
+        }
+    }else{
+        if( l_filter){
+            EV_SET(&l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+            if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
+                l_is_error = true;
+                l_errno = errno;
+            }else if (s_debug_reactor){
+                log_it(L_DEBUG, "kevent set custom filter %d on fd %d",l_filter, a_esocket->socket);
+            }
+        }else{
+            if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
+                EV_SET(&l_event, a_esocket->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+                if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
+                    l_is_error = true;
+                    l_errno = errno;
+                }else if (s_debug_reactor){
+                    log_it(L_DEBUG, "kevent set EVFILT_READ on fd %d", a_esocket->socket);
+                }
+
+            }
+            if( !l_is_error){
+                if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING ){
+                    EV_SET(&l_event, a_esocket->socket, EVFILT_WRITE,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+                    if(kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0){
+                        l_is_error = true;
+                        l_errno = errno;
+                    }else if (s_debug_reactor){
+                        log_it(L_DEBUG, "kevent set EVFILT_WRITE on fd %d", a_esocket->socket);
+                    }
+                }
+            }
+        }
+    }
+
+    if ( l_is_error ){
+        char l_errbuf[128];
+        l_errbuf[0]=0;
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
+            a_esocket->socket, l_errbuf, l_errno);
+        return l_errno;
+    }else
+        return 0;
+
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
 #endif

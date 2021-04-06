@@ -293,26 +293,46 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
     u_short l_flags = a_esocket->kqueue_base_flags;
     u_int   l_fflags = a_esocket->kqueue_base_fflags;
     short l_filter = a_esocket->kqueue_base_filter;
-    if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-        l_filter |= EVFILT_READ;
-    if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-        l_filter |= EVFILT_WRITE;
-    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, EVFILT_USER,EV_ADD|EV_CLEAR ,0,
-               a_esocket->kqueue_data,
-               &a_esocket->kqueue_event_catched_data );
-    else
-        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags, l_fflags,
-               a_esocket->kqueue_data, a_esocket);
-    int l_ret = kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL);
-    if((l_ret != -1) && ( l_ret != 0  &&
-            (a_esocket->type == DESCRIPTOR_TYPE_QUEUE||(a_esocket->type == DESCRIPTOR_TYPE_EVENT )) ) ) {
-        int l_errno = errno;
+    int l_kqueue_fd = a_esocket->proc_thread ? a_esocket->proc_thread->kqueue_fd : -1;
+    if ( l_kqueue_fd == -1 ){
+        log_it(L_ERROR, "Esocket is not assigned with anything ,exit");
+    }
+    struct kevent * l_event = &a_esocket->kqueue_event;
+    // Check & add
+    bool l_is_error=false;
+    int l_errno=0;
+    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
+        EV_SET(l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
+        if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL)!=0){
+            l_is_error = true;
+            l_errno = errno;
+        }
+    }else{
+        EV_SET(l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+        if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
+            EV_SET(l_event, a_esocket->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+            if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) != 1 ){
+                l_is_error = true;
+                l_errno = errno;
+            }
+        }
+        if( !l_is_error){
+            if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING ){
+                EV_SET(l_event, a_esocket->socket, EVFILT_WRITE,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+                if(kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) != 1){
+                    l_is_error = true;
+                    l_errno = errno;
+                }
+            }
+        }
+    }
+
+    if ( l_is_error){
         char l_errbuf[128];
-        l_errbuf[0]='\0';
-        strerror_r(l_errno,l_errbuf,sizeof (l_errbuf));
-        log_it(L_CRITICAL, "Can't add descriptor in proc thread kqueue , err: %d (%s)", l_errno, l_errbuf);
-        return -1;
+        l_errbuf[0]=0;
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
+            l_kqueue_fd, l_errbuf, l_errno);
     }
         
 #else
