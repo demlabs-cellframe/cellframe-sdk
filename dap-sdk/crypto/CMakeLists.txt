@@ -22,6 +22,9 @@ file( GLOB CRYPTO_SRCS
       src/sig_picnic/*.c
       src/sig_dilithium/*.c
       src/ringct20/*.c
+      #trezor_crypto
+      src/trezor_crypto/src/*.c
+      
 )
 
 file( GLOB CRYPTO_HEADERS
@@ -43,6 +46,8 @@ file( GLOB CRYPTO_HEADERS
       src/sig_dilithium/*.h
       src/ringct20/*.h
       include/*.h
+      #trezor_crypto
+      src/trezor_crypto/include/TrezorCrypto/*.h
 )
 
 enable_language(ASM)
@@ -96,7 +101,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${XKCP_SRCS} ${XKCP_SRCS2} ${CRYPTO_HEADERS} )
 
-target_include_directories(dap_crypto PRIVATE src/seed src/rand src/iaes src/oaes src/sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src/sig_dilithium src include)
+target_include_directories(dap_crypto PRIVATE src/seed src/rand src/iaes src/oaes src/sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src/sig_dilithium src include src/trezor_crypto/include)
 target_include_directories(dap_crypto INTERFACE src/ src/sha3 include/)
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/uthash/src)
