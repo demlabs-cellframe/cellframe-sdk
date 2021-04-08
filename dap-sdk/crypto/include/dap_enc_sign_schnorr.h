@@ -1,6 +1,8 @@
 #ifndef _DAP_ENC_SIGN_SCHNORR_
 #define _DAP_ENC_SIGN_SCHNORR_
 #include "dap_enc_key.h"
+#include "dap_common.h"
+#include "TrezorCrypto/schnorr.h"
 
 #ifdef __cplusplus 
 extern "C" {
