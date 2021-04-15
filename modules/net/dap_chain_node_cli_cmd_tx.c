@@ -1557,12 +1557,12 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
         _dap_chain_datum_tx_out_data(l_datum_tx, l_str, l_hash_out_type, false, NULL, NULL);
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str->str);
         dap_string_free(l_str, true);
-        return 0;
     }
     else{
         dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter 'list' or 'tx' or 'info'");
         return -1;
     }
+    return 0;
 }
 
 /**

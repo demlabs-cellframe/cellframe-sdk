@@ -41,10 +41,13 @@ static void s_stage_done_delete(dap_client_t * a_client, void * a_arg);
 int dap_client_init()
 {
     static bool s_is_first_time=true;
-    if (s_is_first_time ){
+    if (s_is_first_time ) {
+        int err = 0;
         log_it(L_INFO, "Init DAP client module");
         dap_http_client_init();
-        dap_client_http_init();
+        err = dap_client_http_init();
+        if (err)
+            return err;
         dap_client_pvt_init();
         s_is_first_time = false;
     }

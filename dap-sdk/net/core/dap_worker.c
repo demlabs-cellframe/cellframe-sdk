@@ -53,6 +53,8 @@
 #include "dap_events.h"
 #include "dap_enc_base64.h"
 #include "dap_proc_queue.h"
+#include <wolfssl/options.h>
+#include "wolfssl/ssl.h"
 
 #define LOG_TAG "dap_worker"
 
@@ -383,7 +385,7 @@ void *dap_worker_thread(void *arg)
                         l_bytes_read = dap_recvfrom(l_cur->socket, l_cur->buf_in + l_cur->buf_in_size, l_cur->buf_in_size_max - l_cur->buf_in_size);
 #else
                         l_bytes_read = read(l_cur->socket, (char *) (l_cur->buf_in + l_cur->buf_in_size),
-                                l_cur->buf_in_size_max - l_cur->buf_in_size);
+                                            l_cur->buf_in_size_max - l_cur->buf_in_size);
 #endif
                         l_errno = errno;
                     break;
@@ -410,6 +412,16 @@ void *dap_worker_thread(void *arg)
 #else
                         l_errno = errno;
 #endif
+                    }
+                    break;
+                    case DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL: {
+                        l_must_read_smth = true;
+                        WOLFSSL *l_ssl = SSL(l_cur);
+                        l_bytes_read =  wolfSSL_read(l_ssl, (char *) (l_cur->buf_in + l_cur->buf_in_size),
+                                                     l_cur->buf_in_size_max - l_cur->buf_in_size);
+                        l_errno = wolfSSL_get_error(l_ssl, 0);
+                        if (l_bytes_read > 0)
+                            log_it(L_DEBUG, "SSL read: %s", (char *)(l_cur->buf_in + l_cur->buf_in_size));
                     }
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING:
@@ -500,12 +512,21 @@ void *dap_worker_thread(void *arg)
                     }
                     else if(l_bytes_read < 0) {
 #ifdef DAP_OS_WINDOWS
-                        if (l_errno != WSAEWOULDBLOCK) {
+                        if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != WSAEWOULDBLOCK) {
                             log_it(L_ERROR, "Can't recv on socket %d, WSA error: %d", l_cur->socket, l_errno);
 #else
-                        if (l_errno != EAGAIN && l_errno != EWOULDBLOCK){ // Socket is blocked
+                        if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != EAGAIN && l_errno != EWOULDBLOCK)
+                        { // If we have non-blocking socket
                             log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
 #endif
+                            dap_events_socket_set_readable_unsafe(l_cur, false);
+                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_cur->buf_out_size = 0;
+                        }
+                        if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != SSL_ERROR_WANT_READ && l_errno != SSL_ERROR_WANT_WRITE) {
+                            char l_err_str[80];
+                            wolfSSL_ERR_error_string(l_errno, l_err_str);
+                            log_it(L_ERROR, "Some error occured in SSL read(): %s (code %d)", l_err_str, l_errno);
                             dap_events_socket_set_readable_unsafe(l_cur, false);
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
@@ -523,6 +544,7 @@ void *dap_worker_thread(void *arg)
                 switch (l_cur->type ){
                     case DESCRIPTOR_TYPE_SOCKET_UDP:
                     case DESCRIPTOR_TYPE_SOCKET_CLIENT:
+                    case DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL:
                             dap_events_socket_set_readable_unsafe(l_cur, false);
                             dap_events_socket_set_writable_unsafe(l_cur, false);
                             l_cur->buf_out_size = 0;
@@ -537,7 +559,8 @@ void *dap_worker_thread(void *arg)
 
             // If its outgoing connection
             if ( l_flag_write &&  !l_cur->server &&  (l_cur->flags & DAP_SOCK_CONNECTING) &&
-               ( l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP )){
+               ( l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP ||
+                 l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL)){
                 int l_error = 0;
                 socklen_t l_error_len = sizeof(l_error);
                 char l_error_buf[128];
@@ -604,9 +627,8 @@ void *dap_worker_thread(void *arg)
 #else
 							l_errno = errno;
 #endif
-
+                        }
                         break;
-                    }
                         case DESCRIPTOR_TYPE_SOCKET_UDP:
                             l_bytes_sent = sendto(l_cur->socket, (const char *)l_cur->buf_out,
                                                   l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
@@ -618,6 +640,13 @@ void *dap_worker_thread(void *arg)
                             l_errno = errno;
 #endif
                         break;
+                        case DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL: {
+                            WOLFSSL *l_ssl = SSL(l_cur);
+                            l_bytes_sent = wolfSSL_write(l_ssl, (char *)(l_cur->buf_out), l_cur->buf_out_size);
+                            if (l_bytes_sent > 0)
+                                log_it(L_DEBUG, "SSL write: %s", (char *)(l_cur->buf_out));
+                            l_errno = wolfSSL_get_error(l_ssl, 0);
+                        }
                         case DESCRIPTOR_TYPE_QUEUE:
                              if (l_cur->flags & DAP_SOCK_QUEUE_PTR && l_cur->buf_out_size>= sizeof (void*)){
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
@@ -699,12 +728,20 @@ void *dap_worker_thread(void *arg)
 
                     if(l_bytes_sent < 0) {
 #ifdef DAP_OS_WINDOWS
-                        if (l_errno != WSAEWOULDBLOCK) {
+                        if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != WSAEWOULDBLOCK) {
                             log_it(L_ERROR, "Can't send to socket %d, WSA error: %d", l_cur->socket, l_errno);
 #else
-                        if (l_errno != EAGAIN && l_errno != EWOULDBLOCK ){ // If we have non-blocking socket
+                        if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != EAGAIN && l_errno != EWOULDBLOCK)
+                        { // If we have non-blocking socket
                             log_it(L_ERROR, "Some error occured in send(): %s (code %d)", strerror(l_errno), l_errno);
 #endif
+                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_cur->buf_out_size = 0;
+                        }
+                        if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != SSL_ERROR_WANT_READ && l_errno != SSL_ERROR_WANT_WRITE) {
+                            char l_err_str[80];
+                            wolfSSL_ERR_error_string(l_errno, l_err_str);
+                            log_it(L_ERROR, "Some error occured in SSL write(): %s (code %d)", l_err_str, l_errno);
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
