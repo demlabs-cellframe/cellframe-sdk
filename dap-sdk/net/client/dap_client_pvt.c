@@ -828,7 +828,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
             : 0;
 
     a_client_internal->refs_count++;
-    dap_client_http_request_custom(a_client_internal->worker, a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
+    dap_client_http_request(a_client_internal->worker, a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
                 l_path, l_request_enc, l_request_enc_size, NULL,
                 s_request_response, s_request_error, a_client_internal, l_custom);
 }

@@ -31,7 +31,11 @@
 #include "dap_enc_base58.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_net_srv_countries.h"
+#if DAP_SRV_STAKE_USED
 #include "dap_chain_net_srv_stake.h"
+#else
+static bool dap_chain_net_srv_stake_key_delegated() { return false; }
+#endif
 //#include "dap_chain_net_srv_geoip.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
