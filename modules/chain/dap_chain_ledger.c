@@ -1933,7 +1933,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     } else {
         *a_list_tx_out = l_list_tx_out;
     }
-ret:
+
     return l_err_num;
 }
 

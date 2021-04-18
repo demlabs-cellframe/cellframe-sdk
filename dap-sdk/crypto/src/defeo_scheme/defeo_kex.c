@@ -157,7 +157,7 @@ void digit_x_digit(const digit_t a, const digit_t b, digit_t* c)
     c[1] ^= (ahbh & mask_high) + carry;       // C11
 }
 
-void mp_mul(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords)
+void mp_mull(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords)
 { // Multiprecision comba multiply, c = a*b, where lng(a) = lng(b) = nwords.
     unsigned int i, j;
     digit_t t = 0, u = 0, v = 0, UV[2];
@@ -271,7 +271,7 @@ void fpmul_mont(const felm_t ma, const felm_t mb, felm_t mc)
 { // Multiprecision multiplication, c = a*b mod p.
     dfelm_t temp = {0};
 
-    mp_mul(ma, mb, temp, NWORDS_FIELD);
+    mp_mull(ma, mb, temp, NWORDS_FIELD);
     rdc_mont(temp, mc);
 }
 
@@ -280,7 +280,7 @@ void fpsqr_mont(const felm_t ma, felm_t mc)
 { // Multiprecision squaring, c = a^2 mod p.
     dfelm_t temp = {0};
 
-    mp_mul(ma, ma, temp, NWORDS_FIELD);
+    mp_mull(ma, ma, temp, NWORDS_FIELD);
     rdc_mont(temp, mc);
 }
 
@@ -417,7 +417,7 @@ void fp2correction(f2elm_t a)
 
 __inline static void mp_addfast(const digit_t* a, const digit_t* b, digit_t* c)
 { // Multiprecision addition, c = a+b.
-    mp_add(a, b, c, NWORDS_FIELD);
+    mp_addd(a, b, c, NWORDS_FIELD);
 }
 
 
@@ -435,7 +435,7 @@ void fp2sqr_mont(const f2elm_t a, f2elm_t c)
 }
 
 
-__inline unsigned int mp_sub(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords)
+__inline unsigned int mp_subb(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords)
 { // Multiprecision subtraction, c = a-b, where lng(a) = lng(b) = nwords. Returns the borrow bit.
     unsigned int i, borrow = 0;
 
@@ -451,15 +451,15 @@ __inline static digit_t mp_subfast(const digit_t* a, const digit_t* b, digit_t* 
 { // Multiprecision subtraction, c = a-b, where lng(a) = lng(b) = 2*NWORDS_FIELD.
   // If c < 0 then returns mask = 0xFF..F, else mask = 0x00..0
 
-    return (0 - (digit_t)mp_sub(a, b, c, 2*NWORDS_FIELD));
+    return (0 - (digit_t)mp_subb(a, b, c, 2*NWORDS_FIELD));
 }
 
 
 __inline static void mp_dblsubfast(const digit_t* a, const digit_t* b, digit_t* c)
 { // Multiprecision subtraction, c = c-a-b, where lng(a) = lng(b) = 2*NWORDS_FIELD.
   // Inputs should be s.t. c > a and c > b
-    mp_sub(c, a, c, 2*NWORDS_FIELD);
-    mp_sub(c, b, c, 2*NWORDS_FIELD);
+    mp_subb(c, a, c, 2*NWORDS_FIELD);
+    mp_subb(c, b, c, 2*NWORDS_FIELD);
 }
 
 
@@ -474,9 +474,9 @@ void fp2mul_mont(const f2elm_t a, const f2elm_t b, f2elm_t c)
 
     mp_addfast(a[0], a[1], t1);                      // t1 = a0+a1
     mp_addfast(b[0], b[1], t2);                      // t2 = b0+b1
-    mp_mul(a[0], b[0], tt1, NWORDS_FIELD);           // tt1 = a0*b0
-    mp_mul(a[1], b[1], tt2, NWORDS_FIELD);           // tt2 = a1*b1
-    mp_mul(t1, t2, tt3, NWORDS_FIELD);               // tt3 = (a0+a1)*(b0+b1)
+    mp_mull(a[0], b[0], tt1, NWORDS_FIELD);           // tt1 = a0*b0
+    mp_mull(a[1], b[1], tt2, NWORDS_FIELD);           // tt2 = a1*b1
+    mp_mull(t1, t2, tt3, NWORDS_FIELD);               // tt3 = (a0+a1)*(b0+b1)
     mp_dblsubfast(tt1, tt2, tt3);                    // tt3 = (a0+a1)*(b0+b1) - a0*b0 - a1*b1
     mask = mp_subfast(tt1, tt2, tt1);                // tt1 = a0*b0 - a1*b1. If tt1 < 0 then mask = 0xFF..F, else if tt1 >= 0 then mask = 0x00..0
 
@@ -661,7 +661,7 @@ void from_fp2mont(const f2elm_t ma, f2elm_t c)
 }
 
 
-__inline unsigned int mp_add(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords)
+__inline unsigned int mp_addd(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords)
 { // Multiprecision addition, c = a+b, where lng(a) = lng(b) = nwords. Returns the carry bit.
     unsigned int i, carry = 0;
 

@@ -64,14 +64,14 @@ typedef point_proj point_proj_t[1];
 void copy_words(const digit_t* a, digit_t* c, const unsigned int nwords);
 
 // Multiprecision addition, c = a+b, where lng(a) = lng(b) = nwords. Returns the carry bit
-unsigned int mp_add(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords);
+unsigned int mp_addd(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords);
 
 // 751-bit multiprecision addition, c = a+b
 //void mp_add(const digit_t* a, const digit_t* b, digit_t* c);
 void mp_add_asm(const digit_t* a, const digit_t* b, digit_t* c);
 
 // Multiprecision subtraction, c = a-b, where lng(a) = lng(b) = nwords. Returns the borrow bit
-unsigned int mp_sub(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords);
+unsigned int mp_subb(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords);
 digit_t mp_subx2_asm(const digit_t* a, const digit_t* b, digit_t* c);
 
 // Double 2x751-bit multiprecision subtraction, c = c-a-b, where c > a and c > b
@@ -90,7 +90,7 @@ void mp_shiftl1(digit_t* x, const unsigned int nwords);
 void digit_x_digit(const digit_t a, const digit_t b, digit_t* c);
 
 // Multiprecision comba multiply, c = a*b, where lng(a) = lng(b) = nwords.
-void mp_mul(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords);
+void mp_mull(const digit_t* a, const digit_t* b, digit_t* c, const unsigned int nwords);
 
 /************ Field arithmetic functions *************/
 

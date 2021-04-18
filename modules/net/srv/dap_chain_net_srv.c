@@ -183,7 +183,7 @@ static void* get_cdb_func(const char *func_name)
 {
     void *l_ref_func = NULL;
     //  find func from dynamic library
-#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
+#if defined (DAP_OS_LINUX) && !defined (__ANDROID__) && defined(DAP_MODULES_DYNAMIC)
     const char * s_default_path_modules = "var/modules";
     const char * l_cdb_so_name = "libcellframe-node-cdb.so";
     char *l_lib_path = dap_strdup_printf("%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
@@ -558,7 +558,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
             *(void **) (&dap_chain_net_srv_vpn_cdb_server_list_check_orders) = get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
             int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders ? (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(l_net) : -5;
             //int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders(l_net);
-            ret = -10;
+            ret = (l_init_res > 0) ? 0 : -10;
 
         }else if( dap_strcmp( l_order_str, "static" ) == 0 ){
             // find the subcommand directly after the 'order' command
