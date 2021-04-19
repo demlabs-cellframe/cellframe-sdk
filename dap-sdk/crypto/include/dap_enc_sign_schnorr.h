@@ -18,10 +18,10 @@ size_t dap_enc_sign_schnorr_verify(struct dap_enc_key *a_key, const void *msg, c
 void dap_enc_sign_schnorr_key_delete(struct dap_enc_key *a_key);
 
 size_t dap_enc_sign_schnorr_calc_signature_size(void);
-//size_t dap_enc_sign_schnorr_calc_signature_serialized_size(dap_enc_sign_schnorr_signature_t* a_sign);
+size_t dap_enc_sign_schnorr_calc_signature_serialized_size(void);
 
-//uint8_t* dap_enc_sign_schnorr_write_signature(dap_enc_sign_schnorr_signature_t *a_sign, size_t *a_sign_out);
-//dap_enc_sign_schnorr_signature_t* dap_enc_sign_schnorr_read_signature(uint8_t *a_buff, size_t a_buff_size);
+uint8_t* dap_enc_sign_schnorr_write_signature(schnorr_sign_pair *a_sign, size_t *a_sign_out);
+schnorr_sign_pair* dap_enc_sign_schnorr_read_signature(uint8_t *a_buff, size_t a_buff_size);
 //uint8_t *dap_enc_sign_schnorr_write_private_key(const dap_enc_sign_schnorr_private_key_t *a_private_key, size_t *a_buflen_out);
 //unit8_t *dap_enc_sign_schnorr_write_public_key(const dap_enc_sign_schnorr_public_key_t *a_private_key, size_t *a_buflen_out);
 //dap_enc_sign_schnorr_private_key_t *dap_enc_sign_schnoor_read_private_key(const uint8_t *a_buf, size_t a_buflen);

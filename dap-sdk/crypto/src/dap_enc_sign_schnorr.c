@@ -55,3 +55,38 @@ void dap_enc_sign_schnorr_key_delete(struct dap_enc_key *a_key){}
 size_t dap_enc_sign_schnorr_calc_signature_size(void){
     return sizeof(schnorr_sign_pair);
 }
+size_t dap_enc_sign_schnorr_calc_signature_serialized_size(void){
+    return ((sizeof (uint8_t) * 32) +(sizeof (uint8_t) * 32));
+}
+
+/* Serialize a signature */
+uint8_t* dap_enc_sign_schnorr_write_signature(schnorr_sign_pair *a_sign, size_t *a_sign_out){
+    if(!a_sign || *a_sign_out!=sizeof(schnorr_sign_pair)) {
+        return NULL ;
+    }
+    size_t l_shift_mem = 0;
+    size_t l_buff_len = dap_enc_sign_schnorr_calc_signature_serialized_size();
+    uint8_t *l_out = DAP_NEW_SIZE(uint8_t, l_buff_len);
+    memcpy(l_out, a_sign->r, sizeof(uint8_t) * 32);
+    l_shift_mem += sizeof (uint8_t) * 32;
+    memcpy(l_out + l_shift_mem, a_sign->s, sizeof (uint8_t) * 32);
+    l_shift_mem += sizeof (uint8_t) * 32;
+
+    if (a_sign_out)
+        *a_sign_out = l_buff_len;
+    return l_out;
+}
+
+/* Deserialize a signature */
+schnorr_sign_pair* dap_enc_sign_schnorr_read_signature(uint8_t *a_buff, size_t a_buff_size){
+    if (a_buff_size != dap_enc_sign_schnorr_calc_signature_serialized_size()){
+        return NULL;
+    }
+    schnorr_sign_pair *l_sign = DAP_NEW(schnorr_sign_pair);
+    size_t l_shift_mem = 0;
+    memcpy(&l_sign->r, a_buff, sizeof(uint8_t) * 32);
+    l_shift_mem += sizeof (uint8_t) * 32;
+    memcpy(&l_sign->s, a_buff + l_shift_mem, sizeof(uint8_t) * 32);
+    l_shift_mem += sizeof (uint8_t) * 32;
+    return  l_sign;
+}
