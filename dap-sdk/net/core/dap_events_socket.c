@@ -869,6 +869,8 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             }
 #elif defined DAP_EVENTS_CAPS_KQUEUE
         l_queue_ptr = (void*) a_esocket->kqueue_event_catched_data.data;
+        if(s_debug_reactor)
+            log_it(L_INFO,"Queue ptr received %p ptr on input", l_queue_ptr);
 	    if(a_esocket->callbacks.queue_ptr_callback)
             a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
 #else
@@ -884,7 +886,10 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
         void * l_queue_ptr = a_esocket->kqueue_event_catched_data.data;
         size_t l_queue_ptr_size = a_esocket->kqueue_event_catched_data.size;
-            a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
+        if(s_debug_reactor)
+            log_it(L_INFO,"Queue received %z bytes on input", l_queue_ptr_size);
+
+        a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
 #else
             size_t l_read = read(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max );
 #endif
@@ -1176,8 +1181,7 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
         dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
         l_es_w_data->esocket = l_es;
         l_es_w_data->ptr = a_arg;
-
-        EV_SET(&l_event,a_es_input->socket, EVFILT_USER,0, NOTE_TRIGGER ,0, l_es_w_data);
+        EV_SET(&l_event,a_es_input->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_CLEAR | EV_ONESHOT, NOTE_FFCOPY | NOTE_TRIGGER ,0, l_es_w_data);
         if(l_es->worker)
             l_ret=kevent(l_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
         else if (l_es->proc_thread)
@@ -1276,7 +1280,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
 
     l_es_w_data->esocket = a_es;
     l_es_w_data->ptr = a_arg;
-    EV_SET(&l_event,a_es->socket, EVFILT_USER,0, NOTE_TRIGGER ,0, l_es_w_data);
+    EV_SET(&l_event,a_es->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_CLEAR | EV_ONESHOT, NOTE_FFCOPY | NOTE_TRIGGER ,0, l_es_w_data);
     int l_n;
     if(a_es->pipe_out){ // If we have pipe out - we send events directly to the pipe out kqueue fd
         if(a_es->pipe_out->worker){
@@ -1513,7 +1517,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
         // Check & add
         bool l_is_error=false;
         int l_errno=0;
-        if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
+        if (a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
             EV_SET(l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
             if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL)!=0){
                 l_is_error = true;
@@ -1538,7 +1542,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
                 }
             }
         }
-        if ( l_is_error ){
+        if ( l_is_error && l_errno != EINPROGRESS && l_errno != ENOENT){
             char l_errbuf[128];
             l_errbuf[0]=0;
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
@@ -1579,8 +1583,9 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool
         int l_kqueue_fd = a_esocket->worker? a_esocket->worker->kqueue_fd :
                           a_esocket->proc_thread ? a_esocket->proc_thread->kqueue_fd : -1;
         if( l_kqueue_fd>0 ){
-            if ( kevent(l_kqueue_fd,&l_event,1,NULL,0,NULL)!=1 ){
-                int l_errno = errno;
+            int l_kevent_ret = kevent(l_kqueue_fd,&l_event,1,NULL,0,NULL);
+            int l_errno = errno;
+            if ( l_kevent_ret !=1 && l_errno != EINPROGRESS ){
                 char l_errbuf[128];
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
@@ -1640,8 +1645,8 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
                           a_esocket->proc_thread ? a_esocket->proc_thread->kqueue_fd : -1;
         if( l_kqueue_fd>0 ){
             int l_kevent_ret=kevent(l_kqueue_fd,&l_event,1,NULL,0,NULL);
-            if ( l_kevent_ret!=l_expected_reply ){
-                int l_errno = errno;
+            int l_errno = errno;
+            if ( l_kevent_ret!=l_expected_reply && l_errno != EINPROGRESS && l_errno != ENOENT ){
                 char l_errbuf[128];
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));

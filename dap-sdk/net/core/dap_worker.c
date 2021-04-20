@@ -279,7 +279,7 @@ void *dap_worker_thread(void *arg)
                 continue;
             }
             if(s_debug_reactor) {
-                log_it(L_DEBUG, "Worker #%u esocket %p type %d fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_worker->id, l_cur, l_cur->type, l_cur->socket,
+                log_it(L_DEBUG, "--Worker #%u esocket %p type %d fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--", l_worker->id, l_cur, l_cur->type, l_cur->socket,
                     l_cur_flags, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
             }
@@ -798,7 +798,13 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }
 
     if(s_debug_reactor)
-        log_it(L_DEBUG, "Received event socket %p (ident %d type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
+        log_it(L_NOTICE, "Received event socket %p (ident %d type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
+
+    switch( l_es_new->type){
+        case DESCRIPTOR_TYPE_SOCKET_UDP: break;
+        case DESCRIPTOR_TYPE_SOCKET_CLIENT: break;
+        default:{}
+    }
 
 #ifdef DAP_EVENTS_CAPS_KQUEUE
     if(l_es_new->socket!=0 && l_es_new->socket != -1 &&
@@ -814,7 +820,6 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         // Socket already present in worker, it's OK
         return;
     }
-
 
     switch( l_es_new->type){
 
@@ -1076,7 +1081,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     a_worker->poll_count++;
     return 0;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE && a_esocket->pipe_out){
+    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
         return 0;
     }
     if ( a_esocket->type == DESCRIPTOR_TYPE_EVENT && a_esocket->pipe_out){
@@ -1093,7 +1098,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     // Check & add
     bool l_is_error=false;
     int l_errno=0;
-    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
+    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
         EV_SET(&l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
         if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL)!=0){
             l_is_error = true;
