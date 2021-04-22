@@ -2,7 +2,6 @@
 
 #define LOG_TAG "dap_enc_sign_schnorr"
 
-
 void dap_enc_sign_schnorr_key_new(struct dap_enc_key * a_key){
     a_key->type = DAP_ENC_KEY_TYPE_SCHNORR_0;
     a_key->enc = NULL;
@@ -32,7 +31,7 @@ size_t dap_enc_sign_schnorr_get(struct  dap_enc_key *a_key, const void *msg, con
     bignum256 *k;
     ecdsa_curve *curve;
     schnorr_sign_pair *sign = DAP_NEW(schnorr_sign_pair);
-    int result = schnorr_sign(curve, a_key->priv_key_data, k, msg, msg_size, sign);
+    int result = schnorr_sign(curve, a_key->priv_key_data, k, msg, (uint32_t)msg_size, sign);
     if (result == 0 ){
         signature = sign;
         return sizeof(schnorr_sign_pair);
@@ -48,7 +47,7 @@ size_t dap_enc_sign_schnorr_verify(struct dap_enc_key *a_key, const void *msg, c
         return 0;
     }
     ecdsa_curve *curve;
-    return schnorr_verify(curve, a_key->pub_key_data, msg, msg_size, (schnorr_sign_pair*)signature);
+    return (size_t)schnorr_verify(curve, a_key->pub_key_data, msg, (uint32_t)msg_size, (schnorr_sign_pair*)signature);
 }
 void dap_enc_sign_schnorr_key_delete(struct dap_enc_key *a_key){}
 
@@ -89,4 +88,84 @@ schnorr_sign_pair* dap_enc_sign_schnorr_read_signature(uint8_t *a_buff, size_t a
     memcpy(&l_sign->s, a_buff + l_shift_mem, sizeof(uint8_t) * 32);
     l_shift_mem += sizeof (uint8_t) * 32;
     return  l_sign;
+}
+
+/* Serialize a private key */
+uint8_t *dap_enc_sign_schnorr_write_private_key(const dap_enc_key_sign_schnorr_private_t *a_private_key, size_t *a_buflen_out){
+    if (a_private_key == NULL){
+        return NULL;
+    }
+    size_t l_buff_out_size = sizeof(size_t) + sizeof(size_t) + (sizeof(uint8_t) * a_private_key->size_key);
+    uint8_t *l_buff_out = DAP_NEW_SIZE(uint8_t, l_buff_out_size);
+    size_t l_shift_bytes = 0;
+    size_t l_type_curve = a_private_key->curve_type;
+    memcpy(l_buff_out, &l_type_curve, sizeof(size_t));
+    l_shift_bytes += sizeof(size_t);
+    memcpy(l_buff_out + l_shift_bytes, &a_private_key->size_key, sizeof(size_t));
+    l_shift_bytes += sizeof(size_t);
+    memcpy(l_buff_out + l_shift_bytes, a_private_key->data, sizeof (uint8_t) * a_private_key->size_key);
+
+    if (a_buflen_out)
+        *a_buflen_out = l_buff_out_size;
+    return  l_buff_out;
+}
+
+/* Serialize a public key */
+uint8_t *dap_enc_sign_schnorr_write_public_key(const dap_enc_key_sign_schnorr_public_t *a_private_key, size_t *a_buflen_out){
+    if (a_private_key == NULL){
+        return NULL;
+    }
+    size_t l_buff_out_size = sizeof(size_t) + sizeof(size_t) + (sizeof(uint8_t) * a_private_key->size_key);
+    uint8_t *l_buff_out = DAP_NEW_SIZE(uint8_t, l_buff_out_size);
+    size_t l_shift_bytes = 0;
+    size_t l_type_curve = a_private_key->curve_type;
+    memcpy(l_buff_out, &l_type_curve, sizeof(size_t));
+    l_shift_bytes += sizeof(size_t);
+    memcpy(l_buff_out + l_shift_bytes, &a_private_key->size_key, sizeof(size_t));
+    l_shift_bytes += sizeof(size_t);
+    memcpy(l_buff_out + l_shift_bytes, &a_private_key->data, sizeof(size_t) * a_private_key->size_key);
+
+    if (a_buflen_out)
+        *a_buflen_out = l_buff_out_size;
+    return  l_buff_out;
+}
+
+/* Deserialize a private key. */
+dap_enc_key_sign_schnorr_private_t *dap_enc_sign_schnoor_read_private_key(const uint8_t *a_buf, size_t a_buflen){
+    if(!a_buf && a_buflen < sizeof(size_t) + sizeof(size_t) ){
+        return NULL;
+    }
+    dap_enc_key_sign_schnorr_private_t *l_private_key = DAP_NEW(dap_enc_key_sign_schnorr_private_t);
+    size_t l_copy_bytes = 0;
+    memcpy(&l_private_key->curve_type, a_buf, sizeof(size_t));
+    l_copy_bytes += sizeof (size_t);
+    memcpy(&l_private_key->size_key, a_buf + l_copy_bytes, sizeof(size_t));
+    l_copy_bytes += sizeof (size_t);
+    if ((l_copy_bytes + (sizeof (uint8_t) * l_private_key->size_key)) != a_buflen){
+        DAP_FREE(l_private_key);
+        return NULL;
+    }
+    l_private_key->data = DAP_NEW_SIZE(uint8_t, l_private_key->size_key);
+    memcpy(l_private_key->data, a_buf + l_copy_bytes, sizeof(uint8_t) * l_private_key->size_key);
+    return l_private_key;
+}
+
+/* Deserialize a public key. */
+dap_enc_key_sign_schnorr_public_t *dap_enc_sign_schnoor_read_public_key(const uint8_t *a_buf, size_t a_buflen){
+    if (!a_buf || a_buflen < sizeof (size_t) + sizeof(size_t)){
+        return NULL;
+    }
+    dap_enc_key_sign_schnorr_public_t *l_public_key = DAP_NEW(dap_enc_key_sign_schnorr_public_t);
+    size_t l_copy_bytes = 0;
+    memcpy(&l_public_key->curve_type, a_buf, sizeof (size_t));
+    l_copy_bytes += sizeof(size_t);
+    memcpy(&l_public_key->size_key, a_buf + l_copy_bytes, sizeof (size_t));
+    l_copy_bytes += sizeof(size_t);
+    if ((l_copy_bytes + (sizeof (uint8_t) * l_public_key->size_key)) != a_buflen){
+        DAP_FREE(l_public_key);
+        return NULL;
+    }
+    l_public_key->data = DAP_NEW_SIZE(uint8_t, l_public_key->size_key);
+    memcpy(l_public_key->data, a_buf + l_copy_bytes, sizeof (uint8_t) * l_public_key->size_key);
+    return l_public_key;
 }
