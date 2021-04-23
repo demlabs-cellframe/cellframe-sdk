@@ -5,6 +5,8 @@
 #include "dap_enc_curve_types.h"
 #include "TrezorCrypto/schnorr.h"
 #include "TrezorCrypto/secp256k1.h"
+#include "TrezorCrypto/rfc6979.h"
+#include "TrezorCrypto/rand.h"
 
 typedef struct dap_enc_key_public_schnorr {
     dap_enc_curve_types_t curve_type;

@@ -8,8 +8,6 @@ void dap_enc_sign_schnorr_key_new(struct dap_enc_key * a_key){
     a_key->dec = NULL;
     a_key->enc_na = dap_enc_sign_schnorr_get;
     a_key->dec_na = dap_enc_sign_schnorr_verify;
-    //a_key->sign_get = dap_enc_sign_schnorr_get;
-    //a_key->sign_verify = dap_enc_sign_schnorr_verify;
 }
 
 void dap_enc_sign_schnorr_key_new_generate(struct dap_enc_key * a_key, const void *kex_buf, size_t kex_size,
@@ -20,7 +18,18 @@ void dap_enc_sign_schnorr_key_new_generate(struct dap_enc_key * a_key, const voi
     (void)kex_size;
     (void)seed;
     (void)seed_size;
-    a_key->priv_key_data = DAP_NEW_SIZE(uint8_t, key_size);
+    (void)key_size;
+    a_key->priv_key_data = DAP_NEW(dap_enc_key_sign_schnorr_private_t);
+    a_key->priv_key_data_size = sizeof (dap_enc_key_sign_schnorr_private_t);
+    a_key->pub_key_data = DAP_NEW(dap_enc_key_sign_schnorr_public_t);
+    a_key->pub_key_data_size = sizeof(dap_enc_key_sign_schnorr_public_t);
+    const ecdsa_curve *curve = &secp256k1;
+    ((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
+    random_buffer(((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->data,
+                  ((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->size_key);
+    ((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_public_secp256k1_size;
+    ecdsa_get_public_key33(curve, ((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->data,
+                           ((dap_enc_key_sign_schnorr_public_t*)a_key)->data);
 }
 size_t dap_enc_sign_schnorr_get(struct  dap_enc_key *a_key, const void *msg, const size_t msg_size,
                                 void *signature, const size_t signature_size){
@@ -28,17 +37,38 @@ size_t dap_enc_sign_schnorr_get(struct  dap_enc_key *a_key, const void *msg, con
         log_it(L_ERROR, "bad signature size");
         return 0;
     }
-    bignum256 *k;
-    ecdsa_curve *curve;
-    schnorr_sign_pair *sign = DAP_NEW(schnorr_sign_pair);
-    int result = schnorr_sign(curve, a_key->priv_key_data, k, msg, (uint32_t)msg_size, sign);
-    if (result == 0 ){
-        signature = sign;
-        return sizeof(schnorr_sign_pair);
-    } else {
-        log_it(L_ERROR, "Can't get sign for message.");
-        return 0;
+    int i;
+    bignum256 k;
+    uint8_t hash[32];
+    sha256_Raw(msg, msg_size, hash);
+    rfc6979_state rfc_state;
+    init_rfc6979(((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->data, hash, &rfc_state);
+
+    if (((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->curve_type == DAP_ENC_CYRVE_TYPE_SECP256k1){
+        for (i = 0; i < 10000; i++) {
+            const ecdsa_curve *curve = &secp256k1;
+            generate_k_rfc6979(&k, &rfc_state);
+            if (bn_is_zero(&k) || !bn_is_less(&k, &curve->order)){
+                continue;
+            }
+            schnorr_sign_pair *sign = DAP_NEW(schnorr_sign_pair);
+            int result = schnorr_sign(curve,
+                             ((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->data,
+                             &k, msg,(uint32_t) msg_size, sign);
+            if (result == 0 ){
+                memset(&k, 0, sizeof (k));
+                memset(&rfc_state, 0, sizeof (rfc_state));
+                signature = sign;
+                return sizeof(schnorr_sign_pair);
+            } else {
+                DAP_FREE(sign);
+                continue;
+            }
+        }
+        memset(&k, 0, sizeof (k));
+        memset(&rfc_state, 0, sizeof (rfc_state));
     }
+    return 0;
 }
 size_t dap_enc_sign_schnorr_verify(struct dap_enc_key *a_key, const void *msg, const size_t msg_size,
                                 void *signature, const size_t signature_size){
@@ -46,10 +76,20 @@ size_t dap_enc_sign_schnorr_verify(struct dap_enc_key *a_key, const void *msg, c
         log_it(L_ERROR, "bad signature size");
         return 0;
     }
-    ecdsa_curve *curve;
-    return (size_t)schnorr_verify(curve, a_key->pub_key_data, msg, (uint32_t)msg_size, (schnorr_sign_pair*)signature);
+    const ecdsa_curve *curve = &secp256k1;
+    return (size_t)schnorr_verify(curve,
+                                  ((dap_enc_key_sign_schnorr_public_t*)a_key->pub_key_data)->data,
+                                  msg, (uint32_t)msg_size, (schnorr_sign_pair*)signature);
 }
-void dap_enc_sign_schnorr_key_delete(struct dap_enc_key *a_key){}
+
+void dap_enc_sign_schnorr_key_delete(struct dap_enc_key *a_key){
+    DAP_FREE(((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->data);
+    DAP_FREE(((dap_enc_key_sign_schnorr_private_t*)a_key->pub_key_data)->data);
+    DAP_FREE(a_key->priv_key_data);
+    a_key->priv_key_data_size = 0;
+    DAP_FREE(a_key->pub_key_data);
+    a_key->pub_key_data_size = 0;
+}
 
 size_t dap_enc_sign_schnorr_calc_signature_size(void){
     return sizeof(schnorr_sign_pair);
