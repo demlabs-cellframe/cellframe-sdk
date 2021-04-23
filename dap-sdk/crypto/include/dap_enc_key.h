@@ -127,6 +127,10 @@ typedef enum dap_enc_key_type{
                            
                            DAP_ENC_KEY_TYPE_SCHNORR_0, // Schnorr digital signature algorithm.
 
+                           DAP_ENC_KEY_TYPE_ECDSA_0, // ECDSA with hasher SHA3.
+
+                           DAP_ENC_KEY_TYPE_RSA, // RSA alogorithm.
+
                            DAP_ENC_KEY_TYPE_NULL = 0 // avoid using it: 0 is a DAP_ENC_KEY_TYPE_NULL and DAP_ENC_KEY_TYPE_IAES at the same time
 
                          }  dap_enc_key_type_t;
@@ -239,6 +243,16 @@ typedef struct dap_enc_key_serealize {
     unsigned char pub_key_data[MAX_ENC_KEY_SIZE];
     unsigned char inheritor[MAX_INHERITOR_SIZE];
 } dap_enc_key_serealize_t;
+
+/*const size keys for curvies*/
+const size_t c_dap_enc_key_private_size                   = 32;
+const size_t c_dap_enc_key_private_extended_size          = 96;
+const size_t c_dap_enc_key_public_secp256k1_size          = 33;
+const size_t c_dap_enc_key_public_secp256k1_extended_size = 65;
+const size_t c_dap_enc_key_public_nist256p1_size          = 33;
+const size_t c_dap_enc_key_public_nist256p1_extended_size = 65;
+const size_t c_dap_enc_key_public_ed25519_size            = 32;
+const size_t c_dap_enc_key_public_ed25519_extended_size   = 64;
 
 #ifdef __cplusplus
 extern "C" {
