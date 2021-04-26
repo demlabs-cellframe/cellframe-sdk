@@ -387,7 +387,9 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             l_node_client->state = NODE_CLIENT_STATE_SYNC_GDB_RVRS ;
             a_ch_chain->is_on_reverse_request = true;
 
-            dap_stream_ch_chain_create_sync_request_gdb(a_ch_chain, l_node_client->net);
+            //dap_stream_ch_chain_create_sync_request_gdb(a_ch_chain, l_node_client->net);
+            s_ch_chain_callback_notify_packet_out(a_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
+                                                  a_pkt, a_pkt_data_size, a_arg);
 
         }break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
@@ -518,7 +520,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
 
 
                 if(! l_node_client->cur_chain){
-                    log_it(L_CRITICAL,"In: Can't sync chains for %s because there is no chains in it",l_net->pub.name);
+                    log_it(L_CRITICAL,"Can't sync chains for %s because there is no chains in it",l_net->pub.name);
                     dap_stream_ch_chain_pkt_write_error_unsafe(a_ch_chain->ch,l_net->pub.id.uint64,
                                                                l_chain_id.uint64,l_cell_id.uint64,"ERROR_CHAIN_NO_CHAINS");
                     l_node_client->state = NODE_CLIENT_STATE_SYNC_CHAINS_UPDATES  ;
@@ -538,11 +540,11 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
                     l_chain_pkt->hdr.net_id.uint64 = l_net_id;
                     l_chain_pkt->hdr.cell_id.uint64 = l_cell_id.uint64;
                     l_chain_pkt->hdr.chain_id.uint64 = l_chain_id.uint64;
-                    dap_stream_ch_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START ,
+                    dap_stream_ch_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ ,
                                                          l_chain_pkt,l_chain_pkt_size);
                     DAP_DELETE(l_chain_pkt);
                     log_it(L_INFO,
-                           "In: Send UPDATE_CHAINS_START: net_id=0x%016x chain_id=0x%016x cell_id=0x%016x  ",
+                           "Out: Send UPDATE_CHAINS_START: net_id=0x%016x chain_id=0x%016x cell_id=0x%016x  ",
                            l_net_id,l_chain_id.uint64,l_cell_id.uint64
                            );
                 }

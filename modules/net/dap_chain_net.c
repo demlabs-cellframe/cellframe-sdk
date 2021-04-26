@@ -771,6 +771,11 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     assert(l_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     assert(l_net_pvt);
+    if (l_net_pvt->state_target == NET_STATE_OFFLINE) {
+        l_net_pvt->state = NET_STATE_OFFLINE;
+        return true;
+    }
+
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
 
     switch (l_net_pvt->state) {
@@ -1336,23 +1341,22 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
             }
         } else if ( l_go_str){
             if ( strcmp(l_go_str,"online") == 0 ) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
+                                                    l_net->pub.name,c_net_states[PVT(l_net)->state],
+                                                    c_net_states[PVT(l_net)->state_target]);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
-                                                    l_net->pub.name,c_net_states[PVT(l_net)->state],
-                                                    c_net_states[PVT(l_net)->state_target]);
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
-                dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
                                                     l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                     c_net_states[PVT(l_net)->state_target]);
+                dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
 
             }
             else if(strcmp(l_go_str, "sync") == 0) {
-                dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_GDB);
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
                         l_net->pub.name, c_net_states[PVT(l_net)->state],
                         c_net_states[PVT(l_net)->state_target]);
-
+                dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_GDB);
             }
 
         } else if ( l_get_str){
