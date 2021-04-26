@@ -953,7 +953,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
  */
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net,struct dap_chain_node_info* a_link_info)
 {
-    return dap_chain_node_client_create_n_connect(a_net, a_link_info,"CN",&s_node_link_callbacks,a_net);
+    return dap_chain_node_client_create_n_connect(a_net, a_link_info,"CN",(dap_chain_node_client_callbacks_t *)&s_node_link_callbacks,a_net);
 }
 
 /**
@@ -965,7 +965,7 @@ struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_
  */
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( dap_chain_net_t * a_net,struct dap_chain_node_info* a_link_info,const char * a_channels )
 {
-    return dap_chain_node_client_create_n_connect(a_net, a_link_info,a_channels,&s_node_link_callbacks,a_net);
+    return dap_chain_node_client_create_n_connect(a_net, a_link_info,a_channels,(dap_chain_node_client_callbacks_t *)&s_node_link_callbacks,a_net);
 }
 
 

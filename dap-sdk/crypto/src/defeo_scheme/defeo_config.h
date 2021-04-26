@@ -94,11 +94,11 @@ static __inline unsigned int is_digit_lessthan_ct(digit_t x, digit_t y)
 
     // 128-bit addition, inputs < 2^127
     #define ADD128(addend1, addend2, addition)                                                        \
-        mp_add((digit_t*)(addend1), (digit_t*)(addend2), (digit_t*)(addition), NWORDS_FIELD);
+        mp_addd((digit_t*)(addend1), (digit_t*)(addend2), (digit_t*)(addition), NWORDS_FIELD);
 
     // 128-bit addition with output carry
     #define ADC128(addend1, addend2, carry, addition)                                                 \
-        (carry) = mp_add((digit_t*)(addend1), (digit_t*)(addend2), (digit_t*)(addition), NWORDS_FIELD);
+        (carry) = mp_addd((digit_t*)(addend1), (digit_t*)(addend2), (digit_t*)(addition), NWORDS_FIELD);
 
 #elif (TARGET == TARGET_AMD64 && COMPILER == COMPILER_VC)
 

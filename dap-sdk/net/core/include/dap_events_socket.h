@@ -30,6 +30,7 @@
 #define DAP_EVENTS_SOCKET_MAX 8194
 
 #ifndef _WIN32
+#include "unistd.h"
 typedef int SOCKET;
 #define closesocket close
 #define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
@@ -154,6 +155,7 @@ typedef enum {
     DESCRIPTOR_TYPE_FILE,
     DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING,
     DESCRIPTOR_TYPE_SOCKET_LOCAL_CLIENT,
+    DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL
 } dap_events_desc_type_t;
 
 
@@ -275,6 +277,8 @@ typedef struct dap_events_socket {
     UT_hash_handle hh;
     UT_hash_handle hh_worker; // Handle for local CPU storage on worker
 } dap_events_socket_t; // Node of bidirectional list of clients
+
+#define SSL(a) (a ? (WOLFSSL *) (a)->_pvt : NULL)
 
 typedef struct dap_events_socket_handler{
     dap_events_socket_t * esocket;

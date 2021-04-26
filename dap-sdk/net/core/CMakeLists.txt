@@ -20,11 +20,11 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})
 
 if(WIN32)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto wolfssl)
 endif()
 
 if(UNIX)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto wolfssl)
 
   if(NOT ANDROID)
       target_link_libraries(${PROJECT_NAME} pthread)

@@ -425,7 +425,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                             pthread_rwlock_wrlock(&l_http_client->proc->cache_rwlock);
                             dap_http_cache_delete(l_http_cache);
                             l_http_client->proc->cache = NULL;
-                            l_http_cache == NULL;
+                            l_http_cache = NULL;
                         }
                     }
                     if (l_http_cache == NULL){
