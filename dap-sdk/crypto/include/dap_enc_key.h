@@ -127,7 +127,17 @@ typedef enum dap_enc_key_type{
                            
                            DAP_ENC_KEY_TYPE_SCHNORR_0, // Schnorr digital signature algorithm.
 
-                           DAP_ENC_KEY_TYPE_ECDSA_0, // ECDSA with hasher SHA3.
+                           DAP_ENC_KEY_TYPE_ECDSA_SECP256K1, // ECDSA with hasher SHA3.
+
+                           DAP_ENC_KEY_TYPE_ECDSA_NIST256P1,
+
+                           DAP_ENC_KEY_TYPE_ECDSA_ED25519,
+
+                           DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX, // ECDSA with hasher SHA3.
+
+                           DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX,
+
+                           DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX,
 
                            DAP_ENC_KEY_TYPE_RSA, // RSA alogorithm.
 

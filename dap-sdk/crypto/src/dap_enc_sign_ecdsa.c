@@ -3,12 +3,75 @@
 #define LOG_TAG "dap_enc_sign_ecdsa"
 
 void dap_enc_sign_ecdsa_key_new(struct dap_enc_key *a_key){
-    a_key->type = DAP_ENC_KEY_TYPE_ECDSA_0;
+    //a_key->type = DAP_ENC_KEY_TYPE_ECDSA_0;
     a_key->enc = NULL;
     a_key->dec = NULL;
     a_key->enc_na = dap_enc_sign_ecdsa_get;
     a_key->dec_na = dap_enc_sign_ecdsa_verify;
     //1a_key->
+}
+//void _dap_enc_sign_ecdsa_key
+void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void *kex_buf, size_t kex_size,
+                                         const void *seed, size_t seed_size, size_t key_size) {
+    (void)kex_size;
+    (void)seed;
+    (void)seed_size;
+    a_key->pub_key_data = DAP_NEW(dap_enc_key_public_ecdsa_t);
+    a_key->pub_key_data_size = sizeof (dap_enc_key_public_ecdsa_t);
+    a_key->priv_key_data = DAP_NEW(dap_enc_key_private_ecdsa_t);
+    a_key->priv_key_data_size = sizeof(dap_enc_key_private_ecdsa_t);
+    const ecdsa_curve *curve;
+    switch (a_key->type) {
+    case DAP_ENC_KEY_TYPE_ECDSA_ED25519:
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
+        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
+//        curve = &ed25519
+        //random_buffer(data)
+        break;
+    case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1:
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_NIST256p1;
+        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_NIST256p1;
+        break;
+    case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1:
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561;
+        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561;
+        break;
+    case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX:
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_extended_size;
+        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
+        break;
+    case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX:
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_NIST256p1;
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_extended_size;
+        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_NIST256p1;
+        break;
+    case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX:
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561;
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_extended_size;
+        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561;
+        break;
+    default:
+        log_it(L_ERROR, "Key have type ");
+        return;
+    }
+    //((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
+    random_buffer(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
+                  ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key);
+//    const ecdsa_curve *curve;
+    /*switch ( ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type ) {
+    case DAP_ENC_CURVE_TYPE_ED25519:
+        break;
+    case DAP_ENC_CURVE_TYPE_NIST256p1:
+        break;
+    case DAP_ENC_CYRVE_TYPE_SECP256k1:
+        break;
+    case DAP_ENC_CURVE_TYPE_CURVE25519:
+        break;
+    case DAP_ENC_CURVE_TYPE_ED25519Blake2b:
+        break;
+    }*/
 }
 size_t dap_enc_sign_ecdsa_get(struct  dap_enc_key *a_key, const void *msg, const size_t msg_size,
                                 void *signature, const size_t signature_size){    
@@ -32,7 +95,7 @@ size_t dap_enc_sign_ecdsa_verify(struct dap_enc_key *a_key, const void *msg, con
 size_t dap_enc_sign_ecdsa_calc_signature_size(void){
     return sizeof(uint64_t);
 }
-size_t dap_enc_sign_ecdsa_calc_signature_serialized_size(){
+size_t dap_enc_sign_ecdsa_calc_signature_serialized_size(void){
     return sizeof(uint64_t);
 }
 

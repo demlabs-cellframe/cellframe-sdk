@@ -2,8 +2,24 @@
 #define _DAP_ENC_SIGN_ECDSA_
 
 #include "dap_enc_key.h"
+#include "dap_enc_curve_types.h"
 #include "TrezorCrypto/bignum.h"
 #include "TrezorCrypto/ecdsa.h"
+#include "TrezorCrypto/rand.h"
+#include "TrezorCrypto/ed25519.h"
+#include "TrezorCrypto/nist256p1.h"
+#include "TrezorCrypto/secp256k1.h"
+
+typedef struct dap_enc_key_public_ecdsa{
+    dap_enc_curve_types_t curve_type;
+    uint8_t *data;
+    size_t size_key;
+}dap_enc_key_public_ecdsa_t;
+typedef struct dap_enc_key_private_ecdsa{
+    dap_enc_curve_types_t curve_type;
+    uint8_t *data;
+    size_t size_key;
+}dap_enc_key_private_ecdsa_t;
 
 #ifdef __cplusplus 
 extern "C" {
@@ -19,7 +35,7 @@ size_t dap_enc_sign_ecdsa_verify(struct dap_enc_key *a_key, const void *msg, con
 void dap_enc_sign_ecdsa_key_delete(struct dap_enc_key *a_key);
 
 size_t dap_enc_sign_ecdsa_calc_signature_size(void);
-size_t dap_enc_sign_ecdsa_calc_signature_serialized_size();
+size_t dap_enc_sign_ecdsa_calc_signature_serialized_size(void);
 
 uint8_t* dap_enc_sign_ecdsa_write_signature(uint8_t *a_sign, size_t *a_sign_out);
 uint8_t* dap_enc_sign_ecdsa_read_signature(uint8_t *a_buff, size_t a_buff_size);
