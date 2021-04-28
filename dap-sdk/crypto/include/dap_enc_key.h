@@ -139,6 +139,10 @@ typedef enum dap_enc_key_type{
 
                            DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX,
 
+                           DAP_ENC_KEY_TYPE_ECDSA_ED25519_Blake2b,
+
+                           DAP_ENC_KEY_TYPE_ECDSA_CURVE25519,
+
                            DAP_ENC_KEY_TYPE_RSA, // RSA alogorithm.
 
                            DAP_ENC_KEY_TYPE_NULL = 0 // avoid using it: 0 is a DAP_ENC_KEY_TYPE_NULL and DAP_ENC_KEY_TYPE_IAES at the same time
