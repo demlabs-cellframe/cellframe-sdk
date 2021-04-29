@@ -3,7 +3,7 @@ HEADERS += $$PWD/pthread_barrier.h
 
 SOURCES += $$PWD/dap_network_monitor.c
 
-INCLUDEPATH += $$PWD /usr/local/include
+INCLUDEPATH += $$PWD /usr/local/include /opt/homebrew/include
 
 LIBS += -framework CoreFoundation
 LIBS += -framework SystemConfiguration
