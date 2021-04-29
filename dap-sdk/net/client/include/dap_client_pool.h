@@ -2,7 +2,7 @@
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
+ * Cellframe Network https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2019
  * All rights reserved.
 

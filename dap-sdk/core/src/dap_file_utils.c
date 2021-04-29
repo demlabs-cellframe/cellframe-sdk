@@ -2,7 +2,7 @@
  * Authors:
  * Aleksandr Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://gitlab.demlabs.net/cellframe
+ * Cellframe Network https://gitlab.demlabs.net/cellframe
  * Copyright  (c) 2017-2018
  * All rights reserved.
 
