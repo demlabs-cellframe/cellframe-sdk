@@ -135,17 +135,13 @@ uint8_t *dap_enc_sign_schnorr_write_private_key(const dap_enc_key_sign_schnorr_p
     if (a_private_key == NULL){
         return NULL;
     }
-    schnorr_pvt_serialized_t pvt = {0};
-    pvt.size_key = a_private_key->size_key;
-    pvt.curve_type = a_private_key->curve_type;
-    pvt.data = DAP_NEW_SIZE(uint8_t, a_private_key->size_key * sizeof(uint8_t));
-    memcpy(pvt.data, a_private_key->data, sizeof(uint8_t) * a_private_key->size_key);
-    size_t l_buff_size = sizeof (pvt);
-    uint8_t *l_buff = DAP_NEW_SIZE(uint8_t, l_buff_size);
-    memcpy(l_buff, &pvt, l_buff_size);
+    schnorr_pvt_serialized_t *pvt = DAP_NEW_Z_SIZE(schnorr_pvt_serialized_t, sizeof (*pvt) + a_private_key->size_key);
+    pvt->curve_type = a_private_key->curve_type;
+    pvt->size_key = a_private_key->curve_type;
+    memcpy(pvt->data, a_private_key->data, sizeof (uint8_t) * a_private_key->size_key);
     if (a_buflen_out)
-        *a_buflen_out = l_buff_size;
-    return l_buff;
+        *a_buflen_out = sizeof (*pvt) + a_private_key->size_key;
+    return (uint8_t*)pvt;
 }
 
 /* Serialize a public key */
@@ -170,10 +166,14 @@ uint8_t *dap_enc_sign_schnorr_write_public_key(const dap_enc_key_sign_schnorr_pu
 
 /* Deserialize a private key. */
 dap_enc_key_sign_schnorr_private_t *dap_enc_sign_schnoor_read_private_key(const uint8_t *a_buf, size_t a_buflen){
-    if(!a_buf && a_buflen < sizeof(size_t) + sizeof(size_t) ){
+    if(!a_buf && a_buflen != sizeof(schnorr_pvt_serialized_t) ){
         return NULL;
     }
+    schnorr_pvt_serialized_t pvt = {0};
+    memcpy(&pvt, a_buf, sizeof (pvt));
     dap_enc_key_sign_schnorr_private_t *l_private_key = DAP_NEW(dap_enc_key_sign_schnorr_private_t);
+
+    /*dap_enc_key_sign_schnorr_private_t *l_private_key = DAP_NEW(dap_enc_key_sign_schnorr_private_t);
     size_t l_copy_bytes = 0;
     memcpy(&l_private_key->curve_type, a_buf, sizeof(size_t));
     l_copy_bytes += sizeof (size_t);
@@ -185,7 +185,7 @@ dap_enc_key_sign_schnorr_private_t *dap_enc_sign_schnoor_read_private_key(const 
     }
     l_private_key->data = DAP_NEW_SIZE(uint8_t, l_private_key->size_key);
     memcpy(l_private_key->data, a_buf + l_copy_bytes, sizeof(uint8_t) * l_private_key->size_key);
-    return l_private_key;
+    return l_private_key;*/
 }
 
 /* Deserialize a public key. */

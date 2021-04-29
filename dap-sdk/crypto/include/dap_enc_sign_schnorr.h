@@ -16,8 +16,8 @@ typedef struct dap_enc_key_public_schnorr {
 
 typedef struct schnorr_pvt_serialized{
     uint32_t curve_type;
-    uint8_t *data;
     uint64_t size_key;
+    byte_t data[];
 }DAP_ALIGN_PACKED schnorr_pvt_serialized_t;
 
 typedef struct dap_enc_key_private_schnorr {
