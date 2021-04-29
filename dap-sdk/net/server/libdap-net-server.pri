@@ -3,6 +3,10 @@ android {
     include (../../../3rdparty/libmagic/file/libmagic.pri)
 }
 
+darwin{
+    include (../../../3rdparty/libmagic-darwin/file/libmagic.pri)
+}
+
 #enc_server
 HEADERS += $$PWD/enc_server/include/dap_enc_http.h \
     $$PWD/enc_server/include/dap_enc_ks.h
@@ -50,6 +54,4 @@ SOURCES += $$PWD/json_rpc/src/dap_json_rpc.c \
     $$PWD/json_rpc/src/dap_json_rpc_response_handler.c
     
 INCLUDEPATH += $$PWD/include
-darwin{
-    LIBS += -ljson-c -lmagic
-}
+

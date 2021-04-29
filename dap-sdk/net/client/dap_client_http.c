@@ -36,8 +36,10 @@
 #include "dap_client_pvt.h"
 #include "dap_client_http.h"
 #include "dap_enc_base64.h"
+#ifndef DAP_NET_CLIENT_NO_SSL
 #include <wolfssl/options.h>
 #include "wolfssl/ssl.h"
+#endif
 
 #define LOG_TAG "dap_client_http"
 
@@ -95,7 +97,10 @@ static bool s_debug_more=false;
 static uint64_t s_client_timeout_ms=20000;
 static time_t s_client_timeout_read_after_connect_ms=5000;
 static uint32_t s_max_attempts = 5;
+
+#ifndef DAP_NET_CLIENT_NO_SSL
 static WOLFSSL_CTX *s_ctx;
+#endif
 
 /**
  * @brief dap_client_http_init
@@ -107,6 +112,7 @@ int dap_client_http_init()
     s_max_attempts = dap_config_get_item_uint32_default(g_config,"dap_client","max_tries",5);
     s_client_timeout_ms = dap_config_get_item_uint32_default(g_config,"dap_client","timeout",10)*1000;
     s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
+#ifndef DAP_NET_CLIENT_NO_SSL
     wolfSSL_Init();
     if ((s_ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method())) == NULL)
         return -1;
@@ -116,6 +122,7 @@ int dap_client_http_init()
         return -2;
     } else
         wolfSSL_CTX_set_verify(s_ctx, WOLFSSL_VERIFY_NONE, 0);
+#endif
     return 0;
 }
 
@@ -124,8 +131,10 @@ int dap_client_http_init()
  */
 void dap_client_http_deinit()
 {
+#ifndef DAP_NET_CLIENT_NO_SSL
     wolfSSL_CTX_free(s_ctx);
     wolfSSL_Cleanup();
+#endif
 }
 
 
@@ -408,11 +417,13 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
         }
     }
 
+#ifndef DAP_NET_CLIENT_NO_SSL
     WOLFSSL *l_ssl = SSL(a_es);
     if (l_ssl) {
         wolfSSL_free(l_ssl);
         a_es->_pvt = NULL;
     }
+#endif
 
     s_client_http_delete(l_client_http_internal);
     a_es->_inheritor = NULL;
@@ -581,11 +592,15 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         log_it(L_DEBUG, "Connected momentaly with %s:%u!", a_uplink_addr, a_uplink_port);
         l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
         if (a_over_ssl) {
+#ifndef DAP_NET_CLIENT_NO_SSL
             WOLFSSL *l_ssl = wolfSSL_new(s_ctx);
             if (!l_ssl)
                 log_it(L_ERROR, "wolfSSL_new error");
             wolfSSL_set_fd(l_ssl, l_socket);
             l_ev_socket->_pvt = (void *)l_ssl;
+#else
+            log_it(L_ERROR,"We have no SSL implementation but trying to create SSL connection!");
+#endif
         }
         dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
         return l_http_pvt;
@@ -652,11 +667,13 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     assert(l_worker);
 
     if (l_http_pvt->is_over_ssl) {
+#ifndef DAP_NET_CLIENT_NO_SSL
         WOLFSSL *l_ssl = wolfSSL_new(s_ctx);
         if (!l_ssl)
             log_it(L_ERROR, "wolfSSL_new error");
         wolfSSL_set_fd(l_ssl, a_esocket->socket);
         a_esocket->_pvt = (void *)l_ssl;
+#endif
     }
     log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", l_http_pvt->uplink_addr, l_http_pvt->uplink_port, a_esocket->socket);
     // add to dap_worker

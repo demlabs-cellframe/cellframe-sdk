@@ -19,13 +19,18 @@ unix: !android : ! darwin {
     DEFINES += _GNU_SOURCE
     LIBS += -lrt -ljson-c -lmagic
 }
+
+DEFINES += DAP_NET_CLIENT_NO_SSL
 darwin {
-    QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
+    QMAKE_CFLAGS_DEBUG += -Wall -g3 -ggdb -fno-strict-aliasing
     DEFINES += _GNU_SOURCE
     include(src/darwin/darwin.pri)
     DEFINES += DAP_OS_DARWIN DAP_OS_BSD
-    LIBS+ = -lrt -ljson-c -lmagic
+    LIBS+ = -lrt
+    #-ljson-c -lmagic
     QMAKE_LIBDIR += /usr/local/lib
+    QMAKE_CFLAGS += -Wno-deprecated-copy -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
+    QMAKE_CXXFLAGS += -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
 
     QMAKE_CFLAGS_DEBUG += -gdwarf-2
     QMAKE_CXXFLAGS_DEBUG += -gdwarf-2
@@ -41,6 +46,8 @@ win32 {
 # 3rd party
 HEADERS += $$PWD/../../3rdparty/uthash/src/utlist.h \
            $$PWD/../../3rdparty/uthash/src/uthash.h
+
+#include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
 
 # Sources itself
 HEADERS += $$PWD/include/dap_common.h \
