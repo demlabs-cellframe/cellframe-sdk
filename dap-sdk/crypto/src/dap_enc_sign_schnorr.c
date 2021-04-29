@@ -135,36 +135,34 @@ uint8_t *dap_enc_sign_schnorr_write_private_key(const dap_enc_key_sign_schnorr_p
     if (a_private_key == NULL){
         return NULL;
     }
-    size_t l_buff_out_size = sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint8_t) * a_private_key->size_key;
-    uint8_t *l_buff_out = DAP_NEW_SIZE(uint8_t, l_buff_out_size);
-    size_t l_shift_bytes = 0;
-    uint32_t l_type_curve = a_private_key->curve_type;
-    uint64_t l_size_data = a_private_key->size_key;
-    memcpy(l_buff_out, &l_type_curve, sizeof(uint32_t));
-    l_shift_bytes += sizeof(uint32_t);
-    memcpy(l_buff_out + l_shift_bytes, &l_size_data, sizeof (uint64_t));
-    l_shift_bytes += sizeof(uint64_t);
-    memcpy(l_buff_out + l_shift_bytes, a_private_key->data, a_private_key->size_key * sizeof(uint8_t));
+    schnorr_pvt_serialized_t pvt = {0};
+    pvt.size_key = a_private_key->size_key;
+    pvt.curve_type = a_private_key->curve_type;
+    pvt.data = DAP_NEW_SIZE(uint8_t, a_private_key->size_key * sizeof(uint8_t));
+    memcpy(pvt.data, a_private_key->data, sizeof(uint8_t) * a_private_key->size_key);
+    size_t l_buff_size = sizeof (pvt);
+    uint8_t *l_buff = DAP_NEW_SIZE(uint8_t, l_buff_size);
+    memcpy(l_buff, &pvt, l_buff_size);
     if (a_buflen_out)
-        *a_buflen_out = l_buff_out_size;
-    return l_buff_out;
+        *a_buflen_out = l_buff_size;
+    return l_buff;
 }
 
 /* Serialize a public key */
-uint8_t *dap_enc_sign_schnorr_write_public_key(const dap_enc_key_sign_schnorr_public_t *a_private_key, size_t *a_buflen_out){
-    if (a_private_key == NULL){
+uint8_t *dap_enc_sign_schnorr_write_public_key(const dap_enc_key_sign_schnorr_public_t *a_public_key, size_t *a_buflen_out){
+    if (a_public_key == NULL){
         return NULL;
     }
-    size_t l_buff_out_size = sizeof(size_t) + sizeof(size_t) + (sizeof(uint8_t) * a_private_key->size_key);
+    size_t l_buff_out_size = sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint8_t) * a_public_key->size_key;
     uint8_t *l_buff_out = DAP_NEW_SIZE(uint8_t, l_buff_out_size);
     size_t l_shift_bytes = 0;
-    size_t l_type_curve = a_private_key->curve_type;
-    memcpy(l_buff_out, &l_type_curve, sizeof(size_t));
-    l_shift_bytes += sizeof(size_t);
-    memcpy(l_buff_out + l_shift_bytes, &a_private_key->size_key, sizeof(size_t));
-    l_shift_bytes += sizeof(size_t);
-    memcpy(l_buff_out + l_shift_bytes, &a_private_key->data, sizeof(size_t) * a_private_key->size_key);
-
+    uint32_t l_type_curve = a_public_key->curve_type;
+    uint64_t l_size_data = a_public_key->size_key;
+    memcpy(l_buff_out, &l_type_curve, sizeof(uint32_t));
+    l_shift_bytes += sizeof (uint32_t);
+    memcpy(l_buff_out + l_shift_bytes, &l_size_data, sizeof(uint64_t));
+    l_shift_bytes += sizeof(uint64_t);
+    memcpy(l_buff_out + l_shift_bytes, a_public_key->data, sizeof(uint8_t) * a_public_key->size_key);
     if (a_buflen_out)
         *a_buflen_out = l_buff_out_size;
     return  l_buff_out;
