@@ -3,7 +3,7 @@
 #define LOG_TAG "dap_enc_sign_schnorr"
 
 void dap_enc_sign_schnorr_key_new(struct dap_enc_key * a_key){
-    a_key->type = DAP_ENC_KEY_TYPE_SCHNORR_0;
+    a_key->type = DAP_ENC_KEY_TYPE_SIG_SCHNORR_0;
     a_key->enc = NULL;
     a_key->dec = NULL;
     a_key->enc_na = dap_enc_sign_schnorr_get;
@@ -44,7 +44,7 @@ size_t dap_enc_sign_schnorr_get(struct  dap_enc_key *a_key, const void *msg, con
     rfc6979_state rfc_state;
     init_rfc6979(((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->data, hash, &rfc_state);
 
-    if (((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->curve_type == DAP_ENC_CYRVE_TYPE_SECP256k1){
+    if (((dap_enc_key_sign_schnorr_private_t*)a_key->priv_key_data)->curve_type == DAP_ENC_CURVE_TYPE_SECP2561k1){
         for (i = 0; i < 10000; i++) {
             const ecdsa_curve *curve = &secp256k1;
             generate_k_rfc6979(&k, &rfc_state);
@@ -135,19 +135,19 @@ uint8_t *dap_enc_sign_schnorr_write_private_key(const dap_enc_key_sign_schnorr_p
     if (a_private_key == NULL){
         return NULL;
     }
-    size_t l_buff_out_size = sizeof(size_t) + sizeof(size_t) + (sizeof(uint8_t) * a_private_key->size_key);
+    size_t l_buff_out_size = sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint8_t) * a_private_key->size_key;
     uint8_t *l_buff_out = DAP_NEW_SIZE(uint8_t, l_buff_out_size);
     size_t l_shift_bytes = 0;
-    size_t l_type_curve = a_private_key->curve_type;
-    memcpy(l_buff_out, &l_type_curve, sizeof(size_t));
-    l_shift_bytes += sizeof(size_t);
-    memcpy(l_buff_out + l_shift_bytes, &a_private_key->size_key, sizeof(size_t));
-    l_shift_bytes += sizeof(size_t);
-    memcpy(l_buff_out + l_shift_bytes, a_private_key->data, sizeof (uint8_t) * a_private_key->size_key);
-
+    uint32_t l_type_curve = a_private_key->curve_type;
+    uint64_t l_size_data = a_private_key->size_key;
+    memcpy(l_buff_out, &l_type_curve, sizeof(uint32_t));
+    l_shift_bytes += sizeof(uint32_t);
+    memcpy(l_buff_out + l_shift_bytes, &l_size_data, sizeof (uint64_t));
+    l_shift_bytes += sizeof(uint64_t);
+    memcpy(l_buff_out + l_shift_bytes, a_private_key->data, a_private_key->size_key * sizeof(uint8_t));
     if (a_buflen_out)
         *a_buflen_out = l_buff_out_size;
-    return  l_buff_out;
+    return l_buff_out;
 }
 
 /* Serialize a public key */
