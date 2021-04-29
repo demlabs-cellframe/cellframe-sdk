@@ -2,6 +2,12 @@
 
 #define LOG_TAG "dap_enc_sign_schnorr"
 
+typedef struct schnorr_pvt_serialized{
+    uint32_t curve_type;
+    uint64_t size_key;
+    byte_t data[];
+}DAP_ALIGN_PACKED schnorr_pvt_serialized_t;
+
 void dap_enc_sign_schnorr_key_new(struct dap_enc_key * a_key){
     a_key->type = DAP_ENC_KEY_TYPE_SIG_SCHNORR_0;
     a_key->enc = NULL;
@@ -135,10 +141,16 @@ uint8_t *dap_enc_sign_schnorr_write_private_key(const dap_enc_key_sign_schnorr_p
     if (a_private_key == NULL){
         return NULL;
     }
+    if (a_private_key->size_key == 0){
+        return NULL;
+    }
     schnorr_pvt_serialized_t *pvt = DAP_NEW_Z_SIZE(schnorr_pvt_serialized_t, sizeof (*pvt) + a_private_key->size_key);
+    if (pvt == NULL){
+        return NULL;
+    }
     pvt->curve_type = a_private_key->curve_type;
-    pvt->size_key = a_private_key->curve_type;
-    memcpy(pvt->data, a_private_key->data, sizeof (uint8_t) * a_private_key->size_key);
+    pvt->size_key = a_private_key->size_key;
+    memcpy(pvt->data, a_private_key->data, sizeof (byte_t) * a_private_key->size_key);
     if (a_buflen_out)
         *a_buflen_out = sizeof (*pvt) + a_private_key->size_key;
     return (uint8_t*)pvt;
@@ -149,19 +161,19 @@ uint8_t *dap_enc_sign_schnorr_write_public_key(const dap_enc_key_sign_schnorr_pu
     if (a_public_key == NULL){
         return NULL;
     }
-    size_t l_buff_out_size = sizeof(uint32_t) + sizeof(uint64_t) + sizeof(uint8_t) * a_public_key->size_key;
-    uint8_t *l_buff_out = DAP_NEW_SIZE(uint8_t, l_buff_out_size);
-    size_t l_shift_bytes = 0;
-    uint32_t l_type_curve = a_public_key->curve_type;
-    uint64_t l_size_data = a_public_key->size_key;
-    memcpy(l_buff_out, &l_type_curve, sizeof(uint32_t));
-    l_shift_bytes += sizeof (uint32_t);
-    memcpy(l_buff_out + l_shift_bytes, &l_size_data, sizeof(uint64_t));
-    l_shift_bytes += sizeof(uint64_t);
-    memcpy(l_buff_out + l_shift_bytes, a_public_key->data, sizeof(uint8_t) * a_public_key->size_key);
+    if(a_public_key->size_key == 0){
+        return NULL;
+    }
+    schnorr_pvt_serialized_t *pvt = DAP_NEW_Z_SIZE(schnorr_pvt_serialized_t, sizeof(*pvt) + a_public_key->size_key);
+    if(pvt == NULL){
+        return NULL;
+    }
+    pvt->curve_type = a_public_key->curve_type;
+    pvt->size_key = a_public_key->size_key;
+    mempcpy(pvt->data, a_public_key->data, sizeof(byte_t) * a_public_key->size_key);
     if (a_buflen_out)
-        *a_buflen_out = l_buff_out_size;
-    return  l_buff_out;
+        *a_buflen_out = sizeof(*pvt) + a_public_key->size_key;
+    return  (uint8_t*)pvt;
 }
 
 /* Deserialize a private key. */
