@@ -214,24 +214,16 @@ uint8_t *dap_enc_sign_ecdsa_write_public_key(const dap_enc_key_public_ecdsa_t *a
 
 /* Deserialize a private key. */
 dap_enc_key_private_ecdsa_t *dap_enc_sign_ecdsa_read_private_key(const uint8_t *a_buf, size_t a_buflen){
-    if (!a_buf || a_buflen < sizeof (size_t) + sizeof(size_t)){
-        return  NULL;
-    }
-    dap_enc_key_private_ecdsa_t *l_private_key = DAP_NEW(dap_enc_key_private_ecdsa_t);
-    size_t l_shift_bytes = 0;
-    size_t type_curve;
-    memcpy(&type_curve, a_buf, sizeof (size_t));
-    l_shift_bytes += sizeof (size_t);
-    l_private_key->curve_type = (dap_enc_curve_types_t)type_curve;
-    memcpy(&l_private_key->size_key, a_buf + l_shift_bytes, sizeof (size_t));
-    l_shift_bytes += sizeof (size_t);
-    if ((l_shift_bytes + sizeof (uint8_t) * l_private_key->size_key) != a_buflen){
-        DAP_FREE(l_private_key);
+    if (!a_buf || a_buflen  == 0){
         return NULL;
     }
-    l_private_key->data = DAP_NEW_SIZE(uint8_t, sizeof(uint8_t) * l_private_key->size_key);
-    memcpy(l_private_key->data, a_buf + l_shift_bytes, sizeof(uint8_t) * l_private_key->size_key);
-    return l_private_key;
+    const ecdsa_pvt_serialize_t *pvt = (const ecdsa_pvt_serialize_t*)a_buf;
+    dap_enc_key_private_ecdsa_t *l_private_key = DAP_NEW(dap_enc_key_private_ecdsa_t);
+    l_private_key->curve_type = pvt->curve_type;
+    l_private_key->size_key = pvt->size_key;
+    l_private_key->data = DAP_NEW_Z_SIZE(uint8_t, l_private_key->size_key);
+    memcpy(l_private_key->data, pvt->data, sizeof(byte_t) * l_private_key->size_key);
+    return  l_private_key;
 }
 
 /* Deserialize a public key. */
