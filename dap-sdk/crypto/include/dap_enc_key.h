@@ -125,7 +125,7 @@ typedef enum dap_enc_key_type{
 
                            DAP_ENC_KEY_TYPE_LAST = DAP_ENC_KEY_TYPE_SIG_RINGCT20,
                            
-                           DAP_ENC_KEY_TYPE_SCHNORR_0, // Schnorr digital signature algorithm.
+                           DAP_ENC_KEY_TYPE_SIG_SCHNORR_0, // Schnorr digital signature algorithm.
 
                            DAP_ENC_KEY_TYPE_ECDSA_SECP256K1, // ECDSA with hasher SHA3.
 
@@ -259,14 +259,14 @@ typedef struct dap_enc_key_serealize {
 } dap_enc_key_serealize_t;
 
 /*const size keys for curvies*/
-const size_t c_dap_enc_key_private_size                   = 32;
-const size_t c_dap_enc_key_private_extended_size          = 96;
-const size_t c_dap_enc_key_public_secp256k1_size          = 33;
-const size_t c_dap_enc_key_public_secp256k1_extended_size = 65;
-const size_t c_dap_enc_key_public_nist256p1_size          = 33;
-const size_t c_dap_enc_key_public_nist256p1_extended_size = 65;
-const size_t c_dap_enc_key_public_ed25519_size            = 32;
-const size_t c_dap_enc_key_public_ed25519_extended_size   = 64;
+static const size_t c_dap_enc_key_private_size                   = 32;
+static const size_t c_dap_enc_key_private_extended_size          = 96;
+static const size_t c_dap_enc_key_public_secp256k1_size          = 33;
+static const size_t c_dap_enc_key_public_secp256k1_extended_size = 65;
+static const size_t c_dap_enc_key_public_nist256p1_size          = 33;
+static const size_t c_dap_enc_key_public_nist256p1_extended_size = 65;
+static const size_t c_dap_enc_key_public_ed25519_size            = 32;
+static const size_t c_dap_enc_key_public_ed25519_extended_size   = 64;
 
 #ifdef __cplusplus
 extern "C" {
