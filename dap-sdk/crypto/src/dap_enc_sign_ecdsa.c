@@ -2,6 +2,12 @@
 
 #define LOG_TAG "dap_enc_sign_ecdsa"
 
+typedef struct ecdsa_pvt_serialize{
+    dap_enc_curve_types_t curve_type:32;
+    uint64_t size_key;
+    byte_t data[];
+}DAP_ALIGN_PACKED ecdsa_pvt_serialize_t;
+
 void dap_enc_sign_ecdsa_key_new(struct dap_enc_key *a_key){
     //a_key->type = DAP_ENC_KEY_TYPE_ECDSA_0;
     a_key->enc = NULL;
@@ -35,8 +41,8 @@ void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void 
         break;
     case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1:
         ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561;
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561;
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561k1;
+        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561k1;
         curve = &secp256k1;
         break;
     case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX:
@@ -61,9 +67,9 @@ void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void 
         curve = &nist256p1;
         break;
     case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX:
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561;
+        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561k1;
         ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_extended_size;
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561;
+        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561k1;
         curve = &secp256k1;
         break;
     default:
@@ -126,8 +132,8 @@ size_t dap_enc_sign_ecdsa_get(struct  dap_enc_key *a_key, const void *msg, const
         log_it(L_ERROR, "bad signature size");
         return 0;
     }
-    ecdsa_curve *curve;
-    return (size_t)ecdsa_sign(curve, HASHER_SHA3, a_key->priv_key_data, msg, (uint32_t)msg_size, signature, NULL, NULL);
+    /*ecdsa_curve *curve;
+    return (size_t)ecdsa_sign(curve, HASHER_SHA3, a_key->priv_key_data, msg, (uint32_t)msg_size, signature, NULL, NULL);*/
 }
 size_t dap_enc_sign_ecdsa_verify(struct dap_enc_key *a_key, const void *msg, const size_t msg_size,
                                  void *signature, const size_t signature_size){
@@ -174,18 +180,19 @@ uint8_t* dap_enc_sign_ecdsa_read_signature(uint8_t *a_buff, size_t a_buff_size){
 
 /* Serialize a private key */
 uint8_t *dap_enc_sign_ecdsa_write_private_key(const dap_enc_key_private_ecdsa_t *a_private_key, size_t *a_buflen_out){
-    size_t l_buff_len = sizeof(size_t) + sizeof (size_t) + (sizeof (uint8_t) * a_private_key->size_key);
-    size_t l_shift_bytes = 0;
-    size_t type_curve = a_private_key->curve_type;
-    uint8_t *l_buff_out = DAP_NEW_SIZE(uint8_t, l_buff_len);
-    memcpy(l_buff_out, &type_curve, sizeof(size_t));
-    l_shift_bytes += sizeof (size_t);
-    memcpy(l_buff_out + l_shift_bytes, &a_private_key->size_key, sizeof (size_t));
-    l_shift_bytes += sizeof (size_t);
-    memcpy(l_buff_out + l_shift_bytes, a_private_key->data, sizeof(uint8_t) * a_private_key->size_key);
+    if (a_private_key == NULL) {
+        return NULL;
+    }
+    if (a_private_key->size_key == 0){
+        return NULL;
+    }
+    ecdsa_pvt_serialize_t *pvt = DAP_NEW_Z_SIZE(ecdsa_pvt_serialize_t, sizeof(*pvt) + a_private_key->size_key);
+    pvt->curve_type = a_private_key->curve_type;
+    pvt->size_key = a_private_key->size_key;
+    memcpy(pvt->data, a_private_key->data, sizeof(byte_t) * a_private_key->size_key);
     if (a_buflen_out)
-         *a_buflen_out = l_buff_len;
-    return  l_buff_out;
+        *a_buflen_out = sizeof(*pvt) + a_private_key->size_key;
+    return (uint8_t*)pvt;
 }
 
 /* Serialize a public key */
