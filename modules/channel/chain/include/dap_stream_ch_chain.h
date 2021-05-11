@@ -69,6 +69,8 @@ typedef struct dap_stream_ch_chain {
     uint64_t stats_request_gdb_processed;
 
 
+    dap_stream_ch_chain_update_element_t *local_gdbs;
+    uint64_t local_gdbs_count;
     dap_stream_ch_chain_hash_item_t * remote_atoms; // Remote atoms
     dap_stream_ch_chain_hash_item_t * remote_gdbs; // Remote gdbs
 
