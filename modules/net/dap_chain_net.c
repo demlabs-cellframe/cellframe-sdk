@@ -23,6 +23,17 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#ifndef  _XOPEN_SOURCE
+#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
+#endif
+#ifndef __USE_XOPEN
+#define __USE_XOPEN
+#endif
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -94,13 +105,6 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
-
-#define _XOPEN_SOURCE       /* See feature_test_macros(7) */
-#ifndef __USE_XOPEN
-#define __USE_XOPEN
-#endif
-#define _GNU_SOURCE
-#include <time.h>
 
 #define LOG_TAG "chain_net"
 
@@ -1341,21 +1345,20 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
             }
         } else if ( l_go_str){
             if ( strcmp(l_go_str,"online") == 0 ) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
-                                                    l_net->pub.name,c_net_states[PVT(l_net)->state],
-                                                    c_net_states[PVT(l_net)->state_target]);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
+                                                  l_net->pub.name,c_net_states[PVT(l_net)->state],
+                                                  c_net_states[NET_STATE_ONLINE]);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
-                                                    l_net->pub.name,c_net_states[PVT(l_net)->state],
-                                                    c_net_states[PVT(l_net)->state_target]);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
+                                                  l_net->pub.name,c_net_states[PVT(l_net)->state],
+                                                  c_net_states[NET_STATE_OFFLINE]);
                 dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
 
             }
             else if(strcmp(l_go_str, "sync") == 0) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" go from state %s to %s",
-                        l_net->pub.name, c_net_states[PVT(l_net)->state],
-                        c_net_states[PVT(l_net)->state_target]);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" resynchronizing",
+                                                  l_net->pub.name);
                 dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_GDB);
             }
 
