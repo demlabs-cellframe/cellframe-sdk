@@ -1,4 +1,4 @@
-set(DAP_SDK_NATIVE_VERSION "2.1-0")
+set(DAP_SDK_NATIVE_VERSION "2.2-1")
 # Core, add it always
 add_subdirectory(core)
 if (DAPSDK_MODULES MATCHES "crypto")
