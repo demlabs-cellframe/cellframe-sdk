@@ -13,9 +13,9 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -DHAVE_CONFIG_H -I/usr/lib/jvm/java-8-
 # Gradle automatically packages shared libraries with your APK.
 
 file(GLOB NATIVE_SRCS "file/*.c")
-set(NATIVE_SRCS ${NATIVE_SRCS} "magicapi.c")
+set(NATIVE_SRCS ${NATIVE_SRCS})
 
-add_library(magic SHARED ${NATIVE_SRCS})
+add_library(magic STATIC ${NATIVE_SRCS})
 
 # Specifies libraries CMake should link to your target library. You
 # can link multiple libraries, such as libraries you define in the

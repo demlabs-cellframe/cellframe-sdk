@@ -11,6 +11,11 @@ if (DAPSDK_MODULES MATCHES "network-core")
     add_subdirectory(net/core)
     add_subdirectory(net/stream)
 endif()
+
+if (DAPSDK_MODULES MATCHES "network-pure")
+    add_subdirectory(net/core)
+endif()
+
 # Networking client
 if (DAPSDK_MODULES MATCHES "network-client")
     add_subdirectory(net/client)

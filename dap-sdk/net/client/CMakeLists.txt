@@ -18,7 +18,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PRIVATE .)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../3rdparty/uthash/src)
 
-
 if (${BUILD_DAP_CLIENT_TESTS} MATCHES ON)
     enable_testing()
     add_subdirectory(test)
