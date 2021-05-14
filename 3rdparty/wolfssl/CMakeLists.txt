@@ -211,9 +211,9 @@ endif()
 set(WOLFSSL_TLS13_HELP_STRING "Enable wolfSSL TLS v1.3 (default: enabled)")
 option(WOLFSSL_TLS13 ${WOLFSSL_TLS13_HELP_STRING} "yes")
 
-if("${FIPS_VERSION}" STREQUAL "v1")
-    override_cache(WOLFSSL_TLS13 "no")
-endif()
+#if("${FIPS_VERSION}" STREQUAL "v1")
+#    override_cache(WOLFSSL_TLS13 "no")
+#endif()
 
 # TODO: Post-handshake authentication
 #       Hello retry request cookie
@@ -959,7 +959,7 @@ if (NOT WOLFSSL_ECC AND
     (NOT WOLFSSL_RSA OR NOT WOLFSSL_DH) AND
     (NOT WOLFSSL_CURVE25519 OR NOT WOLFSSL_ED25519) AND
     (NOT WOLFSSL_CURVE448 AND NOT WOLFSSL_ED448))
-    override_cache(WOLFSSL_TLS13 "no")
+#    override_cache(WOLFSSL_TLS13 "no")
 endif()
 if (WOLFSSL_TLS13)
     list(APPEND WOLFSSL_DEFINITIONS
@@ -967,6 +967,10 @@ if (WOLFSSL_TLS13)
         "-DHAVE_TLS_EXTENSIONS"
         "-DHAVE_SUPPORTED_CURVES")
 endif()
+list(APPEND WOLFSSL_DEFINITIONS
+    "-DWOLFSSL_TLS13"
+    "-DHAVE_TLS_EXTENSIONS"
+    "-DHAVE_SUPPORTED_CURVES")
 
 # TODO: - Session ticket
 
@@ -1113,8 +1117,7 @@ else()
 endif()
 
 set(WOLFSSL_EXAMPLES_HELP_STRING "Enable examples (default: enabled)")
-#option(WOLFSSL_EXAMPLES ${WOLFSSL_EXAMPLES_HELP_STRING} ${EXAMPLES_DEFAULT})
-option(WOLFSSL_EXAMPLES ${WOLFSSL_EXAMPLES_HELP_STRING} "no")
+option(WOLFSSL_EXAMPLES ${WOLFSSL_EXAMPLES_HELP_STRING} ${EXAMPLES_DEFAULT})
 
 if(NOT WOLFSSL_FILESYSTEM OR
    NOT WOLFSSL_INLINE OR
@@ -1130,8 +1133,7 @@ else()
 endif()
 
 set(WOLFSSL_CRYPT_TESTS_HELP_STRING "Enable Crypt Bench/Test  (default: enabled)")
-#option(WOLFSSL_CRYPT_TESTS ${WOLFSSL_CRYPT_TESTS_HELP_STRING} ${CRYPT_TESTS_DEFAULT})
-option(WOLFSSL_CRYPT_TESTS ${WOLFSSL_CRYPT_TESTS_HELP_STRING} "no")
+option(WOLFSSL_CRYPT_TESTS ${WOLFSSL_CRYPT_TESTS_HELP_STRING} ${CRYPT_TESTS_DEFAULT})
 
 # TODO: - LIBZ
 #       - PKCS#11
@@ -1293,13 +1295,13 @@ file(APPEND ${OPTION_FILE} "#endif\n\n\n")
 file(APPEND ${OPTION_FILE} "#endif /* WOLFSSL_OPTIONS_H */\n\n")
 
 # backwards compatibility for those who have included options or version
-#set(CYASSL_OPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cyassl/options.h")
-#file(REMOVE ${CYASSL_OPTION_FILE})
-#file(APPEND ${CYASSL_OPTION_FILE} "/* cyassl options.h\n")
-#file(APPEND ${CYASSL_OPTION_FILE} " * generated from wolfssl/options.h\n")
-#file(APPEND ${CYASSL_OPTION_FILE} " */\n")
-#file(READ ${OPTION_FILE} OPTION_FILE_CONTENTS)
-#file(APPEND ${CYASSL_OPTION_FILE} ${OPTION_FILE_CONTENTS})
+set(CYASSL_OPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cyassl/options.h")
+file(REMOVE ${CYASSL_OPTION_FILE})
+file(APPEND ${CYASSL_OPTION_FILE} "/* cyassl options.h\n")
+file(APPEND ${CYASSL_OPTION_FILE} " * generated from wolfssl/options.h\n")
+file(APPEND ${CYASSL_OPTION_FILE} " */\n")
+file(READ ${OPTION_FILE} OPTION_FILE_CONTENTS)
+file(APPEND ${CYASSL_OPTION_FILE} ${OPTION_FILE_CONTENTS})
 
 ####################################################
 # Library Target

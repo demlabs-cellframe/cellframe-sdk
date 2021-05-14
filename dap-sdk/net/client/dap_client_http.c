@@ -114,7 +114,7 @@ int dap_client_http_init()
     s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
 #ifndef DAP_NET_CLIENT_NO_SSL
     wolfSSL_Init();
-    if ((s_ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method())) == NULL)
+    if ((s_ctx = wolfSSL_CTX_new(wolfTLSv1_3_client_method())) == NULL)
         return -1;
     const char *l_ssl_cert_path = dap_config_get_item_str(g_config, "dap_client", "ssl_cert_path");
     if (l_ssl_cert_path) {
@@ -386,7 +386,10 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
 {
     (void) a_arg;
     dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
-
+    if(l_client_http_internal == NULL){
+        log_it(L_WARNING, "For some reasons internal object is NULL");
+        return;
+    }
     if (! l_client_http_internal->were_callbacks_called){
         size_t l_response_size = l_client_http_internal->response_size> l_client_http_internal->header_length ?
                     l_client_http_internal->response_size - l_client_http_internal->header_length: 0;

@@ -1,3 +1,6 @@
+/* cyassl options.h
+ * generated from wolfssl/options.h
+ */
 /* wolfssl options.h
  * generated from configure options
  *
