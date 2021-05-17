@@ -39,6 +39,20 @@ typedef union dap_pkey_type{
     } type: 16;
     uint16_t raw;
 } dap_pkey_type_t;
+
+DAP_STATIC_INLINE const char *dap_pkey_type_to_str(dap_pkey_type_t a_type){
+    switch (a_type.type) {
+    case PKEY_TYPE_NULL:  return  "PKEY_TYPE_NULL";
+    case PKEY_TYPE_MULTI: return "PKEY_TYPE_MULTI";
+    case PKEY_TYPE_SIGN_BLISS: return "PKEY_TYPE_SIGN_BLISS";
+    case PKEY_TYPE_SIGN_TESLA: return "PKEY_TYPE_SIGN_TESLA";
+    case PKEY_TYPE_SIGN_PICNIC: return "PKEY_TYPE_SIGN_PICNIC";
+    case PKEY_TYPE_SIGN_DILITHIUM: return "PKEY_TYPE_SIGN_DILITHIUM";
+    default: return "UNDEFINED";
+
+    }
+}
+
 /**
   * @struct dap_pkey
   * @brief Public keys
