@@ -114,7 +114,8 @@ int dap_client_http_init()
     s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
 #ifndef DAP_NET_CLIENT_NO_SSL
     wolfSSL_Init();
-    if ((s_ctx = wolfSSL_CTX_new(wolfTLSv1_3_client_method())) == NULL)
+    wolfSSL_Debugging_ON();
+    if ((s_ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method())) == NULL)
         return -1;
     const char *l_ssl_cert_path = dap_config_get_item_str(g_config, "dap_client", "ssl_cert_path");
     if (l_ssl_cert_path) {
@@ -122,6 +123,22 @@ int dap_client_http_init()
         return -2;
     } else
         wolfSSL_CTX_set_verify(s_ctx, WOLFSSL_VERIFY_NONE, 0);
+    if (wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP160R1) != SSL_SUCCESS) {
+        log_it(L_ERROR, "WolfSSL UseSupportedCurve() handle error");
+    }
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP160R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP160R2);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP192K1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP192R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP224K1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP224R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP256K1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP256R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP384R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP521R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_BRAINPOOLP256R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_BRAINPOOLP384R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_BRAINPOOLP512R1);
 #endif
     return 0;
 }
@@ -332,6 +349,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
             l_http_pvt->header_length = 0;
             l_http_pvt->content_length = 0;
             l_http_pvt->were_callbacks_called = true;
+            dap_events_socket_remove_and_delete_unsafe(a_es, true);
         }
 
     }
@@ -455,7 +473,6 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
     DAP_DEL_Z(a_http_pvt->path)
     DAP_DEL_Z(a_http_pvt->request)
     DAP_DEL_Z(a_http_pvt->request_custom_headers)
-    a_http_pvt->obj = NULL;
     DAP_DEL_Z(a_http_pvt)
 }
 

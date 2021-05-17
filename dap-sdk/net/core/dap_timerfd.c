@@ -218,7 +218,6 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
 #ifdef DAP_OS_WINDOWS
     l_timerfd->th               = l_th;
 #endif
-    l_timerfd->events_socket->flags = 0;
     return l_timerfd;
 }
 

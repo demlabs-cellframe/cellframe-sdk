@@ -166,7 +166,9 @@ void *dap_worker_thread(void *arg)
     l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
     dap_worker_add_events_socket_unsafe(  l_worker->timer_check_activity->events_socket, l_worker);
+    pthread_mutex_lock(&l_worker->started_mutex);
     pthread_cond_broadcast(&l_worker->started_cond);
+    pthread_mutex_unlock(&l_worker->started_mutex);
     bool s_loop_is_active = true;
     while(s_loop_is_active) {
 	int l_selected_sockets;
