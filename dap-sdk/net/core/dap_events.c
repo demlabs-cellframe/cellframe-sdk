@@ -324,6 +324,7 @@ int dap_events_start( dap_events_t *a_events )
 
         int l_ret;
         l_ret=pthread_cond_timedwait(&l_worker->started_cond, &l_worker->started_mutex, &l_timeout);
+        pthread_mutex_unlock(&l_worker->started_mutex);
         if ( l_ret== ETIMEDOUT ){
             log_it(L_CRITICAL, "Timeout 15 seconds is out: worker #%u thread don't respond", i);
             return -2;
