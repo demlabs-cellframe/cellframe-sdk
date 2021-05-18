@@ -36,11 +36,10 @@
 
 #include "dap_stream_ch.h"
 
-#define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN               0x20
-
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN                     0x01
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB                 0x11
 
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN               0x20
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB           0x21
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB_GROUP     0x31
 

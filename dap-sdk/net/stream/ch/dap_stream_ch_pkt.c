@@ -237,6 +237,10 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
         log_it(L_WARNING, "Channel is NULL ptr");
         return 0;
     }
+    if (!a_ch->proc) {
+        log_it(L_WARNING, "Channel PROC is NULL ptr");
+        return 0;
+    }
     //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
 
     dap_stream_ch_pkt_hdr_t l_hdr;
