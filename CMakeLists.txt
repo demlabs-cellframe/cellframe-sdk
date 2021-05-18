@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.9-1")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.9-3")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 set(DAPSDK_MODULES "")
 message("Cellframe modules: ${CELLFRAME_MODULES}")
@@ -14,6 +14,14 @@ endif()
 
 if (CELLFRAME_MODULES MATCHES "network")
     set(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
+endif()
+
+if (CELLFRAME_MODULES MATCHES "dap-sdk-net-client")
+    set(DAPSDK_MODULES "core crypto network-core network-client network-server")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto dap_server_core dap_server dap_client m pthread)
+    if (SUPPORT_PYTHON_PLUGINS)
+        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} core chains network cs-none srv-")
+    endif()
 endif()
 
 if (BUILD_CRYPTO_TESTS)
@@ -30,15 +38,24 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
-add_subdirectory(dap-sdk)
-add_subdirectory(3rdparty/monero_crypto)
-add_subdirectory(3rdparty/cuttdb)
-add_subdirectory(3rdparty/wolfssl)
+if( DARWIN)
+    add_subdirectory(3rdparty/json-c-darwin)
+    add_subdirectory(3rdparty/libmagic-darwin)
+    include_directories(3rdparty/json-c-darwin)
+endif()
 if (ANDROID)
     add_subdirectory(3rdparty/libmagic)
     add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
 endif()
+
+
+add_subdirectory(dap-sdk)
+add_subdirectory(3rdparty/monero_crypto)
+add_subdirectory(3rdparty/cuttdb)
+add_subdirectory(3rdparty/wolfssl)
+
+
 add_subdirectory(modules/)
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
@@ -141,6 +158,10 @@ if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
 					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
                                          Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
+endif()
+
+if (DARWIN)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})

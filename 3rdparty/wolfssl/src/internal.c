@@ -8526,6 +8526,11 @@ static int GetRecordHeader(WOLFSSL* ssl, const byte* input, word32* inOutIdx,
 #ifndef WOLFSSL_TLS13
     if (rh->pvMajor != ssl->version.major || rh->pvMinor != ssl->version.minor)
 #else
+    if(rh->pvMajor == ssl->version.major && rh->pvMinor< ssl->version.minor){
+        rh->pvMajor = ssl->version.major;
+        rh->pvMinor = ssl->version.minor;
+    }
+
     if (rh->pvMajor != ssl->version.major ||
         (rh->pvMinor != ssl->version.minor &&
          (!IsAtLeastTLSv1_3(ssl->version) || rh->pvMinor != TLSv1_2_MINOR)

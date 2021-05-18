@@ -1,4 +1,4 @@
-set(DAP_SDK_NATIVE_VERSION "2.1-0")
+set(DAP_SDK_NATIVE_VERSION "2.2-1")
 # Core, add it always
 add_subdirectory(core)
 if (DAPSDK_MODULES MATCHES "crypto")
@@ -11,6 +11,11 @@ if (DAPSDK_MODULES MATCHES "network-core")
     add_subdirectory(net/core)
     add_subdirectory(net/stream)
 endif()
+
+if (DAPSDK_MODULES MATCHES "network-pure")
+    add_subdirectory(net/core)
+endif()
+
 # Networking client
 if (DAPSDK_MODULES MATCHES "network-client")
     add_subdirectory(net/client)

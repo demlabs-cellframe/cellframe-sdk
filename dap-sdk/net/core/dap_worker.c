@@ -53,8 +53,11 @@
 #include "dap_events.h"
 #include "dap_enc_base64.h"
 #include "dap_proc_queue.h"
+
+#ifndef DAP_NET_CLIENT_NO_SSL
 #include <wolfssl/options.h>
 #include "wolfssl/ssl.h"
+#endif
 
 #define LOG_TAG "dap_worker"
 
@@ -162,7 +165,9 @@ void *dap_worker_thread(void *arg)
     l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
     dap_worker_add_events_socket_unsafe(  l_worker->timer_check_activity->events_socket, l_worker);
+    pthread_mutex_lock(&l_worker->started_mutex);
     pthread_cond_broadcast(&l_worker->started_cond);
+    pthread_mutex_unlock(&l_worker->started_mutex);
     bool s_loop_is_active = true;
     while(s_loop_is_active) {
 	int l_selected_sockets;
@@ -415,12 +420,14 @@ void *dap_worker_thread(void *arg)
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL: {
                         l_must_read_smth = true;
+#ifndef DAP_NET_CLIENT_NO_SSL
                         WOLFSSL *l_ssl = SSL(l_cur);
                         l_bytes_read =  wolfSSL_read(l_ssl, (char *) (l_cur->buf_in + l_cur->buf_in_size),
                                                      l_cur->buf_in_size_max - l_cur->buf_in_size);
                         l_errno = wolfSSL_get_error(l_ssl, 0);
-                        if (l_bytes_read > 0)
+                        if (l_bytes_read > 0 && s_debug_reactor)
                             log_it(L_DEBUG, "SSL read: %s", (char *)(l_cur->buf_in + l_cur->buf_in_size));
+#endif
                     }
                     break;
                     case DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING:
@@ -522,6 +529,7 @@ void *dap_worker_thread(void *arg)
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
+#ifndef DAP_NET_CLIENT_NO_SSL
                         if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != SSL_ERROR_WANT_READ && l_errno != SSL_ERROR_WANT_WRITE) {
                             char l_err_str[80];
                             wolfSSL_ERR_error_string(l_errno, l_err_str);
@@ -530,6 +538,7 @@ void *dap_worker_thread(void *arg)
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
+#endif
                     }
                     else if (  (! l_flag_rdhup || !l_flag_error ) && (!(l_cur->flags& DAP_SOCK_CONNECTING )) ) {
                         log_it(L_DEBUG, "EPOLLIN triggered but nothing to read");
@@ -640,11 +649,13 @@ void *dap_worker_thread(void *arg)
 #endif
                         break;
                         case DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL: {
+#ifndef DAP_NET_CLIENT_NO_SSL
                             WOLFSSL *l_ssl = SSL(l_cur);
                             l_bytes_sent = wolfSSL_write(l_ssl, (char *)(l_cur->buf_out), l_cur->buf_out_size);
                             if (l_bytes_sent > 0)
                                 log_it(L_DEBUG, "SSL write: %s", (char *)(l_cur->buf_out));
                             l_errno = wolfSSL_get_error(l_ssl, 0);
+#endif
                         }
                         case DESCRIPTOR_TYPE_QUEUE:
                              if (l_cur->flags & DAP_SOCK_QUEUE_PTR && l_cur->buf_out_size>= sizeof (void*)){
@@ -737,6 +748,7 @@ void *dap_worker_thread(void *arg)
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
+#ifndef DAP_NET_CLIENT_NO_SSL
                         if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != SSL_ERROR_WANT_READ && l_errno != SSL_ERROR_WANT_WRITE) {
                             char l_err_str[80];
                             wolfSSL_ERR_error_string(l_errno, l_err_str);
@@ -744,6 +756,7 @@ void *dap_worker_thread(void *arg)
                             l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
+#endif
                     }else{
                         //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
                         if (l_bytes_sent) {
