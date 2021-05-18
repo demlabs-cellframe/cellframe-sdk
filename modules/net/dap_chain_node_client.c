@@ -385,34 +385,36 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
             dap_chain_net_t *l_net = l_node_client->net;
             assert(l_net);
+            dap_chain_id_t  l_chain_id = {};
+            dap_chain_cell_id_t l_cell_id = {};
             if (a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB) {
                 if(s_stream_ch_chain_debug_more)
                     log_it(L_INFO,"In: Link %s."NODE_ADDR_FP_STR" synced GDB. Going to update chains", l_net->pub.name, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr ));
                 // TODO check if target net state == NET_STATE_SYNC_GDB to not synchronize chains, if it
                 l_node_client->cur_chain = l_net->pub.chains;
-            }
-            // Check if we over with it before
-            if ( ! l_node_client->cur_cell ){
-                if(s_stream_ch_chain_debug_more)
-                    log_it(L_INFO, "In: No current cell in sync state, anyway we over it");
-            }else
-                l_node_client->cur_cell =(dap_chain_cell_t *)  l_node_client->cur_cell->hh.next;
+                l_node_client->cur_cell = l_node_client->cur_chain ? l_node_client->cur_chain->cells : NULL;
+            } else {
+                // Check if we over with it before
+                if ( ! l_node_client->cur_cell ){
+                    if(s_stream_ch_chain_debug_more)
+                        log_it(L_INFO, "In: No current cell in sync state, anyway we over it");
+                }else
+                    l_node_client->cur_cell =(dap_chain_cell_t *)  l_node_client->cur_cell->hh.next;
 
-            dap_chain_id_t  l_chain_id = {0};
-            dap_chain_cell_id_t l_cell_id = {0};
-            // If  over with cell, switch on next chain
-            if ( l_node_client->cur_cell){
-                // Check if we over with it before
-                if ( !l_node_client->cur_chain ){
-                    log_it(L_ERROR, "In: No chain but cell is present, over with it");
-                }
-            }else{
-                // Check if we over with it before
-                if ( !l_node_client->cur_chain ){
-                    log_it(L_WARNING, "In: No current chain in sync state, anyway we over it");
+                // If  over with cell, switch on next chain
+                if ( l_node_client->cur_cell){
+                    // Check if we over with it before
+                    if ( !l_node_client->cur_chain ){
+                        log_it(L_ERROR, "In: No chain but cell is present, over with it");
+                    }
                 }else{
-                    l_node_client->cur_chain = (dap_chain_t *) l_node_client->cur_chain->next;
-                    l_node_client->cur_cell = l_node_client->cur_chain ? l_node_client->cur_chain->cells : NULL;
+                    // Check if we over with it before
+                    if ( !l_node_client->cur_chain ){
+                        log_it(L_WARNING, "In: No current chain in sync state, anyway we over it");
+                    }else{
+                        l_node_client->cur_chain = (dap_chain_t *) l_node_client->cur_chain->next;
+                        l_node_client->cur_cell = l_node_client->cur_chain ? l_node_client->cur_chain->cells : NULL;
+                    }
                 }
             }
 

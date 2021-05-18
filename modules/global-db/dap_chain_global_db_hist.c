@@ -1338,7 +1338,8 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
 
-    size_t l_data_size_out_main = dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id);
+    size_t l_data_size_out_main = dap_db_log_get_last_id() - first_id + 1;
+            //dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id); - not working for sqlite
     size_t *l_data_size_out_add_items = DAP_NEW_Z_SIZE(size_t, sizeof(size_t) * l_add_groups_num);
     uint64_t *l_group_last_id = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_add_groups_num);
     char **l_group_names = DAP_NEW_Z_SIZE(char*, sizeof(char*) * l_add_groups_num);
