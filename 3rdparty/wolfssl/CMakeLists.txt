@@ -44,6 +44,7 @@ set(LIBTOOL_FULL_VERSION ${LIBTOOL_SO_VERSION}.${LIBTOOL_AGE}.${LIBTOOL_REVISION
 
 set(WOLFSSL_DEFINITIONS)
 set(WOLFSSL_LINK_LIBS)
+#set(WOLFSSL_INSTALL_LIBS)
 
 list(APPEND WOLFSSL_DEFINITIONS "-DWOLFSSL_STATIC_RSA")
 list(APPEND WOLFSSL_DEFINITIONS "-DWOLFSSL_STATIC_PSK")
@@ -1133,7 +1134,7 @@ else()
 endif()
 
 set(WOLFSSL_EXAMPLES_HELP_STRING "Enable examples (default: enabled)")
-option(WOLFSSL_EXAMPLES ${WOLFSSL_EXAMPLES_HELP_STRING} ${EXAMPLES_DEFAULT})
+option(WOLFSSL_EXAMPLES ${WOLFSSL_EXAMPLES_HELP_STRING} "no") #${EXAMPLES_DEFAULT})
 
 if(NOT WOLFSSL_FILESYSTEM OR
    NOT WOLFSSL_INLINE OR
@@ -1149,7 +1150,7 @@ else()
 endif()
 
 set(WOLFSSL_CRYPT_TESTS_HELP_STRING "Enable Crypt Bench/Test  (default: enabled)")
-option(WOLFSSL_CRYPT_TESTS ${WOLFSSL_CRYPT_TESTS_HELP_STRING} ${CRYPT_TESTS_DEFAULT})
+option(WOLFSSL_CRYPT_TESTS ${WOLFSSL_CRYPT_TESTS_HELP_STRING} "no") #${CRYPT_TESTS_DEFAULT})
 
 # TODO: - LIBZ
 #       - PKCS#11
@@ -1464,4 +1465,69 @@ if(WOLFSSL_CRYPT_TESTS)
     set_property(TARGET wolfcryptbench
                  PROPERTY RUNTIME_OUTPUT_NAME
                  benchmark)
+endif()
+
+if(WOLFSSL_INSTALL_LIBS)
+    ####################################################
+    # Installation
+    ####################################################
+
+    include(GNUInstallDirs)
+
+    set(EXCLUDED_HEADERS_REGEX
+        "(internal|\
+        options|\
+        pic32mz-crypt|\
+        ti-hash|\
+        ti-ccm|\
+        nrf51|\
+        ksdk_port|\
+        dcp_port|\
+        xil-sha3|\
+        caam_driver|\
+        wolfcaam|\
+        wolfcaam_sha|\
+        stm32|\
+        stsafe|\
+        esp32-cry|\
+        cryptoCell|\
+        renesas-tsip-crypt|\
+        psoc6_crypto).h")
+
+    set(INSTALLED_EXAMPLES
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/echoserver/echoserver.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/sctp/sctp-server.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/sctp/sctp-client-dtls.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/sctp/sctp-client.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/sctp/sctp-server-dtls.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/echoclient/echoclient.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/server/server.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/benchmark/tls_bench.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/examples/client/client.c)
+
+    # Install the library
+    install(TARGETS wolfssl
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            EXPORT wolfssl-targets
+            LIBRARY)
+    # Install the headers
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl/
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/wolfssl
+            FILES_MATCHING PATTERN "*.h"
+            REGEX ${EXCLUDED_HEADERS_REGEX} EXCLUDE)
+    # Install the examples
+    install(FILES ${INSTALLED_EXAMPLES}
+            DESTINATION ${CMAKE_INSTALL_DOCDIR}/example)
+    # Install README.txt and taoCert.txt
+    install(FILES
+            ${CMAKE_CURRENT_SOURCE_DIR}/doc/README.txt
+            ${CMAKE_CURRENT_SOURCE_DIR}/certs/taoCert.txt
+            DESTINATION ${CMAKE_INSTALL_DOCDIR}/wolfssl)
+    # Install the export set
+    install(EXPORT wolfssl-targets
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/wolfssl
+            FILE wolfssl-config.cmake)
+
+    # TODO: Distro build + rules for what to include in the distro.
+    #       See various include.am files.
 endif()
