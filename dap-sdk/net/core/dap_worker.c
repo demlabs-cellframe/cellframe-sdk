@@ -1130,6 +1130,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     a_worker->poll_count++;
     return 0;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    a_esocket->worker = a_worker;
     if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
         return 0;
     }

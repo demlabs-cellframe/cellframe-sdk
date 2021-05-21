@@ -243,9 +243,10 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
             log_it(L_WARNING, "callback_timerfd_read() failed: timerfd_settime() errno=%d\n", errno);
         }
 #elif defined (DAP_OS_BSD)
-	struct kevent * l_event = &a_event_sock->kqueue_event;
-	EV_SET(l_event, 0, a_event_sock->kqueue_base_filter, a_event_sock->kqueue_base_flags,a_event_sock->kqueue_base_fflags,a_event_sock->kqueue_data,a_event_sock);
-	kevent(a_event_sock->worker->kqueue_fd,l_event,1,NULL,0,NULL);
+        dap_worker_add_events_socket_unsafe(a_event_sock,a_event_sock->worker);
+    //struct kevent * l_event = &a_event_sock->kqueue_event;
+    //EV_SET(l_event, 0, a_event_sock->kqueue_base_filter, a_event_sock->kqueue_base_flags,a_event_sock->kqueue_base_fflags,a_event_sock->kqueue_data,a_event_sock);
+    //kevent(a_event_sock->worker->kqueue_fd,l_event,1,NULL,0,NULL);
 #elif defined (DAP_OS_WINDOWS)
         LARGE_INTEGER l_due_time;
         l_due_time.QuadPart = (long long)l_timerfd->timeout_ms * _MSEC;
