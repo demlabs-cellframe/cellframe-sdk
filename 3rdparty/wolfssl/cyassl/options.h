@@ -42,6 +42,24 @@ extern "C" {
 #undef  OPENSSL_EXTRA
 #define OPENSSL_EXTRA
 
+#undef  HAVE_SUPPORTED_CURVES
+#define HAVE_SUPPORTED_CURVES
+
+#undef  HAVE_TLS_EXTENSIONS
+#define HAVE_TLS_EXTENSIONS
+
+#undef  HAVE_ECC
+#define HAVE_ECC
+
+#undef  HAVE_AES
+#define HAVE_AES
+
+#undef  HAVE_AESGCM
+#define HAVE_AESGCM
+
+#undef  HAVE_AESGCM_DECRYPT
+#define HAVE_AESGCM_DECRYPT
+
 #undef  DEBUG_WOLFSSL
 #define DEBUG_WOLFSSL
 

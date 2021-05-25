@@ -116,7 +116,7 @@ int dap_client_http_init()
 #ifndef DAP_NET_CLIENT_NO_SSL
     wolfSSL_Init();
     wolfSSL_Debugging_ON ();
-    if ((s_ctx = wolfSSL_CTX_new(wolfTLSv1_3_client_method())) == NULL)
+    if ((s_ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method())) == NULL)
         return -1;
     const char *l_ssl_cert_path = dap_config_get_item_str(g_config, "dap_client", "ssl_cert_path");
     if (l_ssl_cert_path) {
