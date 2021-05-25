@@ -12,6 +12,11 @@ if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(global-db)
 endif()
 
+# Distributed Hash Tables (DHT)
+if (CELLFRAME_MODULES MATCHES "dht")
+    add_subdirectory(dht)
+endif()
+
 # Network
 if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(mempool)
