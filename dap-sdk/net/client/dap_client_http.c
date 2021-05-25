@@ -86,6 +86,7 @@ typedef struct dap_http_client_internal {
 #define PVT(a) (a ? (dap_client_http_pvt_t *) (a)->_inheritor : NULL)
 
 static void s_http_connected(dap_events_socket_t * a_esocket); // Connected callback
+static void s_http_ssl_connected(dap_events_socket_t * a_esocket); // connected SSL callback
 static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt);
 static void s_http_read(dap_events_socket_t * a_es, void * arg);
 static void s_http_error(dap_events_socket_t * a_es, int a_arg);
@@ -114,7 +115,7 @@ int dap_client_http_init()
     s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
 #ifndef DAP_NET_CLIENT_NO_SSL
     wolfSSL_Init();
-    wolfSSL_Debugging_ON();
+    wolfSSL_Debugging_ON ();
     if ((s_ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method())) == NULL)
         return -1;
     const char *l_ssl_cert_path = dap_config_get_item_str(g_config, "dap_client", "ssl_cert_path");
@@ -123,22 +124,21 @@ int dap_client_http_init()
         return -2;
     } else
         wolfSSL_CTX_set_verify(s_ctx, WOLFSSL_VERIFY_NONE, 0);
-    if (wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP160R1) != SSL_SUCCESS) {
+    if (wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP256R1) != SSL_SUCCESS) {
         log_it(L_ERROR, "WolfSSL UseSupportedCurve() handle error");
     }
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP160R1);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP160R2);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP192K1);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP192R1);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP224K1);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP224R1);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP256K1);
     wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP256R1);
     wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP384R1);
     wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_SECP521R1);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_BRAINPOOLP256R1);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_BRAINPOOLP384R1);
-    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_BRAINPOOLP512R1);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_X25519);
+    wolfSSL_CTX_UseSupportedCurve(s_ctx, WOLFSSL_ECC_X448);
+
+    if (s_debug_more) {
+        const int l_ciphers_len = 2048;
+        char l_buf[l_ciphers_len];
+        wolfSSL_get_ciphers(l_buf, l_ciphers_len);
+        log_it(L_DEBUG, "WolfSSL cipher list is :\n%s", l_buf);
+    }
 #endif
     return 0;
 }
@@ -604,25 +604,24 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
     l_ev_socket->flags |= DAP_SOCK_CONNECTING;
-    l_ev_socket->type = a_over_ssl ? DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL : DESCRIPTOR_TYPE_SOCKET_CLIENT;
+    l_ev_socket->type = DESCRIPTOR_TYPE_SOCKET_CLIENT;
     l_ev_socket->flags |= DAP_SOCK_READY_TO_WRITE;
-
+    if (a_over_ssl) {
+#ifndef DAP_NET_CLIENT_NO_SSL
+        l_ev_socket->callbacks.connected_callback = s_http_ssl_connected;
+#else
+        log_it(L_ERROR,"We have no SSL implementation but trying to create SSL connection!");
+#endif
+    }
     int l_err = connect(l_socket, (struct sockaddr *) &l_ev_socket->remote_addr, sizeof(struct sockaddr_in));
     if (l_err == 0){
         log_it(L_DEBUG, "Connected momentaly with %s:%u!", a_uplink_addr, a_uplink_port);
         l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
         if (a_over_ssl) {
 #ifndef DAP_NET_CLIENT_NO_SSL
-            WOLFSSL *l_ssl = wolfSSL_new(s_ctx);
-            if (!l_ssl)
-                log_it(L_ERROR, "wolfSSL_new error");
-            wolfSSL_set_fd(l_ssl, l_socket);
-            l_ev_socket->_pvt = (void *)l_ssl;
-#else
-            log_it(L_ERROR,"We have no SSL implementation but trying to create SSL connection!");
+            s_http_ssl_connected(l_ev_socket);
 #endif
         }
-        dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
         return l_http_pvt;
     }
 #ifdef DAP_OS_WINDOWS
@@ -674,6 +673,31 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
 #endif
 }
 
+#ifndef DAP_NET_CLIENT_NO_SSL
+static void s_http_ssl_connected(dap_events_socket_t * a_esocket)
+{
+    assert(a_esocket);
+    dap_client_http_pvt_t * l_http_pvt = PVT(a_esocket);
+    assert(l_http_pvt);
+    dap_worker_t *l_worker = l_http_pvt->worker;
+    assert(l_worker);
+
+    WOLFSSL *l_ssl = wolfSSL_new(s_ctx);
+    if (!l_ssl)
+        log_it(L_ERROR, "wolfSSL_new error");
+    wolfSSL_set_fd(l_ssl, a_esocket->socket);
+    a_esocket->_pvt = (void *)l_ssl;
+    a_esocket->type = DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL;
+    a_esocket->flags |= DAP_SOCK_CONNECTING;
+    a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
+    a_esocket->callbacks.connected_callback = s_http_connected;
+    dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+    l_ev_socket_handler->esocket = a_esocket;
+    l_ev_socket_handler->uuid = a_esocket->uuid;
+    dap_timerfd_start_on_worker(l_http_pvt->worker, s_client_timeout_ms, s_timer_timeout_check, l_ev_socket_handler);
+}
+#endif
+
 /**
  * @brief s_http_connected
  * @param a_esocket
@@ -686,15 +710,6 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     dap_worker_t *l_worker = l_http_pvt->worker;
     assert(l_worker);
 
-    if (l_http_pvt->is_over_ssl) {
-#ifndef DAP_NET_CLIENT_NO_SSL
-        WOLFSSL *l_ssl = wolfSSL_new(s_ctx);
-        if (!l_ssl)
-            log_it(L_ERROR, "wolfSSL_new error");
-        wolfSSL_set_fd(l_ssl, a_esocket->socket);
-        a_esocket->_pvt = (void *)l_ssl;
-#endif
-    }
     log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", l_http_pvt->uplink_addr, l_http_pvt->uplink_port, a_esocket->socket);
     // add to dap_worker
     //dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*) a_obj;

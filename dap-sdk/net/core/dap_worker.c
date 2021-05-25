@@ -566,29 +566,52 @@ void *dap_worker_thread(void *arg)
             }
 
             // If its outgoing connection
-            if ( l_flag_write &&  !l_cur->server &&  (l_cur->flags & DAP_SOCK_CONNECTING) &&
-               ( l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP ||
-                 l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL)){
+            if ((l_flag_write && !l_cur->server && l_cur->flags & DAP_SOCK_CONNECTING && l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT) ||
+                  (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_cur->flags & DAP_SOCK_CONNECTING)) {
                 int l_error = 0;
                 socklen_t l_error_len = sizeof(l_error);
                 char l_error_buf[128];
                 l_error_buf[0]='\0';
-                getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_error, &l_error_len);
-                if(l_error == EINPROGRESS) {
-                    log_it(L_DEBUG, "Connecting with %s in progress...", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
-                }else if (l_error){
-                    strerror_r(l_error, l_error_buf, sizeof (l_error_buf));
-                    log_it(L_ERROR,"Connecting error with %s: \"%s\" (code %d)", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)",
-                           l_error_buf, l_error);
-                    if ( l_cur->callbacks.error_callback )
-                        l_cur->callbacks.error_callback(l_cur, l_error);
-                }else{
-                    if(s_debug_reactor)
-                        log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
-                    l_cur->flags ^= DAP_SOCK_CONNECTING;
-                    if (l_cur->callbacks.connected_callback)
-                        l_cur->callbacks.connected_callback(l_cur);
-                    dap_events_socket_worker_poll_update_unsafe(l_cur);
+                if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL) {
+#ifndef DAP_NET_CLIENT_NO_SSL
+                    WOLFSSL *l_ssl = SSL(l_cur);
+                    int l_res = wolfSSL_negotiate(l_ssl);
+                    if (l_res != WOLFSSL_SUCCESS) {
+                        char l_err_str[80];
+                        int l_err = wolfSSL_get_error(l_ssl, l_res);
+                        if (l_err != WOLFSSL_ERROR_WANT_READ && l_err != WOLFSSL_ERROR_WANT_WRITE) {
+                            wolfSSL_ERR_error_string(l_err, l_err_str);
+                            log_it(L_ERROR, "SSL handshake error \"%s\" with code %d", l_err_str, l_err);
+                            if ( l_cur->callbacks.error_callback )
+                                l_cur->callbacks.error_callback(l_cur, l_error);
+                        }
+                    } else {
+                        if(s_debug_reactor)
+                            log_it(L_NOTICE, "SSL handshake done with %s", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
+                        l_cur->flags ^= DAP_SOCK_CONNECTING;
+                        if (l_cur->callbacks.connected_callback)
+                            l_cur->callbacks.connected_callback(l_cur);
+                        dap_events_socket_worker_poll_update_unsafe(l_cur);
+                    }
+#endif
+                } else {
+                    getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_error, &l_error_len);
+                    if(l_error == EINPROGRESS) {
+                        log_it(L_DEBUG, "Connecting with %s in progress...", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
+                    }else if (l_error){
+                        strerror_r(l_error, l_error_buf, sizeof (l_error_buf));
+                        log_it(L_ERROR,"Connecting error with %s: \"%s\" (code %d)", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)",
+                               l_error_buf, l_error);
+                        if ( l_cur->callbacks.error_callback )
+                            l_cur->callbacks.error_callback(l_cur, l_error);
+                    }else{
+                        if(s_debug_reactor)
+                            log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
+                        l_cur->flags ^= DAP_SOCK_CONNECTING;
+                        if (l_cur->callbacks.connected_callback)
+                            l_cur->callbacks.connected_callback(l_cur);
+                        dap_events_socket_worker_poll_update_unsafe(l_cur);
+                    }
                 }
             }
 
