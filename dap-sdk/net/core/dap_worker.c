@@ -61,8 +61,7 @@
 
 #define LOG_TAG "dap_worker"
 
-// temporary too big timout for no closing sockets opened to not keep alive peers
-static time_t s_connection_timeout = 20000; // 60;    // seconds
+static time_t s_connection_timeout = 60;    // seconds
 static bool s_debug_reactor=true;
 
 static bool s_socket_all_check_activity( void * a_arg);
@@ -1154,6 +1153,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     a_worker->poll_count++;
     return 0;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    a_esocket->worker = a_worker;
     if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
         return 0;
     }

@@ -49,7 +49,7 @@ dap_stream_ch_chain_state_t dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_
  * @param data_size
  * @return
  */
-size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type,uint64_t a_net_id,
+size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
                                             uint64_t a_chain_id, uint64_t a_cell_id,
                                             const void * a_data, size_t a_data_size)
 {
