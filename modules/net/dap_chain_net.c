@@ -2166,10 +2166,8 @@ dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
  */
 uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id)
 {
-    dap_chain_net_item_t * l_net_item = NULL;
-    HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
-    return l_net_item ? PVT(l_net_item->chain_net)->acl_idx : (uint16_t)-1;
-
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_id);
+    return l_net ? PVT(l_net)->acl_idx : (uint16_t)-1;
 }
 
 
@@ -2289,6 +2287,8 @@ dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
 
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net)
 {
+    if (!l_net)
+        return 0;
     return dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 :
                                                dap_db_get_cur_node_addr(l_net->pub.name);
 }
