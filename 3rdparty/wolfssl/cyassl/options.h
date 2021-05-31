@@ -113,9 +113,6 @@ extern "C" {
 #undef  WC_RSA_PSS
 #define WC_RSA_PSS
 
-#undef  WOLFSSL_BASE64_ENCODE
-#define WOLFSSL_BASE64_ENCODE
-
 #undef  NO_RC4
 #define NO_RC4
 
@@ -124,15 +121,6 @@ extern "C" {
 
 #undef  NO_RABBIT
 #define NO_RABBIT
-
-#undef  WOLFSSL_SHA224
-#define WOLFSSL_SHA224
-
-#undef  WOLFSSL_SHA3
-#define WOLFSSL_SHA3
-
-#undef  WOLFSSL_SHAKE256
-#define WOLFSSL_SHAKE256
 
 #undef  HAVE_POLY1305
 #define HAVE_POLY1305
@@ -172,12 +160,6 @@ extern "C" {
 
 #undef  NO_MD4
 #define NO_MD4
-
-#undef  USE_FAST_MATH
-#define USE_FAST_MATH
-
-#undef  WOLFSSL_X86_64_BUILD
-#define WOLFSSL_X86_64_BUILD
 
 #undef  WC_NO_ASYNC_THREADING
 #define WC_NO_ASYNC_THREADING
