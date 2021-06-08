@@ -43,6 +43,10 @@ typedef struct dap_proc_thread{
     pthread_mutex_t started_mutex;
 
     bool signal_kill;
+	bool signal_exit;
+
+    dap_events_socket_t * event_exit;
+
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_ctl;
