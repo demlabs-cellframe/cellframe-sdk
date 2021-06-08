@@ -217,7 +217,6 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
 err:
     log_it(L_ERROR,"Deinit events subsystem");
     dap_events_deinit();
-    //dap_worker_deinit();
     return -1;
 }
 

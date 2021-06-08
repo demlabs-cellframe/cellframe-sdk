@@ -961,5 +961,6 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
     (void) a_flags;
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_es->_inheritor;
     l_thread->signal_exit = true;
-    log_it(L_DEBUG, "Proc_thread :%u signaled to exit", l_thread->cpu_id);
+    if(s_debug_reactor)
+        log_it(L_DEBUG, "Proc_thread :%u signaled to exit", l_thread->cpu_id);
 }
