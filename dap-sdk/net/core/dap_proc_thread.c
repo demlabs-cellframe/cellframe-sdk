@@ -151,7 +151,6 @@ dap_proc_thread_t * dap_proc_thread_get_auto()
 static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_value)
 {
     (void) a_value;
-//    log_it(L_DEBUG, "--> Proc event callback start");
     if(s_debug_reactor)
         log_it(L_DEBUG, "--> Proc event callback start");
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
@@ -159,33 +158,47 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_va
     dap_proc_queue_item_t * l_item_old = NULL;
     bool l_is_anybody_for_repeat=false;
     while(l_item){
-//        log_it(L_INFO, "Proc event callback: %p/%p", l_item->callback, l_item->callback_arg);
         if(s_debug_reactor)
             log_it(L_INFO, "Proc event callback: %p/%p", l_item->callback, l_item->callback_arg);
         bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         if (l_is_finished){
             if ( l_item->prev ){
+                l_item->prev->next = l_item_old;
+            }
+            if(l_item_old){
+                l_item_old->prev = l_item->prev;
+
+                if ( ! l_item->prev ) { // We deleted tail
+                    l_thread->proc_queue->item_last = l_item_old;
+                }
+
+                DAP_DELETE(l_item);
+                l_item = l_item_old->prev;
+            }else{
+                l_thread->proc_queue->item_first = l_item->prev;
+                if ( l_item->prev){
+                    l_item->prev->next = NULL; // Prev if it was - now its NULL
+                }else
+                    l_thread->proc_queue->item_last = NULL; // NULL last item
+
                 DAP_DELETE(l_item);
                 l_item = l_thread->proc_queue->item_first;
             }
-//            log_it(L_DEBUG, "Proc event finished");
             if(s_debug_reactor)
                 log_it(L_DEBUG, "Proc event finished");
         }else{
-//            log_it(L_DEBUG, "Proc event not finished");
             if(s_debug_reactor)
                 log_it(L_DEBUG, "Proc event not finished");
             l_item_old = l_item;
             l_item=l_item->prev;
         }
+        l_is_anybody_for_repeat = !l_is_finished;
     }
     if(l_is_anybody_for_repeat) // Arm event if we have smth to proc again
         dap_events_socket_event_signal(a_esocket,1);
-//    log_it(L_DEBUG, "<-- Proc event callback end");
     if(s_debug_reactor)
         log_it(L_DEBUG, "<-- Proc event callback end");
 }
-
 
 
 /**
