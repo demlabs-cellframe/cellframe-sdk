@@ -218,6 +218,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
 #ifdef DAP_OS_WINDOWS
     l_timerfd->th               = l_th;
 #endif
+    l_timerfd->events_socket->flags = 0;
     return l_timerfd;
 }
 
@@ -256,7 +257,11 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 #else
 #error "No timer callback realization for your platform"        
 #endif
+
+#ifndef DAP_OS_BSD
         dap_events_socket_set_readable_unsafe(a_event_sock, true);
+#endif
+
     } else {
 #if defined(DAP_OS_LINUX)
         close(l_timerfd->tfd);

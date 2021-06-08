@@ -504,6 +504,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker,const char *a_uplin
 
     dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_socket, &l_s_callbacks);
 
+    log_it(L_DEBUG,"Created client request socket %d", l_socket);
     // create private struct
     dap_client_http_pvt_t *l_http_pvt = DAP_NEW_Z(dap_client_http_pvt_t);
     l_ev_socket->_inheritor = l_http_pvt;
