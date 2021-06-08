@@ -900,7 +900,7 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
 {
     (void) a_flags;
     a_es->worker->signal_exit = true;
-    //log_it(L_DEBUG, "Worker :%u signaled to exit", a_es->worker->id);
+    log_it(L_DEBUG, "Worker :%u signaled to exit", a_es->worker->id);
 }
 
 /**
