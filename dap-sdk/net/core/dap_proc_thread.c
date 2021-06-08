@@ -210,7 +210,7 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
         if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
             a_esocket->ev.events |= EPOLLOUT;
         a_esocket->ev.data.ptr = a_esocket;
-        return epoll_ctl(a_worker->epoll_fd, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
+        return epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (  a_thread->poll_count == a_thread->poll_count_max ){ // realloc
         a_thread->poll_count_max *= 2;
