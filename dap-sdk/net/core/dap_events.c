@@ -217,7 +217,6 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
 err:
     log_it(L_ERROR,"Deinit events subsystem");
     dap_events_deinit();
-    dap_worker_deinit();
     return -1;
 }
 
@@ -226,8 +225,11 @@ err:
  */
 void dap_events_deinit( )
 {
+	dap_proc_thread_deinit();
     dap_events_socket_deinit();
     dap_worker_deinit();
+	
+	dap_events_wait(s_events_default);
     if ( s_threads )
         DAP_DELETE( s_threads );
 
@@ -379,7 +381,7 @@ int dap_events_wait( dap_events_t *a_events )
 void dap_events_stop_all( )
 {
     for( uint32_t i = 0; i < s_threads_count; i ++ ) {
-        dap_events_socket_event_signal( s_workers[i]->event_exit, 0);
+        dap_events_socket_event_signal( s_workers[i]->event_exit, 1);
     }
     // TODO implement signal to stop the workers
 }
