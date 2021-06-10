@@ -79,6 +79,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                   size_t *l_tx_num){
     dap_chain_hash_fast_t l_tx_hash;
     dap_hash_fast(a_datum, dap_chain_datum_tx_get_size(a_datum), &l_tx_hash);
+    time_t l_ts_create = (time_t)a_datum->header.ts_created;
     if (save_processed_tx){
         dap_chain_tx_hash_processed_ht_t *l_sht = NULL;
         HASH_FIND(hh, *a_tx_hash_processed, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_sht);
@@ -100,8 +101,9 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     if(a_ledger == NULL){
         dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n Items:\n", l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str);
     } else {
-        dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n Token ticker: %s\n Items:\n",
-                                 l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str,
+        char buf[50];
+        dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n TS Created: %s Token ticker: %s\n Items:\n",
+                                 l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str, dap_ctime_r(&l_ts_create, buf),
                                  dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_hash));
     }
     DAP_DELETE(l_tx_hash_user_str);
