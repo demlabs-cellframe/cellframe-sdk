@@ -92,6 +92,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     char *l_tx_hash_user_str;
     char l_tx_hash_str[70];
     dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, 70);
+    time_t l_ts_create = (time_t)a_datum->header.ts_created;
     if(!dap_strcmp(a_hash_out_type, "hex"))
         l_tx_hash_user_str = dap_strdup(l_tx_hash_str);
     else
@@ -100,8 +101,9 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     if(a_ledger == NULL){
         dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n Items:\n", l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str);
     } else {
-        dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n Token ticker: %s\n Items:\n",
-                                 l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str,
+        char buf[50];
+        dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n TS Created: %s Token ticker: %s\n Items:\n",
+                                 l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str, dap_ctime_r(&l_ts_create, buf),
                                  dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_hash));
     }
     DAP_DELETE(l_tx_hash_user_str);
