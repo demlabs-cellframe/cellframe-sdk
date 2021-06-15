@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.9-5")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.9-6")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 set(DAPSDK_MODULES "")
 message("Cellframe modules: ${CELLFRAME_MODULES}")
@@ -53,8 +53,9 @@ endif()
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
-add_subdirectory(3rdparty/wolfssl)
-
+if(DAPSDK_MODULES MATCHES "ssl-support")
+    add_subdirectory(3rdparty/wolfssl)
+endif()
 
 add_subdirectory(modules/)
 

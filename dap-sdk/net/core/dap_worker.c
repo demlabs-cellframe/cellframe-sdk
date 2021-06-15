@@ -998,7 +998,8 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
 {
     (void) a_flags;
     a_es->worker->signal_exit = true;
-    log_it(L_NOTICE, "Worker :%u signaled to exit", a_es->worker->id);
+    if(s_debug_reactor)
+        log_it(L_DEBUG, "Worker :%u signaled to exit", a_es->worker->id);
 }
 
 /**
@@ -1124,6 +1125,9 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
  */
 int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker )
 {
+    if(s_debug_reactor){
+        log_it(L_DEBUG,"Add event socket %p (socket %d )", a_esocket, a_esocket->socket);
+    }
 #ifdef DAP_EVENTS_CAPS_EPOLL
         // Init events for EPOLL
         a_esocket->ev.events = a_esocket->ev_base_flags ;

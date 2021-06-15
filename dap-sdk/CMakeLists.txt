@@ -1,4 +1,12 @@
-set(DAP_SDK_NATIVE_VERSION "2.2-1")
+set(DAP_SDK_NATIVE_VERSION "2.2-2")
+
+# We switch off SSL until its not switched on back
+if(DAPSDK_MODULES MATCHES "ssl-support")
+    add_definitions("-DDAP_NET_CLIENT_SSL")
+else()
+    add_definitions("-DDAP_NET_CLIENT_NO_SSL")
+endif()
+
 # Core, add it always
 add_subdirectory(core)
 if (DAPSDK_MODULES MATCHES "crypto")

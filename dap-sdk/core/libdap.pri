@@ -47,7 +47,9 @@ win32 {
 HEADERS += $$PWD/../../3rdparty/uthash/src/utlist.h \
            $$PWD/../../3rdparty/uthash/src/uthash.h
 
-#include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
+if(DAPSDK_MODULES MATCHES "ssl-support")
+    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
+endif()
 
 # Sources itself
 HEADERS += $$PWD/include/dap_common.h \
