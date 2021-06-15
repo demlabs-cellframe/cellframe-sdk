@@ -90,7 +90,7 @@ dap_enc_key_type_t  dap_sign_type_to_key_type(dap_sign_type_t  a_chain_sign_type
         case SIG_TYPE_TESLA: return DAP_ENC_KEY_TYPE_SIG_TESLA;
         case SIG_TYPE_PICNIC: return DAP_ENC_KEY_TYPE_SIG_PICNIC;
         case SIG_TYPE_DILITHIUM: return DAP_ENC_KEY_TYPE_SIG_DILITHIUM;
-        default: return DAP_ENC_KEY_TYPE_NULL;
+        default: return DAP_ENC_KEY_TYPE_INVALID;
     }
 }
 
@@ -315,6 +315,13 @@ bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_h
 }
 
 
+bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_key_size_max)
+{
+    if (a_sign->header.sign_pkey_size > a_key_size_max)
+        return false;
+    return true;
+}
+
 /**
  * @brief dap_sign_to_enc_key
  * @param a_chain_sign
@@ -322,9 +329,12 @@ bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_h
  */
 dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign)
 {
-    dap_enc_key_t * l_ret =  dap_enc_key_new( dap_sign_type_to_key_type( a_chain_sign->header.type  ) );
+    dap_enc_key_type_t l_type = dap_sign_type_to_key_type(a_chain_sign->header.type);
+    if (l_type == DAP_ENC_KEY_TYPE_INVALID)
+        return NULL;
     size_t l_pkey_size = 0;
     uint8_t *l_pkey = dap_sign_get_pkey(a_chain_sign, &l_pkey_size);
+    dap_enc_key_t * l_ret =  dap_enc_key_new(l_type);
     // deserialize public key
     dap_enc_key_deserealize_pub_key(l_ret, l_pkey, l_pkey_size);
     return l_ret;
@@ -339,11 +349,10 @@ dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign)
  */
 int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size)
 {
-    int l_ret;
-    if (!a_chain_sign || !a_data)
+    if (!a_chain_sign || !a_data || !dap_sign_verify_size(a_chain_sign, a_data_size))
         return -2;
-    dap_enc_key_t * l_key = dap_sign_to_enc_key(a_chain_sign);
 
+    dap_enc_key_t * l_key = dap_sign_to_enc_key(a_chain_sign);
     if ( ! l_key ){
         log_it(L_WARNING,"Incorrect signature, can't extract key");
         return -3;
@@ -352,6 +361,7 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
     uint8_t *l_sign_data_ser = dap_sign_get_sign(a_chain_sign, &l_sign_data_ser_size);
 
     if ( ! l_sign_data_ser ){
+        dap_enc_key_delete(l_key);
         log_it(L_WARNING,"Incorrect signature, can't extract serialized signature's data ");
         return -4;
     }
@@ -362,9 +372,12 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
 
     if ( ! l_sign_data ){
         log_it(L_WARNING,"Incorrect signature, can't deserialize signature's data");
+        dap_enc_key_delete(l_key);
+        dap_enc_key_signature_delete(l_key->type, l_sign_data);
         return -5;
     }
 
+    int l_ret;
     //uint8_t * l_sign = a_chain_sign->pkey_n_sign + a_chain_sign->header.sign_pkey_size;
     switch (l_key->type) {
         case DAP_ENC_KEY_TYPE_SIG_TESLA:

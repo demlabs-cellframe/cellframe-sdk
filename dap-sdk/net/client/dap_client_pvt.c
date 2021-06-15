@@ -1234,8 +1234,10 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
         }
     }
     dap_stream_delete(l_client_pvt->stream);
-    DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str)
-    DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str6)
+    if (l_client_pvt->stream_es) {
+        DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str)
+        DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str6)
+    }
     l_client_pvt->stream = NULL;
     l_client_pvt->stream_es = NULL;
 }
@@ -1305,7 +1307,7 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
         // Response received after client_pvt was deleted
         return;
     }
-    if (l_client_pvt->stage_status == STAGE_STATUS_ERROR)
+    if (l_client_pvt->stage_status == STAGE_STATUS_ERROR || !l_client_pvt->stream)
         return;
     switch (l_client_pvt->stage) {
         case STAGE_STREAM_STREAMING: {

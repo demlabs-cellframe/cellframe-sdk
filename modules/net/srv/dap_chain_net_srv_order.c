@@ -531,7 +531,7 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
     if (!strcmp(a_group, l_gdb_group_str)) {
         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
-        if (l_order->version == 1) {
+        if (l_order->version != 2) {
             dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
         } else {
             dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];

@@ -1240,13 +1240,15 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
     // Cleanup after request
     memset(&a_ch_chain->request, 0, sizeof(a_ch_chain->request));
     memset(&a_ch_chain->request_hdr, 0, sizeof(a_ch_chain->request_hdr));
-    if(a_ch_chain->request_atom_iter)
+    if(a_ch_chain->request_atom_iter) {
         if(a_ch_chain->request_atom_iter->chain)
             if(a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete){
                 a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(a_ch_chain->request_atom_iter);
+                a_ch_chain->request_atom_iter = NULL;
                 return;
             }
-    DAP_DEL_Z(a_ch_chain->request_atom_iter);
+        DAP_DEL_Z(a_ch_chain->request_atom_iter);
+    }
 }
 
 static void s_process_gdb_iter(dap_stream_ch_t *a_ch)
