@@ -147,6 +147,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         SetEvent( l_node_client->wait_cond );
 #endif
         pthread_mutex_unlock(&l_node_client->wait_mutex);
+        l_node_client->own_esh.esocket = 0;
         dap_timerfd_start_on_worker(dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_node_client);
         return;
     }
@@ -189,8 +190,8 @@ static bool s_timer_update_states_callback(void * a_arg )
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
     assert(l_me);
-    dap_events_socket_t * l_es = l_me->own_esh->esocket;
-    uint128_t l_es_uuid = l_me->own_esh->uuid;
+    dap_events_socket_t * l_es = l_me->own_esh.esocket;
+    uint128_t l_es_uuid = l_me->own_esh.uuid;
     // check if esocket still in worker
     if(dap_events_socket_check_unsafe(l_worker,l_es)){
         // Check if its exactly ours!
@@ -230,7 +231,6 @@ static bool s_timer_update_states_callback(void * a_arg )
         log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
         dap_chain_node_client_connect_internal(l_me, "CN"); // isn't always CN here?
     }
-    DAP_DELETE(l_me->own_esh);
     return false;
 }
 
@@ -265,10 +265,8 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 
         dap_stream_t * l_stream  = dap_client_get_stream(a_client);
         if (l_stream) {
-            dap_events_socket_handler_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-            l_es_handler->esocket = l_stream->esocket;
-            l_es_handler->uuid = l_stream->esocket->uuid;
-            l_node_client->own_esh = l_es_handler;
+            l_node_client->own_esh.esocket = l_stream->esocket;
+            l_node_client->own_esh.uuid = l_stream->esocket->uuid;
             dap_timerfd_start_on_worker(l_stream->esocket->worker,s_timer_update_states*1000,s_timer_update_states_callback, l_node_client);
         }
 #ifndef _WIN32
