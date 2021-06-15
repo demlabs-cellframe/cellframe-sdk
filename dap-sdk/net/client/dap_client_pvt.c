@@ -1305,6 +1305,8 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
         // Response received after client_pvt was deleted
         return;
     }
+    if (l_client_pvt->stage_status == STAGE_STATUS_ERROR)
+        return;
     switch (l_client_pvt->stage) {
         case STAGE_STREAM_STREAMING: {
             size_t i;
