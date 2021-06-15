@@ -67,6 +67,7 @@ typedef struct dap_proc_thread{
 } dap_proc_thread_t;
 
 int dap_proc_thread_init(uint32_t a_threads_count);
+void dap_proc_thread_deinit();
 dap_proc_thread_t * dap_proc_thread_get(uint32_t a_thread_number);
 dap_proc_thread_t * dap_proc_thread_get_auto();
 dap_events_socket_t * dap_proc_thread_create_queue_ptr(dap_proc_thread_t * a_thread, dap_events_socket_callback_queue_ptr_t a_callback);
