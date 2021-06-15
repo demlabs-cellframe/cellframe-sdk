@@ -71,6 +71,7 @@ void _dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_ha
 }
 
 void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
+                                  dap_ledger_t *a_ledger,
                                   dap_string_t *a_str_out,
                                   const char *a_hash_out_type,
                                   bool save_processed_tx,
@@ -91,12 +92,20 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     char *l_tx_hash_user_str;
     char l_tx_hash_str[70];
     dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, 70);
+    time_t l_ts_create = (time_t)a_datum->header.ts_created;
     if(!dap_strcmp(a_hash_out_type, "hex"))
         l_tx_hash_user_str = dap_strdup(l_tx_hash_str);
     else
         l_tx_hash_user_str = dap_enc_base58_from_hex_str_to_str(l_tx_hash_str);
     dap_list_t *l_list_tx_any = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_TOKEN, NULL);
-    dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n Items:\n", l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str);
+    if(a_ledger == NULL){
+        dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n Items:\n", l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str);
+    } else {
+        char buf[50];
+        dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n TS Created: %s Token ticker: %s\n Items:\n",
+                                 l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str, dap_ctime_r(&l_ts_create, buf),
+                                 dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_hash));
+    }
     DAP_DELETE(l_tx_hash_user_str);
     dap_list_free(l_list_tx_any);
     uint32_t l_tx_items_count = 0;
@@ -885,7 +894,7 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
  *
  * return history string
  */
-static char* dap_db_history_filter(dap_chain_t * a_chain, const char *a_filter_token_name, const char *a_filtr_addr_base58, const char *a_hash_out_type, long a_datum_start, long a_datum_end, long *a_total_datums, dap_chain_tx_hash_processed_ht_t *a_tx_hash_processed)
+static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger, const char *a_filter_token_name, const char *a_filtr_addr_base58, const char *a_hash_out_type, long a_datum_start, long a_datum_end, long *a_total_datums, dap_chain_tx_hash_processed_ht_t *a_tx_hash_processed)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
 
@@ -1060,7 +1069,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, const char *a_filter_t
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
 //            dap_chain_tx_hash_processed_ht_t *l_tx_hash_processed = a_tx_hash_processed;
             //calc tx hash
-            _dap_chain_datum_tx_out_data(l_tx, l_str_out, a_hash_out_type, true, &a_tx_hash_processed, &l_tx_num);
+            _dap_chain_datum_tx_out_data(l_tx, a_ledger, l_str_out, a_hash_out_type, true, &a_tx_hash_processed, &l_tx_num);
 //            a_tx_hash_processed = l_tx_hash_processed;
 //            l_tx_num++;
 
@@ -1470,9 +1479,10 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
 
                 char *l_str_out = NULL;
                 dap_string_append_printf(l_str_ret, "chain: %s\n", l_chain_cur->name);
+                dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
                 if(l_is_all) {
                     // without filters
-                    l_str_out = dap_db_history_filter(l_chain_cur, NULL, NULL, l_hash_out_type, -1, 0, NULL, l_list_tx_hash_processd);
+                    l_str_out = dap_db_history_filter(l_chain_cur, l_ledger, NULL, NULL, l_hash_out_type, -1, 0, NULL, l_list_tx_hash_processd);
                     dap_string_append_printf(l_str_ret, "all history:\n%s\n", l_str_out ? l_str_out : " empty");
                 }
                 else {
@@ -1554,7 +1564,7 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
             return -2;
         }
         dap_string_t *l_str = dap_string_new("");
-        _dap_chain_datum_tx_out_data(l_datum_tx, l_str, l_hash_out_type, false, NULL, NULL);
+        _dap_chain_datum_tx_out_data(l_datum_tx, l_ledger, l_str, l_hash_out_type, false, NULL, NULL);
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str->str);
         dap_string_free(l_str, true);
         return 0;
@@ -1736,7 +1746,8 @@ int com_token(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
                 // only selected net
                 if(l_net->pub.id.uint64 == l_chain_cur->net_id.uint64) {
                     long l_chain_datum = l_cur_datum;
-                    char *l_datum_list_str = dap_db_history_filter(l_chain_cur, l_token_name_str, NULL,
+                    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
+                    char *l_datum_list_str = dap_db_history_filter(l_chain_cur, l_ledger, l_token_name_str, NULL,
                             l_hash_out_type, l_page_start * l_page_size, (l_page_start+l_page)*l_page_size, &l_chain_datum, l_list_tx_hash_processd);
                     if(l_datum_list_str) {
                         l_cur_datum += l_chain_datum;

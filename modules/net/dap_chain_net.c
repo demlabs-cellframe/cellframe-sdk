@@ -837,61 +837,63 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 case NODE_ROLE_LIGHT:
                 default: {
                     // Get DNS request result from root nodes as synchronization links
-                    bool l_sync_fill_root_nodes = true;
+                    bool l_sync_fill_root_nodes = false;
                     uint32_t l_link_id=0;
-                    for (size_t n=0; n< s_required_links_count;n++ ) {
-                        struct in_addr l_addr = {};
-                        uint16_t i, l_port;
-                        if (l_net_pvt->seed_aliases_count) {
-                            i = rand() % l_net_pvt->seed_aliases_count;
-                            dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
-                            if (l_remote_addr){
-                                dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
-                                if(l_remote_node_info){
-                                    l_addr.s_addr = l_remote_node_info ? l_remote_node_info->hdr.ext_addr_v4.s_addr : 0;
-                                    DAP_DELETE(l_remote_node_info);
-                                    l_port = DNS_LISTEN_PORT;
+                    if (!l_sync_fill_root_nodes){
+                        for (size_t n=0; n< s_required_links_count;n++ ) {
+                            struct in_addr l_addr = {};
+                            uint16_t i, l_port;
+                            if (l_net_pvt->seed_aliases_count) {
+                                i = rand() % l_net_pvt->seed_aliases_count;
+                                dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
+                                if (l_remote_addr){
+                                    dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_addr);
+                                    if(l_remote_node_info){
+                                        l_addr.s_addr = l_remote_node_info ? l_remote_node_info->hdr.ext_addr_v4.s_addr : 0;
+                                        DAP_DELETE(l_remote_node_info);
+                                        l_port = DNS_LISTEN_PORT;
+                                    }else{
+                                        log_it(L_WARNING,"Can't find node info for node addr "NODE_ADDR_FP_STR,
+                                               NODE_ADDR_FP_ARGS(l_remote_addr));
+                                    }
                                 }else{
-                                    log_it(L_WARNING,"Can't find node info for node addr "NODE_ADDR_FP_STR,
-                                           NODE_ADDR_FP_ARGS(l_remote_addr));
+                                    log_it(L_WARNING,"Can't find alias info for seed alias %s",l_net_pvt->seed_aliases[i]);
                                 }
-                            }else{
-                                log_it(L_WARNING,"Can't find alias info for seed alias %s",l_net_pvt->seed_aliases[i]);
+                            } else if (l_net_pvt->bootstrap_nodes_count) {
+                                i = rand() % l_net_pvt->bootstrap_nodes_count;
+                                l_addr = l_net_pvt->bootstrap_nodes_addrs[i];
+                                l_port = l_net_pvt->bootstrap_nodes_ports[i];
+                            } else {
+                                log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
+                                if (!dap_list_length(l_net_pvt->links_info)) {   // No links can be prepared, go offline
+                                    l_net_pvt->state_target = NET_STATE_OFFLINE;
+                                }
                             }
-                        } else if (l_net_pvt->bootstrap_nodes_count) {
-                            i = rand() % l_net_pvt->bootstrap_nodes_count;
-                            l_addr = l_net_pvt->bootstrap_nodes_addrs[i];
-                            l_port = l_net_pvt->bootstrap_nodes_ports[i];
-                        } else {
-                            log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
-                            if (!dap_list_length(l_net_pvt->links_info)) {   // No links can be prepared, go offline
-                                l_net_pvt->state_target = NET_STATE_OFFLINE;
-                            }
-                        }
-                        if (l_addr.s_addr) {
-                            dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                            if(! l_link_node_info){
-                                log_it(L_CRITICAL,"Can't allocate memory for node link info");
-                                break;
-                            }
-#ifdef DAP_OS_UNIX
-                            struct in_addr _in_addr = { .s_addr = l_addr.s_addr  };
-#else
-                            struct in_addr _in_addr = { { .S_addr = l_addr.S_un.S_addr } };
-#endif
+                            if (l_addr.s_addr) {
+                                dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                                if(! l_link_node_info){
+                                    log_it(L_CRITICAL,"Can't allocate memory for node link info");
+                                    break;
+                                }
+    #ifdef DAP_OS_UNIX
+                                struct in_addr _in_addr = { .s_addr = l_addr.s_addr  };
+    #else
+                                struct in_addr _in_addr = { { .S_addr = l_addr.S_un.S_addr } };
+    #endif
 
-                            l_sync_fill_root_nodes = false;
-                            if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
-                                l_net_pvt->links_dns_requests++;
-                                struct link_dns_request * l_dns_request = DAP_NEW_Z(struct link_dns_request);
-                                l_dns_request->net = l_net;
-                                l_dns_request->link_id = l_link_id;
-                                dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
-                                                                    s_net_state_link_prepare_success,
-                                                                s_net_state_link_prepare_error,l_dns_request);
+                                l_sync_fill_root_nodes = false;
+                                if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
+                                    l_net_pvt->links_dns_requests++;
+                                    struct link_dns_request * l_dns_request = DAP_NEW_Z(struct link_dns_request);
+                                    l_dns_request->net = l_net;
+                                    l_dns_request->link_id = l_link_id;
+                                    dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
+                                                                        s_net_state_link_prepare_success,
+                                                                    s_net_state_link_prepare_error,l_dns_request);
+                                }
                             }
+                            l_link_id++;
                         }
-                        l_link_id++;
                     }
                     if (l_sync_fill_root_nodes){
                         log_it(L_ATT,"Not found bootstrap addresses, fill seed nodelist from root aliases");

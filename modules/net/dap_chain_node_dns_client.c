@@ -52,6 +52,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
 static void s_dns_client_esocket_error_callback(dap_events_socket_t * a_esocket, int a_error);
 static bool s_dns_client_esocket_timeout_callback( void * a_arg);
 static void s_dns_client_esocket_delete_callback(dap_events_socket_t * a_esocket, void * a_arg);
+static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_esocket, dap_worker_t * a_worker);
 
 /**
  * @brief s_dns_client_esocket_read_callback
@@ -180,6 +181,24 @@ static void s_dns_client_esocket_delete_callback(dap_events_socket_t * a_esocket
 }
 
 /**
+ * @brief s_dns_client_esocket_worker_assign_callback
+ * @param a_esocket
+ * @param a_worker
+ */
+static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_esocket, dap_worker_t * a_worker)
+{
+    struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
+    dap_events_socket_write_unsafe(a_esocket,l_dns_client->dns_request->data, l_dns_client->dns_request->size );
+
+    dap_events_socket_handler_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+    l_es_handler->esocket = a_esocket;
+    l_es_handler->uuid = a_esocket->uuid;
+    dap_timerfd_start_on_worker(a_worker, dap_config_get_item_uint64_default(g_config,"dns_client","request_timeout",10)*1000,
+                                 s_dns_client_esocket_timeout_callback,l_es_handler);
+
+}
+
+/**
  * @brief dap_chain_node_info_dns_request
  * @param a_addr
  * @param a_port
@@ -236,6 +255,7 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
 
     dap_events_socket_callbacks_t l_esocket_callbacks={0};
 
+    l_esocket_callbacks.worker_assign_callback = s_dns_client_esocket_worker_assign_callback;
     l_esocket_callbacks.delete_callback = s_dns_client_esocket_delete_callback; // Delete client callback
     l_esocket_callbacks.read_callback = s_dns_client_esocket_read_callback; // Read function
     l_esocket_callbacks.error_callback = s_dns_client_esocket_error_callback; // Error processing function
@@ -248,14 +268,7 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
     l_esocket->_inheritor = l_dns_client;
 
     dap_worker_t * l_worker = dap_events_worker_get_auto();
-    dap_events_socket_write_unsafe(l_esocket,l_dns_client->dns_request->data, l_dns_client->dns_request->size );
     dap_events_socket_assign_on_worker_mt(l_esocket,l_worker);
-
-    dap_events_socket_handler_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-    l_es_handler->esocket = l_esocket;
-    l_es_handler->uuid = l_esocket->uuid;
-    dap_timerfd_start_on_worker(l_worker, dap_config_get_item_uint64_default(g_config,"dns_client","request_timeout",10)*1000,
-                                 s_dns_client_esocket_timeout_callback,l_es_handler);
 }
 
 

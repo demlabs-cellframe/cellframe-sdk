@@ -139,8 +139,12 @@ size_t dap_proc_thread_stream_ch_write_inter(dap_proc_thread_t * a_thread,dap_wo
     struct proc_thread_stream * l_thread_stream = (struct proc_thread_stream *) a_thread->_inheritor;
     dap_events_socket_t* l_es_input = l_thread_stream->queue_ch_io_input[a_worker->id];
     size_t l_ret = dap_stream_ch_pkt_write_inter(l_es_input,a_ch,a_type,a_data,a_data_size);
+// TODO Make this code platform-independent
+#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread,l_es_input);
+#endif
+
     return l_ret;
 }
 
@@ -174,7 +178,11 @@ size_t dap_proc_thread_stream_ch_write_f_inter(dap_proc_thread_t * a_thread,dap_
     va_end(ap_copy);
 
     size_t l_ret = dap_stream_ch_pkt_write_inter(l_es_io_input,a_ch,a_type, l_data, l_data_size);
+
+    // TODO Make this code platform-independent
+#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
+#endif
     return l_ret;
 }
