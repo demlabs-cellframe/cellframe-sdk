@@ -39,6 +39,9 @@ int main()
    std::ofstream sum_256_256_file;
    sum_256_256_file.open ("SUM_256_256.txt");  
 
+   std::ofstream prod_64_128_file;
+   prod_64_128_file.open ("PROD_64_128.txt");  
+
 
    uint128_t hi_64{"0xffffffffffffffff0000000000000000"};
    uint128_t lo_64{"0x0000000000000000ffffffffffffffff"};
@@ -137,7 +140,7 @@ int main()
 //        
 //        if(boost_dap_128_prod_comparison!=boost_test_64_128_prod){
 //            error_counter_prod+=1;}
-//        
+        
 
         
         if(verbose_output==1){
@@ -204,6 +207,22 @@ int main()
 
         sum_256_256_file << (boost_dap_256_comparison)<< std::endl;}
 
+    
+//        if(boost_dap_256_comparison!=boost_test_256_sum){
+//
+//        prod_64_128_file << "boost_dap_128_prod_comparison"<< std::endl;
+//
+//        prod_64_128_file << (boost_dap_128_prod_comparison)<< std::endl;
+//
+//        prod_64_128_file << "boost_test_64_128_prod"<< std::endl;
+//
+//        prod_64_128_file << (boost_test_64_128_prod)<< std::endl;
+//
+//}
+//
+
+
+
 
 
 
@@ -221,10 +240,10 @@ int main()
 
     std::cout<< "SUM_256_256 returns identical results to boost:: 256 bit addition"<< std::endl;}
 
-
-   if(error_counter_prod==0){
-
-   std::cout<< "SUM_256_256 returns identical results to boost:: 256 bit addition"<< std::endl;}
+//
+//   if(error_counter_prod==0){
+//
+//   std::cout<< "SUM_256_256 returns identical results to boost:: 256 bit addition"<< std::endl;}
 
 
    return 0;

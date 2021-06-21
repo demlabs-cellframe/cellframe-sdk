@@ -1,6 +1,5 @@
 #pragma once
 #include <stdint.h>
-
 #include "dap_common.h"
 #include <boost/multiprecision/cpp_int.hpp>
 #include <stdint.h>
@@ -93,7 +92,7 @@ static inline bool dap_unsign128_t_check_equal(unsign128_t a_128_bit, unsign128_
 #ifdef DAP_GLOBAL_IS_INT128
     return a_128_bit == b_128_bit;
 #else
-    return a_128_bit.lo==b_128_bit.lo && a_128_bit.hi==b_128_bit;
+    return a_128_bit.lo==b_128_bit.lo && a_128_bit.hi==b_128_bit.hi;
 #endif
 }
 
