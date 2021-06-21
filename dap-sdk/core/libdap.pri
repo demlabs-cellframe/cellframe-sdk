@@ -20,7 +20,12 @@ unix: !android : ! darwin {
     LIBS += -lrt -ljson-c -lmagic
 }
 
-DEFINES += DAP_NET_CLIENT_NO_SSL
+contains(DAP_FEATURES, ssl){
+    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
+}else{
+    DEFINES += DAP_NET_CLIENT_NO_SSL
+}
+
 darwin {
     QMAKE_CFLAGS_DEBUG += -Wall -g3 -ggdb -fno-strict-aliasing
     DEFINES += _GNU_SOURCE
