@@ -1,7 +1,8 @@
 #pragma once
 #include <stdint.h>
 
-#include "dap_common.h"#include <boost/multiprecision/cpp_int.hpp>
+#include "dap_common.h"
+#include <boost/multiprecision/cpp_int.hpp>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -87,7 +88,22 @@ static inline int  SUM_256_256(unsign256_t a_256_bit,unsign256_t b_256_bit,unsig
     return overflow_flag;}
 
 
+static inline bool dap_unsign128_t_check_equal(unsign128_t a_128_bit, unsign128_t b_128_bit)
+{
+#ifdef DAP_GLOBAL_IS_INT128
+    return a_128_bit == b_128_bit;
+#else
+    return a_128_bit.lo==b_128_bit.lo && a_128_bit.hi==b_128_bit;
+#endif
+}
 
 
+static inline bool dap_unsign256_t_check_equal(unsign256_t a_256_bit, unsign256_t b_256_bit)
+{
+    return a_256_bit.lo.lo==b_256_bit.lo.lo &&
+           a_256_bit.lo.hi==b_256_bit.lo.hi &&
+           a_256_bit.hi.lo==b_256_bit.hi.lo &&
+           a_256_bit.hi.hi==b_256_bit.hi.hi;
+}
 
 
