@@ -806,6 +806,34 @@ void *dap_worker_thread(void *arg)
                     if(s_debug_reactor)
                         log_it(L_INFO, "Process signal to close %s sock %u type %d [thread %u]",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn);
+
+                    for(size_t nn=n+1; nn<l_sockets_max; nn++){ // Check for current selection if it has event duplication
+                        dap_events_socket_t *l_es_selected = NULL;
+#ifdef DAP_EVENTS_CAPS_EPOLL
+                        l_es_selected = (dap_events_socket_t *) l_epoll_events[nn].data.ptr;
+#elif defined ( DAP_EVENTS_CAPS_POLL)
+                        l_es_selected = l_worker->poll_esocket[nn];
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
+                        struct kevent * l_kevent_selected = &l_worker->kqueue_events_selected[n];
+                        if ( l_kevent_selected->filter == EVFILT_USER){ // If we have USER event it sends little different pointer
+                            dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
+                            l_es_selected = l_es_w_data->esocket;
+                        }else{
+                            l_es_selected = (dap_events_socket_t*) l_kevent_selected->udata;
+                        }
+#else
+#error "No selection esockets left to proc implemenetation"
+#endif
+                        if(l_es_selected == NULL || l_es_selected == l_cur ){
+                            if(l_es_selected == NULL)
+                                log_it(L_CRITICAL,"NULL esocket found when cleaning selected list");
+                            else if(s_debug_reactor)
+                                log_it(L_INFO,"Duplicate esockets removed from selected event list");
+                            n=nn; // TODO here we need to make smth like poll() array compressing.
+                                  // Here we expect thats event duplicates goes together in it. If not - we lose some events between.
+                        }
+                    }
+
                     dap_events_socket_remove_and_delete_unsafe( l_cur, false);
 #ifdef DAP_EVENTS_CAPS_KQUEUE
                     l_worker->kqueue_events_count--;

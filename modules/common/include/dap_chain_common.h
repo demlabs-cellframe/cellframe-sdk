@@ -246,7 +246,7 @@ DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from)
 #ifdef DAP_GLOBAL_IS_INT128
     return (uint128_t)a_from;
 #else
-    uint128_t l_ret = { .u64 = {0, a_from} };
+    uint128_t l_ret = { .0, a_from};
     return l_ret;
 #endif
 }
