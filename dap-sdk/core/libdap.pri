@@ -53,7 +53,6 @@ win32 {
 HEADERS += $$PWD/../../3rdparty/uthash/src/utlist.h \
            $$PWD/../../3rdparty/uthash/src/uthash.h
 
-
 # Sources itself
 HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_binary_tree.h \
