@@ -29,7 +29,6 @@
 #include <errno.h>
 #include <assert.h>
 #include <string.h>
-#include <json-c/json.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -44,12 +43,16 @@
 #include <arpa/inet.h>
 #endif
 
+#include <json-c/json.h>
+#include "uthash.h"
+
 #include "dap_common.h"
 #include "dap_client.h"
 #include "dap_config.h"
 #include "dap_events.h"
 #include "dap_timerfd.h"
 #include "dap_hash.h"
+#include "dap_uuid.h"
 //#include "dap_http_client_simple.h"
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
@@ -72,6 +75,14 @@
 #include "dap_chain_node_client.h"
 
 #define LOG_TAG "dap_chain_node_client"
+
+typedef struct dap_chain_node_client_handle {
+    uint128_t uuid;
+    dap_chain_node_client_t * client;
+    UT_hash_handle hh;
+} dap_chain_node_client_handle_t;
+
+static dap_chain_node_client_handle_t * s_clients = NULL;
 
 
 //static int listen_port_tcp = 8079;
@@ -106,6 +117,11 @@ int dap_chain_node_client_init(void)
  */
 void dap_chain_node_client_deinit()
 {
+    dap_chain_node_client_handle_t *l_client = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, s_clients,l_client, l_tmp){
+        HASH_DEL(s_clients,l_client);
+        DAP_DELETE(l_client);
+    }
     //dap_http_client_simple_deinit();
     dap_client_deinit();
 }
@@ -148,7 +164,13 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 #endif
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         l_node_client->own_esh.esocket = 0;
-        dap_timerfd_start_on_worker(dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_node_client);
+
+        dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);
+        l_client_handle->uuid = l_node_client->uuid;
+        l_client_handle->client = l_node_client;
+
+        dap_timerfd_start_on_worker(dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_client_handle);
+
         return;
     }
 
@@ -186,7 +208,16 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
  */
 static bool s_timer_update_states_callback(void * a_arg )
 {
-    dap_chain_node_client_t *l_me = (dap_chain_node_client_t *) a_arg;
+    dap_chain_node_client_handle_t * l_client_handle = (dap_chain_node_client_handle_t *) a_arg, *l_client_found = NULL;
+    assert(l_client_handle);
+    HASH_FIND(hh,s_clients,&l_client_handle->uuid,sizeof(l_client_handle->uuid),l_client_found);
+    if(! l_client_found){
+        log_it(L_DEBUG,"Chain node client %p was deleted before timer fired, nothing to do", l_client_handle->client);
+        DAP_DELETE(l_client_handle);
+        return false;
+    }
+
+    dap_chain_node_client_t *l_me = l_client_handle->client;
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
     assert(l_me);
@@ -220,6 +251,7 @@ static bool s_timer_update_states_callback(void * a_arg )
                                                                         l_chain_id.uint64, l_net->pub.cell_id.uint64,
                                                               &l_sync_gdb, sizeof(l_sync_gdb));
                     }
+                    DAP_DELETE(l_client_handle);
                     return true;
                 }
             }
@@ -231,6 +263,7 @@ static bool s_timer_update_states_callback(void * a_arg )
         log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
         dap_chain_node_client_connect_internal(l_me, "CN"); // isn't always CN here?
     }
+    DAP_DELETE(l_client_handle);
     return false;
 }
 
@@ -267,7 +300,11 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         if (l_stream) {
             l_node_client->own_esh.esocket = l_stream->esocket;
             l_node_client->own_esh.uuid = l_stream->esocket->uuid;
-            dap_timerfd_start_on_worker(l_stream->esocket->worker,s_timer_update_states*1000,s_timer_update_states_callback, l_node_client);
+            dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);
+            l_client_handle->uuid = l_node_client->uuid;
+            l_client_handle->client = l_node_client;
+
+            dap_timerfd_start_on_worker(l_stream->esocket->worker,s_timer_update_states*1000,s_timer_update_states_callback, l_client_handle);
         }
 #ifndef _WIN32
         pthread_cond_broadcast(&l_node_client->wait_cond);
@@ -586,6 +623,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
         memcpy(&l_node_client->callbacks,a_callbacks,sizeof (*a_callbacks));
     l_node_client->info = a_node_info;
     l_node_client->net = a_net;
+    l_node_client->uuid = dap_uuid_generate_uint128();
 
 #ifndef _WIN32
     pthread_condattr_t attr;
@@ -679,6 +717,15 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 #endif
         pthread_mutex_destroy(&a_client->wait_mutex);
         a_client->client = NULL;
+        dap_chain_node_client_handle_t * l_client_found = NULL;
+        HASH_FIND(hh,s_clients,&a_client->uuid,sizeof(a_client->uuid),l_client_found);
+        if (l_client_found){
+            HASH_DEL(s_clients,l_client_found);
+            DAP_DELETE(l_client_found);
+        }else{
+            log_it(L_WARNING, "Chain node client was removed from hash table before for some reasons");
+        }
+
         DAP_DELETE(a_client);
     }
 }

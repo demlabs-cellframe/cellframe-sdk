@@ -66,6 +66,7 @@ typedef struct dap_chain_node_client_callbacks{
 // state for a client connection
 typedef struct dap_chain_node_client {
     dap_chain_node_client_state_t state;
+    uint128_t uuid;
 
     bool sync_gdb;
     bool sync_chains;
