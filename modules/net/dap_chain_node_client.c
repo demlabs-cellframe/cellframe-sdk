@@ -52,6 +52,7 @@
 #include "dap_events.h"
 #include "dap_timerfd.h"
 #include "dap_hash.h"
+#include "dap_uuid.h"
 //#include "dap_http_client_simple.h"
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
@@ -622,6 +623,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     if(a_callbacks)
         memcpy(&l_node_client->callbacks,a_callbacks,sizeof (*a_callbacks));
     l_node_client->info = a_node_info;
+    l_node_client->uuid = dap_uuid_generate_uint128();
     l_node_client->net = a_net;
 
 #ifndef _WIN32
