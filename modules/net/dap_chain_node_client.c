@@ -165,40 +165,16 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         l_node_client->own_esh.esocket = 0;
 
-        dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);
-        l_client_handle->uuid = l_node_client->uuid;
-        l_client_handle->client = l_node_client;
-
-        dap_timerfd_start_on_worker(dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_client_handle);
-
+        if (l_node_client->keep_connection) {
+            uint128_t *l_uuid = DAP_NEW(uint128_t);
+            memcpy(l_uuid, &l_node_client->uuid, sizeof(uint128_t));
+            dap_timerfd_start_on_worker(dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
+        }
         return;
     }
-
-    if(l_node_client && l_node_client->keep_connection &&
-            ((dap_client_get_stage(a_client) != STAGE_STREAM_STREAMING) ||
-                    (dap_client_get_stage_status(a_client) == STAGE_STATUS_ERROR))) {
-        log_it(L_NOTICE,"Some errors happends, current state is %s but we need to return back to STAGE_STREAM_STREAMING",
-                dap_client_get_stage_str(a_client) );
-
-        // TODO make different error codes
-        if(l_node_client->callbacks.error)
-            l_node_client->callbacks.error(l_node_client, EINVAL,l_node_client->callbacks_arg );
-
-        if (s_stream_ch_chain_debug_more)
-            log_it(L_DEBUG, "Wakeup all who waits");
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_ERROR;
-
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-        SetEvent( l_node_client->wait_cond );
-#endif
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
-        //dap_client_go_stage( a_client , STAGE_STREAM_STREAMING, s_stage_end_callback );
-    }
-
-    //printf("* tage_status_error_callback client=%x data=%x\n", a_client, a_arg);
+    // TODO make different error codes
+    if(l_node_client->callbacks.error)
+        l_node_client->callbacks.error(l_node_client, EINVAL,l_node_client->callbacks_arg );
 }
 
 /**
@@ -208,16 +184,17 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
  */
 static bool s_timer_update_states_callback(void * a_arg )
 {
-    dap_chain_node_client_handle_t * l_client_handle = (dap_chain_node_client_handle_t *) a_arg, *l_client_found = NULL;
-    assert(l_client_handle);
-    HASH_FIND(hh,s_clients,&l_client_handle->uuid,sizeof(l_client_handle->uuid),l_client_found);
-    if(! l_client_found){
-        log_it(L_DEBUG,"Chain node client %p was deleted before timer fired, nothing to do", l_client_handle->client);
-        DAP_DELETE(l_client_handle);
+    dap_chain_node_client_handle_t *l_client_found = NULL;
+    uint128_t *l_uuid = (uint128_t *)a_arg;
+    assert(l_uuid);
+    HASH_FIND(hh, s_clients, l_uuid, sizeof(*l_uuid), l_client_found);
+    if(!l_client_found){
+        log_it(L_DEBUG,"Chain node client %p was deleted before timer fired, nothing to do", l_uuid);
+        DAP_DELETE(l_uuid);
         return false;
     }
 
-    dap_chain_node_client_t *l_me = l_client_handle->client;
+    dap_chain_node_client_t *l_me = l_client_found->client;
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
     assert(l_me);
@@ -251,7 +228,7 @@ static bool s_timer_update_states_callback(void * a_arg )
                                                                         l_chain_id.uint64, l_net->pub.cell_id.uint64,
                                                               &l_sync_gdb, sizeof(l_sync_gdb));
                     }
-                    DAP_DELETE(l_client_handle);
+                    DAP_DELETE(l_uuid);
                     return true;
                 }
             }
@@ -263,7 +240,7 @@ static bool s_timer_update_states_callback(void * a_arg )
         log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
         dap_chain_node_client_connect_internal(l_me, "CN"); // isn't always CN here?
     }
-    DAP_DELETE(l_client_handle);
+    DAP_DELETE(l_uuid);
     return false;
 }
 
@@ -291,7 +268,6 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         }
         if(l_node_client->callbacks.connected)
             l_node_client->callbacks.connected(l_node_client, l_node_client->callbacks_arg);
-        l_node_client->keep_connection = true;
         if(s_stream_ch_chain_debug_more)
             log_it(L_DEBUG, "Wakeup all who waits");
         l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
@@ -300,11 +276,11 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         if (l_stream) {
             l_node_client->own_esh.esocket = l_stream->esocket;
             l_node_client->own_esh.uuid = l_stream->esocket->uuid;
-            dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);
-            l_client_handle->uuid = l_node_client->uuid;
-            l_client_handle->client = l_node_client;
-
-            dap_timerfd_start_on_worker(l_stream->esocket->worker,s_timer_update_states*1000,s_timer_update_states_callback, l_client_handle);
+            if (l_node_client->keep_connection) {
+                uint128_t *l_uuid = DAP_NEW(uint128_t);
+                memcpy(l_uuid, &l_node_client->uuid, sizeof(uint128_t));
+                dap_timerfd_start_on_worker(l_stream->esocket->worker,s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
+            }
         }
 #ifndef _WIN32
         pthread_cond_broadcast(&l_node_client->wait_cond);
@@ -624,6 +600,10 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     l_node_client->info = a_node_info;
     l_node_client->net = a_net;
     l_node_client->uuid = dap_uuid_generate_uint128();
+    dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);
+    l_client_handle->uuid = l_node_client->uuid;
+    l_client_handle->client = l_node_client;
+    HASH_ADD(hh, s_clients, uuid, sizeof(l_client_handle->uuid), l_client_handle);
 
 #ifndef _WIN32
     pthread_condattr_t attr;
@@ -649,6 +629,7 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
 {
     a_node_client->client = dap_client_new(a_node_client->events, s_stage_status_callback,
             s_stage_status_error_callback);
+    a_node_client->keep_connection = true;
     dap_client_set_is_always_reconnect(a_node_client->client, true);
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
@@ -708,6 +689,9 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
 void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
     if (a_client && a_client->client) { // block tryes to close twice
+        char l_node_addr_str[INET_ADDRSTRLEN] = {};
+        inet_ntop(AF_INET, &a_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_client->info->hdr.ext_port);
         // clean client
         dap_client_delete_mt(a_client->client);
 #ifndef _WIN32
@@ -763,7 +747,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         log_it(L_ERROR, "Can't wait for status for (null) object");
         return -3;
     }
-
+    a_client->keep_connection = false;
     pthread_mutex_lock(&a_client->wait_mutex);
     // have waited
     if(a_client->state == a_waited_state) {

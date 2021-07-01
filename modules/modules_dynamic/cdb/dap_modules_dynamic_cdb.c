@@ -35,7 +35,7 @@ static const char * s_default_path_modules = "var/modules";
 
 int dap_modules_dynamic_load_cdb(dap_http_t * a_server){
     char l_lib_path[MAX_PATH] = {'\0'};
-#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
+#if !defined (DAP_OS_LINUX) && !defined (__ANDROID__)
     const char * l_cdb_so_name = "libcellframe-node-cdb.so";
     dap_sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
 
@@ -63,6 +63,8 @@ int dap_modules_dynamic_load_cdb(dap_http_t * a_server){
 
     return 0;
 #else
+    dap_chain_net_srv_vpn_cdb_init(a_server);
+    return 0;
     log_it(L_ERROR,"%s: module is not supported on current platfrom", __PRETTY_FUNCTION__);
     return -3;
 #endif
