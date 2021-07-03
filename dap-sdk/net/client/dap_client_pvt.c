@@ -875,14 +875,18 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
             log_it(L_ERROR,"Client internal is NULL for s_request_response");
         else
             log_it(L_ERROR,"Client is NULL for s_request_response");
-
+        dap_client_pvt_hh_unlock();
         return;
     }
     l_client_pvt->refs_count--;
 
     if (l_client_pvt->is_to_delete){
-        if(l_client_pvt->refs_count==0) // Was requested to delete until we was working with request
+        if(l_client_pvt->refs_count==0) {// Was requested to delete until we was working with request
+            dap_client_pvt_hh_unlock();
             dap_client_delete_unsafe(l_client_pvt->client); // Init delete
+            return;
+        }
+        dap_client_pvt_hh_unlock();
         return;
     }
 
