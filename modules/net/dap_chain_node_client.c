@@ -251,8 +251,8 @@ static bool s_timer_update_states_callback(void * a_arg )
  */
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 {
-    dap_chain_node_client_t *l_node_client = a_client->_inheritor;
-    //assert(l_node_client);
+    dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
+    UNUSED(a_arg);
     if(l_node_client) {
         log_it(L_NOTICE, "Stream connection with node " NODE_ADDR_FP_STR " established",
                 NODE_ADDR_FP_ARGS_S( l_node_client->remote_node_addr));
@@ -700,6 +700,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         CloseHandle( a_client->wait_cond );
 #endif
         pthread_mutex_destroy(&a_client->wait_mutex);
+        a_client->client->_inheritor = NULL;
         a_client->client = NULL;
         dap_chain_node_client_handle_t * l_client_found = NULL;
         HASH_FIND(hh,s_clients,&a_client->uuid,sizeof(a_client->uuid),l_client_found);

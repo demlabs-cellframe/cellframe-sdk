@@ -244,8 +244,6 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
         return;
     }
 
-
-
     dap_client_stage_t l_cur_stage = l_client_pvt->stage;
     dap_client_stage_status_t l_cur_stage_status= l_client_pvt->stage_status;
     if (l_stage_target == l_cur_stage){
