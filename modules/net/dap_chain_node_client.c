@@ -84,7 +84,6 @@ typedef struct dap_chain_node_client_handle {
 
 static dap_chain_node_client_handle_t * s_clients = NULL;
 
-
 //static int listen_port_tcp = 8079;
 
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
@@ -234,6 +233,7 @@ static bool s_timer_update_states_callback(void * a_arg )
             }
         }
     }
+
     // if we not returned yet
     l_me->state = NODE_CLIENT_STATE_DISCONNECTED;
     if (l_me->keep_connection) {
@@ -593,11 +593,13 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
         return NULL;
     }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
+
     l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
     l_node_client->callbacks_arg = a_callback_arg;
     if(a_callbacks)
         memcpy(&l_node_client->callbacks,a_callbacks,sizeof (*a_callbacks));
     l_node_client->info = a_node_info;
+    l_node_client->uuid = dap_uuid_generate_uint128();
     l_node_client->net = a_net;
     l_node_client->uuid = dap_uuid_generate_uint128();
     dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);

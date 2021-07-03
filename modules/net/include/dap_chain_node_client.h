@@ -67,7 +67,6 @@ typedef struct dap_chain_node_client_callbacks{
 typedef struct dap_chain_node_client {
     dap_chain_node_client_state_t state;
     uint128_t uuid;
-
     bool sync_gdb;
     bool sync_chains;
 
@@ -119,6 +118,7 @@ typedef struct dap_chain_node_client {
     dap_chain_node_client_callbacks_t callbacks;
     void * callbacks_arg;
 } dap_chain_node_client_t;
+
 #define DAP_CHAIN_NODE_CLIENT(a) (a ? (dap_chain_node_client_t *) (a)->_inheritor : NULL)
 
 int dap_chain_node_client_init(void);

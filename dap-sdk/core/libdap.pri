@@ -20,7 +20,6 @@ unix: !android : ! darwin {
     LIBS += -lrt -ljson-c -lmagic
 }
 
-
 contains(DAP_FEATURES, ssl){
     include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
 }else{
@@ -53,6 +52,13 @@ win32 {
 HEADERS += $$PWD/../../3rdparty/uthash/src/utlist.h \
            $$PWD/../../3rdparty/uthash/src/uthash.h
 
+<<<<<<< HEAD
+=======
+#if(DAPSDK_MODULES MATCHES "ssl-support")
+#    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
+#endif()
+
+>>>>>>> bd29a4e40515ee89520114dd5287c289e5f83b02
 # Sources itself
 HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_binary_tree.h \
