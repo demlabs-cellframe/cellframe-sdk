@@ -619,7 +619,7 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
 {
     if(s_debug_more){
         char l_node_addr_str[INET_ADDRSTRLEN]={};
-        inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str,sizeof (a_node_info->hdr.ext_addr_v4));
+        inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
                                                                                      l_node_addr_str );
     }
