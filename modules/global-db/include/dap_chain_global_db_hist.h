@@ -15,6 +15,11 @@ typedef struct dap_global_db_hist {
     char *keys;
 } dap_global_db_hist_t;
 
+typedef struct dap_db_log_list_obj {
+    dap_global_db_obj_t obj;
+    dap_hash_fast_t hash;
+} dap_db_log_list_obj_t;
+
 //Add data to the history log
 bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_store_count, const char *a_group);
 
@@ -46,6 +51,6 @@ typedef struct dap_db_log_list {
 dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_groups);
 size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list);
 size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list);
-dap_global_db_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list);
+dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list);
 void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list);
 
