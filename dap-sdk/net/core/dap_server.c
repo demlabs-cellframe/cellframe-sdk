@@ -239,16 +239,19 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
 {
     assert(a_server);
 
-#ifdef DAP_OS_WINDOWS
-    struct sockaddr * l_listener_addr = (struct sockaddr *) &(a_server->listener_addr);
-#else
-    struct sockaddr * l_listener_addr = a_server->type == SERVER_LOCAL ?
-                                        (struct sockaddr *) &(a_server->listener_path) :
-                                        (struct sockaddr *) &(a_server->listener_addr);
+    struct sockaddr * l_listener_addr =
+#ifndef DAP_OS_WINDOWS
+            a_server->type == SERVER_LOCAL ?
+                (struct sockaddr *) &(a_server->listener_path) :
 #endif
-    socklen_t l_listener_addr_len = a_server->type == SERVER_LOCAL ?
-                                        sizeof(a_server->listener_path) :
-                                        sizeof(a_server->listener_addr);
+                (struct sockaddr *) &(a_server->listener_addr);
+
+    socklen_t l_listener_addr_len =
+#ifndef DAP_OS_WINDOWS
+            a_server->type == SERVER_LOCAL ?
+                sizeof(a_server->listener_path) :
+#endif
+                sizeof(a_server->listener_addr);
 
     if(bind (a_server->socket_listener, l_listener_addr, l_listener_addr_len) < 0) {
 #ifdef DAP_OS_WINDOWS

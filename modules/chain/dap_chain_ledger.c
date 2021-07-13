@@ -2569,8 +2569,11 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
         if(l_out_item_count >= MAX_OUT_ITEMS) {
             if(s_debug_more)
                 log_it(L_ERROR, "Too many 'out' items=%d in transaction (max=%d)", l_out_item_count, MAX_OUT_ITEMS);
-            if (l_out_item_count >= MAX_OUT_ITEMS)
-                return 0;
+            if (l_out_item_count >= MAX_OUT_ITEMS){
+                uint128_t l_ret;
+                memset(&l_ret,0,sizeof(l_ret));
+                return l_ret;
+            }
         }
         int l_out_idx_tmp = 0;
         for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_out_idx_tmp++) {

@@ -81,7 +81,7 @@
 static int s_max_attempts = 5;
 static int s_timeout = 20;
 static bool s_debug_more = false;
-static time_t s_client_timeout_read_after_connect_ms=5000;
+static time_t s_client_timeout_read_after_connect = 5;
 
 
 static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);
@@ -125,7 +125,7 @@ int dap_client_pvt_init()
     s_max_attempts = dap_config_get_item_int32_default(g_config,"dap_client","max_tries",5);
     s_timeout = dap_config_get_item_int32_default(g_config,"dap_client","timeout",10);
     s_debug_more = dap_config_get_item_bool_default(g_config,"dap_client","debug_more",false);
-    s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
+    s_client_timeout_read_after_connect = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
 
     return 0;
 }
@@ -209,7 +209,7 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
     dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
     l_ev_socket_handler->esocket = a_client_pvt->stream_es;
     l_ev_socket_handler->uuid = a_client_pvt->stream_es->uuid;
-    dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker,s_client_timeout_read_after_connect_ms*1000, s_stream_timer_timeout_after_connected_check ,l_ev_socket_handler);
+    dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_read_after_connect * 1000, s_stream_timer_timeout_after_connected_check ,l_ev_socket_handler);
 }
 
 /**
@@ -284,7 +284,7 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
             return false;
         }
         dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
-        if ( time(NULL)- l_client_pvt->ts_last_read > s_client_timeout_read_after_connect_ms ){
+        if ( time(NULL)- l_client_pvt->ts_last_read >= s_client_timeout_read_after_connect){
 
             log_it(L_WARNING,"Connecting timeout for streaming uplink http://%s:%u/, possible network problems or host is down",
                    l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
@@ -503,7 +503,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
                             l_stream_es_handler->esocket = a_client_pvt->stream_es;
                             l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
-                            dap_timerfd_start_on_worker(a_client_pvt->worker,s_client_timeout_read_after_connect_ms*1000,
+                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect * 1000,
                                                         s_stream_timer_timeout_check,l_stream_es_handler);
                         }
                         else if (l_err != EINPROGRESS && l_err != -1){
@@ -532,7 +532,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
                             l_stream_es_handler->esocket = a_client_pvt->stream_es;
                             l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
-                            dap_timerfd_start_on_worker(a_client_pvt->worker,s_client_timeout_read_after_connect_ms*1000,
+                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect * 1000,
                                                         s_stream_timer_timeout_check,l_stream_es_handler);
                         }
                     }
@@ -875,14 +875,18 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
             log_it(L_ERROR,"Client internal is NULL for s_request_response");
         else
             log_it(L_ERROR,"Client is NULL for s_request_response");
-
+        dap_client_pvt_hh_unlock();
         return;
     }
     l_client_pvt->refs_count--;
 
     if (l_client_pvt->is_to_delete){
-        if(l_client_pvt->refs_count==0) // Was requested to delete until we was working with request
+        if(l_client_pvt->refs_count==0) {// Was requested to delete until we was working with request
+            dap_client_pvt_hh_unlock();
             dap_client_delete_unsafe(l_client_pvt->client); // Init delete
+            return;
+        }
+        dap_client_pvt_hh_unlock();
         return;
     }
 

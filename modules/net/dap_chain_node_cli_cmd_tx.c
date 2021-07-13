@@ -1023,14 +1023,16 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
                     char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
+                    char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
                     dap_string_append_printf(l_str_out,
-                            " total_supply: %.0llf(%llu), flags: 0x%x\n, premine_supply: %llu, premine_address '%s'\n",
-                            l_token->header_public.total_supply / DATOSHI_LD,
+                            " total_supply: %s (%llu), flags: 0x%x\n, premine_supply: %llu, premine_address '%s'\n",
+                            l_balance,
                             l_token->header_public.total_supply,
                             l_token->header_public.flags,
                             l_token->header_public.premine_supply,
                             l_addr ? l_addr : "-");
                     DAP_DELETE(l_addr);
+                    DAP_DELETE(l_balance);
                 }
                     break;
                 default:
@@ -1147,14 +1149,16 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
                     char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
+                    char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
                     dap_string_append_printf(l_str_out,
-                            " total_supply: %.0llf(%llu), flags: 0x%x\n, premine_supply: %llu, premine_address '%s'\n",
-                            l_token->header_public.total_supply / DATOSHI_LD,
+                            " total_supply: %s (%llu), flags: 0x%x\n, premine_supply: %llu, premine_address '%s'\n",
+                            l_balance,
                             l_token->header_public.total_supply,
                             l_token->header_public.flags,
                             l_token->header_public.premine_supply,
                             l_addr ? l_addr : "-");
                     DAP_DELETE(l_addr);
+                    DAP_DELETE(l_balance);
                 }
                     break;
                 default:
