@@ -1289,7 +1289,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
 
     switch (l_ch_chain->state) {
-
         // Update list of global DB records to remote
         case CHAIN_STATE_UPDATE_GLOBAL_DB: {
             if (l_ch_chain->stats_request_gdb_processed == l_ch_chain->local_gdbs_count) {
