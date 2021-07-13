@@ -1289,10 +1289,11 @@ static void *s_list_thread_proc(void *arg)
         dap_list_t *l_list = NULL;
         for(size_t i = 0; i < l_item_count; i++) {
             dap_store_obj_t *l_obj_cur = l_objs + i;
-            dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
-            l_item->id = l_obj_cur->id;
-            l_item->key = dap_strdup(l_obj_cur->key);
-            l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
+            dap_db_log_list_obj_t *l_item = DAP_NEW(dap_db_log_list_obj_t);
+            l_item->obj.id = l_obj_cur->id;
+            l_item->obj.key = dap_strdup(l_obj_cur->key);
+            l_item->obj.value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
+            dap_hash_fast(l_obj_cur->key, strlen(l_obj_cur->key), &l_item->hash);
             l_list = dap_list_append(l_list, l_item);
         }
         pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
@@ -1412,7 +1413,7 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
 /**
  * Get one item from log_list
  */
-dap_global_db_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
+dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 {
     if(!a_db_log_list)
         return NULL;
@@ -1440,7 +1441,7 @@ dap_global_db_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
             break;
     }
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
-    return (dap_global_db_obj_t*) l_list ? l_list->data : NULL;
+    return (dap_db_log_list_obj_t*) l_list ? l_list->data : NULL;
     //return l_list;
 }
 
