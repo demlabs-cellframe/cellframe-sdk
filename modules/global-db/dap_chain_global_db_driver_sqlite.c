@@ -27,12 +27,14 @@
 #include <stddef.h>
 #include <string.h>
 #include <pthread.h>
+#include <errno.h>
 
 #ifdef DAP_OS_UNIX
 #include <unistd.h>
 #endif
 #include "dap_common.h"
 #include "dap_hash.h"
+#include "dap_file_utils.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_global_db_driver_sqlite.h"
 
@@ -88,8 +90,25 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
         log_it(L_ERROR, "Can't init sqlite err=%d (%s)", l_ret, sqlite3_errstr(l_ret));
         return -2;
     }
+    char * l_filename_dir = dap_path_get_dirname(a_filename_db);
+    if(!dap_dir_test(l_filename_dir)){
+        log_it(L_NOTICE, "No directory %s, trying to create...",l_filename_dir);
+        int l_mkdir_ret = dap_mkdir_with_parents(l_filename_dir);
+        int l_errno = errno;
+        if(!dap_dir_test(l_filename_dir)){
+            char l_errbuf[255];
+            l_errbuf[0] = '\0';
+            strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
+            log_it(L_ERROR, "Can't create directory, error code %d, error string \"%s\"", l_mkdir_ret, l_errbuf);
+            DAP_DELETE(l_filename_dir);
+            return -21;
+        }else
+            log_it(L_NOTICE,"Directory created");
+    }
+    DAP_DEL_Z(l_filename_dir);
+
     char *l_error_message = NULL;
-    s_db = dap_db_driver_sqlite_open(a_filename_db, SQLITE_OPEN_READWRITE, &l_error_message);
+    s_db = dap_db_driver_sqlite_open(a_filename_db, SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE, &l_error_message);
     if(!s_db) {
         log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
