@@ -1548,7 +1548,12 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
                 }
             }
         }
-        if ( l_is_error && l_errno != EINPROGRESS && l_errno != ENOENT){
+        if (l_is_error && l_errno == EBADF){
+            log_it(L_ATT,"Socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
+                         " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
+            a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+            a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
+        }else if ( l_is_error && l_errno != EINPROGRESS && l_errno != ENOENT){
             char l_errbuf[128];
             l_errbuf[0]=0;
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
