@@ -372,17 +372,10 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             dap_chain_net_t * l_net = l_node_client->net;
             assert(l_net);
             dap_chain_net_set_state(l_net, NET_STATE_SYNC_GDB);
-<<<<<<< HEAD
         }break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB:{
             l_node_client->state = NODE_CLIENT_STATE_SYNC_GDB;
         }break;
-=======
-        }break;
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB:{
-            l_node_client->state = NODE_CLIENT_STATE_SYNC_GDB;
-        }break;
->>>>>>> bugs-4761
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ:{
             l_node_client->state = NODE_CLIENT_STATE_SYNC_CHAINS_UPDATES;
         }break;
