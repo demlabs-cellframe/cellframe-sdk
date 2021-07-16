@@ -254,6 +254,8 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
 {
     dap_worker_msg_reassign_t * l_msg = DAP_NEW_Z(dap_worker_msg_reassign_t);
     l_msg->esocket = a_es;
+    if(a_es)
+        l_msg->esocket_uuid = a_es->uuid;
     l_msg->worker_new = a_worker_new;
     dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, l_msg);
 }
@@ -1395,9 +1397,14 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
  */
 void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
 {
-    int l_ret= dap_events_socket_queue_ptr_send( a_es->worker->queue_es_delete, a_es );
+    dap_events_socket_handler_t * l_es_handler= DAP_NEW_Z(dap_events_socket_handler_t);
+    l_es_handler->esocket = a_es;
+    l_es_handler->uuid = a_es->uuid;
+
+    int l_ret= dap_events_socket_queue_ptr_send( a_es->worker->queue_es_delete, l_es_handler );
     if( l_ret != 0 ){
         log_it(L_ERROR, "Queue send returned %d", l_ret);
+        DAP_DELETE(l_es_handler);
     }
 }
 
@@ -1589,8 +1596,15 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool
                 char l_errbuf[128];
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it(L_ERROR," for set_read op %d: \"%s\" (%d)",
-                    l_kqueue_fd, l_errbuf, l_errno);
+                if (l_errno == EBADF){
+                    log_it(L_ATT,"Socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
+                                 " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
+                    a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
+                }else{
+                    log_it(L_ERROR,"Can't update client socket %d state on kqueue fd for set_read op %d: \"%s\" (%d)",
+                                   a_esocket->socket, l_kqueue_fd, l_errbuf, l_errno);
+                }
             }
         }
     }else
@@ -1650,8 +1664,15 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
                 char l_errbuf[128];
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it(L_ERROR,"Can't update client socket state on kqueue fd for set_write op %d: \"%s\" (%d)",
-                    l_kqueue_fd, l_errbuf, l_errno);
+                if (l_errno == EBADF){
+                    log_it(L_ATT,"Socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
+                           " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
+                    a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
+                }else{
+                    log_it(L_ERROR,"Can't update client socket %d state on kqueue fd for set_write op %d: \"%s\" (%d)",
+                                    a_esocket->socket, l_kqueue_fd, l_errbuf, l_errno);
+                }
             }
         }
     }else
@@ -1819,6 +1840,30 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 }
 
 /**
+ * @brief dap_events_socket_check_uuid_unsafe
+ * @param a_worker
+ * @param a_es
+ * @param a_es_uuid
+ * @return
+ */
+bool dap_events_socket_check_uuid_unsafe(dap_worker_t * a_worker,dap_events_socket_t * a_es, uint128_t a_es_uuid)
+{
+    if (a_es){
+        if ( a_worker->esockets){
+            dap_events_socket_t * l_es = NULL;
+            bool l_ret;
+            pthread_rwlock_rdlock(&a_worker->esocket_rwlock);
+            HASH_FIND(hh_worker,a_worker->esockets,&a_es, sizeof(void*), l_es );
+            l_ret = ( l_es == a_es && dap_uint128_check_equal(l_es->uuid,a_es_uuid) );
+            pthread_rwlock_unlock(&a_worker->esocket_rwlock);
+            return l_ret;
+        }else
+            return false;
+    }else
+        return false;
+}
+
+/**
  * @brief dap_events_socket_check_unsafe
  * @param a_worker
  * @param a_es
@@ -1846,8 +1891,16 @@ bool dap_events_socket_check_unsafe(dap_worker_t * a_worker,dap_events_socket_t 
  */
 void dap_events_socket_remove_and_delete_mt(dap_worker_t * a_w,  dap_events_socket_t *a_es )
 {
-    if(a_w)
-        dap_events_socket_queue_ptr_send( a_w->queue_es_delete, a_es );
+    assert(a_w);
+        dap_events_socket_handler_t * l_es_handler= DAP_NEW_Z(dap_events_socket_handler_t);
+        l_es_handler->esocket = a_es;
+        if(a_es)
+           l_es_handler->uuid = a_es->uuid;
+
+        if(dap_events_socket_queue_ptr_send( a_w->queue_es_delete, l_es_handler ) != 0 ){
+            log_it(L_ERROR,"Can't send %d fd in queue", a_es->fd);
+            DAP_DELETE(l_es_handler);
+        }
 }
 
 /**
@@ -1860,6 +1913,8 @@ void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t *
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (! l_msg) return;
     l_msg->esocket = a_es;
+    if(a_es)
+            l_msg->esocket_uuid = a_es->uuid;
     if (a_is_ready)
         l_msg->flags_set = DAP_SOCK_READY_TO_READ;
     else
@@ -1881,6 +1936,8 @@ void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t *
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return;
     l_msg->esocket = a_es;
+    if(a_es)
+            l_msg->esocket_uuid = a_es->uuid;
     if (a_is_ready)
         l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     else
@@ -1905,6 +1962,8 @@ size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_event
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if( !l_msg) return 0;
     l_msg->esocket = a_es;
+    if(a_es)
+            l_msg->esocket_uuid = a_es->uuid;
     l_msg->data = DAP_NEW_SIZE(void,a_data_size);
     l_msg->data_size = a_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
@@ -1942,6 +2001,8 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
 
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
+    if(a_es)
+            l_msg->esocket_uuid = a_es->uuid;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->data_size = l_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
@@ -1968,6 +2029,8 @@ size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, 
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return 0;
     l_msg->esocket = a_es;
+    if(a_es)
+            l_msg->esocket_uuid = a_es->uuid;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->data_size = l_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
@@ -2002,6 +2065,8 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
     }
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
+    if(a_es)
+            l_msg->esocket_uuid = a_es->uuid;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size + 1);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_data_size = dap_vsprintf(l_msg->data,format,ap_copy);
@@ -2025,23 +2090,22 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
 
 /**
  * @brief dap_events_socket_write Write data to the client
- * @param sc Conn instance
- * @param data Pointer to data
- * @param data_size Size of data to write
+ * @param a_es Esocket instance
+ * @param a_data Pointer to data
+ * @param a_data_size Size of data to write
  * @return Number of bytes that were placed into the buffer
  */
-size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data, size_t data_size)
+size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_data, size_t a_data_size)
 {
-    if(sc->buf_out_size > sc->buf_out_size_max){
-        log_it(L_DEBUG,"write buffer already overflow size=%u/max=%u", sc->buf_out_size, sc->buf_out_size_max);
+    if(a_es->buf_out_size > a_es->buf_out_size_max){
+        log_it(L_DEBUG,"write buffer already overflow size=%u/max=%u", a_es->buf_out_size, a_es->buf_out_size_max);
         return 0;
     }
-     //log_it(L_DEBUG,"dap_events_socket_write %u sock data %X size %u", sc->socket, data, data_size );
-     data_size = (sc->buf_out_size + data_size < sc->buf_out_size_max) ? data_size : (sc->buf_out_size_max - sc->buf_out_size);
-     memcpy(sc->buf_out + sc->buf_out_size, data, data_size);
-     sc->buf_out_size += data_size;
-     dap_events_socket_set_writable_unsafe(sc, true);
-     return data_size;
+     a_data_size = (a_es->buf_out_size + a_data_size < a_es->buf_out_size_max) ? a_data_size : (a_es->buf_out_size_max - a_es->buf_out_size);
+     memcpy(a_es->buf_out + a_es->buf_out_size, a_data, a_data_size);
+     a_es->buf_out_size += a_data_size;
+     dap_events_socket_set_writable_unsafe(a_es, true);
+     return a_data_size;
 }
 
 /**

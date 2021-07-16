@@ -170,6 +170,9 @@ size_t dap_stream_pkt_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, dap
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     stream_pkt_hdr_t *l_pkt_hdr;
+    l_msg->esocket = a_es;
+    if(a_es)
+       l_msg->esocket_uuid = a_es->uuid; // TODO replace function signature with UUID in place of worker+esocket
     l_msg->data_size = 16-a_data_size%16+a_data_size+sizeof(*l_pkt_hdr);
     l_msg->data = DAP_NEW_SIZE(void,l_msg->data_size);
     l_pkt_hdr=(stream_pkt_hdr_t*) l_msg->data;
