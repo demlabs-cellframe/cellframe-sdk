@@ -1520,6 +1520,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
         if ( l_kqueue_fd == -1 ){
             log_it(L_ERROR, "Esocket is not assigned with anything ,exit");
         }
+
         // Check & add
         bool l_is_error=false;
         int l_errno=0;
@@ -1549,7 +1550,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
             }
         }
         if (l_is_error && l_errno == EBADF){
-            log_it(L_ATT,"Socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
+            log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
                          " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
             a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
             a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
@@ -1601,7 +1602,7 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
                 if (l_errno == EBADF){
-                    log_it(L_ATT,"Socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
+                    log_it(L_ATT,"Set readable: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
                            " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
                     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
@@ -1669,7 +1670,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
                 if (l_errno == EBADF){
-                    log_it(L_ATT,"Socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
+                    log_it(L_ATT,"Set writable: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_u":%" DAP_UINT64_FORMAT_u
                            " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
                     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
