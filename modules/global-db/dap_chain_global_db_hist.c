@@ -1325,7 +1325,6 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
 {
 
     //log_it(L_DEBUG, "Start loading db list_write...");
-    dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
 
     size_t l_add_groups_num = 0;// number of group
     dap_list_t *l_add_groups_mask = a_add_groups_mask;
@@ -1337,6 +1336,8 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         dap_list_free_full(l_groups, (dap_callback_destroyed_t) free);
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
+    if(l_add_groups_num == 0)
+        return NULL;
 
     size_t l_data_size_out_main = dap_db_log_get_last_id() - first_id + 1;
             //dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id); - not working for sqlite
@@ -1365,8 +1366,10 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         dap_list_free_full(l_groups0, (dap_callback_destroyed_t) free);
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
-    if(!(l_data_size_out_main + l_data_size_out_add_items_count))
+    if(!(l_data_size_out_main + l_data_size_out_add_items_count)){
         return NULL;
+    }
+    dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
     l_dap_db_log_list->item_start = first_id;
     l_dap_db_log_list->item_last = first_id + l_data_size_out_main;
     l_dap_db_log_list->items_number_main = l_data_size_out_main;

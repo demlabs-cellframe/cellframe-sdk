@@ -370,7 +370,7 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
         for(size_t i = 0; i < l_orders_num; i++) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
             //dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
-            dap_chain_hash_fast_t l_hash;
+            dap_chain_hash_fast_t l_hash={0};
             char *l_hash_str;
             dap_hash_fast(l_order, dap_chain_net_srv_order_get_size(l_order), &l_hash);
             if(!dap_strcmp(a_hash_out_type, "hex"))

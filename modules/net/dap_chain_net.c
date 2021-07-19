@@ -2117,6 +2117,8 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
         int i = 0;
         HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
             l_net_list[i++] = l_current_item->chain_net;
+            if(i > *a_size)
+                break;
         }
         return l_net_list;
     }else
