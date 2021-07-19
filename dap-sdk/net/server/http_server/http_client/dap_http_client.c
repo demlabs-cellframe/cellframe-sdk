@@ -544,8 +544,10 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                         l_http_client->proc->headers_write_callback( l_http_client, NULL );
                         dap_http_client_out_header_generate( l_http_client );
                 }else if (l_http_client->out_headers){
-                    l_http_client->reply_status_code = Http_Status_OK; // Cached data are always OK... for now.
-                    //TODO: make cached reply status code
+                    if (l_http_client->reply_status_code == 0){
+                        l_http_client->reply_status_code = Http_Status_OK; // Cached data are always OK... for now.
+                        //TODO: make cached reply status code
+                    }
                 }
             }
             char buf[1024];
