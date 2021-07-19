@@ -672,7 +672,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group)
         return NULL;
     char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
     char *l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id DESC LIMIT 1", l_table_name);
-    pthread_rwlock_rdlock(&s_db_rwlock);
+    pthread_rwlock_wrlock(&s_db_rwlock);
     if(!s_db){
         pthread_rwlock_unlock(&s_db_rwlock);
         return NULL;
@@ -732,7 +732,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     else
         l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC",
                 l_table_name, a_id);
-    pthread_rwlock_rdlock(&s_db_rwlock);
+    pthread_rwlock_wrlock(&s_db_rwlock);
     if(!s_db){
         pthread_rwlock_unlock(&s_db_rwlock);
         return NULL;
@@ -818,7 +818,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
         else
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC", l_table_name);
     }
-    pthread_rwlock_rdlock(&s_db_rwlock);
+    pthread_rwlock_wrlock(&s_db_rwlock);
     if(!s_db){
         pthread_rwlock_unlock(&s_db_rwlock);
         return NULL;
