@@ -1700,6 +1700,14 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
     if ( !a_es )
         return;
 
+#ifdef DAP_EVENTS_CAPS_POLL
+    if(a_es->worker){
+        assert (a_es->poll_index>=0);
+        a_es->worker->poll[a_es->poll_index].fd=-1;
+        a_es->worker->poll_esocket[a_es->poll_index]=NULL;
+    }
+#endif
+
     //log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
     dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
 
@@ -1709,6 +1717,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
         a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
 
     dap_events_socket_delete_unsafe(a_es, preserve_inheritor);
+
 }
 
 /**
