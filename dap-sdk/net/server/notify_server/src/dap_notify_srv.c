@@ -172,9 +172,9 @@ static void s_notify_server_callback_queue(dap_events_socket_t * a_es, void * a_
             dap_events_socket_write_inter(a_es->worker->queue_es_io_input[l_worker_id],l_socket_handler->esocket,
                                       a_arg,l_str_len+1);
         }
-        DAP_DELETE(a_arg);
     }
     pthread_rwlock_unlock(&s_notify_server_clients_mutex);
+    DAP_DELETE(a_arg);
 }
 
 /**
