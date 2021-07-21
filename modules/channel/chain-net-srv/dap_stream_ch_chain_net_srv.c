@@ -146,7 +146,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     dap_chain_net_srv_t * l_srv = NULL;
     dap_stream_ch_t *l_ch = a_grace->ch;
 
-    if (!dap_stream_ch_check_unsafe(a_grace->stream_worker, l_ch))
+    if (!dap_stream_ch_check_uuid_unsafe(a_grace->stream_worker, l_ch, a_grace->ch_uuid))
         goto free_exit;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = l_ch && l_ch->stream && l_ch->stream->session ?
@@ -438,6 +438,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 memcpy(l_grace->request, l_ch_pkt->data, l_ch_pkt->hdr.size);
                 l_grace->request_size = l_ch_pkt->hdr.size;
                 l_grace->ch = a_ch;
+                l_grace->ch_uuid = a_ch->uuid;
                 l_grace->stream_worker = a_ch->stream_worker;
                 s_grace_period_control(l_grace);
             } break;

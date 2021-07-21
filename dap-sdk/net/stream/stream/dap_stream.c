@@ -37,6 +37,7 @@
 
 #include "dap_common.h"
 #include "dap_timerfd.h"
+#include "dap_events.h"
 
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
@@ -789,15 +790,15 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
 
 static bool s_keepalive_cb( void )
 {
-  dap_stream_t  *l_stream, *tmp;
-  pthread_mutex_lock( &s_mutex_keepalive_list );
-  stream_pkt_hdr_t l_pkt = {0};
-  l_pkt.type = STREAM_PKT_TYPE_KEEPALIVE;
-  memcpy(l_pkt.sig, c_dap_stream_sig, sizeof(l_pkt.sig));
-  DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
-      dap_events_socket_write_mt(l_stream->stream_worker->worker, l_stream->esocket, &l_pkt, sizeof(l_pkt));
-  }
-  pthread_mutex_unlock( &s_mutex_keepalive_list );
-  return true;
+    dap_stream_t  *l_stream, *tmp;
+    pthread_mutex_lock( &s_mutex_keepalive_list );
+    stream_pkt_hdr_t l_pkt = {0};
+    l_pkt.type = STREAM_PKT_TYPE_KEEPALIVE;
+    memcpy(l_pkt.sig, c_dap_stream_sig, sizeof(l_pkt.sig));
+    DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
+      dap_events_socket_write_inter(  l_stream->stream_worker->worker, l_stream->esocket, &l_pkt, sizeof(l_pkt));
+    }
+    pthread_mutex_unlock( &s_mutex_keepalive_list );
+    return true;
 }
 

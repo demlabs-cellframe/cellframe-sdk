@@ -256,7 +256,10 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
     l_msg->esocket = a_es;
     l_msg->esocket_uuid = a_es->uuid;
     l_msg->worker_new = a_worker_new;
-    dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, l_msg);
+    if( dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, l_msg) != 0 ){
+        log_it(L_ERROR,"Haven't sent reassign message with esocket %d", a_es?a_es->socket:-1);
+        DAP_DELETE(l_msg);
+    }
 }
 
 /**
@@ -1180,6 +1183,11 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
         assert(l_es);
 
         dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
+        if(!l_es_w_data){
+            log_it(L_CRITICAL, "Can't allocate, out of memory");
+            return -1024;
+        }
+
         l_es_w_data->esocket = l_es;
         l_es_w_data->ptr = a_arg;
         EV_SET(&l_event,a_es_input->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_CLEAR | EV_ONESHOT, NOTE_FFCOPY | NOTE_TRIGGER ,0, l_es_w_data);
@@ -1189,7 +1197,13 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
             l_ret=kevent(l_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
         else
             l_ret=-100;
-        return l_ret==0? 0 : -1;
+        if(l_ret ==0 ){
+            return 0;
+        }else{
+            log_it(L_ERROR,"Can't send message in queue, code %d", l_ret);
+            DAP_DELETE(l_es_w_data);
+            return l_ret;
+        }
     }else{
         log_it(L_ERROR,"No pipe_out pointer for queue socket, possible created wrong");
         return -2;
@@ -1215,7 +1229,7 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
  */
 int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
 {
-    int l_ret;
+    int l_ret=-1024;
     int l_errno;
     if (s_debug_reactor)
         log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
@@ -1294,6 +1308,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         else {
             log_it(L_WARNING,"Trying to send pointer in pipe out queue thats not assigned to any worker or proc thread");
             l_n = 0;
+            DAP_DELETE(l_es_w_data);
         }
     }else if(a_es->worker){
         l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
@@ -1304,6 +1319,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     }else {
         log_it(L_WARNING,"Trying to send pointer in queue thats not assigned to any worker or proc thread");
         l_n = 0;
+        DAP_DELETE(l_es_w_data);
     }
 
     if(l_n == 0 ){
@@ -1312,23 +1328,24 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         l_errno = errno;
         log_it(L_ERROR,"Sending kevent error code %d", l_n);
         l_ret = -1;
-        DAP_DELETE(l_es_w_data);
     }
     
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
-    if (l_ret == sizeof(a_arg) )
-        return  0;
-    else{
+    if (l_ret == sizeof(a_arg) ){
+        return 0;
+    }else{
         // Try again
         if(l_errno == EAGAIN || l_errno == EWOULDBLOCK ){
             add_ptr_to_buf(a_es, a_arg);
             return 0;
+        }else {
+            char l_errbuf[128];
+            log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
+            DAP_DELETE(l_es_w_data);
+            return l_errno;
         }
-        char l_errbuf[128];
-        log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
-        return l_errno;
     }
 }
 
@@ -1384,6 +1401,10 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     else
         l_n = -1;
 
+    if(l_n != 0){
+        log_it(L_ERROR,"Haven't sent pointer in pipe out queue, code %d", l_n);
+        DAP_DELETE(l_es_w_data);
+    }
     return l_n;
 #else
 #error "Not implemented dap_events_socket_event_signal() for this platform"
@@ -1912,7 +1933,7 @@ void dap_events_socket_remove_and_delete_mt(dap_worker_t * a_w,  dap_events_sock
        l_es_handler->uuid = a_es->uuid;
 
     if(dap_events_socket_queue_ptr_send( a_w->queue_es_delete, l_es_handler ) != 0 ){
-        log_it(L_ERROR,"Can't send %d fd in queue", a_es->fd);
+        log_it(L_ERROR,"Can't send %d fd in queue", a_es? a_es->fd : -1);
         DAP_DELETE(l_es_handler);
     }
 }

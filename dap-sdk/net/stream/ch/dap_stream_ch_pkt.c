@@ -222,7 +222,27 @@ bool dap_stream_ch_check_unsafe(dap_stream_worker_t * a_worker,dap_stream_ch_t *
         return false;
 }
 
-
+/**
+ * @brief dap_stream_ch_check_uuid_unsafe
+ * @param a_worker
+ * @param a_ch
+ * @param a_uuid
+ * @return
+ */
+bool dap_stream_ch_check_uuid_unsafe(dap_stream_worker_t * a_worker,dap_stream_ch_t * a_ch, uint128_t a_uuid)
+{
+    if (a_ch){
+        if ( a_worker->channels){
+            dap_stream_ch_t * l_ch = NULL;
+            pthread_rwlock_rdlock(&a_worker->channels_rwlock);
+            HASH_FIND(hh_worker,a_worker->channels ,&a_ch, sizeof(a_ch), l_ch );
+            pthread_rwlock_unlock(&a_worker->channels_rwlock);
+            return l_ch == a_ch && dap_uint128_check_equal(l_ch->uuid,a_uuid);
+        }else
+            return false;
+    }else
+        return false;
+}
 
 /**
  * @brief stream_ch_pkt_write

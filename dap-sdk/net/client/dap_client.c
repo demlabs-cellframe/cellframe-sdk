@@ -605,6 +605,7 @@ const char * dap_client_get_stream_id(dap_client_t * a_client)
  */
 bool dap_client_get_is_always_reconnect(dap_client_t * a_client)
 {
+    assert(a_client);
     return DAP_CLIENT_PVT(a_client)->is_always_reconnect;
 }
 
@@ -615,6 +616,7 @@ bool dap_client_get_is_always_reconnect(dap_client_t * a_client)
  */
 void dap_client_set_is_always_reconnect(dap_client_t * a_client, bool a_value)
 {
+    assert(a_client);
     DAP_CLIENT_PVT(a_client)->is_always_reconnect = a_value;
 }
 

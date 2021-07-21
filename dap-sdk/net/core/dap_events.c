@@ -160,9 +160,9 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
     int l_retcode;
 #ifdef DAP_OS_DARWIN
     thread_affinity_policy_data_t l_policy_data={.affinity_tag = a_cpu_id};
-    thread_policy_set(l_pthread_mach_port , THREAD_AFFINITY_POLICY, (thread_policy_t)&l_policy_data , 1);
+    l_retcode = thread_policy_set(l_pthread_mach_port , THREAD_AFFINITY_POLICY, (thread_policy_t)&l_policy_data , 1);
 #elif defined(DAP_OS_ANDROID)
-    err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
+    l_retcode = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
 #else
     l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #endif
