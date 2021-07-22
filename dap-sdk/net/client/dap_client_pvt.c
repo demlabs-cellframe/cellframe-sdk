@@ -951,11 +951,13 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
                 if(json_object_get_type(val) == json_type_string) {
                     char *str = (char *) json_object_get_string(val);
                     if(!strcmp(key, "encrypt_id")) {
+                        DAP_DELETE (l_session_id_b64);
                         l_session_id_b64 = DAP_NEW_Z_SIZE(char, strlen(str) + 1);
                         strcpy(l_session_id_b64, str);
                         json_parse_count++;
                     }
                     if(!strcmp(key, "encrypt_msg")) {
+                        DAP_DELETE(l_bob_message_b64);
                         l_bob_message_b64 = DAP_NEW_Z_SIZE(char, strlen(str) + 1);
                         strcpy(l_bob_message_b64, str);
                         json_parse_count++;
@@ -1008,6 +1010,7 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
             l_client_pvt->stage_status = STAGE_STATUS_ERROR;
             s_stage_status_after(l_client_pvt);
         }
+
         DAP_DELETE(l_session_id_b64);
         DAP_DELETE(l_bob_message_b64);
     } else if(a_response_size > 1) {
