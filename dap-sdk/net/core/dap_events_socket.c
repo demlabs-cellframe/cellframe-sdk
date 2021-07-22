@@ -1343,7 +1343,6 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
         }else {
             char l_errbuf[128];
             log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
-            DAP_DELETE(l_es_w_data);
             return l_errno;
         }
     }
