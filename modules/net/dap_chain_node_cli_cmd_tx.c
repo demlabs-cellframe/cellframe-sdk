@@ -712,7 +712,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
                         dap_list_t *l_list_out_info_tmp = l_list_out_info;
                         while(l_list_out_info_tmp) {
                             l_tx_data = (dap_tx_data_t*) l_list_out_info_tmp->data;
-                            if(l_tx_data->token_ticker[0])
+                            if(l_tx_data->token_ticker && l_tx_data->token_ticker[0])
                                 break;
                             l_list_out_info_tmp = dap_list_next(l_list_out_info_tmp);
                         }
@@ -759,7 +759,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
                             dap_list_t *l_list_out_info_tmp = l_list_out_info;
                             while(l_list_out_info_tmp) {
                                 l_tx_data = (dap_tx_data_t*) l_list_out_info_tmp->data;
-                                if(l_tx_data->token_ticker[0])
+                                if(l_tx_data->token_ticker && l_tx_data->token_ticker[0])
                                     break;
                                 l_list_out_info_tmp = dap_list_next(l_list_out_info_tmp);
                             }
@@ -870,7 +870,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
 
                                 const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_records_tmp->data;
 
-                                if(l_tx_data->is_use_all_cur_out
+                                if(( l_tx_data && l_tx_data->is_use_all_cur_out )
                                         || !memcmp(&l_tx_out->addr, a_addr, sizeof(dap_chain_addr_t))) {
 
                                     char *l_addr_str = (l_tx_out) ? dap_chain_addr_to_str(&l_tx_out->addr) : NULL;
@@ -880,7 +880,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
                                         tx_hash_str = dap_strdup(l_tx_data->tx_hash_str);
                                     else
                                         tx_hash_str = dap_enc_base58_from_hex_str_to_str(l_tx_data->tx_hash_str);
-                                    if(!memcmp(&l_tx_out->addr, a_addr, sizeof(dap_chain_addr_t))) {
+                                    if(l_tx_out && a_addr &&  memcmp(&l_tx_out->addr, a_addr, sizeof(dap_chain_addr_t))==0) {
                                         if(!l_src_str_is_cur)
                                             dap_string_append_printf(l_str_out,
                                                     "tx hash %s \n %s recv %lu %s from %s\n",
@@ -1674,6 +1674,7 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
             dap_chain_enum_unlock();
             l_chain_cur = dap_chain_enum(&l_chain_tmp);
         }
+        DAP_DELETE(l_addr);
         _dap_chain_tx_hash_processed_ht_free(l_list_tx_hash_processd);
         // all chain
         if(!l_chain)

@@ -897,9 +897,15 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                                     struct link_dns_request * l_dns_request = DAP_NEW_Z(struct link_dns_request);
                                     l_dns_request->net = l_net;
                                     l_dns_request->link_id = l_link_id;
-                                    dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
+                                    if(dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
                                                                         s_net_state_link_prepare_success,
-                                                                    s_net_state_link_prepare_error,l_dns_request);
+                                                                    s_net_state_link_prepare_error,l_dns_request) != 0 ){
+                                        log_it(L_ERROR, "Can't process node info dns request");
+                                        DAP_DEL_Z(l_link_node_info);
+
+                                    }
+                                }else{
+                                    DAP_DEL_Z(l_link_node_info);
                                 }
                             }
                             l_link_id++;

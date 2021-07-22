@@ -417,7 +417,8 @@ lb_order_pass:
         if (l_order_pass_first) {
             l_order_pass_first = false;
             *a_output_orders_count = l_order_passed_index;
-            *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_orders_size);
+            if(l_orders_size)
+                *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_orders_size);
             goto lb_order_pass;
         }
         // If we here - its the second pass through

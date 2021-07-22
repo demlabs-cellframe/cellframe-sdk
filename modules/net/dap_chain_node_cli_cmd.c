@@ -121,11 +121,8 @@ dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net,
     l_addr = (dap_chain_node_addr_t*) (void*) dap_chain_global_db_gr_get(a_key, &l_addr_size,
             a_net->pub.gdb_nodes_aliases);
     if(l_addr_size != sizeof(dap_chain_node_addr_t)) {
-//        l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-//        if(hex2bin((char*) l_addr, (const unsigned char *) addr_str, sizeof(dap_chain_node_addr_t) * 2) == -1) {
         DAP_DELETE(l_addr);
-//            l_addr = NULL;
-//        }
+        l_addr = NULL;
     }
 //    DAP_DELETE(addr_str);
     return l_addr;
@@ -879,6 +876,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
     case CMD_ADD:
         if(!arg_index || a_argc < 8) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
+            DAP_DELETE(l_node_info);
             return -1;
         }
         // handler of command 'node add'
@@ -1849,7 +1847,7 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
         const char * l_certs_str = NULL;
         dap_cert_t ** l_certs = NULL;
         size_t l_certs_count = 0;
-        dap_chain_t * l_chain;
+        dap_chain_t * l_chain = NULL;
         dap_chain_net_t * l_net = NULL;
 
         dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
@@ -3102,7 +3100,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
     char * l_emission_hash_str_new = NULL;
     dap_chain_hash_fast_t l_emission_hash={0};
     dap_chain_datum_token_emission_t * l_emission = NULL;
-    char * l_emission_hash_str_base58;
+    char * l_emission_hash_str_base58 = NULL;
 
     const char * l_certs_str = NULL;
 
@@ -3302,6 +3300,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
             else
                 dap_chain_node_cli_set_reply_text(a_str_reply, "datum emission %s is not placed in datum pool ", l_emission_hash_str_base58);
             DAP_DEL_Z(l_emission_hash_str_new);
+            l_emission_hash_str = NULL;
             DAP_DEL_Z(l_emission_hash_str_base58);
             DAP_DEL_Z(l_datum_emission);
             return -1;
@@ -3344,6 +3343,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
     DAP_DEL_Z(l_out);
 
     DAP_DEL_Z(l_emission_hash_str_new);
+    l_emission_hash_str = NULL;
     DAP_DEL_Z(l_emission_hash_str_base58);
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
@@ -3725,7 +3725,7 @@ int com_tx_create(int argc, char ** argv, void *arg_func, char **str_reply)
     }
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
     dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
-    if((l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
+    if(l_net == NULL || (l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
         dap_chain_node_cli_set_reply_text(str_reply, "not found net by name '%s'", l_net_name);
         return -1;
     }

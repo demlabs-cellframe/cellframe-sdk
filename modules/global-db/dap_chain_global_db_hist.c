@@ -978,7 +978,7 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                                         dap_string_append_printf(l_str_out,
                                                 "%s in send  %lld %s from %s\n to %s\n",
                                                 l_time_str ? l_time_str : "",
-                                                l_tx_prev_out->header.value,
+                                                l_tx_prev_out?l_tx_prev_out->header.value:0,
                                                 l_tx_data->token_ticker,
                                                 l_src_str ? l_src_str : "",
                                                 l_dst_to_str);
