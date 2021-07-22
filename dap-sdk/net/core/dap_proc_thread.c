@@ -806,7 +806,7 @@ static void * s_proc_thread_function(void * a_arg)
                                     else{
                                         l_errno = errno;
                                         log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_es_w_data->ptr, l_errno);
-                                        DAP_DELETE(l_es_w_data->ptr);
+                                        DAP_DELETE(l_es_w_data);
                                     }
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
@@ -992,7 +992,11 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
     }
 
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
-    char * l_data = DAP_NEW_SIZE(char,l_data_size+1); if (!l_data) return -1;
+    char * l_data = DAP_NEW_SIZE(char,l_data_size+1);
+    if (!l_data){
+        va_end(ap_copy);
+        return -1;
+    }
     l_data_size = dap_vsprintf(l_data,a_format,ap_copy);
     va_end(ap_copy);
 

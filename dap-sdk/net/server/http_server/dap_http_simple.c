@@ -196,6 +196,7 @@ bool dap_http_simple_set_supported_user_agents( const char *user_agents, ... )
 
     if ( user_agent == NULL ) {
       log_it(L_ERROR, "Can't parse user agent string");
+      va_end(argptr);
        _free_user_agents_list();
        return NULL;
     }

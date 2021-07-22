@@ -47,7 +47,10 @@ void dap_enc_oaes_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
     a_key->last_used_timestamp = time(NULL);
 
     oaes_ctx *ctx = get_oaes_ctx(a_key);
-
+    if(ctx == NULL){
+        log_it(L_ERROR,"OAES ctx can't be NULL");
+        return;
+    }
     if(kex_size < key_size) {
         log_it(L_ERROR, "kex_size can't be less than key_size");
         return;

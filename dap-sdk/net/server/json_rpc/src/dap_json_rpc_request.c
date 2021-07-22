@@ -30,7 +30,7 @@ dap_json_rpc_request_t *dap_json_rpc_request_from_json(const char *a_data)
     json_object *l_jobj_id = NULL;
     json_object *l_jobj_method = NULL;
     json_object *l_jobj_params = NULL;
-    dap_json_rpc_request_t *l_request = DAP_NEW(dap_json_rpc_request_t);
+    dap_json_rpc_request_t *l_request = DAP_NEW_Z(dap_json_rpc_request_t);
     l_request->params = NULL;
     bool l_err_parse_request = false;
     if (l_jterr == json_tokener_success){
