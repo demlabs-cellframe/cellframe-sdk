@@ -75,9 +75,11 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
             break;
         if(memcmp(sig_start,c_dap_stream_sig,sizeof(c_dap_stream_sig))==0){
             ret= (dap_stream_pkt_t*) sig_start;
-            if(ret->hdr.size > STREAM_PKT_SIZE_MAX ){
-                //log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);
-                ret=NULL;
+            if(length_left>= sizeof (dap_stream_ch_pkt_t) ){
+                if(ret->hdr.size > STREAM_PKT_SIZE_MAX ){
+                    log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);
+                    ret=NULL;
+                }
             }
             break;
         }else
@@ -134,7 +136,7 @@ size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a
 size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data, size_t a_data_size)
 {
     size_t ret=0;
-    stream_pkt_hdr_t pkt_hdr;
+    dap_stream_pkt_hdr_t pkt_hdr;
 
     uint8_t * l_buf_allocated = NULL;
     uint8_t * l_buf_selected = a_stream->buf;
@@ -169,13 +171,13 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
 size_t dap_stream_pkt_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, dap_enc_key_t *a_key, const void * a_data, size_t a_data_size)
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
-    stream_pkt_hdr_t *l_pkt_hdr;
+    dap_stream_pkt_hdr_t *l_pkt_hdr;
     l_msg->esocket = a_es;
     if(a_es)
        l_msg->esocket_uuid = a_es->uuid; // TODO replace function signature with UUID in place of worker+esocket
     l_msg->data_size = 16-a_data_size%16+a_data_size+sizeof(*l_pkt_hdr);
     l_msg->data = DAP_NEW_SIZE(void,l_msg->data_size);
-    l_pkt_hdr=(stream_pkt_hdr_t*) l_msg->data;
+    l_pkt_hdr=(dap_stream_pkt_hdr_t*) l_msg->data;
     memset(l_pkt_hdr,0,sizeof(*l_pkt_hdr));
     memcpy(l_pkt_hdr->sig,c_dap_stream_sig,sizeof(l_pkt_hdr->sig));
     l_msg->data_size=sizeof (*l_pkt_hdr) +dap_enc_code(a_key, a_data,a_data_size, ((byte_t*)l_msg->data)+sizeof (*l_pkt_hdr),l_msg->data_size-sizeof (*l_pkt_hdr),DAP_ENC_DATA_TYPE_RAW);

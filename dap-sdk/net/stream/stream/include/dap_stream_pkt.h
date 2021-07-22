@@ -31,17 +31,17 @@ typedef struct dap_stream_session dap_stream_session_t;
 #define STREAM_PKT_TYPE_KEEPALIVE   0x11
 #define STREAM_PKT_TYPE_ALIVE       0x12
 
-typedef struct stream_pkt_hdr{
+typedef struct dap_stream_pkt_hdr{
     uint8_t sig[8];  // Signature to find out beginning of the frame
     uint32_t size;
     uint64_t timestamp;
     uint8_t type;      // Packet type
     uint64_t src_addr; // Source address ( vasya@domain.net )
     uint64_t dst_addr; // Destination address ( general#domain.net )
-}  __attribute__((packed)) stream_pkt_hdr_t;
+}  __attribute__((packed)) dap_stream_pkt_hdr_t;
 
 typedef struct dap_stream_pkt{
-    stream_pkt_hdr_t hdr;
+    dap_stream_pkt_hdr_t hdr;
     uint8_t data[];
 }  __attribute__((packed)) dap_stream_pkt_t;
 
