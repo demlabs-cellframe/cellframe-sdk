@@ -327,7 +327,9 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 case STAGE_STREAM_CONNECTED:
                 case STAGE_STREAM_STREAMING:
                     dap_stream_delete(a_client_pvt->stream);
-                    dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
+                    if(a_client_pvt->stream_es)
+                       a_client_pvt->stream_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    //dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
                     a_client_pvt->stream = NULL;
                     a_client_pvt->stream_es = NULL;
                     break;
@@ -808,7 +810,8 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     if(a_path) {
         if(l_sub_url_size){
             if(l_query_size){
-                dap_snprintf(l_path, l_path_size, "%s/%s?%s", a_path, l_sub_url_enc,
+                dap_snprintf(l_path, l_path_size, "%s/%s?%s", a_path?a_path:"",
+                             l_sub_url_enc?l_sub_url_enc:"",
                                    l_query_enc?l_query_enc:"");
             }else{
                 dap_snprintf(l_path, l_path_size, "%s/%s", a_path, l_sub_url_enc);

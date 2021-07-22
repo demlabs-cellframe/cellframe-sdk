@@ -349,7 +349,8 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
             l_http_pvt->header_length = 0;
             l_http_pvt->content_length = 0;
             l_http_pvt->were_callbacks_called = true;
-            dap_events_socket_remove_and_delete_unsafe(a_es, true);
+            a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+            //dap_events_socket_remove_and_delete_unsafe(a_es, true);
         }
 
     }

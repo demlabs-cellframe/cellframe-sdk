@@ -1218,7 +1218,7 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
         }
     }*/
     return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))
-            == sizeof(l_arg) ? 0 : 1;
+            == sizeof(l_arg) ? 0 : -1;
 #endif
 }
 
@@ -1241,10 +1241,16 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     assert(a_es->mqd);
     l_ret = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
     l_errno = errno;
+    if ( l_ret == EPERM){
+        log_it(L_ERROR,"No permissions to send data in mqueue");
+    }
+
     if (l_errno == EINVAL || l_errno == EINTR || l_errno == ETIMEDOUT)
         l_errno = EAGAIN;
     if (l_ret == 0)
         l_ret = sizeof (a_arg);
+    else if (l_ret >0)
+        l_ret = -l_ret;
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     struct timespec l_timeout;
     clock_gettime(CLOCK_REALTIME, &l_timeout);
@@ -1956,7 +1962,7 @@ void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_t *
 
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
-        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        log_it(L_ERROR, "set readable mt: wasn't send pointer to queue with set readble flag: code %d", l_ret);
         DAP_DELETE(l_msg);
     }
 }
@@ -1979,7 +1985,7 @@ void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t *
 
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
-        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        log_it(L_ERROR, "set writable mt: wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
     }
 }
@@ -1988,16 +1994,16 @@ void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_t *
  * @brief dap_events_socket_write_inter
  * @param a_es_input
  * @param a_es
+ * @param a_es_uuid
  * @param a_data
  * @param a_data_size
  * @return
  */
-size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_events_socket_t *a_es, const void * a_data, size_t a_data_size)
+size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_events_socket_t *a_es,uint128_t a_es_uuid, const void * a_data, size_t a_data_size)
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if( !l_msg) return 0;
     l_msg->esocket = a_es;
-    if(a_es)
-        l_msg->esocket_uuid = a_es->uuid;
+    l_msg->esocket_uuid = a_es_uuid;
     l_msg->data = DAP_NEW_SIZE(void,a_data_size);
     l_msg->data_size = a_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
@@ -2006,7 +2012,7 @@ size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_event
 
     int l_ret= dap_events_socket_queue_ptr_send_to_input( a_es_input, l_msg );
     if (l_ret!=0){
-        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        log_it(L_ERROR, "write inter: wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -2016,11 +2022,12 @@ size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_event
 /**
  * @brief dap_events_socket_write_f_inter
  * @param a_es_input
- * @param sc
- * @param format
+ * @param a_es
+ * @param a_es_uuid
+ * @param a_format
  * @return
  */
-size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_events_socket_t *a_es, const char * a_format,...)
+size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_events_socket_t *a_es,uint128_t a_es_uuid, const char * a_format,...)
 {
     va_list ap, ap_copy;
     va_start(ap,a_format);
@@ -2035,6 +2042,7 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
 
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket = a_es;
+    l_msg->esocket_uuid = a_es_uuid;
     l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->data_size = l_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
@@ -2043,7 +2051,7 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
 
     int l_ret= dap_events_socket_queue_ptr_send_to_input(a_es_input, l_msg );
     if (l_ret!=0){
-        log_it(L_ERROR, "Wasn't send pointer to queue input: code %d", l_ret);
+        log_it(L_ERROR, "wite f inter: wasn't send pointer to queue input: code %d", l_ret);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -2070,7 +2078,7 @@ size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, 
 
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
-        log_it(L_ERROR, "Wasn't send pointer to queue input: code %d", l_ret);
+        log_it(L_ERROR, "wite mt: wasn't send pointer to queue input: code %d", l_ret);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -2104,7 +2112,7 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
     l_data_size = dap_vsprintf(l_msg->data,format,ap_copy);
     va_end(ap_copy);
     if (l_data_size <0 ){
-        log_it(L_ERROR,"Can't write out formatted data '%s' with values",format);
+        log_it(L_ERROR,"Write f mt: can't write out formatted data '%s' with values",format);
         DAP_DELETE(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
@@ -2112,7 +2120,7 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_t *a_es
     l_msg->data_size = l_data_size;
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
-        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        log_it(L_ERROR, "Wrrite f mt: wasn't send pointer to queue: code %d", l_ret);
         DAP_DELETE(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
@@ -2154,6 +2162,10 @@ size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *a_es, const char * 
     size_t l_max_data_size = a_es->buf_out_size_max - a_es->buf_out_size;
     if (! l_max_data_size)
         return 0;
+    if(!a_es->buf_out){
+        log_it(L_ERROR,"Can't write formatted data to NULL buffer output");
+        return 0;
+    }
 
     va_list l_ap;
     va_start(l_ap, a_format);

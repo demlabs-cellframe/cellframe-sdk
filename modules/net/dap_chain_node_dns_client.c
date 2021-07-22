@@ -279,6 +279,7 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
 
     dap_worker_t * l_worker = dap_events_worker_get_auto();
     dap_events_socket_assign_on_worker_mt(l_esocket,l_worker);
+    return 0;
 }
 
 

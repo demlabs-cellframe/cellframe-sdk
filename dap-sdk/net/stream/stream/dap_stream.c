@@ -280,11 +280,11 @@ void dap_stream_delete(dap_stream_t *a_stream)
         log_it(L_ERROR,"stream delete NULL instance");
         return;
     }
-    if (a_stream->prev) {
+    //if (a_stream->prev) {
         pthread_mutex_lock(&s_mutex_keepalive_list);
         DL_DELETE(s_stream_keepalive_list, a_stream);
         pthread_mutex_unlock(&s_mutex_keepalive_list);
-    }
+    //}
 
     while (a_stream->channel_count) {
         dap_stream_ch_delete(a_stream->channel[a_stream->channel_count - 1]);
@@ -324,6 +324,7 @@ dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
 {
     dap_stream_t * ret= DAP_NEW_Z(dap_stream_t);
     ret->esocket = a_esocket;
+    ret->esocket_uuid = a_esocket->uuid;
     ret->buf_defrag_size=0;
     ret->is_client_to_uplink = true;
     pthread_mutex_lock(&s_mutex_keepalive_list);
@@ -791,12 +792,16 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
 static bool s_keepalive_cb( void )
 {
     dap_stream_t  *l_stream, *tmp;
+    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     pthread_mutex_lock( &s_mutex_keepalive_list );
     stream_pkt_hdr_t l_pkt = {0};
     l_pkt.type = STREAM_PKT_TYPE_KEEPALIVE;
     memcpy(l_pkt.sig, c_dap_stream_sig, sizeof(l_pkt.sig));
     DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
-      dap_events_socket_write_inter(  l_stream->stream_worker->worker, l_stream->esocket, &l_pkt, sizeof(l_pkt));
+        dap_events_socket_t * l_input = l_worker->queue_es_io_input [l_stream->stream_worker->worker->id];
+        dap_events_socket_write_inter( l_input,
+                                      l_stream->esocket, l_stream->esocket_uuid,
+                                      &l_pkt, sizeof(l_pkt));
     }
     pthread_mutex_unlock( &s_mutex_keepalive_list );
     return true;
