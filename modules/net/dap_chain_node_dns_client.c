@@ -208,13 +208,15 @@ static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_
  * @param a_callback_error
  * @param a_callbacks_arg
  */
-void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result,
+int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result,
                            dap_dns_client_node_info_request_success_callback_t a_callback_success,
                            dap_dns_client_node_info_request_error_callback_t a_callback_error,void * a_callbacks_arg)
 {
     log_it(L_INFO, "DNS request for bootstrap nodelist  %s : %d, net %s", inet_ntoa(a_addr), a_port, a_name);
 
     struct dns_client * l_dns_client = DAP_NEW_Z(struct dns_client);
+    if(!l_dns_client)
+        return -1;
     l_dns_client->name = dap_strdup(a_name);
     l_dns_client->callback_error = a_callback_error;
     l_dns_client->callback_success = a_callback_success;
@@ -223,10 +225,18 @@ void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, cha
 
     l_dns_client->buf_size = 1024;
     l_dns_client->buf = DAP_NEW_Z_SIZE(byte_t,l_dns_client->buf_size);
+    if (!l_dns_client->buf){
+        DAP_DELETE(l_dns_client);
+        return -2;
+    }
     l_dns_client->dns_request = DAP_NEW_Z(dap_dns_buf_t);
+    if( ! l_dns_client->dns_request){
+        DAP_DELETE(l_dns_client);
+        return -3;
+    }
     l_dns_client->dns_request->data = (char *)l_dns_client->buf;
     l_dns_client->result = a_result;
-    dap_dns_buf_put_uint16(l_dns_client->dns_request, rand() % 0xFFFF);    // ID
+    dap_dns_buf_put_uint16(l_dns_client->dns_request, rand() % 0xFFFF);     // ID
     dap_dns_message_flags_t l_flags = {};
     dap_dns_buf_put_uint16(l_dns_client->dns_request, l_flags.val);
     dap_dns_buf_put_uint16(l_dns_client->dns_request, 1);                  // we have only 1 question

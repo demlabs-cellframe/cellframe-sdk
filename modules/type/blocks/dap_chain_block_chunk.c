@@ -232,7 +232,7 @@ void dap_chain_block_chunks_sort(dap_chain_block_chunks_t * a_chunks)
             l_chunk = l_chunk_prev;
 
             // Its the last chunk
-            if ( ! l_chunk->next)
+            if (l_chunk && ! l_chunk->next)
                 a_chunks->chunks_last = l_chunk;
         }
     }

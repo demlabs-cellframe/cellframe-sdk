@@ -877,8 +877,9 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                         // if first transaction - empty prev OUT item
                         if(dap_hash_fast_is_blank(&tx_prev_hash)) {
                             // add emit info to ret string
-                            if(!memcmp(&l_tx_data->addr, a_addr, sizeof(dap_chain_addr_t)))
-                                    {
+                            if(l_tx_data && a_addr &&
+                                    ( memcmp(&l_tx_data->addr, a_addr, sizeof(dap_chain_addr_t) ) == 0 )
+                                ) {
                                 dap_list_t *l_records_tmp = l_records_out;
                                 while(l_records_tmp) {
                                     const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_records_tmp->data;
@@ -957,8 +958,10 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                                             NULL;
                                     // if use dst addr
                                     bool l_is_use_dst_addr = false;
-                                    if(!memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t)))
+                                    if(l_tx_prev_out &&  a_addr &&
+                                            ( memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t) ) == 0 )){
                                         l_is_use_dst_addr = true;
+                                    }
 
                                     l_src_str_is_cur = l_is_use_src_addr;
                                     if(l_src_addr->len <= 1) {
@@ -1367,6 +1370,9 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
     if(!(l_data_size_out_main + l_data_size_out_add_items_count)){
+        DAP_DELETE(l_data_size_out_add_items);
+        DAP_DELETE(l_group_last_id);
+        DAP_DELETE(l_group_names);
         return NULL;
     }
     dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);

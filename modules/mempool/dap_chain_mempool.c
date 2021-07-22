@@ -207,6 +207,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                                                                              a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING,"Not enough funds to transfer");
+        DAP_DELETE(l_objs);
         return -2;
     }
 
@@ -977,13 +978,13 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 
                 default: // unsupported command
                     log_it(L_INFO, "Unknown request=%s! key=%s", (suburl) ? suburl : "-", a_key);
-                    DAP_DELETE(a_key);
+                    DAP_DEL_Z(a_key);
                     enc_http_delegate_delete(dg);
                     if(key)
                         dap_enc_key_delete(key);
                     return;
                 }
-                DAP_DELETE(a_key);
+                DAP_DEL_Z(a_key);
             }
             else
                 *return_code = Http_Status_BadRequest;

@@ -40,7 +40,7 @@ typedef struct _dap_dns_buf_t {
 typedef void (*dap_dns_client_node_info_request_success_callback_t) (dap_worker_t * a_worker, dap_chain_node_info_t * , void *);
 typedef void (*dap_dns_client_node_info_request_error_callback_t) (dap_worker_t * a_worker, dap_chain_node_info_t * , void *, int);
 
-void dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result,
+int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char *a_name, dap_chain_node_info_t *a_result,
                            dap_dns_client_node_info_request_success_callback_t a_callback_success,
                            dap_dns_client_node_info_request_error_callback_t a_callback_error,void * a_callback_arg);
 
