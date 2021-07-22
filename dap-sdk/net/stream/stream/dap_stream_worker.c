@@ -173,7 +173,11 @@ size_t dap_proc_thread_stream_ch_write_f_inter(dap_proc_thread_t * a_thread,dap_
     }
 
     dap_events_socket_t * l_es_io_input = l_thread_stream->queue_ch_io_input[a_worker->id];
-    char * l_data = DAP_NEW_SIZE(char,l_data_size+1); if (!l_data) return -1;
+    char * l_data = DAP_NEW_SIZE(char,l_data_size+1);
+    if (!l_data){
+        va_end(ap_copy);
+        return -1;
+    }
     l_data_size = dap_vsprintf(l_data,a_format,ap_copy);
     va_end(ap_copy);
 

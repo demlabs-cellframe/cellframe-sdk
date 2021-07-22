@@ -462,8 +462,14 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                                    (a_token_item->auth_signs_total-i-1)*sizeof (void*));
                         }
                         a_token_item->auth_signs_total--;
-                        a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
-                        a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
+                        if(a_token_item->auth_signs_total){
+                            a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
+                            a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
+                        }else{
+                            DAP_DEL_Z(a_token_item->auth_signs);
+                            DAP_DEL_Z(a_token_item->auth_signs_pkey_hash);
+                        }
+
                         break;
                     }
                 }
@@ -498,6 +504,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                         if(s_debug_more)
                             log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD (code %d)",
                                l_add_addr_check);
+                        DAP_DELETE(l_addrs);
                         return -12;
                     }
                     // Check if its already present
@@ -508,6 +515,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                                 log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD has address %s thats already present in list",
                                    l_addr_str);
                             DAP_DELETE(l_addr_str);
+                            DAP_DELETE(l_addrs);
                             return -11;
                         }
                     }
@@ -518,6 +526,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
 
                     }else{
                         log_it(L_ERROR,"Out of memory! Can't extend TX_RECEIVER_ALLOWED array");
+                        DAP_DELETE(l_addrs);
                         return -20;
                     }
                 }else{

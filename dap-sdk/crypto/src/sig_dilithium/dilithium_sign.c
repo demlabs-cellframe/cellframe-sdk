@@ -109,7 +109,7 @@ static int32_t dilithium_private_and_public_keys_init(dilithium_private_key_t *p
 
     unsigned char *f = NULL, *g = NULL;
 
-    f = calloc(p->CRYPTO_PUBLICKEYBYTES, sizeof(char));
+    f = calloc(p->CRYPTO_PUBLICKEYBYTES, sizeof(unsigned char));
     if (f == NULL) {
         free(f);
         free(g);
@@ -118,7 +118,7 @@ static int32_t dilithium_private_and_public_keys_init(dilithium_private_key_t *p
     public_key->kind = p->kind;
     public_key->data = f;
 
-    g = calloc(p->CRYPTO_SECRETKEYBYTES, sizeof(char));
+    g = calloc(p->CRYPTO_SECRETKEYBYTES, sizeof(unsigned char));
     if (g == NULL) {
         free(f);
         free(g);
