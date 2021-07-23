@@ -215,19 +215,11 @@ static bool s_timer_update_states_callback(void * a_arg )
                     // If we do nothing - init sync process
                     if (l_ch_chain->state == CHAIN_STATE_IDLE ||l_ch_chain->state == CHAIN_STATE_SYNC_ALL ){
                         dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
-                        l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(l_node_client->remote_node_addr.uint64);
                         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-                        log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start,
-                               l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
-                        // find dap_chain_id_t
-                        dap_chain_t *l_chain = l_net->pub.chains;
-                        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
-                        dap_stream_ch_chain_pkt_write_unsafe( l_node_client->ch_chain ,
-                                                          DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ, l_net->pub.id.uint64,
-                                                                        l_chain_id.uint64, l_net->pub.cell_id.uint64,
-                                                              &l_sync_gdb, sizeof(l_sync_gdb));
+                        dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ,
+                                                             l_net->pub.id.uint64, 0, l_net->pub.cell_id.uint64,
+                                                             &l_sync_gdb, sizeof(l_sync_gdb));
                     }
-                    DAP_DELETE(l_uuid);
                     return true;
                 }
             }
@@ -279,7 +271,8 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             if (l_node_client->keep_connection) {
                 uint128_t *l_uuid = DAP_NEW(uint128_t);
                 memcpy(l_uuid, &l_node_client->uuid, sizeof(uint128_t));
-                dap_timerfd_start_on_worker(l_stream->esocket->worker,s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
+                dap_worker_exec_callback_on(l_stream->esocket->worker, s_timer_update_states_callback, l_uuid);
+                dap_timerfd_start_on_worker(l_stream->esocket->worker, s_timer_update_states * 1000, s_timer_update_states_callback, l_uuid);
             }
         }
 #ifndef _WIN32

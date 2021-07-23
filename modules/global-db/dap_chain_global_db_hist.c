@@ -1212,7 +1212,7 @@ static void *s_list_thread_proc(void *arg)
         dap_list_t *l_list = NULL;
         for (size_t i = 0; i < l_item_count; i++) {
             dap_store_obj_t *l_obj_cur = l_objs + i;
-            if (l_group_cur_name == GROUP_LOCAL_HISTORY) {
+            if (l_group_cur_name == (char *)GROUP_LOCAL_HISTORY) {
                 dap_global_db_hist_t l_rec;
                 if (dap_db_history_unpack_hist((char *)l_obj_cur->value, &l_rec) == -1)
                     continue;
@@ -1362,7 +1362,7 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
 /**
  * Get one item from log_list
  */
-dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_obj_t *a_db_log_list)
+dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 {
     if(!a_db_log_list)
         return NULL;
@@ -1397,8 +1397,8 @@ dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_obj_t *a_db_log_list)
 void dap_db_log_list_delete_item(void *a_item)
 {
     dap_db_log_list_obj_t *l_list_item = (dap_db_log_list_obj_t *)a_item;
-    dap_chain_global_db_obj_delete(l_list_item->obj);
-    DAP_DELETE(l_list_item;)
+    dap_store_obj_free(l_list_item->obj, 1);
+    DAP_DELETE(l_list_item);
 }
 
 /**

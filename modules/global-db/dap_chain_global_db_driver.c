@@ -216,7 +216,8 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, time_t a_timestamp,
         dap_store_obj_pkt_t *a_old_pkt)
 {
-    void (a_timestamp);
+    UNUSED(a_timestamp);
+
     if (!a_store_obj)
         return a_old_pkt;
 
@@ -231,26 +232,26 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
     uint64_t l_offset = l_pkt->data_size;
     l_pkt->data_size += l_data_size_out;
     l_pkt->obj_count++;
-    memcpy(l_pkt->data + l_offset, &a_store_obj.type, sizeof(int));
+    memcpy(l_pkt->data + l_offset, &a_store_obj->type, sizeof(int));
     l_offset += sizeof(int);
-    uint16_t group_size = (uint16_t) dap_strlen(a_store_obj.group);
+    uint16_t group_size = (uint16_t) dap_strlen(a_store_obj->group);
     memcpy(l_pkt->data + l_offset, &group_size, sizeof(uint16_t));
     l_offset += sizeof(uint16_t);
-    memcpy(l_pkt->data + l_offset, a_store_obj.group, group_size);
+    memcpy(l_pkt->data + l_offset, a_store_obj->group, group_size);
     l_offset += group_size;
-    memcpy(l_pkt->data + l_offset, &a_store_obj.id, sizeof(uint64_t));
+    memcpy(l_pkt->data + l_offset, &a_store_obj->id, sizeof(uint64_t));
     l_offset += sizeof(uint64_t);
-    memcpy(l_pkt->data + l_offset, &a_store_obj.timestamp, sizeof(time_t));
+    memcpy(l_pkt->data + l_offset, &a_store_obj->timestamp, sizeof(time_t));
     l_offset += sizeof(time_t);
-    uint16_t key_size = (uint16_t) dap_strlen(a_store_obj.key);
+    uint16_t key_size = (uint16_t) dap_strlen(a_store_obj->key);
     memcpy(l_pkt->data + l_offset, &key_size, sizeof(uint16_t));
     l_offset += sizeof(uint16_t);
-    memcpy(l_pkt->data + l_offset, a_store_obj.key, key_size);
+    memcpy(l_pkt->data + l_offset, a_store_obj->key, key_size);
     l_offset += key_size;
-    memcpy(l_pkt->data + l_offset, &a_store_obj.value_len, sizeof(size_t));
+    memcpy(l_pkt->data + l_offset, &a_store_obj->value_len, sizeof(size_t));
     l_offset += sizeof(size_t);
-    memcpy(l_pkt->data + l_offset, a_store_obj.value, obj.value_len);
-    l_offset += obj.value_len;
+    memcpy(l_pkt->data + l_offset, a_store_obj->value, a_store_obj->value_len);
+    l_offset += a_store_obj->value_len;
     return l_pkt;
 }
 /**

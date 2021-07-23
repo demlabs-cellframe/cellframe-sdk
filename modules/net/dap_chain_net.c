@@ -336,9 +336,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         l_obj->type = (uint8_t)a_op_code;
         DAP_DELETE(l_obj->group);
         l_obj->group = dap_strdup(a_group);
-        dap_list_t *l_list_out = dap_store_packet_multiple(l_obj, l_obj->timestamp, 1);
-        // Expect only one element in list
-        dap_store_obj_pkt_t *l_data_out = (dap_store_obj_pkt_t *)l_list_out->data;
+        dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_obj, 0, NULL);
         dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
@@ -352,7 +350,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
                                                  l_chain_id.uint64, l_net->pub.cell_id.uint64, l_data_out,
                                                  sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
-        dap_list_free_full(l_list_out, free);
+        DAP_DELETE(l_data_out);
     }
 }
 
@@ -449,11 +447,11 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-    dap_chain_node_info_t * l_link_info = a_node_client->info;
 
     a_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
 
     a_node_client->stream_worker = dap_client_get_stream_worker(a_node_client->client);
+    a_node_client->resync_gdb = l_net_pvt->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO;
     if( !a_node_client->is_reconnecting || s_debug_more )
         log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
                NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
@@ -461,31 +459,6 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     l_net_pvt->links = dap_list_append(l_net_pvt->links, a_node_client);
     l_net_pvt->links_connected_count++;
     s_net_links_notify(l_net);
-
-    // If we're fist time here - initiate the GDB sync
-    if (! a_node_client->is_reconnecting){
-        dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
-        // Get last timestamp in log if wasn't SYNC_FROM_ZERO flag
-        if (! (l_net_pvt->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO) )
-            l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(a_node_client->remote_node_addr.uint64);
-        l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-        log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
-        // find dap_chain_id_t
-        dap_chain_t *l_chain = l_net->pub.chains;
-        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
-
-        a_node_client->ch_chain = dap_client_get_stream_ch_unsafe(a_node_client->client,dap_stream_ch_chain_get_id() );
-        if (a_node_client->ch_chain)
-            a_node_client->ch_chain_uuid = a_node_client->ch_chain->uuid;
-
-        a_node_client->ch_chain_net = dap_client_get_stream_ch_unsafe(a_node_client->client,dap_stream_ch_chain_get_id() );
-        if(a_node_client->ch_chain_net)
-            a_node_client->ch_chain_net_uuid = a_node_client->ch_chain_net->uuid;
-        dap_stream_ch_chain_pkt_write_unsafe( a_node_client->ch_chain ,
-                                                           DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ, l_net->pub.id.uint64,
-                                                        l_chain_id.uint64, l_net->pub.cell_id.uint64, &l_sync_gdb, sizeof(l_sync_gdb));
-    }
-    a_node_client->is_reconnecting = false;
 
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
