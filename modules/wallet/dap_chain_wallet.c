@@ -146,8 +146,9 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_nam
         return l_wallet;
     else {
         log_it(L_ERROR,"Can't save the new wallet in disk: \"%s\"",strerror(errno));
+        dap_chain_wallet_close(l_wallet);
+        return NULL;
     }
-    return NULL;
 }
 
 /**
@@ -176,10 +177,17 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
     if(a_wallet->name)
         DAP_DELETE (a_wallet->name);
     // TODO Make clean struct dap_chain_wallet_internal_t (certs, addr)
-    DAP_DELETE(l_wallet_internal->addr);
-    DAP_DELETE(l_wallet_internal->file_name);
-    //DAP_DELETE(l_wallet_internal->certs);
-    DAP_DELETE(l_wallet_internal);
+    if(l_wallet_internal){
+        if(l_wallet_internal->addr)
+            DAP_DELETE(l_wallet_internal->addr);
+        if(l_wallet_internal->file_name)
+            DAP_DELETE(l_wallet_internal->file_name);
+        for(size_t i = 0; i<l_wallet_internal->certs_count;i++)
+            dap_cert_delete( l_wallet_internal->certs[i]);
+        DAP_DELETE(l_wallet_internal->certs);
+
+        DAP_DELETE(l_wallet_internal);
+    }
     DAP_DELETE(a_wallet);
 }
 
@@ -363,17 +371,20 @@ dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name)
                         break;
                     }
                 }
-                // read certs
-                fseek(l_file,sizeof (l_file_hdr) + sizeof(uint16_t) + name_len,SEEK_SET);
-                l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
-                for (i = 0; i < l_wallet_internal->certs_count; i++ ){
-                    dap_chain_wallet_cert_hdr_t l_cert_hdr={0};
-                    fread(&l_cert_hdr,1,sizeof(l_cert_hdr),l_file);
-                    uint8_t * l_data = DAP_NEW_SIZE(uint8_t,l_cert_hdr.cert_raw_size);
-                    fread(l_data,1,l_cert_hdr.cert_raw_size,l_file);
-                    l_wallet_internal->certs[i] = dap_cert_mem_load(l_data,l_cert_hdr.cert_raw_size);
-                    DAP_DELETE (l_data);
-                }
+                if(l_wallet_internal->certs_count){
+                    // read certs
+                    fseek(l_file,sizeof (l_file_hdr) + sizeof(uint16_t) + name_len,SEEK_SET);
+                    l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
+                    for (i = 0; i < l_wallet_internal->certs_count; i++ ){
+                        dap_chain_wallet_cert_hdr_t l_cert_hdr={0};
+                        fread(&l_cert_hdr,1,sizeof(l_cert_hdr),l_file);
+                        uint8_t * l_data = DAP_NEW_SIZE(uint8_t,l_cert_hdr.cert_raw_size);
+                        fread(l_data,1,l_cert_hdr.cert_raw_size,l_file);
+                        l_wallet_internal->certs[i] = dap_cert_mem_load(l_data,l_cert_hdr.cert_raw_size);
+                        DAP_DELETE (l_data);
+                    }
+                }else
+                    log_it(L_WARNING,"Corrupted wallet file, no certs found in it");
                 fclose(l_file);
                 return l_wallet;
             } else {

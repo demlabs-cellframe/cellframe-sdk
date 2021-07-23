@@ -38,6 +38,7 @@
 #include "dap_common.h"
 #include "dap_timerfd.h"
 
+#include "dap_events.h"
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
 #include "dap_stream_ch.h"
@@ -789,6 +790,7 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
 
 static bool s_keepalive_cb( void )
 {
+    dap_worker_t * l_worker = dap_events_worker_get_auto();
   dap_stream_t  *l_stream, *tmp;
   pthread_mutex_lock( &s_mutex_keepalive_list );
   stream_pkt_hdr_t l_pkt = {0};

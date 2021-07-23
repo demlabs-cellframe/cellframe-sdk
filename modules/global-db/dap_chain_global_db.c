@@ -246,6 +246,8 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     unlock();
     if( res != 0 )
         log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, l_storage_path);
+    else
+        log_it(L_NOTICE,"GlobalDB initialized");
     return res;
 }
 

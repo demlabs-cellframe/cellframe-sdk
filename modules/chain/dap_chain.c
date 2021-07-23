@@ -361,7 +361,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 //return NULL;
             }
             // add datum types
-            if(l_chain && l_datum_types_count > 0) {
+            if(l_chain && l_datum_types && l_datum_types_count > 0) {
                 l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
                 uint16_t l_count_recognized = 0;
                 for(uint16_t i = 0; i < l_datum_types_count; i++) {
@@ -377,7 +377,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 log_it(L_WARNING, "Can't read chain mempool auto types ", l_chain_id_str);
             }
             // add datum types
-            if(l_chain && l_datum_types_count) {
+            if(l_chain && l_datum_types && l_datum_types_count) {
                 l_chain->autoproc_datum_types = DAP_NEW_SIZE(uint16_t, l_datum_types_count * sizeof(uint16_t));
                 uint16_t l_count_recognized = 0;
                 for(uint16_t i = 0; i < l_datum_types_count; i++) {

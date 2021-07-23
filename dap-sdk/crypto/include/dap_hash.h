@@ -100,7 +100,12 @@ static inline bool dap_hash_fast_is_blank( dap_hash_fast_t *a_hash )
 
 DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_hash_fast_t *a_hash, char *a_str, size_t a_str_max )
 {
-    assert(a_str_max >= (DAP_CHAIN_HASH_FAST_SIZE * 2 + 2));
+    if(!a_str )
+        return -1;
+    if(! a_str )
+        return -2;
+    if( a_str_max < (DAP_CHAIN_HASH_FAST_SIZE * 2 + 2) )
+        return -3;
     a_str[0] = '0';
     a_str[1] = 'x';
     a_str[ DAP_CHAIN_HASH_FAST_SIZE * 2 + 2] = 0;
@@ -116,7 +121,8 @@ DAP_STATIC_INLINE char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
 {
     const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */+4/*just to be sure*/ ;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
-    dap_chain_hash_fast_to_str( a_hash, ret, c_hash_str_size );
+    if(dap_chain_hash_fast_to_str( a_hash, ret, c_hash_str_size ) < 0 )
+        DAP_DEL_Z(ret);
     return ret;
 }
 
