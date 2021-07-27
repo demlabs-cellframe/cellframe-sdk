@@ -744,17 +744,17 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 //    l_url_size = strlen(l_url);
 
     size_t l_sub_url_enc_size_max = l_sub_url_size ? (5 * l_sub_url_size + 16) : 0;
-    char *l_sub_url_enc = l_sub_url_size ? DAP_NEW_S_SIZE(char, l_sub_url_enc_size_max + 1) : NULL;
+    char *l_sub_url_enc = l_sub_url_size ? DAP_NEW_Z_SIZE(char, l_sub_url_enc_size_max + 1) : NULL;
 
     size_t l_query_enc_size_max = (is_query_enc) ? (l_query_size * 5 + 16) : l_query_size;
     char *l_query_enc =
-            (is_query_enc) ? (l_query_size ? DAP_NEW_S_SIZE(char, l_query_enc_size_max + 1) : NULL) : (char*) a_query;
+            (is_query_enc) ? (l_query_size ? DAP_NEW_Z_SIZE(char, l_query_enc_size_max + 1) : NULL) : (char*) a_query;
 
 //    size_t l_url_full_size_max = 5 * l_sub_url_size + 5 * l_query_size + 16 + l_url_size + 2;
 //    char * l_url_full = DAP_NEW_Z_SIZE(char, l_url_full_size_max + 1);
 
     size_t l_request_enc_size_max = a_request_size ? a_request_size * 2 + 16 : 0;
-    char * l_request_enc = a_request_size ? DAP_NEW_S_SIZE(char, l_request_enc_size_max + 1) : NULL;
+    char * l_request_enc = a_request_size ? DAP_NEW_Z_SIZE(char, l_request_enc_size_max + 1) : NULL;
     size_t l_request_enc_size = 0;
 
     a_client_internal->request_response_callback = a_response_proc;
@@ -805,7 +805,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 */
     int l_off;
     size_t l_path_size= l_query_enc_size_max + l_sub_url_enc_size_max + 1;
-    char *l_path = DAP_NEW_S_SIZE(char, l_path_size);
+    char *l_path = DAP_NEW_Z_SIZE(char, l_path_size);
     l_path[0] = '\0';
     if(a_path) {
         if(l_sub_url_size){
@@ -822,7 +822,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     }
 
     size_t size_required = a_client_internal->session_key_id ? strlen(a_client_internal->session_key_id) + 40 : 40;
-    char *l_custom = DAP_NEW_S_SIZE(char, size_required);
+    char *l_custom = DAP_NEW_Z_SIZE(char, size_required);
     size_t l_off2 = size_required;
 
     l_off = dap_snprintf(l_custom, l_off2, "KeyID: %s\r\n", a_client_internal->session_key_id ? a_client_internal->session_key_id : "NULL");
@@ -834,6 +834,16 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     dap_client_http_request(a_client_internal->worker, a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
                 l_path, l_request_enc, l_request_enc_size, NULL,
                 s_request_response, s_request_error, a_client_internal, l_custom);
+    if(l_sub_url_enc)
+        DAP_DELETE(l_sub_url_enc);
+    if(l_custom)
+        DAP_DELETE(l_custom);
+    if(l_query_enc)
+        DAP_DELETE(l_query_enc);
+    if(l_path)
+        DAP_DELETE(l_path);
+    if(l_request_enc)
+        DAP_DELETE(l_request_enc);
 }
 
 /**
