@@ -130,6 +130,7 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
 dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
 void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t a_callback, void * a_arg);
 
+bool dap_worker_check_esocket_polled_now(); // Check if esocket is right now polled and present in list
 // Thread function
 void *dap_worker_thread(void *arg);
 
