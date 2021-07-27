@@ -87,8 +87,13 @@ void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high valu
 dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
 {
     dap_timerfd_t* l_timerfd = dap_timerfd_create( a_timeout_ms, a_callback, a_callback_arg);
-    dap_worker_add_events_socket(l_timerfd->events_socket, a_worker);
-    return l_timerfd;
+    if(l_timerfd){
+        dap_worker_add_events_socket(l_timerfd->events_socket, a_worker);
+        return l_timerfd;
+    }else{
+        log_it(L_CRITICAL,"Can't create timer");
+        return NULL;
+    }
 }
 
 /**
@@ -115,6 +120,8 @@ dap_timerfd_t* dap_timerfd_start_on_proc_thread(dap_proc_thread_t * a_proc_threa
 dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
 {
     dap_timerfd_t *l_timerfd = DAP_NEW(dap_timerfd_t);
+    if(!l_timerfd)
+        return NULL;
     // create events_socket for timer file descriptor
     dap_events_socket_callbacks_t l_s_callbacks;
     memset(&l_s_callbacks,0,sizeof (l_s_callbacks));
