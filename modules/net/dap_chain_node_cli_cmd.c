@@ -2039,8 +2039,8 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
             }
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "token_decl_sign can't find datum with %s hash in the mempool of %s:%s",l_datum_hash_out_str, l_net->pub.name,
-                    l_chain->name);
+                    "token_decl_sign can't find datum with %s hash in the mempool of %s:%s",l_datum_hash_out_str,l_net? l_net->pub.name: "<undefined>",
+                    l_chain?l_chain->name:"<undefined>");
             return -5;
         }
         DAP_DELETE(l_datum_hash_hex_str);

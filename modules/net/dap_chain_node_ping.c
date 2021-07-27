@@ -118,6 +118,7 @@ static void* node_ping_proc(void *a_arg)
         SOCKET l_socket = socket( PF_INET, SOCK_STREAM, 0);
         if(l_socket == INVALID_SOCKET) {
             log_it(L_ERROR, "Can't create socket");
+            DAP_DELETE(host4);
             return (void*) -1;
         }
         clock_gettime(CLOCK_MONOTONIC, &l_time_start);
@@ -146,6 +147,7 @@ static void* node_ping_proc(void *a_arg)
         else {
             ; //log_it(L_INFO, "Can't connect to node for ping");
         }
+        DAP_DELETE(host4);
         closesocket(l_socket);
     }
     return (void*) res;
