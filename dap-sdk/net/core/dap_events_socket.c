@@ -1750,8 +1750,8 @@ void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_
     l_es_handler->esocket = a_es;
     l_es_handler->uuid = a_es->uuid;
     l_es_handler->value = a_preserve_inheritor ? 1 : 0;
-    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
     dap_events_socket_descriptor_close(a_es);
+
     dap_timerfd_start_on_worker(a_es->worker, s_delayed_ops_timeout_ms,
                                 s_remove_and_delete_unsafe_delayed_delete_callback, l_es_handler );
 }
