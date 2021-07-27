@@ -138,29 +138,18 @@ static bool s_dns_client_esocket_timeout_callback(void * a_arg)
     dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
     assert(l_worker);
 
-    if(dap_events_socket_check_unsafe(l_worker ,l_es)){
-        if(dap_uint128_check_equal(l_es->uuid, l_es_handler->uuid)){ // Pointer is present but alien
-            DAP_DELETE(l_es_handler);
-            return false;
-        }else
-            DAP_DELETE(l_es_handler);
-    }else{ // No such pointer
-        DAP_DELETE(l_es_handler);
-        return false;
-    }
 
-
-    struct dns_client * l_dns_client = (struct dns_client*) l_es->_inheritor;
-
-    if(dap_events_socket_check_unsafe(l_worker, l_es) ){ // If we've not closed this esocket
+    if(dap_events_socket_check_uuid_unsafe(l_worker ,l_es, l_es_handler->uuid) ){ // If we've not closed this esocket
+        struct dns_client * l_dns_client = (struct dns_client*) l_es->_inheritor;
         log_it(L_WARNING,"DNS request timeout, bad network?");
         if(! l_dns_client->is_callbacks_called ){
             l_dns_client->callback_error(l_es->worker,l_dns_client->result,l_dns_client->callbacks_arg,ETIMEDOUT);
             l_dns_client->is_callbacks_called = true;
         }
 
-        dap_events_socket_remove_and_delete_unsafe( l_es, false);
+        dap_events_socket_remove_and_delete_unsafe_delayed( l_es, false);
     }
+    DAP_DELETE(l_es_handler);
     return false;
 }
 

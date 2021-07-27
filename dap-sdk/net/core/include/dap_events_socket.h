@@ -283,6 +283,10 @@ typedef struct dap_events_socket {
 typedef struct dap_events_socket_handler{
     dap_events_socket_t * esocket;
     uint128_t uuid;
+    struct {
+        uint64_t value; // some custom data
+        void * ptr;
+    };
 } dap_events_socket_handler_t;
 
 
@@ -362,6 +366,12 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
 
 void dap_events_socket_remove_and_delete_mt( dap_worker_t * a_w, dap_events_socket_t* a_es);
 void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor );
+
+// Delayed removed
+void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_es, bool a_preserve_inheritor);
+
+// Just close socket descriptor
+void dap_events_socket_descriptor_close(dap_events_socket_t *a_socket);
 
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker);
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);

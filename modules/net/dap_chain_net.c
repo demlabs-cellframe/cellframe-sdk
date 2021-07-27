@@ -451,9 +451,17 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     dap_chain_node_info_t * l_link_info = a_node_client->info;
 
-    a_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
+
 
     a_node_client->stream_worker = dap_client_get_stream_worker(a_node_client->client);
+    if(a_node_client->stream_worker == NULL){
+        log_it(L_ERROR, "Stream worker is NULL in connected() callback, do nothing");
+        a_node_client->state = NODE_CLIENT_STATE_ERROR;
+        return;
+    }
+
+    a_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
+
     if( !a_node_client->is_reconnecting || s_debug_more )
         log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
                NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));

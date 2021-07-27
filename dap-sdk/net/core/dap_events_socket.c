@@ -104,6 +104,10 @@ struct queue_ptr_input_pvt{
 #define PVT_QUEUE_PTR_INPUT(a) ( (struct queue_ptr_input_pvt*) (a)->_pvt )
 
 static bool s_debug_reactor = false;
+static uint64_t s_delayed_ops_timeout_ms = 5000;
+bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
+
+
 
 /**
  * @brief dap_events_socket_init Init clients module
@@ -1717,6 +1721,41 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
 
 }
 
+
+/**
+ * @brief s_remove_and_delete_unsafe_delayed_delete_callback
+ * @param arg
+ * @return
+ */
+bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg)
+{
+    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_events_socket_handler_t * l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    assert(l_es_handler);
+    assert(l_worker);
+    if(dap_events_socket_check_uuid_unsafe(l_worker, l_es_handler->esocket, l_es_handler->uuid))
+        dap_events_socket_remove_and_delete_unsafe(l_es_handler->esocket,l_es_handler->value == 1);
+    DAP_DELETE(l_es_handler);
+    return false;
+}
+
+/**
+ * @brief dap_events_socket_remove_and_delete_unsafe_delayed
+ * @param a_es
+ * @param a_preserve_inheritor
+ */
+void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_es, bool a_preserve_inheritor )
+{
+    dap_events_socket_handler_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+    l_es_handler->esocket = a_es;
+    l_es_handler->uuid = a_es->uuid;
+    l_es_handler->value = a_preserve_inheritor ? 1 : 0;
+    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
+    dap_events_socket_descriptor_close(a_es);
+    dap_timerfd_start_on_worker(a_es->worker, s_delayed_ops_timeout_ms,
+                                s_remove_and_delete_unsafe_delayed_delete_callback, l_es_handler );
+}
+
 /**
  * @brief dap_events_socket_remove Removes the client from the list
  * @param sc Connection instance
@@ -1744,6 +1783,27 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 
     dap_events_socket_delete_unsafe(a_es, preserve_inheritor);
 
+}
+
+/**
+ * @brief dap_events_socket_descriptor_close
+ * @param a_socket
+ */
+void dap_events_socket_descriptor_close(dap_events_socket_t *a_esocket)
+{
+#ifdef DAP_OS_WINDOWS
+    if ( a_esocket->socket && (a_esocket->socket != INVALID_SOCKET)) {
+        closesocket( a_esocket->socket );
+#else
+    if ( a_esocket->socket && (a_esocket->socket != -1)) {
+            close( a_esocket->socket );
+        if( a_esocket->fd2 > 0 ){
+            close( a_esocket->fd2);
+        }
+#endif
+    }
+    a_esocket->fd2 = -1;
+    a_esocket->fd = -1;
 }
 
 /**
@@ -1785,18 +1845,9 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->buf_in)
     DAP_DEL_Z(a_esocket->buf_out)
     DAP_DEL_Z(a_esocket->remote_addr_str)
-#ifdef DAP_OS_WINDOWS
-    if ( a_esocket->socket && (a_esocket->socket != INVALID_SOCKET)) {
-        closesocket( a_esocket->socket );
-#else
-        if ( a_esocket->socket && (a_esocket->socket != -1)) {
-    	    close( a_esocket->socket );
-        if( a_esocket->fd2 > 0 ){
-            close( a_esocket->fd2);
-        }
 
-#endif
-    }
+    dap_events_socket_descriptor_close(a_esocket);
+
     DAP_DEL_Z( a_esocket )
 }
 
