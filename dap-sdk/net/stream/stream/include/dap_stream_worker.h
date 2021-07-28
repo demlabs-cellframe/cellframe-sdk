@@ -35,7 +35,7 @@ typedef struct dap_stream_worker {
 #define DAP_STREAM_WORKER(a) ((dap_stream_worker_t*) (a->_inheritor)  )
 
 typedef struct dap_stream_worker_msg_io {
-    dap_stream_ch_t * ch; // Channel that has operations with
+    dap_stream_ch_uuid_t ch_uuid;
     uint32_t flags_set; // set flags
     uint32_t flags_unset; // unset flags
     uint8_t ch_pkt_type;
@@ -45,7 +45,7 @@ typedef struct dap_stream_worker_msg_io {
 
 int dap_stream_worker_init();
 
-size_t dap_proc_thread_stream_ch_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker, dap_stream_ch_t *a_ch,
+size_t dap_proc_thread_stream_ch_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker, dap_stream_ch_uuid_t a_ch_uuid,
                                         uint8_t a_type,const void * a_data, size_t a_data_size);
-size_t dap_proc_thread_stream_ch_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_stream_ch_t *a_ch,
+size_t dap_proc_thread_stream_ch_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_stream_ch_uuid_t a_ch_uuid,
                                         uint8_t a_type,const char * a_format,...);

@@ -95,14 +95,13 @@ typedef struct dap_worker
 // Message for reassigment
 typedef struct dap_worker_msg_reassign{
     dap_events_socket_t * esocket;
-    uint128_t esocket_uuid;
+    dap_events_socket_uuid_t esocket_uuid;
     dap_worker_t * worker_new;
 } dap_worker_msg_reassign_t;
 
 // Message for input/output queue
 typedef struct dap_worker_msg_io{
-    dap_events_socket_t * esocket;
-    uint128_t esocket_uuid;
+    dap_events_socket_uuid_t esocket_uuid;
     size_t data_size;
     void *data;
     uint32_t flags_set;

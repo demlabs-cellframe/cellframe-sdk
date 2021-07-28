@@ -54,6 +54,7 @@ typedef struct dap_timerfd {
     int tfd; //timer file descriptor
 #endif
     dap_events_socket_t *events_socket;
+    dap_events_socket_uuid_t esocket_uuid;
     dap_timerfd_callback_t callback;
     void *callback_arg;
 #ifdef DAP_OS_WINDOWS

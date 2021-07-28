@@ -916,7 +916,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     if(l_es_new->socket!=0 && l_es_new->socket != -1)
 
 #endif
-    if(dap_events_socket_check_unsafe( l_worker, l_es_new)){
+    if(dap_worker_esocket_find_uuid( l_worker, l_es_new->uuid)){
         // Socket already present in worker, it's OK
         return;
     }
@@ -950,12 +950,11 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     if (  l_ret != 0 ){
         log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
     }else{
-        // Add in global list
         // Add in worker
         l_es_new->me = l_es_new;
         if (l_es_new->socket!=0 && l_es_new->socket != -1){
             pthread_rwlock_wrlock(&l_worker->esocket_rwlock);
-            HASH_ADD(hh_worker, l_worker->esockets, me, sizeof(void *), l_es_new );
+            HASH_ADD(hh_worker, l_worker->esockets, uuid, sizeof(l_es_new->uuid), l_es_new );
             l_worker->event_sockets_count++;
             pthread_rwlock_unlock(&l_worker->esocket_rwlock);
         }
@@ -973,13 +972,14 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
  */
 static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
-    dap_events_socket_handler_t * l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    dap_events_socket_handle_t * l_es_handler = (dap_events_socket_handle_t*) a_arg;
     assert(l_es_handler);
-    dap_events_socket_t * l_esocket = (dap_events_socket_t*) l_es_handler->esocket;
-    if (dap_events_socket_check_uuid_unsafe (a_es->worker,l_esocket, l_es_handler->uuid)){
-        l_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
+    dap_events_socket_t * l_es;
+    if ( (l_es = dap_worker_esocket_find_uuid(a_es->worker,l_es_handler->esocket_uuid)) != NULL ){
+        //l_es->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
+        dap_events_socket_remove_and_delete_unsafe_delayed(l_es,false);
     }else
-        log_it(L_INFO, "While we were sending the delete() message, esocket %p has been disconnected ", l_esocket);
+        log_it(L_INFO, "While we were sending the delete() message, esocket %llu has been disconnected ", l_es_handler->esocket_uuid);
     DAP_DELETE(l_es_handler);
 }
 
@@ -990,9 +990,13 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
  */
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg)
 {
+    assert(a_es);
+    dap_worker_t * l_worker = a_es->worker;
+    assert(l_worker);
     dap_worker_msg_reassign_t * l_msg = (dap_worker_msg_reassign_t*) a_arg;
-    dap_events_socket_t * l_es_reassign = l_msg->esocket;
-    if (dap_events_socket_check_uuid_unsafe(a_es->worker,l_es_reassign, l_msg->esocket_uuid)){
+    assert(l_msg);
+    dap_events_socket_t * l_es_reassign;
+    if ( ( l_es_reassign = dap_worker_esocket_find_uuid(l_worker, l_msg->esocket_uuid))!= NULL ){
         if( l_es_reassign->was_reassigned && l_es_reassign->flags & DAP_SOCK_REASSIGN_ONCE) {
             log_it(L_INFO, "Reassgment request with DAP_SOCK_REASSIGN_ONCE allowed only once, declined reassigment from %u to %u",
                    l_es_reassign->worker->id, l_msg->worker_new->id);
@@ -1040,15 +1044,18 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
  */
 static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
 {
+    assert(a_es);
+    dap_worker_t * l_worker = a_es->worker;
     dap_worker_msg_io_t * l_msg = a_arg;
-
+    assert(l_msg);
     // Check if it was removed from the list
-    if ( !dap_events_socket_check_uuid_unsafe(a_es->worker,l_msg->esocket,l_msg->esocket_uuid)){
-        log_it(L_INFO, "We got i/o message for esocket %p thats now not in list. Lost %u data", l_msg->esocket, l_msg->data_size);
+    dap_events_socket_t *l_msg_es = dap_worker_esocket_find_uuid(l_worker, l_msg->esocket_uuid);
+    if ( l_msg_es == NULL){
+        log_it(L_INFO, "We got i/o message for esocket %llu thats now not in list. Lost %u data", l_msg->esocket_uuid, l_msg->data_size);
         DAP_DELETE(l_msg);
         return;
     }
-    dap_events_socket_t *l_msg_es = l_msg->esocket;
+
     if (l_msg->flags_set & DAP_SOCK_CONNECTING)
         if (!  (l_msg_es->flags & DAP_SOCK_CONNECTING) ){
             l_msg_es->flags |= DAP_SOCK_CONNECTING;
@@ -1082,7 +1089,7 @@ static bool s_socket_all_check_activity( void * a_arg)
 {
     dap_worker_t *l_worker = (dap_worker_t*) a_arg;
     assert(l_worker);
-    dap_events_socket_t *l_es, *tmp;
+    dap_events_socket_t *l_es = NULL, *tmp = NULL;
     char l_curtimebuf[64];
     time_t l_curtime= time(NULL);
     dap_ctime_r(&l_curtime, l_curtimebuf);
@@ -1096,7 +1103,7 @@ static bool s_socket_all_check_activity( void * a_arg)
                 if (l_es->callbacks.error_callback) {
                     l_es->callbacks.error_callback(l_es, ETIMEDOUT);
                 }
-                dap_events_socket_remove_and_delete_mt( l_worker, l_es);
+                dap_events_socket_remove_and_delete_unsafe_delayed(l_es,false);
             }
         }
     }

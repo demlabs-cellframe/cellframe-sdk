@@ -180,15 +180,14 @@ void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms)
  */
 static bool s_timer_timeout_after_connected_check(void * a_arg)
 {
-    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    dap_events_socket_handle_t *l_es_handler = (dap_events_socket_handle_t*) a_arg;
     assert(l_es_handler);
 
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default()); // We're in own esocket context
     assert(l_worker);
 
-    if(dap_events_socket_check_uuid_unsafe( l_worker, l_es_handler->esocket,l_es_handler->uuid ) ){
-        dap_events_socket_t * l_es = l_es_handler->esocket;
-        assert(l_es);
+    dap_events_socket_t * l_es;
+    if(l_es = dap_worker_esocket_find_uuid( l_worker, l_es_handler->esocket_uuid ) ){
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
         assert(l_http_pvt);
         if ( time(NULL)- l_http_pvt->ts_last_read >= (time_t) s_client_timeout_read_after_connect_ms){
@@ -206,7 +205,7 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
         }
     }else{
         if(s_debug_more)
-            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es_handler->esocket);
+            log_it(L_DEBUG,"Esocket %llu is finished, close check timer", l_es_handler->esocket_uuid);
     }
     DAP_DEL_Z(l_es_handler)
     return false;
@@ -220,23 +219,14 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
  */
 static bool s_timer_timeout_check(void * a_arg)
 {
-    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    dap_events_socket_handle_t *l_es_handler = (dap_events_socket_handle_t*) a_arg;
     assert(l_es_handler);
-    dap_events_socket_t * l_es = l_es_handler->esocket;
-    assert(l_es);
-    dap_events_t * l_events = dap_events_get_default();
-    assert(l_events);
 
-    dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
+    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default()); // We're in own esocket context
     assert(l_worker);
 
-    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
-        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            if(s_debug_more)
-                log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
-            DAP_DEL_Z(l_es_handler)
-            return false;
-        }
+    dap_events_socket_t * l_es;
+    if(l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid)){
         if (l_es->flags & DAP_SOCK_CONNECTING ){
             dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
             log_it(L_WARNING,"Connecting timeout for request http://%s:%u/%s, possible network problems or host is down",
@@ -254,7 +244,7 @@ static bool s_timer_timeout_check(void * a_arg)
                 log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
-            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+            log_it(L_DEBUG,"Esocket %llu is finished, close check timer", l_es_handler->esocket_uuid);
 
     DAP_DEL_Z(l_es_handler)
     return false;
@@ -646,9 +636,8 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
         l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
         dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
-        dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-        l_ev_socket_handler->esocket = l_ev_socket;
-        l_ev_socket_handler->uuid = l_ev_socket->uuid;
+        dap_events_socket_handle_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handle_t);
+        l_ev_socket_handler->esocket_uuid = l_ev_socket->uuid;
         dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_socket_handler);
         return l_http_pvt;
     }
@@ -686,9 +675,9 @@ static void s_http_ssl_connected(dap_events_socket_t * a_esocket)
     a_esocket->flags |= DAP_SOCK_CONNECTING;
     a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
     a_esocket->callbacks.connected_callback = s_http_connected;
-    dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
+    dap_events_socket_handle_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handle_t);
     l_ev_socket_handler->esocket = a_esocket;
-    l_ev_socket_handler->uuid = a_esocket->uuid;
+    l_ev_socket_handler->esocket_uuid = a_esocket->uuid;
     dap_timerfd_start_on_worker(l_http_pvt->worker, s_client_timeout_ms, s_timer_timeout_check, l_ev_socket_handler);
 }
 #endif
@@ -709,9 +698,8 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     // add to dap_worker
     //dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*) a_obj;
     //dap_events_new();
-    dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-    l_ev_socket_handler->esocket = a_esocket;
-    l_ev_socket_handler->uuid = a_esocket->uuid;
+    dap_events_socket_handle_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handle_t);
+    l_ev_socket_handler->esocket_uuid = a_esocket->uuid;
     dap_timerfd_start_on_worker(l_http_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_ms * 1000, s_timer_timeout_after_connected_check, l_ev_socket_handler);
 
     char l_request_headers[1024] = { [0]='\0' };

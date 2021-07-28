@@ -128,18 +128,17 @@ static void s_dns_client_esocket_error_callback(dap_events_socket_t * a_esocket,
  */
 static bool s_dns_client_esocket_timeout_callback(void * a_arg)
 {
-    dap_events_socket_handler_t * l_es_handler = (dap_events_socket_handler_t *) a_arg;
+    dap_events_socket_handle_t * l_es_handler = (dap_events_socket_handle_t *) a_arg;
     assert(l_es_handler);
-    dap_events_socket_t * l_es = l_es_handler->esocket;
-    assert(l_es);
+
     dap_events_t * l_events = dap_events_get_default();
     assert(l_events);
 
     dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
     assert(l_worker);
 
-
-    if(dap_events_socket_check_uuid_unsafe(l_worker ,l_es, l_es_handler->uuid) ){ // If we've not closed this esocket
+    dap_events_socket_t * l_es;
+    if((l_es = dap_worker_esocket_find_uuid(l_worker ,l_es_handler->esocket_uuid) ) != NULL){ // If we've not closed this esocket
         struct dns_client * l_dns_client = (struct dns_client*) l_es->_inheritor;
         log_it(L_WARNING,"DNS request timeout, bad network?");
         if(! l_dns_client->is_callbacks_called ){
@@ -179,9 +178,8 @@ static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_
     struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
     dap_events_socket_write_unsafe(a_esocket,l_dns_client->dns_request->data, l_dns_client->dns_request->size );
 
-    dap_events_socket_handler_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-    l_es_handler->esocket = a_esocket;
-    l_es_handler->uuid = a_esocket->uuid;
+    dap_events_socket_handle_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handle_t);
+    l_es_handler->esocket_uuid = a_esocket->uuid;
     dap_timerfd_start_on_worker(a_worker, dap_config_get_item_uint64_default(g_config,"dns_client","request_timeout",10)*1000,
                                  s_dns_client_esocket_timeout_callback,l_es_handler);
 

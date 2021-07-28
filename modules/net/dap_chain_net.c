@@ -342,16 +342,14 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
+        pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
-            dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
-            if (!l_ch_chain) {
-                continue;
-            }
-            dap_stream_ch_chain_pkt_write_mt( dap_client_get_stream_worker(l_node_client->client), l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
+            dap_stream_ch_chain_pkt_write_mt( dap_client_get_stream_worker(l_node_client->client), l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                  l_chain_id.uint64, l_net->pub.cell_id.uint64, l_data_out,
                                                  sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
+        pthread_rwlock_unlock(&PVT(l_net)->rwlock);
         dap_list_free_full(l_list_out, free);
     }
 }
@@ -391,17 +389,13 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (PVT(l_net)->state == NET_STATE_ONLINE) {
+        pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
-            uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db and chains sync
-            dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
-            if (!l_ch_chain) {
-                log_it(L_DEBUG,"Can't get stream_ch for id='%c' ", l_ch_id);
-                continue;
-            }
-            dap_stream_ch_chain_pkt_write_mt( dap_client_get_stream_worker( l_node_client->client),  l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+            dap_stream_ch_chain_pkt_write_mt( dap_client_get_stream_worker( l_node_client->client), l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
                                               l_net->pub.id.uint64, a_chain->id.uint64, a_id.uint64, a_atom, a_atom_size);
         }
+        pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     }
 }
 

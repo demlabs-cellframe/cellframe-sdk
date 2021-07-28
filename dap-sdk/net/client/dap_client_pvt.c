@@ -206,9 +206,9 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
             a_client_pvt->uplink_port, a_client_pvt->stream_socket, a_client_pvt->stream_worker->worker->id);
     a_client_pvt->stage_status = STAGE_STATUS_DONE;
     s_stage_status_after(a_client_pvt);
-    dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-    l_ev_socket_handler->esocket = a_client_pvt->stream_es;
-    l_ev_socket_handler->uuid = a_client_pvt->stream_es->uuid;
+    dap_events_socket_handle_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handle_t);
+    assert(a_client_pvt->stream_es);
+    l_ev_socket_handler->esocket_uuid = a_client_pvt->stream_es->uuid;
     dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_read_after_connect * 1000, s_stream_timer_timeout_after_connected_check ,l_ev_socket_handler);
 }
 
@@ -219,23 +219,14 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
  */
 static bool s_stream_timer_timeout_check(void * a_arg)
 {
-    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    dap_events_socket_handle_t *l_es_handler = (dap_events_socket_handle_t*) a_arg;
     assert(l_es_handler);
-    dap_events_socket_t * l_es = l_es_handler->esocket;
-    assert(l_es);
-    dap_events_t * l_events = dap_events_get_default();
-    assert(l_events);
 
-    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker); // We're in own esocket context
+    dap_worker_t *l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
 
-    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
-        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            if(s_debug_more)
-                log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
-            DAP_DEL_Z(l_es_handler)
-            return false;
-        }
+    dap_events_socket_t * l_es;
+    if(l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid ) ){
         if (l_es->flags & DAP_SOCK_CONNECTING ){
             dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
 
@@ -253,7 +244,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
                 log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
-            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+            log_it(L_DEBUG,"Esocket %llu is finished, close check timer", l_es_handler->esocket_uuid);
 
     DAP_DEL_Z(l_es_handler)
     return false;
@@ -266,23 +257,14 @@ static bool s_stream_timer_timeout_check(void * a_arg)
  */
 static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
 {
-    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
+    dap_events_socket_handle_t *l_es_handler = (dap_events_socket_handle_t*) a_arg;
     assert(l_es_handler);
-    dap_events_socket_t * l_es = l_es_handler->esocket;
-    assert(l_es);
-    dap_events_t * l_events = dap_events_get_default();
-    assert(l_events);
 
-    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker); // We're in own esocket context
+    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
 
-    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
-        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            if(s_debug_more)
-                log_it(L_DEBUG,"Streaming socket timer wrong argument, ignore this timeout...");
-            DAP_DEL_Z(l_es_handler)
-            return false;
-        }
+    dap_events_socket_t * l_es;
+    if( l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid) ){
         dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
         if ( time(NULL)- l_client_pvt->ts_last_read >= s_client_timeout_read_after_connect){
 
@@ -300,7 +282,7 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
                 log_it(L_DEBUG,"Streaming socket %d is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
-            log_it(L_DEBUG,"Streaming socket %p is finished, close check timer", l_es);
+            log_it(L_DEBUG,"Streaming socket %llu is finished, close check timer", l_es_handler->esocket_uuid);
 
     DAP_DEL_Z(l_es_handler)
     return false;
@@ -502,9 +484,9 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
 
                             // Add check timer
-                            dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-                            l_stream_es_handler->esocket = a_client_pvt->stream_es;
-                            l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
+                            dap_events_socket_handle_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handle_t);
+                            assert(a_client_pvt->stream_es);
+                            l_stream_es_handler->esocket_uuid = a_client_pvt->stream_es->uuid;
                             dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect * 1000,
                                                         s_stream_timer_timeout_check,l_stream_es_handler);
                         }
@@ -531,9 +513,9 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             log_it(L_INFO,"Connecting stream to remote %s:%u",a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                             // add to dap_worker
                             dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
-                            dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-                            l_stream_es_handler->esocket = a_client_pvt->stream_es;
-                            l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
+                            dap_events_socket_handle_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handle_t);
+                            assert (a_client_pvt->stream_es);
+                            l_stream_es_handler->esocket_uuid = a_client_pvt->stream_es->uuid;
                             dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect * 1000,
                                                         s_stream_timer_timeout_check,l_stream_es_handler);
                         }

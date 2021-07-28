@@ -629,11 +629,12 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         found_sig=true;
 
         //dap_stream_pkt_t *temp_pkt = dap_stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
-        if(bytes_left_to_read >= sizeof (dap_stream_pkt_t))
-        if(bytes_left_to_read  <(pkt->hdr.size+sizeof(dap_stream_pkt_t) )){ // Is all the packet in da buf?
-            read_bytes_to=bytes_left_to_read;
-        }else{
-            read_bytes_to=pkt->hdr.size+sizeof(dap_stream_pkt_t);
+        if(bytes_left_to_read >= sizeof (dap_stream_pkt_t)){
+            if(bytes_left_to_read  <(pkt->hdr.size+sizeof(dap_stream_pkt_t) )){ // Is all the packet in da buf?
+                read_bytes_to=bytes_left_to_read;
+            }else{
+                read_bytes_to=pkt->hdr.size+sizeof(dap_stream_pkt_t);
+            }
         }
 
         //log_it(L_DEBUG, "Detected packet signature pkt->hdr.size=%u read_bytes_to=%u bytes_left_to_read=%u pkt_offset=%u"
@@ -800,8 +801,7 @@ static bool s_keepalive_cb( void )
     memcpy(l_pkt.sig, c_dap_stream_sig, sizeof(l_pkt.sig));
     DL_FOREACH_SAFE( s_stream_keepalive_list, l_stream, tmp ) {
         dap_events_socket_t * l_input = l_worker->queue_es_io_input [l_stream->stream_worker->worker->id];
-        dap_events_socket_write_inter( l_input,
-                                      l_stream->esocket, l_stream->esocket_uuid,
+        dap_events_socket_write_inter( l_input, l_stream->esocket_uuid,
                                       &l_pkt, sizeof(l_pkt));
     }
     pthread_mutex_unlock( &s_mutex_keepalive_list );

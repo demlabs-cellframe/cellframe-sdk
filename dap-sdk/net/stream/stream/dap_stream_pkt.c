@@ -168,13 +168,11 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
  * @param a_data_size
  * @return
  */
-size_t dap_stream_pkt_write_mt(dap_worker_t * a_w,dap_events_socket_t *a_es, dap_enc_key_t *a_key, const void * a_data, size_t a_data_size)
+size_t dap_stream_pkt_write_mt(dap_worker_t * a_w,dap_events_socket_uuid_t a_es_uuid, dap_enc_key_t *a_key, const void * a_data, size_t a_data_size)
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     dap_stream_pkt_hdr_t *l_pkt_hdr;
-    l_msg->esocket = a_es;
-    if(a_es)
-       l_msg->esocket_uuid = a_es->uuid; // TODO replace function signature with UUID in place of worker+esocket
+    l_msg->esocket_uuid = a_es_uuid;
     l_msg->data_size = 16-a_data_size%16+a_data_size+sizeof(*l_pkt_hdr);
     l_msg->data = DAP_NEW_SIZE(void,l_msg->data_size);
     l_pkt_hdr=(dap_stream_pkt_hdr_t*) l_msg->data;

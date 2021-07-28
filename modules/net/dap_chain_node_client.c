@@ -77,7 +77,7 @@
 #define LOG_TAG "dap_chain_node_client"
 
 typedef struct dap_chain_node_client_handle {
-    uint128_t uuid;
+    uint64_t uuid;
     dap_chain_node_client_t * client;
     UT_hash_handle hh;
 } dap_chain_node_client_handle_t;
@@ -163,7 +163,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         SetEvent( l_node_client->wait_cond );
 #endif
         pthread_mutex_unlock(&l_node_client->wait_mutex);
-        l_node_client->own_esh.esocket = 0;
+        l_node_client->own_esh.esocket_uuid = 0;
 
         if (l_node_client->keep_connection) {
             uint128_t *l_uuid = DAP_NEW(uint128_t);
@@ -185,7 +185,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 static bool s_timer_update_states_callback(void * a_arg )
 {
     dap_chain_node_client_handle_t *l_client_found = NULL;
-    uint128_t *l_uuid = (uint128_t *)a_arg;
+    uint64_t *l_uuid = (uint64_t *)a_arg;
     assert(l_uuid);
     HASH_FIND(hh, s_clients, l_uuid, sizeof(*l_uuid), l_client_found);
     if(!l_client_found){
@@ -198,39 +198,36 @@ static bool s_timer_update_states_callback(void * a_arg )
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
     assert(l_me);
-    dap_events_socket_t * l_es = l_me->own_esh.esocket;
-    uint128_t l_es_uuid = l_me->own_esh.uuid;
+    dap_events_socket_t * l_es = NULL;
+    dap_events_socket_uuid_t l_es_uuid = l_me->own_esh.esocket_uuid;
     // check if esocket still in worker
-    if(dap_events_socket_check_unsafe(l_worker,l_es)){
-        // Check if its exactly ours!
-        if (dap_uint128_check_equal(l_es->uuid,l_es_uuid)){
-            dap_client_t * l_client = dap_client_from_esocket(l_es);
-            if (l_client ) {
-                dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;
-                if (l_node_client && l_node_client->ch_chain) {
-                    dap_stream_ch_chain_t * l_ch_chain = (dap_stream_ch_chain_t*) l_node_client->ch_chain->internal;
-                    assert(l_ch_chain);
-                    dap_chain_net_t * l_net = l_node_client->net;
-                    assert(l_net);
+    if( (l_es = dap_worker_esocket_find_uuid(l_worker, l_es_uuid)) != NULL ){
+        dap_client_t * l_client = dap_client_from_esocket(l_es);
+        if (l_client ) {
+            dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;
+            if (l_node_client && l_node_client->ch_chain) {
+                dap_stream_ch_chain_t * l_ch_chain = (dap_stream_ch_chain_t*) l_node_client->ch_chain->internal;
+                assert(l_ch_chain);
+                dap_chain_net_t * l_net = l_node_client->net;
+                assert(l_net);
 
-                    // If we do nothing - init sync process
-                    if (l_ch_chain->state == CHAIN_STATE_IDLE ||l_ch_chain->state == CHAIN_STATE_SYNC_ALL ){
-                        dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
-                        l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(l_node_client->remote_node_addr.uint64);
-                        l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-                        log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start,
-                               l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
-                        // find dap_chain_id_t
-                        dap_chain_t *l_chain = l_net->pub.chains;
-                        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
-                        dap_stream_ch_chain_pkt_write_unsafe( l_node_client->ch_chain ,
-                                                          DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ, l_net->pub.id.uint64,
-                                                                        l_chain_id.uint64, l_net->pub.cell_id.uint64,
-                                                              &l_sync_gdb, sizeof(l_sync_gdb));
-                    }
-                    DAP_DELETE(l_uuid);
-                    return true;
+                // If we do nothing - init sync process
+                if (l_ch_chain->state == CHAIN_STATE_IDLE ||l_ch_chain->state == CHAIN_STATE_SYNC_ALL ){
+                    dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
+                    l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(l_node_client->remote_node_addr.uint64);
+                    l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+                    log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start,
+                           l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
+                    // find dap_chain_id_t
+                    dap_chain_t *l_chain = l_net->pub.chains;
+                    dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
+                    dap_stream_ch_chain_pkt_write_unsafe( l_node_client->ch_chain ,
+                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ, l_net->pub.id.uint64,
+                                                                    l_chain_id.uint64, l_net->pub.cell_id.uint64,
+                                                          &l_sync_gdb, sizeof(l_sync_gdb));
                 }
+                DAP_DELETE(l_uuid);
+                return true;
             }
         }
     }
@@ -274,11 +271,10 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 
         dap_stream_t * l_stream  = dap_client_get_stream(a_client);
         if (l_stream) {
-            l_node_client->own_esh.esocket = l_stream->esocket;
-            l_node_client->own_esh.uuid = l_stream->esocket->uuid;
+            l_node_client->own_esh.esocket_uuid = l_stream->esocket->uuid;
             if (l_node_client->keep_connection) {
-                uint128_t *l_uuid = DAP_NEW(uint128_t);
-                memcpy(l_uuid, &l_node_client->uuid, sizeof(uint128_t));
+                dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
+                memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
                 dap_timerfd_start_on_worker(l_stream->esocket->worker,s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
             }
         }
@@ -473,7 +469,8 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
     (void) a_ch_chain;
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     assert(a_arg);
-    if(dap_stream_ch_check_uuid_unsafe(l_node_client->stream_worker, l_node_client->ch_chain, l_node_client->ch_chain_uuid)){
+    dap_stream_ch_t * l_ch = NULL;
+    if((l_ch = dap_stream_ch_find_by_uuid_unsafe(l_node_client->stream_worker, l_node_client->ch_chain_uuid)) != NULL){
         switch (a_pkt_type) {
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB: {
                 if(s_stream_ch_chain_debug_more)
@@ -727,13 +724,8 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
         return -1;
 
     dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(a_client->client);
-    dap_stream_ch_t * l_ch = dap_client_get_stream_ch_unsafe(a_client->client, a_ch_id);
-    if(l_ch) {
-//        dap_stream_ch_chain_net_t * l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
-        dap_stream_ch_pkt_write_mt(l_stream_worker , l_ch , a_type, a_pkt_data, a_pkt_data_size);
-        return 0;
-    } else
-        return -1;
+    dap_stream_ch_pkt_write_mt(l_stream_worker , a_client->ch_chain_uuid , a_type, a_pkt_data, a_pkt_data_size);
+    return 0;
 }
 
 /**
