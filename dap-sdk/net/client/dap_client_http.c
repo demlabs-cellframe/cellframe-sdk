@@ -96,7 +96,7 @@ static bool s_timer_timeout_after_connected_check(void * a_arg);
 
 static bool s_debug_more=false;
 static uint64_t s_client_timeout_ms                     = 20000;
-static time_t s_client_timeout_read_after_connect       = 5;
+static uint64_t s_client_timeout_read_after_connect_ms       = 5;
 static uint32_t s_max_attempts = 5;
 
 #ifndef DAP_NET_CLIENT_NO_SSL
@@ -112,7 +112,7 @@ int dap_client_http_init()
     s_debug_more = dap_config_get_item_bool_default(g_config,"dap_client","debug_more",false);
     s_max_attempts = dap_config_get_item_uint32_default(g_config,"dap_client","max_tries",5);
     s_client_timeout_ms = dap_config_get_item_uint32_default(g_config,"dap_client","timeout",10)*1000;
-    s_client_timeout_read_after_connect = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
+    s_client_timeout_read_after_connect_ms = (time_t) dap_config_get_item_uint64_default(g_config,"dap_client","timeout_read_after_connect",5)*1000;
 #ifndef DAP_NET_CLIENT_NO_SSL
     wolfSSL_Init();
     wolfSSL_Debugging_ON ();
@@ -182,23 +182,16 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
 {
     dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
     assert(l_es_handler);
-    dap_events_socket_t * l_es = l_es_handler->esocket;
-    assert(l_es);
-    dap_events_t * l_events = dap_events_get_default();
-    assert(l_events);
 
-    dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
+    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default()); // We're in own esocket context
     assert(l_worker);
 
-    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
-        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            if(s_debug_more)
-                log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
-            DAP_DEL_Z(l_es_handler)
-            return false;
-        }
+    if(dap_events_socket_check_uuid_unsafe( l_worker, l_es_handler->esocket,l_es_handler->uuid ) ){
+        dap_events_socket_t * l_es = l_es_handler->esocket;
+        assert(l_es);
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
-        if ( time(NULL)- l_http_pvt->ts_last_read >= s_client_timeout_read_after_connect){
+        assert(l_http_pvt);
+        if ( time(NULL)- l_http_pvt->ts_last_read >= (time_t) s_client_timeout_read_after_connect_ms){
             log_it(L_WARNING,"Read after connect timeout for request http://%s:%u/%s, possible uplink is on heavy load or DPI between you",
                    l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
             if(l_http_pvt->error_callback) {
@@ -211,10 +204,10 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
             l_es->_inheritor = NULL;
             dap_events_socket_remove_and_delete_unsafe_delayed(l_es, true);
         }
-    }else
+    }else{
         if(s_debug_more)
-            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
-
+            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es_handler->esocket);
+    }
     DAP_DEL_Z(l_es_handler)
     return false;
 }
@@ -719,7 +712,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
     l_ev_socket_handler->esocket = a_esocket;
     l_ev_socket_handler->uuid = a_esocket->uuid;
-    dap_timerfd_start_on_worker(l_http_pvt->worker, (unsigned long)s_client_timeout_read_after_connect * 1000, s_timer_timeout_after_connected_check, l_ev_socket_handler);
+    dap_timerfd_start_on_worker(l_http_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_ms * 1000, s_timer_timeout_after_connected_check, l_ev_socket_handler);
 
     char l_request_headers[1024] = { [0]='\0' };
     int l_offset = 0;

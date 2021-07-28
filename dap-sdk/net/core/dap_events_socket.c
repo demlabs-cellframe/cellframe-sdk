@@ -193,7 +193,12 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
 
     if ( a_sock!= 0 && a_sock != -1){
         pthread_rwlock_wrlock(&a_events->sockets_rwlock);
-        HASH_ADD_INT(a_events->sockets, socket, l_ret);
+        dap_events_socket_t * l_es_find = NULL;
+        HASH_FIND_INT( a_events->sockets, &a_sock, l_es_find );
+        if(l_es_find)
+            log_it(L_ERROR,"Trying to add %d descriptor in hashtable but found %p esocket with same socket", a_sock, l_es_find);
+        else
+            HASH_ADD_INT(a_events->sockets, socket, l_ret);
         pthread_rwlock_unlock(&a_events->sockets_rwlock);
     }
     //log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
@@ -1752,7 +1757,9 @@ void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_
     l_es_handler->value = a_preserve_inheritor ? 1 : 0;
     dap_events_socket_descriptor_close(a_es);
 
-    dap_timerfd_start_on_worker(a_es->worker, s_delayed_ops_timeout_ms,
+    dap_worker_t * l_worker = a_es->worker;
+    dap_events_socket_remove_from_worker_unsafe( a_es, l_worker);
+    dap_timerfd_start_on_worker(l_worker, s_delayed_ops_timeout_ms,
                                 s_remove_and_delete_unsafe_delayed_delete_callback, l_es_handler );
 }
 
