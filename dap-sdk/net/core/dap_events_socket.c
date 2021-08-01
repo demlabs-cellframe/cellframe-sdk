@@ -196,7 +196,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
         dap_events_socket_t * l_es_find = NULL;
         HASH_FIND_INT( a_events->sockets, &a_sock, l_es_find );
         if(l_es_find)
-            log_it(L_ERROR,"Trying to add %d descriptor in hashtable but found %p esocket with same socket", a_sock, l_es_find);
+            log_it(L_ERROR,"Trying to add socket %d to hashtable but found %p esocket with same socket", a_sock, l_es_find);
         else
             HASH_ADD_INT(a_events->sockets, socket, l_ret);
         pthread_rwlock_unlock(&a_events->sockets_rwlock);
@@ -507,7 +507,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN] = { 0 };
     int pos = 0;
 #ifdef DAP_BRAND
-    pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\" DAP_BRAND "_esmq%d", l_es->mq_num);
+    pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\" DAP_BRAND "mq%d", l_es->mq_num);
 #else
     pos = _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:.\\PRIVATE$\\%hs_esmq%d", dap_get_appname(), l_es->mq_num);
 #endif
@@ -711,7 +711,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     static atomic_uint s_queue_num = 0;
     int pos = 0;
 #ifdef DAP_BRAND
-    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\" DAP_BRAND "_esmq%d", l_es->mq_num = s_queue_num++);
+    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\" DAP_BRAND "mq%d", l_es->mq_num = s_queue_num++);
 #else
     pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\%hs_esmq%d", dap_get_appname(), l_es->mq_num = s_queue_num++);
 #endif
@@ -1491,7 +1491,8 @@ dap_events_socket_t *dap_worker_esocket_find_uuid(dap_worker_t * a_worker, dap_e
     dap_events_socket_t * l_ret = NULL;
     if(a_worker->esockets ) {
         pthread_rwlock_rdlock(&a_worker->esocket_rwlock);
-        HASH_FIND_PTR( a_worker->esockets, &a_es_uuid,l_ret );
+        //HASH_FIND_PTR( a_worker->esockets, &a_es_uuid,l_ret );
+        HASH_FIND(hh_worker, a_worker->esockets, &a_es_uuid, sizeof(a_es_uuid), l_ret );
         pthread_rwlock_unlock(&a_worker->esocket_rwlock );
     }
     return l_ret;
@@ -1737,8 +1738,10 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg)
     assert(l_worker);
     dap_events_socket_t * l_es;
     if( (l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid)) != NULL)
-        dap_events_socket_remove_and_delete_unsafe(l_es,l_es_handler->value == 1);
+        //dap_events_socket_remove_and_delete_unsafe(l_es,l_es_handler->value == 1);
+        dap_events_remove_and_delete_socket_unsafe(dap_events_get_default(), l_es, l_es_handler->value == 1);
     DAP_DELETE(l_es_handler);
+
     return false;
 }
 
