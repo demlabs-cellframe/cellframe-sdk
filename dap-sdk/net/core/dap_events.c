@@ -324,7 +324,6 @@ int dap_events_start( dap_events_t *a_events )
         clock_gettime(CLOCK_REALTIME, &l_timeout);
         l_timeout.tv_sec+=15;
         pthread_create( &s_threads[i].tid, NULL, dap_worker_thread, l_worker );
-
         int l_ret;
         l_ret=pthread_cond_timedwait(&l_worker->started_cond, &l_worker->started_mutex, &l_timeout);
         pthread_mutex_unlock(&l_worker->started_mutex);
