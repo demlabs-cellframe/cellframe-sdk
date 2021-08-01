@@ -249,6 +249,7 @@ dap_events_t * dap_events_new( )
     pthread_rwlock_init( &ret->sockets_rwlock, NULL );
     if ( s_events_default == NULL)
         s_events_default = ret;
+    s_events_default->sockets = NULL;
     pthread_key_create( &ret->pth_key_worker, NULL);
 
     return ret;
@@ -268,16 +269,28 @@ void dap_events_delete( dap_events_t *a_events )
     if (a_events) {
         dap_events_socket_t *l_cur, *l_tmp;
         HASH_ITER( hh, a_events->sockets,l_cur, l_tmp ) {
+            HASH_DEL(a_events->sockets, l_cur);
             dap_events_socket_remove_and_delete_unsafe( l_cur, true );
         }
-
         if ( a_events->_inheritor )
             DAP_DELETE( a_events->_inheritor );
-
         pthread_rwlock_destroy( &a_events->sockets_rwlock );
 
         DAP_DELETE( a_events );
     }
+}
+
+void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool preserve_inheritor) {
+    if (!a_events)
+        return;
+    pthread_rwlock_wrlock(&a_events->sockets_rwlock);
+    dap_events_socket_t * l_es_find = NULL;
+    HASH_FIND_INT( a_events->sockets, &a_socket->socket, l_es_find );
+    if (l_es_find) {
+        HASH_DEL(a_events->sockets, l_es_find);
+        dap_events_socket_remove_and_delete_unsafe(l_es_find, preserve_inheritor);
+    }
+    pthread_rwlock_unlock(&a_events->sockets_rwlock);
 }
 
 /**
@@ -293,6 +306,7 @@ int dap_events_start( dap_events_t *a_events )
 
         l_worker->id = i;
         l_worker->events = a_events;
+        l_worker->esockets = NULL;
         pthread_rwlock_init(&l_worker->esocket_rwlock,NULL);
         pthread_mutex_init(& l_worker->started_mutex, NULL);
         pthread_cond_init( & l_worker->started_cond, NULL);
@@ -324,7 +338,6 @@ int dap_events_start( dap_events_t *a_events )
         clock_gettime(CLOCK_REALTIME, &l_timeout);
         l_timeout.tv_sec+=15;
         pthread_create( &s_threads[i].tid, NULL, dap_worker_thread, l_worker );
-
         int l_ret;
         l_ret=pthread_cond_timedwait(&l_worker->started_cond, &l_worker->started_mutex, &l_timeout);
         pthread_mutex_unlock(&l_worker->started_mutex);

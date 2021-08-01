@@ -55,6 +55,7 @@ void dap_events_deinit( ); // Deinit server module
 dap_events_t* dap_events_new( );
 dap_events_t* dap_events_get_default( );
 void dap_events_delete( dap_events_t * a_events );
+void dap_events_remove_and_delete_socket_unsafe(dap_events_t*, dap_events_socket_t*, bool);
 
 int32_t dap_events_start( dap_events_t *a_events );
 void dap_events_stop_all();
