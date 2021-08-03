@@ -238,7 +238,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
             }
             log_it(L_INFO, "Close %s sock %u type %d by timeout",
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
-            dap_events_socket_remove_and_delete_unsafe_delayed(l_es,true);
+            dap_events_socket_remove_and_delete_unsafe(l_es,true);
         }else
             if(s_debug_more)
                 log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
@@ -276,7 +276,7 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
             }
             log_it(L_INFO, "Close streaming socket %s by timeout",
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket);
-            dap_events_socket_remove_and_delete_unsafe_delayed(l_es,true);
+            dap_events_socket_remove_and_delete_unsafe(l_es,true);
         }else
             if(s_debug_more)
                 log_it(L_DEBUG,"Streaming socket %d is connected, close check timer", l_es->socket);

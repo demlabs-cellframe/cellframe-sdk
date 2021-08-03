@@ -146,7 +146,7 @@ static bool s_dns_client_esocket_timeout_callback(void * a_arg)
             l_dns_client->is_callbacks_called = true;
         }
 
-        dap_events_socket_remove_and_delete_unsafe_delayed( l_es, false);
+        dap_events_socket_remove_and_delete_unsafe( l_es, false);
     }
     DAP_DELETE(l_es_handler);
     return false;

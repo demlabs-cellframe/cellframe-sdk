@@ -201,7 +201,7 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
             log_it(L_INFO, "Close %s sock %u type %d by timeout",
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
             l_es->_inheritor = NULL;
-            dap_events_socket_remove_and_delete_unsafe_delayed(l_es, true);
+            dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }
     }else{
         if(s_debug_more)
@@ -237,7 +237,7 @@ static bool s_timer_timeout_check(void * a_arg)
             l_http_pvt->is_closed_by_timeout = true;
             log_it(L_INFO, "Close %s sock %u type %d by timeout",
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
-            dap_events_socket_remove_and_delete_unsafe_delayed(l_es, true);
+            dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }else
             if(s_debug_more)
                 log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);

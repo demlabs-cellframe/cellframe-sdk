@@ -285,9 +285,11 @@ void *dap_worker_thread(void *arg)
                 continue;
             }
             if(s_debug_reactor) {
-                log_it(L_DEBUG, "--Worker #%u esocket %p type %d fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--", l_worker->id, l_cur, l_cur->type, l_cur->socket,
+                log_it(L_DEBUG, "--Worker #%u esocket %p uuid 0x%016llx type %d fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
+                       l_worker->id, l_cur, l_cur->uuid, l_cur->type, l_cur->socket,
                     l_cur_flags, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
-                    l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
+                    l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"",
+                       l_flag_pri?"pri":"");
             }
 
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
@@ -804,8 +806,9 @@ void *dap_worker_thread(void *arg)
             {
                 if (l_cur->buf_out_size == 0) {
                     if(s_debug_reactor)
-                        log_it(L_INFO, "Process signal to close %s sock %u type %d [thread %u]",
-                           l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn);
+                        log_it(L_INFO, "Process signal to close %s sock %d (ptr 0x%p uuid 0x%016llx) type %d [thread %u]",
+                           l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
+                               l_cur->type, l_tn);
 
                     for(size_t nn=n+1; nn<l_sockets_max; nn++){ // Check for current selection if it has event duplication
                         dap_events_socket_t *l_es_selected = NULL;
@@ -977,7 +980,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
     dap_events_socket_t * l_es;
     if ( (l_es = dap_worker_esocket_find_uuid(a_es->worker,l_es_handler->esocket_uuid)) != NULL ){
         //l_es->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
-        dap_events_socket_remove_and_delete_unsafe_delayed(l_es,false);
+        dap_events_socket_remove_and_delete_unsafe(l_es,false);
     }else
         log_it(L_INFO, "While we were sending the delete() message, esocket %llu has been disconnected ", l_es_handler->esocket_uuid);
     DAP_DELETE(l_es_handler);
@@ -1103,7 +1106,7 @@ static bool s_socket_all_check_activity( void * a_arg)
                 if (l_es->callbacks.error_callback) {
                     l_es->callbacks.error_callback(l_es, ETIMEDOUT);
                 }
-                dap_events_socket_remove_and_delete_unsafe_delayed(l_es,false);
+                dap_events_socket_remove_and_delete_unsafe(l_es,false);
             }
         }
     }

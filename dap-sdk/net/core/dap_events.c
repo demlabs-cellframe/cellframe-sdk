@@ -280,7 +280,11 @@ void dap_events_delete( dap_events_t *a_events )
     }
 }
 
-void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool preserve_inheritor) {
+void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
+{
+    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
+        log_it(L_DEBUG,"Remove timer %d", a_socket->socket);
+
     if (!a_events)
         return;
     pthread_rwlock_wrlock(&a_events->sockets_rwlock);
@@ -288,9 +292,9 @@ void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_even
     HASH_FIND_INT( a_events->sockets, &a_socket->socket, l_es_find );
     if (l_es_find) {
         HASH_DEL(a_events->sockets, l_es_find);
-        dap_events_socket_remove_and_delete_unsafe(l_es_find, preserve_inheritor);
     }
     pthread_rwlock_unlock(&a_events->sockets_rwlock);
+    dap_events_socket_remove_and_delete_unsafe(a_socket, a_preserve_inheritor);
 }
 
 /**
