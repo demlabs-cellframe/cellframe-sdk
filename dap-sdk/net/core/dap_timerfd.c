@@ -296,12 +296,6 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 #endif
 
     } else {
-#if defined(DAP_OS_LINUX)
-        close(l_timerfd->tfd);
-#elif defined(DAP_OS_WINDOWS)
-    	closesocket(l_timerfd->tfd);
-        //CloseHandle(l_timerfd->th);
-#endif
         l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }

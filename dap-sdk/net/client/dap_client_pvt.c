@@ -57,6 +57,7 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_cert.h"
+#include "dap_uuid.h"
 
 #include "dap_timerfd.h"
 //#include "dap_http_client_simple.h"
@@ -143,6 +144,7 @@ void dap_client_pvt_deinit()
  */
 void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
 {
+    a_client_pvt->uuid = dap_uuid_generate_uint64();
     a_client_pvt->session_key_type = DAP_ENC_KEY_TYPE_SALSA2012 ;
     a_client_pvt->session_key_open_type = DAP_ENC_KEY_TYPE_MSRLN ;
     a_client_pvt->session_key_block_size = 32;
@@ -152,7 +154,7 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
     a_client_pvt->uplink_protocol_version = DAP_PROTOCOL_VERSION;
     a_client_pvt->events = dap_events_get_default();
     // add to list
-    dap_client_pvt_hh_add(a_client_pvt);
+    dap_client_pvt_hh_add_unsafe(a_client_pvt);
 }
 
 
@@ -167,7 +169,7 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
     if(a_client_pvt->delete_callback)
         a_client_pvt->delete_callback(a_client_pvt->client, NULL);
     // delete from list
-    if(dap_client_pvt_hh_del(a_client_pvt)<0){
+    if(dap_client_pvt_hh_del_unsafe(a_client_pvt)<0){
         if(s_debug_more)
             log_it(L_DEBUG, "dap_client_pvt 0x%x already deleted", a_client_pvt);
         return;
@@ -836,18 +838,13 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 static void s_request_error(int a_err_code, void * a_obj)
 {
     dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_obj;
-    dap_client_pvt_hh_lock();
-    if(!dap_client_pvt_hh_get(l_client_pvt)){
-        dap_client_pvt_hh_unlock();
-        return;
-    }
+    assert(l_client_pvt);
 
     if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client)
     {
         if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client && l_client_pvt->client->_internal)
             l_client_pvt->request_error_callback(l_client_pvt->client, a_err_code);
     }
-    dap_client_pvt_hh_unlock();
 }
 
 /**
@@ -859,32 +856,7 @@ static void s_request_error(int a_err_code, void * a_obj)
 static void s_request_response(void * a_response, size_t a_response_size, void * a_obj)
 {
     dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_obj;
-    dap_client_pvt_hh_lock();
-    if(!dap_client_pvt_hh_get(l_client_pvt)){
-        dap_client_pvt_hh_unlock();
-        return;
-    }
-
-    if(!l_client_pvt || !l_client_pvt->client){
-        if( !l_client_pvt )
-            log_it(L_ERROR,"Client internal is NULL for s_request_response");
-        else
-            log_it(L_ERROR,"Client is NULL for s_request_response");
-        dap_client_pvt_hh_unlock();
-        return;
-    }
-    l_client_pvt->refs_count--;
-
-    if (l_client_pvt->is_to_delete){
-        if(l_client_pvt->refs_count==0) {// Was requested to delete until we was working with request
-            dap_client_pvt_hh_unlock();
-            dap_client_delete_unsafe(l_client_pvt->client); // Init delete
-            return;
-        }
-        dap_client_pvt_hh_unlock();
-        return;
-    }
-
+    assert(l_client_pvt);
 
     //int l_ref = dap_client_pvt_get_ref(a_client_internal);
     if(l_client_pvt->is_encrypted) {
@@ -910,7 +882,6 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
         else
             log_it(L_ERROR, "NULL request_response_callback for unencrypted  client %p", l_client_pvt->client );
     }
-    dap_client_pvt_hh_unlock();
 }
 
 /**
@@ -1205,10 +1176,6 @@ static void s_stage_stream_streaming(dap_client_t * a_client, void* arg)
 static void s_stream_es_callback_connected(dap_events_socket_t * a_es)
 {
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
     s_stream_connected(l_client_pvt);
 }
 
@@ -1223,10 +1190,6 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     log_it(L_INFO, "Stream delete callback");
 
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
 
     a_es->_inheritor = NULL; // To prevent delete in reactor
 
@@ -1264,10 +1227,7 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
     (void) arg;
     //dap_client_t * l_client = DAP_CLIENT(a_es);
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) a_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
+
     l_client_pvt->ts_last_read = time(NULL);
     switch (l_client_pvt->stage) {
         case STAGE_STREAM_SESSION:
@@ -1315,10 +1275,7 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
     //dap_client_t * l_client = DAP_CLIENT(a_es);
     //dap_client_pvt_t * l_client_pvt = (l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
     dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
+
     if (l_client_pvt->stage_status == STAGE_STATUS_ERROR || !l_client_pvt->stream)
         return;
     switch (l_client_pvt->stage) {
@@ -1353,10 +1310,6 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 {
     dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
 
     char l_errbuf[128];
     l_errbuf[0]='\0';

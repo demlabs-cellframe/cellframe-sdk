@@ -37,8 +37,6 @@ typedef struct dap_thread {
 } dap_thread_t;
 
 typedef struct dap_events {
-    dap_events_socket_t *sockets; // Hashmap of event sockets
-    pthread_rwlock_t sockets_rwlock;
     pthread_key_t pth_key_worker;
     void *_inheritor;  // Pointer to the internal data, HTTP for example
     dap_thread_t proc_thread;

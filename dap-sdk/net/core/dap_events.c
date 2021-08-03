@@ -246,10 +246,8 @@ dap_events_t * dap_events_new( )
 {
     dap_events_t *ret = DAP_NEW_Z(dap_events_t);
 
-    pthread_rwlock_init( &ret->sockets_rwlock, NULL );
     if ( s_events_default == NULL)
         s_events_default = ret;
-    s_events_default->sockets = NULL;
     pthread_key_create( &ret->pth_key_worker, NULL);
 
     return ret;
@@ -267,14 +265,8 @@ dap_events_t* dap_events_get_default( )
 void dap_events_delete( dap_events_t *a_events )
 {
     if (a_events) {
-        dap_events_socket_t *l_cur, *l_tmp;
-        HASH_ITER( hh, a_events->sockets,l_cur, l_tmp ) {
-            HASH_DEL(a_events->sockets, l_cur);
-            dap_events_socket_remove_and_delete_unsafe( l_cur, true );
-        }
         if ( a_events->_inheritor )
             DAP_DELETE( a_events->_inheritor );
-        pthread_rwlock_destroy( &a_events->sockets_rwlock );
 
         DAP_DELETE( a_events );
     }
@@ -282,18 +274,11 @@ void dap_events_delete( dap_events_t *a_events )
 
 void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
 {
-    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
-        log_it(L_DEBUG,"Remove timer %d", a_socket->socket);
+    (void) a_events;
+    int l_sock = a_socket->socket;
+//    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
+//        log_it(L_DEBUG,"Remove timer %d", l_sock);
 
-    if (!a_events)
-        return;
-    pthread_rwlock_wrlock(&a_events->sockets_rwlock);
-    dap_events_socket_t * l_es_find = NULL;
-    HASH_FIND_INT( a_events->sockets, &a_socket->socket, l_es_find );
-    if (l_es_find) {
-        HASH_DEL(a_events->sockets, l_es_find);
-    }
-    pthread_rwlock_unlock(&a_events->sockets_rwlock);
     dap_events_socket_remove_and_delete_unsafe(a_socket, a_preserve_inheritor);
 }
 

@@ -191,16 +191,6 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
         l_ret->kqueue_base_filter = 0;
     #endif
 
-    if ( a_sock!= 0 && a_sock != -1){
-        pthread_rwlock_wrlock(&a_events->sockets_rwlock);
-        dap_events_socket_t * l_es_find = NULL;
-        HASH_FIND_INT( a_events->sockets, &a_sock, l_es_find );
-        if(l_es_find)
-            log_it(L_ERROR,"Trying to add socket %d to hashtable but found %p esocket with same socket", a_sock, l_es_find);
-        else
-            HASH_ADD_INT(a_events->sockets, socket, l_ret);
-        pthread_rwlock_unlock(&a_events->sockets_rwlock);
-    }
     //log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
     return l_ret;
@@ -1471,10 +1461,6 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
     l_es->flags = DAP_SOCK_READY_TO_READ;
     l_es->last_time_active = l_es->last_ping_request = time( NULL );
 
-    pthread_rwlock_wrlock( &a_events->sockets_rwlock );
-    HASH_ADD_INT(a_events->sockets, socket, l_es);
-    pthread_rwlock_unlock( &a_events->sockets_rwlock );
-
     return l_es;
 }
 
@@ -1770,8 +1756,7 @@ void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_
  */
 void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor )
 {
-    if ( !a_es )
-        return;
+    assert(a_es);
 
 #ifdef DAP_EVENTS_CAPS_POLL
     if(a_es->worker){
