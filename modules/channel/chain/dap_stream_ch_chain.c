@@ -320,7 +320,7 @@ static void s_sync_out_gdb_first_worker_callback(dap_worker_t *a_worker, void *a
 {
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
 
-    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(a_worker), l_sync_request->ch_uuid);
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_sync_request->worker), l_sync_request->ch_uuid);
     if( l_ch == NULL ){
         log_it(L_INFO,"Client disconnected before we sent the reply");
         s_sync_request_delete(l_sync_request);
