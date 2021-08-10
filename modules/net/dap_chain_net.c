@@ -483,6 +483,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
         a_node_client->ch_chain_net = dap_client_get_stream_ch_unsafe(a_node_client->client,dap_stream_ch_chain_get_id() );
         if(a_node_client->ch_chain_net)
             a_node_client->ch_chain_net_uuid = a_node_client->ch_chain_net->uuid;
+
         dap_stream_ch_chain_pkt_write_unsafe( a_node_client->ch_chain ,
                                                            DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ, l_net->pub.id.uint64,
                                                         l_chain_id.uint64, l_net->pub.cell_id.uint64, &l_sync_gdb, sizeof(l_sync_gdb));
