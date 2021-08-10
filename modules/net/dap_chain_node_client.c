@@ -226,7 +226,6 @@ static bool s_timer_update_states_callback(void * a_arg )
                                                                     l_chain_id.uint64, l_net->pub.cell_id.uint64,
                                                           &l_sync_gdb, sizeof(l_sync_gdb));
                 }
-                DAP_DELETE(l_uuid);
                 return true;
             }
         }
