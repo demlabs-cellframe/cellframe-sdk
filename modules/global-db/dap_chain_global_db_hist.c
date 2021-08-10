@@ -1232,11 +1232,11 @@ static void *s_list_thread_proc(void *arg)
                         l_list_obj->obj->group = dap_strdup(l_rec.group);
                         l_list_obj->obj->key = dap_strdup(l_keys[i]);
                         l_list_obj->obj->timestamp = global_db_gr_del_get_timestamp(l_list_obj->obj->group, l_list_obj->obj->key);
-                        l_list_obj->obj->type = (uint8_t)l_rec.type;
                     }
                     if (l_list_obj->obj == NULL) {
                         continue;
                     }
+                    l_list_obj->obj->type = (uint8_t)l_rec.type;
                     l_list_obj->obj->id = l_obj_cur->id;
                     dap_hash_fast(l_list_obj->obj->key, strlen(l_list_obj->obj->key), &l_list_obj->hash);
                     l_list = dap_list_append(l_list, l_list_obj);

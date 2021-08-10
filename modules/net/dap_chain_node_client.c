@@ -87,7 +87,7 @@ static dap_chain_node_client_handle_t * s_clients = NULL;
 //static int listen_port_tcp = 8079;
 
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
-static bool s_timer_update_states_callback(void * a_arg );
+static bool s_timer_update_states_callback(void *a_arg);
 
 static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
         dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
@@ -176,12 +176,18 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         l_node_client->callbacks.error(l_node_client, EINVAL,l_node_client->callbacks_arg );
 }
 
+static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worker, void *a_arg)
+{
+    UNUSED(a_worker);
+    s_timer_update_states_callback(a_arg);
+}
+
 /**
  * @brief s_timer_update_states_callback
  * @param a_arg
  * @return
  */
-static bool s_timer_update_states_callback(void * a_arg )
+static bool s_timer_update_states_callback(void *a_arg)
 {
     dap_chain_node_client_handle_t *l_client_found = NULL;
     uint128_t *l_uuid = (uint128_t *)a_arg;
@@ -211,7 +217,7 @@ static bool s_timer_update_states_callback(void * a_arg )
                     assert(l_ch_chain);
                     dap_chain_net_t * l_net = l_node_client->net;
                     assert(l_net);
-
+                    log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
                     // If we do nothing - init sync process
                     if (l_ch_chain->state == CHAIN_STATE_IDLE ||l_ch_chain->state == CHAIN_STATE_SYNC_ALL ){
                         dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
@@ -271,7 +277,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             if (l_node_client->keep_connection) {
                 uint128_t *l_uuid = DAP_NEW(uint128_t);
                 memcpy(l_uuid, &l_node_client->uuid, sizeof(uint128_t));
-                dap_worker_exec_callback_on(l_stream->esocket->worker, s_timer_update_states_callback, l_uuid);
+                dap_worker_exec_callback_on(l_stream->esocket->worker, s_node_client_connected_synchro_start_callback, l_uuid);
                 dap_timerfd_start_on_worker(l_stream->esocket->worker, s_timer_update_states * 1000, s_timer_update_states_callback, l_uuid);
             }
         }
@@ -594,7 +600,6 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     l_node_client->info = a_node_info;
     l_node_client->uuid = dap_uuid_generate_uint128();
     l_node_client->net = a_net;
-    l_node_client->uuid = dap_uuid_generate_uint128();
     dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);
     l_client_handle->uuid = l_node_client->uuid;
     l_client_handle->client = l_node_client;
@@ -828,12 +833,14 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                 l_ch_chain->callback_notify_packet_out = s_ch_chain_callback_notify_packet_out;
                 l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
                 l_ch_chain->callback_notify_arg = l_node_client;
+                l_node_client->ch_chain = l_ch;
             }
             // N
             if(a_ch_id == dap_stream_ch_chain_net_get_id()) {
                 dap_stream_ch_chain_net_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
                 l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;
+                l_node_client->ch_chain_net = l_ch;
             }
             // R
             if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {

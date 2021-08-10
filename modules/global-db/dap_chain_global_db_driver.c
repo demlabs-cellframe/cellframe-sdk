@@ -200,8 +200,8 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
 
 static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 {
-    size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(size_t) + sizeof(time_t)
-            + sizeof(uint64_t) + dap_strlen(store_obj->group) +
+    size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(time_t)
+            + 2 * sizeof(uint64_t) + dap_strlen(store_obj->group) +
             dap_strlen(store_obj->key) + store_obj->value_len;
     return size;
 }
@@ -248,10 +248,11 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
     l_offset += sizeof(uint16_t);
     memcpy(l_pkt->data + l_offset, a_store_obj->key, key_size);
     l_offset += key_size;
-    memcpy(l_pkt->data + l_offset, &a_store_obj->value_len, sizeof(size_t));
-    l_offset += sizeof(size_t);
+    memcpy(l_pkt->data + l_offset, &a_store_obj->value_len, sizeof(uint64_t));
+    l_offset += sizeof(uint64_t);
     memcpy(l_pkt->data + l_offset, a_store_obj->value, a_store_obj->value_len);
     l_offset += a_store_obj->value_len;
+    assert(l_offset == l_pkt->data_size);
     return l_pkt;
 }
 /**
@@ -307,9 +308,9 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
         memcpy(obj->key, pkt->data + offset, str_length);
         offset += str_length;
 
-        if (offset+sizeof (uint32_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;} // Check for buffer boundries
-        memcpy(&obj->value_len, pkt->data + offset, sizeof(uint32_t));
-        offset += sizeof(uint32_t);
+        if (offset+sizeof (uint64_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;} // Check for buffer boundries
+        memcpy(&obj->value_len, pkt->data + offset, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
 
         if (offset+obj->value_len> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field"); break;} // Check for buffer boundries
         obj->value = DAP_NEW_Z_SIZE(uint8_t, obj->value_len + 1);
