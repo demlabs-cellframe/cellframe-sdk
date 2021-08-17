@@ -227,8 +227,8 @@ static bool s_stream_timer_timeout_check(void * a_arg)
     dap_worker_t *l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
 
-    dap_events_socket_t * l_es;
-    if(l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid ) ){
+    dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid);
+    if(l_es){
         if (l_es->flags & DAP_SOCK_CONNECTING ){
             dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
 
@@ -265,8 +265,8 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
 
-    dap_events_socket_t * l_es;
-    if( l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid) ){
+    dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid);
+    if( l_es ){
         dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
         if ( time(NULL)- l_client_pvt->ts_last_read >= s_client_timeout_read_after_connect){
 

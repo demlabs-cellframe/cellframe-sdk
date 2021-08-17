@@ -469,7 +469,7 @@ size_t dap_http_simple_reply(dap_http_simple_t *a_http_simple, void *a_data, siz
 dap_http_cache_t * dap_http_simple_make_cache_from_reply(dap_http_simple_t * a_http_simple, time_t a_ts_expire  )
 {
     // Because we call it from callback, we have no headers ready for output
-    a_http_simple->http_client->out_content_length = a_http_simple->reply_size;
+    _copy_reply_and_mime_to_response(a_http_simple);
     a_http_simple->http_client->reply_status_code = 200;
     dap_http_client_out_header_generate(a_http_simple->http_client);
     return dap_http_cache_update(a_http_simple->http_client->proc,
