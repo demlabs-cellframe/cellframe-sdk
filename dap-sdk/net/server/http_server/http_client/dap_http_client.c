@@ -578,7 +578,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 }
                 dap_events_socket_set_readable_unsafe( a_esocket, true );
             } else {
-                //log_it(L_WARNING,"Output: header %s: %s",hdr->name,hdr->value);
+                //log_it(L_DEBUG,"Output: header %s: %s",hdr->name,hdr->value);
                 dap_events_socket_write_f_unsafe(a_esocket, "%s: %s\r\n", hdr->name, hdr->value);
                 dap_events_socket_set_writable_unsafe(a_esocket, true);
                 dap_http_header_remove( &l_http_client->out_headers, hdr );
