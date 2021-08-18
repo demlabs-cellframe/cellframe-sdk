@@ -584,6 +584,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         break;
 
         case STAGE_STATUS_ERROR: {
+            if (a_client_pvt->is_to_delete)
+                break;
             // limit the number of attempts
             a_client_pvt->stage_errors++;
             bool l_is_last_attempt = a_client_pvt->stage_errors > s_max_attempts ? true : false;
@@ -595,7 +597,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             //    l_is_last_attempt = false;
             //}
 
-            log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_get_error_str(a_client_pvt->client));
+            log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_error_str(a_client_pvt->last_error));
             if(a_client_pvt->stage_status_error_callback)
                 a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
 
@@ -1309,7 +1311,13 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
  */
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 {
-    dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
+    a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    dap_client_pvt_t *l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
+    if (!l_client_pvt)
+        return;
+    l_client_pvt = dap_client_pvt_find(l_client_pvt->uuid);
+    if (!l_client_pvt)
+        return;
 
     char l_errbuf[128];
     l_errbuf[0]='\0';
@@ -1318,9 +1326,7 @@ static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
     else
         strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
 
-    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);
-
-    l_client_pvt->stream_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);    
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;

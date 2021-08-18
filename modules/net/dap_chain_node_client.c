@@ -691,6 +691,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         inet_ntop(AF_INET, &a_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_client->info->hdr.ext_port);
         // clean client
+        a_client->client->_inheritor = NULL;
         dap_client_delete_mt(a_client->client);
 #ifndef _WIN32
         pthread_cond_destroy(&a_client->wait_cond);
@@ -698,7 +699,6 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         CloseHandle( a_client->wait_cond );
 #endif
         pthread_mutex_destroy(&a_client->wait_mutex);
-        a_client->client->_inheritor = NULL;
         a_client->client = NULL;
         dap_chain_node_client_handle_t * l_client_found = NULL;
         HASH_FIND(hh,s_clients,&a_client->uuid,sizeof(a_client->uuid),l_client_found);

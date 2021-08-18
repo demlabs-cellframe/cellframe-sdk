@@ -439,7 +439,7 @@ const char * dap_client_error_str(dap_client_error_t a_client_error)
  */
 const char * dap_client_get_error_str(dap_client_t * a_client)
 {
-    if(a_client == NULL){
+    if(a_client == NULL || DAP_CLIENT_PVT(a_client) == NULL){
         log_it(L_ERROR,"Client is NULL for dap_client_get_error_str");
         return NULL;
     }

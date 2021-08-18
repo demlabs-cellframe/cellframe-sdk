@@ -127,6 +127,13 @@ int dap_events_socket_init( )
     char l_cmd[256];
     snprintf(l_cmd,sizeof (l_cmd),"rm /dev/mqueue/%s-queue_ptr*", dap_get_appname());
     system(l_cmd);
+    FILE *l_mq_msg_max = fopen("/proc/sys/fs/mqueue/msg_max", "w");
+    if (l_mq_msg_max) {
+        fprintf(l_mq_msg_max, "%d", DAP_QUEUE_MAX_MSGS);
+        fclose(l_mq_msg_max);
+    } else {
+        log_it(L_ERROR, "Сan't open /proc/sys/fs/mqueue/msg_max file for writing");
+    }
 #endif
     dap_timerfd_init();
     return 0;
@@ -434,9 +441,9 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->buf_out_size_max = 8 * sizeof(void*);
+    l_es->buf_out_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
     l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max );
-    l_es->buf_in_size_max = 8 * sizeof(void*);
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
     l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
     //l_es->buf_out_size  = 8 * sizeof(void*);
     l_es->events = a_es->events;
@@ -463,7 +470,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     char l_mq_name[64];
     struct mq_attr l_mq_attr;
     memset(&l_mq_attr,0,sizeof (l_mq_attr));
-    l_mq_attr.mq_maxmsg = 8; // Don't think we need to hold more than 1024 messages
+    l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS; // Don't think we need to hold more than 1024 messages
     l_mq_attr.mq_msgsize = sizeof (void*); // We send only pointer on memory,
                                             // so use it with shared memory if you do access from another process
     snprintf(l_mq_name,sizeof (l_mq_name),"/%s-queue_ptr-%u",dap_get_appname(), a_es->mqd_id );
@@ -556,7 +563,8 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         l_es->worker = a_w;
     }
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-    l_es->buf_in_size_max = 8 * sizeof(void*);
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
+    l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
     l_es->buf_out = NULL;
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -621,7 +629,6 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         char l_file_buf[l_file_buf_size];
         memset(l_file_buf, 0, l_file_buf_size);
         fread(l_file_buf, l_file_buf_size, 1, l_sys_max_pipe_size_fd);
-        l_sys_max_pipe_size_fd = NULL;
         uint64_t l_sys_max_pipe_size = strtoull(l_file_buf, 0, 10);
         fcntl(l_pipe[0], F_SETPIPE_SZ, l_sys_max_pipe_size);
         fclose(l_sys_max_pipe_size_fd);
@@ -633,7 +640,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     struct mq_attr l_mq_attr;
     static uint32_t l_mq_last_number=0;
     memset(&l_mq_attr,0,sizeof (l_mq_attr));
-    l_mq_attr.mq_maxmsg = 8; // Don't think we need to hold more than 1024 messages
+    l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS; // Don't think we need to hold more than 1024 messages
     l_mq_attr.mq_msgsize = sizeof (void*); // We send only pointer on memory,
                                             // so use it with shared memory if you do access from another process
     snprintf(l_mq_name,sizeof (l_mq_name),"/%s-queue_ptr-%u",dap_get_appname(),l_mq_last_number );

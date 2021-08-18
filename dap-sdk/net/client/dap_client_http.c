@@ -286,29 +286,12 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
     }
     // process http header
     if(l_http_pvt->is_header_read) {
-        l_http_pvt->response[l_http_pvt->header_length - 1] = 0;
-        // search strings in header
-        char **l_strings = dap_strsplit((char*) l_http_pvt->response, "\r\n", -1);
-        if(l_strings) {
-            int i = 0;
-            while(l_strings[i]) {
-                char *l_string = l_strings[i];
-                char **l_values = dap_strsplit(l_string, ":", 2);
-                if(l_values && l_values[0] && l_values[1])
-                    if(!dap_strcmp("Content-Length", l_values[0])) {
-                        l_http_pvt->content_length = atoi(l_values[1]);
-                        l_http_pvt->is_header_read = false;
-                    }
-                dap_strfreev(l_values);
-                if(l_http_pvt->content_length)
-                    break;
-                i++;
-            }
-            dap_strfreev(l_strings);
+        const char *l_token = "Content-Length: ";
+        char *l_content_len_ptr = strstr((char*)l_http_pvt->response, l_token);
+        if (l_content_len_ptr) {
+            l_http_pvt->content_length = atoi(l_content_len_ptr + strlen(l_token));
+            l_http_pvt->is_header_read = false;
         }
-
-        // restore last symbol
-        l_http_pvt->response[l_http_pvt->header_length - 1] = '\n';
     }
 
     // process data
