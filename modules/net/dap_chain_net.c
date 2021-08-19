@@ -392,7 +392,9 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
-            dap_stream_ch_chain_pkt_write_mt( dap_client_get_stream_worker( l_node_client->client), l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+            dap_worker_t * l_worker = dap_client_get_stream_worker( l_node_client->client);
+            if(l_worker)
+                dap_stream_ch_chain_pkt_write_mt(l_worker, l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
                                               l_net->pub.id.uint64, a_chain->id.uint64, a_id.uint64, a_atom, a_atom_size);
         }
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
