@@ -471,7 +471,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
         if (! (l_net_pvt->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO) )
             l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(a_node_client->remote_node_addr.uint64);
         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-        log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
+        log_it(L_DEBUG, "Prepared request to gdb sync from %"DAP_UINT64_FORMAT_U" to %"DAP_UINT64_FORMAT_U"", l_sync_gdb.id_start, l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
         // find dap_chain_id_t
         dap_chain_t *l_chain = l_net->pub.chains;
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
@@ -1348,7 +1348,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 long double l_tps = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) ( l_to_ts - l_from_ts );
                 dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
-                dap_string_append_printf( l_ret_str, "\tTotal:  %llu\n", l_tx_count );
+                dap_string_append_printf( l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count );
                 dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
                 dap_string_free( l_ret_str, false );
             }
@@ -2856,7 +2856,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                                 case SERV_UNIT_B : dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_B\n"); break;
                                                 default: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_UNKNOWN\n"); break;
                                             }
-                                            dap_string_append_printf(a_str_out,"\tunit_price_max: %llu\n", l_out->subtype.srv_pay.unit_price_max_datoshi);
+                                            dap_string_append_printf(a_str_out,"\tunit_price_max: %"DAP_UINT64_FORMAT_U"\n", l_out->subtype.srv_pay.unit_price_max_datoshi);
                                             char l_pkey_hash_str[70]={[0]='\0'};
                                             dap_chain_hash_fast_to_str(&l_out->subtype.srv_pay.pkey_hash, l_pkey_hash_str, sizeof (l_pkey_hash_str)-1);
                                             dap_string_append_printf(a_str_out,"\tpkey_hash: %s\n", l_pkey_hash_str );

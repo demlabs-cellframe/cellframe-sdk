@@ -1421,13 +1421,13 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
  */
 void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
 {
-    dap_events_socket_handle_t * l_es_handler= DAP_NEW_Z(dap_events_socket_handle_t);
-    l_es_handler->esocket_uuid = a_es->uuid;
+    dap_events_socket_uuid_t * l_es_uuid_ptr= DAP_NEW_Z(dap_events_socket_uuid_t);
+    *l_es_uuid_ptr = a_es->uuid;
 
-    int l_ret= dap_events_socket_queue_ptr_send( a_es->worker->queue_es_delete, l_es_handler );
+    int l_ret= dap_events_socket_queue_ptr_send( a_es->worker->queue_es_delete, l_es_uuid_ptr );
     if( l_ret != 0 ){
         log_it(L_ERROR, "Queue send returned %d", l_ret);
-        DAP_DELETE(l_es_handler);
+        DAP_DELETE(l_es_uuid_ptr);
     }
 }
 
@@ -1719,7 +1719,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
 bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg)
 {
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
-    dap_events_socket_handle_t * l_es_handler = (dap_events_socket_handle_t*) a_arg;
+    dap_events_socket_uuid_w_data_t * l_es_handler = (dap_events_socket_uuid_w_data_t*) a_arg;
     assert(l_es_handler);
     assert(l_worker);
     dap_events_socket_t * l_es;
@@ -1738,7 +1738,7 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg)
  */
 void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_es, bool a_preserve_inheritor )
 {
-    dap_events_socket_handle_t * l_es_handler = DAP_NEW_Z(dap_events_socket_handle_t);
+    dap_events_socket_uuid_w_data_t * l_es_handler = DAP_NEW_Z(dap_events_socket_uuid_w_data_t);
     l_es_handler->esocket_uuid = a_es->uuid;
     l_es_handler->value = a_preserve_inheritor ? 1 : 0;
     dap_events_socket_descriptor_close(a_es);
@@ -1906,12 +1906,12 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 void dap_events_socket_remove_and_delete_mt(dap_worker_t * a_w,  dap_events_socket_uuid_t a_es_uuid )
 {
     assert(a_w);
-    dap_events_socket_handle_t * l_es_handler= DAP_NEW_Z(dap_events_socket_handle_t);
-    l_es_handler->esocket_uuid = a_es_uuid;
+    dap_events_socket_uuid_t * l_es_uuid_ptr= DAP_NEW_Z(dap_events_socket_uuid_t);
+    *l_es_uuid_ptr = a_es_uuid;
 
-    if(dap_events_socket_queue_ptr_send( a_w->queue_es_delete, l_es_handler ) != 0 ){
-        log_it(L_ERROR,"Can't send %llu fd in queue",a_es_uuid);
-        DAP_DELETE(l_es_handler);
+    if(dap_events_socket_queue_ptr_send( a_w->queue_es_delete, l_es_uuid_ptr ) != 0 ){
+        log_it(L_ERROR,"Can't send %"DAP_UINT64_FORMAT_u" uuid in queue",a_es_uuid);
+        DAP_DELETE(l_es_uuid_ptr);
     }
 }
 

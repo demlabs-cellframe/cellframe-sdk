@@ -96,7 +96,7 @@ static bool s_timer_timeout_after_connected_check(void * a_arg);
 
 static bool s_debug_more=false;
 static uint64_t s_client_timeout_ms                     = 20000;
-static uint64_t s_client_timeout_read_after_connect_ms       = 5;
+static uint64_t s_client_timeout_read_after_connect_ms       = 5000;
 static uint32_t s_max_attempts = 5;
 
 #ifndef DAP_NET_CLIENT_NO_SSL
@@ -180,12 +180,12 @@ void dap_client_http_set_connect_timeout_ms(uint64_t a_timeout_ms)
  */
 static bool s_timer_timeout_after_connected_check(void * a_arg)
 {
-    dap_events_socket_handle_t *l_es_handler = (dap_events_socket_handle_t*) a_arg;
-    assert(l_es_handler);
+    assert(a_arg);
+    dap_events_socket_uuid_t * l_es_uuid_ptr = (dap_events_socket_uuid_t *) a_arg;
 
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default()); // We're in own esocket context
     assert(l_worker);
-    dap_events_socket_t * l_es = dap_worker_esocket_find_uuid( l_worker, l_es_handler->esocket_uuid);
+    dap_events_socket_t * l_es = dap_worker_esocket_find_uuid( l_worker, *l_es_uuid_ptr);
     if(l_es){
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
         assert(l_http_pvt);
@@ -204,9 +204,9 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
         }
     }else{
         if(s_debug_more)
-            log_it(L_DEBUG,"Esocket %llu is finished, close check timer", l_es_handler->esocket_uuid);
+            log_it(L_DEBUG,"Esocket %"DAP_UINT64_FORMAT_U" is finished, close check timer", *l_es_uuid_ptr);
     }
-    DAP_DEL_Z(l_es_handler)
+    DAP_DEL_Z(l_es_uuid_ptr);
     return false;
 }
 
@@ -242,7 +242,7 @@ static bool s_timer_timeout_check(void * a_arg)
                 log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
-            log_it(L_DEBUG,"Esocket %llu is finished, close check timer", *l_es_uuid);
+            log_it(L_DEBUG,"Esocket %"DAP_UINT64_FORMAT_U" is finished, close check timer", *l_es_uuid);
 
     DAP_DEL_Z(l_es_uuid);
     return false;
@@ -634,9 +634,13 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
         l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
         dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
-        dap_events_socket_uuid_t * l_ev_uuid = DAP_NEW_Z(dap_events_socket_uuid_t);
-        *l_ev_uuid = l_ev_socket->uuid;
-        dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_uuid);
+        dap_events_socket_uuid_t * l_ev_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
+        *l_ev_uuid_ptr = l_ev_socket->uuid;
+        if(dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_uuid_ptr) == NULL){
+            log_it(L_ERROR,"Can't run timer on worker %u for esocket uuid %"DAP_UINT64_FORMAT_u" for timeout check during connection attempt ",
+                   l_http_pvt->worker->id, *l_ev_uuid_ptr);
+            DAP_DEL_Z(l_ev_uuid_ptr);
+        }
         return l_http_pvt;
     }
     else{
@@ -696,9 +700,12 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     // add to dap_worker
     //dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*) a_obj;
     //dap_events_new();
-    dap_events_socket_handle_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handle_t);
-    l_ev_socket_handler->esocket_uuid = a_esocket->uuid;
-    dap_timerfd_start_on_worker(l_http_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_ms * 1000, s_timer_timeout_after_connected_check, l_ev_socket_handler);
+    dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
+    *l_es_uuid_ptr = a_esocket->uuid;
+    if(dap_timerfd_start_on_worker(l_http_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_ms, s_timer_timeout_after_connected_check, l_es_uuid_ptr) == NULL ){
+        DAP_DELETE(l_es_uuid_ptr);
+        log_it(L_ERROR, "Can't run timerfo after connection check on worker id %u", l_http_pvt->worker->id);
+    }
 
     char l_request_headers[1024] = { [0]='\0' };
     int l_offset = 0;

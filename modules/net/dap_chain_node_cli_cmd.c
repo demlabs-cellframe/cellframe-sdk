@@ -1126,7 +1126,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         l_chain_id_null.uint64 = l_net->pub.id.uint64;
         l_chain_cell_id_null.uint64 = dap_chain_net_get_cur_cell(l_net) ? dap_chain_net_get_cur_cell(l_net)->uint64 : 0;
 
-        log_it(L_INFO, "Requested GLOBAL_DB syncronizatoin, %llu:%llu period", l_sync_request.id_start,
+        log_it(L_INFO, "Requested GLOBAL_DB syncronizatoin, %"DAP_UINT64_FORMAT_U":%"DAP_UINT64_FORMAT_U" period", l_sync_request.id_start,
                 l_sync_request.id_end);
         // copy l_sync_request to current
         //dap_stream_ch_chain_t * l_s_ch_chain = DAP_STREAM_CH_CHAIN(l_ch_chain);

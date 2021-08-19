@@ -231,9 +231,9 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
             if(dap_chain_datum_tx_add_in_item(&l_tx_new, &item->tx_hash_fast, (uint32_t) item->num_idx_out) == 1) {
                 l_value_to_items += item->value;
-                log_it(L_DEBUG,"Added input %s with %llu datoshi",l_in_hash_str, item->value);
+                log_it(L_DEBUG,"Added input %s with %"DAP_UINT64_FORMAT_U" datoshi",l_in_hash_str, item->value);
             }else{
-                log_it(L_WARNING,"Can't add input from %s with %llu datoshi",l_in_hash_str, item->value);
+                log_it(L_WARNING,"Can't add input from %s with %"DAP_UINT64_FORMAT_U" datoshi",l_in_hash_str, item->value);
             }
             l_list_used_out = l_list_tmp->next;
             DAP_DELETE(l_list_tmp->data);
@@ -243,7 +243,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 break;
         }
         if ( l_value_to_items <  (a_value + a_value_fee) ){
-            log_it(L_ERROR,"Not enought values on output %llu to produce enought ins %llu when need %llu",
+            log_it(L_ERROR,"Not enought values on output %"DAP_UINT64_FORMAT_U" to produce enought ins %"DAP_UINT64_FORMAT_U" when need %"DAP_UINT64_FORMAT_U"",
                    l_value_to_items, l_value_transfer,
                    l_value_need);
             DAP_DELETE(l_objs);
@@ -263,7 +263,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // coin back
         l_value_back = l_value_transfer - l_value_pack;
         if(l_value_back) {
-            //log_it(L_DEBUG,"Change back %llu", l_value_back);
+            //log_it(L_DEBUG,"Change back %"DAP_UINT64_FORMAT_U"", l_value_back);
             if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx_new);
                 return -3;
@@ -282,7 +282,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
         // If we have value back - update balance cache
         if(l_value_back) {
-            //log_it(L_DEBUG,"We have value back %llu now lets see how many outputs we have", l_value_back);
+            //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
             int l_item_count = 0;
             dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT,
                     &l_item_count);
@@ -323,7 +323,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         //continue;
         l_objs[i].value = (uint8_t*) l_datum;
         l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
-        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %llu)",
+        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
 
     }

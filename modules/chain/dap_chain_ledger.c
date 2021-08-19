@@ -1083,7 +1083,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_
                                        : &l_ledger_priv->treshold_emissions_rwlock);
     if(l_token_emission_item ) {
         if(s_debug_more)
-            log_it(L_ERROR, "Can't add token emission datum of %llu %s ( %s ): already present in cache",
+            log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s ): already present in cache",
                 a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         ret = -1;
     }else if ( (! l_token_item) && ( l_threshold_emissions_count >= s_treshold_emissions_max)) {
@@ -1127,7 +1127,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_
 
                         if (l_aproves < l_aproves_valid ){
                             if(s_debug_more)
-                                log_it(L_WARNING, "Emission of %llu datoshi of %s:%s is wrong: only %u valid aproves when %u need",
+                                log_it(L_WARNING, "Emission of %"DAP_UINT64_FORMAT_U" datoshi of %s:%s is wrong: only %u valid aproves when %u need",
                                    a_token_emission->hdr.value, a_ledger->net_name, a_token_emission->hdr.ticker, l_aproves, l_aproves_valid );
                             ret = -1;
                         }
@@ -1222,7 +1222,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
     } else {
         if (l_token_item) {
             if(s_debug_more)
-                log_it(L_ERROR, "Can't add token emission datum of %llu %s ( %s )",
+                log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s )",
                             a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         }
         ret = -1;
@@ -1930,7 +1930,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             HASH_FIND_STR(l_values_from_cur_tx, l_value_cur->token_ticker, l_res);
             if (!l_res || l_res->sum != l_value_cur->sum) {
                 if(s_debug_more)
-                    log_it(L_ERROR, "Sum of values in out items of current tx (%llu) is not equal outs from previous tx (%llu) for token %s",
+                    log_it(L_ERROR, "Sum of values in out items of current tx (%"DAP_UINT64_FORMAT_U") is not equal outs from previous tx (%"DAP_UINT64_FORMAT_U") for token %s",
                        l_res ? l_res->sum : 0, l_value_cur->sum, l_value_cur->token_ticker);
                 l_err_num = -12;
                 break;
@@ -2548,7 +2548,7 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
     HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, l_balance_item);
     if (l_balance_item) {
         if(s_debug_more)
-            log_it (L_INFO,"Found address in cache with balance %llu", l_balance_item->balance);
+            log_it (L_INFO,"Found address in cache with balance %"DAP_UINT64_FORMAT_U"", l_balance_item->balance);
         l_ret = l_balance_item->balance;
     }
     DAP_DELETE(l_addr);

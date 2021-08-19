@@ -282,13 +282,13 @@ typedef struct dap_events_socket {
 
 #define SSL(a) (a ? (WOLFSSL *) (a)->_pvt : NULL)
 
-typedef struct dap_events_socket_handler{
+typedef struct dap_events_socket_uuid_w_data{
     dap_events_socket_uuid_t esocket_uuid;
     struct {
         uint64_t value; // some custom data
         void * ptr;
     };
-} dap_events_socket_handle_t;
+} dap_events_socket_uuid_w_data_t;
 
 
 

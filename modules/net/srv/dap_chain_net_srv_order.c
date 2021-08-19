@@ -475,7 +475,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016llX\n", a_order->srv_uid.uint64 );
-        dap_string_append_printf(a_str_out, "  price:           \xA0""%.7Lf (%llu)\n", dap_chain_datoshi_to_coins(a_order->price) , a_order->price);
+        dap_string_append_printf(a_str_out, "  price:           \xA0""%.7Lf (%"DAP_UINT64_FORMAT_U")\n", dap_chain_datoshi_to_coins(a_order->price) , a_order->price);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
         if ( a_order->node_addr.uint64)

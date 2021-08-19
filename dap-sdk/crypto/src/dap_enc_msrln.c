@@ -64,6 +64,9 @@ void dap_enc_msrln_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
     }
 
     a_key->priv_key_data = malloc(MSRLN_PKA_BYTES * sizeof(uint32_t));
+    if(a_key->priv_key_data == NULL){
+        abort();
+    }
 
     PLatticeCryptoStruct PLCS = LatticeCrypto_allocate();
     LatticeCrypto_initialize(PLCS, (RandomBytes)randombytes, MSRLN_generate_a, MSRLN_get_error);

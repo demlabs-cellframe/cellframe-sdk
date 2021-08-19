@@ -356,7 +356,7 @@ dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
     }
     if (l_hdr.version >= 1 ){
         if ( (sizeof(l_hdr) + l_hdr.data_size+l_hdr.data_pvt_size +l_hdr.metadata_size) > a_data_size ){
-            log_it(L_ERROR,"Corrupted cert data, data sections size is smaller than exists on the disk! (%llu expected, %llu on disk)",
+            log_it(L_ERROR,"Corrupted cert data, data sections size is smaller than exists on the disk! (%"DAP_UINT64_FORMAT_U" expected, %"DAP_UINT64_FORMAT_U" on disk)",
                     sizeof(l_hdr)+l_hdr.data_pvt_size+l_hdr.data_size+l_hdr.metadata_size, a_data_size);
             goto l_exit;
         }
@@ -368,6 +368,13 @@ dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
         //l_ret = DAP_NEW_Z(dap_cert_t);
         l_ret = dap_cert_new(l_name);
         l_ret->enc_key = dap_enc_key_new( dap_sign_type_to_key_type( l_hdr.sign_type ));
+        if(l_ret->enc_key == NULL){
+            log_it(L_ERROR,"Can't init new private key with sign type %s", dap_sign_type_to_str(l_hdr.sign_type));
+            dap_cert_delete(l_ret);
+            l_ret = NULL;
+            goto l_exit;
+        }
+
         l_ret->enc_key->last_used_timestamp = l_hdr.ts_last_used;
 
         if ( l_hdr.data_size > 0 ){
