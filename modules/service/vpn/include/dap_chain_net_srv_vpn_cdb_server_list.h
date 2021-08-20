@@ -27,9 +27,15 @@
 #pragma once
 
 #include "dap_enc_http.h"
+#include "dap_chain_net.h"
 #include <stdbool.h>
 
 struct dap_http;
+
+typedef struct dap_orders_callback_params {
+    dap_chain_net_t *net;
+    int multiplicity;
+} dap_orders_callback_params_t;
 
 int get_order_state(dap_chain_node_addr_t a_node_addr);
 

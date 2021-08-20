@@ -271,6 +271,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         dap_stream_t * l_stream  = dap_client_get_stream(a_client);
         if (l_stream) {
             l_node_client->esocket_uuid = l_stream->esocket->uuid;
+            l_node_client->stream_worker = l_stream->stream_worker;
             if (l_node_client->keep_connection) {
                 dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
                 memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
@@ -691,7 +692,9 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         inet_ntop(AF_INET, &a_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_client->info->hdr.ext_port);
         // clean client
+        DAP_CLIENT_PVT(a_client->client)->stage_status_error_callback = NULL;
         a_client->client->_inheritor = NULL;
+        dap_events_socket_remove_and_delete_mt(a_client->stream_worker->worker, a_client->esocket_uuid);
         dap_client_delete_mt(a_client->client);
 #ifndef _WIN32
         pthread_cond_destroy(&a_client->wait_cond);
