@@ -95,7 +95,7 @@ typedef struct dap_chain_node_client {
 
     // Timer
     dap_events_socket_t * timer_update_states;
-    dap_events_socket_handle_t own_esh;
+    dap_events_socket_uuid_t esocket_uuid;
 
 
     #ifndef _WIN32

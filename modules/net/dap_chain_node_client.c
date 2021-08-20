@@ -163,7 +163,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         SetEvent( l_node_client->wait_cond );
 #endif
         pthread_mutex_unlock(&l_node_client->wait_mutex);
-        l_node_client->own_esh.esocket_uuid = 0;
+        l_node_client->esocket_uuid = 0;
 
         if (l_node_client->keep_connection) {
             uint128_t *l_uuid = DAP_NEW(uint128_t);
@@ -199,7 +199,7 @@ static bool s_timer_update_states_callback(void * a_arg )
     assert(l_worker);
     assert(l_me);
     dap_events_socket_t * l_es = NULL;
-    dap_events_socket_uuid_t l_es_uuid = l_me->own_esh.esocket_uuid;
+    dap_events_socket_uuid_t l_es_uuid = l_me->esocket_uuid;
     // check if esocket still in worker
     if( (l_es = dap_worker_esocket_find_uuid(l_worker, l_es_uuid)) != NULL ){
         dap_client_t * l_client = dap_client_from_esocket(l_es);
@@ -216,7 +216,7 @@ static bool s_timer_update_states_callback(void * a_arg )
                     dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                     l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(l_node_client->remote_node_addr.uint64);
                     l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-                    log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start,
+                    log_it(L_DEBUG, "Prepared request to gdb sync from %"DAP_UINT64_FORMAT_U" to %"DAP_UINT64_FORMAT_U"", l_sync_gdb.id_start,
                            l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
                     // find dap_chain_id_t
                     dap_chain_t *l_chain = l_net->pub.chains;
@@ -270,7 +270,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 
         dap_stream_t * l_stream  = dap_client_get_stream(a_client);
         if (l_stream) {
-            l_node_client->own_esh.esocket_uuid = l_stream->esocket->uuid;
+            l_node_client->esocket_uuid = l_stream->esocket->uuid;
             if (l_node_client->keep_connection) {
                 dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
                 memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));

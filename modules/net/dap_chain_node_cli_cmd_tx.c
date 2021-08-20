@@ -1006,25 +1006,25 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                 switch (l_token->type) {
                 // Simple private token decl
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
-                    dap_string_append_printf(l_str_out, "  total_supply: %.0llf(%llu), signs: valid/total %02d/%02d \n",
+                    dap_string_append_printf(l_str_out, "  total_supply: %.0llf(%"DAP_UINT64_FORMAT_U"), signs: valid/total %02d/%02d \n",
                             l_token->header_private.total_supply / DATOSHI_LD,
                             l_token->header_private.total_supply,
                             l_token->header_private.signs_valid, l_token->header_private.signs_total);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %llu, flags: 0x%x \n",
+                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
                             l_token->header_private_decl.tsd_total_size,
                             l_token->header_private_decl.flags);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %llu, padding: 0x%x \n",
+                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
                             l_token->header_private_update.tsd_total_size,
                             l_token->header_private_update.padding);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
                     char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
                     dap_string_append_printf(l_str_out,
-                            " total_supply: %.0llf(%llu), flags: 0x%x\n, premine_supply: %llu, premine_address '%s'\n",
+                            " total_supply: %.0llf(%"DAP_UINT64_FORMAT_U"), flags: 0x%x\n, premine_supply: %"DAP_UINT64_FORMAT_U", premine_address '%s'\n",
                             l_token->header_public.total_supply / DATOSHI_LD,
                             l_token->header_public.total_supply,
                             l_token->header_public.flags,
@@ -1130,25 +1130,25 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 switch (l_token->type) {
                 // Simple private token decl
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
-                    dap_string_append_printf(l_str_out, "  total_supply: %.0llf(%llu), signs: valid/total %02d/%02d \n",
+                    dap_string_append_printf(l_str_out, "  total_supply: %.0llf(%"DAP_UINT64_FORMAT_U"), signs: valid/total %02d/%02d \n",
                             l_token->header_private.total_supply / DATOSHI_LD,
                             l_token->header_private.total_supply,
                             l_token->header_private.signs_valid, l_token->header_private.signs_total);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %llu, flags: 0x%x \n",
+                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
                             l_token->header_private_decl.tsd_total_size,
                             l_token->header_private_decl.flags);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %llu, padding: 0x%x \n",
+                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
                             l_token->header_private_update.tsd_total_size,
                             l_token->header_private_update.padding);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
                     char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
                     dap_string_append_printf(l_str_out,
-                            " total_supply: %.0llf(%llu), flags: 0x%x\n, premine_supply: %llu, premine_address '%s'\n",
+                            " total_supply: %.0llf(%"DAP_UINT64_FORMAT_U"), flags: 0x%x\n, premine_supply: %"DAP_UINT64_FORMAT_U", premine_address '%s'\n",
                             l_token->header_public.total_supply / DATOSHI_LD,
                             l_token->header_public.total_supply,
                             l_token->header_public.flags,
@@ -1183,7 +1183,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                      break;
                 }
 
-                dap_string_append_printf(l_str_out, "emission: %.0llf(%llu) %s, type: %s, version: %d\n",
+                dap_string_append_printf(l_str_out, "emission: %.0llf(%"DAP_UINT64_FORMAT_U") %s, type: %s, version: %d\n",
                         l_token_em->hdr.value / DATOSHI_LD, l_token_em->hdr.value, l_token_em->hdr.ticker,
                         c_dap_chain_datum_token_emission_type_str[l_token_em->hdr.type],
                         l_token_em->hdr.version);
@@ -1200,7 +1200,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     dap_string_append_printf(l_str_out, "  codename: %s\n", l_token_em->data.type_algo.codename);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
-                    dap_string_append_printf(l_str_out, " value_start: %.0llf(%llu), codename: %s\n",
+                    dap_string_append_printf(l_str_out, " value_start: %.0llf(%"DAP_UINT64_FORMAT_U"), codename: %s\n",
                             l_token_em->data.type_atom_owner.value_start / DATOSHI_LD,
                             l_token_em->data.type_atom_owner.value_start,
                             l_token_em->data.type_atom_owner.value_change_algo_codename);

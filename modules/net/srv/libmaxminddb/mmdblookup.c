@@ -687,7 +687,7 @@ static bool start_threaded_benchmark(
 
     fprintf(
         stdout,
-        "Looked up %llu addresses using %d threads in %.2Lf seconds. %.2Lf lookups per second.\n",
+        "Looked up %llub addresses using %d threads in %.2Lf seconds. %.2Lf lookups per second.\n",
         total_ips, thread_count, elapsed, rate);
 
     return true;

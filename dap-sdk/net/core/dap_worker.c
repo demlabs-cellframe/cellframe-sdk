@@ -975,15 +975,15 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
  */
 static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
-    dap_events_socket_handle_t * l_es_handler = (dap_events_socket_handle_t*) a_arg;
-    assert(l_es_handler);
+    assert(a_arg);
+    dap_events_socket_uuid_t * l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
     dap_events_socket_t * l_es;
-    if ( (l_es = dap_worker_esocket_find_uuid(a_es->worker,l_es_handler->esocket_uuid)) != NULL ){
+    if ( (l_es = dap_worker_esocket_find_uuid(a_es->worker,*l_es_uuid_ptr)) != NULL ){
         //l_es->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
         dap_events_socket_remove_and_delete_unsafe(l_es,false);
     }else
-        log_it(L_INFO, "While we were sending the delete() message, esocket %llu has been disconnected ", l_es_handler->esocket_uuid);
-    DAP_DELETE(l_es_handler);
+        log_it(L_INFO, "While we were sending the delete() message, esocket %"DAP_UINT64_FORMAT_u" has been disconnected ", l_es_uuid_ptr);
+    DAP_DELETE(l_es_uuid_ptr);
 }
 
 /**
@@ -1054,7 +1054,7 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
     // Check if it was removed from the list
     dap_events_socket_t *l_msg_es = dap_worker_esocket_find_uuid(l_worker, l_msg->esocket_uuid);
     if ( l_msg_es == NULL){
-        log_it(L_INFO, "We got i/o message for esocket %llu thats now not in list. Lost %u data", l_msg->esocket_uuid, l_msg->data_size);
+        log_it(L_INFO, "We got i/o message for esocket %"DAP_UINT64_FORMAT_U" thats now not in list. Lost %u data", l_msg->esocket_uuid, l_msg->data_size);
         DAP_DELETE(l_msg);
         return;
     }
