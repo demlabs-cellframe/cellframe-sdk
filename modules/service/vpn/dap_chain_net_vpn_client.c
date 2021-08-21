@@ -58,16 +58,12 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_net_srv_vpn.h"
-#include "dap_chain_net_srv_vpn_cdb.h" // for DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX
 #include "dap_chain_net_vpn_client.h"
 
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
-//#include "dap_stream_ch_chain_net_srv.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-#include "dap_chain_net_srv_vpn_cdb_server_list.h"
-//#include "dap_chain_net_vpn_client_data.h"
 #include "dap_modules_dynamic_cdb.h"
 
 /*
