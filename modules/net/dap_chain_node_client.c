@@ -698,7 +698,6 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         // clean client
         dap_client_pvt_t *l_client_pvt = dap_client_pvt_find(a_client->client->pvt_uuid);
         if (l_client_pvt) {
-            l_client_pvt->stage_status_error_callback = NULL;
             dap_client_delete_mt(a_client->client);
             a_client->client->_inheritor = NULL;
         }
