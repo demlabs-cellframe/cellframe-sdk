@@ -615,8 +615,9 @@ static OAES_RET oaes_key_gen( OAES_CTX * ctx, size_t key_size )
 		return OAES_RET_ARG1;
 	
 	oaes_key_destroy( &(_ctx->key_flat) );
-    if(_key == NULL)
+    if(_key == NULL) {
         return OAES_RET_ARG1;
+    }
 
 	_key->data_len = key_size;
 	
