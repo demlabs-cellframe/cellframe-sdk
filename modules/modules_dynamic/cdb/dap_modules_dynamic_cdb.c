@@ -32,38 +32,53 @@
 #define LOG_TAG "dap_http"
 
 static const char * s_default_path_modules = "var/modules";
+static void *s_cdb_handle = NULL;
 
-int dap_modules_dynamic_load_cdb(dap_http_t * a_server){
+void dap_modules_dynamic_close_cdb()
+{
+    if (s_cdb_handle) {
+        dlclose(s_cdb_handle);
+        s_cdb_handle = NULL;
+    }
+}
+
+void *dap_modules_dynamic_get_cdb_func(const char *a_func_name)
+{
     char l_lib_path[MAX_PATH] = {'\0'};
+    void *l_ref_func = NULL;
+    //  find func from dynamic library
 #if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
     const char * l_cdb_so_name = "libcellframe-node-cdb.so";
-    dap_sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
+    if (!s_cdb_handle) {
+        dap_sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
 
-    void* l_cdb_handle = NULL;
-    l_cdb_handle = dlopen(l_lib_path, RTLD_NOW);
-    if(!l_cdb_handle){
-        log_it(L_ERROR,"Can't load %s module: %s", l_cdb_so_name, dlerror());
-        return -1;
+        s_cdb_handle = dlopen(l_lib_path, RTLD_NOW);
+        if (!s_cdb_handle) {
+            log_it(L_ERROR,"Can't load %s module: %s", l_cdb_so_name, dlerror());
+            return NULL;
+        }
     }
 
-    int (*dap_chain_net_srv_vpn_cdb_init)(dap_http_t*);
-    const char * l_init_func_name = "dap_chain_net_srv_vpn_cdb_init";
-    *(void **) (&dap_chain_net_srv_vpn_cdb_init) = dlsym(l_cdb_handle, l_init_func_name);
-    char* error;
-    if (( error = dlerror()) != NULL) {
-        log_it(L_ERROR,"%s module: %s error loading (%s)", l_cdb_so_name, l_init_func_name, error);
-        return -2;
-     }
+    l_ref_func = dlsym(s_cdb_handle, a_func_name);
 
-    int l_init_res = (*dap_chain_net_srv_vpn_cdb_init)(a_server);
-    if(l_init_res){
-        log_it(L_ERROR,"%s: %s returns %d", l_cdb_so_name, l_init_func_name, error);
-        return -3;
+    if (!l_ref_func) {
+        log_it(L_ERROR,"%s module: %s error loading (%s)", l_cdb_so_name, a_func_name, dlerror());
+        return NULL;
     }
-
-    return 0;
 #else
     log_it(L_ERROR,"%s: module is not supported on current platfrom", __PRETTY_FUNCTION__);
-    return -3;
 #endif
+    return l_ref_func;
+}
+
+int dap_modules_dynamic_load_cdb(dap_http_t * a_server)
+{
+    int (*dap_chain_net_srv_vpn_cdb_init)(dap_http_t *);
+    dap_chain_net_srv_vpn_cdb_init = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_init");
+    int l_init_res = dap_chain_net_srv_vpn_cdb_init(a_server);
+    if (l_init_res) {
+        log_it(L_ERROR,"dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init returns %d", l_init_res);
+        return -3;
+    }
+    return 0;
 }
