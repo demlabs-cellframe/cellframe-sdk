@@ -687,16 +687,21 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
  */
 void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
-    if (a_client && a_client->client) { // block tryes to close twice
+    dap_chain_node_client_handle_t * l_client_found = NULL;
+    HASH_FIND(hh,s_clients,&a_client->uuid,sizeof(a_client->uuid),l_client_found);
+    if (l_client_found) {
+        HASH_DEL(s_clients,l_client_found);
+        DAP_DELETE(l_client_found);
         char l_node_addr_str[INET_ADDRSTRLEN] = {};
         inet_ntop(AF_INET, &a_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_client->info->hdr.ext_port);
         // clean client
-        DAP_CLIENT_PVT(a_client->client)->stage_status_error_callback = NULL;
-        a_client->client->_inheritor = NULL;
-        if (a_client->stream_worker)
-            dap_events_socket_remove_and_delete_mt(a_client->stream_worker->worker, a_client->esocket_uuid);
-        dap_client_delete_mt(a_client->client);
+        dap_client_pvt_t *l_client_pvt = dap_client_pvt_find(a_client->client->pvt_uuid);
+        if (l_client_pvt) {
+            l_client_pvt->stage_status_error_callback = NULL;
+            dap_client_delete_mt(a_client->client);
+            a_client->client->_inheritor = NULL;
+        }
 #ifndef _WIN32
         pthread_cond_destroy(&a_client->wait_cond);
 #else
@@ -704,16 +709,9 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 #endif
         pthread_mutex_destroy(&a_client->wait_mutex);
         a_client->client = NULL;
-        dap_chain_node_client_handle_t * l_client_found = NULL;
-        HASH_FIND(hh,s_clients,&a_client->uuid,sizeof(a_client->uuid),l_client_found);
-        if (l_client_found){
-            HASH_DEL(s_clients,l_client_found);
-            DAP_DELETE(l_client_found);
-        }else{
-            log_it(L_WARNING, "Chain node client was removed from hash table before for some reasons");
-        }
-
         DAP_DELETE(a_client);
+    } else {
+        log_it(L_WARNING, "Chain node client was removed from hash table before for some reasons");
     }
 }
 

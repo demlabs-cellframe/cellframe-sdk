@@ -167,13 +167,16 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
 void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 {
     assert(a_client_pvt);
-    if(a_client_pvt->delete_callback)
-        a_client_pvt->delete_callback(a_client_pvt->client, NULL);
     // delete from list
     if(dap_client_pvt_hh_del_unsafe(a_client_pvt)<0){
         if(s_debug_more)
             log_it(L_DEBUG, "dap_client_pvt 0x%x already deleted", a_client_pvt);
         return;
+    }
+    if(a_client_pvt->delete_callback)
+        a_client_pvt->delete_callback(a_client_pvt->client, NULL);
+    if (a_client_pvt->stream_es) {
+        dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
     }
     if(s_debug_more)
         log_it(L_INFO, "dap_client_pvt_delete 0x%x", a_client_pvt);
@@ -319,6 +322,8 @@ static bool s_enc_init_delay_before_request_timer_callback(void * a_arg)
  */
 static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 {
+    if (!dap_client_pvt_find(a_client_pvt->uuid))
+        return false;
     dap_worker_t * l_worker= a_client_pvt->worker;
     assert(l_worker);
     assert(l_worker->_inheritor);
@@ -870,8 +875,9 @@ static void s_request_error(int a_err_code, void * a_obj)
 
     if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client)
     {
+        l_client_pvt = dap_client_pvt_find(l_client_pvt->uuid);
         if(l_client_pvt && l_client_pvt->request_error_callback
-                && l_client_pvt->client && l_client_pvt->client->_internal && l_client_pvt->client->_internal == l_client_pvt)
+                && l_client_pvt->client && l_client_pvt->client->_internal)
             l_client_pvt->request_error_callback(l_client_pvt->client, a_err_code);
     }
 }
@@ -921,8 +927,9 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
  */
 static void s_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
 {
-    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    assert(l_client_pvt);
+    dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(a_client->pvt_uuid);
+    if (!l_client_pvt)
+        return;
 
     if (!l_client_pvt->session_key_open){
         log_it(L_ERROR, "m_enc_init_response: session is NULL!");
