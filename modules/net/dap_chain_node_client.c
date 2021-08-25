@@ -470,7 +470,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     assert(a_arg);
     dap_stream_ch_t * l_ch = NULL;
-    if((l_ch = dap_stream_ch_find_by_uuid_unsafe(l_node_client->stream_worker, l_node_client->ch_chain_uuid)) != NULL){
+    //if((l_ch = dap_stream_ch_find_by_uuid_unsafe(l_node_client->stream_worker, l_node_client->ch_chain_uuid)) != NULL){
         switch (a_pkt_type) {
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB: {
                 if(s_stream_ch_chain_debug_more)
@@ -483,7 +483,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             default: {
             }
         }
-    }
+    //}
 }
 
 static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_request, dap_chain_node_client_t * a_node_client)
