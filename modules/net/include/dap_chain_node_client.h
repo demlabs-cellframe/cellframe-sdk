@@ -66,7 +66,8 @@ typedef struct dap_chain_node_client_callbacks{
 // state for a client connection
 typedef struct dap_chain_node_client {
     dap_chain_node_client_state_t state;
-    uint128_t uuid;
+
+    dap_events_socket_uuid_t uuid;
     bool resync_gdb;
     bool resync_chains;
 
@@ -81,10 +82,10 @@ typedef struct dap_chain_node_client {
 
     // Channel chain
     dap_stream_ch_t * ch_chain;
-    uint128_t ch_chain_uuid;
+    dap_stream_ch_uuid_t ch_chain_uuid;
     // Channel chain net
     dap_stream_ch_t * ch_chain_net;
-    uint128_t ch_chain_net_uuid;
+    dap_stream_ch_uuid_t ch_chain_net_uuid;
 
     dap_chain_node_info_t * info;
     dap_events_t *events;
@@ -94,7 +95,7 @@ typedef struct dap_chain_node_client {
 
     // Timer
     dap_events_socket_t * timer_update_states;
-    dap_events_socket_handler_t own_esh;
+    dap_events_socket_uuid_t esocket_uuid;
 
 
     #ifndef _WIN32

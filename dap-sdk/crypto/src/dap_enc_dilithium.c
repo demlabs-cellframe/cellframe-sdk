@@ -241,12 +241,14 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old(uint8_t *a_buf, size
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(unsigned long long));
     if( l_sign->sig_len> (UINT64_MAX - l_shift_mem ) ){
             log_it(L_ERROR,"::read_signature_old() Buflen inside signature %"DAP_UINT64_FORMAT_u" is too big ", l_sign->sig_len);
+            DAP_DELETE(l_sign);
             return NULL;
     }
 
     if( (uint64_t) a_buflen < (l_shift_mem + l_sign->sig_len) ){
         log_it(L_ERROR,"::read_signature_old() Buflen %zd is smaller than all fields together(%" DAP_UINT64_FORMAT_u")", a_buflen,
                l_shift_mem + l_sign->sig_len  );
+        DAP_DELETE(l_sign);
         return NULL;
     }
 
@@ -287,12 +289,14 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old2(uint8_t *a_buf, siz
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(unsigned long long));
     if( l_sign->sig_len> (UINT64_MAX - l_shift_mem ) ){
             log_it(L_ERROR,"::read_signature_old() Buflen inside signature %"DAP_UINT64_FORMAT_u" is too big ", l_sign->sig_len);
+            DAP_DELETE(l_sign);
             return NULL;
     }
 
     if( (uint64_t) a_buflen < (l_shift_mem + l_sign->sig_len) ){
         log_it(L_ERROR,"::read_signature_old() Buflen %zd is smaller than all fields together(%" DAP_UINT64_FORMAT_u")", a_buflen,
                l_shift_mem + l_sign->sig_len  );
+        DAP_DELETE(l_sign);
         return NULL;
     }
 

@@ -6,5 +6,7 @@
 int randombytes(void* random_array, unsigned int nbytes);
 int randombase64(void*random_array, unsigned int size);
 uint32_t random_uint32_t(const uint32_t MAX_NUMBER);
+byte_t dap_random_byte();
+uint16_t dap_random_uint16();
 
 #endif
