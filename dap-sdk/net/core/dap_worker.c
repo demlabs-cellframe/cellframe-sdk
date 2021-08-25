@@ -62,7 +62,7 @@
 #define LOG_TAG "dap_worker"
 
 static time_t s_connection_timeout = 60;    // seconds
-static bool s_debug_reactor=true;
+static bool s_debug_reactor=false;
 
 static bool s_socket_all_check_activity( void * a_arg);
 static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg);

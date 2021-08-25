@@ -168,7 +168,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         if (l_node_client->keep_connection) {
             uint128_t *l_uuid = DAP_NEW(uint128_t);
             memcpy(l_uuid, &l_node_client->uuid, sizeof(uint128_t));
-            dap_timerfd_start_on_worker(dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
+            dap_timerfd_start_on_worker(l_node_client->stream_worker? l_node_client->stream_worker->worker: dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
         }
         return;
     }

@@ -412,9 +412,8 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     // default 10 sec = 10000 ms
     if(a_timeout_test_ms==-1)
         a_timeout_test_ms = 10000;
-    // default 10 sec = 10000 ms
-    int l_timeout_conn_ms = 10000;
 
+    int l_timeout_conn_ms = 10000;
     int l_ret = 0;
     if(!a_ipv4_str) // && !a_ipv6_str)
         return -1;
