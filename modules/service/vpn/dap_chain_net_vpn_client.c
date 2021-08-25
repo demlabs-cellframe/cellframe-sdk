@@ -58,16 +58,13 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_net_srv_vpn.h"
-#include "dap_chain_net_srv_vpn_cdb.h" // for DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX
 #include "dap_chain_net_vpn_client.h"
 
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
-//#include "dap_stream_ch_chain_net_srv.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-#include "dap_chain_net_srv_vpn_cdb_server_list.h"
-//#include "dap_chain_net_vpn_client_data.h"
+#include "dap_modules_dynamic_cdb.h"
 
 /*
  #if !defined( dap_http_client_state_t )
@@ -416,7 +413,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(a_timeout_test_ms==-1)
         a_timeout_test_ms = 10000;
     // default 5 sec = 5000 ms
-    int l_timeout_conn_ms = 5000;
+    int l_timeout_conn_ms = 25000;
 
     int l_ret = 0;
     if(!a_ipv4_str) // && !a_ipv6_str)
@@ -437,7 +434,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(a_ipv6_str)
         inet_pton(AF_INET6, a_ipv6_str, &(s_node_info->hdr.ext_addr_v6));
 
-    s_vpn_client = dap_chain_node_client_connect_channels(a_net, s_node_info, l_active_channels);
+    s_vpn_client = dap_chain_node_client_create_n_connect(a_net, s_node_info, l_active_channels, NULL, NULL);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct

@@ -79,7 +79,6 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_client.h"
 #include "dap_chain_net_srv_vpn.h"
-#include "dap_chain_net_srv_vpn_cdb.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client.h"
 #include "dap_chain_net_vpn_client_tun.h"

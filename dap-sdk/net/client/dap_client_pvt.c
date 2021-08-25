@@ -606,6 +606,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         break;
 
         case STAGE_STATUS_ERROR: {
+            if (a_client_pvt->is_to_delete)
+                break;
             // limit the number of attempts
             a_client_pvt->stage_errors++;
             bool l_is_last_attempt = a_client_pvt->stage_errors > s_max_attempts ? true : false;
@@ -613,11 +615,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             //    l_is_last_attempt = true;
             //}
 
-            //if (a_client_pvt->is_always_reconnect ){
-            //    l_is_last_attempt = false;
-            //}
-
-            log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_get_error_str(a_client_pvt->client));
+            log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_error_str(a_client_pvt->last_error));
             if(a_client_pvt->stage_status_error_callback)
                 a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
 
@@ -637,16 +635,20 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         log_it(L_ERROR,"Can't run timer for small delay before the next enc_init request");
                     }
                 } else {
+                    if (a_client_pvt->is_always_reconnect) {
+                        log_it(L_INFO, "Too many attempts, reconnect attempt in %d seconds with %s:%u",s_timeout*3,
+                               a_client_pvt->uplink_addr,a_client_pvt->uplink_port);                    // Trying the step again
+                        a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
+                        a_client_pvt->stage_errors = 0;
 
-                    log_it(L_INFO, "Too many attempts, reconnect attempt in %d seconds with %s:%u",s_timeout*3,
-                           a_client_pvt->uplink_addr,a_client_pvt->uplink_port);                    // Trying the step again
-                    a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
-                    a_client_pvt->stage_errors = 0;
-
-                    // bigger delay before next request
-                    if(dap_timerfd_start( s_timeout*3000,(dap_timerfd_callback_t) s_stage_status_after,
-                                                   a_client_pvt ) == NULL){
-                        log_it(L_ERROR,"Can't run timer for bigger delay before the next enc_init request");
+                        // bigger delay before next request
+                        if(dap_timerfd_start( s_timeout*3000,(dap_timerfd_callback_t) s_stage_status_after,
+                                                       a_client_pvt ) == NULL){
+                            log_it(L_ERROR,"Can't run timer for bigger delay before the next enc_init request");
+                        }
+                    } else {
+                        log_it(L_ERROR, "Connet to %s:%u failed", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
+                        dap_client_delete_mt(a_client_pvt->client);
                     }
                 }
             }
@@ -868,7 +870,8 @@ static void s_request_error(int a_err_code, void * a_obj)
 
     if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client)
     {
-        if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client && l_client_pvt->client->_internal)
+        if(l_client_pvt && l_client_pvt->request_error_callback
+                && l_client_pvt->client && l_client_pvt->client->_internal && l_client_pvt->client->_internal == l_client_pvt)
             l_client_pvt->request_error_callback(l_client_pvt->client, a_err_code);
     }
 }
@@ -1335,7 +1338,13 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
  */
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 {
-    dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
+    a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    dap_client_pvt_t *l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
+    if (!l_client_pvt)
+        return;
+    l_client_pvt = dap_client_pvt_find(l_client_pvt->uuid);
+    if (!l_client_pvt)
+        return;
 
     char l_errbuf[128];
     l_errbuf[0]='\0';
@@ -1344,9 +1353,7 @@ static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
     else
         strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
 
-    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);
-
-    l_client_pvt->stream_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);    
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;

@@ -664,14 +664,13 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
      //   log_it(DEBUG,"No prefill or defrag buffer, process directly buf_in");
     // Now lets see how many packets we have in buffer now
     while ( (pkt = dap_stream_pkt_detect( proc_data , bytes_left_to_read)) ){
-        if(bytes_left_to_read -((byte_t*)pkt- proc_data  ) >=sizeof (dap_stream_pkt_t)){
-            if(pkt->hdr.size > STREAM_PKT_SIZE_MAX ){
-                //log_it(L_ERROR, "stream_pkt_detect() Too big packet size %u",
-                //       pkt->hdr.size);
-                bytes_left_to_read=0;
-                break;
-            }
+        if(pkt->hdr.size > STREAM_PKT_SIZE_MAX ){
+            //log_it(L_ERROR, "stream_pkt_detect() Too big packet size %u",
+            //       pkt->hdr.size);
+            bytes_left_to_read=0;
+            break;
         }
+
         size_t pkt_offset=( ((uint8_t*)pkt)- proc_data );
         bytes_left_to_read -= pkt_offset ;
         found_sig=true;

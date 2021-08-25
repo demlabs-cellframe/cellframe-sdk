@@ -26,4 +26,5 @@
 #include "dap_http.h"
 
 int dap_modules_dynamic_load_cdb(dap_http_t * a_server);
-
+void *dap_modules_dynamic_get_cdb_func(const char *a_func_name);
+void dap_modules_dynamic_close_cdb();

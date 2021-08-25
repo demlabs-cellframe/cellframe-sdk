@@ -325,9 +325,9 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
         memcpy(obj->key, pkt->data + offset, str_length);
         offset += str_length;
 
-        if (offset+sizeof (uint32_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;} // Check for buffer boundries
-        memcpy(&obj->value_len, pkt->data + offset, sizeof(uint32_t));
-        offset += sizeof(uint32_t);
+        if (offset+sizeof (size_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;} // Check for buffer boundries
+        memcpy(&obj->value_len, pkt->data + offset, sizeof(size_t));
+        offset += sizeof(size_t);
 
         if (offset+obj->value_len> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field"); break;} // Check for buffer boundries
         obj->value = DAP_NEW_Z_SIZE(uint8_t, obj->value_len + 1);
