@@ -687,6 +687,8 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
  */
 void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
+    if (!a_client)
+        return;
     dap_chain_node_client_handle_t * l_client_found = NULL;
     HASH_FIND(hh,s_clients,&a_client->uuid,sizeof(a_client->uuid),l_client_found);
     if (l_client_found) {

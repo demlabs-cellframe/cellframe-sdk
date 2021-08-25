@@ -437,8 +437,6 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     s_vpn_client = dap_chain_node_client_create_n_connect(a_net, s_node_info, l_active_channels, NULL, NULL);
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
-        // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -2;
