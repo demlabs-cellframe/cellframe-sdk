@@ -211,20 +211,23 @@ static bool s_timer_update_states_callback(void *a_arg)
         if (l_client ) {
             dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;
             if (l_node_client && l_node_client->ch_chain) {
-                dap_stream_ch_chain_t * l_ch_chain = (dap_stream_ch_chain_t*) l_node_client->ch_chain->internal;
-                assert(l_ch_chain);
-                dap_chain_net_t * l_net = l_node_client->net;
-                assert(l_net);
-                log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-                // If we do nothing - init sync process
-                if (l_ch_chain->state == CHAIN_STATE_IDLE ||l_ch_chain->state == CHAIN_STATE_SYNC_ALL ){
-                    dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
-                    l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-                    dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ,
-                                                         l_net->pub.id.uint64, 0, l_net->pub.cell_id.uint64,
-                                                         &l_sync_gdb, sizeof(l_sync_gdb));
+                dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_node_client->stream_worker, l_node_client->ch_chain_uuid);
+                if (l_ch) {
+                    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+                    assert(l_ch_chain);
+                    dap_chain_net_t * l_net = l_node_client->net;
+                    assert(l_net);
+                    // If we do nothing - init sync process
+                    if (l_ch_chain->state == CHAIN_STATE_IDLE ||l_ch_chain->state == CHAIN_STATE_SYNC_ALL ){
+                        log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
+                        dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
+                        l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+                        dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ,
+                                                             l_net->pub.id.uint64, 0, l_net->pub.cell_id.uint64,
+                                                             &l_sync_gdb, sizeof(l_sync_gdb));
+                    }
+                    return true;
                 }
-                return true;
             }
         }
     }

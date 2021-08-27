@@ -396,7 +396,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         l_start_item = 0;
     }
     if (s_debug_more)
-        log_it(L_DEBUG, "Sync out gdb proc, requested transactions %llu:%llu from address "NODE_ADDR_FP_STR,
+        log_it(L_DEBUG, "Sync out gdb proc, requested transactions %"DAP_UINT64_FORMAT_u":%"DAP_UINT64_FORMAT_u" from address "NODE_ADDR_FP_STR,
                             l_start_item, l_local_last_id, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
     dap_list_t *l_add_groups = dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr);
@@ -703,6 +703,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_store_obj_free(l_store_obj, l_data_obj_count);
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");
+    }
+    if (l_pkt_item->pkt_data) {
+        DAP_DELETE(l_pkt_item->pkt_data);
     }
     DAP_DELETE(l_sync_request);
     return true;

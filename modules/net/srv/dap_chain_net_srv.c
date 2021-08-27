@@ -60,7 +60,9 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
+#ifdef DAP_MODULES_DYNAMIC
 #include "dap_modules_dynamic_cdb.h"
+#endif
 
 #include "dap_chain_node_cli_cmd.h"
 
@@ -530,7 +532,9 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 dap_string_append_printf( l_string_ret, "Missed some required params\n");
                 ret=-5;
             }
-        }else if( dap_strcmp( l_order_str, "recheck" ) == 0 ){
+        }
+#ifdef DAP_MODULES_DYNAMIC
+        else if( dap_strcmp( l_order_str, "recheck" ) == 0 ){
             //int dap_chain_net_srv_vpn_cdb_server_list_check_orders(dap_chain_net_t *a_net);
             int (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(dap_chain_net_t *a_net);
             dap_chain_net_srv_vpn_cdb_server_list_check_orders = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
@@ -577,7 +581,9 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 dap_string_append(l_string_ret, "not found subcommand 'save' or 'delete'\n");
                 ret = -13;
             }
-        } else {
+        }
+#endif
+        else {
             dap_string_append_printf(l_string_ret, "Unknown subcommand '%s'\n", l_order_str);
             ret = -3;
         }

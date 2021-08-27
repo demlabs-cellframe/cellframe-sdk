@@ -481,7 +481,7 @@ time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
  * @return
  */
-bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len,  const char *a_group)
+bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, const char *a_group)
 {
     dap_store_obj_t store_data;// = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
     memset(&store_data, 0, sizeof(dap_store_obj_t));
