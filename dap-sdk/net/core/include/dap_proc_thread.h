@@ -43,9 +43,10 @@ typedef struct dap_proc_thread{
     pthread_mutex_t started_mutex;
 
     bool signal_kill;
-    bool signal_exit;
+	bool signal_exit;
 
     dap_events_socket_t * event_exit;
+
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_ctl;
@@ -66,15 +67,16 @@ typedef struct dap_proc_thread{
 } dap_proc_thread_t;
 
 int dap_proc_thread_init(uint32_t a_threads_count);
+void dap_proc_thread_deinit();
 dap_proc_thread_t * dap_proc_thread_get(uint32_t a_thread_number);
 dap_proc_thread_t * dap_proc_thread_get_auto();
 dap_events_socket_t * dap_proc_thread_create_queue_ptr(dap_proc_thread_t * a_thread, dap_events_socket_callback_queue_ptr_t a_callback);
 
 bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_worker_t * a_worker, dap_events_socket_t *a_esocket  );
 
-int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
+int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_uuid_t a_es_uuid,
                                         const void * a_data, size_t a_data_size);
-int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
+int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_uuid_t a_es_uuid,
                                         const char * a_format,...);
 
 int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket);

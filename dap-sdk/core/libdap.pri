@@ -19,13 +19,24 @@ unix: !android : ! darwin {
     DEFINES += _GNU_SOURCE
     LIBS += -lrt -ljson-c -lmagic
 }
+
+
+contains(DAP_FEATURES, ssl){
+    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
+}else{
+    DEFINES += DAP_NET_CLIENT_NO_SSL
+}
+
 darwin {
-    QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
+    QMAKE_CFLAGS_DEBUG += -Wall -g3 -ggdb -fno-strict-aliasing
     DEFINES += _GNU_SOURCE
     include(src/darwin/darwin.pri)
     DEFINES += DAP_OS_DARWIN DAP_OS_BSD
-    LIBS+ = -lrt -ljson-c -lmagic
+    LIBS+ = -lrt
+    #-ljson-c -lmagic
     QMAKE_LIBDIR += /usr/local/lib
+    QMAKE_CFLAGS += -Wno-deprecated-copy -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
+    QMAKE_CXXFLAGS += -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
 
     QMAKE_CFLAGS_DEBUG += -gdwarf-2
     QMAKE_CXXFLAGS_DEBUG += -gdwarf-2
@@ -36,6 +47,7 @@ win32 {
     LIBS += -lntdll -lpsapi -ljson-c -lmagic -lmqrt -lshlwapi -lregex -ltre -lintl -liconv -lbcrypt -lcrypt32 -lsecur32 -luser32 -lws2_32 -lole32
     include($$PWD/../../3rdparty/wepoll/wepoll.pri)
     DEFINES += DAP_OS_WINDOWS
+    QMAKE_CFLAGS_DEBUG += -Wall -ggdb -g3
 }
 
 # 3rd party

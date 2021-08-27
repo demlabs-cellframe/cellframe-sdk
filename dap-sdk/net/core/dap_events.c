@@ -160,9 +160,9 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
     int l_retcode;
 #ifdef DAP_OS_DARWIN
     thread_affinity_policy_data_t l_policy_data={.affinity_tag = a_cpu_id};
-    thread_policy_set(l_pthread_mach_port , THREAD_AFFINITY_POLICY, (thread_policy_t)&l_policy_data , 1);
+    l_retcode = thread_policy_set(l_pthread_mach_port , THREAD_AFFINITY_POLICY, (thread_policy_t)&l_policy_data , 1);
 #elif defined(DAP_OS_ANDROID)
-    err = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
+    l_retcode = sched_setaffinity(pthread_self(), sizeof(cpu_set_t), &mask);
 #else
     l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #endif
@@ -173,10 +173,11 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
             case EFAULT: strncpy(l_errbuf,"A supplied memory address was invalid.",sizeof (l_errbuf)-1); break;
             case EINVAL: strncpy(l_errbuf,"The affinity bit mask mask contains no processors that are currently physically on the system and permitted to the thread",sizeof (l_errbuf)-1); break;
             case ESRCH:  strncpy(l_errbuf,"No thread with the ID thread could be found",sizeof (l_errbuf)-1); break;
+            case EPFNOSUPPORT: strncpy(l_errbuf,"System doesn't support thread affinity set",sizeof (l_errbuf)-1); break;
             default:     strncpy(l_errbuf,"Unknown error",sizeof (l_errbuf)-1);
         }
-        log_it(L_CRITICAL, "Worker #%u: error pthread_setaffinity_np(): %s (%d)", l_errbuf , l_retcode);
-        abort();
+        log_it(L_ERROR, "Worker #%u: error in set affinity thread call: %s (%d)",a_cpu_id, l_errbuf , l_retcode);
+        //abort();
     }
 #endif
 #else
@@ -225,11 +226,11 @@ err:
  */
 void dap_events_deinit( )
 {
-    dap_proc_thread_deinit();
+	dap_proc_thread_deinit();
     dap_events_socket_deinit();
     dap_worker_deinit();
-
-    dap_events_wait(s_events_default);
+	
+	dap_events_wait(s_events_default);
     if ( s_threads )
         DAP_DELETE( s_threads );
 
@@ -245,7 +246,6 @@ dap_events_t * dap_events_new( )
 {
     dap_events_t *ret = DAP_NEW_Z(dap_events_t);
 
-    pthread_rwlock_init( &ret->sockets_rwlock, NULL );
     if ( s_events_default == NULL)
         s_events_default = ret;
     pthread_key_create( &ret->pth_key_worker, NULL);
@@ -265,18 +265,21 @@ dap_events_t* dap_events_get_default( )
 void dap_events_delete( dap_events_t *a_events )
 {
     if (a_events) {
-        dap_events_socket_t *l_cur, *l_tmp;
-        HASH_ITER( hh, a_events->sockets,l_cur, l_tmp ) {
-            dap_events_socket_remove_and_delete_unsafe( l_cur, true );
-        }
-
         if ( a_events->_inheritor )
             DAP_DELETE( a_events->_inheritor );
 
-        pthread_rwlock_destroy( &a_events->sockets_rwlock );
-
         DAP_DELETE( a_events );
     }
+}
+
+void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
+{
+    (void) a_events;
+    int l_sock = a_socket->socket;
+//    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
+//        log_it(L_DEBUG,"Remove timer %d", l_sock);
+
+    dap_events_socket_remove_and_delete_unsafe(a_socket, a_preserve_inheritor);
 }
 
 /**
@@ -292,6 +295,7 @@ int dap_events_start( dap_events_t *a_events )
 
         l_worker->id = i;
         l_worker->events = a_events;
+        l_worker->esockets = NULL;
         pthread_rwlock_init(&l_worker->esocket_rwlock,NULL);
         pthread_mutex_init(& l_worker->started_mutex, NULL);
         pthread_cond_init( & l_worker->started_cond, NULL);
@@ -323,9 +327,9 @@ int dap_events_start( dap_events_t *a_events )
         clock_gettime(CLOCK_REALTIME, &l_timeout);
         l_timeout.tv_sec+=15;
         pthread_create( &s_threads[i].tid, NULL, dap_worker_thread, l_worker );
-
         int l_ret;
         l_ret=pthread_cond_timedwait(&l_worker->started_cond, &l_worker->started_mutex, &l_timeout);
+        pthread_mutex_unlock(&l_worker->started_mutex);
         if ( l_ret== ETIMEDOUT ){
             log_it(L_CRITICAL, "Timeout 15 seconds is out: worker #%u thread don't respond", i);
             return -2;

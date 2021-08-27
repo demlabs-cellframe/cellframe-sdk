@@ -350,14 +350,10 @@ dap_list_t *dap_list_remove(dap_list_t *list, const void * data)
             tmp = tmp->next;
         else
         {
-            if (list == tmp){
-                _dap_list_remove_link(list, tmp);
+            list = _dap_list_remove_link(list, tmp);
+            if (list == tmp)
                 list = NULL;
-                tmp = NULL;
-            }else {
-                list = _dap_list_remove_link(list, tmp);
-                dap_list_free1(tmp);
-            }
+            dap_list_free1(tmp);
             break;
         }
     }

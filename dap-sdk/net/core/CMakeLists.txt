@@ -19,13 +19,13 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})
 
-if(WIN32)
+if(DAPSDK_MODULES MATCHES "ssl-support")
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto wolfssl)
+else()
   target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
 endif()
 
 if(UNIX)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
-
   if(NOT ANDROID)
       target_link_libraries(${PROJECT_NAME} pthread)
   endif()

@@ -102,6 +102,7 @@ void dap_proc_thread_deinit()
         dap_events_socket_event_signal(s_threads[i].event_exit, 1);
         pthread_join(s_threads[i].thread_id, NULL);
     }
+	
     // Signal to cancel working threads and wait for finish
     // TODO: Android realization
 //#ifndef DAP_OS_ANDROID
@@ -403,11 +404,11 @@ static void * s_proc_thread_function(void * a_arg)
     dap_events_socket_assign_on_worker_mt(l_worker_related->proc_queue_input,l_worker_related);
 
     l_thread->proc_event = dap_events_socket_create_type_event_unsafe(NULL, s_proc_event_callback);
-    l_thread->event_exit = dap_events_socket_create_type_event_unsafe(NULL, s_event_exit_callback);
-
+	l_thread->event_exit = dap_events_socket_create_type_event_unsafe(NULL, s_event_exit_callback);
+	
     l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
-    l_thread->event_exit->_inheritor = l_thread;
-
+	l_thread->event_exit->_inheritor = l_thread;
+	
     size_t l_workers_count= dap_events_worker_get_count();
     assert(l_workers_count);
     l_thread->queue_assign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
@@ -449,6 +450,18 @@ static void * s_proc_thread_function(void * a_arg)
         log_it(L_CRITICAL, "Can't add proc event on epoll ctl, err: %d", errno);
         return NULL;
     }
+	
+    // Add exit event
+    l_thread->event_exit->ev.events     = l_thread->event_exit->ev_base_flags;
+    l_thread->event_exit->ev.data.ptr   = l_thread->event_exit;
+    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->event_exit->socket , &l_thread->event_exit->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+        errno = WSAGetLastError();
+#endif
+        log_it(L_CRITICAL, "Can't add exit event on epoll ctl, err: %d", errno);
+        return NULL;
+    }
+
 
     // Add exit event
     l_thread->event_exit->ev.events     = l_thread->event_exit->ev_base_flags;
@@ -510,6 +523,13 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->poll[l_thread->poll_count].events = l_thread->proc_event->poll_base_flags;
     l_thread->esockets[l_thread->poll_count] = l_thread->proc_event;
     l_thread->poll_count++;
+	
+    // Add exit event
+    l_thread->poll[l_thread->poll_count].fd = l_thread->event_exit->fd;
+    l_thread->poll[l_thread->poll_count].events = l_thread->event_exit->poll_base_flags;
+    l_thread->esockets[l_thread->poll_count] = l_thread->event_exit;
+    l_thread->poll_count++;
+
 
     // Add exit event
     l_thread->poll[l_thread->poll_count].fd = l_thread->event_exit->fd;
@@ -553,7 +573,7 @@ static void * s_proc_thread_function(void * a_arg)
 
     dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->proc_queue->esocket);
     dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->proc_event);
-    dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->event_exit);
+	dap_proc_thread_assign_esocket_unsafe(l_thread,l_thread->event_exit);
 
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
         // Queue asssign
@@ -574,9 +594,9 @@ static void * s_proc_thread_function(void * a_arg)
     pthread_mutex_lock(&l_thread->started_mutex);
     pthread_mutex_unlock(&l_thread->started_mutex);
     pthread_cond_broadcast(&l_thread->started_cond);
-
-    l_thread->signal_exit = false;
-
+	
+	l_thread->signal_exit = false;
+	
     // Main loop
     while (!l_thread->signal_kill && !l_thread->signal_exit){
 
@@ -803,7 +823,7 @@ static void * s_proc_thread_function(void * a_arg)
                                     else{
                                         l_errno = errno;
                                         log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_es_w_data->ptr, l_errno);
-                                        DAP_DELETE(l_es_w_data->ptr);
+                                        DAP_DELETE(l_es_w_data);
                                     }
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
@@ -947,16 +967,16 @@ bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_wo
  * @brief dap_proc_thread_esocket_write_inter
  * @param a_thread
  * @param a_worker
- * @param a_esocket
+ * @param a_es_uuid
  * @param a_data
  * @param a_data_size
  * @return
  */
-int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
+int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,   dap_events_socket_uuid_t a_es_uuid,
                                         const void * a_data, size_t a_data_size)
 {
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
-    dap_events_socket_write_inter(l_es_io_input,a_esocket, a_data, a_data_size);
+    dap_events_socket_write_inter(l_es_io_input,a_es_uuid, a_data, a_data_size);
     // TODO Make this code platform-independent
 #ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
@@ -970,11 +990,11 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
  * @brief dap_proc_thread_esocket_write_f_inter
  * @param a_thread
  * @param a_worker
- * @param a_esocket
+ * @param a_es_uuid,
  * @param a_format
  * @return
  */
-int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
+int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_uuid_t a_es_uuid,
                                         const char * a_format,...)
 {
     va_list ap, ap_copy;
@@ -989,16 +1009,21 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
     }
 
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
-    char * l_data = DAP_NEW_SIZE(char,l_data_size+1); if (!l_data) return -1;
+    char * l_data = DAP_NEW_SIZE(char,l_data_size+1);
+    if (!l_data){
+        va_end(ap_copy);
+        return -1;
+    }
     l_data_size = dap_vsprintf(l_data,a_format,ap_copy);
     va_end(ap_copy);
 
-    dap_events_socket_write_inter(l_es_io_input,a_esocket, l_data, l_data_size);
+    dap_events_socket_write_inter(l_es_io_input, a_es_uuid, l_data, l_data_size);
     // TODO Make this code platform-independent
 #ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
 #endif
+    DAP_DELETE(l_data);
     return 0;
 }
 
@@ -1031,3 +1056,4 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
     if(s_debug_reactor)
         log_it(L_DEBUG, "Proc_thread :%u signaled to exit", l_thread->cpu_id);
 }
+

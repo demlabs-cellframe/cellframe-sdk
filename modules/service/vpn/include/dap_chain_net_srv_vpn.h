@@ -29,6 +29,7 @@
 #include "dap_chain_net_srv.h"
 #include "dap_events.h"
 
+#define DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX "srv.vpn"
 
 #define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_CLIENT    0x01
 #define DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA      0x02
@@ -144,10 +145,11 @@ typedef struct dap_chain_net_srv_ch_vpn_info
                             // to prevent jumping on systems without FlowControl
     uint32_t usage_id;
     dap_chain_net_srv_ch_vpn_t * ch_vpn;
+    uint64_t ch_vpn_uuid;
     dap_events_socket_t * queue_msg; // Message queue
     dap_worker_t * worker;
     dap_events_socket_t * esocket;
-    uint128_t esocket_uuid;
+    uint64_t esocket_uuid;
     UT_hash_handle hh;
 }dap_chain_net_srv_ch_vpn_info_t;
 

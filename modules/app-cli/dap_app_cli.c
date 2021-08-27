@@ -107,10 +107,13 @@ int execute_line(dap_app_cli_connect_param_t *cparam, char *line)
             cmd.cmd_param = (char**) (argv + 1);
         // Send command
         int res = dap_app_cli_post_command(cparam, &cmd);
+        DAP_DELETE(argv);
         return res;
+    }else{
+        DAP_DELETE(argv);
+        fprintf(stderr, "No command\n");
+        return -1;
     }
-    fprintf(stderr, "No command\n");
-    return -1;
 }
 
 /**

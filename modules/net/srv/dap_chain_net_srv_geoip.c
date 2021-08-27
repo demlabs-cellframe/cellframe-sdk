@@ -62,7 +62,7 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_web(const char *a_ip_str)
 {
     // https://geoip.maxmind.com/geoip/v2.1/insights/<ip>
 	// https://geoip.maxmind.com/geoip/v2.1/city/<ip>
-    char *l_path = dap_strdup_printf("/geoip/v2.1/insights/%s", a_ip_str);
+    char *l_path = dap_strdup_printf("geoip/v2.1/insights/%s", a_ip_str);
     //104.16.38.47:443
     // geoip.maxmind.com
     char l_out[40];
@@ -76,9 +76,9 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_web(const char *a_ip_str)
     size_t l_size_req = l_out_len > 0 ? l_out_len + 32 : 0;
     char * l_custom = l_out_len > 0 ? DAP_NEW_S_SIZE(char, l_size_req) : NULL;
     int l_offset = l_out_len ? dap_snprintf(l_custom, l_size_req, "Authorization: Basic %s\r\n", l_out) : 0;
-    // todo just need to finish up https request
+    //finish up https request
     dap_client_http_request_custom(NULL,"geoip.maxmind.com", 443, "GET", "application/json", l_path, NULL,
-            0, NULL, m_request_getip_response, m_request_getip_request_error, NULL, l_custom);
+            0, NULL, m_request_getip_response, m_request_getip_request_error, NULL, l_custom, true);
     return NULL;
 }
 

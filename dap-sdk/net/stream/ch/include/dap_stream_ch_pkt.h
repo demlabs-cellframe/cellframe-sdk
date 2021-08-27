@@ -29,6 +29,7 @@
 
 #include "dap_enc_key.h"
 
+typedef uint64_t dap_stream_ch_uuid_t;
 typedef struct dap_stream_ch dap_stream_ch_t;
 typedef struct dap_stream_session dap_stream_session_t;
 typedef struct dap_events_socket dap_events_socket_t;
@@ -51,13 +52,12 @@ typedef struct dap_stream_ch_pkt{
 int dap_stream_ch_pkt_init();
 void dap_stream_ch_pkt_deinit();
 
-size_t dap_stream_ch_pkt_write_f_unsafe(struct dap_stream_ch * a_ch, uint8_t a_type, const char * a_str,...);
-size_t dap_stream_ch_pkt_write_unsafe(struct dap_stream_ch * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size);
+size_t dap_stream_ch_pkt_write_f_unsafe(dap_stream_ch_t * a_ch, uint8_t a_type, const char * a_str,...);
+size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size);
 
-bool dap_stream_ch_check_unsafe(dap_stream_worker_t * a_worker,dap_stream_ch_t * a_ch);
 
-size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch, uint8_t a_type, const char * a_str,...);
-size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch_t *a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size);
+size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type, const char * a_str,...);
+size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch_uuid_t a_ch_uuid,  uint8_t a_type, const void * a_data, size_t a_data_size);
 
-size_t dap_stream_ch_pkt_write_f_inter(dap_events_socket_t * a_queue , dap_stream_ch_t *a_ch, uint8_t a_type, const char * a_str,...);
-size_t dap_stream_ch_pkt_write_inter(dap_events_socket_t * a_queue , dap_stream_ch_t *a_ch,  uint8_t a_type, const void * a_data, size_t a_data_size);
+size_t dap_stream_ch_pkt_write_f_inter(dap_events_socket_t * a_queue , dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type, const char * a_str,...);
+size_t dap_stream_ch_pkt_write_inter(dap_events_socket_t * a_queue , dap_stream_ch_uuid_t a_ch_uuid,  uint8_t a_type, const void * a_data, size_t a_data_size);

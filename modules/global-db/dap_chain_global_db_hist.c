@@ -877,8 +877,9 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                         // if first transaction - empty prev OUT item
                         if(dap_hash_fast_is_blank(&tx_prev_hash)) {
                             // add emit info to ret string
-                            if(!memcmp(&l_tx_data->addr, a_addr, sizeof(dap_chain_addr_t)))
-                                    {
+                            if(l_tx_data && a_addr &&
+                                    ( memcmp(&l_tx_data->addr, a_addr, sizeof(dap_chain_addr_t) ) == 0 )
+                                ) {
                                 dap_list_t *l_records_tmp = l_records_out;
                                 while(l_records_tmp) {
                                     const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_records_tmp->data;
@@ -957,8 +958,10 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                                             NULL;
                                     // if use dst addr
                                     bool l_is_use_dst_addr = false;
-                                    if(!memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t)))
+                                    if(l_tx_prev_out &&  a_addr &&
+                                            ( memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t) ) == 0 )){
                                         l_is_use_dst_addr = true;
+                                    }
 
                                     l_src_str_is_cur = l_is_use_src_addr;
                                     if(l_src_addr->len <= 1) {
@@ -975,7 +978,7 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                                         dap_string_append_printf(l_str_out,
                                                 "%s in send  %lld %s from %s\n to %s\n",
                                                 l_time_str ? l_time_str : "",
-                                                l_tx_prev_out->header.value,
+                                                l_tx_prev_out?l_tx_prev_out->header.value:0,
                                                 l_tx_data->token_ticker,
                                                 l_src_str ? l_src_str : "",
                                                 l_dst_to_str);
@@ -1325,7 +1328,6 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
 {
 
     //log_it(L_DEBUG, "Start loading db list_write...");
-    dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
 
     size_t l_add_groups_num = 0;// number of group
     dap_list_t *l_add_groups_mask = a_add_groups_mask;
@@ -1337,8 +1339,11 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         dap_list_free_full(l_groups, (dap_callback_destroyed_t) free);
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
+    if(l_add_groups_num == 0)
+        return NULL;
 
-    size_t l_data_size_out_main = dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id);
+    size_t l_data_size_out_main = dap_db_log_get_last_id() - first_id + 1;
+            //dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id); - not working for sqlite
     size_t *l_data_size_out_add_items = DAP_NEW_Z_SIZE(size_t, sizeof(size_t) * l_add_groups_num);
     uint64_t *l_group_last_id = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_add_groups_num);
     char **l_group_names = DAP_NEW_Z_SIZE(char*, sizeof(char*) * l_add_groups_num);
@@ -1364,8 +1369,13 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         dap_list_free_full(l_groups0, (dap_callback_destroyed_t) free);
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
-    if(!(l_data_size_out_main + l_data_size_out_add_items_count))
+    if(!(l_data_size_out_main + l_data_size_out_add_items_count)){
+        DAP_DELETE(l_data_size_out_add_items);
+        DAP_DELETE(l_group_last_id);
+        DAP_DELETE(l_group_names);
         return NULL;
+    }
+    dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
     l_dap_db_log_list->item_start = first_id;
     l_dap_db_log_list->item_last = first_id + l_data_size_out_main;
     l_dap_db_log_list->items_number_main = l_data_size_out_main;

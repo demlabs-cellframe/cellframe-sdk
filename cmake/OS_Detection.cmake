@@ -53,7 +53,14 @@ if(UNIX)
         set(BSD ON)
         if (${_CMAKE_OSX_SYSROOT_PATH} MATCHES "MacOS")
             set(MACOS ON)
-            add_definitions("-DDAP_OS_MAC")
+	    # on macOS "uname -m" returns the architecture (x86_64 or arm64)
+	    execute_process(
+		COMMAND uname -m
+		RESULT_VARIABLE result
+		OUTPUT_VARIABLE MACOS_ARCH
+		OUTPUT_STRIP_TRAILING_WHITESPACE
+	    )
+            add_definitions("-DDAP_OS_MAC -DDAP_OS_MAC_ARCH=${MACOS_ARCH}")
         endif()
         if (${_CMAKE_OSX_SYSROOT_PATH} MATCHES "iOS")
             set(IOS ON)
@@ -85,7 +92,7 @@ if(UNIX)
           SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
         else()
           set(_CCOPT "-L /usr/local/lib -I/usr/local/include -Wno-deprecated-declarations -Wno-unused-command-line-argument -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -O3 -fPIC -fno-strict-aliasing -fno-ident -ffast-math -ftree-vectorize -fno-asynchronous-unwind-tables -ffunction-sections -std=c11")
-          set(_LOPT "-L /usr/local/lib ")
+          set(_LOPT "-L /usr/local/lib")
           SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -L/usr/local/lib")
         endif()
     elseif(BSD)

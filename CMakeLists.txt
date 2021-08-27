@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.8-26")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.9-33")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 set(DAPSDK_MODULES "")
 message("Cellframe modules: ${CELLFRAME_MODULES}")
@@ -14,6 +14,14 @@ endif()
 
 if (CELLFRAME_MODULES MATCHES "network")
     set(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
+endif()
+
+if (CELLFRAME_MODULES MATCHES "dap-sdk-net-client")
+    set(DAPSDK_MODULES "core crypto network-core network-client network-server")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto dap_server_core dap_server dap_client m pthread)
+    if (SUPPORT_PYTHON_PLUGINS)
+        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} core chains network cs-none srv-")
+    endif()
 endif()
 
 if (BUILD_CRYPTO_TESTS)
@@ -30,14 +38,25 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
-add_subdirectory(dap-sdk)
-add_subdirectory(3rdparty/monero_crypto)
-add_subdirectory(3rdparty/cuttdb)
+if( DARWIN)
+    add_subdirectory(3rdparty/json-c-darwin)
+    add_subdirectory(3rdparty/libmagic-darwin)
+    include_directories(3rdparty/json-c-darwin)
+endif()
 if (ANDROID)
     add_subdirectory(3rdparty/libmagic)
     add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
 endif()
+
+
+add_subdirectory(dap-sdk)
+add_subdirectory(3rdparty/monero_crypto)
+add_subdirectory(3rdparty/cuttdb)
+if(DAPSDK_MODULES MATCHES "ssl-support")
+    add_subdirectory(3rdparty/wolfssl)
+endif()
+
 add_subdirectory(modules/)
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
@@ -61,12 +80,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_server_core dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-	dap_stream dap_stream_ch dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_mempool magic)
+        dap_stream dap_stream_ch dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_chain_mempool magic)
 endif()
 
 # Chain net services
 if (CELLFRAME_MODULES MATCHES "srv-" )
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv dap_stream_ch_chain_net_srv)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_stream_ch_chain_net_srv)
 endif()
 
 # DAG based consensus(es)
@@ -126,18 +145,24 @@ endif()
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
+    add_definitions("-DDAP_SRV_STAKE_USED")
 endif()
 
 # Enable service for dynamic modules
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     message("[+] Module 'dap_modules_dynamic_cdb'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb )
+    add_definitions("-DDAP_MODULES_DYNAMIC")
 endif()
 
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
 					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
                                          Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
+endif()
+
+if (DARWIN)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})

@@ -43,6 +43,9 @@
 #define LOG_TAG "dap_timerfd"
 static void s_es_callback_timer(struct dap_events_socket *a_event_sock);
 
+#ifdef DAP_OS_WINDOWS
+    static HANDLE hTimerQueue = NULL;
+#endif
 
 /**
  * @brief dap_events_socket_init Init clients module
@@ -50,6 +53,13 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock);
  */
 int dap_timerfd_init()
 {
+#ifdef DAP_OS_WINDOWS
+        hTimerQueue = CreateTimerQueue();
+        if (!hTimerQueue) {
+            log_it(L_CRITICAL, "Timer queue failed, err %d", GetLastError());
+            return -4;
+        }
+#endif
     log_it(L_NOTICE, "Initialized timerfd");
     return 0;
 }
@@ -74,7 +84,16 @@ void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high valu
         log_it(L_CRITICAL, "Error occured on writing into socket from APC, errno: %d", WSAGetLastError());
     }
 }
+
+void __stdcall TimerRoutine(void* arg, BOOLEAN flag) {
+    UNREFERENCED_PARAMETER(flag)
+    dap_timerfd_t *l_timerfd = (dap_timerfd_t *)arg;
+    if (dap_sendto(l_timerfd->tfd, l_timerfd->port, NULL, 0) == SOCKET_ERROR) {
+        log_it(L_CRITICAL, "Error occured on writing into socket from timer routine, errno: %d", WSAGetLastError());
+     }
+}
 #endif
+
 
 /**
  * @brief dap_timerfd_start_on_worker
@@ -87,8 +106,13 @@ void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high valu
 dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
 {
     dap_timerfd_t* l_timerfd = dap_timerfd_create( a_timeout_ms, a_callback, a_callback_arg);
-    dap_worker_add_events_socket(l_timerfd->events_socket, a_worker);
-    return l_timerfd;
+    if(l_timerfd){
+        dap_worker_add_events_socket(l_timerfd->events_socket, a_worker);
+        return l_timerfd;
+    }else{
+        log_it(L_CRITICAL,"Can't create timer");
+        return NULL;
+    }
 }
 
 /**
@@ -115,6 +139,8 @@ dap_timerfd_t* dap_timerfd_start_on_proc_thread(dap_proc_thread_t * a_proc_threa
 dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
 {
     dap_timerfd_t *l_timerfd = DAP_NEW(dap_timerfd_t);
+    if(!l_timerfd)
+        return NULL;
     // create events_socket for timer file descriptor
     dap_events_socket_callbacks_t l_s_callbacks;
     memset(&l_s_callbacks,0,sizeof (l_s_callbacks));
@@ -131,6 +157,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     l_timerfd->callback         = a_callback;
     l_timerfd->callback_arg     = a_callback_arg;
     l_timerfd->events_socket    = l_events_socket;
+    l_timerfd->esocket_uuid = l_events_socket->uuid;
     
 #if defined DAP_OS_LINUX
     struct itimerspec l_ts;
@@ -170,13 +197,13 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
 
 
 #elif defined (DAP_OS_WINDOWS)
-    HANDLE l_th = CreateWaitableTimer(NULL, true, NULL);
+    /*HANDLE l_th = CreateWaitableTimer(NULL, true, NULL);
     if (!l_th) {
         log_it(L_CRITICAL, "Waitable timer not created, error %d", GetLastError());
         DAP_DELETE(l_timerfd);
         return NULL;
-    }
-
+    }*/
+    l_timerfd->th = NULL;
     SOCKET l_tfd = socket(AF_INET, SOCK_DGRAM, 0);
     int buffsize = 1024;
 
@@ -201,11 +228,17 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
         //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 
-    LARGE_INTEGER l_due_time;
+    /*LARGE_INTEGER l_due_time;
     l_due_time.QuadPart = (long long)a_timeout_ms * _MSEC;
     if (!SetWaitableTimer(l_th, &l_due_time, 0, TimerAPCb, l_timerfd, false)) {
         log_it(L_CRITICAL, "Waitable timer not set, error %d", GetLastError());
         CloseHandle(l_th);
+        DAP_DELETE(l_timerfd);
+        return NULL;
+    } */
+    if (!CreateTimerQueueTimer(&l_timerfd->th, hTimerQueue,
+                               (WAITORTIMERCALLBACK)TimerRoutine, l_timerfd, (unsigned long)a_timeout_ms, 0, 0)) {
+        log_it(L_CRITICAL, "Timer not set, error %d", GetLastError());
         DAP_DELETE(l_timerfd);
         return NULL;
     }
@@ -215,10 +248,9 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
 #if defined (DAP_OS_LINUX) || defined (DAP_OS_WINDOWS)    
     l_timerfd->tfd              = l_tfd;
 #endif
-#ifdef DAP_OS_WINDOWS
-    l_timerfd->th               = l_th;
-#endif
-    l_timerfd->events_socket->flags = 0;
+//#ifdef DAP_OS_WINDOWS
+    //l_timerfd->th               = l_th;
+//#endif
     return l_timerfd;
 }
 
@@ -244,16 +276,17 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
             log_it(L_WARNING, "callback_timerfd_read() failed: timerfd_settime() errno=%d\n", errno);
         }
 #elif defined (DAP_OS_BSD)
-	struct kevent * l_event = &a_event_sock->kqueue_event;
-	EV_SET(l_event, 0, a_event_sock->kqueue_base_filter, a_event_sock->kqueue_base_flags,a_event_sock->kqueue_base_fflags,a_event_sock->kqueue_data,a_event_sock);
-	kevent(a_event_sock->worker->kqueue_fd,l_event,1,NULL,0,NULL);
+        dap_worker_add_events_socket_unsafe(a_event_sock,a_event_sock->worker);
+    //struct kevent * l_event = &a_event_sock->kqueue_event;
+    //EV_SET(l_event, 0, a_event_sock->kqueue_base_filter, a_event_sock->kqueue_base_flags,a_event_sock->kqueue_base_fflags,a_event_sock->kqueue_data,a_event_sock);
+    //kevent(a_event_sock->worker->kqueue_fd,l_event,1,NULL,0,NULL);
 #elif defined (DAP_OS_WINDOWS)
-        LARGE_INTEGER l_due_time;
+        /*LARGE_INTEGER l_due_time;
         l_due_time.QuadPart = (long long)l_timerfd->timeout_ms * _MSEC;
         if (!SetWaitableTimer(l_timerfd->th, &l_due_time, 0, TimerAPCb, l_timerfd, false)) {
             log_it(L_CRITICAL, "Waitable timer not reset, error %d", GetLastError());
             CloseHandle(l_timerfd->th);
-        }
+        }*/ // Wtf is this entire thing for?...
 #else
 #error "No timer callback realization for your platform"        
 #endif
@@ -263,12 +296,6 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 #endif
 
     } else {
-#if defined(DAP_OS_LINUX)
-        close(l_timerfd->tfd);
-#elif defined(DAP_OS_WINDOWS)
-    	closesocket(l_timerfd->tfd);
-        CloseHandle(l_timerfd->th);
-#endif
         l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
@@ -280,5 +307,5 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
  */
 void dap_timerfd_delete(dap_timerfd_t *l_timerfd)
 {
-    dap_events_socket_remove_and_delete_mt(l_timerfd->events_socket->worker, l_timerfd->events_socket);
+    dap_events_socket_remove_and_delete_mt(l_timerfd->events_socket->worker, l_timerfd->esocket_uuid);
 }

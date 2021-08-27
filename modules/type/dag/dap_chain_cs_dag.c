@@ -491,8 +491,8 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 
     size_t l_hashes_ext_size = 0; // Change in cfg
     size_t l_hashes_size = l_hashes_int_size+l_hashes_ext_size;
-    dap_chain_hash_fast_t * l_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
-                                             sizeof(dap_chain_hash_fast_t) * l_hashes_size);
+    dap_chain_hash_fast_t * l_hashes = l_hashes_size ?DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
+                                             sizeof(dap_chain_hash_fast_t) * l_hashes_size) : NULL;
     size_t l_hashes_linked = 0;
     dap_chain_cell_t *l_cell = NULL;
 
@@ -527,7 +527,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 
                 bool l_is_already_in_event = false;
                 for (uint16_t i=0; i<l_hashes_linked;i++ ){ // check if we already added it
-                    if (memcmp(&l_hashes[i],&l_hash,sizeof (l_hash) )==0 ){
+                    if (l_hashes && memcmp(&l_hashes[i],&l_hash,sizeof (l_hash) )==0 ){
                         l_is_already_in_event = true;
                         break;
                     }
@@ -556,7 +556,8 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         if(!l_dag->is_single_line || !l_hashes_linked){
             if( PVT(l_dag)->events_lasts_unlinked && l_hashes_linked < l_hashes_size) { // Take then the first one if any events_lasts are present
                     l_event_ext_item = PVT(l_dag)->events_lasts_unlinked;
-                    memcpy(&l_hashes[l_hashes_linked], &l_event_ext_item->hash, sizeof(l_event_ext_item->hash));
+                    if(l_hashes)
+                        memcpy(&l_hashes[l_hashes_linked], &l_event_ext_item->hash, sizeof(l_event_ext_item->hash));
                     l_hashes_linked++;
                 }
         }
@@ -651,6 +652,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             }
         }
     }
+    DAP_DELETE(l_hashes);
     if (l_cell) {
         dap_chain_cell_delete(l_cell);
     }

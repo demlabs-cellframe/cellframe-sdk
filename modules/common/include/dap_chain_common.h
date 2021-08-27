@@ -165,6 +165,23 @@ typedef enum {
     SERV_UNIT_B = 0x00000011,   // bytes
 } serv_unit_enum_t;
 
+DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum){
+    switch (*unit_enum) {
+    case SERV_UNIT_UNDEFINED: return "SERV_UNIT_UNDEFINED";
+    case SERV_UNIT_MB: return "SERV_UNIT_MB";
+    case SERV_UNIT_SEC: return "SERV_UNIT_SEC";
+    case SERV_UNIT_DAY: return "SERV_UNIT_DAY";
+    case SERV_UNIT_KB: return "SERV_UNIT_KB";
+    case SERV_UNIT_B: return "SERV_UNIT_B";
+    default: return "UNDEFINED";
+
+    }
+//    switch (unit_enum){
+//    case SERV
+//    }
+//    return  "SERV_UNIT_UNDEFINED";
+}
+
 typedef union {
     uint8_t raw[4];
     uint32_t raw_ui32[1];

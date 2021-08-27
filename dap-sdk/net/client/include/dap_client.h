@@ -2,7 +2,7 @@
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
+ * Cellframe Network https://github.com/kelvinblockchain
  * Copyright  (c) 2017-2019
  * All rights reserved.
 
@@ -77,6 +77,7 @@ typedef struct dap_client{
     pthread_mutex_t mutex;
     void * _internal;
     void * _inheritor;
+    uint64_t pvt_uuid;
 } dap_client_t;
 
 typedef void (*dap_client_callback_t) (dap_client_t *, void*);

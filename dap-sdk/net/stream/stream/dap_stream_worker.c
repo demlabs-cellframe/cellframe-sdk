@@ -99,10 +99,11 @@ static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg)
     dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_es->worker );
     dap_stream_worker_msg_io_t * l_msg = (dap_stream_worker_msg_io_t*) a_msg;
 
+    assert(l_msg);
     // Check if it was removed from the list
     dap_stream_ch_t *l_msg_ch = NULL;
     pthread_rwlock_rdlock(&l_stream_worker->channels_rwlock);
-    HASH_FIND(hh_worker, l_stream_worker->channels , &l_msg->ch , sizeof (void*), l_msg_ch );
+    HASH_FIND(hh_worker, l_stream_worker->channels , &l_msg->ch_uuid , sizeof (l_msg->ch_uuid ), l_msg_ch );
     pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
     if ( l_msg_ch == NULL){
         log_it(L_DEBUG, "We got i/o message for client thats now not in list. Lost %u data", l_msg->data_size);
@@ -127,18 +128,18 @@ static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg)
  * @brief dap_proc_thread_stream_ch_write_inter
  * @param a_thread
  * @param a_worker
- * @param a_ch
+ * @param a_ch_uuid
  * @param a_type
  * @param a_data
  * @param a_data_size
  * @return
  */
-size_t dap_proc_thread_stream_ch_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker, dap_stream_ch_t *a_ch, uint8_t a_type,
+size_t dap_proc_thread_stream_ch_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
                                         const void * a_data, size_t a_data_size)
 {
     struct proc_thread_stream * l_thread_stream = (struct proc_thread_stream *) a_thread->_inheritor;
     dap_events_socket_t* l_es_input = l_thread_stream->queue_ch_io_input[a_worker->id];
-    size_t l_ret = dap_stream_ch_pkt_write_inter(l_es_input,a_ch,a_type,a_data,a_data_size);
+    size_t l_ret = dap_stream_ch_pkt_write_inter(l_es_input,a_ch_uuid,a_type,a_data,a_data_size);
 // TODO Make this code platform-independent
 #ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_input->flags |= DAP_SOCK_READY_TO_WRITE;
@@ -152,12 +153,12 @@ size_t dap_proc_thread_stream_ch_write_inter(dap_proc_thread_t * a_thread,dap_wo
  * @brief dap_proc_thread_stream_ch_write_f_inter
  * @param a_thread
  * @param a_worker
- * @param a_ch
+ * @param a_ch_uuid
  * @param a_type
  * @param a_format
  * @return
  */
-size_t dap_proc_thread_stream_ch_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_stream_ch_t *a_ch,uint8_t a_type,
+size_t dap_proc_thread_stream_ch_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,
                                         const char * a_format,...)
 {
     struct proc_thread_stream * l_thread_stream = (struct proc_thread_stream *) a_thread->_inheritor;
@@ -173,11 +174,15 @@ size_t dap_proc_thread_stream_ch_write_f_inter(dap_proc_thread_t * a_thread,dap_
     }
 
     dap_events_socket_t * l_es_io_input = l_thread_stream->queue_ch_io_input[a_worker->id];
-    char * l_data = DAP_NEW_SIZE(char,l_data_size+1); if (!l_data) return -1;
+    char * l_data = DAP_NEW_SIZE(char,l_data_size+1);
+    if (!l_data){
+        va_end(ap_copy);
+        return -1;
+    }
     l_data_size = dap_vsprintf(l_data,a_format,ap_copy);
     va_end(ap_copy);
 
-    size_t l_ret = dap_stream_ch_pkt_write_inter(l_es_io_input,a_ch,a_type, l_data, l_data_size);
+    size_t l_ret = dap_stream_ch_pkt_write_inter(l_es_io_input,a_ch_uuid,a_type, l_data, l_data_size);
 
     // TODO Make this code platform-independent
 #ifndef DAP_EVENTS_CAPS_EVENT_KEVENT

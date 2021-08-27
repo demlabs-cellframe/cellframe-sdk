@@ -49,7 +49,7 @@ dap_stream_ch_chain_state_t dap_stream_ch_chain_pkt_type_to_dap_stream_ch_chain_
  * @param data_size
  * @return
  */
-size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type,uint64_t a_net_id,
+size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
                                             uint64_t a_chain_id, uint64_t a_cell_id,
                                             const void * a_data, size_t a_data_size)
 {
@@ -69,8 +69,19 @@ size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_typ
     return l_ret;
 }
 
-
-size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type,uint64_t a_net_id,
+/**
+ * @brief dap_stream_ch_chain_pkt_write_mt
+ * @param a_worker
+ * @param a_ch_uuid
+ * @param a_type
+ * @param a_net_id
+ * @param a_chain_id
+ * @param a_cell_id
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,uint64_t a_net_id,
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size)
 {
@@ -85,7 +96,7 @@ size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_strea
     if (a_data_size && a_data)
         memcpy( l_chain_pkt->data, a_data, a_data_size);
 
-    size_t l_ret  = dap_stream_ch_pkt_write_mt(a_worker, a_ch, a_type , l_chain_pkt, l_chain_pkt_size);
+    size_t l_ret  = dap_stream_ch_pkt_write_mt(a_worker, a_ch_uuid, a_type , l_chain_pkt, l_chain_pkt_size);
     DAP_DELETE(l_chain_pkt);
     return l_ret;
 }
@@ -103,7 +114,7 @@ size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_strea
  * @param a_data_size
  * @return
  */
-size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch,
+size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid,
                                            uint8_t a_type,uint64_t a_net_id,
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size)
@@ -119,7 +130,7 @@ size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_str
     if (a_data_size && a_data)
         memcpy( l_chain_pkt->data, a_data, a_data_size);
 
-    size_t l_ret  = dap_proc_thread_stream_ch_write_inter(a_thread,  a_worker->worker, a_ch, a_type , l_chain_pkt, l_chain_pkt_size);
+    size_t l_ret  = dap_proc_thread_stream_ch_write_inter(a_thread,  a_worker->worker, a_ch_uuid, a_type , l_chain_pkt, l_chain_pkt_size);
     DAP_DELETE(l_chain_pkt);
     return l_ret;
 }

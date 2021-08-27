@@ -243,6 +243,9 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_enc
 
 
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size);
+    if(l_item == NULL)
+        return NULL;
+
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY; // By default creatre cond for service pay. Rework with smth more flexible

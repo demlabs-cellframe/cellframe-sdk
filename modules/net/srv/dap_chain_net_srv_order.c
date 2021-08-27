@@ -31,7 +31,11 @@
 #include "dap_enc_base58.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_net_srv_countries.h"
+#if DAP_SRV_STAKE_USED
 #include "dap_chain_net_srv_stake.h"
+#else
+static bool dap_chain_net_srv_stake_key_delegated() { return false; }
+#endif
 //#include "dap_chain_net_srv_geoip.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
@@ -413,7 +417,8 @@ lb_order_pass:
         if (l_order_pass_first) {
             l_order_pass_first = false;
             *a_output_orders_count = l_order_passed_index;
-            *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_orders_size);
+            if(l_orders_size)
+                *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_orders_size);
             goto lb_order_pass;
         }
         // If we here - its the second pass through
@@ -470,7 +475,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016llX\n", a_order->srv_uid.uint64 );
-        dap_string_append_printf(a_str_out, "  price:           \xA0""%.7Lf (%llu)\n", dap_chain_datoshi_to_coins(a_order->price) , a_order->price);
+        dap_string_append_printf(a_str_out, "  price:           \xA0""%.7Lf (%"DAP_UINT64_FORMAT_U")\n", dap_chain_datoshi_to_coins(a_order->price) , a_order->price);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
         if ( a_order->node_addr.uint64)
@@ -527,7 +532,7 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
     if (!strcmp(a_group, l_gdb_group_str)) {
         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
-        if (l_order->version == 1) {
+        if (l_order->version != 2) {
             dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
         } else {
             dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
