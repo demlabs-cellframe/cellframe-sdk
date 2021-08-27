@@ -78,6 +78,7 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
             if (length_left < sizeof(dap_stream_ch_pkt_hdr_t)) {
                 log_it(L_ERROR, "Too small packet size %u", length_left);
                 ret = NULL;
+                break;
             }
             if(ret->hdr.size > STREAM_PKT_SIZE_MAX ){
                 log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);

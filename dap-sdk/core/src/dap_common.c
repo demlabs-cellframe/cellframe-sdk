@@ -845,6 +845,13 @@ static CRITICAL_SECTION s_timers_lock;
 static pthread_mutex_t s_timers_lock;
 #endif
 
+void dap_interval_timer_deinit()
+{
+    for (int i = 0; i < s_timers_count; i++) {
+        dap_interval_timer_delete(s_timers[i].timer);
+    }
+}
+
 static int s_timer_find(void *a_timer)
 {
     for (int i = 0; i < s_timers_count; i++) {
