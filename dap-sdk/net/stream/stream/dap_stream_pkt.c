@@ -70,20 +70,23 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
     size_t length_left=data_size;
 
     while( (sig_start=memchr(sig_start, c_dap_stream_sig[0],length_left)) != NULL ){
-        length_left= data_size- (size_t)  ( sig_start- (uint8_t *) a_data);
+        length_left = data_size - (size_t)(sig_start - (uint8_t *)a_data);
         if(length_left < sizeof(c_dap_stream_sig) )
             break;
         if(memcmp(sig_start,c_dap_stream_sig,sizeof(c_dap_stream_sig))==0){
-            ret= (dap_stream_pkt_t*) sig_start;
-            if(length_left>= sizeof (dap_stream_ch_pkt_t) ){
-                if(ret->hdr.size > STREAM_PKT_SIZE_MAX ){
-                    log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);
-                    ret=NULL;
-                }
+            ret = (dap_stream_pkt_t *)sig_start;
+            if (length_left < sizeof(dap_stream_ch_pkt_hdr_t)) {
+                log_it(L_ERROR, "Too small packet size %u", length_left);
+                ret = NULL;
+                break;
+            }
+            if(ret->hdr.size > STREAM_PKT_SIZE_MAX ){
+                log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);
+                ret = NULL;
             }
             break;
-        }else
-        sig_start+=1;
+        } else
+            sig_start++;
     }
 
     return ret;
