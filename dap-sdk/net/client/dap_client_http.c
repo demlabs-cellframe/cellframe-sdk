@@ -597,10 +597,13 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
             log_it(L_DEBUG, "Connecting to %s:%u", a_uplink_addr, a_uplink_port);
             l_http_pvt->worker = a_worker?a_worker: dap_events_worker_get_auto();
             dap_worker_add_events_socket(l_ev_socket,l_http_pvt->worker);
-            dap_events_socket_handle_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handle_t);
-            l_ev_socket_handler->esocket_uuid = l_ev_socket->uuid;
-
-            dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_socket_handler);
+            dap_events_socket_uuid_t * l_ev_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
+            *l_ev_uuid_ptr = l_ev_socket->uuid;
+            if (!dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check, l_ev_uuid_ptr)) {
+                log_it(L_ERROR,"Can't run timer on worker %u for esocket uuid %"DAP_UINT64_FORMAT_u" for timeout check during connection attempt ",
+                       l_http_pvt->worker->id, *l_ev_uuid_ptr);
+                DAP_DEL_Z(l_ev_uuid_ptr)
+            }
             return l_http_pvt;
         } else {
             log_it(L_ERROR, "Socket %d connecting error: %d", l_ev_socket->socket, l_err2);
