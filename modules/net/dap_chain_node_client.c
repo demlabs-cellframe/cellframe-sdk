@@ -166,8 +166,8 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         l_node_client->esocket_uuid = 0;
 
         if (l_node_client->keep_connection) {
-            uint128_t *l_uuid = DAP_NEW(uint128_t);
-            memcpy(l_uuid, &l_node_client->uuid, sizeof(uint128_t));
+            dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
+            memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
             dap_timerfd_start_on_worker(l_node_client->stream_worker? l_node_client->stream_worker->worker: dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
         }
         return;
@@ -185,7 +185,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 static bool s_timer_update_states_callback(void * a_arg )
 {
     dap_chain_node_client_handle_t *l_client_found = NULL;
-    uint64_t *l_uuid = (uint64_t *)a_arg;
+    dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;
     assert(l_uuid);
     HASH_FIND(hh, s_clients, l_uuid, sizeof(*l_uuid), l_client_found);
     if(!l_client_found){
