@@ -397,7 +397,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
     // Get log diff
     uint64_t l_local_last_id = dap_db_log_get_last_id();
     if (s_debug_more)
-        log_it(L_DEBUG, "Sync out gdb proc, requested transactions %"DAP_UINT64_FORMAT_U":%"DAP_UINT64_FORMAT_U" from address "NODE_ADDR_FP_STR,
+        log_it(L_DEBUG, "Sync out gdb proc, requested transactions %"DAP_UINT64_FORMAT_u":%"DAP_UINT64_FORMAT_u" from address "NODE_ADDR_FP_STR,
                             l_sync_request->request.id_start, l_local_last_id, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
     uint64_t l_start_item = l_sync_request->request.id_start;
     // If the current global_db has been truncated, but the remote node has not known this
@@ -705,6 +705,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_store_obj_free(l_store_obj, l_data_obj_count);
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");
+    }
+    if (l_pkt_item->pkt_data) {
+        DAP_DELETE(l_pkt_item->pkt_data);
     }
     DAP_DELETE(l_sync_request);
     return true;

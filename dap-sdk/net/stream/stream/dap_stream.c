@@ -623,6 +623,10 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         }else{
             read_bytes_to=bytes_left_to_read;
         }
+        if (a_stream->pkt_buf_in_data_size + read_bytes_to > a_stream->pkt_buf_in_size_expected) {
+            a_stream->pkt_buf_in_size_expected = a_stream->pkt_buf_in_data_size + read_bytes_to;
+            a_stream->pkt_buf_in = (dap_stream_pkt_t *)DAP_REALLOC(a_stream->pkt_buf_in, a_stream->pkt_buf_in_size_expected);
+        }
         memcpy((uint8_t*)a_stream->pkt_buf_in+a_stream->pkt_buf_in_data_size,proc_data,read_bytes_to);
         a_stream->pkt_buf_in_data_size+=read_bytes_to;
         bytes_left_to_read-=read_bytes_to;
