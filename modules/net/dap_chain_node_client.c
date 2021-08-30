@@ -228,8 +228,8 @@ static bool s_timer_update_states_callback(void * a_arg )
                                                                         l_chain_id.uint64, l_net->pub.cell_id.uint64,
                                                               &l_sync_gdb, sizeof(l_sync_gdb));
                     }
+                    return true;
                 }
-                return true;
             }
         }
     }
@@ -832,12 +832,14 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                 l_ch_chain->callback_notify_packet_out = s_ch_chain_callback_notify_packet_out;
                 l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
                 l_ch_chain->callback_notify_arg = l_node_client;
+                memcpy(&l_node_client->ch_chain_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));
             }
             // N
             if(a_ch_id == dap_stream_ch_chain_net_get_id()) {
                 dap_stream_ch_chain_net_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
                 l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;
+                memcpy(&l_node_client->ch_chain_net_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));
             }
             // R
             if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {
