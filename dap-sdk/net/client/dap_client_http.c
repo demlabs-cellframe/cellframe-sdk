@@ -199,7 +199,6 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
             l_http_pvt->is_closed_by_timeout = true;
             log_it(L_INFO, "Close %s sock %u type %d by timeout",
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
-            l_es->_inheritor = NULL;
             dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }
     }else{

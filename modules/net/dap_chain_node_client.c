@@ -164,10 +164,14 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         l_node_client->esocket_uuid = 0;
 
+        if (l_node_client->callbacks.disconnected) {
+            l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
+        }
+
         if (l_node_client->keep_connection) {
-            uint128_t *l_uuid = DAP_NEW(uint128_t);
-            memcpy(l_uuid, &l_node_client->uuid, sizeof(uint128_t));
-            dap_timerfd_start_on_worker(l_node_client->stream_worker? l_node_client->stream_worker->worker: dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
+            dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
+            memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
+            //dap_timerfd_start_on_worker(l_node_client->stream_worker? l_node_client->stream_worker->worker: dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
         }
         return;
     }
@@ -179,7 +183,10 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worker, void *a_arg)
 {
     UNUSED(a_worker);
-    s_timer_update_states_callback(a_arg);
+    dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
+    memcpy(l_uuid, a_arg, sizeof(dap_events_socket_uuid_t));
+    if (s_timer_update_states_callback(a_arg))
+        DAP_DELETE(l_uuid);
 }
 
 /**
@@ -190,7 +197,7 @@ static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worke
 static bool s_timer_update_states_callback(void *a_arg)
 {
     dap_chain_node_client_handle_t *l_client_found = NULL;
-    uint64_t *l_uuid = (uint64_t *)a_arg;
+    dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;
     assert(l_uuid);
     HASH_FIND(hh, s_clients, l_uuid, sizeof(*l_uuid), l_client_found);
     if(!l_client_found){
@@ -277,7 +284,10 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             if (l_node_client->keep_connection) {
                 dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
                 memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
-                dap_worker_exec_callback_on(l_stream->esocket->worker, s_node_client_connected_synchro_start_callback, l_uuid);
+                //dap_worker_exec_callback_on(l_stream->esocket->worker, s_node_client_connected_synchro_start_callback, l_uuid);
+                dap_worker_t *wrk1 = l_stream->esocket->worker;
+                dap_worker_t *wrk2 = dap_events_worker_get_auto();
+                dap_worker_t *wrk3 = l_stream->stream_worker->worker;
                 dap_timerfd_start_on_worker(l_stream->esocket->worker, s_timer_update_states * 1000, s_timer_update_states_callback, l_uuid);
             }
         }
@@ -601,7 +611,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     if(a_callbacks)
         memcpy(&l_node_client->callbacks,a_callbacks,sizeof (*a_callbacks));
     l_node_client->info = a_node_info;
-    l_node_client->uuid = dap_uuid_generate_uint128();
+    l_node_client->uuid = dap_uuid_generate_uint64();
     l_node_client->net = a_net;
     dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);
     l_client_handle->uuid = l_node_client->uuid;
@@ -656,9 +666,6 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
         return false;
     }
     dap_client_set_uplink_unsafe(a_node_client->client, strdup(host), a_node_client->info->hdr.ext_port);
-//    dap_client_stage_t a_stage_target = STAGE_ENC_INIT;
-//    dap_client_stage_t l_stage_target = STAGE_STREAM_STREAMING;
-
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING ;
     // ref pvt client
     //dap_client_pvt_ref(DAP_CLIENT_PVT(a_node_client->client));
@@ -834,6 +841,7 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                 l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
                 l_ch_chain->callback_notify_arg = l_node_client;
                 l_node_client->ch_chain = l_ch;
+                memcpy(&l_node_client->ch_chain_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));
             }
             // N
             if(a_ch_id == dap_stream_ch_chain_net_get_id()) {
@@ -841,6 +849,7 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                 l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;
                 l_node_client->ch_chain_net = l_ch;
+                memcpy(&l_node_client->ch_chain_net_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));
             }
             // R
             if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {

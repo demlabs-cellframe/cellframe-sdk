@@ -225,8 +225,8 @@ void *dap_worker_thread(void *arg)
                 continue;
             l_flag_hup =  l_cur_flags& POLLHUP;
             l_flag_rdhup = l_cur_flags & POLLRDHUP;
-            l_flag_write = (l_cur_flags & POLLOUT) || (l_cur_flags &POLLRDNORM)|| (l_cur_flags &POLLRDBAND ) ;
-            l_flag_read = l_cur_flags & POLLIN || (l_cur_flags &POLLWRNORM)|| (l_cur_flags &POLLWRBAND );
+            l_flag_write = (l_cur_flags & POLLOUT) || (l_cur_flags &POLLWRNORM)|| (l_cur_flags &POLLWRBAND ) ;
+            l_flag_read = l_cur_flags & POLLIN || (l_cur_flags &POLLRDNORM)|| (l_cur_flags &POLLRDBAND );
             l_flag_error = l_cur_flags & POLLERR;
             l_flag_nval = l_cur_flags & POLLNVAL;
             l_flag_pri = l_cur_flags & POLLPRI;
@@ -859,9 +859,7 @@ void *dap_worker_thread(void *arg)
       /***********************************************************/
        /* If the compress_array flag was turned on, we need       */
        /* to squeeze together the array and decrement the number  */
-       /* of file descriptors. We do not need to move back the    */
-       /* events and revents fields because the events will always*/
-       /* be POLLIN in this case, and revents is output.          */
+       /* of file descriptors.                                    */
        /***********************************************************/
        if ( l_worker->poll_compress){
            l_worker->poll_compress = false;
@@ -870,6 +868,8 @@ void *dap_worker_thread(void *arg)
                    if( l_worker->poll_count){
                        for(size_t j = i; j < l_worker->poll_count-1; j++){
                             l_worker->poll[j].fd = l_worker->poll[j+1].fd;
+                            l_worker->poll[j].events = l_worker->poll[j+1].events;
+                            l_worker->poll[j].revents = l_worker->poll[j+1].revents;
                             l_worker->poll_esocket[j] = l_worker->poll_esocket[j+1];
                             if(l_worker->poll_esocket[j])
                                 l_worker->poll_esocket[j]->poll_index = j;
