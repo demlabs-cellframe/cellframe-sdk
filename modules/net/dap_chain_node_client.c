@@ -171,7 +171,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         if (l_node_client->keep_connection) {
             dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
             memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
-            //dap_timerfd_start_on_worker(l_node_client->stream_worker? l_node_client->stream_worker->worker: dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
+            dap_timerfd_start_on_worker(l_node_client->stream_worker? l_node_client->stream_worker->worker: dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
         }
         return;
     }
@@ -284,10 +284,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             if (l_node_client->keep_connection) {
                 dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
                 memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
-                //dap_worker_exec_callback_on(l_stream->esocket->worker, s_node_client_connected_synchro_start_callback, l_uuid);
-                dap_worker_t *wrk1 = l_stream->esocket->worker;
-                dap_worker_t *wrk2 = dap_events_worker_get_auto();
-                dap_worker_t *wrk3 = l_stream->stream_worker->worker;
+                dap_worker_exec_callback_on(l_stream->esocket->worker, s_node_client_connected_synchro_start_callback, l_uuid);
                 dap_timerfd_start_on_worker(l_stream->esocket->worker, s_timer_update_states * 1000, s_timer_update_states_callback, l_uuid);
             }
         }

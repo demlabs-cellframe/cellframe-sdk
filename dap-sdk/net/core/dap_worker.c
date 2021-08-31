@@ -856,12 +856,12 @@ void *dap_worker_thread(void *arg)
 
         }
 #ifdef DAP_EVENTS_CAPS_POLL
-      /***********************************************************/
-       /* If the compress_array flag was turned on, we need       */
-       /* to squeeze together the array and decrement the number  */
-       /* of file descriptors.                                    */
-       /***********************************************************/
-       if ( l_worker->poll_compress){
+        /***********************************************************/
+        /* If the compress_array flag was turned on, we need       */
+        /* to squeeze together the array and decrement the number  */
+        /* of file descriptors.                                    */
+        /***********************************************************/
+        if ( l_worker->poll_compress){
            l_worker->poll_compress = false;
            for (size_t i = 0; i < l_worker->poll_count ; i++)  {
                if ( l_worker->poll[i].fd == -1){
@@ -879,7 +879,7 @@ void *dap_worker_thread(void *arg)
                    l_worker->poll_count--;
                }
            }
-       }
+        }
 #endif
     } // while
     log_it(L_NOTICE,"Exiting thread #%u", l_worker->id);
