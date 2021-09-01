@@ -441,7 +441,7 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
     else
         strcpy(l_buf, "infinity");
     log_it(L_DEBUG, "Prepare request to gdb sync from %"DAP_UINT64_FORMAT_u" to %s",
-                      l_sync_request->request.id_start, l_buf);
+                      l_sync_request->request.id_start + 1, l_buf);
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_sync_request->worker), l_sync_request->ch_uuid);
@@ -1117,6 +1117,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->state = CHAIN_STATE_SYNC_CHAINS;
+                l_ch_chain->stats_request_atoms_processed = 0;
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS) {
                     char *l_hash_from_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_from);
                     char *l_hash_to_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_to);
@@ -1144,7 +1145,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                        NODE_ADDR_FP_ARGS_S(l_ch_chain->request.node_addr),
                        l_chain_pkt_data_size,      l_ch_chain->request_hdr.net_id.uint64 ,
                        l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64);
-                l_ch_chain->stats_request_atoms_processed = 0;
             }else{
                 log_it(L_WARNING,"Incorrect data size %zd in packet DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN", l_chain_pkt_data_size);
                 s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
