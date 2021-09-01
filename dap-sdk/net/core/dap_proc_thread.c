@@ -905,19 +905,19 @@ static void * s_proc_thread_function(void * a_arg)
 
         }
 #ifdef DAP_EVENTS_CAPS_POLL
-      /***********************************************************/
-       /* If the compress_array flag was turned on, we need       */
-       /* to squeeze together the array and decrement the number  */
-       /* of file descriptors. We do not need to move back the    */
-       /* events and revents fields because the events will always*/
-       /* be POLLIN in this case, and revents is output.          */
-       /***********************************************************/
-       if ( l_poll_compress){
+        /***********************************************************/
+        /* If the compress_array flag was turned on, we need       */
+        /* to squeeze together the array and decrement the number  */
+        /* of file descriptors.                                    */
+        /***********************************************************/
+        if ( l_poll_compress){
            l_poll_compress = false;
            for (size_t i = 0; i < l_thread->poll_count ; i++)  {
                if ( l_thread->poll[i].fd == -1){
                     for(size_t j = i; j +1 < l_thread->poll_count; j++){
                         l_thread->poll[j].fd = l_thread->poll[j+1].fd;
+                        l_thread->poll[j].events = l_thread->poll[j+1].events;
+                        l_thread->poll[j].revents = l_thread->poll[j+1].revents;
                         l_thread->esockets[j] = l_thread->esockets[j+1];
                         if(l_thread->esockets[j])
                             l_thread->esockets[j]->poll_index = j;
@@ -926,7 +926,7 @@ static void * s_proc_thread_function(void * a_arg)
                    l_thread->poll_count--;
                }
            }
-       }
+        }
 #endif
     }
     log_it(L_ATT, "Stop processing thread #%u", l_thread->cpu_id);
