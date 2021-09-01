@@ -380,7 +380,7 @@ static void * s_proc_thread_function(void * a_arg)
     dap_proc_thread_t * l_thread = (dap_proc_thread_t*) a_arg;
     assert(l_thread);
     dap_cpu_assign_thread_on(l_thread->cpu_id);
-    
+
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
 #if defined(DAP_OS_WINDOWS)
@@ -463,6 +463,17 @@ static void * s_proc_thread_function(void * a_arg)
     }
 
 
+    // Add exit event
+    l_thread->event_exit->ev.events     = l_thread->event_exit->ev_base_flags;
+    l_thread->event_exit->ev.data.ptr   = l_thread->event_exit;
+    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->event_exit->socket , &l_thread->event_exit->ev) != 0 ){
+#ifdef DAP_OS_WINDOWS
+        errno = WSAGetLastError();
+#endif
+        log_it(L_CRITICAL, "Can't add exit event on epoll ctl, err: %d", errno);
+        return NULL;
+    }
+
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
         // Queue asssign
         l_thread->queue_assign_input[n]->ev.events      = l_thread->queue_assign_input[n]->ev_base_flags ;
@@ -519,6 +530,12 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->esockets[l_thread->poll_count] = l_thread->event_exit;
     l_thread->poll_count++;
 
+
+    // Add exit event
+    l_thread->poll[l_thread->poll_count].fd = l_thread->event_exit->fd;
+    l_thread->poll[l_thread->poll_count].events = l_thread->event_exit->poll_base_flags;
+    l_thread->esockets[l_thread->poll_count] = l_thread->event_exit;
+    l_thread->poll_count++;
 
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
         dap_events_socket_t * l_queue_assign_input =  l_thread->queue_assign_input[n];

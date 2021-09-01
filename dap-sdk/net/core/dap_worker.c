@@ -862,23 +862,23 @@ void *dap_worker_thread(void *arg)
         /* of file descriptors.                                    */
         /***********************************************************/
         if ( l_worker->poll_compress){
-           l_worker->poll_compress = false;
-           for (size_t i = 0; i < l_worker->poll_count ; i++)  {
-               if ( l_worker->poll[i].fd == -1){
-                   if( l_worker->poll_count){
-                       for(size_t j = i; j < l_worker->poll_count-1; j++){
-                            l_worker->poll[j].fd = l_worker->poll[j+1].fd;
-                            l_worker->poll[j].events = l_worker->poll[j+1].events;
-                            l_worker->poll[j].revents = l_worker->poll[j+1].revents;
-                            l_worker->poll_esocket[j] = l_worker->poll_esocket[j+1];
-                            if(l_worker->poll_esocket[j])
-                                l_worker->poll_esocket[j]->poll_index = j;
-                       }
-                   }
-                   i--;
-                   l_worker->poll_count--;
-               }
-           }
+            l_worker->poll_compress = false;
+            for (size_t i = 0; i < l_worker->poll_count ; i++)  {
+                if ( l_worker->poll[i].fd == -1){
+                    if( l_worker->poll_count){
+                        for(size_t j = i; j < l_worker->poll_count-1; j++){
+                             l_worker->poll[j].fd = l_worker->poll[j+1].fd;
+                             l_worker->poll[j].events = l_worker->poll[j+1].events;
+                             l_worker->poll[j].revents = l_worker->poll[j+1].revents;
+                             l_worker->poll_esocket[j] = l_worker->poll_esocket[j+1];
+                             if(l_worker->poll_esocket[j])
+                                 l_worker->poll_esocket[j]->poll_index = j;
+                        }
+                    }
+                    i--;
+                    l_worker->poll_count--;
+                }
+            }
         }
 #endif
     } // while
