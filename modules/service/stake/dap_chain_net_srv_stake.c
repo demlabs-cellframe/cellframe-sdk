@@ -567,6 +567,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             if (l_token_str) {
                 if (!dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_str)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_str);
+                    DAP_DELETE(l_stake);
                     return -6;
                 }
                 strcpy(l_stake->token, l_token_str);
@@ -576,6 +577,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 uint64_t l_value = strtoull(l_coins_str, NULL, 10);
                 if (!l_value) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
+                    DAP_DELETE(l_stake);
                     return -8;
                 }
                 l_stake->value = l_value;
@@ -585,11 +587,13 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 long double l_fee = strtold(l_fee_str, NULL);
                 if (!l_fee) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Format -fee_percent <long double> %");
+                    DAP_DELETE(l_stake);
                     return -12;
                 }
             }
             if (!l_token_str && !l_coins_str && !l_addr_from_str && !l_fee_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "At least one of updating parameters is mandatory");
+                DAP_DELETE(l_stake);
                 return -16;
             }
             dap_chain_addr_t *l_addr_to = dap_cert_to_addr(l_cert, l_net->pub.id);

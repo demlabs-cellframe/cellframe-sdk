@@ -381,7 +381,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 l_chain->autoproc_datum_types = DAP_NEW_SIZE(uint16_t, l_datum_types_count * sizeof(uint16_t));
                 uint16_t l_count_recognized = 0;
                 for(uint16_t i = 0; i < l_datum_types_count; i++) {
-                    if (!strcmp(l_datum_types[i], "all")) {
+                    if (!strcmp(l_datum_types[i], "all") && l_chain->datum_types_count) {
                         l_chain->autoproc_datum_types = DAP_REALLOC(l_chain->autoproc_datum_types, l_chain->datum_types_count * sizeof(uint16_t));
                         for (int j = 0; j < l_chain->datum_types_count; j++) {
                             l_chain->autoproc_datum_types[j] = s_chain_type_convert(l_chain->datum_types[j]);
