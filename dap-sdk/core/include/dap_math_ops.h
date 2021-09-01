@@ -1,6 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdio.h>
+#include "assert.h"
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -39,6 +40,10 @@ typedef union int128 {
     int32_t i32[4];
 } int128_t;
 
+typedef int128_t _dap_int128_t;
+
+#endif // __SIZEOF_INT128__ == 16
+
 typedef struct uint256_t {
     uint128_t hi;
     uint128_t lo;
@@ -51,19 +56,15 @@ typedef struct uint512_t {
 
     } uint512_t;
 
-typedef int128_t _dap_int128_t;
 
-#endif // __SIZEOF_INT128__ == 16
+
+
 
 #endif //defined(__GNUC__) || defined (__clang__)
 
-uint128_t dap_uint128_substract(uint128_t a, uint128_t b);
-uint128_t dap_uint128_add(uint128_t a, uint128_t b);
-bool dap_uint128_check_equal(uint128_t a, uint128_t b);
-
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////////
+
+#ifndef DAP_GLOBAL_IS_INT128
 
 const  uint128_t two_power_64={ .hi = 1, .lo = 0};
 const  uint128_t lo_64={ .hi = 0, .lo = 0xffffffffffffffff};
@@ -76,7 +77,7 @@ const uint64_t lo_32=0xffffffff;
 const uint64_t hi_32=0xffffffff00000000;
 const uint64_t ones_64=0xffffffffffffffff;
 
-
+#endif
 
 static inline bool EQUAL_128(uint128_t a_128_bit, uint128_t b_128_bit){
 #ifdef DAP_GLOBAL_IS_INT128
@@ -130,7 +131,7 @@ static inline uint128_t OR_128(uint128_t a_128_bit,uint128_t b_128_bit){
 static inline uint256_t AND_256(uint256_t a_256_bit,uint256_t b_256_bit){
 
 #ifdef DAP_GLOBAL_IS_INT128
-    uint256_t output={ .hi = zero_128, .lo = zero_128};
+    uint256_t output = {};
     output.hi= a_256_bit.hi | b_256_bit.hi;  
     output.lo= a_256_bit.lo | b_256_bit.lo;
     return output;
@@ -147,7 +148,7 @@ static inline uint256_t AND_256(uint256_t a_256_bit,uint256_t b_256_bit){
 static inline uint256_t OR_256(uint256_t a_256_bit,uint256_t b_256_bit){
 
 #ifdef DAP_GLOBAL_IS_INT128
-    uint256_t output={ .hi = zero_128, .lo = zero_128};
+    uint256_t output= {};
     output.hi= a_256_bit.hi | b_256_bit.hi;  
     output.lo= a_256_bit.lo | b_256_bit.lo;
     return output;
@@ -193,7 +194,7 @@ static inline void RIGHT_SHIFT_128(uint128_t a_128_bit,uint128_t* b_128_bit,int 
     assert (n <= 128);
 
 #ifdef DAP_GLOBAL_IS_INT128
-    *a_128_bit=b_128_bit>>n;
+    (*b_128_bit) = a_128_bit >> n;
 
 #else 
     
@@ -288,6 +289,7 @@ static inline void RIGHT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int 
         shift_temp=a_256_bit.hi>>n;
         b_256_bit->hi=shift_temp;
         b_256_bit->lo=(a_256_bit.lo>>n)|(a_256_bit.hi<<(128-n));
+    }
 
 #else 
     if (n >= 128) // shifting 64-bit integer by more than 63 bits is not defined
@@ -314,10 +316,10 @@ static inline void RIGHT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int 
 #endif
 }
 
-static inline void INCR_128(uint128_t* a_128_bit){
+static inline void INCR_128(uint128_t *a_128_bit){
 
 #ifdef DAP_GLOBAL_IS_INT128
-    *a_128_bit++;
+    (*a_128_bit)++;
 
 #else 
     a_128_bit->lo++;
@@ -375,17 +377,13 @@ int overflow_flag;
 overflow_flag=(a_64_bit+b_64_bit<a_64_bit);
 return overflow_flag;}
 
+static inline int OVERFLOW_MULT_64_64(uint64_t a_64_bit,uint64_t b_64_bit) { return (a_64_bit>((uint64_t)-1)/b_64_bit); }
+
 static inline int MULT_64_64(uint64_t a_64_bit,uint64_t b_64_bit,uint64_t* c_64_bit ) {
 
 int overflow_flag;
 *c_64_bit=a_64_bit*b_64_bit;
-overflow_flag=(a_64_bit>ones_64/b_64_bit);
-return overflow_flag;}
-
-static inline int OVERFLOW_MULT_64_64(uint64_t a_64_bit,uint64_t b_64_bit) {
-
-int overflow_flag;
-overflow_flag=(a_64_bit>ones_64/b_64_bit);
+overflow_flag=OVERFLOW_MULT_64_64(a_64_bit, b_64_bit);
 return overflow_flag;}
 
 //
@@ -394,6 +392,7 @@ return overflow_flag;}
 //c_128_bit->lo=a_64_bit+b_64_bit;
 //c_128_bit->hi=(c_128_bit->lo<a_64_bit);}
 
+#ifndef DAP_GLOBAL_IS_INT128
 //Mixed precision: add a uint64_t into a uint128_t
 static inline int ADD_64_INTO_128(uint64_t a_64_bit,uint128_t* c_128_bit ) {
     int overflow_flag=0;
@@ -880,7 +879,38 @@ void bindivmod128(uint128_t M, uint128_t N, uint128_t* Q, uint128_t* R)
     R->lo = M.lo;
 }
 
+#else
+static inline uint128_t dap_uint128_substract(uint128_t a, uint128_t b)
+{
+    if (a < b) {
+        return 0;
+    }
+    return a - b;
+}
 
+/**
+ * @brief dap_chain_balance_add
+ * @param a
+ * @param b
+ * @return
+ */
+static inline uint128_t dap_uint128_add(uint128_t a, uint128_t b)
+{
+    uint128_t l_ret = a + b;
+    if (l_ret < a || l_ret < b) {
+        return 0;
+    }
+    return l_ret;
+}
 
-
-
+/**
+ * @brief dap_uint128_check_equal
+ * @param a
+ * @param b
+ * @return
+ */
+static inline bool dap_uint128_check_equal(uint128_t a, uint128_t b)
+{
+    return a == b;
+}
+#endif

@@ -72,72 +72,6 @@ static char* dap_db_new_history_timestamp()
     return l_str;
 }
 
-/**
- * Get data according the history log
- *
- * return dap_store_obj_pkt_t*
- */
-dap_list_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out)
-{
-    if(!a_obj)
-        return NULL;
-    dap_global_db_hist_t l_rec;
-    if(dap_db_history_unpack_hist((char*) a_obj->value, &l_rec) == -1)
-        return NULL;
-    time_t l_timestamp = strtoll(a_obj->key, NULL, 10);
-
-    // parse global_db records in a history record
-    char **l_keys = dap_strsplit(l_rec.keys, GLOBAL_DB_HIST_KEY_SEPARATOR, -1);
-    size_t l_count = dap_str_countv(l_keys);
-    // read records from global_db
-    int i = 0;
-    dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_count * sizeof(dap_store_obj_t));
-    while(l_keys[i]) {
-        dap_store_obj_t *l_obj = NULL;
-        // add record - read record
-        if(l_rec.type == 'a'){
-            l_obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
-            // l_obj may be NULL, if this record has been deleted but it is present in history
-            if(l_obj)
-                l_obj->id = a_obj->id;
-        }
-        // delete record - save only key for record
-        else if(l_rec.type == 'd') { // //section=strdup("kelvin_nodes");
-            l_obj = (dap_store_obj_t*) DAP_NEW_Z(dap_store_obj_t);
-            l_obj->id = a_obj->id;
-            l_obj->group = dap_strdup(l_rec.group);
-            l_obj->key = dap_strdup(l_keys[i]);
-            l_obj->timestamp = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
-        }
-        if(l_obj == NULL) {
-            dap_store_obj_free(l_store_obj, l_count);
-            dap_strfreev(l_keys);
-            return NULL;
-        }
-        // save record type: 'a' or 'd'
-        l_obj->type = (uint8_t)l_rec.type;
-
-        memcpy(l_store_obj + i, l_obj, sizeof(dap_store_obj_t));
-        DAP_DELETE(l_obj);
-        i++;
-    }
-    // serialize data
-    dap_list_t *l_data_out = dap_store_packet_multiple(l_store_obj, l_timestamp, l_count);
-
-    dap_store_obj_free(l_store_obj, l_count);
-    dap_strfreev(l_keys);
-
-    if(l_data_out && a_data_size_out) {
-        *a_data_size_out = 0;
-        for (dap_list_t *l_iter = l_data_out; l_iter; l_iter = dap_list_next(l_iter)) {
-            *a_data_size_out += sizeof(dap_store_obj_pkt_t) + ((dap_store_obj_pkt_t *)l_data_out)->data_size;
-        }
-    }
-    return l_data_out;
-
-}
-
-
 // for dap_db_history()
 static dap_store_obj_t* get_prev_tx(dap_global_db_obj_t *a_objs, dap_tx_data_t *a_tx_data)
 {
@@ -719,6 +653,76 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, const char *a_group_mempool
     char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
     return l_ret_str;
 }
+
+/*static int compare_items(const void * l_a, const void * l_b)
+{
+    const dap_global_db_obj_t *l_item_a = (const dap_global_db_obj_t*) l_a;
+    const dap_global_db_obj_t *l_item_b = (const dap_global_db_obj_t*) l_b;
+    int l_ret = strcmp(l_item_a->key, l_item_b->key);
+    return l_ret;
+}*/
+
+/**
+ * Get log diff as list
+ */
+dap_list_t* dap_db_log_get_list(uint64_t first_id)
+{
+    dap_list_t *l_list = NULL;
+    size_t l_data_size_out = 0;
+    //log_it(L_DEBUG,"loading db list...");
+    dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_data_size_out);
+    //dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
+    for(size_t i = 0; i < l_data_size_out; i++) {
+        dap_store_obj_t *l_obj_cur = l_objs + i;
+        dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
+        l_item->id = l_obj_cur->id;
+        l_item->key = dap_strdup(l_obj_cur->key);
+        l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
+        l_list = dap_list_append(l_list, l_item);
+    }
+    //log_it(L_DEBUG,"loaded db list n=%d", l_data_size_out);
+    dap_store_obj_free(l_objs, l_data_size_out);
+
+    return l_list;
+    /*
+     size_t l_list_count = 0;
+     char *l_first_key_str = dap_strdup_printf("%lld", (int64_t) first_timestamp);
+     size_t l_data_size_out = 0;
+
+     for(size_t i = 0; i < l_data_size_out; i++) {
+     dap_global_db_obj_t *l_obj_cur = l_objs[i];
+     //        log_it(L_DEBUG,"%lld and %lld tr",strtoll(l_obj_cur->key,NULL,10), first_timestamp );
+     if( strtoll(l_obj_cur->key,NULL,10) > (long long) first_timestamp  ) {
+     dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
+     l_item->key = dap_strdup(l_obj_cur->key);
+     l_item->value =(uint8_t*) dap_strdup((char*) l_obj_cur->value);
+     l_list = dap_list_append(l_list, l_item);
+     l_list_count++;
+     }
+     }
+     // sort list by key (time str)
+     //dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
+     log_it(L_DEBUG,"Prepared %u items (list size %u)", l_list_count, dap_list_length(l_list));
+     DAP_DELETE(l_first_key_str);
+     dap_chain_global_db_objs_delete(l_objs);
+     */
+    /*/ dbg - sort result
+     l_data_size_out = dap_list_length(l_list);
+     for(size_t i = 0; i < l_data_size_out; i++) {
+     dap_list_t *l_list_tmp = dap_list_nth(l_list, i);
+     dap_global_db_obj_t *l_item = l_list_tmp->data;
+     printf("2 %d %s\n", i, l_item->key);
+     }*/
+
+}
+
+/**
+ * Free list getting from dap_db_log_get_list()
+ */
+void dap_db_log_del_list(dap_list_t *a_list)
+{
+    dap_list_free_full(a_list, (dap_callback_destroyed_t) dap_chain_global_db_obj_delete);
+}
 #endif
 
 
@@ -877,8 +881,9 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                         // if first transaction - empty prev OUT item
                         if(dap_hash_fast_is_blank(&tx_prev_hash)) {
                             // add emit info to ret string
-                            if(!memcmp(&l_tx_data->addr, a_addr, sizeof(dap_chain_addr_t)))
-                                    {
+                            if(l_tx_data && a_addr &&
+                                    ( memcmp(&l_tx_data->addr, a_addr, sizeof(dap_chain_addr_t) ) == 0 )
+                                ) {
                                 dap_list_t *l_records_tmp = l_records_out;
                                 while(l_records_tmp) {
                                     const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_records_tmp->data;
@@ -957,8 +962,10 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                                             NULL;
                                     // if use dst addr
                                     bool l_is_use_dst_addr = false;
-                                    if(!memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t)))
+                                    if(l_tx_prev_out &&  a_addr &&
+                                            ( memcmp(&l_tx_prev_out->addr, a_addr, sizeof(dap_chain_addr_t) ) == 0 )){
                                         l_is_use_dst_addr = true;
+                                    }
 
                                     l_src_str_is_cur = l_is_use_src_addr;
                                     if(l_src_addr->len <= 1) {
@@ -975,7 +982,7 @@ char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool)
                                         dap_string_append_printf(l_str_out,
                                                 "%s in send  %lld %s from %s\n to %s\n",
                                                 l_time_str ? l_time_str : "",
-                                                l_tx_prev_out->header.value,
+                                                l_tx_prev_out?l_tx_prev_out->header.value:0,
                                                 l_tx_data->token_ticker,
                                                 l_src_str ? l_src_str : "",
                                                 l_dst_to_str);
@@ -1149,79 +1156,6 @@ uint64_t dap_db_log_get_last_id(void)
     return dap_db_log_get_group_history_last_id(GROUP_LOCAL_HISTORY);
 }
 
-/*static int compare_items(const void * l_a, const void * l_b)
-{
-    const dap_global_db_obj_t *l_item_a = (const dap_global_db_obj_t*) l_a;
-    const dap_global_db_obj_t *l_item_b = (const dap_global_db_obj_t*) l_b;
-    int l_ret = strcmp(l_item_a->key, l_item_b->key);
-    return l_ret;
-}*/
-
-/**
- * Get log diff as list
- */
-dap_list_t* dap_db_log_get_list(uint64_t first_id)
-{
-    dap_list_t *l_list = NULL;
-    size_t l_data_size_out = 0;
-    //log_it(L_DEBUG,"loading db list...");
-    dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(GROUP_LOCAL_HISTORY, first_id, &l_data_size_out);
-    //dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(GROUP_LOCAL_HISTORY, first_timestamp, &l_data_size_out);
-    for(size_t i = 0; i < l_data_size_out; i++) {
-        dap_store_obj_t *l_obj_cur = l_objs + i;
-        dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
-        l_item->id = l_obj_cur->id;
-        l_item->key = dap_strdup(l_obj_cur->key);
-        l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
-        l_list = dap_list_append(l_list, l_item);
-    }
-    //log_it(L_DEBUG,"loaded db list n=%d", l_data_size_out);
-    dap_store_obj_free(l_objs, l_data_size_out);
-
-    return l_list;
-    /*
-     size_t l_list_count = 0;
-     char *l_first_key_str = dap_strdup_printf("%lld", (int64_t) first_timestamp);
-     size_t l_data_size_out = 0;
-
-     for(size_t i = 0; i < l_data_size_out; i++) {
-     dap_global_db_obj_t *l_obj_cur = l_objs[i];
-     //        log_it(L_DEBUG,"%lld and %lld tr",strtoll(l_obj_cur->key,NULL,10), first_timestamp );
-     if( strtoll(l_obj_cur->key,NULL,10) > (long long) first_timestamp  ) {
-     dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
-     l_item->key = dap_strdup(l_obj_cur->key);
-     l_item->value =(uint8_t*) dap_strdup((char*) l_obj_cur->value);
-     l_list = dap_list_append(l_list, l_item);
-     l_list_count++;
-     }
-     }
-     // sort list by key (time str)
-     //dap_list_sort(l_list, (dap_callback_compare_t) compare_items);
-     log_it(L_DEBUG,"Prepared %u items (list size %u)", l_list_count, dap_list_length(l_list));
-     DAP_DELETE(l_first_key_str);
-     dap_chain_global_db_objs_delete(l_objs);
-     */
-    /*/ dbg - sort result
-     l_data_size_out = dap_list_length(l_list);
-     for(size_t i = 0; i < l_data_size_out; i++) {
-     dap_list_t *l_list_tmp = dap_list_nth(l_list, i);
-     dap_global_db_obj_t *l_item = l_list_tmp->data;
-     printf("2 %d %s\n", i, l_item->key);
-     }*/
-
-}
-
-/**
- * Free list getting from dap_db_log_get_list()
- */
-void dap_db_log_del_list(dap_list_t *a_list)
-{
-    dap_list_free_full(a_list, (dap_callback_destroyed_t) dap_chain_global_db_obj_delete);
-}
-
-
-
-
 /**
  * Thread for reading log list
  * instead dap_db_log_get_list()
@@ -1276,24 +1210,46 @@ static void *s_list_thread_proc(void *arg)
             else
                 l_group_cur_name = l_dap_db_log_list->group_names[l_dap_db_log_list->group_cur];
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
-
-            //l_item_count = min(10, (int64_t)l_item_last - (int64_t)l_item_start + 1);
-            //if(l_item_count<=0)
-            //    continue;
-            // read next 1...10 items
-            //l_objs = dap_chain_global_db_cond_load(l_group_cur_name, l_item_start, &l_item_count);
             continue;
         }
-        //if(!l_objs)
-            //continue;
         dap_list_t *l_list = NULL;
-        for(size_t i = 0; i < l_item_count; i++) {
+        for (size_t i = 0; i < l_item_count; i++) {
             dap_store_obj_t *l_obj_cur = l_objs + i;
-            dap_global_db_obj_t *l_item = DAP_NEW(dap_global_db_obj_t);
-            l_item->id = l_obj_cur->id;
-            l_item->key = dap_strdup(l_obj_cur->key);
-            l_item->value = (uint8_t*) dap_strdup((char*) l_obj_cur->value);
-            l_list = dap_list_append(l_list, l_item);
+            if (l_group_cur_name == (char *)GROUP_LOCAL_HISTORY) {
+                dap_global_db_hist_t l_rec;
+                if (dap_db_history_unpack_hist((char *)l_obj_cur->value, &l_rec) == -1)
+                    continue;
+                time_t l_timestamp = strtoll(l_obj_cur->key, NULL, 10);
+                // parse global_db records in a history record
+                char **l_keys = dap_strsplit(l_rec.keys, GLOBAL_DB_HIST_KEY_SEPARATOR, -1);
+                // read records from global_db
+                for (int i = 0; l_keys[i]; i++) {
+                    dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
+                    // add record - read record
+                    if (l_rec.type == 'a') {
+                        l_list_obj->obj = (dap_store_obj_t*) dap_chain_global_db_obj_get(l_keys[i], l_rec.group);
+                    }
+                    // delete record - save only key for record
+                    else if (l_rec.type == 'd') {
+                        l_list_obj->obj = (dap_store_obj_t *) DAP_NEW_Z(dap_store_obj_t);
+                        l_list_obj->obj->group = dap_strdup(l_rec.group);
+                        l_list_obj->obj->key = dap_strdup(l_keys[i]);
+                        l_list_obj->obj->timestamp = global_db_gr_del_get_timestamp(l_list_obj->obj->group, l_list_obj->obj->key);
+                    }
+                    if (l_list_obj->obj == NULL) {
+                        continue;
+                    }
+                    l_list_obj->obj->type = (uint8_t)l_rec.type;
+                    l_list_obj->obj->id = l_obj_cur->id;
+                    dap_hash_fast(l_list_obj->obj->key, strlen(l_list_obj->obj->key), &l_list_obj->hash);
+                    l_list = dap_list_append(l_list, l_list_obj);
+                }
+            } else {
+                dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
+                l_list_obj->obj = l_obj_cur;
+                dap_hash_fast(l_list_obj->obj->key, strlen(l_list_obj->obj->key), &l_list_obj->hash);
+                l_list = dap_list_append(l_list, l_list_obj);
+            }
         }
         pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
         // add l_list to list_write
@@ -1304,12 +1260,9 @@ static void *s_list_thread_proc(void *arg)
         // set new start pos = lastitem pos + 1
         if(l_item_count > 0)
             l_dap_db_log_list->item_start = l_objs[l_item_count - 1].id + 1;
-        //else
-        //    l_dap_db_log_list->item_start += l_data_size_out;
         pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         l_items_number += l_item_count;
         //log_it(L_DEBUG, "loaded items n=%u/%u", l_data_size_out, l_items_number);
-        dap_store_obj_free(l_objs, l_item_count);
     }
 
     pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
@@ -1325,7 +1278,6 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
 {
 
     //log_it(L_DEBUG, "Start loading db list_write...");
-    dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
 
     size_t l_add_groups_num = 0;// number of group
     dap_list_t *l_add_groups_mask = a_add_groups_mask;
@@ -1337,6 +1289,8 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         dap_list_free_full(l_groups, (dap_callback_destroyed_t) free);
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
+    if(l_add_groups_num == 0)
+        return NULL;
 
     size_t l_data_size_out_main = dap_db_log_get_last_id() - first_id + 1;
             //dap_chain_global_db_driver_count(GROUP_LOCAL_HISTORY, first_id); - not working for sqlite
@@ -1365,8 +1319,13 @@ dap_db_log_list_t* dap_db_log_list_start(uint64_t first_id, dap_list_t *a_add_gr
         dap_list_free_full(l_groups0, (dap_callback_destroyed_t) free);
         l_add_groups_mask = dap_list_next(l_add_groups_mask);
     }
-    if(!(l_data_size_out_main + l_data_size_out_add_items_count))
+    if(!(l_data_size_out_main + l_data_size_out_add_items_count)){
+        DAP_DELETE(l_data_size_out_add_items);
+        DAP_DELETE(l_group_last_id);
+        DAP_DELETE(l_group_names);
         return NULL;
+    }
+    dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
     l_dap_db_log_list->item_start = first_id;
     l_dap_db_log_list->item_last = first_id + l_data_size_out_main;
     l_dap_db_log_list->items_number_main = l_data_size_out_main;
@@ -1412,7 +1371,7 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
 /**
  * Get one item from log_list
  */
-dap_global_db_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
+dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 {
     if(!a_db_log_list)
         return NULL;
@@ -1440,8 +1399,15 @@ dap_global_db_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
             break;
     }
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
-    return (dap_global_db_obj_t*) l_list ? l_list->data : NULL;
+    return l_list ? (dap_db_log_list_obj_t *)l_list->data : NULL;
     //return l_list;
+}
+
+void dap_db_log_list_delete_item(void *a_item)
+{
+    dap_db_log_list_obj_t *l_list_item = (dap_db_log_list_obj_t *)a_item;
+    dap_store_obj_free(l_list_item->obj, 1);
+    DAP_DELETE(l_list_item);
 }
 
 /**
@@ -1464,7 +1430,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
     DAP_DELETE(a_db_log_list->group_last_id);
     DAP_DELETE(a_db_log_list->group_number_items);
     dap_list_free(a_db_log_list->add_groups);
-    dap_list_free_full(a_db_log_list->list_write, (dap_callback_destroyed_t) dap_chain_global_db_obj_delete);
+    dap_list_free_full(a_db_log_list->list_write, (dap_callback_destroyed_t)dap_db_log_list_delete_item);
     pthread_mutex_destroy(&a_db_log_list->list_mutex);
     DAP_DELETE(a_db_log_list);
 }

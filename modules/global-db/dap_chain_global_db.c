@@ -356,7 +356,8 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
     dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_data_len_out);
     if(l_store_data) {
         l_ret_value = (l_store_data->value) ? DAP_NEW_SIZE(uint8_t, l_store_data->value_len) : NULL; //ret_value = (store_data->value) ? strdup(store_data->value) : NULL;
-        memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
+        if(l_ret_value && l_store_data->value&& l_store_data->value_len)
+            memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
         if(a_data_len_out)
             *a_data_len_out = l_store_data->value_len;
         dap_store_obj_free(l_store_data, l_data_len_out);
@@ -480,7 +481,7 @@ time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
  * @return
  */
-bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len,  const char *a_group)
+bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, const char *a_group)
 {
     dap_store_obj_t store_data;// = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(struct dap_store_obj));
     memset(&store_data, 0, sizeof(dap_store_obj_t));

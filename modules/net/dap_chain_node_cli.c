@@ -232,7 +232,9 @@ char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del
             if(dwLen)
                 *dwLen = (int) nRecv;
         }
-        lpszBuffer = DAP_REALLOC(lpszBuffer,(size_t) *dwLen + 1);
+        char * l_buf_realloc = DAP_REALLOC(lpszBuffer,(size_t) *dwLen + 1);
+        if( l_buf_realloc)
+            lpszBuffer = l_buf_realloc;
         return lpszBuffer;
     }
 
@@ -282,8 +284,10 @@ static void* thread_one_client_func(void *args)
             break;
         if(str_header && strlen(str_header) == 0) {
             marker++;
-            if(marker == 1)
+            if(marker == 1){
+                DAP_DELETE(str_header);
                 continue;
+            }
         }
         // filling parameters of command
         if(marker == 1) {
@@ -292,7 +296,7 @@ static void* thread_one_client_func(void *args)
             argc++;
         }
         else
-            free(str_header);
+            DAP_DEL_Z(str_header);
         if(marker == 2 &&  cmd_param_list) {
             dap_list_t *list = cmd_param_list;
             // form command

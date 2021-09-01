@@ -77,6 +77,7 @@ typedef struct dap_client{
     pthread_mutex_t mutex;
     void * _internal;
     void * _inheritor;
+    uint64_t pvt_uuid;
 } dap_client_t;
 
 typedef void (*dap_client_callback_t) (dap_client_t *, void*);

@@ -34,6 +34,7 @@ typedef struct dap_http_client dap_http_client_t;
 
 typedef struct dap_client_internal
 {
+    uint64_t uuid;
     dap_client_t * client;
 
     dap_http_client_t * http_client;
@@ -117,14 +118,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 void dap_client_pvt_new(dap_client_pvt_t * a_client_internal);
 void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt);
 
-//int dap_client_pvt_ref(dap_client_pvt_t * a_client_internal);
-//int dap_client_pvt_unref(dap_client_pvt_t * a_client_internal);
-
-// from dap_client_pvt_hh.c
-int dap_client_pvt_hh_lock(void);
-int dap_client_pvt_hh_unlock(void);
-void* dap_client_pvt_hh_get(dap_client_pvt_t* a_client_pvt);
-int dap_client_pvt_hh_add(dap_client_pvt_t* a_client_pvt);
-int dap_client_pvt_hh_del(dap_client_pvt_t *a_client_pvt);
-bool dap_client_pvt_check(dap_client_pvt_t* a_client_pvt);
+int dap_client_pvt_hh_add_unsafe(dap_client_pvt_t* a_client_pvt);
+int dap_client_pvt_hh_del_unsafe(dap_client_pvt_t *a_client_pvt);
+dap_client_pvt_t *dap_client_pvt_find(uint64_t a_client_pvt_uuid);
 

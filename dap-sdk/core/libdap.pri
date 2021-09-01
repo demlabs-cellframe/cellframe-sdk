@@ -46,6 +46,7 @@ win32 {
     LIBS += -lntdll -lpsapi -ljson-c -lmagic -lmqrt -lshlwapi -lregex -ltre -lintl -liconv -lbcrypt -lcrypt32 -lsecur32 -luser32 -lws2_32 -lole32
     include($$PWD/../../3rdparty/wepoll/wepoll.pri)
     DEFINES += DAP_OS_WINDOWS
+    QMAKE_CFLAGS_DEBUG += -Wall -ggdb -g3
 }
 
 # 3rd party

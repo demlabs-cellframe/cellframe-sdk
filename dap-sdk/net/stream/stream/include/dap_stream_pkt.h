@@ -31,17 +31,17 @@ typedef struct dap_stream_session dap_stream_session_t;
 #define STREAM_PKT_TYPE_KEEPALIVE   0x11
 #define STREAM_PKT_TYPE_ALIVE       0x12
 
-typedef struct stream_pkt_hdr{
+typedef struct dap_stream_pkt_hdr{
     uint8_t sig[8];  // Signature to find out beginning of the frame
     uint32_t size;
     uint64_t timestamp;
     uint8_t type;      // Packet type
     uint64_t src_addr; // Source address ( vasya@domain.net )
     uint64_t dst_addr; // Destination address ( general#domain.net )
-}  __attribute__((packed)) stream_pkt_hdr_t;
+}  __attribute__((packed)) dap_stream_pkt_hdr_t;
 
 typedef struct dap_stream_pkt{
-    stream_pkt_hdr_t hdr;
+    dap_stream_pkt_hdr_t hdr;
     uint8_t data[];
 }  __attribute__((packed)) dap_stream_pkt_t;
 
@@ -58,7 +58,7 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size);
 size_t dap_stream_pkt_read_unsafe(dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, void * a_buf_out, size_t a_buf_out_size);
 
 size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * data, size_t a_data_size);
-size_t dap_stream_pkt_write_mt (dap_worker_t * a_w, dap_events_socket_t *a_es, dap_enc_key_t *a_key, const void * data, size_t a_data_size);
+size_t dap_stream_pkt_write_mt (dap_worker_t * a_w, dap_events_socket_uuid_t a_es_uuid, dap_enc_key_t *a_key, const void * data, size_t a_data_size);
 
 void dap_stream_send_keepalive( dap_stream_t * a_stream);
 

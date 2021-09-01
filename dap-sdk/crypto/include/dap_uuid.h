@@ -24,5 +24,6 @@
 #pragma once
 #include "dap_math_ops.h"
 
-uint128_t dap_uuid_generate_uint128(); // Produce uint64 unique id
+uint128_t dap_uuid_generate_uint128(); // Produce uint128 unique id
+uint64_t dap_uuid_generate_uint64(); // Produce uint64 unique id
 

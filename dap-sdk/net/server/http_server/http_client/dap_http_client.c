@@ -352,7 +352,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                 }
 
                 if ( eol + 3 >= sizeof(l_buf_line) ) {
-                    log_it( L_WARNING,"Too big line in request, more than %llu symbols - thats very strange", sizeof(l_buf_line) - 3 );
+                    log_it( L_WARNING,"Too big line in request, more than %"DAP_UINT64_FORMAT_U" symbols - thats very strange", sizeof(l_buf_line) - 3 );
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
@@ -578,7 +578,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 }
                 dap_events_socket_set_readable_unsafe( a_esocket, true );
             } else {
-                //log_it(L_WARNING,"Output: header %s: %s",hdr->name,hdr->value);
+                //log_it(L_DEBUG,"Output: header %s: %s",hdr->name,hdr->value);
                 dap_events_socket_write_f_unsafe(a_esocket, "%s: %s\r\n", hdr->name, hdr->value);
                 dap_events_socket_set_writable_unsafe(a_esocket, true);
                 dap_http_header_remove( &l_http_client->out_headers, hdr );
@@ -647,9 +647,9 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
             log_it(L_DEBUG,"output: Content-Type = '%s'",a_http_client->out_content_type);
         }
         if ( a_http_client->out_content_length ) {
-            dap_snprintf(buf,sizeof(buf),"%llu",(unsigned long long)a_http_client->out_content_length);
+            dap_snprintf(buf,sizeof(buf),"%"DAP_UINT64_FORMAT_u"",a_http_client->out_content_length);
             dap_http_header_add(&a_http_client->out_headers,"Content-Length",buf);
-            log_it(L_DEBUG,"output: Content-Length = %llu",a_http_client->out_content_length);
+            log_it(L_DEBUG,"output: Content-Length = %"DAP_UINT64_FORMAT_u"",a_http_client->out_content_length);
         }
     }else
         if (s_debug_http)

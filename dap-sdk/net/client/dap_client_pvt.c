@@ -57,6 +57,7 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_cert.h"
+#include "dap_uuid.h"
 
 #include "dap_timerfd.h"
 //#include "dap_http_client_simple.h"
@@ -81,7 +82,7 @@
 static int s_max_attempts = 5;
 static int s_timeout = 20;
 static bool s_debug_more = false;
-static time_t s_client_timeout_read_after_connect = 5;
+static time_t s_client_timeout_read_after_connect_seconds = 5;
 
 
 static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);
@@ -89,6 +90,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);
 // ENC stage callbacks
 static void s_enc_init_response(dap_client_t *, void *, size_t);
 static void s_enc_init_error(dap_client_t *, int);
+static bool s_enc_init_delay_before_request_timer_callback(void*);
 
 // STREAM_CTL stage callbacks
 static void s_stream_ctl_response(dap_client_t *, void *, size_t);
@@ -125,7 +127,7 @@ int dap_client_pvt_init()
     s_max_attempts = dap_config_get_item_int32_default(g_config,"dap_client","max_tries",5);
     s_timeout = dap_config_get_item_int32_default(g_config,"dap_client","timeout",10);
     s_debug_more = dap_config_get_item_bool_default(g_config,"dap_client","debug_more",false);
-    s_client_timeout_read_after_connect = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
+    s_client_timeout_read_after_connect_seconds = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
 
     return 0;
 }
@@ -143,6 +145,7 @@ void dap_client_pvt_deinit()
  */
 void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
 {
+    a_client_pvt->uuid = dap_uuid_generate_uint64();
     a_client_pvt->session_key_type = DAP_ENC_KEY_TYPE_SALSA2012 ;
     a_client_pvt->session_key_open_type = DAP_ENC_KEY_TYPE_MSRLN ;
     a_client_pvt->session_key_block_size = 32;
@@ -152,7 +155,7 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
     a_client_pvt->uplink_protocol_version = DAP_PROTOCOL_VERSION;
     a_client_pvt->events = dap_events_get_default();
     // add to list
-    dap_client_pvt_hh_add(a_client_pvt);
+    dap_client_pvt_hh_add_unsafe(a_client_pvt);
 }
 
 
@@ -164,14 +167,19 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
 void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 {
     assert(a_client_pvt);
-    if(a_client_pvt->delete_callback)
-        a_client_pvt->delete_callback(a_client_pvt->client, NULL);
-    // delete from list
-    if(dap_client_pvt_hh_del(a_client_pvt)<0){
+
+    if (!dap_client_pvt_find(a_client_pvt->uuid)) {
         if(s_debug_more)
             log_it(L_DEBUG, "dap_client_pvt 0x%x already deleted", a_client_pvt);
         return;
     }
+    if(a_client_pvt->delete_callback)
+        a_client_pvt->delete_callback(a_client_pvt->client, NULL);
+    if (a_client_pvt->stream_es) {
+        dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
+    }
+    // delete from list
+    dap_client_pvt_hh_del_unsafe(a_client_pvt);
     if(s_debug_more)
         log_it(L_INFO, "dap_client_pvt_delete 0x%x", a_client_pvt);
 
@@ -206,10 +214,13 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
             a_client_pvt->uplink_port, a_client_pvt->stream_socket, a_client_pvt->stream_worker->worker->id);
     a_client_pvt->stage_status = STAGE_STATUS_DONE;
     s_stage_status_after(a_client_pvt);
-    dap_events_socket_handler_t * l_ev_socket_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-    l_ev_socket_handler->esocket = a_client_pvt->stream_es;
-    l_ev_socket_handler->uuid = a_client_pvt->stream_es->uuid;
-    dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_read_after_connect * 1000, s_stream_timer_timeout_after_connected_check ,l_ev_socket_handler);
+    dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
+    assert(a_client_pvt->stream_es);
+    *l_es_uuid_ptr = a_client_pvt->stream_es->uuid;
+    if( dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_read_after_connect_seconds * 1000, s_stream_timer_timeout_after_connected_check ,l_es_uuid_ptr) == NULL ){
+        log_it(L_ERROR,"Can't run timer for stream after connect check for esocket uuid %"DAP_UINT64_FORMAT_u" ");
+        DAP_DEL_Z(l_es_uuid_ptr);
+    }
 }
 
 /**
@@ -219,43 +230,37 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
  */
 static bool s_stream_timer_timeout_check(void * a_arg)
 {
-    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
-    assert(l_es_handler);
-    dap_events_socket_t * l_es = l_es_handler->esocket;
-    assert(l_es);
-    dap_events_t * l_events = dap_events_get_default();
-    assert(l_events);
-
-    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker); // We're in own esocket context
+    assert(a_arg);
+    dap_events_socket_uuid_t *l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
+    dap_worker_t *l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
 
-    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
-        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            if(s_debug_more)
-                log_it(L_DEBUG,"Timer esocket wrong argument, ignore this timeout...");
-            DAP_DEL_Z(l_es_handler)
-            return false;
-        }
+    dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid_ptr);
+    if(l_es){
         if (l_es->flags & DAP_SOCK_CONNECTING ){
-            dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
-
-            log_it(L_WARNING,"Connecting timeout for stream uplink request http://%s:%u/, possible network problems or host is down",
-                   l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
-            l_client_pvt->is_closed_by_timeout = true;
-            if(l_es->callbacks.error_callback) {
-                l_es->callbacks.error_callback(l_es,ETIMEDOUT);
+            dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *)l_es->_inheritor;
+            if (dap_client_pvt_find(l_client_pvt->uuid)) {
+                log_it(L_WARNING,"Connecting timeout for stream uplink request http://%s:%u/, possible network problems or host is down",
+                       l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
+                l_client_pvt->is_closed_by_timeout = true;
+                if(l_es->callbacks.error_callback) {
+                    l_es->callbacks.error_callback(l_es,ETIMEDOUT);
+                }
+                log_it(L_INFO, "Close %s sock %u type %d by timeout",
+                       l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
+                dap_client_delete_unsafe(l_client_pvt->client);
+            } else {
+                log_it(L_ERROR,"Connecting timeout for unexistent client");
+                dap_events_socket_remove_and_delete_unsafe(l_es,true);
             }
-            log_it(L_INFO, "Close %s sock %u type %d by timeout",
-                   l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
-            dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }else
             if(s_debug_more)
                 log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
-            log_it(L_DEBUG,"Esocket %p is finished, close check timer", l_es);
+            log_it(L_DEBUG,"Esocket %"DAP_UINT64_FORMAT_u" is finished, close check timer", *l_es_uuid_ptr);
 
-    DAP_DEL_Z(l_es_handler)
+    DAP_DEL_Z(l_es_uuid_ptr)
     return false;
 }
 
@@ -266,43 +271,59 @@ static bool s_stream_timer_timeout_check(void * a_arg)
  */
 static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
 {
-    dap_events_socket_handler_t *l_es_handler = (dap_events_socket_handler_t*) a_arg;
-    assert(l_es_handler);
-    dap_events_socket_t * l_es = l_es_handler->esocket;
-    assert(l_es);
-    dap_events_t * l_events = dap_events_get_default();
-    assert(l_events);
+    assert(a_arg);
+    dap_events_socket_uuid_t *l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
 
-    dap_worker_t * l_worker =(dap_worker_t*) pthread_getspecific(l_events->pth_key_worker); // We're in own esocket context
+    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     assert(l_worker);
 
-    if(dap_events_socket_check_unsafe(l_worker, l_es) ){
-        if (!dap_uint128_check_equal(l_es->uuid,l_es_handler->uuid)){
-            if(s_debug_more)
-                log_it(L_DEBUG,"Streaming socket timer wrong argument, ignore this timeout...");
-            DAP_DEL_Z(l_es_handler)
-            return false;
-        }
-        dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) l_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
-        if ( time(NULL)- l_client_pvt->ts_last_read >= s_client_timeout_read_after_connect){
+    dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid_ptr);
+    if( l_es ){
+        dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *)l_es->_inheritor;
+        if (dap_client_pvt_find(l_client_pvt->uuid)) {
+            if ( time(NULL)- l_client_pvt->ts_last_read >= s_client_timeout_read_after_connect_seconds){
 
-            log_it(L_WARNING,"Connecting timeout for streaming uplink http://%s:%u/, possible network problems or host is down",
-                   l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
-            l_client_pvt->is_closed_by_timeout = true;
-            if(l_es->callbacks.error_callback) {
-                l_es->callbacks.error_callback(l_es,ETIMEDOUT);
-            }
-            log_it(L_INFO, "Close streaming socket %s by timeout",
-                   l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket);
-            dap_events_socket_remove_and_delete_unsafe(l_es, true);
-        }else
-            if(s_debug_more)
-                log_it(L_DEBUG,"Streaming socket %d is connected, close check timer", l_es->socket);
+                log_it(L_WARNING,"Activity timeout for streaming uplink http://%s:%u/, possible network problems or host is down",
+                       l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
+                l_client_pvt->is_closed_by_timeout = true;
+                if(l_es->callbacks.error_callback) {
+                    l_es->callbacks.error_callback(l_es,ETIMEDOUT);
+                }
+                log_it(L_INFO, "Close streaming socket %s by timeout",
+                       l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket);
+                dap_client_delete_unsafe(l_client_pvt->client);
+            }else
+                if(s_debug_more)
+                    log_it(L_DEBUG,"Streaming socket %d is connected, close check timer", l_es->socket);
+        } else {
+            log_it(L_ERROR,"Activity timeout for unexistent client");
+            dap_events_socket_remove_and_delete_unsafe(l_es,true);
+        }
+
     }else
         if(s_debug_more)
-            log_it(L_DEBUG,"Streaming socket %p is finished, close check timer", l_es);
+            log_it(L_DEBUG,"Streaming socket %"DAP_UINT64_FORMAT_u" is finished, close check timer", *l_es_uuid_ptr);
 
-    DAP_DEL_Z(l_es_handler)
+    DAP_DEL_Z(l_es_uuid_ptr);
+    return false;
+}
+
+/**
+ * @brief s_enc_init_delay_before_request_timer_callback
+ * @param a_arg
+ * @return
+ */
+static bool s_enc_init_delay_before_request_timer_callback(void * a_arg)
+{
+    assert (a_arg);
+    dap_events_socket_uuid_t* l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
+    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid_ptr);
+    if(l_es){
+        dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) l_es->_inheritor;
+        s_stage_status_after(l_client_pvt);
+    }
+    DAP_DEL_Z(l_es_uuid_ptr);
     return false;
 }
 
@@ -313,6 +334,8 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
  */
 static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 {
+    if (!dap_client_pvt_find(a_client_pvt->uuid))
+        return false;
     dap_worker_t * l_worker= a_client_pvt->worker;
     assert(l_worker);
     assert(l_worker->_inheritor);
@@ -327,7 +350,9 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 case STAGE_STREAM_CONNECTED:
                 case STAGE_STREAM_STREAMING:
                     dap_stream_delete(a_client_pvt->stream);
-                    dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
+                    if(a_client_pvt->stream_es)
+                       a_client_pvt->stream_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    //dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
                     a_client_pvt->stream = NULL;
                     a_client_pvt->stream_es = NULL;
                     break;
@@ -500,11 +525,11 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
 
                             // Add check timer
-                            dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-                            l_stream_es_handler->esocket = a_client_pvt->stream_es;
-                            l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
-                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect * 1000,
-                                                        s_stream_timer_timeout_check,l_stream_es_handler);
+                            assert(a_client_pvt->stream_es);
+                            dap_events_socket_uuid_t * l_stream_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
+                            *l_stream_es_uuid_ptr  = a_client_pvt->stream_es->uuid;
+                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_seconds * 1000,
+                                                        s_stream_timer_timeout_check,l_stream_es_uuid_ptr);
                         }
                         else if (l_err != EINPROGRESS && l_err != -1){
                             char l_errbuf[128];
@@ -528,12 +553,12 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         }else{
                             log_it(L_INFO,"Connecting stream to remote %s:%u",a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
                             // add to dap_worker
+                            assert (a_client_pvt->stream_es);
                             dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
-                            dap_events_socket_handler_t * l_stream_es_handler = DAP_NEW_Z(dap_events_socket_handler_t);
-                            l_stream_es_handler->esocket = a_client_pvt->stream_es;
-                            l_stream_es_handler->uuid = a_client_pvt->stream_es->uuid;
-                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect * 1000,
-                                                        s_stream_timer_timeout_check,l_stream_es_handler);
+                            dap_events_socket_uuid_t * l_stream_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
+                            *l_stream_es_uuid_ptr = a_client_pvt->stream_es->uuid;
+                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_seconds * 1000,
+                                                        s_stream_timer_timeout_check,l_stream_es_uuid_ptr);
                         }
                     }
                 }
@@ -598,6 +623,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
         break;
 
         case STAGE_STATUS_ERROR: {
+            if (a_client_pvt->is_to_delete)
+                break;
             // limit the number of attempts
             a_client_pvt->stage_errors++;
             bool l_is_last_attempt = a_client_pvt->stage_errors > s_max_attempts ? true : false;
@@ -605,11 +632,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             //    l_is_last_attempt = true;
             //}
 
-            //if (a_client_pvt->is_always_reconnect ){
-            //    l_is_last_attempt = false;
-            //}
-
-            log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_get_error_str(a_client_pvt->client));
+            log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_error_str(a_client_pvt->last_error));
             if(a_client_pvt->stage_status_error_callback)
                 a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
 
@@ -624,18 +647,26 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     log_it(L_INFO, "Reconnect attempt %d in 0.3 seconds with %s:%u", a_client_pvt->stage_errors,
                            a_client_pvt->uplink_addr,a_client_pvt->uplink_port);
                     // small delay before next request
-                    dap_timerfd_start_on_worker(l_worker, 300, (dap_timerfd_callback_t)s_stage_status_after,
-                                                a_client_pvt);
+                    if(dap_timerfd_start( 300,(dap_timerfd_callback_t) s_stage_status_after,
+                                                   a_client_pvt) == NULL){
+                        log_it(L_ERROR,"Can't run timer for small delay before the next enc_init request");
+                    }
                 } else {
+                    if (a_client_pvt->is_always_reconnect) {
+                        log_it(L_INFO, "Too many attempts, reconnect attempt in %d seconds with %s:%u",s_timeout*3,
+                               a_client_pvt->uplink_addr,a_client_pvt->uplink_port);                    // Trying the step again
+                        a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
+                        a_client_pvt->stage_errors = 0;
 
-                    log_it(L_INFO, "Too many attempts, reconnect attempt in %d seconds with %s:%u",s_timeout*3,
-                           a_client_pvt->uplink_addr,a_client_pvt->uplink_port);                    // Trying the step again
-                    a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
-                    a_client_pvt->stage_errors = 0;
-
-                    // small delay before next request
-                    dap_timerfd_start_on_worker(l_worker, s_timeout*3000, (dap_timerfd_callback_t)s_stage_status_after,
-                                                a_client_pvt);
+                        // bigger delay before next request
+                        if(dap_timerfd_start( s_timeout*3000,(dap_timerfd_callback_t) s_stage_status_after,
+                                                       a_client_pvt ) == NULL){
+                            log_it(L_ERROR,"Can't run timer for bigger delay before the next enc_init request");
+                        }
+                    } else {
+                        log_it(L_ERROR, "Connect to %s:%u failed", a_client_pvt->uplink_addr, a_client_pvt->uplink_port);
+                        dap_client_delete_mt(a_client_pvt->client);
+                    }
                 }
             }
         }
@@ -742,17 +773,17 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 //    l_url_size = strlen(l_url);
 
     size_t l_sub_url_enc_size_max = l_sub_url_size ? (5 * l_sub_url_size + 16) : 0;
-    char *l_sub_url_enc = l_sub_url_size ? DAP_NEW_S_SIZE(char, l_sub_url_enc_size_max + 1) : NULL;
+    char *l_sub_url_enc = l_sub_url_size ? DAP_NEW_Z_SIZE(char, l_sub_url_enc_size_max + 1) : NULL;
 
     size_t l_query_enc_size_max = (is_query_enc) ? (l_query_size * 5 + 16) : l_query_size;
     char *l_query_enc =
-            (is_query_enc) ? (l_query_size ? DAP_NEW_S_SIZE(char, l_query_enc_size_max + 1) : NULL) : (char*) a_query;
+            (is_query_enc) ? (l_query_size ? DAP_NEW_Z_SIZE(char, l_query_enc_size_max + 1) : NULL) : (char*) a_query;
 
 //    size_t l_url_full_size_max = 5 * l_sub_url_size + 5 * l_query_size + 16 + l_url_size + 2;
 //    char * l_url_full = DAP_NEW_Z_SIZE(char, l_url_full_size_max + 1);
 
     size_t l_request_enc_size_max = a_request_size ? a_request_size * 2 + 16 : 0;
-    char * l_request_enc = a_request_size ? DAP_NEW_S_SIZE(char, l_request_enc_size_max + 1) : NULL;
+    char * l_request_enc = a_request_size ? DAP_NEW_Z_SIZE(char, l_request_enc_size_max + 1) : NULL;
     size_t l_request_enc_size = 0;
 
     a_client_internal->request_response_callback = a_response_proc;
@@ -803,12 +834,13 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 */
     int l_off;
     size_t l_path_size= l_query_enc_size_max + l_sub_url_enc_size_max + 1;
-    char *l_path = DAP_NEW_S_SIZE(char, l_path_size);
+    char *l_path = DAP_NEW_Z_SIZE(char, l_path_size);
     l_path[0] = '\0';
     if(a_path) {
         if(l_sub_url_size){
             if(l_query_size){
-                dap_snprintf(l_path, l_path_size, "%s/%s?%s", a_path, l_sub_url_enc,
+                dap_snprintf(l_path, l_path_size, "%s/%s?%s", a_path?a_path:"",
+                             l_sub_url_enc?l_sub_url_enc:"",
                                    l_query_enc?l_query_enc:"");
             }else{
                 dap_snprintf(l_path, l_path_size, "%s/%s", a_path, l_sub_url_enc);
@@ -819,7 +851,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     }
 
     size_t size_required = a_client_internal->session_key_id ? strlen(a_client_internal->session_key_id) + 40 : 40;
-    char *l_custom = DAP_NEW_S_SIZE(char, size_required);
+    char *l_custom = DAP_NEW_Z_SIZE(char, size_required);
     size_t l_off2 = size_required;
 
     l_off = dap_snprintf(l_custom, l_off2, "KeyID: %s\r\n", a_client_internal->session_key_id ? a_client_internal->session_key_id : "NULL");
@@ -831,6 +863,16 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     dap_client_http_request(a_client_internal->worker, a_client_internal->uplink_addr, a_client_internal->uplink_port, a_request ? "POST" : "GET", "text/text",
                 l_path, l_request_enc, l_request_enc_size, NULL,
                 s_request_response, s_request_error, a_client_internal, l_custom);
+    if(l_sub_url_enc)
+        DAP_DELETE(l_sub_url_enc);
+    if(l_custom)
+        DAP_DELETE(l_custom);
+    if(l_query_enc)
+        DAP_DELETE(l_query_enc);
+    if(l_path)
+        DAP_DELETE(l_path);
+    if(l_request_enc)
+        DAP_DELETE(l_request_enc);
 }
 
 /**
@@ -841,18 +883,15 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
 static void s_request_error(int a_err_code, void * a_obj)
 {
     dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_obj;
-    dap_client_pvt_hh_lock();
-    if(!dap_client_pvt_hh_get(l_client_pvt)){
-        dap_client_pvt_hh_unlock();
-        return;
-    }
+    assert(l_client_pvt);
 
     if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client)
     {
-        if(l_client_pvt && l_client_pvt->request_error_callback && l_client_pvt->client && l_client_pvt->client->_internal)
+        l_client_pvt = dap_client_pvt_find(l_client_pvt->uuid);
+        if(l_client_pvt && l_client_pvt->request_error_callback
+                && l_client_pvt->client && l_client_pvt->client->_internal)
             l_client_pvt->request_error_callback(l_client_pvt->client, a_err_code);
     }
-    dap_client_pvt_hh_unlock();
 }
 
 /**
@@ -864,33 +903,8 @@ static void s_request_error(int a_err_code, void * a_obj)
 static void s_request_response(void * a_response, size_t a_response_size, void * a_obj)
 {
     dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_obj;
-    dap_client_pvt_hh_lock();
-    if(!dap_client_pvt_hh_get(l_client_pvt)){
-        dap_client_pvt_hh_unlock();
-        return;
-    }
 
-    if(!l_client_pvt || !l_client_pvt->client){
-        if( !l_client_pvt )
-            log_it(L_ERROR,"Client internal is NULL for s_request_response");
-        else
-            log_it(L_ERROR,"Client is NULL for s_request_response");
-        dap_client_pvt_hh_unlock();
-        return;
-    }
-    l_client_pvt->refs_count--;
-
-    if (l_client_pvt->is_to_delete){
-        if(l_client_pvt->refs_count==0) {// Was requested to delete until we was working with request
-            dap_client_pvt_hh_unlock();
-            dap_client_delete_unsafe(l_client_pvt->client); // Init delete
-            return;
-        }
-        dap_client_pvt_hh_unlock();
-        return;
-    }
-
-
+    assert(l_client_pvt);
     //int l_ref = dap_client_pvt_get_ref(a_client_internal);
     if(l_client_pvt->is_encrypted) {
         size_t l_response_dec_size_max = a_response_size ? a_response_size * 2 + 16 : 0;
@@ -915,7 +929,6 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
         else
             log_it(L_ERROR, "NULL request_response_callback for unencrypted  client %p", l_client_pvt->client );
     }
-    dap_client_pvt_hh_unlock();
 }
 
 /**
@@ -926,8 +939,8 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
  */
 static void s_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
 {
-    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    assert(l_client_pvt);
+    dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(a_client->pvt_uuid);
+    if (!l_client_pvt) return;
 
     if (!l_client_pvt->session_key_open){
         log_it(L_ERROR, "m_enc_init_response: session is NULL!");
@@ -949,22 +962,22 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
             json_object_object_foreach(jobj, key, val)
             {
                 if(json_object_get_type(val) == json_type_string) {
-                    char *str = (char *) json_object_get_string(val);
+                    const char *l_str = json_object_get_string(val);
                     if(!strcmp(key, "encrypt_id")) {
                         DAP_DELETE (l_session_id_b64);
-                        l_session_id_b64 = DAP_NEW_Z_SIZE(char, strlen(str) + 1);
-                        strcpy(l_session_id_b64, str);
+                        l_session_id_b64 = DAP_NEW_Z_SIZE(char, strlen(l_str) + 1);
+                        strcpy(l_session_id_b64, l_str);
                         json_parse_count++;
                     }
                     if(!strcmp(key, "encrypt_msg")) {
                         DAP_DELETE(l_bob_message_b64);
-                        l_bob_message_b64 = DAP_NEW_Z_SIZE(char, strlen(str) + 1);
-                        strcpy(l_bob_message_b64, str);
+                        l_bob_message_b64 = DAP_NEW_Z_SIZE(char, strlen(l_str) + 1);
+                        strcpy(l_bob_message_b64, l_str);
                         json_parse_count++;
                     }
                 }
                 if(json_object_get_type(val) == json_type_int) {
-                    int val_int = (uint32_t)json_object_get_int(val);
+                    int val_int = json_object_get_int(val);
                     if(!strcmp(key, "dap_protocol_version")) {
                         l_client_pvt->remote_protocol_version = val_int;
                         json_parse_count++;
@@ -979,24 +992,33 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
         //char l_session_id_b64[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1] = { 0 };
         //char *l_bob_message_b64 = DAP_NEW_Z_SIZE(char, a_response_size - sizeof(l_session_id_b64) + 1);
         if(json_parse_count >= 2 && json_parse_count <=3) { //if (sscanf (a_response,"%s %s",l_session_id_b64, l_bob_message_b64) == 2 ){
-            l_client_pvt->session_key_id = DAP_NEW_Z_SIZE(char, strlen(l_session_id_b64) + 1);
-            dap_enc_base64_decode(l_session_id_b64, strlen(l_session_id_b64),
-                    l_client_pvt->session_key_id, DAP_ENC_DATA_TYPE_B64);
-            log_it(L_DEBUG, "ENC: session Key ID %s", l_client_pvt->session_key_id);
+            if(!l_session_id_b64){
+                log_it(L_WARNING,"ENC: no session id in base64");
+            }
+            if(!l_bob_message_b64){
+                log_it(L_WARNING,"ENC: no bob message in base64");
+            }
+            if( l_bob_message_b64 && l_session_id_b64){
+                l_client_pvt->session_key_id = DAP_NEW_Z_SIZE(char, strlen(l_session_id_b64) + 1);
+                dap_enc_base64_decode(l_session_id_b64, strlen(l_session_id_b64),
+                        l_client_pvt->session_key_id, DAP_ENC_DATA_TYPE_B64);
+                log_it(L_DEBUG, "ENC: session Key ID %s", l_client_pvt->session_key_id);
 
-            char *l_bob_message = DAP_NEW_Z_SIZE(char, strlen(l_bob_message_b64) + 1);
-            size_t l_bob_message_size = dap_enc_base64_decode(l_bob_message_b64, strlen(l_bob_message_b64),
-                    l_bob_message, DAP_ENC_DATA_TYPE_B64);
-            l_client_pvt->session_key_open->gen_alice_shared_key(
-                    l_client_pvt->session_key_open, l_client_pvt->session_key_open->priv_key_data,
-                    l_bob_message_size, (unsigned char*) l_bob_message);
+                char *l_bob_message = DAP_NEW_Z_SIZE(char, strlen(l_bob_message_b64) + 1);
+                size_t l_bob_message_size = dap_enc_base64_decode(l_bob_message_b64, strlen(l_bob_message_b64),
+                        l_bob_message, DAP_ENC_DATA_TYPE_B64);
+                l_client_pvt->session_key_open->gen_alice_shared_key(
+                        l_client_pvt->session_key_open, l_client_pvt->session_key_open->priv_key_data,
+                        l_bob_message_size, (unsigned char*) l_bob_message);
 
-            l_client_pvt->session_key = dap_enc_key_new_generate(l_client_pvt->session_key_type,
-                    l_client_pvt->session_key_open->priv_key_data, // shared key
-                    l_client_pvt->session_key_open->priv_key_data_size,
-                    l_client_pvt->session_key_id, strlen(l_client_pvt->session_key_id), l_client_pvt->session_key_block_size);
+                l_client_pvt->session_key = dap_enc_key_new_generate(l_client_pvt->session_key_type,
+                        l_client_pvt->session_key_open->priv_key_data, // shared key
+                        l_client_pvt->session_key_open->priv_key_data_size,
+                        l_client_pvt->session_key_id, strlen(l_client_pvt->session_key_id), l_client_pvt->session_key_block_size);
 
-            DAP_DELETE(l_bob_message);
+                DAP_DELETE(l_bob_message);
+            }
+
             if(l_client_pvt->stage == STAGE_ENC_INIT) { // We are in proper stage
                 l_client_pvt->stage_status = STAGE_STATUS_DONE;
                 s_stage_status_after(l_client_pvt);
@@ -1033,9 +1055,9 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
  */
 static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
 {
-    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    assert(l_client_pvt);
+    dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(a_client->pvt_uuid);
     log_it(L_ERROR, "ENC: Can't init ecnryption session, err code %d", a_err_code);
+    if (!l_client_pvt) return;
     if (a_err_code == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
     } else {
@@ -1053,9 +1075,8 @@ static void s_enc_init_error(dap_client_t * a_client, int a_err_code)
  */
 static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t a_data_size)
 {
-    dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
-    assert(l_client_pvt);
-
+    dap_client_pvt_t *l_client_pvt = dap_client_pvt_find(a_client->pvt_uuid);
+    if (!l_client_pvt) return;
     if(s_debug_more)
         log_it(L_DEBUG, "STREAM_CTL response %u bytes length recieved", a_data_size);
     char * l_response_str = DAP_NEW_Z_SIZE(char, a_data_size + 1);
@@ -1129,6 +1150,7 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
         }
         DAP_DELETE(l_stream_key);
     }
+    DAP_DELETE(l_response_str);
 }
 
 /**
@@ -1200,10 +1222,6 @@ static void s_stage_stream_streaming(dap_client_t * a_client, void* arg)
 static void s_stream_es_callback_connected(dap_events_socket_t * a_es)
 {
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
     s_stream_connected(l_client_pvt);
 }
 
@@ -1217,12 +1235,7 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     (void) arg;
     log_it(L_INFO, "Stream delete callback");
 
-    dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
-
+    dap_client_pvt_t *l_client_pvt = (dap_client_pvt_t *)a_es->_inheritor;
     a_es->_inheritor = NULL; // To prevent delete in reactor
 
     if(l_client_pvt == NULL) {
@@ -1230,16 +1243,14 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
         return;
     }
 
+    if (!dap_client_pvt_find(l_client_pvt->uuid)) {
+        log_it(L_ERROR, "dap_client_pvt is corrupted");
+        return;
+    }
+
     if(s_debug_more)
         log_it(L_DEBUG, "Delete stream socket for client_pvt=0x%x", l_client_pvt);
 
-    if (l_client_pvt->stage_status_error_callback) {
-        if(l_client_pvt == l_client_pvt->client->_internal)
-            l_client_pvt->stage_status_error_callback(l_client_pvt->client, (void *) true);
-        else {
-            log_it(L_ERROR, "client_pvt->client=%x corrupted", l_client_pvt->client->_internal);
-        }
-    }
     dap_stream_delete(l_client_pvt->stream);
     if (l_client_pvt->stream_es) {
         DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str)
@@ -1257,12 +1268,8 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
 static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
 {
     (void) arg;
-    //dap_client_t * l_client = DAP_CLIENT(a_es);
-    dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) a_es->_inheritor;//(l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
+    dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) a_es->_inheritor;
+
     l_client_pvt->ts_last_read = time(NULL);
     switch (l_client_pvt->stage) {
         case STAGE_STREAM_SESSION:
@@ -1307,13 +1314,8 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
 static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
 {
     (void) arg;
-    //dap_client_t * l_client = DAP_CLIENT(a_es);
-    //dap_client_pvt_t * l_client_pvt = (l_client) ? DAP_CLIENT_PVT(l_client) : NULL;
     dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
-        return;
-    }
+
     if (l_client_pvt->stage_status == STAGE_STATUS_ERROR || !l_client_pvt->stream)
         return;
     switch (l_client_pvt->stage) {
@@ -1347,11 +1349,12 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
  */
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 {
-    dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
-    if (!dap_client_pvt_check(l_client_pvt) ){
-        // Response received after client_pvt was deleted
+    dap_client_pvt_t *l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
+    if (!l_client_pvt)
         return;
-    }
+    l_client_pvt = dap_client_pvt_find(l_client_pvt->uuid);
+    if (!l_client_pvt)
+        return;
 
     char l_errbuf[128];
     l_errbuf[0]='\0';
@@ -1360,9 +1363,7 @@ static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
     else
         strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
 
-    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);
-
-    l_client_pvt->stream_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);    
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;
