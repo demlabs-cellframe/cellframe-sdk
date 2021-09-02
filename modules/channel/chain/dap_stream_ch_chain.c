@@ -400,7 +400,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
                             l_start_item, l_local_last_id, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
     dap_list_t *l_add_groups = dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr);
-    dap_db_log_list_t *l_db_log = dap_db_log_list_start(l_start_item, l_add_groups);
+    dap_db_log_list_t *l_db_log = dap_db_log_list_start(1/*l_start_item*/, l_add_groups);
 
     if(l_db_log) {
         l_sync_request->gdb.db_log = l_db_log;
@@ -667,6 +667,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
 
             if(!l_apply) {
+                // Object is already in database, but haven't track in history, why?
+                dap_global_db_obj_track_history(l_obj, 1);
                 // If request was from defined node_addr we update its state
                 if(l_sync_request->request.node_addr.uint64) {
                     dap_db_set_last_id_remote(l_sync_request->request.node_addr.uint64, l_obj->id);
