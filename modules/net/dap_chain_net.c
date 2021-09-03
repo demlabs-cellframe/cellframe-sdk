@@ -1216,7 +1216,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
     // command 'list'
     const char * l_list_cmd = NULL;
 
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "list", &l_list_cmd) == arg_index) {
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "list", &l_list_cmd) != 0) {
         dap_string_t *l_string_ret = dap_string_new("");
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;
