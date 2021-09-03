@@ -295,9 +295,9 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
     }
     a_thread->poll[a_esocket->poll_index].events= a_esocket->poll_base_flags;
     if( a_esocket->flags & DAP_SOCK_READY_TO_READ)
-        a_thread->poll[a_esocket->poll_index].revents |= POLLIN;
+        a_thread->poll[a_esocket->poll_index].events |= POLLIN;
     if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE)
-        a_thread->poll[a_esocket->poll_index].revents |= POLLOUT;
+        a_thread->poll[a_esocket->poll_index].events |= POLLOUT;
         
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
 
