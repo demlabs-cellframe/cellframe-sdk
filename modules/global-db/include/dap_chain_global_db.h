@@ -65,6 +65,7 @@ void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix
 const char* dap_chain_global_db_add_history_extra_group(const char * a_group_name, dap_chain_node_addr_t *a_nodes, uint16_t *a_nodes_count);
 void dap_chain_global_db_add_history_extra_group_callback_notify(const char * a_group_prefix,
         dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
+void dap_global_db_obj_track_history(void* a_store_data, size_t a_objs_count);
 /**
  * Get entry from base
  */
