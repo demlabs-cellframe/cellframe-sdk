@@ -864,11 +864,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     memcpy(&l_hash_item->hash, &l_element->hash, sizeof (l_element->hash));
                     l_hash_item->size = l_element->size;
                     HASH_ADD(hh, l_ch_chain->remote_gdbs, hash, sizeof (l_hash_item->hash), l_hash_item);
-                    if (s_debug_more){
+                    /*if (s_debug_more){
                         char l_hash_str[72]={ [0]='\0'};
                         dap_chain_hash_fast_to_str(&l_hash_item->hash,l_hash_str,sizeof (l_hash_str));
                         log_it(L_DEBUG,"In: Updated remote hash gdb list with %s ", l_hash_str);
-                    }
+                    } */
                 }
             }
         } break;
@@ -1355,7 +1355,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_store_obj_pkt_t *l_pkt = NULL;
             dap_db_log_list_obj_t *l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
             size_t l_pkt_size = 0;
-            while (l_obj) {
+            uint_fast16_t l_skip_count = 0;
+            while (l_obj && l_skip_count < s_skip_in_reactor_count) {
                 dap_stream_ch_chain_hash_item_t *l_hash_item = NULL;
                 HASH_FIND(hh, l_ch_chain->remote_gdbs, &l_obj->hash, sizeof(dap_hash_fast_t), l_hash_item);
                 if (l_hash_item) { // If found - skip it
@@ -1365,6 +1366,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                         log_it(L_DEBUG, "Out CHAIN: skip GDB hash %s because its already present in remote GDB hash table",
                                         l_request_atom_hash_str);
                     }
+                    l_skip_count++;
                 } else {
                     l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
                     memcpy(&l_hash_item->hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
