@@ -348,6 +348,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
                                                  l_chain_id.uint64, l_net->pub.cell_id.uint64, l_data_out,
                                                  sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
+        pthread_rwlock_unlock(&PVT(l_net)->rwlock);
         DAP_DELETE(l_data_out);
     }
 }
