@@ -103,12 +103,12 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 /**
  * Set last id for remote node
  */
-bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id)
+bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group)
 {
     //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %"DAP_UINT64_FORMAT_U"", a_node_addr, a_id);
     uint64_t *l_id = DAP_NEW(uint64_t);
     *l_id = a_id;
-    return dap_chain_global_db_gr_set(dap_strdup_printf("%ju", a_node_addr),
+    return dap_chain_global_db_gr_set(dap_strdup_printf("%ju%s", a_node_addr, a_group),
                                       l_id, sizeof(uint64_t),
                                       GROUP_LOCAL_NODE_LAST_ID);
 }
@@ -116,9 +116,9 @@ bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id)
 /**
  * Get last id for remote node
  */
-uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr)
+uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 {
-    char *l_node_addr_str = dap_strdup_printf("%ju", a_node_addr);
+    char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
     size_t l_timestamp_len = 0;
     uint8_t *l_timestamp = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_timestamp_len,
     GROUP_LOCAL_NODE_LAST_ID);

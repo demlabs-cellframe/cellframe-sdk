@@ -445,19 +445,11 @@ dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
     if(!a_group_mask)
         return NULL;
     cdb_instance *cur_cdb, *tmp;
-    bool l_get_all = !dap_strcmp(a_group_mask, "*");
     pthread_rwlock_rdlock(&cdb_rwlock);
-    HASH_ITER(hh, s_cdb, cur_cdb, tmp)
-    {
+    HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
         char *l_table_name = cur_cdb->local_group;
-        log_it(L_INFO, "Find table %s", l_table_name);
-        if (l_get_all)
+        if(!dap_fnmatch(a_group_mask, l_table_name, 0))
             l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(l_table_name));
-        else {
-            if(!dap_fnmatch(a_group_mask, l_table_name, 0))
-                if(dap_fnmatch("*.del", l_table_name, 0))
-                    l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(l_table_name));
-        }
     }
     pthread_rwlock_unlock(&cdb_rwlock);
     return l_ret_list;

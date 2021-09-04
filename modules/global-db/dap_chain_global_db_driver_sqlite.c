@@ -893,18 +893,11 @@ dap_list_t* dap_db_driver_sqlite_get_groups_by_mask(const char *a_group_mask)
         dap_db_driver_sqlite_free(l_error_message);
         return NULL;
     }
-    bool l_get_all = !dap_strcmp(a_group_mask, "*");
     SQLITE_ROW_VALUE *l_row = NULL;
     while (dap_db_driver_sqlite_fetch_array(l_res, &l_row) == SQLITE_ROW && l_row) {
         char *l_table_name = (char *)l_row->val->val.val_str;
-        log_it(L_INFO, "Find table %s", dap_db_driver_sqlite_make_group_name(l_table_name));
-        if (l_get_all)
+        if(!dap_fnmatch(a_group_mask, l_table_name, 0))
             l_ret_list = dap_list_prepend(l_ret_list, dap_db_driver_sqlite_make_group_name(l_table_name));
-        else {
-            if(!dap_fnmatch(a_group_mask, l_table_name, 0))
-                if(dap_fnmatch("*.del", l_table_name, 0))
-                    l_ret_list = dap_list_prepend(l_ret_list, dap_db_driver_sqlite_make_group_name(l_table_name));
-        }
         dap_db_driver_sqlite_row_free(l_row);
     }
     dap_db_driver_sqlite_query_free(l_res);
