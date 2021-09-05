@@ -342,16 +342,14 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
+        pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
-            dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
-            if (!l_ch_chain) {
-                continue;
-            }
-            dap_stream_ch_chain_pkt_write_mt( dap_client_get_stream_worker(l_node_client->client), l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
+            dap_stream_ch_chain_pkt_write_mt( dap_client_get_stream_worker(l_node_client->client), l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                  l_chain_id.uint64, l_net->pub.cell_id.uint64, l_data_out,
                                                  sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
+        pthread_rwlock_unlock(&PVT(l_net)->rwlock);
         dap_list_free_full(l_list_out, free);
     }
 }
@@ -391,17 +389,15 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (PVT(l_net)->state == NET_STATE_ONLINE) {
+        pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)l_tmp->data;
-            uint8_t l_ch_id = dap_stream_ch_chain_get_id(); // Channel id for global_db and chains sync
-            dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
-            if (!l_ch_chain) {
-                log_it(L_DEBUG,"Can't get stream_ch for id='%c' ", l_ch_id);
-                continue;
-            }
-            dap_stream_ch_chain_pkt_write_mt( dap_client_get_stream_worker( l_node_client->client),  l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+            dap_stream_worker_t * l_worker = dap_client_get_stream_worker( l_node_client->client);
+            if(l_worker)
+                dap_stream_ch_chain_pkt_write_mt(l_worker, l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
                                               l_net->pub.id.uint64, a_chain->id.uint64, a_id.uint64, a_atom, a_atom_size);
         }
+        pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     }
 }
 
@@ -451,9 +447,17 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     dap_chain_node_info_t * l_link_info = a_node_client->info;
 
-    a_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
+
 
     a_node_client->stream_worker = dap_client_get_stream_worker(a_node_client->client);
+    if(a_node_client->stream_worker == NULL){
+        log_it(L_ERROR, "Stream worker is NULL in connected() callback, do nothing");
+        a_node_client->state = NODE_CLIENT_STATE_ERROR;
+        return;
+    }
+
+    a_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
+
     if( !a_node_client->is_reconnecting || s_debug_more )
         log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
                NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
@@ -469,7 +473,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
         if (! (l_net_pvt->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO) )
             l_sync_gdb.id_start = (uint64_t) dap_db_get_last_id_remote(a_node_client->remote_node_addr.uint64);
         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-        log_it(L_DEBUG, "Prepared request to gdb sync from %llu to %llu", l_sync_gdb.id_start, l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
+        log_it(L_DEBUG, "Prepared request to gdb sync from %"DAP_UINT64_FORMAT_U" to %"DAP_UINT64_FORMAT_U"", l_sync_gdb.id_start, l_sync_gdb.id_end?l_sync_gdb.id_end:-1 );
         // find dap_chain_id_t
         dap_chain_t *l_chain = l_net->pub.chains;
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t ) {0};
@@ -481,6 +485,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
         a_node_client->ch_chain_net = dap_client_get_stream_ch_unsafe(a_node_client->client,dap_stream_ch_chain_get_id() );
         if(a_node_client->ch_chain_net)
             a_node_client->ch_chain_net_uuid = a_node_client->ch_chain_net->uuid;
+
         dap_stream_ch_chain_pkt_write_unsafe( a_node_client->ch_chain ,
                                                            DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ, l_net->pub.id.uint64,
                                                         l_chain_id.uint64, l_net->pub.cell_id.uint64, &l_sync_gdb, sizeof(l_sync_gdb));
@@ -897,9 +902,15 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                                     struct link_dns_request * l_dns_request = DAP_NEW_Z(struct link_dns_request);
                                     l_dns_request->net = l_net;
                                     l_dns_request->link_id = l_link_id;
-                                    dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
+                                    if(dap_chain_node_info_dns_request(l_addr, l_port, l_net->pub.name, l_link_node_info,
                                                                         s_net_state_link_prepare_success,
-                                                                    s_net_state_link_prepare_error,l_dns_request);
+                                                                    s_net_state_link_prepare_error,l_dns_request) != 0 ){
+                                        log_it(L_ERROR, "Can't process node info dns request");
+                                        DAP_DEL_Z(l_link_node_info);
+
+                                    }
+                                }else{
+                                    DAP_DEL_Z(l_link_node_info);
                                 }
                             }
                             l_link_id++;
@@ -1205,7 +1216,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
     // command 'list'
     const char * l_list_cmd = NULL;
 
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "list", &l_list_cmd) == arg_index) {
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "list", &l_list_cmd) != 0) {
         dap_string_t *l_string_ret = dap_string_new("");
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;
@@ -1339,7 +1350,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 long double l_tps = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) ( l_to_ts - l_from_ts );
                 dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
-                dap_string_append_printf( l_ret_str, "\tTotal:  %llu\n", l_tx_count );
+                dap_string_append_printf( l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count );
                 dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
                 dap_string_free( l_ret_str, false );
             }
@@ -2117,6 +2128,8 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
         int i = 0;
         HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
             l_net_list[i++] = l_current_item->chain_net;
+            if(i > *a_size)
+                break;
         }
         return l_net_list;
     }else
@@ -2845,7 +2858,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                                 case SERV_UNIT_B : dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_B\n"); break;
                                                 default: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_UNKNOWN\n"); break;
                                             }
-                                            dap_string_append_printf(a_str_out,"\tunit_price_max: %llu\n", l_out->subtype.srv_pay.unit_price_max_datoshi);
+                                            dap_string_append_printf(a_str_out,"\tunit_price_max: %"DAP_UINT64_FORMAT_U"\n", l_out->subtype.srv_pay.unit_price_max_datoshi);
                                             char l_pkey_hash_str[70]={[0]='\0'};
                                             dap_chain_hash_fast_to_str(&l_out->subtype.srv_pay.pkey_hash, l_pkey_hash_str, sizeof (l_pkey_hash_str)-1);
                                             dap_string_append_printf(a_str_out,"\tpkey_hash: %s\n", l_pkey_hash_str );

@@ -9,6 +9,8 @@ INCLUDEPATH += \
 #            /usr/include \
 #            /usr/include/x86_64-linux-gnu/bits \
 #            /usr/include/x86_64-linux-gnu \
+            $$PWD/core/include \
+            $$PWD/client/include \
             $$PWD/../net/server/http_server/http_client/include \
             $$PWD/../net/server/http_server/include \
             $$PWD/../net/server/enc_server/include \

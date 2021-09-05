@@ -144,9 +144,9 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
     memset(&l_err, 0, sizeof(l_err));
     dap_chain_net_srv_t * l_srv = NULL;
-    dap_stream_ch_t *l_ch = a_grace->ch;
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
 
-    if (!dap_stream_ch_check_unsafe(a_grace->stream_worker, l_ch))
+    if (l_ch== NULL )
         goto free_exit;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = l_ch && l_ch->stream && l_ch->stream->session ?
@@ -315,7 +315,8 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     }
 free_exit:
     if (l_err.code) {
-        dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if(l_ch)
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         if (l_srv && l_srv->callback_response_error)
             l_srv->callback_response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
     }
@@ -437,7 +438,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, l_ch_pkt->hdr.size);
                 memcpy(l_grace->request, l_ch_pkt->data, l_ch_pkt->hdr.size);
                 l_grace->request_size = l_ch_pkt->hdr.size;
-                l_grace->ch = a_ch;
+                l_grace->ch_uuid = a_ch->uuid;
                 l_grace->stream_worker = a_ch->stream_worker;
                 s_grace_period_control(l_grace);
             } break;

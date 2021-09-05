@@ -190,6 +190,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     if (l_session_data == NULL) {
         log_it(L_ERROR, "Can't find chain net session for stream session %d", a_ch->stream->session->id);
         dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
+        return;
     }
 
     if(l_ch_chain_net) {
@@ -243,7 +244,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_ADDR");
                     if ( l_ch_chain_net_pkt_data_size == sizeof (dap_chain_node_addr_t) ) {
                         dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *) l_ch_chain_net_pkt->data;
-                        memcpy( &l_session_data->addr_remote,l_addr,sizeof (*l_addr) );
+                        if(l_session_data)
+                            memcpy( &l_session_data->addr_remote,l_addr,sizeof (*l_addr) );
                         log_it(L_NOTICE,"Accepted remote node addr 0x%016llX",l_addr->uint64);
                     }else {
                         log_it(L_WARNING,"Wrong data secion size %u",l_ch_chain_net_pkt_data_size,
@@ -269,7 +271,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             else
                                 log_it(L_ERROR,"Can't set up cur node address 0x%016llX",l_addr->uint64);
                         }
-                        memcpy( &l_session_data->addr_remote,l_addr,sizeof (*l_addr) );
+                        if(l_session_data)
+                            memcpy( &l_session_data->addr_remote,l_addr,sizeof (*l_addr) );
                     }else {
                         log_it(L_WARNING,"Wrong data secion size %u",l_ch_chain_net_pkt_data_size,
                                sizeof (dap_chain_node_addr_t));
@@ -302,7 +305,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE ,
                                                          l_ch_chain_net_pkt->hdr.net_id, l_addr_new, sizeof (*l_addr_new));
                         dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-                        memcpy( &l_session_data->addr_remote,l_addr_new,sizeof (*l_addr_new) );
+                        if(l_session_data)
+                            memcpy( &l_session_data->addr_remote,l_addr_new,sizeof (*l_addr_new) );
                         DAP_DELETE(l_addr_new);
                     }
                 }

@@ -47,15 +47,8 @@
 
 #define LOG_TAG "dap_stream_ch"
 
-static struct dap_stream_ch_table_t {
-    dap_stream_ch_t *ch;
-    UT_hash_handle hh;
-} *s_ch_table = NULL;
-
-static pthread_rwlock_t s_ch_table_lock;
-
 /**
- * @brief stream_ch_init Init stream channel module
+ * @brief dap_stream_ch_init Init stream channel module
  * @return Zero if ok others if no
  */
 int dap_stream_ch_init()
@@ -68,42 +61,41 @@ int dap_stream_ch_init()
         log_it(L_CRITICAL,"Can't init stream channel packet submodule");
         return -1;
     }
-    pthread_rwlock_init(&s_ch_table_lock, NULL);
     log_it(L_NOTICE,"Module stream channel initialized");
     return 0;
 }
 
 /**
- * @brief stream_ch_deinit Destroy stream channel submodule
+ * @brief dap_stream_ch_deinit Destroy stream channel submodule
  */
 void dap_stream_ch_deinit()
 {
-    pthread_rwlock_destroy(&s_ch_table_lock);
 }
 
 /**
- * @brief stream_ch_new Creates new stream channel instance
- * @param direction Direction of channel (input to the server, output to the client)
+ * @brief dap_stream_ch_new Creates new stream channel instance
  * @return
  */
-dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
+dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t a_id)
 {
-    stream_ch_proc_t * proc=stream_ch_proc_find(id);
+    stream_ch_proc_t * proc=dap_stream_ch_proc_find(a_id);
     if(proc){
         dap_stream_ch_t* l_ch_new = DAP_NEW_Z(dap_stream_ch_t);
         l_ch_new->me = l_ch_new;
         l_ch_new->stream = a_stream;
         l_ch_new->proc = proc;
         l_ch_new->ready_to_read = true;
-        l_ch_new->uuid = dap_uuid_generate_uint128();
+        l_ch_new->uuid = dap_uuid_generate_uint64();
+        pthread_mutex_init(&(l_ch_new->mutex),NULL);
 
         // Init on stream worker
         dap_stream_worker_t * l_stream_worker = a_stream->stream_worker;
         l_ch_new->stream_worker = l_stream_worker;
+
         pthread_rwlock_wrlock(&l_stream_worker->channels_rwlock);
-        HASH_ADD(hh_worker,l_stream_worker->channels, me,sizeof (void*),l_ch_new);
+        HASH_ADD(hh_worker,l_stream_worker->channels, uuid,sizeof (l_ch_new->uuid ),l_ch_new);
         pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
-        pthread_mutex_init(&(l_ch_new->mutex),NULL);
+
 
         // Proc new callback
         if(l_ch_new->proc->new_callback)
@@ -112,16 +104,9 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
         a_stream->channel[l_ch_new->stream->channel_count] = l_ch_new;
         a_stream->channel_count++;
 
-        struct dap_stream_ch_table_t *l_new_ch = DAP_NEW_Z(struct dap_stream_ch_table_t);
-        l_new_ch->ch = l_ch_new;
-        pthread_rwlock_wrlock(&s_ch_table_lock);
-        HASH_ADD_PTR(s_ch_table, ch, l_new_ch);
-        pthread_rwlock_unlock(&s_ch_table_lock);
-
-
         return l_ch_new;
     }else{
-        log_it(L_WARNING, "Unknown stream processor with id %uc",id);
+        log_it(L_WARNING, "Unknown stream processor with id %uc",a_id);
         return NULL;
     }
 }
@@ -133,21 +118,11 @@ dap_stream_ch_t* dap_stream_ch_new(dap_stream_t* a_stream, uint8_t id)
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
 {
     dap_stream_worker_t * l_stream_worker = a_ch->stream_worker;
-    pthread_rwlock_wrlock(&l_stream_worker->channels_rwlock);
-    HASH_DELETE(hh_worker,l_stream_worker->channels, a_ch);
-    pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
-
-    struct dap_stream_ch_table_t *l_ret;
-    pthread_rwlock_rdlock(&s_ch_table_lock);
-    HASH_FIND_PTR(s_ch_table, &a_ch, l_ret);
-    pthread_rwlock_unlock(&s_ch_table_lock);
-    if (!l_ret) {
-        return;
+    if(l_stream_worker){
+        pthread_rwlock_wrlock(&l_stream_worker->channels_rwlock);
+        HASH_DELETE(hh_worker,l_stream_worker->channels, a_ch);
+        pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
     }
-    pthread_rwlock_wrlock(&s_ch_table_lock);
-    HASH_DEL(s_ch_table, l_ret);
-    pthread_rwlock_unlock(&s_ch_table_lock);
-    DAP_DELETE(l_ret);
 
     pthread_mutex_lock(&a_ch->mutex);
     if (a_ch->proc)
@@ -155,6 +130,7 @@ void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
             a_ch->proc->delete_callback(a_ch, NULL);
     a_ch->stream->channel[a_ch->stream->channel_count--] = NULL;
     pthread_mutex_unlock(&a_ch->mutex);
+
     pthread_mutex_destroy(&a_ch->mutex);
 
 /* fixed raise, but probably may be memory leak!
@@ -164,6 +140,28 @@ void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
 */
     DAP_DELETE(a_ch);
 }
+
+/**
+ * @brief dap_stream_ch_find_by_uuid_unsafe
+ * @param a_worker
+ * @param a_ch_uuid
+ * @return
+ */
+dap_stream_ch_t * dap_stream_ch_find_by_uuid_unsafe(dap_stream_worker_t * a_worker, dap_stream_ch_uuid_t a_ch_uuid)
+{
+    if( a_worker == NULL ){
+        log_it(L_WARNING,"Attempt to search for uuid 0x%016llu in NULL worker", a_ch_uuid);
+        return NULL;
+    } else if ( a_worker->channels){
+        dap_stream_ch_t * l_ch = NULL;
+        pthread_rwlock_rdlock(&a_worker->channels_rwlock);
+        HASH_FIND(hh_worker,a_worker->channels ,&a_ch_uuid, sizeof(a_ch_uuid), l_ch );
+        pthread_rwlock_unlock(&a_worker->channels_rwlock);
+        return l_ch;
+    }else
+        return NULL;
+}
+
 
 /**
  * @brief dap_stream_ch_set_ready_to_read

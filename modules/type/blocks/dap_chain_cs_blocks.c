@@ -1045,7 +1045,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
         if (l_block_cache->links_hash_count){
             *a_links_size_ptr = DAP_NEW_Z_SIZE( size_t, l_block_cache->links_hash_count*sizeof (size_t));
             *a_links_size = l_block_cache->links_hash_count;
-            dap_chain_atom_ptr_t * l_ret = DAP_NEW_S_SIZE(dap_chain_atom_ptr_t, l_block_cache->links_hash_count *sizeof (dap_chain_atom_ptr_t) );
+            dap_chain_atom_ptr_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, l_block_cache->links_hash_count *sizeof (dap_chain_atom_ptr_t) );
             for (size_t i = 0; i< l_block_cache->links_hash_count; i ++){
                 dap_chain_block_cache_t * l_link =  dap_chain_block_cache_get_by_hash(l_block_cache->links_hash[i]);
                 assert(l_link);
@@ -1076,7 +1076,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
     if ( l_block_cache_last  ){
         *a_links_size = 1;
         *a_lasts_size_ptr = DAP_NEW_Z_SIZE(size_t,sizeof (size_t)*1  );
-        dap_chain_atom_ptr_t * l_ret = DAP_NEW_S_SIZE(dap_chain_atom_ptr_t, sizeof (dap_chain_atom_ptr_t)*1);
+        dap_chain_atom_ptr_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, sizeof (dap_chain_atom_ptr_t)*1);
         (*a_lasts_size_ptr)[0] = l_block_cache_last->block_size;
         l_ret[0] = l_block_cache_last->block;
         return l_ret;

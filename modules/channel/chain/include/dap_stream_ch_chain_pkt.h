@@ -139,11 +139,11 @@ size_t dap_stream_ch_chain_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_typ
                                             uint64_t a_chain_id, uint64_t a_cell_id,
                                             const void * a_data, size_t a_data_size);
 
-size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
+size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type, uint64_t a_net_id,
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
 
-size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t *a_worker, dap_stream_ch_t *a_ch, uint8_t a_type,uint64_t a_net_id,
+size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,uint64_t a_net_id,
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
 
@@ -186,8 +186,8 @@ inline static size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t 
  * @param a_err_string_format
  * @return
  */
-inline static size_t dap_stream_ch_chain_pkt_write_error_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t * a_stream_worker,  dap_stream_ch_t *a_ch, uint64_t a_net_id,
-                                                  uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format,... )
+inline static size_t dap_stream_ch_chain_pkt_write_error_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t * a_stream_worker,  dap_stream_ch_uuid_t a_ch_uuid,
+                                                               uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format,... )
 {
     va_list l_va;
     char * l_str;
@@ -198,7 +198,7 @@ inline static size_t dap_stream_ch_chain_pkt_write_error_inter(dap_proc_thread_t
         l_str = DAP_NEW_S_SIZE(char, l_size);
         vsnprintf(l_str,l_size,a_err_string_format,l_va);
         va_end(l_va);
-        return  dap_stream_ch_chain_pkt_write_inter(a_thread, a_stream_worker, a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_str,l_size );
+        return  dap_stream_ch_chain_pkt_write_inter(a_thread, a_stream_worker, a_ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_str,l_size );
     }else{
         va_end(l_va);
         return 0;

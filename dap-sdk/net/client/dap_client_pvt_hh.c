@@ -28,6 +28,7 @@
 #include "dap_client_pvt.h"
 
 typedef struct dap_client_pvt_hh {
+    uint64_t client_pvt_uuid;
     dap_client_pvt_t *client_pvt;
     UT_hash_handle hh;
 } dap_client_pvt_hh_t;
@@ -37,50 +38,20 @@ static dap_client_pvt_hh_t *s_client_pvt_list = NULL;
 // for separate access to s_conn_list
 static pthread_mutex_t s_client_pvt_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-/**
- * dap_client_pvt_hh_lock
- */
-int dap_client_pvt_hh_lock(void)
-{
-    return pthread_mutex_lock(&s_client_pvt_list_mutex);
-}
-
-/**
- * dap_client_pvt_hh_unlock
- */
-int dap_client_pvt_hh_unlock(void)
-{
-    return pthread_mutex_unlock(&s_client_pvt_list_mutex);
-}
-
-/**
- * find active connection in the list
- *
- * return 0 OK, -1 error, -2 connection not found
- */
-void* dap_client_pvt_hh_get(dap_client_pvt_t* a_client_pvt)
-{
-    if(!a_client_pvt)
-        return NULL;
-    dap_client_pvt_hh_t *l_cur_item;
-    HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt, l_cur_item);
-    return (void*) l_cur_item;
-}
 
 /**
  * @brief dap_client_pvt_check
  * @param a_client_pvt
  * @return
  */
-bool dap_client_pvt_check(dap_client_pvt_t* a_client_pvt)
+dap_client_pvt_t *dap_client_pvt_find(uint64_t a_client_pvt_uuid)
 {
     bool l_ret = false;
     pthread_mutex_lock(&s_client_pvt_list_mutex);
     dap_client_pvt_hh_t *l_cur_item = NULL;
-    HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt, l_cur_item);
-    l_ret = (l_cur_item != NULL);
+    HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt_uuid, l_cur_item);
     pthread_mutex_unlock(&s_client_pvt_list_mutex);
-    return l_ret;
+    return l_cur_item? l_cur_item->client_pvt : NULL;
 }
 
 /**
@@ -88,18 +59,18 @@ bool dap_client_pvt_check(dap_client_pvt_t* a_client_pvt)
  *
  * return 0 OK, -1 error, -2 connection present
  */
-int dap_client_pvt_hh_add(dap_client_pvt_t* a_client_pvt)
+int dap_client_pvt_hh_add_unsafe(dap_client_pvt_t* a_client_pvt)
 {
     int l_ret = 0;
-    if(!a_client_pvt)
-        return -1;
+    assert(a_client_pvt);
     pthread_mutex_lock(&s_client_pvt_list_mutex);
-    dap_client_pvt_hh_t *l_cur_item;
-    HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt, l_cur_item);
+    dap_client_pvt_hh_t *l_cur_item = NULL;
+    HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt->uuid, l_cur_item);
     if(l_cur_item == NULL) {
-        l_cur_item = DAP_NEW(dap_client_pvt_hh_t);
+        l_cur_item = DAP_NEW_Z(dap_client_pvt_hh_t);
         l_cur_item->client_pvt = a_client_pvt;
-        HASH_ADD_PTR(s_client_pvt_list, client_pvt, l_cur_item);
+        l_cur_item->client_pvt_uuid = a_client_pvt->uuid;
+        HASH_ADD_PTR(s_client_pvt_list, client_pvt_uuid, l_cur_item);
         l_ret = 0;
     }
     // connection already present
@@ -115,14 +86,13 @@ int dap_client_pvt_hh_add(dap_client_pvt_t* a_client_pvt)
  *
  * return 0 OK, -1 error, -2 connection not found
  */
-int dap_client_pvt_hh_del(dap_client_pvt_t *a_client_pvt)
+int dap_client_pvt_hh_del_unsafe(dap_client_pvt_t *a_client_pvt)
 {
     int ret = -1;
-    if(!a_client_pvt)
-        return -1;
+    assert(a_client_pvt);
     pthread_mutex_lock(&s_client_pvt_list_mutex);
-    dap_client_pvt_hh_t *l_cur_item;
-    HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt, l_cur_item);
+    dap_client_pvt_hh_t *l_cur_item = NULL;
+    HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt->uuid, l_cur_item);
     if(l_cur_item != NULL) {
         HASH_DEL(s_client_pvt_list, l_cur_item);
         DAP_DELETE(l_cur_item);

@@ -541,20 +541,24 @@ dap_multi_sign_t *dap_multi_sign_deserialize(dap_sign_type_enum_t a_type, uint8_
         }
     }
     uint32_t l_data_shift = 0, l_data_size = 0;
-    l_sign->pub_keys = DAP_NEW_Z_SIZE(uint8_t, l_pkeys_size);
-    for (int i = 0; i < l_sign->sign_count; i++) {
-        l_data_size = l_sign->meta[i].pkey_size;
-        memcpy( &l_sign->pub_keys[l_data_shift], &a_sign[l_mem_shift],l_data_size);
-        l_mem_shift += l_data_size;
-        l_data_shift += l_data_size;
+    if(l_pkeys_size){
+        l_sign->pub_keys = DAP_NEW_Z_SIZE(uint8_t, l_pkeys_size);
+        for (int i = 0; i < l_sign->sign_count; i++) {
+            l_data_size = l_sign->meta[i].pkey_size;
+            memcpy( &l_sign->pub_keys[l_data_shift], &a_sign[l_mem_shift],l_data_size);
+            l_mem_shift += l_data_size;
+            l_data_shift += l_data_size;
+        }
+        l_data_shift = l_data_size = 0;
     }
-    l_data_shift = l_data_size = 0;
-    l_sign->sign_data = DAP_NEW_Z_SIZE(uint8_t, l_signes_size);
-    for (int i = 0; i < l_sign->sign_count; i++) {
-        l_data_size = l_sign->meta[i].sign_size;
-        memcpy(&l_sign->sign_data[l_data_shift], &a_sign[l_mem_shift], l_data_size);
-        l_mem_shift += l_data_size;
-        l_data_shift += l_data_size;
+    if(l_signes_size){
+        l_sign->sign_data = DAP_NEW_Z_SIZE(uint8_t, l_signes_size);
+        for (int i = 0; i < l_sign->sign_count; i++) {
+            l_data_size = l_sign->meta[i].sign_size;
+            memcpy(&l_sign->sign_data[l_data_shift], &a_sign[l_mem_shift], l_data_size);
+            l_mem_shift += l_data_size;
+            l_data_shift += l_data_size;
+        }
     }
     return l_sign;
 }
@@ -782,6 +786,7 @@ int dap_multi_sign_verify(dap_multi_sign_t *a_sign, const void *a_data, const si
         }
         if (!l_hashed) {
             log_it (L_ERROR, "Can't create multi-signature hash");
+            DAP_DELETE(l_step_sign);
             return -1;
         }
         l_verified = dap_sign_verify(l_step_sign, &l_data_hash, sizeof(dap_chain_hash_fast_t));

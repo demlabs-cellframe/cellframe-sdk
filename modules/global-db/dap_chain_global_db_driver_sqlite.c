@@ -253,11 +253,11 @@ int dap_db_driver_sqlite_flush()
         return -666;
     }
     dap_db_driver_sqlite_close(s_db);
-    char *l_error_message;
+    char *l_error_message = NULL;
     s_db = dap_db_driver_sqlite_open(s_filename_db, SQLITE_OPEN_READWRITE, &l_error_message);
     if(!s_db) {
         pthread_rwlock_unlock(&s_db_rwlock);
-        log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message);
+        log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message? l_error_message: "UNKNOWN");
         dap_db_driver_sqlite_free(l_error_message);
         return -3;
     }

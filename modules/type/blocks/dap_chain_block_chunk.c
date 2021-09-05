@@ -193,7 +193,9 @@ void dap_chain_block_chunks_sort(dap_chain_block_chunks_t * a_chunks)
     // Sort chunk list beginning from the new one and bubble up the longest one on the top
     size_t l_chunk_length_max=0;
     //dap_chain_block_chunk_t * l_chunk_max = NULL;
-    for (dap_chain_block_chunk_t * l_chunk = a_chunks->chunks_first ; l_chunk; l_chunk = l_chunk->next ){
+    for (dap_chain_block_chunk_t * l_chunk = a_chunks->chunks_first ; l_chunk; l_chunk = l_chunk? l_chunk->next: NULL ){
+        if(!l_chunk)
+            break;
         size_t l_chunk_length = HASH_COUNT(l_chunk->block_cache_hash);
         if (! l_chunk_length){
             log_it(L_WARNING,"Chunk can't be empty, it must be deleted from chunks treshold");
@@ -232,7 +234,7 @@ void dap_chain_block_chunks_sort(dap_chain_block_chunks_t * a_chunks)
             l_chunk = l_chunk_prev;
 
             // Its the last chunk
-            if ( ! l_chunk->next)
+            if (l_chunk && ! l_chunk->next)
                 a_chunks->chunks_last = l_chunk;
         }
     }
