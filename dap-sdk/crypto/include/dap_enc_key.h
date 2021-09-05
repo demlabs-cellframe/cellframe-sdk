@@ -226,9 +226,9 @@ typedef struct dap_enc_key {
 
 // struct for serelization/deseralization keys in binary storage
 typedef struct dap_enc_key_serealize {
-    size_t priv_key_data_size;
-    size_t pub_key_data_size;
-    size_t inheritor_size;
+    uint64_t priv_key_data_size;
+    uint64_t pub_key_data_size;
+    uint64_t inheritor_size;
     time_t last_used_timestamp;
     dap_enc_key_type_t type;
 
