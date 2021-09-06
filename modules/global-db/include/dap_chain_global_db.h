@@ -52,8 +52,8 @@ void dap_chain_global_db_deinit(void);
  * Setup callbacks and filters
  */
 // Add group name that will be synchronized
-void dap_chain_global_db_add_sync_group(const char *a_group_name, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
-void dap_chain_global_db_add_sync_extra_group(const char *a_group_name, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
+void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
+void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
 dap_list_t *dap_chain_db_get_sync_groups();
 dap_list_t *dap_chain_db_get_sync_extra_groups();
 void dap_global_db_obj_track_history(void* a_store_data);

@@ -337,7 +337,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         l_obj->type = (uint8_t)a_op_code;
         DAP_DELETE(l_obj->group);
         l_obj->group = dap_strdup(a_group);
-        dap_store_obj_pkt_t *l_data_out = dap_store_packet_multiple(l_obj, 0, NULL);
+        dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
@@ -1602,7 +1602,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
         l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
 
-        // for sync special groups - nodes
+        // nodes for special sync
         char **l_gdb_sync_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "gdb_sync_nodes_addrs",
                 &l_net_pvt->gdb_sync_nodes_addrs_count);
         if(l_gdb_sync_nodes_addrs && l_net_pvt->gdb_sync_nodes_addrs_count > 0) {
@@ -1612,20 +1612,13 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 dap_chain_node_addr_from_str(l_net_pvt->gdb_sync_nodes_addrs + i, l_gdb_sync_nodes_addrs[i]);
             }
         }
-        // for sync special groups - groups
+        // groups for special sync
         uint16_t l_gdb_sync_groups_count;
         char **l_gdb_sync_groups = dap_config_get_array_str(l_cfg, "general", "gdb_sync_groups", &l_gdb_sync_groups_count);
         if (l_gdb_sync_groups && l_gdb_sync_groups_count > 0) {
             for(uint16_t i = 0; i < l_gdb_sync_groups_count; i++) {
-                // added group to history log
-                dap_list_t *l_groups0 = dap_chain_global_db_driver_get_groups_by_mask(l_gdb_sync_groups[i]);
-                dap_list_t *l_groups = l_groups0;
-                while(l_groups) {
-                    char *l_group_name = l_groups->data;
-                    dap_chain_global_db_add_sync_extra_group(l_group_name, s_gbd_history_callback_notify, l_net);
-                    l_groups = dap_list_next(l_groups);
-                }
-                dap_list_free_full(l_groups0, (dap_callback_destroyed_t)free);
+                // add group to special sync
+                dap_chain_global_db_add_sync_extra_group(l_gdb_sync_groups[i], s_gbd_history_callback_notify, l_net);
             }
         }
 

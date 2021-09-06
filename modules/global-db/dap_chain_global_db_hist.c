@@ -152,10 +152,20 @@ static void *s_list_thread_proc(void *arg)
     dap_db_log_list_t *l_dap_db_log_list = (dap_db_log_list_t *)arg;
     for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups && l_dap_db_log_list->is_process; l_groups = dap_list_next(l_groups)) {
         dap_db_log_list_group_t *l_group_cur = (dap_db_log_list_group_t *)l_groups->data;
-        char l_obj_type = dap_fnmatch("*.del", l_group_cur->name, 0) ? 'a' : 'd';
-        while (l_group_cur->count) { // Number of records to be synchronized
-            size_t l_item_count = 10;
-            uint64_t l_item_start = l_group_cur->last_id_synced + 1;
+        char *l_del_group_name_replace = NULL;
+        char l_obj_type;
+        if (!dap_fnmatch("*.del", l_group_cur->name, 0)) {
+            l_obj_type = 'd';
+            size_t l_del_name_len = strlen(l_group_cur->name) - 4; //strlen(".del");
+            l_del_group_name_replace = DAP_NEW_SIZE(char, l_del_name_len + 1);
+            strncpy(l_del_group_name_replace, l_group_cur->name, l_del_name_len);
+            l_del_group_name_replace[l_del_name_len] = '\0';
+        } else {
+            l_obj_type = 'a';
+        }
+        uint64_t l_item_start = l_group_cur->last_id_synced + 1;
+        while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
+            size_t l_item_count = min(32, l_group_cur->count);
             dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
             // go to next group
             if (!l_objs)
@@ -164,14 +174,24 @@ static void *s_list_thread_proc(void *arg)
             for (size_t i = 0; i < l_item_count; i++) {
                 dap_store_obj_t *l_obj_cur = l_objs + i;
                 l_obj_cur->type = l_obj_type;
+                if (l_obj_type == 'd') {
+                    DAP_DELETE(l_obj_cur->group);
+                    l_obj_cur->group = dap_strdup(l_del_group_name_replace);
+                }
                 dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
-                l_list_obj->obj = l_obj_cur;
-                dap_hash_fast(l_list_obj->obj->key, strlen(l_list_obj->obj->key), &l_list_obj->hash);
+                dap_store_obj_pkt_t *l_pkt = dap_store_packet_single(l_obj_cur);
+                l_list_obj->pkt = l_pkt;
+                dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_list_obj->hash);
                 l_list = dap_list_append(l_list, l_list_obj);
+                if (!l_dap_db_log_list->is_process)
+                    break;
             }
+            if (l_del_group_name_replace)
+                DAP_DELETE(l_del_group_name_replace);
             // set new start pos = lastitem pos + 1
             l_item_start = l_objs[l_item_count - 1].id + 1;
             l_group_cur->count -= l_item_count;
+            dap_store_obj_free(l_objs, l_item_count);
             pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
             // add l_list to list_write
             l_dap_db_log_list->list_write = dap_list_concat(l_dap_db_log_list->list_write, l_list);
@@ -195,9 +215,16 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
 {
     //log_it(L_DEBUG, "Start loading db list_write...");
     dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
-    l_dap_db_log_list->groups = dap_chain_db_get_sync_groups();
-    if (a_flags & F_DB_LOG_ADD_EXTRA_GROUPS)
-        l_dap_db_log_list->groups = dap_list_concat(l_dap_db_log_list->groups, dap_chain_db_get_sync_extra_groups());
+    dap_list_t *l_groups_masks = dap_chain_db_get_sync_groups();
+    if (a_flags & F_DB_LOG_ADD_EXTRA_GROUPS) {
+        l_groups_masks = dap_list_concat(l_groups_masks, dap_chain_db_get_sync_extra_groups());
+    }
+    for (dap_list_t *l_cur_mask = l_groups_masks; l_cur_mask; l_cur_mask = dap_list_next(l_cur_mask)) {
+        l_dap_db_log_list->groups = dap_list_concat(l_dap_db_log_list->groups,
+                                                    dap_chain_global_db_driver_get_groups_by_mask(l_cur_mask->data));
+    }
+    dap_list_free(l_groups_masks);
+
     for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups)) {
         dap_db_log_list_group_t *l_replace = DAP_NEW_Z(dap_db_log_list_group_t);
         l_replace->name = (char *)l_groups->data;
@@ -205,7 +232,7 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
             l_replace->last_id_synced = 0;
         else
             l_replace->last_id_synced = dap_db_get_last_id_remote(a_addr.uint64, l_replace->name);
-        l_replace->count = dap_chain_global_db_driver_count(l_replace->name, l_replace->last_id_synced);
+        l_replace->count = dap_chain_global_db_driver_count(l_replace->name, l_replace->last_id_synced + 1);
         l_dap_db_log_list->items_number += l_replace->count;
         l_groups->data = (void *)l_replace;
     }
@@ -282,7 +309,7 @@ dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 void dap_db_log_list_delete_item(void *a_item)
 {
     dap_db_log_list_obj_t *l_list_item = (dap_db_log_list_obj_t *)a_item;
-    dap_store_obj_free(l_list_item->obj, 1);
+    DAP_DELETE(l_list_item->pkt);
     DAP_DELETE(l_list_item);
 }
 

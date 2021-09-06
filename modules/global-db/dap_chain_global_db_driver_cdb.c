@@ -121,6 +121,23 @@ bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, c
     return true;
 }
 
+bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
+    UNUSED(ksize);
+    UNUSED(val);
+    UNUSED(vsize);
+    UNUSED(expire);
+    UNUSED(oid);
+    UNUSED(key);
+
+    if (dap_hex_to_uint(val, sizeof(uint64_t)) < ((pobj_arg)arg)->id) {
+        return true;
+    }
+    if (--((pobj_arg)arg)->q == 0) {
+        return false;
+    }
+    return true;
+}
+
 pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
     pcdb_instance l_cdb_i = NULL;
     pthread_mutex_lock(&cdb_mutex);
@@ -421,19 +438,23 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
 
 size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
 {
-    if(!a_group) {
+    if (!a_group) {
         return 0;
     }
     pcdb_instance l_cdb_i = dap_cdb_get_db_by_group(a_group);
-    if(!l_cdb_i) {
+    if (!l_cdb_i) {
         return 0;
     }
     CDB *l_cdb = l_cdb_i->cdb;
     CDBSTAT l_cdb_stat;
     cdb_stat(l_cdb, &l_cdb_stat);
-    if(a_id > l_cdb_stat.rnum)
-        return 0;
-    return (size_t) l_cdb_stat.rnum - a_id + 1;
+    obj_arg l_arg;
+    l_arg.q = l_cdb_stat.rnum;
+    l_arg.id = a_id;
+    void *l_iter = cdb_iterate_new(l_cdb, 0);
+    cdb_iterate(l_cdb, dap_cdb_get_count_iter_callback, (void*)&l_arg, l_iter);
+    cdb_iterate_destroy(l_cdb, l_iter);
+    return l_cdb_stat.rnum - l_arg.q;
 }
 
 /**

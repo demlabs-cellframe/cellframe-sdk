@@ -30,7 +30,7 @@ typedef struct dap_db_log_list_group {
 } dap_db_log_list_group_t;
 
 typedef struct dap_db_log_list_obj {
-    pdap_store_obj_t obj;
+    dap_store_obj_pkt_t *pkt;
     dap_hash_fast_t hash;
 } dap_db_log_list_obj_t;
 

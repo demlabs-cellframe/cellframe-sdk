@@ -208,32 +208,42 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 
 /**
  * serialization
- * @param a_store_obj_count count of structures store_obj
- * @param a_timestamp create data time
- * @param a_size_out[out] size of output structure
+ * @param a_old_pkt an object for multiplexation
+ * @param a_new_pkt an object for multiplexation
  * @return NULL in case of an error
  */
-dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, time_t a_timestamp,
-        dap_store_obj_pkt_t *a_old_pkt)
+dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt)
 {
-    UNUSED(a_timestamp);
-
-    if (!a_store_obj)
+    if (!a_new_pkt)
         return a_old_pkt;
-
-    dap_store_obj_pkt_t *l_pkt = a_old_pkt;
-    uint32_t l_data_size_out = 0;
-    l_data_size_out = dap_db_get_size_pdap_store_obj_t(a_store_obj);
-    if (l_pkt)
-        l_pkt = (dap_store_obj_pkt_t *)DAP_REALLOC((void *)l_pkt,
-                                                   sizeof(dap_store_obj_pkt_t) + l_pkt->data_size + l_data_size_out);
+    if (a_old_pkt)
+        a_old_pkt = (dap_store_obj_pkt_t *)DAP_REALLOC(a_old_pkt,
+                                                       a_old_pkt->data_size + a_new_pkt->data_size + sizeof(dap_store_obj_pkt_t));
     else
-        l_pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, sizeof(dap_store_obj_pkt_t) + l_data_size_out);
-    uint64_t l_offset = l_pkt->data_size;
-    l_pkt->data_size += l_data_size_out;
-    l_pkt->obj_count++;
-    memcpy(l_pkt->data + l_offset, &a_store_obj->type, sizeof(int));
-    l_offset += sizeof(int);
+        a_old_pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, a_new_pkt->data_size + sizeof(dap_store_obj_pkt_t));
+    memcpy(a_old_pkt->data + a_old_pkt->data_size, a_new_pkt->data, a_new_pkt->data_size);
+    a_old_pkt->data_size += a_new_pkt->data_size;
+    a_old_pkt->obj_count++;
+    return a_old_pkt;
+}
+
+/**
+ * serialization
+ * @param a_store_obj an object for serialization
+ * @return NULL in case of an error
+ */
+dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj)
+{
+    if (!a_store_obj)
+        return NULL;
+
+    uint32_t l_data_size_out = dap_db_get_size_pdap_store_obj_t(a_store_obj);
+    dap_store_obj_pkt_t *l_pkt = DAP_NEW_SIZE(dap_store_obj_pkt_t, l_data_size_out + sizeof(dap_store_obj_pkt_t));
+    l_pkt->data_size = l_data_size_out;
+    l_pkt->obj_count = 1;
+    l_pkt->timestamp = 0;
+    memcpy(l_pkt->data, &a_store_obj->type, sizeof(int));
+    uint64_t l_offset = sizeof(int);
     uint16_t group_size = (uint16_t) dap_strlen(a_store_obj->group);
     memcpy(l_pkt->data + l_offset, &group_size, sizeof(uint16_t));
     l_offset += sizeof(uint16_t);
@@ -252,7 +262,7 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj, tim
     l_offset += sizeof(uint64_t);
     memcpy(l_pkt->data + l_offset, a_store_obj->value, a_store_obj->value_len);
     l_offset += a_store_obj->value_len;
-    assert(l_offset == l_pkt->data_size);
+    assert(l_offset == l_data_size_out);
     return l_pkt;
 }
 /**
@@ -275,12 +285,6 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
         if (offset+sizeof (int)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'type' field"); break;} // Check for buffer boundries
         memcpy(&obj->type, pkt->data + offset, sizeof(int));
         offset += sizeof(int);
-
-        //memcpy(&str_size, pkt->data + offset, sizeof(uint16_t));
-        //offset += sizeof(uint16_t);
-        //obj->section = DAP_NEW_Z_SIZE(char, str_size + 1);
-        //memcpy(obj->section, pkt->data + offset, str_size);
-        //offset += str_size;
 
         if (offset+sizeof (uint16_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'group_length' field"); break;} // Check for buffer boundries
         memcpy(&str_length, pkt->data + offset, sizeof(uint16_t));
