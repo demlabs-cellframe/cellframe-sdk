@@ -201,7 +201,10 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
     for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups)) {
         dap_db_log_list_group_t *l_replace = DAP_NEW_Z(dap_db_log_list_group_t);
         l_replace->name = (char *)l_groups->data;
-        l_replace->last_id_synced = dap_db_get_last_id_remote(a_addr.uint64, l_replace->name);
+        if (a_flags & F_DB_LOG_SYNC_FROM_ZERO)
+            l_replace->last_id_synced = 0;
+        else
+            l_replace->last_id_synced = dap_db_get_last_id_remote(a_addr.uint64, l_replace->name);
         l_replace->count = dap_chain_global_db_driver_count(l_replace->name, l_replace->last_id_synced);
         l_dap_db_log_list->items_number += l_replace->count;
         l_groups->data = (void *)l_replace;
