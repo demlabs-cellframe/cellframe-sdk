@@ -746,10 +746,10 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
         l_count_out = (int)*a_count_out;
     char *l_str_query;
     if(l_count_out)
-        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC LIMIT %d",
+        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>='%lld' ORDER BY id ASC LIMIT %d",
                 l_table_name, a_id, l_count_out);
     else
-        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC",
+        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>='%lld' ORDER BY id ASC",
                 l_table_name, a_id);
     pthread_rwlock_wrlock(&s_db_rwlock);
     if(!s_db){
@@ -892,10 +892,11 @@ dap_list_t* dap_db_driver_sqlite_get_groups_by_mask(const char *a_group_mask)
         //log_it(L_ERROR, "Get tables l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         return NULL;
     }
+    char * l_mask = dap_db_driver_sqlite_make_table_name(a_group_mask);
     SQLITE_ROW_VALUE *l_row = NULL;
     while (dap_db_driver_sqlite_fetch_array(l_res, &l_row) == SQLITE_ROW && l_row) {
         char *l_table_name = (char *)l_row->val->val.val_str;
-        if(!dap_fnmatch(a_group_mask, l_table_name, 0))
+        if(!dap_fnmatch(l_mask, l_table_name, 0))
             l_ret_list = dap_list_prepend(l_ret_list, dap_db_driver_sqlite_make_group_name(l_table_name));
         dap_db_driver_sqlite_row_free(l_row);
     }
@@ -910,7 +911,7 @@ size_t dap_db_driver_sqlite_read_count_store(const char *a_group, uint64_t a_id)
         return 0;
 
     char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
-    char *l_str_query = sqlite3_mprintf("SELECT COUNT(*) FROM '%s' WHERE id>'%lld'", l_table_name, a_id);
+    char *l_str_query = sqlite3_mprintf("SELECT COUNT(*) FROM '%s' WHERE id>='%lld'", l_table_name, a_id);
     pthread_rwlock_wrlock(&s_db_rwlock);
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, NULL);
     pthread_rwlock_unlock(&s_db_rwlock);

@@ -296,7 +296,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     pthread_mutex_lock( &PVT(a_net)->state_mutex_cond); // Preventing call of state_go_to before wait cond will be armed
     // set flag for sync
     PVT(a_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
-    dap_chain_net_set_flag_sync_from_zero(a_net, true);
+    //dap_chain_net_set_flag_sync_from_zero(a_net, true);
 #ifndef _WIN32
     pthread_cond_signal( &PVT(a_net)->state_proc_cond );
 #else

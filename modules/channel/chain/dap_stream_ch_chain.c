@@ -365,12 +365,11 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN( l_ch );
     s_sync_out_gdb_first_worker_callback(NULL,a_arg); // NULL to say callback not to delete request
 
-    dap_stream_ch_chain_sync_request_t l_request = {0};
     if (s_debug_more )
         log_it(L_INFO,"Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB");
     dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain->ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                          l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
-                                         l_ch_chain->request_hdr.cell_id.uint64, &l_request, sizeof(l_request));
+                                         l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
     l_ch_chain->state = CHAIN_STATE_IDLE;
     if(l_ch_chain->callback_notify_packet_out)
         l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
@@ -420,7 +419,7 @@ static void s_sync_update_gdb_start_worker_callback(dap_worker_t *a_worker, void
 
     dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_START,
                                          l_sync_request->request_hdr.net_id.uint64, l_sync_request->request_hdr.chain_id.uint64,
-                                         l_sync_request->request_hdr.cell_id.uint64, &l_sync_request->request, sizeof(dap_stream_ch_chain_sync_request_t));
+                                         l_sync_request->request_hdr.cell_id.uint64, NULL, 0);
     if (s_debug_more)
         log_it(L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_START for net_id 0x%016"DAP_UINT64_FORMAT_x" "
                        "chain_id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x"",
@@ -617,6 +616,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_store_obj_t *l_obj = l_store_obj + i;
             //check whether to apply the received data into the database
             bool l_apply = false;
+            dap_store_obj_pkt_t *l_pkt = dap_store_packet_single(l_obj);
+            dap_hash_fast_t l_hash;
+            dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_hash);
             // timestamp for exist obj
             time_t l_timestamp_cur = 0;
             if (dap_chain_global_db_driver_is(l_obj->group, l_obj->key)) {
@@ -627,13 +629,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 }
             }
             // check the applied object newer that we have stored or erased
-            if (l_obj->type == 'a' &&
-                    l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
+            if (l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
                     l_obj->timestamp > l_timestamp_cur) {
-                l_apply = true;
-            }
-            // check the deleted object newer that we have stored
-            else if (l_obj->type == 'd' && l_obj->timestamp > l_timestamp_cur) {
                 l_apply = true;
             }
             if (s_debug_more){
@@ -786,10 +783,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if (l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t))
                 memcpy(&l_ch_chain->request, l_chain_pkt->data, sizeof(dap_stream_ch_chain_sync_request_t));
             struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
-            l_sync_request->request.id_start = 1;
             dap_chain_node_client_t *l_client = (dap_chain_node_client_t *)l_ch_chain->callback_notify_arg;
             if (l_client && l_client->resync_gdb)
                 l_sync_request->request.id_start = 0;
+            else
+                l_sync_request->request.id_start = 1;   // incremental sync by default
             l_ch_chain->stats_request_gdb_processed = 0;
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_update_gdb_proc_callback, l_sync_request);
         } break;
@@ -812,8 +810,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 break;
             }
             memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_stream_ch_chain_pkt_t));
-            if (l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t))
-                memcpy(&l_ch_chain->request, l_chain_pkt->data, sizeof(dap_stream_ch_chain_sync_request_t));
             l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE;
         } break;
         // Response with gdb element hashes and sizes
@@ -842,7 +838,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         char l_hash_str[72]={ [0]='\0'};
                         dap_chain_hash_fast_to_str(&l_hash_item->hash,l_hash_str,sizeof (l_hash_str));
                         log_it(L_DEBUG,"In: Updated remote hash gdb list with %s ", l_hash_str);
-                    } */
+                    }*/
                 }
             }
         } break;
@@ -873,6 +869,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     else
                         log_it(L_INFO, "In: SYNC_GLOBAL_DB pkt");
                 }
+                if (l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t))
+                    memcpy(&l_ch_chain->request, l_chain_pkt->data, sizeof(dap_stream_ch_chain_sync_request_t));
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->state = CHAIN_STATE_SYNC_GLOBAL_DB;
                 dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_out_gdb_proc_callback, l_sync_request);
@@ -1311,12 +1309,13 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 if (s_debug_more)
                     log_it(L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB");
             } else {
-                dap_stream_ch_chain_sync_request_t l_request = {};
+                l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(
+                                                                                          l_ch_chain->request_hdr.net_id));
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END,
                                                      l_ch_chain->request_hdr.net_id.uint64,
                                                      l_ch_chain->request_hdr.chain_id.uint64,
                                                      l_ch_chain->request_hdr.cell_id.uint64,
-                                                     &l_request, sizeof(dap_stream_ch_chain_sync_request_t));
+                                                     &l_ch_chain->request, sizeof(dap_stream_ch_chain_sync_request_t));
                 if (s_debug_more )
                     log_it(L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END");
                 dap_stream_ch_chain_go_idle(l_ch_chain);
@@ -1363,6 +1362,11 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                      l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                                      l_ch_chain->request_hdr.cell_id.uint64, l_pkt, l_pkt_size);
                 DAP_DELETE(l_pkt);
+            } else if (dap_db_log_list_get_count_rest(l_ch_chain->request_db_log)) {
+                // Sending dumb packet with nothing to inform remote thats we're just skiping GDBs, nothing freezed
+                dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
+                                                     l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
+                                                     l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
             } else {
                 log_it( L_INFO,"Syncronized database:  last id %"DAP_UINT64_FORMAT_u", items syncronyzed %"DAP_UINT64_FORMAT_u"", dap_db_log_get_last_id(),
                                     l_ch_chain->stats_request_gdb_processed );

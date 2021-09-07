@@ -170,6 +170,9 @@ static void *s_list_thread_proc(void *arg)
             // go to next group
             if (!l_objs)
                 break;
+            // set new start pos = lastitem pos + 1
+            l_item_start = l_objs[l_item_count - 1].id + 1;
+            l_group_cur->count -= l_item_count;
             dap_list_t *l_list = NULL;
             for (size_t i = 0; i < l_item_count; i++) {
                 dap_store_obj_t *l_obj_cur = l_objs + i;
@@ -179,6 +182,7 @@ static void *s_list_thread_proc(void *arg)
                     l_obj_cur->group = dap_strdup(l_del_group_name_replace);
                 }
                 dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
+                l_obj_cur->id = 0;
                 dap_store_obj_pkt_t *l_pkt = dap_store_packet_single(l_obj_cur);
                 l_list_obj->pkt = l_pkt;
                 dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_list_obj->hash);
@@ -188,9 +192,6 @@ static void *s_list_thread_proc(void *arg)
             }
             if (l_del_group_name_replace)
                 DAP_DELETE(l_del_group_name_replace);
-            // set new start pos = lastitem pos + 1
-            l_item_start = l_objs[l_item_count - 1].id + 1;
-            l_group_cur->count -= l_item_count;
             dap_store_obj_free(l_objs, l_item_count);
             pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
             // add l_list to list_write
