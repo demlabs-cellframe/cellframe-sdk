@@ -34,3 +34,5 @@ if (DAPSDK_MODULES MATCHES "network-server")
     add_subdirectory(net/server)
 #    add_subdirectory(net/server-udp)
 endif()
+
+add_subdirectory(mega_headers)
