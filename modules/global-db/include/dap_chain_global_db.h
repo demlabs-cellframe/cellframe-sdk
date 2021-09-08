@@ -51,12 +51,23 @@ void dap_chain_global_db_deinit(void);
 /**
  * Setup callbacks and filters
  */
+<<<<<<< HEAD
 // Add group name that will be synchronized
 void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
 void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
 dap_list_t *dap_chain_db_get_sync_groups();
 dap_list_t *dap_chain_db_get_sync_extra_groups();
 void dap_global_db_obj_track_history(void* a_store_data);
+=======
+// Add group prefix that will be tracking all changes
+void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix, const char * a_group_name_for_history);
+void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix,
+                                                     dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
+const char* dap_chain_global_db_add_history_extra_group(const char * a_group_name, dap_chain_node_addr_t *a_nodes, uint16_t *a_nodes_count);
+void dap_chain_global_db_add_history_extra_group_callback_notify(const char * a_group_prefix,
+        dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
+void dap_global_db_obj_track_history(void* a_store_data, size_t a_objs_count);
+>>>>>>> 45c233c16fa17c2e06c401aeb37b9349d3069c23
 /**
  * Get entry from base
  */
