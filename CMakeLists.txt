@@ -10,7 +10,6 @@ endif()
 if (EXAMPLE_0)
     add_subdirectory(example/0.Beginner)
     set(DAPSDK_MODULES "core crypto")
-    message(STATUS ${DAPSDK_MODULES})
 endif()
 message("Cellframe modules: ${CELLFRAME_MODULES}")
 
