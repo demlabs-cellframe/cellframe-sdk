@@ -182,10 +182,12 @@ static void *s_list_thread_proc(void *arg)
                     l_obj_cur->group = dap_strdup(l_del_group_name_replace);
                 }
                 dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
+                uint64_t l_cur_id = l_obj_cur->id;
                 l_obj_cur->id = 0;
                 dap_store_obj_pkt_t *l_pkt = dap_store_packet_single(l_obj_cur);
-                l_list_obj->pkt = l_pkt;
                 dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_list_obj->hash);
+                dap_store_packet_change_id(l_pkt, l_cur_id);
+                l_list_obj->pkt = l_pkt;
                 l_list = dap_list_append(l_list, l_list_obj);
                 if (!l_dap_db_log_list->is_process)
                     break;
@@ -214,6 +216,9 @@ static void *s_list_thread_proc(void *arg)
  */
 dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_flags)
 {
+#ifdef GDB_SYNC_ALWAYS_FROM_ZERO
+    a_flags |= F_DB_LOG_SYNC_FROM_ZERO;
+#endif
     //log_it(L_DEBUG, "Start loading db list_write...");
     dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
     dap_list_t *l_groups_masks = dap_chain_db_get_sync_groups();

@@ -89,7 +89,3 @@ dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char
 bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key);
 size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id);
 dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_mask);
-
-dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj);
-dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt);
-dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, size_t *a_store_obj_count);
