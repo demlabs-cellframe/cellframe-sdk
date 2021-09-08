@@ -63,7 +63,7 @@ char *s_server_continents[]={
 		"Antarctica"
  };
 
-static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
                                    const char *a_key, const void *a_value, const size_t a_value_len);
 
 /**
@@ -520,10 +520,9 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
     }
 }
 
-static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
                                    const char *a_key, const void *a_value, const size_t a_value_len)
 {
-    UNUSED(a_prefix);
     UNUSED(a_value_len);
     if (!a_arg || !a_value || a_op_code != 'a' || !dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
         return;
