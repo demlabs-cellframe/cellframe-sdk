@@ -231,6 +231,7 @@ typedef struct dap_chain_datum_token_emission{
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO              0x02
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER        0x03
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT    0x04
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_MAX               0x04
 extern const char *c_dap_chain_datum_token_emission_type_str[];
 
 /// TDS op funcs

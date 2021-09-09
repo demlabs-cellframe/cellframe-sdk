@@ -295,9 +295,9 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
     }
     a_thread->poll[a_esocket->poll_index].events= a_esocket->poll_base_flags;
     if( a_esocket->flags & DAP_SOCK_READY_TO_READ)
-        a_thread->poll[a_esocket->poll_index].revents |= POLLIN;
+        a_thread->poll[a_esocket->poll_index].events |= POLLIN;
     if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE)
-        a_thread->poll[a_esocket->poll_index].revents |= POLLOUT;
+        a_thread->poll[a_esocket->poll_index].events |= POLLOUT;
         
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
 
@@ -462,18 +462,6 @@ static void * s_proc_thread_function(void * a_arg)
         return NULL;
     }
 
-
-    // Add exit event
-    l_thread->event_exit->ev.events     = l_thread->event_exit->ev_base_flags;
-    l_thread->event_exit->ev.data.ptr   = l_thread->event_exit;
-    if( epoll_ctl(l_thread->epoll_ctl, EPOLL_CTL_ADD, l_thread->event_exit->socket , &l_thread->event_exit->ev) != 0 ){
-#ifdef DAP_OS_WINDOWS
-        errno = WSAGetLastError();
-#endif
-        log_it(L_CRITICAL, "Can't add exit event on epoll ctl, err: %d", errno);
-        return NULL;
-    }
-
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
         // Queue asssign
         l_thread->queue_assign_input[n]->ev.events      = l_thread->queue_assign_input[n]->ev_base_flags ;
@@ -524,13 +512,6 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->esockets[l_thread->poll_count] = l_thread->proc_event;
     l_thread->poll_count++;
 	
-    // Add exit event
-    l_thread->poll[l_thread->poll_count].fd = l_thread->event_exit->fd;
-    l_thread->poll[l_thread->poll_count].events = l_thread->event_exit->poll_base_flags;
-    l_thread->esockets[l_thread->poll_count] = l_thread->event_exit;
-    l_thread->poll_count++;
-
-
     // Add exit event
     l_thread->poll[l_thread->poll_count].fd = l_thread->event_exit->fd;
     l_thread->poll[l_thread->poll_count].events = l_thread->event_exit->poll_base_flags;
@@ -905,19 +886,19 @@ static void * s_proc_thread_function(void * a_arg)
 
         }
 #ifdef DAP_EVENTS_CAPS_POLL
-      /***********************************************************/
-       /* If the compress_array flag was turned on, we need       */
-       /* to squeeze together the array and decrement the number  */
-       /* of file descriptors. We do not need to move back the    */
-       /* events and revents fields because the events will always*/
-       /* be POLLIN in this case, and revents is output.          */
-       /***********************************************************/
-       if ( l_poll_compress){
+        /***********************************************************/
+        /* If the compress_array flag was turned on, we need       */
+        /* to squeeze together the array and decrement the number  */
+        /* of file descriptors.                                    */
+        /***********************************************************/
+        if ( l_poll_compress){
            l_poll_compress = false;
            for (size_t i = 0; i < l_thread->poll_count ; i++)  {
                if ( l_thread->poll[i].fd == -1){
                     for(size_t j = i; j +1 < l_thread->poll_count; j++){
                         l_thread->poll[j].fd = l_thread->poll[j+1].fd;
+                        l_thread->poll[j].events = l_thread->poll[j+1].events;
+                        l_thread->poll[j].revents = l_thread->poll[j+1].revents;
                         l_thread->esockets[j] = l_thread->esockets[j+1];
                         if(l_thread->esockets[j])
                             l_thread->esockets[j]->poll_index = j;
@@ -926,7 +907,7 @@ static void * s_proc_thread_function(void * a_arg)
                    l_thread->poll_count--;
                }
            }
-       }
+        }
 #endif
     }
     log_it(L_ATT, "Stop processing thread #%u", l_thread->cpu_id);

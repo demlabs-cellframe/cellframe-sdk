@@ -856,30 +856,30 @@ void *dap_worker_thread(void *arg)
 
         }
 #ifdef DAP_EVENTS_CAPS_POLL
-      /***********************************************************/
-       /* If the compress_array flag was turned on, we need       */
-       /* to squeeze together the array and decrement the number  */
-       /* of file descriptors. We do not need to move back the    */
-       /* events and revents fields because the events will always*/
-       /* be POLLIN in this case, and revents is output.          */
-       /***********************************************************/
-       if ( l_worker->poll_compress){
-           l_worker->poll_compress = false;
-           for (size_t i = 0; i < l_worker->poll_count ; i++)  {
-               if ( l_worker->poll[i].fd == -1){
-                   if( l_worker->poll_count){
-                       for(size_t j = i; j < l_worker->poll_count-1; j++){
-                            l_worker->poll[j].fd = l_worker->poll[j+1].fd;
-                            l_worker->poll_esocket[j] = l_worker->poll_esocket[j+1];
-                            if(l_worker->poll_esocket[j])
-                                l_worker->poll_esocket[j]->poll_index = j;
-                       }
-                   }
-                   i--;
-                   l_worker->poll_count--;
-               }
-           }
-       }
+        /***********************************************************/
+        /* If the compress_array flag was turned on, we need       */
+        /* to squeeze together the array and decrement the number  */
+        /* of file descriptors.                                    */
+        /***********************************************************/
+        if ( l_worker->poll_compress){
+            l_worker->poll_compress = false;
+            for (size_t i = 0; i < l_worker->poll_count ; i++)  {
+                if ( l_worker->poll[i].fd == -1){
+                    if( l_worker->poll_count){
+                        for(size_t j = i; j < l_worker->poll_count-1; j++){
+                             l_worker->poll[j].fd = l_worker->poll[j+1].fd;
+                             l_worker->poll[j].events = l_worker->poll[j+1].events;
+                             l_worker->poll[j].revents = l_worker->poll[j+1].revents;
+                             l_worker->poll_esocket[j] = l_worker->poll_esocket[j+1];
+                             if(l_worker->poll_esocket[j])
+                                 l_worker->poll_esocket[j]->poll_index = j;
+                        }
+                    }
+                    i--;
+                    l_worker->poll_count--;
+                }
+            }
+        }
 #endif
     } // while
     log_it(L_NOTICE,"Exiting thread #%u", l_worker->id);

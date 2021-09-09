@@ -1206,12 +1206,17 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
             }
             DAP_DELETE(l_gdb_group);
             char * l_token_emission_address_str = dap_chain_addr_to_str( &(a_token_emission->hdr.address) );
-            if(s_debug_more)
-                log_it(L_NOTICE, "Added token emission datum to %s: type=%s value=%.1llf token=%s to_addr=%s ",
+            if(s_debug_more){
+                char * l_coins_str = dap_chain_balance_to_coins(a_token_emission->hdr.value);
+                log_it(L_NOTICE, "Added token emission datum to %s: type=%s value=%s token=%s to_addr=%s ",
                            l_token_item?"emissions cache":"emissions treshold",
-                           c_dap_chain_datum_token_emission_type_str[ a_token_emission->hdr.type ] ,
-                           dap_chain_datoshi_to_coins(a_token_emission->hdr.value), c_token_ticker,
+                           a_token_emission->hdr.type <= DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_MAX?
+                                c_dap_chain_datum_token_emission_type_str[ a_token_emission->hdr.type ]: "UNDEFINED" ,
+                           l_coins_str,
+                           c_token_ticker,
                            l_token_emission_address_str);
+                DAP_DELETE(l_coins_str);
+            }
             DAP_DELETE(l_token_emission_address_str);
         }else{
             if(s_debug_more)
