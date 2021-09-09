@@ -1040,8 +1040,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
         // Response with atom hashes and sizes
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS :{
-            uint l_count_added=0;
-            uint l_count_total=0;
+            unsigned int l_count_added=0;
+            unsigned int l_count_total=0;
 
             dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
             if (! l_chain){
