@@ -196,8 +196,7 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #elif __SIZEOF_LONG__==4
 #define DAP_UINT64_FORMAT_X  "llX"
 #define DAP_UINT64_FORMAT_x  "llx"
-#define DAP_UINT64_FORMAT_u  "llu"
-#define DAP_UINT64_FORMAT_U  "llU"
+#define DAP_UINT64_FORMAT_U  "llu"
 #else
 #error "DAP_UINT64_FORMAT_* are undefined for your platform"
 #endif

@@ -396,7 +396,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 
     if(l_db_log) {
         if (s_debug_more)
-            log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_u" transactions from address "NODE_ADDR_FP_STR,
+            log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_U" transactions from address "NODE_ADDR_FP_STR,
                              l_db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
         l_sync_request->gdb.db_log = l_db_log;
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_out_gdb_first_worker_callback, l_sync_request );
@@ -1365,7 +1365,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                      l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                                      l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
             } else {
-                log_it( L_INFO,"Syncronized database: items syncronyzed %"DAP_UINT64_FORMAT_u" from %"DAP_UINT64_FORMAT_u"",
+                log_it( L_INFO,"Syncronized database: items syncronyzed %"DAP_UINT64_FORMAT_U" from %"DAP_UINT64_FORMAT_U"",
                         l_ch_chain->stats_request_gdb_processed, dap_db_log_list_get_count(l_ch_chain->request_db_log));
                 // last message
                 dap_stream_ch_chain_sync_request_t l_request = {};
@@ -1477,7 +1477,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS,
                                                      l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                                      l_ch_chain->request_hdr.cell_id.uint64, &l_request, sizeof(l_request));
-                log_it( L_INFO,"Synced: %"DAP_UINT64_FORMAT_u" atoms processed", l_ch_chain->stats_request_atoms_processed);
+                log_it( L_INFO,"Synced: %"DAP_UINT64_FORMAT_U" atoms processed", l_ch_chain->stats_request_atoms_processed);
                 dap_stream_ch_chain_go_idle(l_ch_chain);
                 if (l_ch_chain->callback_notify_packet_out)
                     l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS, NULL,

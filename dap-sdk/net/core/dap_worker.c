@@ -982,7 +982,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
         //l_es->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
         dap_events_socket_remove_and_delete_unsafe(l_es,false);
     }else
-        log_it(L_INFO, "While we were sending the delete() message, esocket %"DAP_UINT64_FORMAT_u" has been disconnected ", l_es_uuid_ptr);
+        log_it(L_INFO, "While we were sending the delete() message, esocket %"DAP_UINT64_FORMAT_U" has been disconnected ", l_es_uuid_ptr);
     DAP_DELETE(l_es_uuid_ptr);
 }
 

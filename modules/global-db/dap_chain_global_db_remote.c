@@ -104,7 +104,7 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
  */
 bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group)
 {
-    //log_it( L_DEBUG, "Node 0x%016X set last synced id %"DAP_UINT64_FORMAT_u"", a_node_addr, a_id);
+    //log_it( L_DEBUG, "Node 0x%016X set last synced id %"DAP_UINT64_FORMAT_U"", a_node_addr, a_id);
     char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
     bool l_ret = dap_chain_global_db_gr_set(l_node_addr_str, &a_id, sizeof(uint64_t),
                                             GROUP_LOCAL_NODE_LAST_ID);
