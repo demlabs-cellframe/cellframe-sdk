@@ -115,14 +115,13 @@ void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
 int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
 {
     dap_chain_cell_t * l_cell = dap_chain_cell_create();
-
     l_cell->file_storage_path = dap_strdup( a_cell_file_path );
-
-    char *l_file_path = dap_strdup_printf("%s/%s", DAP_CHAIN_PVT (a_chain)->file_storage_dir,
-            l_cell->file_storage_path);
-
-    l_cell->file_storage = fopen(l_file_path,"rb");
-    DAP_DELETE(l_file_path);
+    {
+        char l_file_path[MAX_PATH] = {'\0'};
+        dap_snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_chain)->file_storage_dir,
+                     l_cell->file_storage_path);
+        l_cell->file_storage = fopen(l_file_path,"rb");
+    }
     if ( l_cell->file_storage ){
         dap_chain_cell_file_header_t l_hdr = {0};
         if ( fread( &l_hdr,1,sizeof(l_hdr),l_cell->file_storage ) == sizeof (l_hdr) ) {
@@ -186,12 +185,12 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
     size_t l_total_wrote_bytes = 0;
     // file need to be opened or created
     if(a_cell->file_storage == NULL) {
-        char *l_file_path = dap_strdup_printf("%s/%s", DAP_CHAIN_PVT ( a_cell->chain)->file_storage_dir,
-                a_cell->file_storage_path);
+        char l_file_path[MAX_PATH] = {'\0'};
+        dap_snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_cell->chain)->file_storage_dir,
+                     a_cell->file_storage_path);
         a_cell->file_storage = fopen(l_file_path, "ab");
         if(a_cell->file_storage == NULL)
             a_cell->file_storage = fopen(l_file_path, "wb");
-        DAP_DELETE(l_file_path);
     }
     if(!a_cell->file_storage) {
         log_it(L_ERROR, "File \"%s\" not opened  for write cell 0x%016X",
@@ -255,10 +254,10 @@ int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
         return -1;
     }
     if(a_cell->file_storage == NULL ){ // File need to be created
-        char *l_file_path = dap_strdup_printf("%s/%s", DAP_CHAIN_PVT ( a_cell->chain)->file_storage_dir,
-                a_cell->file_storage_path);
+        char l_file_path[MAX_PATH] = {'\0'};
+        dap_snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_cell->chain)->file_storage_dir,
+                     a_cell->file_storage_path);
         a_cell->file_storage = fopen(l_file_path, "wb");
-        DAP_DELETE(l_file_path);
         if(a_cell->file_storage) {
             dap_chain_cell_file_header_t l_hdr = {
                 .signature = DAP_CHAIN_CELL_FILE_SIGNATURE,
