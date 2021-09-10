@@ -3250,7 +3250,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                 sizeof(l_emission->data.type_auth.signs_count);
 
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
-        strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker));
+        strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
         l_emission->hdr.value = l_emission_value;
         l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
         memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));

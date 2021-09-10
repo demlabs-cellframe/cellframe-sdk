@@ -158,7 +158,7 @@ static void *s_list_thread_proc(void *arg)
             l_obj_type = 'd';
             size_t l_del_name_len = strlen(l_group_cur->name) - 4; //strlen(".del");
             l_del_group_name_replace = DAP_NEW_SIZE(char, l_del_name_len + 1);
-            strncpy(l_del_group_name_replace, l_group_cur->name, l_del_name_len);
+            memcpy(l_del_group_name_replace, l_group_cur->name, l_del_name_len);
             l_del_group_name_replace[l_del_name_len] = '\0';
         } else {
             l_obj_type = 'a';
@@ -192,8 +192,6 @@ static void *s_list_thread_proc(void *arg)
                 if (!l_dap_db_log_list->is_process)
                     break;
             }
-            if (l_del_group_name_replace)
-                DAP_DELETE(l_del_group_name_replace);
             dap_store_obj_free(l_objs, l_item_count);
             pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
             // add l_list to list_write
@@ -203,6 +201,9 @@ static void *s_list_thread_proc(void *arg)
                 l_dap_db_log_list->list_read = l_list;
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         }
+
+        if (l_del_group_name_replace)
+            DAP_DELETE(l_del_group_name_replace);
     }
 
     pthread_mutex_lock(&l_dap_db_log_list->list_mutex);

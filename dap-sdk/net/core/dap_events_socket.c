@@ -1953,6 +1953,7 @@ void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_uui
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return;
     l_msg->esocket_uuid = a_es_uuid;
+
     if (a_is_ready)
         l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     else
