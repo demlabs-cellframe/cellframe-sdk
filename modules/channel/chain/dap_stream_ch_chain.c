@@ -574,7 +574,7 @@ static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_worker, void *a_a
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(a_worker), l_sync_request->ch_uuid);
     if( l_ch == NULL ){
         log_it(L_INFO,"Client disconnected before we sent the reply");
-        s_sync_request_delete(l_sync_request);
+        DAP_DELETE(l_sync_request);
         return;
     }
 
@@ -653,8 +653,10 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             // save data to global_db
             if(!dap_chain_global_db_obj_save(l_obj, 1)) {
+                struct sync_request *l_sync_req_err = DAP_NEW_Z(struct sync_request);
+                memcpy(l_sync_req_err, l_sync_request, sizeof(struct sync_request));
                 dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
-                                                     s_gdb_in_pkt_error_worker_callback, l_sync_request);
+                                                  s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
             } else {
                 if (s_debug_more)
                     log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
