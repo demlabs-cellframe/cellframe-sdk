@@ -182,7 +182,7 @@ static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worke
 {
     UNUSED(a_worker);
     if (s_timer_update_states_callback(a_arg))
-        DAP_DELETE(l_uuid);
+        DAP_DELETE(a_arg);
 }
 
 /**
