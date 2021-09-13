@@ -23,11 +23,12 @@ This file is part of DAP SDK the open source project
 #pragma once
 #include "dap_common.h"
 #include "dap_strfuncs.h"
-typedef struct dap_tsd{
+
+typedef struct dap_tsd {
     uint16_t type;
     uint32_t size;
     byte_t data[];
-} dap_tsd_t;
+} DAP_ALIGN_PACKED dap_tsd_t;
 
 dap_tsd_t * dap_tsd_create(uint16_t a_type,  const void * a_data, size_t a_data_size);
 dap_tsd_t* dap_tsd_find(byte_t * a_data, size_t a_data_size,uint16_t a_type);

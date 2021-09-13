@@ -183,27 +183,6 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, d
     return a_old_pkt;
 }
 
-char *dap_store_packet_get_group(dap_store_obj_pkt_t *a_pkt)
-{
-    uint16_t l_gr_len;
-    memcpy(&l_gr_len, a_pkt->data + sizeof(uint32_t), sizeof(uint16_t));
-    char *l_ret_str = DAP_NEW_SIZE(char, l_gr_len + 1);
-    size_t l_gr_offset = sizeof(uint32_t) + sizeof(uint16_t);
-    memcpy(l_ret_str, a_pkt->data + l_gr_offset, l_gr_len);
-    l_ret_str[l_gr_len] = '\0';
-    return l_ret_str;
-}
-
-uint64_t dap_store_packet_get_id(dap_store_obj_pkt_t *a_pkt)
-{
-    uint16_t l_gr_len;
-    memcpy(&l_gr_len, a_pkt->data + sizeof(uint32_t), sizeof(uint16_t));
-    size_t l_id_offset = sizeof(uint32_t) + sizeof(uint16_t) + l_gr_len;
-    uint64_t l_ret_id;
-    memcpy(&l_ret_id, a_pkt->data + l_id_offset, sizeof(uint64_t));
-    return l_ret_id;
-}
-
 void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
 {
     uint16_t l_gr_len;
