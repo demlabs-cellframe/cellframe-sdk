@@ -121,6 +121,23 @@ bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, c
     return true;
 }
 
+bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
+    UNUSED(ksize);
+    UNUSED(val);
+    UNUSED(vsize);
+    UNUSED(expire);
+    UNUSED(oid);
+    UNUSED(key);
+
+    if (dap_hex_to_uint(val, sizeof(uint64_t)) < ((pobj_arg)arg)->id) {
+        return true;
+    }
+    if (--((pobj_arg)arg)->q == 0) {
+        return false;
+    }
+    return true;
+}
+
 pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
     pcdb_instance l_cdb_i = NULL;
     pthread_mutex_lock(&cdb_mutex);
@@ -421,19 +438,23 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
 
 size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
 {
-    if(!a_group) {
+    if (!a_group) {
         return 0;
     }
     pcdb_instance l_cdb_i = dap_cdb_get_db_by_group(a_group);
-    if(!l_cdb_i) {
+    if (!l_cdb_i) {
         return 0;
     }
     CDB *l_cdb = l_cdb_i->cdb;
     CDBSTAT l_cdb_stat;
     cdb_stat(l_cdb, &l_cdb_stat);
-    if(a_id > l_cdb_stat.rnum)
-        return 0;
-    return (size_t) l_cdb_stat.rnum - a_id + 1;
+    obj_arg l_arg;
+    l_arg.q = l_cdb_stat.rnum;
+    l_arg.id = a_id;
+    void *l_iter = cdb_iterate_new(l_cdb, 0);
+    cdb_iterate(l_cdb, dap_cdb_get_count_iter_callback, (void*)&l_arg, l_iter);
+    cdb_iterate_destroy(l_cdb, l_iter);
+    return l_cdb_stat.rnum - l_arg.q;
 }
 
 /**
@@ -446,11 +467,10 @@ dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
         return NULL;
     cdb_instance *cur_cdb, *tmp;
     pthread_rwlock_rdlock(&cdb_rwlock);
-    HASH_ITER(hh, s_cdb, cur_cdb, tmp)
-    {
-        if(!dap_fnmatch(a_group_mask, cur_cdb->local_group, 0))
-            if(dap_fnmatch("*.del", cur_cdb->local_group, 0))
-                l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(cur_cdb->local_group));
+    HASH_ITER(hh, s_cdb, cur_cdb, tmp) {
+        char *l_table_name = cur_cdb->local_group;
+        if(!dap_fnmatch(a_group_mask, l_table_name, 0))
+            l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(l_table_name));
     }
     pthread_rwlock_unlock(&cdb_rwlock);
     return l_ret_list;
