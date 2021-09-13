@@ -9,19 +9,22 @@ typedef struct ecdsa_pvt_serialize{
 }DAP_ALIGN_PACKED ecdsa_pvt_serialize_t;
 
 void dap_enc_sign_ecdsa_key_new(struct dap_enc_key *a_key){
-    //a_key->type = DAP_ENC_KEY_TYPE_ECDSA_0;
-    a_key->enc = NULL;
-    a_key->dec = NULL;
-    a_key->enc_na = dap_enc_sign_ecdsa_get;
-    a_key->dec_na = dap_enc_sign_ecdsa_verify;
-    //1a_key->
+    //a_key->type = DAP_ENC_KEY_TYPE_SIG_DILITHIUM;
+    a_key->sign_get = dap_enc_sign_ecdsa_get;
+    a_key->sign_verify = dap_enc_sign_ecdsa_verify;
+    
 }
-//void _dap_enc_sign_ecdsa_key
+
+
 void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void *kex_buf, size_t kex_size,
                                          const void *seed, size_t seed_size, size_t key_size) {
+
+    (void)kex_buf;
     (void)kex_size;
-    (void)seed;
-    (void)seed_size;
+    (void)key_size;
+
+
+
     a_key->pub_key_data = DAP_NEW(dap_enc_key_public_ecdsa_t);
     a_key->pub_key_data_size = sizeof (dap_enc_key_public_ecdsa_t);
     a_key->priv_key_data = DAP_NEW(dap_enc_key_private_ecdsa_t);
@@ -50,7 +53,7 @@ void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void 
         ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_extended_size;
         ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
         break;
-    case DAP_ENC_KEY_TYPE_ECDSA_ED25519_Blake2b:
+    case DAP_ENC_KEY_TYPE_ECDSA_ED25519_BLAKE2B:
         ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519Blake2b;
         ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519Blake2b;
         ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
@@ -76,6 +79,8 @@ void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void 
         log_it(L_ERROR, "Key have type ");
         return;
     }
+
+
     random_buffer(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
                   ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key);
     bool gen_public_key = false;
@@ -116,7 +121,7 @@ void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void 
         }
     }
     if(!gen_public_key){
-        log_it(L_ERROR, "Can't generated key");
+        log_it(L_ERROR, "Can't generate public key");
         DAP_FREE(a_key->pub_key_data);
         a_key->pub_key_data_size = 0;
         DAP_FREE(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data);

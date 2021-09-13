@@ -41,7 +41,6 @@ void dap_enc_sig_dilithium_key_new_generate(struct dap_enc_key * key, const void
     (void) kex_buf;
     (void) kex_size;
     (void) key_size;
-
     int32_t retcode;
 
     dap_enc_sig_dilithium_set_type(DILITHIUM_MAX_SPEED);

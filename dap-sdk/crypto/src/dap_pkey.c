@@ -73,6 +73,23 @@ int dap_pkey_from_enc_key_output(dap_enc_key_t *a_key, void * a_output)
                 l_output->header.type.type = PKEY_TYPE_SIGN_DILITHIUM;
             break;
 
+            case DAP_ENC_KEY_TYPE_ECDSA_ED25519: 
+                l_output->header.type.type = PKEY_TYPE_ECDSA_ED25519; 
+            break;
+
+            case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1: 
+                l_output->header.type.type = PKEY_TYPE_ECDSA_NIST256P1; 
+            break;
+
+////finish copying here!!!!!!!!!!!
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1: l_sign_type.type = SIG_TYPE_ECDSA_SECP256K1; break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX: l_sign_type.type = SIG_TYPE_ECDSA_ED25519_EX;break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_BLAKE2B: l_sign_type.type = SIG_TYPE_ECDSA_ED25519_BLAKE2B;break;
+        case DAP_ENC_KEY_TYPE_ECDSA_CURVE25519: l_sign_type.type = SIG_TYPE_ECDSA_CURVE25519;break;
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX: l_sign_type.type =  SIG_TYPE_ECDSA_NIST256P1_EX;break;
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX: l_sign_type.type =  SIG_TYPE_ECDSA_SECP256K1_EX;break;
+        default: l_sign_type.raw = 0;
+
             default:
                 log_it(L_WARNING,"No serialization preset");
                 return -1;

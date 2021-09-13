@@ -12,6 +12,8 @@
 #include "TrezorCrypto/ed25519-donna/ed25519-blake2b.h"
 #include "TrezorCrypto/sodium/keypair.h"
 
+typedef struct dap_enc_key_public_ecdsa
+
 typedef struct dap_enc_key_public_ecdsa{
     dap_enc_curve_types_t curve_type;
     uint8_t *data;

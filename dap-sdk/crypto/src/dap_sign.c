@@ -33,6 +33,7 @@
 #include "dap_enc_picnic.h"
 #include "dap_enc_dilithium.h"
 
+
 #define LOG_TAG "dap_sign"
 
 //static dap_sign_t * s_sign_null = NULL;
@@ -51,6 +52,14 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_size = dap_enc_picnic_calc_signature_size(a_key); break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_size = dap_enc_tesla_calc_signature_size(); break;
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_size = dap_enc_dilithium_calc_signature_unserialized_size(); break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519: l_sign_size = dap_enc_ecdsa_ed25519_calc_signature_size(a_key); break;
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1: l_sign_size = dap_enc_ecdsa_nist256p1_calc_signature_size(a_key); break;
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1: l_sign_size = dap_enc_ecdsa_secp256k1_calc_signature_size(a_key); break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX: l_sign_size = dap_enc_ecdsa_ed25519_ex_calc_signature_size(a_key); break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_BLAKE2B: l_sign_size = dap_enc_ecdsa_ed25519_blake2b_calc_signature_size(a_key); break;
+        case DAP_ENC_KEY_TYPE_ECDSA_CURVE25519: l_sign_size = dap_enc_ecdsa_curve25519_calc_signature_size(a_key); break;
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX: l_sign_size = dap_enc_ecdsa_nist256p1_ex_calc_signature_size(a_key); break;
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX: l_sign_size = dap_enc_ecdsa_secp256k1_ex_calc_signature_size(a_key); break;
         default : return 0;
 
     }
@@ -73,6 +82,14 @@ dap_sign_type_t dap_sign_type_from_key_type( dap_enc_key_type_t a_key_type)
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_type.type = SIG_TYPE_TESLA; break;
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_type.type = SIG_TYPE_DILITHIUM; break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519: l_sign_type.type = SIG_TYPE_ECDSA_ED25519; break;
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1: l_sign_type.type = SIG_TYPE_ECDSA_NIST256P1; break;
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1: l_sign_type.type = SIG_TYPE_ECDSA_SECP256K1; break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX: l_sign_type.type = SIG_TYPE_ECDSA_ED25519_EX;break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_BLAKE2B: l_sign_type.type = SIG_TYPE_ECDSA_ED25519_BLAKE2B;break;
+        case DAP_ENC_KEY_TYPE_ECDSA_CURVE25519: l_sign_type.type = SIG_TYPE_ECDSA_CURVE25519;break;
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX: l_sign_type.type =  SIG_TYPE_ECDSA_NIST256P1_EX;break;
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX: l_sign_type.type =  SIG_TYPE_ECDSA_SECP256K1_EX;break;
         default: l_sign_type.raw = 0;
     }
     return l_sign_type;
@@ -90,7 +107,16 @@ dap_enc_key_type_t  dap_sign_type_to_key_type(dap_sign_type_t  a_chain_sign_type
         case SIG_TYPE_TESLA: return DAP_ENC_KEY_TYPE_SIG_TESLA;
         case SIG_TYPE_PICNIC: return DAP_ENC_KEY_TYPE_SIG_PICNIC;
         case SIG_TYPE_DILITHIUM: return DAP_ENC_KEY_TYPE_SIG_DILITHIUM;
+        case SIG_TYPE_ECDSA_ED25519: return DAP_ENC_KEY_TYPE_ECDSA_ED25519;
+        case SIG_TYPE_ECDSA_NIST256P1: return DAP_ENC_KEY_TYPE_ECDSA_NIST256P1;
+        case SIG_TYPE_ECDSA_SECP256K1: return DAP_ENC_KEY_TYPE_ECDSA_SECP256K1;
+        case SIG_TYPE_ECDSA_ED25519_EX: return DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX;
+        case SIG_TYPE_ECDSA_ED25519_BLAKE2B: return DAP_ENC_KEY_TYPE_ECDSA_ED25519_BLAKE2B;
+        case SIG_TYPE_ECDSA_CURVE25519: return DAP_ENC_KEY_TYPE_ECDSA_CURVE25519;
+        case SIG_TYPE_ECDSA_NIST256P1_EX: return DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX;
+        case SIG_TYPE_ECDSA_SECP256K1_EX: return DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX;
         default: return DAP_ENC_KEY_TYPE_NULL;
+
     }
 }
 
@@ -110,6 +136,14 @@ const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type)
         case SIG_TYPE_DILITHIUM: return "sig_dil";
         case SIG_TYPE_MULTI_COMBINED: return "sig_multi2";
         case SIG_TYPE_MULTI_CHAINED: return "sig_multi";
+        case SIG_TYPE_ECDSA_ED25519: return "sig_ecdsa_ed25519";
+        case SIG_TYPE_ECDSA_NIST256P1: return "sig_ecdsa_nist256p1";
+        case SIG_TYPE_ECDSA_SECP256K1: return "sig_ecdsa_secp256k1";
+        case SIG_TYPE_ECDSA_ED25519_EX: return "sig_ecdsa_ed25519_ex";
+        case SIG_TYPE_ECDSA_ED25519_BLAKE2B: return "sig_ecdsa_ed25519_blake2b";
+        case SIG_TYPE_ECDSA_CURVE25519: return "sig_ecdsa_curve25519";
+        case SIG_TYPE_ECDSA_NIST256P1_EX: return "sig_ecdsa_nist256p1_ex";
+        case SIG_TYPE_ECDSA_SECP256K1_EX: return "sig_ecdsa_secp256k1_ex";
         default: return "UNDEFINED";//DAP_ENC_KEY_TYPE_NULL;
     }
 
@@ -130,6 +164,16 @@ dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type)
         case PKEY_TYPE_SIGN_DILITHIUM : l_sign_type.type = SIG_TYPE_DILITHIUM; break;
         case PKEY_TYPE_MULTI: l_sign_type.type = SIG_TYPE_MULTI_CHAINED; break;
         case PKEY_TYPE_NULL: l_sign_type.type = SIG_TYPE_NULL; break;
+
+        case PKEY_TYPE_ECDSA_ED25519: l_sign_type.type = SIG_TYPE_ECDSA_ED25519; break;
+        case PKEY_TYPE_ECDSA_NIST256P1: l_sign_type.type = SIG_TYPE_ECDSA_NIST256P1; break;
+        case PKEY_TYPE_ECDSA_SECP256K1: l_sign_type.type = SIG_TYPE_ECDSA_SECP256K1; break;
+        case PKEY_TYPE_ED25519_EX : l_sign_type.type = SIG_TYPE_ECDSA_ED25519_EX; break;
+        case PKEY_TYPE_ED25519_BLAKE2B: l_sign_type.type = SIG_TYPE_ECDSA_ED25519_BLAKE2B; break;
+        case PKEY_TYPE_ECDSA_CURVE25519: l_sign_type.type = SIG_TYPE_ECDSA_CURVE25519; break;
+        case PKEY_TYPE_ECDSA_NIST256P1_EX: l_sign_type.type = SIG_TYPE_ECDSA_NIST256P1_EX; break;
+        case PKEY_TYPE_ECDSA_SECP256K1_EX: l_sign_type.type = SIG_TYPE_ECDSA_SECP256K1_EX; break;
+
     }
     return l_sign_type;
 }
@@ -155,6 +199,24 @@ dap_sign_type_t dap_sign_type_from_str(const char * a_type_str)
         l_sign_type.type = SIG_TYPE_MULTI_CHAINED;
     }else if ( dap_strcmp (a_type_str,"sig_multi2") == 0){
         l_sign_type.type = SIG_TYPE_MULTI_COMBINED;
+
+    }else if ( dap_strcmp (a_type_str,"sig_ecdsa_ed25519") == 0){
+        l_sign_type.type = SIG_TYPE_ECDSA_ED25519;
+    }else if ( dap_strcmp (a_type_str,"sig_ecdsa_nist256p1") == 0){
+        l_sign_type.type = SIG_TYPE_ECDSA_NIST256P1;
+    }else if ( dap_strcmp (a_type_str,"sig_ecdsa_secp256k1") == 0){
+        l_sign_type.type = SIG_TYPE_ECDSA_SECP256K1;
+    }else if ( dap_strcmp (a_type_str,"sig_ecdsa_ed25519_ex") == 0){
+        l_sign_type.type = SIG_TYPE_ECDSA_ED25519_EX;
+    }else if ( dap_strcmp (a_type_str,"sig_ecdsa_ed25519_blake2b") == 0){
+        l_sign_type.type = SIG_TYPE_ECDSA_ED25519_BLAKE2B;
+    }else if ( dap_strcmp (a_type_str,"sig_ecdsa_curve25519") == 0){
+        l_sign_type.type = SIG_TYPE_ECDSA_CURVE25519;
+    }else if ( dap_strcmp (a_type_str,"sig_ecdsa_nist256p1_ex") == 0){
+        l_sign_type.type = SIG_TYPE_ECDSA_NIST256P1_EX;
+    }else if ( dap_strcmp (a_type_str,"sig_ecdsa_secp256k1_ex") == 0){
+        l_sign_type.type = SIG_TYPE_ECDSA_SECP256K1_EX;
+
     }else{
         log_it(L_WARNING, "Wrong sign type string \"%s\"", a_type_str ? a_type_str : "(null)");
     }
@@ -188,6 +250,43 @@ static int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, con
         case DAP_ENC_KEY_TYPE_SIG_BLISS:
             return (dap_enc_sig_bliss_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == BLISS_B_NO_ERROR)
                    ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519:
+            return (dap_enc_sig_ecdsa_ed25519_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1:
+            return (dap_enc_sig_ecdsa_nist256p1_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1:
+            return (dap_enc_sig_ecdsa_secp256k1_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX:
+            return (dap_enc_sig_ecdsa_ed25519_ex_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_BLAKE2B:
+            return (dap_enc_sig_ecdsa_ed25519_blake2b_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX:
+            return (dap_enc_sig_ecdsa_ed25519_ex_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_CURVE25519:
+            return (dap_enc_sig_ecdsa_curve25519_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX:
+            return (dap_enc_sig_ecdsa_nist256p1_ex_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX:
+            return (dap_enc_sig_ecdsa_secp256k1_ex_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == DAP_CRYPTO_NO_ERROR)
+                   ? 0 : -1;
+
         default:
             return -1;
     }
@@ -381,6 +480,49 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
             else
                 l_ret = 1;
             break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519:
+            if(dap_enc_sig_ecdsa_ed25519_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) !=DAP_CRYPTO_NO_ERROR)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1:
+            if(dap_enc_sig_ecdsa_nist256p1_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) != DAP_CRYPTO_NO_ERROR)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1: 
+            if(dap_enc_sig_ecdsa_sec256k1_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) != DAP_CRYPTO_NO_ERROR)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX:
+            if(dap_enc_sig_ecdsa_ed25519ex_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) != DAP_CRYPTO_NO_ERROR)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        case DAP_ENC_KEY_TYPE_ECDSA_ED25519_Blake2b:
+            if(dap_enc_sig_ecdsa_ed25519_blake2b_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) != DAP_CRYPTO_NO_ERROR)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        case DAP_ENC_KEY_TYPE_ECDSA_CURVE25519:
+            if(dap_enc_sig_ecdsa_curve25519_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) != DAP_CRYPTO_NO_ERROR)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX:
+            if(dap_enc_sig_ecdsa_nist256P1_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) != DAP_CRYPTO_NO_ERROR)
+                l_ret = 0;
+            else
+                l_ret = 1;
+            break;
+        
         default:
             l_ret = -6;
     }
