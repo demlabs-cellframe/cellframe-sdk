@@ -1053,7 +1053,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
          dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
          // fill begin id
-         l_sync_request.id_start = dap_db_get_last_id_remote(l_remote_node_info->hdr.address.uint64);
+         l_sync_request.id_start = 1;
          // fill current node address
          l_sync_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
 
@@ -3250,7 +3250,7 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                 sizeof(l_emission->data.type_auth.signs_count);
 
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
-        strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker));
+        strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
         l_emission->hdr.value = l_emission_value;
         l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
         memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
