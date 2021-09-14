@@ -114,12 +114,14 @@ bool dap_dir_test(const char * a_dir_path)
     return false;
 }
 
+
 /**
- * Create a new directory with intermediate sub-directories
- *
- * @dir_path new directory pathname
- * @return 0, if the directory was created or already exist, else -1
+ * @brief dap_mkdir_with_parents Create a new directory with intermediate sub-directories
+ * 
+ * @param a_dir_path new directory pathname
+ * @return int 0, if the directory was created or already exist, else -1
  */
+
 int dap_mkdir_with_parents(const char *a_dir_path)
 {
     // validation of a pointer
