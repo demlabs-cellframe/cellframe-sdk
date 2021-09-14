@@ -185,6 +185,14 @@ char *dap_itoa128(char *a_str, int128_t a_value, int a_base)
  *
  * Returns: length of the string
  */
+
+/**
+ * @brief dap_strlen get length of the string
+ * 
+ * @param a_str pointer to string
+ * @return size_t 
+ */
+
 size_t dap_strlen(const char *a_str)
 {
     size_t l_length = 0;
@@ -196,12 +204,13 @@ size_t dap_strlen(const char *a_str)
 }
 
 /**
- * dap_strcmp:
- * @a_str1: (nullable): the string
- * @a_str2: (nullable): the string
- *
- * Compare a_str1 and a_str2
+ * @brief dap_strcmp a_str1 and a_str2
+ * 
+ * @param a_str1 (nullable): the string
+ * @param a_str2 (nullable): the string
+ * @return int 
  */
+
 int dap_strcmp(const char *a_str1, const char *a_str2)
 {
     if(a_str1 && a_str2) {
@@ -211,12 +220,14 @@ int dap_strcmp(const char *a_str1, const char *a_str2)
 }
 
 /**
- * dap_strcmp:
- * @a_str1: (nullable): the string
- * @a_str2: (nullable): the string
- *
- * Compare a_n characters of a_str1 and a_str2
+ * @brief dap_strcmp
+ * 
+ * @param a_str1  (nullable): the string
+ * @param a_str2  (nullable): the string
+ * @param a_n Compare a_n characters of a_str1 and a_str2
+ * @return int 
  */
+
 int dap_strncmp(const char *a_str1, const char *a_str2, size_t a_n)
 {
     if(a_str1 && a_str2) {
@@ -225,16 +236,17 @@ int dap_strncmp(const char *a_str1, const char *a_str2, size_t a_n)
     return -1;
 }
 
+
 /**
- * dap_strdup:
- * @a_str: (nullable): the string to duplicate
- *
+ * @brief dap_strdup:
  * Duplicates a string. If @a_str is %NULL it returns %NULL.
  * The returned string should be freed
  * when no longer needed.
  *
- * Returns: a newly-allocated copy of @a_str
+ * @param a_str (nullable): the string to duplicate
+ * @return char* duplicated string
  */
+
 char* dap_strdup(const char *a_str)
 {
     char *l_new_str;
@@ -255,18 +267,21 @@ char* dap_strdup(const char *a_str)
 }
 
 /**
- * dap_strdup_vprintf:
- * @a_format: a standard printf() format string, but notice
- *     [string precision pitfalls][string-precision]
- * @a_args: the list of parameters to insert into the format string
- *
+ * @brief dap_strdup_vprintf
+ * 
  * Similar to the standard C vsprintf() function but safer, since it
  * calculates the maximum space required and allocates memory to hold
  * the result. The returned string should be freed with DAP_DELETE()
  * when no longer needed.
  *
  * Returns: a newly-allocated string holding the result
+ * 
+ * @param a_format  a standard printf() format string, but notice
+ *     [string precision pitfalls][string-precision]
+ * @param a_args the list of parameters to insert into the format string
+ * @return char* 
  */
+
 char* dap_strdup_vprintf(const char *a_format, va_list a_args)
 {
     char *l_string = NULL;
@@ -277,16 +292,18 @@ char* dap_strdup_vprintf(const char *a_format, va_list a_args)
 }
 
 /**
- * dap_strdup_printf:
- * @a_format: a standard printf() format string
- *
- * Similar to the standard C sprintf() function but safer, since it
+ * @brief dap_strdup_printf:
+ * 
+ *  * Similar to the standard C sprintf() function but safer, since it
  * calculates the maximum space required and allocates memory to hold
  * the result. The returned string should be freed with DAP_DELETE()
  * when no longer needed.
- *
- * Returns: a newly-allocated string holding the result
+ * 
+ * @param a_format a standard printf() format string
+ * @param ... 
+ * @return char* a newly-allocated string holding the result
  */
+
 char* dap_strdup_printf(const char *a_format, ...)
 {
     char *l_buffer;
@@ -630,6 +647,13 @@ char** dap_strsplit(const char *a_string, const char *a_delimiter, int a_max_tok
     return l_str_array;
 }
 
+/**
+ * @brief  dap_str_countv
+ * 
+ * @param a_str_array 
+ * @return size_t 
+ */
+
 size_t dap_str_countv(char **a_str_array)
 {
     size_t l_i = 0;
@@ -642,16 +666,19 @@ size_t dap_str_countv(char **a_str_array)
 }
 
 /**
- * dap_strdupv:
- * @a_str_array: (nullable): a %NULL-terminated array of strings
- *
+ * @brief  dap_strdupv:
+ * 
+ * @param a_str_array (nullable): a %NULL-terminated array of strings
  * Copies %NULL-terminated array of strings. The copy is a deep copy;
  * the new array should be freed by first freeing each string, then
  * the array itself. g_strfreev() does this for you. If called
  * on a %NULL value, g_strdupv() simply returns %NULL.
  *
  * Returns: (nullable): a new %NULL-terminated array of strings.
+ *
+ * @return char** 
  */
+
 char** dap_strdupv(const char **a_str_array)
 {
     if(a_str_array)
@@ -680,14 +707,16 @@ char** dap_strdupv(const char **a_str_array)
 }
 
 /**
- * dap_strfreev:
- * @a_str_array: (nullable): a %NULL-terminated array of strings to free
- *
+ * @brief dap_strfreev:
+ * 
  * Frees a %NULL-terminated array of strings, as well as each
  * string it contains.
  *
  * If @a_str_array is %NULL, this function simply returns.
+ *
+ * @param a_str_array (nullable): a %NULL-terminated array of strings to free
  */
+
 void dap_strfreev(char **a_str_array)
 {
     if(a_str_array)
@@ -701,9 +730,8 @@ void dap_strfreev(char **a_str_array)
 }
 
 /**
- * dap_strchug:
- * @a_string: a string to remove the leading whitespace from
- *
+ * @brief dap_strchug:
+ * 
  * Removes leading whitespace from a string, by moving the rest
  * of the characters forward.
  *
@@ -713,7 +741,11 @@ void dap_strfreev(char **a_str_array)
  *
  * The pointer to @a_string is returned to allow the nesting of functions.
  * Returns: @a_string
+ * 
+ * @param a_string a string to remove the leading whitespace from
+ * @return char* 
  */
+
 char* dap_strchug(char *a_string)
 {
     unsigned char *l_start;
@@ -760,15 +792,18 @@ char* dap_strchomp(char *a_string)
 }
 
 /**
- * dap_strup:
- * @a_str: a string
- * @a_len: length of @a_str in bytes, or -1 if @a_str is nul-terminated
- *
+ * @brief dap_strup
+ * 
  * Converts all lower case ASCII letters to upper case ASCII letters.
  *
  * Returns: a newly allocated string, with all the lower case
  *     characters in @a_str converted to upper case
+ * 
+ * @param a_str a string
+ * @param a_len  length of @a_str in bytes, or -1 if @a_str is nul-terminated
+ * @return char* 
  */
+
 char* dap_strup(const char *a_str, ssize_t a_len)
 {
     char *l_result, *l_s;
@@ -786,15 +821,17 @@ char* dap_strup(const char *a_str, ssize_t a_len)
 }
 
 /**
- * dap_strdown:
- * @a_str: a string
- * @a_len: length of @a_str in bytes, or -1 if @a_str is nul-terminated
- *
- * Converts all upper case ASCII letters to lower case ASCII letters.
+ * @brief  dap_strdown
+ *  Converts all upper case ASCII letters to lower case ASCII letters.
  *
  * Returns: a newly-allocated string, with all the upper case
  *     characters in @a_str converted to lower case
+ * 
+ * @param a_str a string
+ * @param a_len length of @a_str in bytes, or -1 if @a_str is nul-terminated
+ * @return char* 
  */
+
 char* dap_strdown(const char *a_str, ssize_t a_len)
 {
     char *l_result, *l_s;
@@ -811,10 +848,9 @@ char* dap_strdown(const char *a_str, ssize_t a_len)
     return l_result;
 }
 
+
 /**
- * dap_strreverse:
- * @a_string: the string to reverse
- *
+ * @brief dap_strreverse
  * Reverses all of the bytes in a string. For example,
  * `dap_strreverse("abcdef")` will result in "fedcba".
  *
@@ -822,7 +858,11 @@ char* dap_strdown(const char *a_str, ssize_t a_len)
  * containing multibyte characters.
  *
  * Returns: the same pointer passed in as @a_string
+ *
+ * @param a_string  the string to reverse
+ * @return char* 
  */
+
 char* dap_strreverse(char *a_string)
 {
     dap_return_val_if_fail(a_string != NULL, NULL);
@@ -856,6 +896,14 @@ char *strptime( char *buff, const char *fmt, struct tm *tm ) {
   tm->tm_year += 2000;
   return buff + len;
 }
+
+/**
+ * @brief _strndup
+ * 
+ * @param str 
+ * @param len 
+ * @return char* 
+ */
 
 char *_strndup(const char *str, unsigned long len) {
     char *buf = (char*)memchr(str, '\0', len);

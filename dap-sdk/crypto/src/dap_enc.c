@@ -35,9 +35,11 @@
 #define LOG_TAG "dap_enc"
 
 /**
- * @brief enc_init
- * @return
+ * @brief dap_enc_init if you want to use crypto functions from dap-sdk call that function
+ * 
+ * @return int 
  */
+
 int dap_enc_init()
 {
     srand(time(NULL));
