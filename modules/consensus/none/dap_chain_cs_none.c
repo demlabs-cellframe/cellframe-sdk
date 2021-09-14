@@ -128,7 +128,7 @@ int dap_chain_gdb_init(void)
  * @param a_value
  * @param a_value_len
  */
-static void s_history_callback_notify(void * a_arg, const char a_op_code, const char * a_prefix, const char * a_group,
+static void s_history_callback_notify(void * a_arg, const char a_op_code, const char * a_group,
         const char * a_key, const void * a_value, const size_t a_value_size)
 {
     if (a_arg){
@@ -136,8 +136,8 @@ static void s_history_callback_notify(void * a_arg, const char a_op_code, const 
         dap_chain_net_t *l_net = dap_chain_net_by_id( l_gdb->chain->net_id);
         log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%u",l_net->pub.name,
                l_gdb->chain->name, a_op_code, a_group, a_key, a_value_size);
-        dap_chain_node_mempool_autoproc_notify((void *)l_net, a_op_code, a_prefix, a_group, a_key, a_value, a_value_size);
-        dap_chain_net_sync_gdb_broadcast((void *)l_net, a_op_code, a_prefix, a_group, a_key, a_value, a_value_size);
+        dap_chain_node_mempool_autoproc_notify((void *)l_net, a_op_code, a_group, a_key, a_value, a_value_size);
+        dap_chain_net_sync_gdb_broadcast((void *)l_net, a_op_code, a_group, a_key, a_value, a_value_size);
     }
 }
 
@@ -174,9 +174,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     }
 
     // Add group prefix that will be tracking all changes
-    dap_chain_global_db_add_history_group_prefix("chain-gdb", GROUP_LOCAL_HISTORY);
-
-    dap_chain_global_db_add_history_callback_notify("chain-gdb", s_history_callback_notify,l_gdb);
+    dap_chain_global_db_add_sync_group("chain-gdb", s_history_callback_notify, l_gdb);
 
     // load ledger
     l_gdb_priv->is_load_mode = true;
