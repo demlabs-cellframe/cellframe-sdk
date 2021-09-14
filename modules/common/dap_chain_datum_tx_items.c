@@ -156,7 +156,6 @@ dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(dap_chain_hash_fast_t
     l_item->header.type = TX_ITEM_TYPE_TOKEN;
     memcpy (& l_item->header.token_emission_hash, a_datum_token_hash, sizeof ( *a_datum_token_hash ) );
     strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
-
     return l_item;
 }
 

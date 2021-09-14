@@ -1053,7 +1053,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
          dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
          // fill begin id
-         l_sync_request.id_start = dap_db_get_last_id_remote(l_remote_node_info->hdr.address.uint64);
+         l_sync_request.id_start = 1;
          // fill current node address
          l_sync_request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
 

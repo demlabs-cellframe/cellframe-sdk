@@ -46,10 +46,10 @@ const int8_t c_b58digits_map[] = {
 };
 
 /**
- * @brief dap_enc_base58_decode
- * @param a_in
- * @param a_out
- * @return
+ * @brief dap_enc_base58_decode decode string using base58 alghoritm
+ * @param a_in - encoded string
+ * @param a_out - output buffer
+ * @return size_t output buffer size
  */
 size_t dap_enc_base58_decode(const char * a_in, void * a_out)
 {
@@ -152,8 +152,14 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
 }
 
 
-
-//bool b58enc(char *a_out, size_t *l_out_size, const void *a_in, size_t a_in_size)
+/**
+ * @brief dap_enc_base58_encode encode string in Base58 alghorithm
+ * 
+ * @param a_in - input buffer
+ * @param a_in_size - buffer size
+ * @param a_out - string with results
+ * @return size_t - returned string size (in bytes)
+ */
 size_t dap_enc_base58_encode(const void * a_in, size_t a_in_size, char * a_out)
 {
     const uint8_t *l_in_u8 = a_in;
