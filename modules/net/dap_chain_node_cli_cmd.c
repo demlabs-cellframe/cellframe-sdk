@@ -732,17 +732,14 @@ int com_global_db(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply
                         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameters");
                         return -1;
                     }
-                    dap_chain_cell_t *l_cell = dap_chain_cell_create();
-                    l_cell->chain = l_chain;
-                    l_cell->id.uint64 = l_cell_id.uint64;
-                    l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell",l_cell->id.uint64);
+                    dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_cell_id);
                     int l_ret = dap_chain_cell_file_update(l_cell);
-                    if(!l_ret)
+                    if(l_ret > 0)
                         dap_chain_node_cli_set_reply_text(a_str_reply, "cell added successfully");
                     else
                         dap_chain_node_cli_set_reply_text(a_str_reply, "can't create file for cell 0x%016X ( %s )",
                                 l_cell->id.uint64,l_cell->file_storage_path);
-                    dap_chain_cell_delete(l_cell);
+                    dap_chain_cell_close(l_cell);
                     return l_ret;
 
                 //case CMD_NONE:

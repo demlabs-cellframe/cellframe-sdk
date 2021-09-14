@@ -2105,7 +2105,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             dap_chain_net_state_go_to(l_net, l_target_state);
 
         // Start the proc thread
-        log_it(L_NOTICE, "Сhain network \"%s\" initialized",l_net_item->name);
+        log_it(L_INFO, "Сhain network \"%s\" initialized",l_net_item->name);
 
         dap_config_close(l_cfg);
     }

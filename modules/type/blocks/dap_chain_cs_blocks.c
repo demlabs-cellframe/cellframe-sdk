@@ -933,7 +933,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
                                                               size_t * a_atom_size)
 {
     assert(a_atom_iter);
-    dap_chain_atom_ptr_t * l_ret = NULL;
+    dap_chain_atom_ptr_t l_ret = NULL;
     pthread_rwlock_rdlock(& PVT(ITER_PVT(a_atom_iter)->blocks)->rwlock );
     dap_chain_block_cache_t * l_block_cache = NULL;
     HASH_FIND(hh, PVT(ITER_PVT(a_atom_iter)->blocks)->blocks, a_atom_hash,sizeof (*a_atom_hash), l_block_cache);
