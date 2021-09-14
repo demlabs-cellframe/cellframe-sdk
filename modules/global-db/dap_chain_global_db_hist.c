@@ -10,8 +10,10 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
-
 #include "uthash.h"
+
+#define GDB_SYNC_ALWAYS_FROM_ZERO
+
 // for dap_db_history()
 typedef struct dap_tx_data{
         dap_chain_hash_fast_t tx_hash;
@@ -201,6 +203,7 @@ static void *s_list_thread_proc(void *arg)
                 l_dap_db_log_list->list_read = l_list;
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         }
+
         if (l_del_group_name_replace)
             DAP_DELETE(l_del_group_name_replace);
     }
