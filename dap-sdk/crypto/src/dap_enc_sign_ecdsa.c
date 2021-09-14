@@ -1,4 +1,5 @@
 #include "dap_enc_sign_ecdsa.h"
+#include "dap_rand.h"
 
 #define LOG_TAG "dap_enc_sign_ecdsa"
 
@@ -15,21 +16,17 @@ void dap_enc_sign_ecdsa_key_new(struct dap_enc_key *a_key){
     
 }
 
+void dap_enc_sign_ecdsa_gen_priv_key(struct dap_enc_key * a_key){
 
-void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void *kex_buf, size_t kex_size,
-                                         const void *seed, size_t seed_size, size_t key_size) {
+    random_buffer(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
+                  ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key);
 
-    (void)kex_buf;
-    (void)kex_size;
-    (void)key_size;
+}
 
+void dap_enc_sign_ecdsa_set_curve(struct dap_enc_key * a_key){
 
-
-    a_key->pub_key_data = DAP_NEW(dap_enc_key_public_ecdsa_t);
-    a_key->pub_key_data_size = sizeof (dap_enc_key_public_ecdsa_t);
-    a_key->priv_key_data = DAP_NEW(dap_enc_key_private_ecdsa_t);
-    a_key->priv_key_data_size = sizeof(dap_enc_key_private_ecdsa_t);
     const ecdsa_curve *curve = NULL;
+
     switch (a_key->type) {
     case DAP_ENC_KEY_TYPE_ECDSA_ED25519:
         ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
@@ -79,10 +76,17 @@ void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void 
         log_it(L_ERROR, "Key have type ");
         return;
     }
+}
 
+void dap_enc_sign_ecdsa_alloc_mem_pub_key(struct dap_enc_key * a_key){
+    a_key->pub_key_data = DAP_NEW(dap_enc_key_public_ecdsa_t);
+    a_key->pub_key_data_size = sizeof (dap_enc_key_public_ecdsa_t);
+    a_key->priv_key_data = DAP_NEW(dap_enc_key_private_ecdsa_t);
+    a_key->priv_key_data_size = sizeof(dap_enc_key_private_ecdsa_t);
+}
 
-    random_buffer(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
-                  ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key);
+void dap_enc_sign_ecdsa_gen_pub_key(struct dap_enc_key* a_key){
+
     bool gen_public_key = false;
     if (curve != NULL){
         //GET public key size
@@ -120,6 +124,7 @@ void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void 
             gen_public_key = true;
         }
     }
+
     if(!gen_public_key){
         log_it(L_ERROR, "Can't generate public key");
         DAP_FREE(a_key->pub_key_data);
@@ -131,6 +136,25 @@ void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void 
         return;
     }
 }
+
+
+void dap_enc_sign_ecdsa_key_new_generate(struct dap_enc_key * a_key, const void *kex_buf, size_t kex_size,
+                                         const void *seed, size_t seed_size, size_t key_size) {
+    (void)kex_buf;
+    (void)kex_size;
+    (void)key_size;
+
+    //now using dap_random /dev/urandom generator called in dap_enc_sign_ecdsa_gen_priv_key
+    (void) seed;
+    (void) seed_size;
+
+    dap_enc_sign_ecdsa_gen_priv_key(a_key);
+    dap_enc_sign_ecdsa_alloc_mem_pub_key(a_key);
+    dap_enc_sign_ecdsa_set_curve(a_key);
+    dap_enc_sign_ecdsa_gen_pub_key(a_key);
+
+}
+
 size_t dap_enc_sign_ecdsa_get(struct  dap_enc_key *a_key, const void *msg, const size_t msg_size,
                                 void *signature, const size_t signature_size){    
     if(signature_size < dap_enc_sign_ecdsa_calc_signature_size()){
@@ -140,6 +164,7 @@ size_t dap_enc_sign_ecdsa_get(struct  dap_enc_key *a_key, const void *msg, const
     /*ecdsa_curve *curve;
     return (size_t)ecdsa_sign(curve, HASHER_SHA3, a_key->priv_key_data, msg, (uint32_t)msg_size, signature, NULL, NULL);*/
 }
+
 size_t dap_enc_sign_ecdsa_verify(struct dap_enc_key *a_key, const void *msg, const size_t msg_size,
                                  void *signature, const size_t signature_size){
     if (signature_size < dap_enc_sign_ecdsa_calc_signature_size()){
@@ -153,6 +178,7 @@ size_t dap_enc_sign_ecdsa_verify(struct dap_enc_key *a_key, const void *msg, con
 size_t dap_enc_sign_ecdsa_calc_signature_size(void){
     return sizeof(uint64_t);
 }
+
 size_t dap_enc_sign_ecdsa_calc_signature_serialized_size(void){
     return sizeof(uint64_t);
 }

@@ -328,6 +328,24 @@ struct dap_enc_key_callbacks{
         .sign_get = NULL,
         .sign_verify = NULL
     },
+    [DAP_ENC_KEY_TYPE_SIG_ECDSA]={
+        .name = "SIG_ECDSA",
+        .enc = NULL,
+        .dec = NULL,
+        .enc_na = NULL,
+        .dec_na = NULL,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .gen_bob_shared_key = NULL,
+        .gen_alice_shared_key = NULL,
+        .new_callback = dap_enc_sig_ecdsa_key_new,
+        .delete_callback = dap_enc_sig_ecdsa_key_delete,
+        .new_generate_callback = dap_enc_sig_ecdsa_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL,
+        .sign_get = dap_enc_sig_ecdsa_get_sign,
+        .sign_verify = dap_enc_sig_ecdsa_verify_sign,
+    },
     [DAP_ENC_KEY_TYPE_SIG_RINGCT20]={
         .name = "SIG_RINGCT20",
         .enc = NULL,
@@ -386,6 +404,10 @@ uint8_t* dap_enc_key_serealize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_si
         data = dap_enc_tesla_write_signature((tesla_signature_t*)a_sign, a_sign_len);
         break;
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        data = dap_enc_dilithium_write_signature((dilithium_signature_t*)a_sign, a_sign_len);
+        break;
+
+    case DAP_ENC_KEY_TYPE_SIG_ECDSA:
         data = dap_enc_dilithium_write_signature((dilithium_signature_t*)a_sign, a_sign_len);
         break;
     default:
