@@ -23,9 +23,8 @@ typedef struct dap_global_db_obj {
     size_t value_len;
 }DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
 
-typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_prefix, const char * a_group,
-                                                     const char * a_key, const void * a_value,
-                                                     const size_t a_value_len);
+typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
+                                                     const char * a_key, const void * a_value, const size_t a_value_len);
 
 /**
  * Flush DB
@@ -49,22 +48,15 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count);
 int dap_chain_global_db_init(dap_config_t * a_config);
 
 void dap_chain_global_db_deinit(void);
-
-/*
- * Get history group by group name
- */
-char* dap_chain_global_db_get_history_group_by_group_name(const char * a_group_name);
-
 /**
  * Setup callbacks and filters
  */
-// Add group prefix that will be tracking all changes
-void dap_chain_global_db_add_history_group_prefix(const char * a_group_prefix, const char * a_group_name_for_history);
-void dap_chain_global_db_add_history_callback_notify(const char * a_group_prefix,
-                                                     dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
-const char* dap_chain_global_db_add_history_extra_group(const char * a_group_name, dap_chain_node_addr_t *a_nodes, uint16_t *a_nodes_count);
-void dap_chain_global_db_add_history_extra_group_callback_notify(const char * a_group_prefix,
-        dap_global_db_obj_callback_notify_t a_callback, void * a_arg);
+// Add group name that will be synchronized
+void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
+void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
+dap_list_t *dap_chain_db_get_sync_groups();
+dap_list_t *dap_chain_db_get_sync_extra_groups();
+void dap_global_db_obj_track_history(void* a_store_data);
 /**
  * Get entry from base
  */
@@ -116,26 +108,3 @@ bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count);
  */
 char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size);
 char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);
-
-// Get data according the history log
-dap_list_t* dap_db_log_pack(dap_global_db_obj_t *a_obj, size_t *a_data_size_out);
-
-// Get data according the history log
-//char* dap_db_history_tx(dap_chain_hash_fast_t * a_tx_hash, const char *a_group_mempool);
-//char* dap_db_history_addr(dap_chain_addr_t * a_addr, const char *a_group_mempool);
-//char* dap_db_history(dap_chain_addr_t * a_addr, const char *a_group_mempool);
-
-// Parse data from dap_db_log_pack()
-void* dap_db_log_unpack(const void *a_data, size_t a_data_size, size_t *a_store_obj_count);
-// Get timestamp from dap_db_log_pack()
-//time_t dap_db_log_unpack_get_timestamp(uint8_t *a_data, size_t a_data_size);
-
-// Get last id in log
-uint64_t dap_db_log_get_group_history_last_id(const char *a_history_group_name);
-uint64_t dap_db_log_get_last_id(void);
-// Get log diff as list
-dap_list_t* dap_db_log_get_list(uint64_t first_id);
-// Free list getting from dap_db_log_get_list()
-void dap_db_log_del_list(dap_list_t *a_list);
-// Get log diff as string
-char* dap_db_log_get_diff(size_t *a_data_size_out);
