@@ -129,7 +129,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             break;
         case TX_ITEM_TYPE_OUT:
             dap_string_append_printf(a_str_out, "\t OUT:\n"
-                                                "\t\t Value: %s (%"DAP_UINT64_FORMAT_u")\n"
+                                                "\t\t Value: %s (%"DAP_UINT64_FORMAT_U")\n"
                                                 "\t\t Address: %s\n",
                                         dap_chain_balance_to_coins(dap_chain_uint128_from(
                                                                        ((dap_chain_tx_out_t*)item)->header.value)
@@ -177,7 +177,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t\t   units: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                 "\t\t\t   uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                 "\t\t\t   units type: %s \n"
-                                                "\t\t\t   value: %s (%"DAP_UINT64_FORMAT_u")\n",
+                                                "\t\t\t   value: %s (%"DAP_UINT64_FORMAT_U")\n",
                                      ((dap_chain_datum_tx_receipt_t*)item)->size,
                                      ((dap_chain_datum_tx_receipt_t*)item)->exts_size,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,
@@ -245,7 +245,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             dap_string_append_printf(a_str_out, "\t OUT COND:\n"
                                                 "\t Header:\n"
                                                 "\t\t\t ts_expires: %s\t"
-                                                "\t\t\t value: %s (%"DAP_UINT64_FORMAT_u")\n"
+                                                "\t\t\t value: %s (%"DAP_UINT64_FORMAT_U")\n"
                                                 "\t\t\t subtype: %s\n"
                                                 "\t\t SubType:\n",
                                      dap_ctime_r((time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
@@ -260,7 +260,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                 dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
                                                     "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t pkey: %s\n"
-                                                    "\t\t\t max price: %s (%"DAP_UINT64_FORMAT_u") \n",
+                                                    "\t\t\t max price: %s (%"DAP_UINT64_FORMAT_U") \n",
                                          ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
                                          ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.srv_uid.uint64,
                                          l_hash_str_tmp,
@@ -284,7 +284,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                 dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t token: %s\n"
-                                                    "\t\t\t value: %s (%"DAP_UINT64_FORMAT_u")\n",
+                                                    "\t\t\t value: %s (%"DAP_UINT64_FORMAT_U")\n",
                                          ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.srv_uid.uint64,
                                          ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.net_id.uint64,
                                          ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.token,
@@ -301,7 +301,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             dap_string_append_printf(a_str_out, "\t OUT EXT:\n"
                                                 "\t\t Addr: %s\n"
                                                 "\t\t Token: %s\n"
-                                                "\t\t Value: %s (%"DAP_UINT64_FORMAT_u")\n",
+                                                "\t\t Value: %s (%"DAP_UINT64_FORMAT_U")\n",
                                      dap_chain_addr_to_str(&((dap_chain_tx_out_ext_t*)item)->addr),
                                      ((dap_chain_tx_out_ext_t*)item)->token,
                                      dap_chain_balance_to_coins(dap_chain_uint128_from(
