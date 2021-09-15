@@ -362,7 +362,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
     // load transactions
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
     size_t l_atom_size = 0;
-    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
 
     while(l_atom && l_atom_size) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*) l_atom;
@@ -578,7 +578,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
     // load transactions
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
     size_t l_atom_size=0;
-    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
     if (!l_atom) {
         return NULL;
     }
@@ -962,7 +962,7 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
     // load transactions
     size_t l_atom_size = 0;
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
-    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
     size_t l_datums_count = 0;
     dap_chain_datum_t **l_datums = (a_chain->callback_atom_get_datums && l_atom && l_atom_size) ?
                     a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count) : NULL;
@@ -1070,7 +1070,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     // load transactions
     size_t l_atom_size = 0;
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
-    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
     size_t l_datum_num = 0, l_token_num = 0, l_emission_num = 0, l_tx_num = 0;
     size_t l_datum_num_global = a_total_datums ? *a_total_datums : 0;
     while(l_atom && l_atom_size) {
@@ -1092,7 +1092,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
         }
 
     /*dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
-    dap_chain_atom_ptr_t *l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter);
+    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter);
     size_t l_atom_size = a_chain->callback_atom_get_size(l_atom);
     size_t l_datum_num = 0, l_token_num = 0, l_emission_num = 0, l_tx_num = 0;
     while(l_atom && l_atom_size) {
