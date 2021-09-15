@@ -599,7 +599,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
             dap_events_socket_uuid_t * l_ev_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
             *l_ev_uuid_ptr = l_ev_socket->uuid;
             if (!dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check, l_ev_uuid_ptr)) {
-                log_it(L_ERROR,"Can't run timer on worker %u for esocket uuid %"DAP_UINT64_FORMAT_u" for timeout check during connection attempt ",
+                log_it(L_ERROR,"Can't run timer on worker %u for esocket uuid %"DAP_UINT64_FORMAT_U" for timeout check during connection attempt ",
                        l_http_pvt->worker->id, *l_ev_uuid_ptr);
                 DAP_DEL_Z(l_ev_uuid_ptr)
             }
@@ -622,7 +622,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         dap_events_socket_uuid_t * l_ev_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
         *l_ev_uuid_ptr = l_ev_socket->uuid;
         if(dap_timerfd_start_on_worker(l_http_pvt->worker,s_client_timeout_ms, s_timer_timeout_check,l_ev_uuid_ptr) == NULL){
-            log_it(L_ERROR,"Can't run timer on worker %u for esocket uuid %"DAP_UINT64_FORMAT_u" for timeout check during connection attempt ",
+            log_it(L_ERROR,"Can't run timer on worker %u for esocket uuid %"DAP_UINT64_FORMAT_U" for timeout check during connection attempt ",
                    l_http_pvt->worker->id, *l_ev_uuid_ptr);
             DAP_DEL_Z(l_ev_uuid_ptr);
         }

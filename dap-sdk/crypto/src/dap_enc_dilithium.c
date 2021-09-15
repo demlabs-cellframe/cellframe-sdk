@@ -178,7 +178,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
     l_shift_mem += sizeof(uint64_t);
 
     if( l_sign->sig_len> (UINT64_MAX - l_shift_mem ) ){
-            log_it(L_ERROR,"::read_signature() Buflen inside signature %"DAP_UINT64_FORMAT_u" is too big ", l_sign->sig_len);
+            log_it(L_ERROR,"::read_signature() Buflen inside signature %"DAP_UINT64_FORMAT_U" is too big ", l_sign->sig_len);
             DAP_DELETE(l_sign);
             return NULL;
     }
@@ -196,7 +196,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
     }
 
     if( (uint64_t) a_buflen < (l_shift_mem + l_sign->sig_len) ){
-        log_it(L_ERROR,"::read_signature() Buflen %zd is smaller than all fields together(%"DAP_UINT64_FORMAT_u")", a_buflen,
+        log_it(L_ERROR,"::read_signature() Buflen %zd is smaller than all fields together(%"DAP_UINT64_FORMAT_U")", a_buflen,
                l_shift_mem + l_sign->sig_len  );
         DAP_DELETE(l_sign);
         return NULL;
@@ -204,7 +204,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
 
     l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
     if (!l_sign->sig_data){
-        log_it(L_ERROR,"::read_signature() Can't allocate sig_data %"DAP_UINT64_FORMAT_u" size", l_sign->sig_len);
+        log_it(L_ERROR,"::read_signature() Can't allocate sig_data %"DAP_UINT64_FORMAT_U" size", l_sign->sig_len);
         DAP_DELETE(l_sign);
         return NULL;
     }else{
@@ -240,13 +240,13 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old(uint8_t *a_buf, size
     uint64_t l_shift_mem = sizeof(uint32_t) + sizeof(uint32_t);
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(unsigned long long));
     if( l_sign->sig_len> (UINT64_MAX - l_shift_mem ) ){
-            log_it(L_ERROR,"::read_signature_old() Buflen inside signature %"DAP_UINT64_FORMAT_u" is too big ", l_sign->sig_len);
+            log_it(L_ERROR,"::read_signature_old() Buflen inside signature %"DAP_UINT64_FORMAT_U" is too big ", l_sign->sig_len);
             DAP_DELETE(l_sign);
             return NULL;
     }
 
     if( (uint64_t) a_buflen < (l_shift_mem + l_sign->sig_len) ){
-        log_it(L_ERROR,"::read_signature_old() Buflen %zd is smaller than all fields together(%" DAP_UINT64_FORMAT_u")", a_buflen,
+        log_it(L_ERROR,"::read_signature_old() Buflen %zd is smaller than all fields together(%" DAP_UINT64_FORMAT_U")", a_buflen,
                l_shift_mem + l_sign->sig_len  );
         DAP_DELETE(l_sign);
         return NULL;
@@ -255,7 +255,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old(uint8_t *a_buf, size
     l_shift_mem += sizeof(unsigned long long);
     l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
     if (!l_sign->sig_data)
-        log_it(L_ERROR,"::read_signature_old() Can't allocate sig_data %"DAP_UINT64_FORMAT_u" size", l_sign->sig_len);
+        log_it(L_ERROR,"::read_signature_old() Can't allocate sig_data %"DAP_UINT64_FORMAT_U" size", l_sign->sig_len);
     memcpy(l_sign->sig_data, a_buf + l_shift_mem, l_sign->sig_len);
 
     return l_sign;
@@ -288,13 +288,13 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old2(uint8_t *a_buf, siz
     uint64_t l_shift_mem = sizeof(uint32_t) + sizeof(uint64_t);
     memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(unsigned long long));
     if( l_sign->sig_len> (UINT64_MAX - l_shift_mem ) ){
-            log_it(L_ERROR,"::read_signature_old() Buflen inside signature %"DAP_UINT64_FORMAT_u" is too big ", l_sign->sig_len);
+            log_it(L_ERROR,"::read_signature_old() Buflen inside signature %"DAP_UINT64_FORMAT_U" is too big ", l_sign->sig_len);
             DAP_DELETE(l_sign);
             return NULL;
     }
 
     if( (uint64_t) a_buflen < (l_shift_mem + l_sign->sig_len) ){
-        log_it(L_ERROR,"::read_signature_old() Buflen %zd is smaller than all fields together(%" DAP_UINT64_FORMAT_u")", a_buflen,
+        log_it(L_ERROR,"::read_signature_old() Buflen %zd is smaller than all fields together(%" DAP_UINT64_FORMAT_U")", a_buflen,
                l_shift_mem + l_sign->sig_len  );
         DAP_DELETE(l_sign);
         return NULL;
@@ -304,7 +304,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature_old2(uint8_t *a_buf, siz
     l_shift_mem += sizeof(unsigned long long);
     l_sign->sig_data = DAP_NEW_SIZE(unsigned char, l_sign->sig_len);
     if (!l_sign->sig_data)
-        log_it(L_ERROR,"::read_signature_old() Can't allocate sig_data %"DAP_UINT64_FORMAT_u" size", l_sign->sig_len);
+        log_it(L_ERROR,"::read_signature_old() Can't allocate sig_data %"DAP_UINT64_FORMAT_U" size", l_sign->sig_len);
     memcpy(l_sign->sig_data, a_buf + l_shift_mem, l_sign->sig_len);
     return l_sign;
 }
@@ -440,7 +440,7 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, 
 
     if(l_buflen !=  (uint64_t) a_buflen){
         if (l_buflen <<32 >>32 != (uint64_t) a_buflen  ){
-            log_it(L_ERROR,"::read_public_key() Buflen field inside buffer is %"DAP_UINT64_FORMAT_u" when expected to be %" DAP_UINT64_FORMAT_u,
+            log_it(L_ERROR,"::read_public_key() Buflen field inside buffer is %"DAP_UINT64_FORMAT_U" when expected to be %" DAP_UINT64_FORMAT_U,
                    l_buflen,(uint64_t) a_buflen);
             return NULL;
         }else
