@@ -203,6 +203,7 @@ static void *s_list_thread_proc(void *arg)
                 l_dap_db_log_list->list_read = l_list;
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         }
+
         if (l_del_group_name_replace)
             DAP_DELETE(l_del_group_name_replace);
     }
