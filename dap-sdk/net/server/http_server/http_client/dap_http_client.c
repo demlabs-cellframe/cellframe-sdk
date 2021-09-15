@@ -647,9 +647,9 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
             log_it(L_DEBUG,"output: Content-Type = '%s'",a_http_client->out_content_type);
         }
         if ( a_http_client->out_content_length ) {
-            dap_snprintf(buf,sizeof(buf),"%"DAP_UINT64_FORMAT_u"",a_http_client->out_content_length);
+            dap_snprintf(buf,sizeof(buf),"%"DAP_UINT64_FORMAT_U"",a_http_client->out_content_length);
             dap_http_header_add(&a_http_client->out_headers,"Content-Length",buf);
-            log_it(L_DEBUG,"output: Content-Length = %"DAP_UINT64_FORMAT_u"",a_http_client->out_content_length);
+            log_it(L_DEBUG,"output: Content-Length = %"DAP_UINT64_FORMAT_U"",a_http_client->out_content_length);
         }
     }else
         if (s_debug_http)
