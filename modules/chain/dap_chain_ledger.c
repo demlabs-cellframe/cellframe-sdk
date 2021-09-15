@@ -1359,6 +1359,7 @@ void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap
         char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
         l_count = 0;
         char *l_addr = dap_chain_addr_to_str(a_addr);
+        pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
         HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
             char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
             if (!dap_strcmp(l_keys[0], l_addr)) {
@@ -1367,6 +1368,7 @@ void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap
             }
             dap_strfreev(l_keys);
         }
+        pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
         *a_tickers = l_tickers;
     }
     *a_tickers_size = l_count;
@@ -2113,7 +2115,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                                         &bound_item->out.tx_prev_out_ext->addr;
             char *l_addr_str = dap_chain_addr_to_str(l_addr);
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_token_ticker, (char*)NULL);
+            pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
+            pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
             if (wallet_balance) {
                 uint64_t l_value = (l_out_type == TX_ITEM_TYPE_OUT) ?
                                     bound_item->out.tx_prev_out->header.value :
@@ -2544,8 +2548,9 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
     char *l_addr = dap_chain_addr_to_str(a_addr);
     char *l_wallet_balance_key = dap_strjoin(" ", l_addr, a_token_ticker, (char*)NULL);
-
+    pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
     HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, l_balance_item);
+    pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
     if (l_balance_item) {
         if(s_debug_more)
             log_it (L_INFO,"Found address in cache with balance %"DAP_UINT64_FORMAT_U"", l_balance_item->balance);
