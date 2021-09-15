@@ -87,7 +87,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     dap_chain_cell_t * l_cell = DAP_NEW_Z(dap_chain_cell_t);
     l_cell->chain = a_chain;
     l_cell->id.uint64 = a_cell_id.uint64;
-    l_cell->file_storage_path = dap_strdup_printf("%0llx.dchaincell", l_cell->id.uint64);
+    l_cell->file_storage_path = dap_strdup_printf("%0"DAP_UINT64_FORMAT_x".dchaincell", l_cell->id.uint64);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
@@ -98,7 +98,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char
 {
     dap_chain_cell_t * l_cell = DAP_NEW_Z(dap_chain_cell_t);
     l_cell->chain = a_chain;
-    sscanf(a_filename, "%0llx.dchaincell", &l_cell->id.uint64);
+    sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell->id.uint64);
     l_cell->file_storage_path = dap_strdup_printf(a_filename);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
