@@ -264,8 +264,7 @@ static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void 
     dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS,
             l_sync_request->request_hdr.net_id.uint64, l_sync_request->request_hdr.chain_id.uint64,
             l_sync_request->request_hdr.cell_id.uint64, &l_request, sizeof(l_request));
-    if (l_ch_chain->request_atom_iter)
-    {
+    if (l_ch_chain->request_atom_iter) {
         l_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(l_ch_chain->request_atom_iter);
         l_ch_chain->request_atom_iter = NULL;
     }
