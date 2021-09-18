@@ -1,3 +1,4 @@
+project(dap-sdk C)
 set(DAP_SDK_NATIVE_VERSION "2.2-2")
 
 # We switch off SSL until its not switched on back
@@ -34,3 +35,9 @@ if (DAPSDK_MODULES MATCHES "network-server")
     add_subdirectory(net/server)
 #    add_subdirectory(net/server-udp)
 endif()
+
+file(GLOB DAP_SDK_HEADERS source/*.h)
+file(GLOB DAP_SDK_SRCS source/*.c)
+add_library(${PROJECT_NAME} STATIC ${DAP_SDK_HEADERS} ${DAP_SDK_SRCS})
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
+target_include_directories(${PROJECT_NAME} INTERFACE source/)
