@@ -376,9 +376,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     l_event_item->event_size = a_atom_size;
     l_event_item->ts_added = time(NULL);
 
-    dap_hash_fast(l_event, a_atom_size,&l_event_item->hash );
     dap_chain_hash_fast_t l_event_hash;
-    dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size,&l_event_hash);
+    dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
+    memcpy(&l_event_item->hash, &l_event_hash, sizeof(dap_chain_hash_fast_t));
 
     char * l_event_hash_str;
     if(s_debug_more) {
@@ -439,7 +439,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             ret = ATOM_MOVE_TO_THRESHOLD;
             break;
         default:
-            log_it(L_WARNING, "Atom %s (size %zd) error adding (code %d)", l_event_hash_str,a_atom_size, l_consensus_check);
+            l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
+            log_it(L_WARNING, "Atom %s (size %zd) error adding (code %d)", l_event_hash_str, a_atom_size, l_consensus_check);
             ret = ATOM_REJECT;
             break;
         }
@@ -730,7 +731,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
                 DAP_DELETE(l_event_hash_str);
                 DAP_DELETE(l_genesis_event_hash_str);
                 return ATOM_REJECT;
-            }else{
+            } else {
+                if (s_debug_more)
+                    log_it(L_INFO, "Accepting static genesis event");
                 return ATOM_ACCEPT;
             }
         }
@@ -739,9 +742,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
     //chain coherence
     if (! PVT(l_dag)->events ){
         res = ATOM_MOVE_TO_THRESHOLD;
-        log_it(L_DEBUG, "*** event %p goes to threshold", l_event);
+        //log_it(L_DEBUG, "*** event %p goes to threshold", l_event);
     } else {
-        log_it(L_DEBUG, "*** event %p hash count %d",l_event, l_event->header.hash_count);
+        //log_it(L_DEBUG, "*** event %p hash count %d",l_event, l_event->header.hash_count);
         for (size_t i = 0; i< l_event->header.hash_count; i++) {
             dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) l_event->hashes_n_datum_n_signs) + i;
             dap_chain_cs_dag_event_item_t * l_event_search = NULL;

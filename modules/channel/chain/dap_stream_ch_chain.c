@@ -633,22 +633,22 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                  log_it(L_WARNING, "In: GLOBAL_DB parse: packet in list with NULL data(pkt_data_size:%zd)", l_pkt_item->pkt_data_size);
         }
 
-        uint64_t l_last_id = 0;
-        char *l_last_group = NULL;
-        char l_last_type = '\0';
+        uint64_t l_last_id = l_store_obj->id;
+        char *l_last_group = l_store_obj->group;
+        char l_last_type = l_store_obj->type;
         bool l_group_changed = false;
 
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
-            l_group_changed = l_last_group && (strcmp(l_last_group, l_obj->group) || l_last_type != l_obj->type);
+            l_group_changed = strcmp(l_last_group, l_obj->group) || l_last_type != l_obj->type;
             // Send remote side notification about received obj
             if (l_sync_request->request.node_addr.uint64 &&
                     (l_group_changed || i == l_data_obj_count - 1)) {
                 struct sync_request *l_sync_req_tsd = DAP_DUP(l_sync_request);
                 l_sync_req_tsd->request.id_end = l_last_id;
-                l_sync_req_tsd->gdb.sync_group = l_obj->type == 'a' ? dap_strdup(l_obj->group) :
-                                                                      dap_strdup_printf("%s.del", l_obj->group);
+                l_sync_req_tsd->gdb.sync_group = l_obj->type == 'a' ? dap_strdup(l_last_group) :
+                                                                      dap_strdup_printf("%s.del", l_last_group);
                 dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
                                                      s_gdb_sync_tsd_worker_callback, l_sync_req_tsd);
             }
@@ -838,6 +838,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_data_ptr += sizeof(uint64_t);
                 char *l_group = (char *)l_data_ptr;
                 dap_db_set_last_id_remote(l_node_addr, l_last_id, l_group);
+                if (s_debug_more) {
+                    dap_chain_node_addr_t l_addr;
+                    l_addr.uint64 = l_node_addr;
+                    log_it(L_INFO, "Set last_id %"DAP_UINT64_FORMAT_U" for group %s for node "NODE_ADDR_FP_STR,
+                                    l_last_id, l_group, NODE_ADDR_FP_ARGS_S(l_addr));
+                }
             } else if (s_debug_more)
                 log_it(L_DEBUG, "Global DB TSD packet detected");
         } break;
@@ -873,12 +879,16 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                    (size_t) (((byte_t*)l_element) - l_chain_pkt->data ) < l_chain_pkt_data_size;
                   l_element++){
                 dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
-                HASH_FIND(hh,l_ch_chain->remote_gdbs, &l_element->hash, sizeof (l_element->hash), l_hash_item );
-                if( ! l_hash_item ){
+                unsigned l_hash_item_hashv;
+                HASH_VALUE(&l_element->hash, sizeof(l_element->hash), l_hash_item_hashv);
+                HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, &l_element->hash, sizeof(l_element->hash),
+                                      l_hash_item_hashv, l_hash_item);
+                if (!l_hash_item) {
                     l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
                     memcpy(&l_hash_item->hash, &l_element->hash, sizeof (l_element->hash));
                     l_hash_item->size = l_element->size;
-                    HASH_ADD(hh, l_ch_chain->remote_gdbs, hash, sizeof (l_hash_item->hash), l_hash_item);
+                    HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, hash, sizeof(l_hash_item->hash),
+                                         l_hash_item_hashv, l_hash_item);
                     /*if (s_debug_more){
                         char l_hash_str[72]={ [0]='\0'};
                         dap_chain_hash_fast_to_str(&l_hash_item->hash,l_hash_str,sizeof (l_hash_str));
@@ -1077,12 +1087,16 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                    (size_t) (((byte_t*)l_element) - l_chain_pkt->data ) < l_chain_pkt_data_size;
                   l_element++){
                 dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
-                HASH_FIND(hh,l_ch_chain->remote_atoms , &l_element->hash, sizeof (l_element->hash), l_hash_item );
+                unsigned l_hash_item_hashv;
+                HASH_VALUE(&l_element->hash, sizeof(l_element->hash), l_hash_item_hashv);
+                HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_atoms, &l_element->hash, sizeof(l_element->hash),
+                                      l_hash_item_hashv, l_hash_item);
                 if( ! l_hash_item ){
                     l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
                     memcpy(&l_hash_item->hash, &l_element->hash, sizeof (l_element->hash));
                     l_hash_item->size = l_element->size;
-                    HASH_ADD(hh, l_ch_chain->remote_atoms, hash, sizeof (l_hash_item->hash), l_hash_item);
+                    HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_atoms, hash, sizeof(l_hash_item->hash),
+                                         l_hash_item_hashv, l_hash_item);
                     l_count_added++;
                     /*
                     if (s_debug_more){
@@ -1135,7 +1149,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         log_it(L_INFO, "In: SYNC_CHAINS pkt");
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
-                l_ch_chain->state = CHAIN_STATE_SYNC_CHAINS;
                 l_ch_chain->stats_request_atoms_processed = 0;
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS) {
                     char *l_hash_from_str = dap_chain_hash_fast_to_str_new(&l_ch_chain->request.hash_from);
@@ -1314,6 +1327,7 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
         HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
         DAP_DELETE(l_hash_item);
     }
+    a_ch_chain->remote_atoms = a_ch_chain->remote_gdbs = NULL;
 }
 
 /**
@@ -1374,7 +1388,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 if (!l_obj)
                     break;
                 dap_stream_ch_chain_hash_item_t *l_hash_item = NULL;
-                HASH_FIND(hh, l_ch_chain->remote_gdbs, &l_obj->hash, sizeof(dap_hash_fast_t), l_hash_item);
+                unsigned l_hash_item_hashv = 0;
+                HASH_VALUE(&l_obj->hash, sizeof(dap_chain_hash_fast_t), l_hash_item_hashv);
+                HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, &l_obj->hash, sizeof(dap_hash_fast_t),
+                                      l_hash_item_hashv, l_hash_item);
                 if (l_hash_item) { // If found - skip it
                     /*if (s_debug_more) {
                         char l_request_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -1387,7 +1404,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
                     memcpy(&l_hash_item->hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
                     l_hash_item->size = l_obj->pkt->data_size;
-                    HASH_ADD(hh, l_ch_chain->remote_gdbs, hash, sizeof(dap_chain_hash_fast_t), l_hash_item);
+                    HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, hash, sizeof(dap_chain_hash_fast_t),
+                                         l_hash_item_hashv, l_hash_item);
                     l_pkt = dap_store_packet_multiple(l_pkt, l_obj->pkt);
                     l_ch_chain->stats_request_gdb_processed++;
                     l_pkt_size = sizeof(dap_store_obj_pkt_t) + l_pkt->data_size;
@@ -1470,8 +1488,11 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                    l_ch_chain->request_atom_iter &&
                                    l_ch_chain->request_atom_iter->cur; k++){
                 // Check if present and skip if present
-                dap_stream_ch_chain_hash_item_t * l_hash_item = NULL;
-                HASH_FIND(hh,l_ch_chain->remote_atoms, l_ch_chain->request_atom_iter->cur_hash , sizeof (l_hash_item->hash), l_hash_item );
+                dap_stream_ch_chain_hash_item_t *l_hash_item = NULL;
+                unsigned l_hash_item_hashv = 0;
+                HASH_VALUE(l_ch_chain->request_atom_iter->cur_hash, sizeof(dap_chain_hash_fast_t), l_hash_item_hashv);
+                HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_atoms, l_ch_chain->request_atom_iter->cur_hash,
+                                      sizeof(dap_chain_hash_fast_t), l_hash_item_hashv, l_hash_item);
                 if( l_hash_item ){ // If found - skip it
                     if(s_debug_more){
                         char l_request_atom_hash_str[81]={[0]='\0'};
@@ -1480,9 +1501,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                         l_request_atom_hash_str);
                     }
                 }else{
-                    l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
-                    dap_hash_fast(l_ch_chain->request_atom_iter->cur, l_ch_chain->request_atom_iter->cur_size,
-                                  &l_hash_item->hash);
+                    l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
+                    memcpy(&l_hash_item->hash, l_ch_chain->request_atom_iter->cur_hash, sizeof(dap_chain_hash_fast_t));
                     if(s_debug_more){
                         char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_hash_item->hash);
                         log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd) ", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size);
@@ -1495,21 +1515,9 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_ch_chain->stats_request_atoms_processed++;
 
                     l_hash_item->size = l_ch_chain->request_atom_iter->cur_size;
-
-                    unsigned l_hash_item_hashv =0;
-                    dap_stream_ch_chain_hash_item_t *l_hash_item_check = NULL;
-
-                    HASH_VALUE(&l_hash_item->hash ,sizeof (l_hash_item->hash),
-                               l_hash_item_hashv);
-                    HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_atoms,&l_hash_item->hash ,sizeof (l_hash_item->hash),
-                                          l_hash_item_hashv,  l_hash_item_check);
-                    if (l_hash_item_check ==NULL ){
-                        // Because we sent this atom to remote - we record it to not to send it twice
-                        HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_atoms, hash, sizeof (l_hash_item->hash),l_hash_item_hashv,
-                                             l_hash_item);
-                    }else
-                        DAP_DELETE(l_hash_item);
-
+                    // Because we sent this atom to remote - we record it to not to send it twice
+                    HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_atoms, hash, sizeof(l_hash_item->hash), l_hash_item_hashv,
+                                         l_hash_item);
                 }
                 // Then get next atom and populate new last
                 l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);
