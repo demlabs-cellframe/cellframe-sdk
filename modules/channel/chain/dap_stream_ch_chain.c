@@ -264,8 +264,10 @@ static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void 
     dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS,
             l_sync_request->request_hdr.net_id.uint64, l_sync_request->request_hdr.chain_id.uint64,
             l_sync_request->request_hdr.cell_id.uint64, &l_request, sizeof(l_request));
-    if (l_ch_chain->request_atom_iter)
+    if (l_ch_chain->request_atom_iter) {
         l_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(l_ch_chain->request_atom_iter);
+        l_ch_chain->request_atom_iter = NULL;
+    }
 
     l_ch_chain->state = CHAIN_STATE_IDLE;
     if (l_ch_chain->callback_notify_packet_out)
@@ -595,10 +597,6 @@ static void s_gdb_sync_tsd_worker_callback(dap_worker_t *a_worker, void *a_arg)
         memcpy(l_data_ptr, &l_sync_request->request.id_end, sizeof(uint64_t));
         l_data_ptr += sizeof(uint64_t);
         memcpy(l_data_ptr, l_sync_request->gdb.sync_group, l_gr_len);
-        log_it(L_INFO, "Allocated %d bytes, copied %d bytes, sent %d bytes",
-               l_data_size + sizeof(dap_tsd_t),
-               (long int)((byte_t *)l_data_ptr - l_tsd_rec->data) + l_gr_len,
-               l_tsd_rec->size + sizeof(dap_tsd_t));
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
                                              l_sync_request->request_hdr.net_id.uint64,
                                              l_sync_request->request_hdr.chain_id.uint64,
@@ -1298,14 +1296,10 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
     // Cleanup after request
     memset(&a_ch_chain->request, 0, sizeof(a_ch_chain->request));
     memset(&a_ch_chain->request_hdr, 0, sizeof(a_ch_chain->request_hdr));
-    if(a_ch_chain->request_atom_iter) {
-        if(a_ch_chain->request_atom_iter->chain)
-            if(a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete){
+    if (a_ch_chain->request_atom_iter && a_ch_chain->request_atom_iter->chain &&
+            a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete) {
                 a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(a_ch_chain->request_atom_iter);
                 a_ch_chain->request_atom_iter = NULL;
-                return;
-            }
-        a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(a_ch_chain->request_atom_iter);
     }
     // free log list
     dap_db_log_list_delete(a_ch_chain->request_db_log);
