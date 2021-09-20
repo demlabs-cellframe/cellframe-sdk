@@ -336,10 +336,15 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) ) {
                     DAP_CHAIN_PVT ( l_chain)->file_storage_dir = strdup (
                                 dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) ;
-                    if ( dap_chain_load_all( l_chain ) != 0 ){
-                        dap_chain_save_all( l_chain );
+                    if (dap_chain_load_all(l_chain) == 0) {
+                        if (l_chain->callback_atom_add_from_treshold) {
+                            while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                                log_it(L_DEBUG, "Added atom from treshold");
+                            }
+                        }
+                        dap_chain_save_all( l_chain );  // Save only the valid chain, throw all garbage out!
                         log_it (L_NOTICE, "Loaded chain files");
-                    }else {
+                    } else {
                         dap_chain_save_all( l_chain );
                         log_it (L_NOTICE, "Initialized chain files");
                     }
