@@ -1113,12 +1113,16 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_
                                 dap_sign_get_pkey_hash(l_sign,&l_sign_pkey_hash);
                                 // Find pkey in auth hashes
                                 for(uint16_t k=0; k< l_token_item->auth_signs_total; k++  ){
-                                    if ( dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k]))
+                                    if ( dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k])) {
                                         // Verify if its token emission header signed
+                                        if (!dap_sign_verify_size(l_sign, a_token_emission_size)) {
+                                            break;
+                                        }
                                         if( dap_sign_verify(l_sign,&a_token_emission->hdr, sizeof (a_token_emission) ) ){
                                             l_aproves++;
                                             break;
                                         }
+                                    }
                                 }
                                 l_offset+=l_sign_size;
                             }else

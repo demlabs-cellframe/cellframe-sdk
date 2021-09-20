@@ -315,9 +315,13 @@ bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_h
 }
 
 
-bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_key_size_max)
+bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_key_size)
 {
-    if (a_sign->header.sign_pkey_size > a_key_size_max)
+    if (a_sign->header.sign_pkey_size > a_max_key_size)
+        return false;
+    if (a_sign->header.sign_size > a_max_key_size)
+        return false;
+    if (a_sign->header.sign_pkey_size > a_sign->header.sign_size)
         return false;
     return true;
 }
@@ -349,7 +353,7 @@ dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign)
  */
 int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size)
 {
-    if (!a_chain_sign || !a_data || !dap_sign_verify_size(a_chain_sign, a_data_size))
+    if (!a_chain_sign || !a_data)
         return -2;
 
     dap_enc_key_t * l_key = dap_sign_to_enc_key(a_chain_sign);

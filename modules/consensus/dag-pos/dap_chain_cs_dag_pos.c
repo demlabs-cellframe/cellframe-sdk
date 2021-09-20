@@ -238,8 +238,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             }
             size_t l_dag_event_size_without_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
 
-            int l_sign_verify_ret = dap_sign_verify(l_sign,a_dag_event,l_dag_event_size_without_sign);
-            if ( l_sign_verify_ret != 0){
+            bool l_sign_verify_ret = dap_sign_verify_size(l_sign, a_dag_event_size) &&
+                    dap_sign_verify(l_sign,a_dag_event,l_dag_event_size_without_sign) == 0;
+            if ( !l_sign_verify_ret ){
                 log_it(L_WARNING, "Event's sign is incorrect: code %d", l_sign_verify_ret);
                 return -41;
 
