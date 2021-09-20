@@ -12,7 +12,7 @@ void *_dap_sdk_init_get_argument(dap_sdk_init_arg_t *a_arg, const char *a_param,
     return  a_default;
 }
 
-int dap_sdk_init(dap_sdk_init_module_t *a_modules){
+int ext_dap_sdk_init(dap_sdk_init_module_t *a_modules){
     for (int i=0; a_modules[i].module != NULL; i++)
     {
         dap_sdk_init_module_t l_module = a_modules[i];
