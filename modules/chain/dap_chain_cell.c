@@ -22,7 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "uthash.h"
-
+#include <unistd.h>
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
@@ -170,15 +170,15 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
     }
     size_t l_el_size = 0;
     unsigned long q = 0;
-    volatile dap_chain_cell_t *l_dummy;
-    for (fread(&l_el_size, 1, sizeof(l_el_size), l_f); !feof(l_f); l_el_size = 0, fread(&l_el_size, 1, sizeof(l_el_size), l_f))
+    volatile int l_dummy;
+    for (l_dummy = fread(&l_el_size, 1, sizeof(l_el_size), l_f); !feof(l_f); l_el_size = 0, l_dummy = fread(&l_el_size, 1, sizeof(l_el_size), l_f))
     {
         if (!l_el_size) {
             log_it(L_ERROR, "Zero element size, chain %s is corrupted", l_file_path);
             ret = -4;
             break;
         }
-        dap_chain_atom_ptr_t l_element = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, l_el_size);
+        dap_chain_atom_ptr_t l_element = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
         if (!l_element) {
             log_it(L_ERROR, "Out of memory");
             ret = -5;
@@ -188,7 +188,6 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         if(l_read == l_el_size) {
             a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
             ++q;
-            DAP_DELETE(l_element);
         } else {
             log_it(L_ERROR, "Read only %zd of %zd bytes, stop cell loading", l_read, l_el_size);
             ret = -6;
@@ -200,7 +199,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         log_it(L_INFO, "Couldn't load all atoms, %d only", q);
     } else {
         log_it(L_INFO, "Loaded all %d atoms in cell %s", q, a_cell_file_path);
-        l_dummy = dap_chain_cell_create_fill2(a_chain, a_cell_file_path);
+        dap_chain_cell_create_fill2(a_chain, a_cell_file_path);
     }
     fclose(l_f);
     return ret;
@@ -263,7 +262,10 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
     // if no atom provided in arguments, we flush all the atoms in given chain
     size_t l_atom_size = a_atom_size ? a_atom_size : 0;
     int l_total_wrote_bytes = 0;
-    dap_chain_atom_iter_t *l_atom_iter = a_atom ? a_cell->chain->callback_atom_iter_create(a_cell->chain) : NULL;
+    dap_chain_atom_iter_t *l_atom_iter = a_atom ? NULL : a_cell->chain->callback_atom_iter_create(a_cell->chain);
+    if (!a_atom) {
+        fseek(a_cell->file_storage, sizeof(dap_chain_cell_file_header_t), SEEK_SET);
+    }
     for (dap_chain_atom_ptr_t l_atom = a_atom ? (dap_chain_atom_ptr_t)a_atom : a_cell->chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
          l_atom;
          l_atom = a_atom ? NULL : a_cell->chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size))
@@ -292,6 +294,11 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
                                            a_cell->id,
                                            (void *)l_atom,
                                            l_atom_size);
+    }
+    if (l_total_wrote_bytes > 0) {
+        fflush(a_cell->file_storage);
+        if (!a_atom)
+            ftruncate(fileno(a_cell->file_storage), l_total_wrote_bytes + sizeof(dap_chain_cell_file_header_t));
     }
     if (l_atom_iter) {
         a_cell->chain->callback_atom_iter_delete(l_atom_iter);
