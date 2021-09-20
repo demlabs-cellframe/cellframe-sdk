@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
+#include "errno.h"
 #include "uthash.h"
 
 #ifdef _WIN32
@@ -300,12 +301,12 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
             return dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
-            }
+        }
         break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
             return dap_chain_ledger_token_emission_load(a_ledger, l_token_emission, l_datum->header.data_size);
-            }
+        }
         break;
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
@@ -319,10 +320,12 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             l_tx_event->event = a_event_item->event;
             l_tx_event->event_size = a_event_item->event_size;
             memcpy(&l_tx_event->hash, &a_event_item->hash, sizeof (l_tx_event->hash) );
-            pthread_rwlock_wrlock(l_events_rwlock);
+            int l_err = pthread_rwlock_wrlock(l_events_rwlock);
             HASH_ADD(hh,PVT(a_dag)->tx_events, hash, sizeof (l_tx_event->hash), l_tx_event);
-            pthread_rwlock_unlock(l_events_rwlock);
+            if (l_err != EDEADLK) {
+                pthread_rwlock_unlock(l_events_rwlock);
             }
+        }
         break;
         default:
             return -1;
@@ -421,10 +424,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     case ATOM_ACCEPT: {
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
         //All correct, no matter for result
-        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
+        pthread_rwlock_wrlock(l_events_rwlock);
         HASH_ADD(hh, PVT(l_dag)->events,hash,sizeof (l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+        pthread_rwlock_unlock(l_events_rwlock);
         switch (l_consensus_check) {
         case 0:
             if(s_debug_more)
@@ -881,7 +884,6 @@ dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t
                 char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
                 if(s_debug_more)
                     log_it(L_DEBUG, "Processing event (threshold): %s...", l_event_hash_str);
-
                 int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
                 HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (l_event_item->hash), l_event_item);
                 s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);

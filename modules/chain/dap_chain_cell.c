@@ -297,7 +297,8 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
     }
     if (l_total_wrote_bytes > 0) {
         fflush(a_cell->file_storage);
-        ftruncate(fileno(a_cell->file_storage), l_total_wrote_bytes + sizeof(dap_chain_cell_file_header_t));
+        if (!a_atom)
+            ftruncate(fileno(a_cell->file_storage), l_total_wrote_bytes + sizeof(dap_chain_cell_file_header_t));
     }
     if (l_atom_iter) {
         a_cell->chain->callback_atom_iter_delete(l_atom_iter);
