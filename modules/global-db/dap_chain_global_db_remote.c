@@ -104,7 +104,7 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
  */
 bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group)
 {
-    //log_it( L_DEBUG, "Node 0x%016X set last synced id %"DAP_UINT64_FORMAT_u"", a_node_addr, a_id);
+    //log_it( L_DEBUG, "Node 0x%016X set last synced id %"DAP_UINT64_FORMAT_U"", a_node_addr, a_id);
     char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
     bool l_ret = dap_chain_global_db_gr_set(l_node_addr_str, &a_id, sizeof(uint64_t),
                                             GROUP_LOCAL_NODE_LAST_ID);
@@ -181,27 +181,6 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, d
     a_old_pkt->data_size += a_new_pkt->data_size;
     a_old_pkt->obj_count++;
     return a_old_pkt;
-}
-
-char *dap_store_packet_get_group(dap_store_obj_pkt_t *a_pkt)
-{
-    uint16_t l_gr_len;
-    memcpy(&l_gr_len, a_pkt->data + sizeof(uint32_t), sizeof(uint16_t));
-    char *l_ret_str = DAP_NEW_SIZE(char, l_gr_len + 1);
-    size_t l_gr_offset = sizeof(uint32_t) + sizeof(uint16_t);
-    memcpy(l_ret_str, a_pkt->data + l_gr_offset, l_gr_len);
-    l_ret_str[l_gr_len] = '\0';
-    return l_ret_str;
-}
-
-uint64_t dap_store_packet_get_id(dap_store_obj_pkt_t *a_pkt)
-{
-    uint16_t l_gr_len;
-    memcpy(&l_gr_len, a_pkt->data + sizeof(uint32_t), sizeof(uint16_t));
-    size_t l_id_offset = sizeof(uint32_t) + sizeof(uint16_t) + l_gr_len;
-    uint64_t l_ret_id;
-    memcpy(&l_ret_id, a_pkt->data + l_id_offset, sizeof(uint64_t));
-    return l_ret_id;
 }
 
 void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
