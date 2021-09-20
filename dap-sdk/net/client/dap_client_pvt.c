@@ -218,7 +218,7 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
     assert(a_client_pvt->stream_es);
     *l_es_uuid_ptr = a_client_pvt->stream_es->uuid;
     if( dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_read_after_connect_seconds * 1000, s_stream_timer_timeout_after_connected_check ,l_es_uuid_ptr) == NULL ){
-        log_it(L_ERROR,"Can't run timer for stream after connect check for esocket uuid %"DAP_UINT64_FORMAT_u" ");
+        log_it(L_ERROR,"Can't run timer for stream after connect check for esocket uuid %"DAP_UINT64_FORMAT_U" ");
         DAP_DEL_Z(l_es_uuid_ptr);
     }
 }
@@ -258,7 +258,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
                 log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
-            log_it(L_DEBUG,"Esocket %"DAP_UINT64_FORMAT_u" is finished, close check timer", *l_es_uuid_ptr);
+            log_it(L_DEBUG,"Esocket %"DAP_UINT64_FORMAT_U" is finished, close check timer", *l_es_uuid_ptr);
 
     DAP_DEL_Z(l_es_uuid_ptr)
     return false;
@@ -302,7 +302,7 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
 
     }else
         if(s_debug_more)
-            log_it(L_DEBUG,"Streaming socket %"DAP_UINT64_FORMAT_u" is finished, close check timer", *l_es_uuid_ptr);
+            log_it(L_DEBUG,"Streaming socket %"DAP_UINT64_FORMAT_U" is finished, close check timer", *l_es_uuid_ptr);
 
     DAP_DEL_Z(l_es_uuid_ptr);
     return false;

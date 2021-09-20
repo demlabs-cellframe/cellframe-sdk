@@ -75,6 +75,7 @@
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_COUNT        0x0002   // Items count
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_HASH_LAST    0x0003   // Hash of last(s) item
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_HASH_FIRST   0x0004   // Hash of first(s) item
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_TSD_LAST_ID      0x0100   // Last ID of GDB synced group
 
 typedef enum dap_stream_ch_chain_state{
     CHAIN_STATE_IDLE=0,
