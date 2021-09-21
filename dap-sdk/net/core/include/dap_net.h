@@ -43,4 +43,12 @@
 
 #endif
 
+#include "dap_events.h"
+#include "dap_events_socket.h"
+#include "dap_proc_queue.h"
+#include "dap_proc_thread.h"
+#include "dap_server.h"
+#include "dap_timerfd.h"
+#include "dap_worker.h"
+
 int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_addr_out);
