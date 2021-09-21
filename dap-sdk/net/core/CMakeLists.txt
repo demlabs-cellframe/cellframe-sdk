@@ -20,9 +20,9 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_SERVER_CORE_HEADERS} ${DAP_SERVER_CORE_SOURCES})
 
 if(DAPSDK_MODULES MATCHES "ssl-support")
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto wolfssl)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_json_rpc dap_notify_srv wolfssl)
 else()
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_json_rpc dap_notify_srv)
 endif()
 
 if(UNIX)
