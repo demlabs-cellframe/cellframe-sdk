@@ -30,9 +30,6 @@
 #include "dap_stream_ch.h"
 #include "dap_cert.h"
 
-#include "dap_client_http.h"
-#include "dap_client_pool.h"
-
 /**
  * @brief The dap_client_stage enum. Top level of client's state machine
  **/
