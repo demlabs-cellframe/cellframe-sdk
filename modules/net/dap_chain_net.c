@@ -572,8 +572,6 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    dap_chain_node_client_close(a_node_client);
-
     dap_notify_server_send_f_mt("{"
                             "class:\"NetLinkDelete\","
                             "net_id:0x%016" DAP_UINT64_FORMAT_X ","
@@ -581,6 +579,7 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
                             "address:\""NODE_ADDR_FP_STR"\""
                         "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+    dap_chain_node_client_close(a_node_client);
 }
 
 /**

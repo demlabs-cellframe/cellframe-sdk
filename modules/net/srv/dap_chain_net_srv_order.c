@@ -34,7 +34,7 @@
 #if DAP_SRV_STAKE_USED
 #include "dap_chain_net_srv_stake.h"
 #else
-static bool dap_chain_net_srv_stake_key_delegated() { return false; }
+static bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr) { UNUSED(a_addr); return false; }
 #endif
 //#include "dap_chain_net_srv_geoip.h"
 
@@ -535,7 +535,8 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
             dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
         } else {
             dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
-            if (!dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size)) {
+            if (!dap_sign_verify_size(l_sign, a_value_len) ||
+                    dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
                 dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
                 DAP_DELETE(l_gdb_group_str);
                 return;
