@@ -51,4 +51,40 @@
 #include "dap_timerfd.h"
 #include "dap_worker.h"
 
+#include "dap_client.h"
+#include "dap_client_http.h"
+#include "dap_client_pool.h"
+
+#include "dap_enc_http.h"
+#include "dap_enc_ks.h"
+
+#include "dap_http_client.h"
+#include "dap_http_header.h"
+#include "dap_http_user_agent.h"
+
+#include "dap_http.h"
+#include "dap_http_cache.h"
+#include "dap_http_simple.h"
+#include "http_status_code.h"
+
+#include "dap_json_rpc.h"
+#include "dap_json_rpc_errors.h"
+#include "dap_json_rpc_notification.h"
+#include "dap_json_rpc_params.h"
+#include "dap_json_rpc_request.h"
+#include "dap_json_rpc_request_handler.h"
+#include "dap_json_rpc_response.h"
+#include "dap_json_rpc_response_handler.h"
+
+#include "dap_notify_srv.h"
+
+#include "dap_stream_ch.h"
+#include "dap_stream_ch_pkt.h"
+#include "dap_stream_ch_proc.h"
+
+#include "dap_stream.h"
+#include "dap_stream_ctl.h"
+#include "dap_stream_pkt.h"
+#include "dap_stream_worker.h"
+
 int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_addr_out);
