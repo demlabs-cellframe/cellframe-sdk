@@ -14,4 +14,4 @@ typedef struct dap_sdk_init_module{
     dap_sdk_init_arg_t *argv;
 }dap_sdk_init_module_t;
 
-int ext_dap_sdk_init(dap_sdk_init_module_t *a_modules);
+int dap_sdk_init(dap_sdk_init_module_t *a_modules);
