@@ -12,6 +12,18 @@
 #include "TrezorCrypto/ed25519-donna/ed25519-blake2b.h"
 #include "TrezorCrypto/sodium/keypair.h"
 
+
+
+#define BTC_PRIV_KEY_SIZE 32
+#define BTC_PUBLIC_KEY_COMPR_SIZE 33
+#define BTC_PUBLIC_KEY_SIZE 65
+
+
+#define ETH_PRIV_KEY_SIZE 32
+#define ETH_PUBLIC_KEY_COMPR_SIZE 33
+#define ETH_PUBLIC_KEY_SIZE 65
+
+
 typedef struct dap_enc_key_public_ecdsa
 
 typedef struct dap_enc_key_public_ecdsa{

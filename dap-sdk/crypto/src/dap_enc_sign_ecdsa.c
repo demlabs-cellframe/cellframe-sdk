@@ -9,68 +9,35 @@ typedef struct ecdsa_pvt_serialize{
     byte_t data[];
 }DAP_ALIGN_PACKED ecdsa_pvt_serialize_t;
 
-void dap_enc_sign_ecdsa_key_new(struct dap_enc_key *a_key){
-    //a_key->type = DAP_ENC_KEY_TYPE_SIG_DILITHIUM;
-    a_key->sign_get = dap_enc_sign_ecdsa_get;
-    a_key->sign_verify = dap_enc_sign_ecdsa_verify;
-    
-}
 
 void dap_enc_sign_ecdsa_gen_priv_key(struct dap_enc_key * a_key){
 
-    random_buffer(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
-                  ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key);
+    switch (a_key->type) {
+    case DAP_ENC_KEY_TYPE_ECDSA_BTC:
+        a_key->priv_key_data_size=BTC_PRIV_KEY_SIZE;
+        break;
+    case DAP_ENC_KEY_TYPE_ECDSA_ETH:
+        a_key->priv_key_data_size=ETH_PRIV_KEY_SIZE;
+        break;
+    default:
+        log_it(L_ERROR, "Key have type ");
+        return;
+}
 
+    int output_randombytes=0;
+    output_randombytes=randombytes(&a_key->priv_key_data, a_key->priv_key_data_size)
+    //first of all, second argument randombytes should be int and not size_t, and secondly 
+    //the output is not handled in an appropriate way here
 }
 
 void dap_enc_sign_ecdsa_set_curve(struct dap_enc_key * a_key){
 
-    const ecdsa_curve *curve = NULL;
-
     switch (a_key->type) {
-    case DAP_ENC_KEY_TYPE_ECDSA_ED25519:
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
+    case DAP_ENC_KEY_TYPE_ECDSA_BTC:
+        a_key->_inheritor->dap_ecdsa_curve=DAP_ENC_CURVE_TYPE_SECP256K1;
         break;
-    case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1:
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_NIST256p1;
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_NIST256p1;
-        curve = &nist256p1;
-        break;
-    case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1:
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561k1;
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561k1;
-        curve = &secp256k1;
-        break;
-    case DAP_ENC_KEY_TYPE_ECDSA_ED25519_EX:
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_extended_size;
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519;
-        break;
-    case DAP_ENC_KEY_TYPE_ECDSA_ED25519_BLAKE2B:
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519Blake2b;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_ED25519Blake2b;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
-        break;
-    case DAP_ENC_KEY_TYPE_ECDSA_CURVE25519:
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_CURVE25519;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_CURVE25519;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_size;
-        break;
-    case DAP_ENC_KEY_TYPE_ECDSA_NIST256P1_EX:
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_NIST256p1;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_extended_size;
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_NIST256p1;
-        curve = &nist256p1;
-        break;
-    case DAP_ENC_KEY_TYPE_ECDSA_SECP256K1_EX:
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561k1;
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = c_dap_enc_key_private_extended_size;
-        ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type = DAP_ENC_CURVE_TYPE_SECP2561k1;
-        curve = &secp256k1;
+    case DAP_ENC_KEY_TYPE_ECDSA_ETH:
+        a_key->_inheritor->dap_ecdsa_curve=DAP_ENC_CURVE_TYPE_SECP256K1;
         break;
     default:
         log_it(L_ERROR, "Key have type ");
@@ -79,60 +46,50 @@ void dap_enc_sign_ecdsa_set_curve(struct dap_enc_key * a_key){
 }
 
 void dap_enc_sign_ecdsa_alloc_mem_pub_key(struct dap_enc_key * a_key){
-    a_key->pub_key_data = DAP_NEW(dap_enc_key_public_ecdsa_t);
-    a_key->pub_key_data_size = sizeof (dap_enc_key_public_ecdsa_t);
-    a_key->priv_key_data = DAP_NEW(dap_enc_key_private_ecdsa_t);
-    a_key->priv_key_data_size = sizeof(dap_enc_key_private_ecdsa_t);
+
+    switch (a_key->type) {
+    case DAP_ENC_KEY_TYPE_ECDSA_BTC:
+        a_key->pub_key_data = DAP_NEW_SIZE(void,BTC_PUBLIC_KEY_SIZE);
+        a_key->pub_key_data_size =BTC_PUBLIC_KEY_SIZE;
+        a_key->_inheritor->pub_key_compr_data = DAP_NEW_SIZE(void,BTC_PUBLIC_KEY_COMPR_SIZE);
+        a_key->_inheritor->pub_key_compr_data_size = BTC_PUBLIC_KEY_COMPR_SIZE;
+        break;
+    case DAP_ENC_KEY_TYPE_ECDSA_ETH:
+        a_key->pub_key_data = DAP_NEW_SIZE(void,ETH_PUBLIC_KEY_SIZE);
+        a_key->pub_key_data_size =ETH_PUBLIC_KEY_SIZE;
+        a_key->_inheritor->pub_key_compr_data = DAP_NEW_SIZE(void,ETH_PUBLIC_KEY_COMPR_SIZE);
+        a_key->_inheritor->pub_key_compr_data_size = ETH_PUBLIC_KEY_COMPR_SIZE;
+        break;
+    default:
+        log_it(L_ERROR, "Key have type ");
+        return;
 }
 
 void dap_enc_sign_ecdsa_gen_pub_key(struct dap_enc_key* a_key){
 
     bool gen_public_key = false;
+
     if (curve != NULL){
-        //GET public key size
-        if (key_size == 33){
-            ecdsa_get_public_key33(curve, ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
-                                   ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->data);
+
+            ecdsa_get_public_key33(curve,(uint8_t*) a_key->priv_key_data,(uint8_t*)a_key->_inheritor->pub_key_compr_data);
             gen_public_key = true;
-        }
-        if (key_size == 65){
-            ecdsa_get_public_key65(curve, ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
-                                   ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->data);
+
+            ecdsa_get_public_key65(curve,(uint8_t*) a_key->priv_key_data,(uint8_t*)a_key->pub_key_data);
             gen_public_key = true;
-        }
+
     } else {
-        if(((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type == DAP_ENC_CURVE_TYPE_ED25519){
-            if (key_size == 32){
-                ed25519_publickey(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
-                                  ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->data);
-                gen_public_key = true;
-            }
-            if (key_size == 64){
-                //TODO
-//                    ed25519_publickey_ext()
-            }
-        } else if (((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type == DAP_ENC_CURVE_TYPE_ED25519Blake2b){
-            ed25519_publickey_blake2b(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
-                                      ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->data);
-            gen_public_key = true;
-        } else if (((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->curve_type == DAP_ENC_CURVE_TYPE_CURVE25519){
-            uint8_t *tmp_key;
-            ed25519_publickey(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data,
-                              ((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->data);
-            ed25519_pk_to_curve25519(((dap_enc_key_public_ecdsa_t*)a_key->pub_key_data)->data, tmp_key);
-            DAP_FREE(tmp_key);
-            gen_public_key = true;
+           log_it(L_ERROR, "Curve was not set"); ;
         }
     }
 
     if(!gen_public_key){
         log_it(L_ERROR, "Can't generate public key");
-        DAP_FREE(a_key->pub_key_data);
-        a_key->pub_key_data_size = 0;
-        DAP_FREE(((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->data);
-        ((dap_enc_key_private_ecdsa_t*)a_key->priv_key_data)->size_key = 0;
         DAP_FREE(a_key->priv_key_data);
         a_key->priv_key_data_size = 0;
+        DAP_FREE(a_key->pub_key_data);
+        a_key->pub_key_data_size = 0;
+        DAP_FREE(a_key->_inheritor->pub_key_compr_data);
+        a_key->_inheritor->pub_key_compr_data_size = 0;
         return;
     }
 }

@@ -5,13 +5,16 @@
 
 static void test_signing_verifying(void)
 {
+
     static size_t source_size = 0;
     size_t seed_size = sizeof(uint8_t);
     uint8_t seed[seed_size];
 
     randombytes(seed, seed_size);
 
-    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_ECDSA, NULL, 0, seed, seed_size, 0);
+    ///test Bitcoin Signature
+
+    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_ECDSA_BTC, NULL, 0, seed, seed_size, 0);
 
     size_t max_signature_size = dap_enc_ecdsa_calc_signature_unserialized_size();
     uint8_t* sig = calloc(max_signature_size, 1);
@@ -22,10 +25,33 @@ static void test_signing_verifying(void)
     uint8_t source[source_size];
     randombytes(source, source_size);
 
-    size_t siglen = key->enc_na(key, source, source_size, sig, max_signature_size);
+    size_t siglen = key->sign_get(key, source, source_size, sig, max_signature_size);
     dap_assert_PIF(siglen > 0, "Signing message");
 
-    size_t verify = key->dec_na(key, source, source_size, sig, siglen);
+    size_t verify = key->sign_verify(key, source, source_size, sig, siglen);
+    dap_assert_PIF(!verify, "Verifying signature");
+
+    ecdsa_signature_delete((ecdsa_signature_t*)sig);
+    free(sig);
+    dap_enc_key_delete(key);
+
+    ///test Ethereum Signature
+
+    dap_enc_key_t* key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_ECDSA_ETH, NULL, 0, seed, seed_size, 0);
+
+    size_t max_signature_size = dap_enc_ecdsa_calc_signature_unserialized_size();
+    uint8_t* sig = calloc(max_signature_size, 1);
+
+    int step = 1 + random_uint32_t( 20);
+    source_size += (size_t) step;
+
+    uint8_t source[source_size];
+    randombytes(source, source_size);
+
+    size_t siglen = key->sign_get(key, source, source_size, sig, max_signature_size);
+    dap_assert_PIF(siglen > 0, "Signing message");
+
+    size_t verify = key->sign_verify(key, source, source_size, sig, siglen);
     dap_assert_PIF(!verify, "Verifying signature");
 
     ecdsa_signature_delete((ecdsa_signature_t*)sig);
