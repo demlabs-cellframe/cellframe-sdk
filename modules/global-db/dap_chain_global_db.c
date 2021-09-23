@@ -309,8 +309,14 @@ static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_times
     return false;
 }
 
+
 /**
+ * @brief global_db_gr_del_del:
  * Delete info about the deleted entry from the base
+ * @param a_key - key, looked like "0x8FAFBD00B..."
+ * @param a_group - group name, for example "kelvin-testnet.nodes"
+ * @return true 
+ * @return false 
  */
 static bool global_db_gr_del_del(char *a_key, const char *a_group)
 {
@@ -333,8 +339,13 @@ static bool global_db_gr_del_del(char *a_key, const char *a_group)
     return false;
 }
 
+
 /**
- * Get timestamp of the deleted entry
+ * @brief global_db_gr_del_get_timestamp
+ *  Get timestamp of the deleted entry
+ * @param a_group group name, for example "kelvin-testnet.nodes"
+ * @param a_key key, looked like "0x8FAFBD00B..."
+ * @return time_t 
  */
 time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
 {
@@ -360,17 +371,24 @@ time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
     return l_timestamp;
 }
 
-
+/**
+ * @brief dap_chain_global_db_del
+ * call dap_chain_global_db_gr_del
+ * @param a_key 
+ * @return true 
+ * @return false 
+ */
 bool dap_chain_global_db_del(char *a_key)
 {
     return dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL);
 }
 
+
 /**
+ * @brief dap_chain_global_db_get_last
  * Read last item in global_db
- *
- * @param data_size[out] size of output array
- * @return array (note:not Null-terminated string) on NULL in case of an error
+ * @param a_group 
+ * @return dap_store_obj_t* array (note:not Null-terminated string) on NULL in case of an error
  */
 dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group)
 {

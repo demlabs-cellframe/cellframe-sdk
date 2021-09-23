@@ -37,11 +37,10 @@ static const char s_key_inheritor[] = "Inheritor";
 
 /**
  * @brief dap_cert_file_save
- * @param a_cert
- * @param a_cert_file_path
+ * @param a_cert dap_cert_t certificate struucture
+ * @param a_cert_file_path path to certificate
  * @return int
  */
-
 int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
 {
     char * l_file_dir = dap_path_get_dirname(a_cert_file_path);
@@ -77,9 +76,9 @@ int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
 /**
  * @brief s_balance_the_tree
  * 
- * @param a_reorder 
- * @param a_left_idx 
- * @param a_right_idx 
+ * @param a_reorder dap_cert_file_aux_t
+ * @param a_left_idx size_t left tree node
+ * @param a_right_idx size_t right tree node
  */
 
 void s_balance_the_tree(dap_cert_file_aux_t *a_reorder, size_t a_left_idx, size_t a_right_idx)
@@ -103,7 +102,6 @@ void s_balance_the_tree(dap_cert_file_aux_t *a_reorder, size_t a_left_idx, size_
  * @param a_data 
  * @param a_size 
  */
- 
 void dap_cert_deserialize_meta(dap_cert_t *a_cert, const uint8_t *a_data, size_t a_size)
 {
     dap_cert_metadata_t **l_meta_arr = NULL;
@@ -177,7 +175,6 @@ void dap_cert_deserialize_meta(dap_cert_t *a_cert, const uint8_t *a_data, size_t
  * @param a_buflen_out 
  * @return uint8_t* 
  */
-
 uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
 {
     if (!a_cert) {
@@ -249,7 +246,6 @@ uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
  * @param a_cert_size_out
  * @return uint8_t*
  */
-
 uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out)
 {
     dap_cert_file_hdr_t l_hdr={0};
@@ -336,7 +332,6 @@ lb_exit:
  * @param a_cert_file_path: path to certificate, for example "{PREFIX}/var/lib/ca/node-addr.dcert"
  * @return dap_cert_t
  */
-
 dap_cert_t* dap_cert_file_load(const char * a_cert_file_path)
 {
     dap_cert_t * l_ret = NULL;
@@ -370,7 +365,6 @@ lb_exit:
  * @param a_data_size - size of certificate
  * @return dap_cert_t* 
  */
-
 dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
 {
     dap_cert_t * l_ret = NULL;

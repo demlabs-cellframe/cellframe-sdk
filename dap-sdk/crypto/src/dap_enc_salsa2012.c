@@ -13,6 +13,18 @@
 #define SALSA20_KEY_SIZE 32
 #define SALSA20_NONCE_SIZE 8
 
+/**
+ * @brief dap_enc_salsa2012_key_generate
+ * 
+ * Generate key for Salsa20 crypto alghorithm. Key is stored in a_key->priv_key_data
+ * 
+ * @param a_key - dap_enc_key key descriptor
+ * @param kex_buf - 
+ * @param kex_size 
+ * @param seed 
+ * @param seed_size 
+ * @param key_size 
+ */
 void dap_enc_salsa2012_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
         size_t kex_size, const void * seed, size_t seed_size, size_t key_size)
 {
@@ -34,6 +46,11 @@ void dap_enc_salsa2012_key_generate(struct dap_enc_key * a_key, const void *kex_
     Keccak_HashFinal(&Keccak_ctx, a_key->priv_key_data);
 }
 
+/**
+ * @brief dap_enc_salsa2012_key_delete 
+ * 
+ * @param a_key 
+ */
 void dap_enc_salsa2012_key_delete(struct dap_enc_key *a_key)
 {
     if(a_key->priv_key_data != NULL)
@@ -43,7 +60,13 @@ void dap_enc_salsa2012_key_delete(struct dap_enc_key *a_key)
     }
     //a_key->priv_key_data_size = 0;
 }
+
 //------SALSA2012-----------
+/**
+ * @brief dap_enc_salsa2012_key_new
+ * 
+ * @param a_key 
+ */
 void dap_enc_salsa2012_key_new(struct dap_enc_key * a_key)
 {
     a_key->_inheritor = NULL;
@@ -55,7 +78,15 @@ void dap_enc_salsa2012_key_new(struct dap_enc_key * a_key)
     a_key->dec_na = dap_enc_salsa2012_decrypt_fast;
 }
 
-
+/**
+ * @brief dap_enc_salsa2012_decrypt
+ * 
+ * @param a_key 
+ * @param a_in 
+ * @param a_in_size 
+ * @param a_out 
+ * @return size_t 
+ */
 size_t dap_enc_salsa2012_decrypt(struct dap_enc_key *a_key, const void * a_in, size_t a_in_size, void ** a_out)
 {
     size_t l_out_size = a_in_size - SALSA20_NONCE_SIZE;
@@ -70,6 +101,15 @@ size_t dap_enc_salsa2012_decrypt(struct dap_enc_key *a_key, const void * a_in, s
     return l_out_size;
 }
 
+/**
+ * @brief dap_enc_salsa2012_encrypt
+ * 
+ * @param a_key 
+ * @param a_in 
+ * @param a_in_size 
+ * @param a_out 
+ * @return size_t 
+ */
 size_t dap_enc_salsa2012_encrypt(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void ** a_out)
 {
     if(a_in_size <= 0) {
@@ -84,11 +124,23 @@ size_t dap_enc_salsa2012_encrypt(struct dap_enc_key * a_key, const void * a_in, 
     return l_out_size;
 }
 
+/**
+ * @brief dap_enc_salsa2012_calc_encode_size
+ * 
+ * @param size_in 
+ * @return size_t 
+ */
 size_t dap_enc_salsa2012_calc_encode_size(const size_t size_in)
 {
     return size_in + SALSA20_NONCE_SIZE;
 }
 
+/**
+ * @brief dap_enc_salsa2012_calc_decode_size
+ * 
+ * @param size_in 
+ * @return size_t 
+ */
 size_t dap_enc_salsa2012_calc_decode_size(const size_t size_in)
 {
     if(size_in <= SALSA20_NONCE_SIZE) {
@@ -98,6 +150,16 @@ size_t dap_enc_salsa2012_calc_decode_size(const size_t size_in)
     return size_in - SALSA20_NONCE_SIZE;
 }
 
+/**
+ * @brief dap_enc_salsa2012_decrypt_fast
+ * 
+ * @param a_key 
+ * @param a_in 
+ * @param a_in_size 
+ * @param a_out 
+ * @param buf_out_size 
+ * @return size_t 
+ */
 size_t dap_enc_salsa2012_decrypt_fast(struct dap_enc_key *a_key, const void * a_in,
         size_t a_in_size, void * a_out, size_t buf_out_size) {
     size_t l_out_size = a_in_size - SALSA20_NONCE_SIZE;
@@ -111,6 +173,16 @@ size_t dap_enc_salsa2012_decrypt_fast(struct dap_enc_key *a_key, const void * a_
     return l_out_size;
 }
 
+/**
+ * @brief dap_enc_salsa2012_encrypt_fast
+ * 
+ * @param a_key 
+ * @param a_in 
+ * @param a_in_size 
+ * @param a_out 
+ * @param buf_out_size 
+ * @return size_t 
+ */
 size_t dap_enc_salsa2012_encrypt_fast(struct dap_enc_key * a_key, const void * a_in, size_t a_in_size, void * a_out,size_t buf_out_size)
 {
     size_t l_out_size = a_in_size + SALSA20_NONCE_SIZE;
