@@ -131,7 +131,7 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_nam
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
     l_wallet->name = strdup(a_wallet_name);
     l_wallet_internal->certs_count = 1;
-    l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count);
+    l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
 
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     l_wallet_internal->file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
