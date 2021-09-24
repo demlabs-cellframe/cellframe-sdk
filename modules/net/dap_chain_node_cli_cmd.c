@@ -3,7 +3,7 @@
  * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
+ * Cellframe Network  https://github.com/demlabs-cellframe
  * Copyright  (c) 2019
  * All rights reserved.
 
@@ -4036,7 +4036,7 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
 
 /**
  * @brief cmd_gdb_export
- * action for cellframe-node-cli.exe gdb_export command
+ * action for cellframe-node-cli gdb_export command
  * @param argc
  * @param argv
  * @param arg_func
