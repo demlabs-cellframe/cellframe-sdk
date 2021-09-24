@@ -338,8 +338,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
 
     if (l_token_item) {
-        if(s_debug_more)
-            log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
         return -3;
     }
 
@@ -1226,7 +1225,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
     } else {
         if (l_token_item) {
             if(s_debug_more)
-                log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s )",
+                log_it(L_ERROR, "Duplicate token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s )",
                             a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         }
         ret = -1;
@@ -1924,8 +1923,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 }
                 l_value_cur = NULL;
             } else {
-                log_it(L_ERROR, "Emission for tx_token wasn't found");
-                l_err_num = -11;
+                log_it(L_WARNING, "Emission for tx_token wasn't found");
+                l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                 break;
             }
         }
