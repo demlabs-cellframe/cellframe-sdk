@@ -4036,6 +4036,7 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
 
 /**
  * @brief cmd_gdb_export
+ * action for cellframe-node-cli.exe gdb_export command
  * @param argc
  * @param argv
  * @param arg_func
