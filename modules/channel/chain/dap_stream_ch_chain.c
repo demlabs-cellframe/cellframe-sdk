@@ -1157,6 +1157,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     else
                         log_it(L_INFO, "In: SYNC_CHAINS pkt");
                 }
+                if ((l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END) &&
+                        HASH_COUNT(l_ch_chain->remote_atoms) > 5000) {
+                    // TODO remove this after chains will come in order
+                    s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                                                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                                                        "ERROR_SYNC_REQUEST_IS_TOO_LARGE");
+                }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->stats_request_atoms_processed = 0;
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS) {

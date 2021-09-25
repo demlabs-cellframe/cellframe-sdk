@@ -142,8 +142,9 @@ typedef struct dap_events_socket_callbacks {
 
 } dap_events_socket_callbacks_t;
 
-#define DAP_EVENTS_SOCKET_BUF 100000
-#define DAP_QUEUE_MAX_MSGS 8
+#define DAP_EVENTS_SOCKET_BUF       100000
+#define DAP_EVENTS_SOCKET_BUF_LIMIT 500000
+#define DAP_QUEUE_MAX_MSGS          8
 
 typedef enum {
     DESCRIPTOR_TYPE_SOCKET_CLIENT = 0,

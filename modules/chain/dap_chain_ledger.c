@@ -950,7 +950,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     l_objs_count = 0;
     l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
-        if (!objs[i].value_len)
+        if (!l_objs[i].value_len)
             continue;
         dap_chain_ledger_token_emission_item_t *l_emission_item = DAP_NEW_Z(dap_chain_ledger_token_emission_item_t);
         dap_chain_hash_fast_from_str(l_objs[i].key, &l_emission_item->datum_token_emission_hash);
