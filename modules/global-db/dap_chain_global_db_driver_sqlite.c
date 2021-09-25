@@ -566,7 +566,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
     char *l_error_message = NULL;
     char *l_table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
     if(a_store_obj->type == 'a') {
-        if(!a_store_obj->key || !a_store_obj->value || !a_store_obj->value_len)
+        if(!a_store_obj->key)
             return -1;
         //dap_chain_hash_fast_t l_hash;
         //dap_hash_fast(a_store_obj->value, a_store_obj->value_len, &l_hash);

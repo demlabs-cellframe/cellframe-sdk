@@ -471,8 +471,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     if (!l_chain) {
         if (s_debug_more)
             log_it(L_WARNING, "No chain found for DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN");
-        DAP_DELETE(l_sync_request);
         DAP_DEL_Z(l_pkt_item->pkt_data);
+        DAP_DELETE(l_sync_request);
         return true;
     }
     dap_chain_atom_ptr_t l_atom_copy = (dap_chain_atom_ptr_t)l_pkt_item->pkt_data;
@@ -498,6 +498,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
             log_it(L_WARNING,"Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
+        dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         DAP_DELETE(l_atom_copy);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
@@ -538,6 +539,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     if(l_res < 0) {
                         log_it(L_ERROR, "Can't save event 0x%x from treshold to file '%s'",
                                 l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
+                    } else {
+                        dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
                     }
                 }
             } while(l_atom_treshold);

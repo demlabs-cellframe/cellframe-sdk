@@ -299,11 +299,12 @@ bool dap_chain_node_mempool_autoproc_init()
                 dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
                 if (l_objs_size) {
                     for (size_t i = 0; i < l_objs_size; i++) {
+                        // Delete processed objects
+                        dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
+                        if (!l_objs[i].value_len)
+                            continue;
                         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-                        if (dap_chain_node_mempool_process(l_chain, l_role, l_datum)) {
-                            // Delete processed objects
-                            dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
-                        }
+                        dap_chain_node_mempool_process(l_chain, l_role, l_datum);
                     }
                     dap_chain_global_db_objs_delete(l_objs, l_objs_size);
                 }
