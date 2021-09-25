@@ -524,7 +524,7 @@ bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, 
     // Extract prefix if added successfuly, add history log and call notify callback if present
     if(!l_res) {
         // delete info about the deleted entry from the base if one present
-        global_db_gr_del_del(store_data.key, store_data.group);
+        global_db_gr_del_del(dap_strdup(store_data.key), store_data.group);
         dap_global_db_obj_track_history(&store_data);
     } else {
         log_it(L_ERROR, "Save error: %d", l_res);
@@ -554,7 +554,7 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
     unlock();
     if(l_res >= 0) {
         // add to Del group
-        global_db_gr_del_add(store_data.key, store_data.group, store_data.timestamp);
+        global_db_gr_del_add(dap_strdup(store_data.key), store_data.group, store_data.timestamp);
     }
     // do not add to history if l_res=1 (already deleted)
     if (!l_res) {

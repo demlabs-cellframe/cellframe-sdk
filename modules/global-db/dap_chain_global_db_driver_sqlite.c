@@ -579,14 +579,12 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
                                    l_table_name, a_store_obj->key, l_blob_hash, a_store_obj->timestamp, l_blob_value);
         //dap_db_driver_sqlite_free(l_blob_hash);
         dap_db_driver_sqlite_free(l_blob_value);
-        DAP_DELETE(a_store_obj->key);
     }
     else if (a_store_obj->type == 'd') {
         //delete one record
         if (a_store_obj->key) {
             l_query = sqlite3_mprintf("delete from '%s' where key = '%s'",
                                       l_table_name, a_store_obj->key);
-            DAP_DELETE(a_store_obj->key);
         } else {
             // remove all group
             l_query = sqlite3_mprintf("drop table if exists '%s'", l_table_name);
@@ -636,6 +634,8 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         dap_db_driver_sqlite_free(l_error_message);
         l_ret = -1;
     }
+    if (a_store_obj->key)
+        DAP_DELETE(a_store_obj->key);
     dap_db_driver_sqlite_free(l_query);
     DAP_DELETE(l_table_name);
     return l_ret;
