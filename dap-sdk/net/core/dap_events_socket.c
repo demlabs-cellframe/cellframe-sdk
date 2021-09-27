@@ -2107,10 +2107,18 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_uuid_t 
  */
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_data, size_t a_data_size)
 {
-    if(a_es->buf_out_size > a_es->buf_out_size_max){
-        log_it(L_DEBUG,"write buffer already overflow size=%u/max=%u", a_es->buf_out_size, a_es->buf_out_size_max);
-        return 0;
-    }
+    if (a_es->buf_out_size + a_data_size > a_es->buf_out_size_max) {
+        if (a_es->buf_out_size_max + a_data_size > DAP_EVENTS_SOCKET_BUF_LIMIT) {
+            log_it(L_ERROR, "Write esocket buffer overflow size=%u/max=%u", a_es->buf_out_size_max, DAP_EVENTS_SOCKET_BUF_LIMIT);
+            return 0;
+        } else {
+            size_t l_new_size = a_es->buf_out_size_max * 2;
+            if (l_new_size > DAP_EVENTS_SOCKET_BUF_LIMIT)
+                l_new_size = DAP_EVENTS_SOCKET_BUF_LIMIT;
+            a_es->buf_out = DAP_REALLOC(a_es->buf_out, l_new_size);
+            a_es->buf_out_size_max = l_new_size;
+        }
+     }
      a_data_size = (a_es->buf_out_size + a_data_size < a_es->buf_out_size_max) ? a_data_size : (a_es->buf_out_size_max - a_es->buf_out_size);
      memcpy(a_es->buf_out + a_es->buf_out_size, a_data, a_data_size);
      a_es->buf_out_size += a_data_size;

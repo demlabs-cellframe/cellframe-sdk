@@ -123,6 +123,7 @@ typedef uint8_t byte_t;
   #define DAP_REALLOC(a, b)     rprealloc(a,b)
   #define DAP_DELETE(a)         rpfree(a)
   #define DAP_DUP(a)            memcpy(rpmalloc(sizeof(*a)), a, sizeof(*a))
+  #define DAP_DUP_SIZE(a, s)    memcpy(rpmalloc(s), a, s)
 #else
   #define DAP_MALLOC(a)         malloc(a)
   #define DAP_FREE(a)           free(a)
@@ -139,6 +140,7 @@ typedef uint8_t byte_t;
   #define DAP_REALLOC(a, b)     realloc(a,b)
   #define DAP_DELETE(a)         free(a)
   #define DAP_DUP(a)            memcpy(malloc(sizeof(*a)), a, sizeof(*a))
+  #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
 #endif
 
 #define DAP_DEL_Z(a)          if(a) { DAP_DELETE(a); a=NULL;}
