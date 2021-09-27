@@ -101,6 +101,10 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
         }
         l_keys[i] = NULL;
         l_rec.keys = dap_strjoinv(GLOBAL_DB_HIST_KEY_SEPARATOR, l_keys);
+        for(i = 0; i < a_dap_store_count; i++) {
+            DAP_DELETE(l_keys[i]);
+            DAP_DEL_Z(a_store_obj[i].value);
+        }
         DAP_DELETE(l_keys);
     }
 
@@ -117,7 +121,6 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
     int l_res = dap_chain_global_db_driver_add(&l_store_data, 1);
     if(l_rec.keys_count > 1)
         DAP_DELETE(l_rec.keys);
-    DAP_DELETE(l_str);
     if(!l_res)
         return true;
     return false;

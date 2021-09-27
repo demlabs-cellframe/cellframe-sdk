@@ -2245,6 +2245,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             } else {
                 wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
                 wallet_balance->key = l_wallet_balance_key;
+                strcpy(wallet_balance->token_ticker, l_token_ticker);
                 uint128_t l_add = dap_chain_uint128_from(l_value);
                 wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
                 if(s_debug_more)
@@ -2410,7 +2411,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
         DAP_DELETE(l_item_current->tx);
         HASH_DEL(l_ledger_priv->ledger_items, l_item_current);
         dap_chain_hash_fast_to_str(&l_item_current->tx_hash_fast, l_hash_str, l_hash_str_size);
-        dap_chain_global_db_gr_del(l_hash_str, l_gdb_group);
+        dap_chain_global_db_gr_del(dap_strdup(l_hash_str), l_gdb_group);
         DAP_DELETE(l_item_current);
     }
     DAP_DELETE(l_gdb_group);
@@ -2420,7 +2421,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
     HASH_ITER(hh, l_ledger_priv->treshold_txs, l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_priv->treshold_txs, l_item_current);
         dap_chain_hash_fast_to_str(&l_item_current->tx_hash_fast, l_hash_str, l_hash_str_size);
-        dap_chain_global_db_gr_del(l_hash_str, l_gdb_group);
+        dap_chain_global_db_gr_del(dap_strdup(l_hash_str), l_gdb_group);
         DAP_DELETE(l_item_current->tx);
         DAP_DELETE(l_item_current);
     }
@@ -2432,7 +2433,6 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
     HASH_ITER(hh, l_ledger_priv->balance_accounts, l_balance_current, l_balance_tmp) {
         HASH_DEL(l_ledger_priv->balance_accounts, l_balance_current);
         dap_chain_global_db_gr_del(l_balance_current->key, l_gdb_group);
-        DAP_DELETE(l_balance_current->key);
         DAP_DELETE(l_balance_current);
     }
     DAP_DELETE(l_gdb_group);
@@ -2443,7 +2443,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
     HASH_ITER(hh, l_ledger_priv->treshold_emissions, l_emission_current, l_emission_tmp) {
         HASH_DEL(l_ledger_priv->treshold_emissions, l_emission_current);
         dap_chain_hash_fast_to_str(&l_emission_current->datum_token_emission_hash, l_hash_str, l_hash_str_size);
-        dap_chain_global_db_gr_del(l_hash_str, l_emissions_gdb_group);
+        dap_chain_global_db_gr_del(dap_strdup(l_hash_str), l_emissions_gdb_group);
         DAP_DELETE(l_emission_current->datum_token_emission);
         DAP_DELETE(l_emission_current);
     }
@@ -2457,12 +2457,12 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
         HASH_ITER(hh, l_token_current->token_emissions, l_emission_current, l_emission_tmp) {
             HASH_DEL(l_token_current->token_emissions, l_emission_current);
             dap_chain_hash_fast_to_str(&l_emission_current->datum_token_emission_hash, l_hash_str, l_hash_str_size);
-            dap_chain_global_db_gr_del(l_hash_str, l_emissions_gdb_group);
+            dap_chain_global_db_gr_del(dap_strdup(l_hash_str), l_emissions_gdb_group);
             DAP_DELETE(l_emission_current->datum_token_emission);
             DAP_DELETE(l_emission_current);
         }
         pthread_rwlock_unlock(&l_token_current->token_emissions_rwlock);
-        dap_chain_global_db_gr_del(l_token_current->ticker, l_gdb_group);
+        dap_chain_global_db_gr_del(dap_strdup(l_token_current->ticker), l_gdb_group);
         DAP_DELETE(l_token_current->datum_token);
         pthread_rwlock_destroy(&l_token_current->token_emissions_rwlock);
         DAP_DELETE(l_token_current);
@@ -2560,6 +2560,9 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
         if(s_debug_more)
             log_it (L_INFO,"Found address in cache with balance %"DAP_UINT64_FORMAT_U"", l_balance_item->balance);
         l_ret = l_balance_item->balance;
+    } else {
+        if (s_debug_more)
+            log_it (L_WARNING, "Balance item %s not found", l_wallet_balance_key);
     }
     DAP_DELETE(l_addr);
     DAP_DELETE(l_wallet_balance_key);
