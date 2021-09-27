@@ -248,13 +248,12 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
             log_it(L_ERROR, "Can't create condition for user");
         } else {
             // save transaction for login
-            dap_chain_global_db_gr_set("client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t),
+            dap_chain_global_db_gr_set(dap_strdup("client_tx_cond_hash"), l_tx_cond_hash, sizeof(dap_chain_hash_fast_t),
                     l_gdb_group);
         }
         //DAP_DELETE(l_addr_from_str);
         DAP_DELETE(l_pub_key_data);
     }
-    DAP_DELETE(l_tx_cond_hash);
     dap_enc_key_delete(l_enc_key);
     DAP_DELETE(l_gdb_group);
     return l_tx_cond_hash;

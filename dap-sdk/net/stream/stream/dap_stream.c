@@ -757,8 +757,14 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
     case STREAM_PKT_TYPE_DATA_PACKET: {
         dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
-        if(dap_stream_pkt_read_unsafe(a_stream,l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache))==0){
+        size_t l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache));
+        if (l_dec_pkt_size == 0) {
             log_it(L_WARNING, "Input: can't decode packet size=%d",l_pkt_size);
+            DAP_DELETE(l_pkt);
+            return;
+        }
+        if (l_dec_pkt_size != l_ch_pkt->hdr.size + sizeof(l_ch_pkt->hdr)) {
+            log_it(L_WARNING, "Input: decoded packet has bad size = %d, decoded size = %d", l_ch_pkt->hdr.size, l_dec_pkt_size);
             DAP_DELETE(l_pkt);
             return;
         }

@@ -1717,7 +1717,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
                     // save pub key
                     if(l_pub_key_data && l_pub_key_data_size > 0)
-                        dap_chain_global_db_gr_set(dap_strdup("cur-node-addr-pkey"), (uint8_t*) l_pub_key_data, l_pub_key_data_size,
+                        dap_chain_global_db_gr_set(dap_strdup("cur-node-addr-pkey"), DAP_DUP_SIZE(l_pub_key_data, l_pub_key_data_size), l_pub_key_data_size,
                         GROUP_LOCAL_NODE_ADDR);
                 }
             }
