@@ -317,23 +317,19 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (l_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TOKEN_DECL:{
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-            dap_chain_ledger_token_load(a_chain->ledger,l_token, l_datum->header.data_size);
+            if (dap_chain_ledger_token_load(a_chain->ledger,l_token, l_datum->header.data_size))
+                return ATOM_REJECT;
         }break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-            dap_chain_ledger_token_emission_load(a_chain->ledger, l_token_emission, l_datum->header.data_size);
+            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_token_emission, l_datum->header.data_size))
+                return ATOM_REJECT;
         }break;
         case DAP_CHAIN_DATUM_TX:{
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-            //if ( !l_gdb_priv->is_load_mode ) // If its not load module but mempool proc
-            //    l_tx->header.ts_created = time(NULL);
-            //if(dap_chain_datum_tx_get_size(l_tx) == l_datum->header.data_size){
-
-            // don't save bad transactions to base
+            // No trashhold herr, don't save bad transactions to base
             if(dap_chain_ledger_tx_load(a_chain->ledger, l_tx) != 1)
                 return ATOM_REJECT;
-            //}else
-            //    return -2;
         }break;
         default: return ATOM_REJECT;
     }

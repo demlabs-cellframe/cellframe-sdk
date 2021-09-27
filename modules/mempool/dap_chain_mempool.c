@@ -334,12 +334,12 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     //return 0;
     if( dap_chain_global_db_gr_save(l_objs,a_tx_num,l_gdb_group) ) {
         log_it(L_NOTICE, "%u transaction are placed in mempool", a_tx_num);
-        //DAP_DELETE(l_objs);
+        DAP_DELETE(l_objs);
         DAP_DELETE(l_gdb_group);
         return 0;
     }else{
         log_it(L_ERROR, "Can't place %u transactions  in mempool", a_tx_num);
-        //DAP_DELETE(l_objs);
+        DAP_DELETE(l_objs);
         DAP_DELETE(l_gdb_group);
         return -4;
     }

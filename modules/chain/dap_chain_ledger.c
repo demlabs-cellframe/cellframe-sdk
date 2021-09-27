@@ -2410,7 +2410,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
         DAP_DELETE(l_item_current->tx);
         HASH_DEL(l_ledger_priv->ledger_items, l_item_current);
         dap_chain_hash_fast_to_str(&l_item_current->tx_hash_fast, l_hash_str, l_hash_str_size);
-        dap_chain_global_db_gr_del(l_hash_str, l_gdb_group);
+        dap_chain_global_db_gr_del(dap_strdup(l_hash_str), l_gdb_group);
         DAP_DELETE(l_item_current);
     }
     DAP_DELETE(l_gdb_group);
@@ -2420,7 +2420,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
     HASH_ITER(hh, l_ledger_priv->treshold_txs, l_item_current, l_item_tmp) {
         HASH_DEL(l_ledger_priv->treshold_txs, l_item_current);
         dap_chain_hash_fast_to_str(&l_item_current->tx_hash_fast, l_hash_str, l_hash_str_size);
-        dap_chain_global_db_gr_del(l_hash_str, l_gdb_group);
+        dap_chain_global_db_gr_del(dap_strdup(l_hash_str), l_gdb_group);
         DAP_DELETE(l_item_current->tx);
         DAP_DELETE(l_item_current);
     }
@@ -2432,7 +2432,6 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
     HASH_ITER(hh, l_ledger_priv->balance_accounts, l_balance_current, l_balance_tmp) {
         HASH_DEL(l_ledger_priv->balance_accounts, l_balance_current);
         dap_chain_global_db_gr_del(l_balance_current->key, l_gdb_group);
-        DAP_DELETE(l_balance_current->key);
         DAP_DELETE(l_balance_current);
     }
     DAP_DELETE(l_gdb_group);
@@ -2443,7 +2442,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
     HASH_ITER(hh, l_ledger_priv->treshold_emissions, l_emission_current, l_emission_tmp) {
         HASH_DEL(l_ledger_priv->treshold_emissions, l_emission_current);
         dap_chain_hash_fast_to_str(&l_emission_current->datum_token_emission_hash, l_hash_str, l_hash_str_size);
-        dap_chain_global_db_gr_del(l_hash_str, l_emissions_gdb_group);
+        dap_chain_global_db_gr_del(dap_strdup(l_hash_str), l_emissions_gdb_group);
         DAP_DELETE(l_emission_current->datum_token_emission);
         DAP_DELETE(l_emission_current);
     }
@@ -2457,12 +2456,12 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger)
         HASH_ITER(hh, l_token_current->token_emissions, l_emission_current, l_emission_tmp) {
             HASH_DEL(l_token_current->token_emissions, l_emission_current);
             dap_chain_hash_fast_to_str(&l_emission_current->datum_token_emission_hash, l_hash_str, l_hash_str_size);
-            dap_chain_global_db_gr_del(l_hash_str, l_emissions_gdb_group);
+            dap_chain_global_db_gr_del(dap_strdup(l_hash_str), l_emissions_gdb_group);
             DAP_DELETE(l_emission_current->datum_token_emission);
             DAP_DELETE(l_emission_current);
         }
         pthread_rwlock_unlock(&l_token_current->token_emissions_rwlock);
-        dap_chain_global_db_gr_del(l_token_current->ticker, l_gdb_group);
+        dap_chain_global_db_gr_del(dap_strdup(l_token_current->ticker), l_gdb_group);
         DAP_DELETE(l_token_current->datum_token);
         pthread_rwlock_destroy(&l_token_current->token_emissions_rwlock);
         DAP_DELETE(l_token_current);
