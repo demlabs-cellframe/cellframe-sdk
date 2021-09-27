@@ -256,7 +256,7 @@ void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                      dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype));
             switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
-                l_hash_str_tmp = dap_hash_fast_to_str_new(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
+                l_hash_str_tmp = dap_chain_hash_fast_to_str_new(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
                 dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
                                                     "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t pkey: %s\n"

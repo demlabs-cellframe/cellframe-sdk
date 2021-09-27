@@ -1522,9 +1522,10 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                         HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
                         pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-                        if ( l_event_item )
+                        if ( l_event_item ) {
                             l_event = l_event_item->event;
-                        else {
+                            l_event_size = l_event_item->event_size;
+                        } else {
                             ret = -24;
                             dap_chain_node_cli_set_reply_text(a_str_reply,
                                                               "Can't find event %s in events table\n", l_event_hash_str);
@@ -1594,7 +1595,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
                         char * l_addr_str = dap_chain_addr_to_str(&l_addr);
                         dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype: %s\taddr: %s"
-                                                           "n", dap_sign_type_to_str( l_sign->header.type ),
+                                                           "\n", dap_sign_type_to_str( l_sign->header.type ),
                                                  l_addr_str );
                         l_offset += l_sign_size;
                         DAP_DELETE( l_addr_str);

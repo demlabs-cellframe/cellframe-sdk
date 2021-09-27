@@ -290,8 +290,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,  dap_chain_da
     HASH_FIND_STR(PVT(a_ledger)->tokens,a_token->ticker,l_token_item);
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     if ( l_token_item != NULL ){
-        if(s_debug_more)
-            log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
         return -3;
     }
     // Checks passed
