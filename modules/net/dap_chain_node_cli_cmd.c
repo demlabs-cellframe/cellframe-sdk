@@ -3369,7 +3369,6 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
         return -2;
     }
     DAP_DELETE(str_reply_tmp);
-    DAP_DELETE(l_datum_tx);
     DAP_DELETE(l_addr);
     return 0;
 }
