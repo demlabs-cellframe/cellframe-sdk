@@ -156,6 +156,8 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
             PVT(l_pos)->events_sign_key = dap_chain_wallet_get_key(l_wallet, 0);
             log_it(L_NOTICE,"Loaded \"%s\" wallet to sign pos event", l_events_sign_wallet);
         }
+    } else {
+        log_it(L_WARNING, "Events sign wallet is empty for %s chain, can't sing any events for it", a_chain->name);
     }
     return 0;
 }

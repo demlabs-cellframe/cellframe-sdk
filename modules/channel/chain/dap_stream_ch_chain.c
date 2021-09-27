@@ -702,7 +702,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 }
             }
             // save data to global_db
-            if(!dap_chain_global_db_obj_save(l_obj, 1)) {
+            if(!dap_chain_global_db_obj_save(dap_store_obj_copy(l_obj, 1), 1)) {
                 struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
                 dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
                                                   s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
@@ -811,7 +811,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ:{
             if(l_ch_chain->state != CHAIN_STATE_IDLE){
                 log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB_REQ request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
                 break;
@@ -862,7 +862,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
             if (l_ch_chain->state != CHAIN_STATE_IDLE){
                 log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB_START request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
                 break;
@@ -910,7 +910,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if(l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t)) {
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB && l_ch_chain->state != CHAIN_STATE_IDLE) {
                     log_it(L_WARNING, "Can't process SYNC_GLOBAL_DB request because not in idle state");
-                    s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                    dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                             "ERROR_STATE_NOT_IN_IDLE");
                     break;
@@ -1017,7 +1017,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ:{
             if (l_ch_chain->state != CHAIN_STATE_IDLE) {
                 log_it(L_WARNING, "Can't process UPDATE_CHAINS_REQ request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
                 break;
@@ -1049,7 +1049,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START:{
             if (l_ch_chain->state != CHAIN_STATE_IDLE) {
                 log_it(L_WARNING, "Can't process UPDATE_CHAINS_START request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
                 break;
@@ -1163,6 +1163,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                                                         "ERROR_SYNC_REQUEST_IS_TOO_LARGE");
+                    break;
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->stats_request_atoms_processed = 0;
@@ -1210,6 +1211,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                         dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
                         l_pkt_item->pkt_data = DAP_NEW_SIZE(byte_t, l_chain_pkt_data_size);
+                        if (!l_pkt_item->pkt_data) {
+                            log_it(L_ERROR, "Not enough memory!");
+                            break;
+                        }
                         memcpy(l_pkt_item->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
                         l_pkt_item->pkt_data_size = l_chain_pkt_data_size;
                         if (s_debug_more){

@@ -143,7 +143,7 @@ pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
     pthread_mutex_lock(&cdb_mutex);
     char l_cdb_path[strlen(s_cdb_path) + strlen(a_group) + 2];
     HASH_FIND_STR(s_cdb, a_group, l_cdb_i);
-    if (l_cdb_i && !(a_flags & (1 << 1))) {
+    if (l_cdb_i && !(a_flags & CDB_TRUNC)) {
         goto FIN;
     }
     l_cdb_i = DAP_NEW(cdb_instance);
@@ -160,10 +160,10 @@ pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
         log_it(L_ERROR, "An error occured while opening CDB: \"%s\"", cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
         goto ERR;
     }
-    if (!(a_flags & (1 << 1))) {
+    if (!(a_flags & CDB_TRUNC)) {
         CDBSTAT l_cdb_stat;
         cdb_stat(l_cdb_i->cdb, &l_cdb_stat);
-        if (l_cdb_stat.rnum > 0) {
+        if (l_cdb_stat.rnum > 0 || !(a_flags & CDB_CREAT)) {
             void *l_iter = cdb_iterate_new(l_cdb_i->cdb, 0);
             obj_arg l_arg;
             l_arg.o = DAP_NEW_Z(dap_store_obj_t);
@@ -230,7 +230,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
         if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
             continue;
         }
-        pcdb_instance l_cdb_i = dap_cdb_init_group(d->d_name, CDB_CREAT | CDB_PAGEWARMUP);
+        pcdb_instance l_cdb_i = dap_cdb_init_group(d->d_name, CDB_PAGEWARMUP);
         if (!l_cdb_i) {
             dap_db_driver_cdb_deinit();
             closedir(dir);
