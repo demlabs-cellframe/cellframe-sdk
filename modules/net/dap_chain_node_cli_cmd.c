@@ -3,7 +3,7 @@
  * Dmitriy A. Gerasimov <gerasimov.dmitriy@demlabs.net>
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvinblockchain
+ * Cellframe Network  https://github.com/demlabs-cellframe
  * Copyright  (c) 2019
  * All rights reserved.
 
@@ -1639,9 +1639,10 @@ int com_tx_wallet(int argc, char ** argv, void *arg_func, char **str_reply)
         }
         char *l_addr_str = l_addr? dap_chain_addr_to_str(l_addr) : NULL;
         dap_string_append_printf(l_string_ret, "wallet '%s' (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
-        if ( l_addr_str )
+        if ( l_addr_str ) {
             dap_string_append_printf(l_string_ret, "new address %s", l_addr_str);
-        DAP_DELETE(l_addr_str);
+            DAP_DELETE(l_addr_str);
+        }
         dap_chain_wallet_close(l_wallet);
     }
         break;
@@ -4035,6 +4036,7 @@ int com_print_log(int argc, char ** argv, void *arg_func, char **str_reply)
 
 /**
  * @brief cmd_gdb_export
+ * action for cellframe-node-cli gdb_export command
  * @param argc
  * @param argv
  * @param arg_func

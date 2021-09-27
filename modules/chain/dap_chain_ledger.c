@@ -338,8 +338,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
 
     if (l_token_item) {
-        if(s_debug_more)
-            log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
         return -3;
     }
 
@@ -1113,12 +1112,16 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, const dap_
                                 dap_sign_get_pkey_hash(l_sign,&l_sign_pkey_hash);
                                 // Find pkey in auth hashes
                                 for(uint16_t k=0; k< l_token_item->auth_signs_total; k++  ){
-                                    if ( dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k]))
+                                    if ( dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k])) {
                                         // Verify if its token emission header signed
+                                        if (!dap_sign_verify_size(l_sign, a_token_emission_size)) {
+                                            break;
+                                        }
                                         if( dap_sign_verify(l_sign,&a_token_emission->hdr, sizeof (a_token_emission) ) ){
                                             l_aproves++;
                                             break;
                                         }
+                                    }
                                 }
                                 l_offset+=l_sign_size;
                             }else
@@ -1222,7 +1225,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
     } else {
         if (l_token_item) {
             if(s_debug_more)
-                log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s )",
+                log_it(L_ERROR, "Duplicate token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s )",
                             a_token_emission->hdr.value, c_token_ticker, l_hash_str);
         }
         ret = -1;
@@ -1920,8 +1923,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 }
                 l_value_cur = NULL;
             } else {
-                log_it(L_ERROR, "Emission for tx_token wasn't found");
-                l_err_num = -11;
+                log_it(L_WARNING, "Emission for tx_token wasn't found");
+                l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                 break;
             }
         }
@@ -2596,8 +2599,11 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
         if(l_out_item_count >= MAX_OUT_ITEMS) {
             if(s_debug_more)
                 log_it(L_ERROR, "Too many 'out' items=%d in transaction (max=%d)", l_out_item_count, MAX_OUT_ITEMS);
-            if (l_out_item_count >= MAX_OUT_ITEMS)
-                return 0;
+            if (l_out_item_count >= MAX_OUT_ITEMS){
+                uint128_t l_ret;
+                memset(&l_ret,0,sizeof(l_ret));
+                return l_ret;
+            }
         }
         int l_out_idx_tmp = 0;
         for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_out_idx_tmp++) {
