@@ -2245,6 +2245,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             } else {
                 wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
                 wallet_balance->key = l_wallet_balance_key;
+                strcpy(wallet_balance->token_ticker, l_token_ticker);
                 uint128_t l_add = dap_chain_uint128_from(l_value);
                 wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
                 if(s_debug_more)
@@ -2559,6 +2560,9 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
         if(s_debug_more)
             log_it (L_INFO,"Found address in cache with balance %"DAP_UINT64_FORMAT_U"", l_balance_item->balance);
         l_ret = l_balance_item->balance;
+    } else {
+        if (s_debug_more)
+            log_it (L_WARNING, "Balance item %s not found", l_wallet_balance_key);
     }
     DAP_DELETE(l_addr);
     DAP_DELETE(l_wallet_balance_key);
