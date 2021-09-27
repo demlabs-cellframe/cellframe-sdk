@@ -37,7 +37,7 @@
 
 typedef struct dap_chain_cs_dag_pos_pvt
 {
-    dap_cert_t * events_sign_wallet;
+    dap_enc_key_t *events_sign_key;
     char ** tokens_hold;
     uint64_t * tokens_hold_value;
     size_t tokens_hold_size;
@@ -149,11 +149,15 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     const char * l_events_sign_wallet = NULL;
     if ( ( l_events_sign_wallet = dap_config_get_item_str(a_chain_net_cfg,"dag-pos","events-sign-wallet") ) != NULL ) {
 
-        if ( ( PVT(l_pos)->events_sign_wallet = dap_cert_find_by_name(l_events_sign_wallet)) == NULL ){
-            log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_wallet);
-        }else
-            log_it(L_NOTICE,"Loaded \"%s\" certificate to sign pos event", l_events_sign_wallet);
-
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_events_sign_wallet, dap_chain_wallet_get_path(g_config));
+        if (!l_wallet) {
+            log_it(L_ERROR,"Can't load events sign wallet, name \"%s\" is wrong", l_events_sign_wallet);
+        } else {
+            PVT(l_pos)->events_sign_key = dap_chain_wallet_get_key(l_wallet, 0);
+            log_it(L_NOTICE,"Loaded \"%s\" wallet to sign pos event", l_events_sign_wallet);
+        }
+    } else {
+        log_it(L_WARNING, "Events sign wallet is empty for %s chain, can't sing any events for it", a_chain->name);
     }
     return 0;
 }
@@ -193,13 +197,13 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
     dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
     dap_chain_cs_dag_pos_t * l_pos = DAP_CHAIN_CS_DAG_POS(a_dag);
 
-    if( PVT(l_pos)->events_sign_wallet == NULL) {
+    if( PVT(l_pos)->events_sign_key == NULL) {
         log_it(L_ERROR, "Can't sign event with events-sign-wallet in [dag-pos] section");
         return NULL;
     }
     if(a_datum || (a_hashes && a_hashes_count)) {
         dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, l_net->pub.cell_id, a_datum,
-        PVT(l_pos)->events_sign_wallet->enc_key, a_hashes, a_hashes_count, a_dag_event_size);
+        PVT(l_pos)->events_sign_key, a_hashes, a_hashes_count, a_dag_event_size);
         return l_event;
     } else
         return NULL;

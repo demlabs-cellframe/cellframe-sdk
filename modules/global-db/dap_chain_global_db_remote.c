@@ -27,8 +27,7 @@ static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name
         time_t *l_cur_time = DAP_NEW_Z(time_t);
         *l_cur_time= a_expire_time;
         char *l_key_time = dap_strdup_printf("cur_node_addr_%s_time", a_net_name);
-        l_ret = dap_chain_global_db_gr_set( dap_strdup(l_key_time), (uint8_t*) l_cur_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
-        DAP_DELETE(l_key_time);
+        l_ret = dap_chain_global_db_gr_set(l_key_time, (uint8_t*) l_cur_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
     }
     return l_ret;
 }
@@ -106,9 +105,10 @@ bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_grou
 {
     //log_it( L_DEBUG, "Node 0x%016X set last synced id %"DAP_UINT64_FORMAT_U"", a_node_addr, a_id);
     char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
-    bool l_ret = dap_chain_global_db_gr_set(l_node_addr_str, &a_id, sizeof(uint64_t),
+    uint64_t *l_id = DAP_NEW(uint64_t);
+    *l_id = a_id;
+    bool l_ret = dap_chain_global_db_gr_set(l_node_addr_str, l_id, sizeof(uint64_t),
                                             GROUP_LOCAL_NODE_LAST_ID);
-    DAP_DELETE(l_node_addr_str);
     return l_ret;
 }
 
@@ -136,9 +136,8 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
  */
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
-    //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %"DAP_UINT64_FORMAT_U"", a_id);
     return dap_chain_global_db_gr_set(dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name),
-                                      a_hash, sizeof(*a_hash), GROUP_LOCAL_NODE_LAST_ID);
+                                      DAP_DUP(a_hash), sizeof(*a_hash), GROUP_LOCAL_NODE_LAST_ID);
 }
 
 /**

@@ -119,8 +119,10 @@ static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg)
         dap_stream_ch_set_ready_to_write_unsafe(l_msg_ch, true);
     if (l_msg->flags_unset & DAP_SOCK_READY_TO_WRITE)
         dap_stream_ch_set_ready_to_write_unsafe(l_msg_ch, false);
-    if (l_msg->data_size && l_msg->data)
+    if (l_msg->data_size && l_msg->data) {
         dap_stream_ch_pkt_write_unsafe(l_msg_ch, l_msg->ch_pkt_type, l_msg->data,l_msg->data_size);
+        DAP_DELETE(l_msg->data);
+    }
     DAP_DELETE(l_msg);
 }
 
