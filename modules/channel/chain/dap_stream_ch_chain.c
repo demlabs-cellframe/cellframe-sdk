@@ -471,8 +471,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     if (!l_chain) {
         if (s_debug_more)
             log_it(L_WARNING, "No chain found for DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN");
-        DAP_DELETE(l_sync_request);
         DAP_DEL_Z(l_pkt_item->pkt_data);
+        DAP_DELETE(l_sync_request);
         return true;
     }
     dap_chain_atom_ptr_t l_atom_copy = (dap_chain_atom_ptr_t)l_pkt_item->pkt_data;
@@ -498,6 +498,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
             log_it(L_WARNING,"Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
+        dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        DAP_DELETE(l_atom_copy);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
     case ATOM_ACCEPT:
@@ -515,12 +517,14 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
             log_it(L_ERROR, "Can't create cell with id 0x%x to save event...", l_sync_request->request_hdr.cell_id);
             break;
         }
-        int l_res = dap_chain_cell_file_append(l_cell, l_atom_copy, l_atom_copy_size);
-        if(l_res < 0) {
-            log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
-                    l_cell ? l_cell->file_storage_path : "[null]");
-        } else {
-            dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        if (l_atom_add_res == ATOM_ACCEPT) {
+            int l_res = dap_chain_cell_file_append(l_cell, l_atom_copy, l_atom_copy_size);
+            if(l_res < 0) {
+                log_it(L_ERROR, "Can't save event 0x%x to the file '%s'", l_atom_hash,
+                        l_cell ? l_cell->file_storage_path : "[null]");
+            } else {
+                dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+            }
         }
         if (l_chain->callback_atom_add_from_treshold) {
             dap_chain_atom_ptr_t l_atom_treshold;
@@ -530,29 +534,33 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     log_it(L_DEBUG, "Try to add atom from treshold");
                 l_atom_treshold = l_chain->callback_atom_add_from_treshold(l_chain, &l_atom_treshold_size);
                 if(l_atom_treshold) {
-                    l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
+                    int l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
                     log_it(L_INFO, "Added atom from treshold");
                     if(l_res < 0) {
                         log_it(L_ERROR, "Can't save event 0x%x from treshold to file '%s'",
                                 l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
+                    } else {
+                        dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
                     }
                 }
             } while(l_atom_treshold);
         }
-        dap_chain_cell_close(l_cell);
+        //dap_chain_cell_close(l_cell);
         break;
     case ATOM_REJECT: {
-        char l_atom_hash_str[72] = {'\0'};
-        dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
-        log_it(L_WARNING,"Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        if (s_debug_more) {
+            char l_atom_hash_str[72] = {'\0'};
+            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
+            log_it(L_WARNING,"Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        }
+        DAP_DELETE(l_atom_copy);
         break;
     }
     default:
+        DAP_DELETE(l_atom_copy);
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
         break;
     }
-
-    DAP_DEL_Z(l_atom_copy);
     DAP_DEL_Z(l_sync_request);
     return true;
 }
@@ -694,7 +702,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 }
             }
             // save data to global_db
-            if(!dap_chain_global_db_obj_save(l_obj, 1)) {
+            if(!dap_chain_global_db_obj_save(dap_store_obj_copy(l_obj, 1), 1)) {
                 struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
                 dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
                                                   s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
@@ -803,13 +811,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ:{
             if(l_ch_chain->state != CHAIN_STATE_IDLE){
                 log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB_REQ request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
                 break;
             }
-            if(s_debug_more)
-                log_it(L_INFO, "In:  UPDATE_GLOBAL_DB_REQ pkt: net 0x%016x chain 0x%016x cell 0x%016x", l_chain_pkt->hdr.net_id.uint64 ,
+            log_it(L_INFO, "In:  UPDATE_GLOBAL_DB_REQ pkt: net 0x%016x chain 0x%016x cell 0x%016x", l_chain_pkt->hdr.net_id.uint64 ,
                                     l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
             if (l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t))
                 memcpy(&l_ch_chain->request, l_chain_pkt->data, sizeof(dap_stream_ch_chain_sync_request_t));
@@ -855,7 +862,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
             if (l_ch_chain->state != CHAIN_STATE_IDLE){
                 log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB_START request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
                 break;
@@ -903,7 +910,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if(l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t)) {
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB && l_ch_chain->state != CHAIN_STATE_IDLE) {
                     log_it(L_WARNING, "Can't process SYNC_GLOBAL_DB request because not in idle state");
-                    s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                    dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                             "ERROR_STATE_NOT_IN_IDLE");
                     break;
@@ -920,7 +927,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if(s_debug_more)
                 {
                     if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END)
-                        log_it(L_INFO, "In: UPDATE_GLOBAL_DB_END pkt");
+                        log_it(L_INFO, "In: UPDATE_GLOBAL_DB_END pkt with total count %d hashes",
+                                        HASH_COUNT(l_ch_chain->remote_gdbs));
                     else
                         log_it(L_INFO, "In: SYNC_GLOBAL_DB pkt");
                 }
@@ -958,7 +966,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if(l_chain_pkt_data_size > 0) {
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
-                l_pkt_item->pkt_data = DAP_NEW_Z_SIZE(byte_t, l_chain_pkt_data_size);
+                l_pkt_item->pkt_data = DAP_NEW_SIZE(byte_t, l_chain_pkt_data_size);
                 memcpy(l_pkt_item->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
                 l_pkt_item->pkt_data_size = l_chain_pkt_data_size;
                 dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_gdb_in_pkt_proc_callback, l_sync_request);
@@ -1009,7 +1017,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ:{
             if (l_ch_chain->state != CHAIN_STATE_IDLE) {
                 log_it(L_WARNING, "Can't process UPDATE_CHAINS_REQ request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
                 break;
@@ -1041,7 +1049,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START:{
             if (l_ch_chain->state != CHAIN_STATE_IDLE) {
                 log_it(L_WARNING, "Can't process UPDATE_CHAINS_START request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
                 break;
@@ -1144,9 +1152,18 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if(s_debug_more)
                 {
                     if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END)
-                        log_it(L_INFO, "In: UPDATE_CHAINS_END pkt");
+                        log_it(L_INFO, "In: UPDATE_CHAINS_END pkt with total count %d hashes",
+                               HASH_COUNT(l_ch_chain->remote_atoms));
                     else
                         log_it(L_INFO, "In: SYNC_CHAINS pkt");
+                }
+                if ((l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END) &&
+                        HASH_COUNT(l_ch_chain->remote_atoms) > 5000) {
+                    // TODO remove this after chains will come in order
+                    s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                                                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                                                        "ERROR_SYNC_REQUEST_IS_TOO_LARGE");
+                    break;
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->stats_request_atoms_processed = 0;
@@ -1193,7 +1210,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     if(l_chain_pkt_data_size > 0) {
                         struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                         dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
-                        l_pkt_item->pkt_data = DAP_NEW_Z_SIZE(byte_t, l_chain_pkt_data_size);
+                        l_pkt_item->pkt_data = DAP_NEW_SIZE(byte_t, l_chain_pkt_data_size);
+                        if (!l_pkt_item->pkt_data) {
+                            log_it(L_ERROR, "Not enough memory!");
+                            break;
+                        }
                         memcpy(l_pkt_item->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
                         l_pkt_item->pkt_data_size = l_chain_pkt_data_size;
                         if (s_debug_more){

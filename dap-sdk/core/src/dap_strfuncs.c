@@ -135,7 +135,7 @@ int128_t dap_strtoi128(const char *p, char **endp, int base)
     }
 }
 /**
- * @brief dap_utoa128
+ * @brief dap_utoa128 convert unsigned integer to ASCII 
  * @param dest
  * @param v
  * @param base
@@ -158,6 +158,14 @@ char *dap_utoa128(char *dest, uint128_t v, int base)
     return strcpy(dest, p);
 }
 
+/**
+ * @brief dap_itoa128
+ * 
+ * @param a_str 
+ * @param a_value 
+ * @param a_base 
+ * @return char* 
+ */
 char *dap_itoa128(char *a_str, int128_t a_value, int a_base)
 {
     char *p = a_str;

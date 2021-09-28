@@ -335,22 +335,15 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
 
 static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item )
 {
-    int res = a_dag->callback_cs_verify(a_dag,a_event_item->event, a_event_item->event_size);
-
-    char l_buf_hash[128] = {'\0'};
-    dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
-    if (res == 0 || memcmp( &a_event_item->hash, &a_dag->static_genesis_event_hash, sizeof(a_event_item->hash) ) == 0) {
-        if(s_debug_more)
-            log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
-        int l_ledger_res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
-        if ( l_ledger_res != 0) {
-            if(s_debug_more)
-                log_it(L_WARNING,"Dag event %s checked, but ledger declined: code %d", l_buf_hash, l_ledger_res);
-        }
-    } else {
-        log_it(L_WARNING,"Dag event %s check failed: code %d", l_buf_hash, res );
+    int l_ledger_res = s_dap_chain_add_atom_to_ledger(a_dag, a_ledger, a_event_item);
+    if (s_debug_more) {
+        char l_buf_hash[128] = {'\0'};
+        dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
+        log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
+        if (l_ledger_res != 0)
+            log_it(L_WARNING,"Dag event %s checked, but ledger declined: code %d", l_buf_hash, l_ledger_res);
     }
-    return res;
+    return l_ledger_res;
 }
 
 static bool s_dap_chain_check_if_event_is_present(dap_chain_cs_dag_event_item_t * a_hash_table, const dap_chain_hash_fast_t * hash) {
@@ -423,17 +416,17 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         break;
     case ATOM_ACCEPT: {
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
-        //All correct, no matter for result
-        pthread_rwlock_wrlock(l_events_rwlock);
-        HASH_ADD(hh, PVT(l_dag)->events,hash,sizeof (l_event_item->hash), l_event_item);
-        s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-        pthread_rwlock_unlock(l_events_rwlock);
         switch (l_consensus_check) {
         case 0:
+            pthread_rwlock_wrlock(l_events_rwlock);
+            HASH_ADD(hh, PVT(l_dag)->events,hash,sizeof (l_event_item->hash), l_event_item);
+            s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
+            pthread_rwlock_unlock(l_events_rwlock);
             if(s_debug_more)
                 log_it(L_DEBUG, "... added");
             break;
         case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS:
+        case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION:
             pthread_rwlock_wrlock(l_events_rwlock);
             HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
             pthread_rwlock_unlock(l_events_rwlock);
@@ -443,7 +436,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             break;
         default:
             l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-            log_it(L_WARNING, "Atom %s (size %zd) error adding (code %d)", l_event_hash_str, a_atom_size, l_consensus_check);
+            if (s_debug_more)
+                log_it(L_WARNING, "Atom %s (size %zd) error adding (code %d)", l_event_hash_str, a_atom_size, l_consensus_check);
             ret = ATOM_REJECT;
             break;
         }
@@ -636,6 +630,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                             memcpy(&l_event_unlinked_item->hash, &l_event_ext_item->hash,
                                     sizeof(l_event_ext_item->hash));
                         l_event_unlinked_item->event = l_event;
+                        l_event_unlinked_item->event_size = l_event_size;
                         l_event_unlinked_item->ts_added = (time_t) l_event->header.ts_created;
                         pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
                         HASH_ADD(hh, PVT(l_dag)->events_lasts_unlinked, hash, sizeof(l_event_unlinked_item->hash),
@@ -683,6 +678,22 @@ dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t
     return l_event;
 }
 
+static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_event_size)
+{
+    if (sizeof(a_event->header) >= a_event_size) {
+        log_it(L_WARNING, "Size of atom is %zd that is equal or less then header %zd", a_event_size, sizeof(a_event->header));
+        return false;
+    }
+    size_t l_sign_offset = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_event_size);
+    if (l_sign_offset >= a_event_size)
+        return false;
+    for (int i = 0; i < a_event->header.signs_count; i++) {
+        dap_sign_t *l_sign = (dap_sign_t *)((uint8_t *)a_event + l_sign_offset);
+        l_sign_offset += dap_sign_get_size(l_sign);
+    }
+    return l_sign_offset == a_event_size;
+}
+
 
 
 /**
@@ -697,8 +708,19 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
     dap_chain_atom_verify_res_t res = ATOM_ACCEPT;
     pthread_rwlock_t *l_events_rwlock = &PVT(l_dag)->events_rwlock;
-    if(sizeof (l_event->header) >= a_atom_size){
-        log_it(L_WARNING,"Size of atom is %zd that is equal or less then header %zd",a_atom_size,sizeof (l_event->header));
+    if (l_event->header.version) {
+        if (s_debug_more)
+            log_it(L_WARNING, "Unsupported event version, possible corrupted event");
+        return ATOM_REJECT;
+    }
+    if (l_event->header.chain_id.uint64 != a_chain->id.uint64) {
+        if (s_debug_more)
+            log_it(L_WARNING, "Event from another chain, possible corrupted event");
+        return ATOM_REJECT;
+    }
+    if (!s_event_verify_size(l_event, a_atom_size)) {
+        if (s_debug_more)
+            log_it(L_WARNING,"Event size not equal to expected");
         return  ATOM_REJECT;
     }
     // Hard accept list
@@ -1522,9 +1544,10 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                         HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
                         pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-                        if ( l_event_item )
+                        if ( l_event_item ) {
                             l_event = l_event_item->event;
-                        else {
+                            l_event_size = l_event_item->event_size;
+                        } else {
                             ret = -24;
                             dap_chain_node_cli_set_reply_text(a_str_reply,
                                                               "Can't find event %s in events table\n", l_event_hash_str);
@@ -1594,7 +1617,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
                         char * l_addr_str = dap_chain_addr_to_str(&l_addr);
                         dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype: %s\taddr: %s"
-                                                           "n", dap_sign_type_to_str( l_sign->header.type ),
+                                                           "\n", dap_sign_type_to_str( l_sign->header.type ),
                                                  l_addr_str );
                         l_offset += l_sign_size;
                         DAP_DELETE( l_addr_str);

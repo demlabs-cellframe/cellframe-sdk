@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "2.9-45")
+set(CELLFRAME_SDK_NATIVE_VERSION "2.9-47")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 if (NOT(DAPSDK_MODULES))
     set(DAPSDK_MODULES "")
