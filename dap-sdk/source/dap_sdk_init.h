@@ -16,5 +16,3 @@ typedef struct dap_sdk_init_module{
 }dap_sdk_init_module_t;
 
 int dap_sdk_init(dap_sdk_init_module_t *a_modules);
-
-dap_events_t *dap_sdk_get_events(void);

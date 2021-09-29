@@ -2,8 +2,6 @@
 
 #define LOG_TAG "dap_sdk_init"
 
-static dap_events_t *s_events;
-//static dap_server_t *s_server;
 
 void *_dap_sdk_init_get_argument(dap_sdk_init_arg_t *a_arg, const char *a_param, void *a_default){
     for (int i=0; a_arg[i].param != NULL; i++){
@@ -60,21 +58,12 @@ int dap_sdk_init(dap_sdk_init_module_t *a_modules){
             if (rc != 0) return -2;
             rc = dap_events_socket_init();
             if (rc != 0) return -2;
-            s_events = dap_events_new();
-            dap_events_start(s_events);
         }
         if(dap_strcmp(l_module.module, "http") == 0){
             int rc = dap_http_init();
             if (rc != 0) return -2;
         }
-//        if(dap_strcmp(l_module.module, "server") == 0){
-//            char *host = NULL;
-//            uint16_t port = NULL;
-//        }
+
     }
     return 0;
-}
-
-dap_events_t *dap_sdk_get_events(void){
-    return s_events;
 }
