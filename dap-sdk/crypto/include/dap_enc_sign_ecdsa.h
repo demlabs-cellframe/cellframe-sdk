@@ -30,7 +30,7 @@ typedef struct dap_enc_key_public_ecdsa{
     dap_enc_curve_types_t curve_type;
     uint8_t *data;
     size_t size_key;
-}dap_enc_key_public_ecdsa_t;
+} dap_enc_key_public_ecdsa_t;
 typedef struct dap_enc_key_private_ecdsa{
     dap_enc_curve_types_t curve_type;
     uint8_t *data;
