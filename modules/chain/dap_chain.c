@@ -342,6 +342,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                                 log_it(L_DEBUG, "Added atom from treshold");
                             }
                         }
+                        /* Temporary garbage cleaner */
                         dap_chain_save_all( l_chain );  // Save only the valid chain, throw all garbage out!
                         log_it (L_NOTICE, "Loaded chain files");
                     } else {

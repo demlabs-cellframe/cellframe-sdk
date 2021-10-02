@@ -153,7 +153,8 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         return;
     // check for last attempt
     bool l_is_last_attempt = a_arg ? true : false;
-    if(l_is_last_attempt){
+    if (l_is_last_attempt) {
+        dap_chain_node_client_state_t l_prev_state = l_node_client->state;
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
 #ifndef _WIN32
@@ -164,7 +165,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         l_node_client->esocket_uuid = 0;
 
-        if (l_node_client->callbacks.disconnected) {
+        if (l_prev_state >= NODE_CLIENT_STATE_ESTABLISHED && l_node_client->callbacks.disconnected) {
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
         } else if (l_node_client->keep_connection) {
             dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);

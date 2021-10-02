@@ -3151,29 +3151,19 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
 
     }
-
+    int l_ret = 0;
     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
         if(!dap_strcmp(l_hash_out_type,"hex"))
             dap_chain_node_cli_set_reply_text(a_str_reply, "datum %s with token %s is placed in datum pool ", l_key_str, l_ticker);
         else
             dap_chain_node_cli_set_reply_text(a_str_reply, "datum %s with token %s is placed in datum pool ", l_key_str_base58, l_ticker);
-        DAP_DELETE(l_datum);
-        DAP_DELETE(l_datum_token);
-        DAP_DELETE(l_gdb_group_mempool);
-        DAP_DELETE(l_key_str);
-        DAP_DELETE(l_key_str_base58);
-        return 0;
     }
     else {
         dap_chain_node_cli_set_reply_text(a_str_reply, "datum tx %s is not placed in datum pool ", l_key_str_base58);
         DAP_DELETE(l_datum);
-        DAP_DELETE(l_datum_token);
-        DAP_DELETE(l_gdb_group_mempool);
-        DAP_DELETE(l_key_str);
-        DAP_DELETE(l_key_str_base58);
-        return -2;
+        l_ret = -2;
     }
-    return 0;
+    return l_ret;
 }
 
 /**
@@ -3480,7 +3470,6 @@ int com_token_emit(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
         return -2;
     }
     DAP_DELETE(str_reply_tmp);
-    DAP_DELETE(l_datum_tx);
     DAP_DELETE(l_addr);
     return 0;
 }

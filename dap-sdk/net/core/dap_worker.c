@@ -1079,9 +1079,8 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
         dap_events_socket_set_writable_unsafe(l_msg_es, true);
     if (l_msg->flags_unset & DAP_SOCK_READY_TO_WRITE)
         dap_events_socket_set_writable_unsafe(l_msg_es, false);
-    if (l_msg->data_size && l_msg->data)
+    if (l_msg->data_size && l_msg->data) {
         dap_events_socket_write_unsafe(l_msg_es, l_msg->data,l_msg->data_size);
-    if (l_msg->data) {
         DAP_DELETE(l_msg->data);
     }
     DAP_DELETE(l_msg);
