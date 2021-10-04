@@ -60,6 +60,13 @@ typedef struct dap_chain_tx_hash_processed_ht{
     dap_chain_hash_fast_t hash;
     UT_hash_handle hh;
 }dap_chain_tx_hash_processed_ht_t;
+
+
+/**
+ * @brief _dap_chain_tx_hash_processed_ht_free
+ * free l_current_hash->hash, l_current_hash, l_hash_processed
+ * @param l_hash_processed dap_chain_tx_hash_processed_ht_t
+ */
 void _dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_hash_processed){
     dap_chain_tx_hash_processed_ht_t *l_tmp;
     dap_chain_tx_hash_processed_ht_t *l_current_hash;
@@ -70,6 +77,17 @@ void _dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_ha
     DAP_FREE(l_hash_processed);
 }
 
+/**
+ * @brief _dap_chain_datum_tx_out_data
+ * 
+ * @param a_datum 
+ * @param a_ledger 
+ * @param a_str_out 
+ * @param a_hash_out_type 
+ * @param save_processed_tx 
+ * @param a_tx_hash_processed 
+ * @param l_tx_num 
+ */
 void _dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                   dap_ledger_t *a_ledger,
                                   dap_string_t *a_str_out,
@@ -348,10 +366,16 @@ static dap_chain_datum_t* get_prev_tx(dap_tx_data_t *a_tx_data)
     return l_datum;
 }
 
+
 /**
+ * @brief dap_db_history_tx
  * Get data according the history log
  *
  * return history string
+ * @param a_tx_hash 
+ * @param a_chain 
+ * @param a_hash_out_type 
+ * @return char* 
  */
 char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type)
 {
@@ -566,9 +590,14 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
 }
 
 /**
+ * @brief dap_db_history_addr
  * Get data according the history log
  *
  * return history string
+ * @param a_addr 
+ * @param a_chain 
+ * @param a_hash_out_type 
+ * @return char* 
  */
 char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type)
 {
@@ -952,6 +981,15 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
     return l_ret_str;
 }
 
+/**
+ * @brief char* dap_db_history_token_list
+ * 
+ * @param a_chain 
+ * @param a_token_name 
+ * @param a_hash_out_type 
+ * @param a_token_num 
+ * @return char* 
+ */
 static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
@@ -1053,10 +1091,22 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
     return l_ret_str;
 }
 
+
 /**
+ * @brief dap_db_history_filter
  * Get data according the history log
  *
  * return history string
+ * @param a_chain 
+ * @param a_ledger 
+ * @param a_filter_token_name 
+ * @param a_filtr_addr_base58 
+ * @param a_hash_out_type 
+ * @param a_datum_start 
+ * @param a_datum_end 
+ * @param a_total_datums 
+ * @param a_tx_hash_processed 
+ * @return char* 
  */
 static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger, const char *a_filter_token_name, const char *a_filtr_addr_base58, const char *a_hash_out_type, long a_datum_start, long a_datum_end, long *a_total_datums, dap_chain_tx_hash_processed_ht_t *a_tx_hash_processed)
 {
@@ -1513,11 +1563,14 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
 }
 
 
-
-
 /**
+ * @brief com_ledger
  * ledger command
- *
+ * @param a_argc 
+ * @param a_argv 
+ * @param a_arg_func 
+ * @param a_str_reply 
+ * @return int 
  */
 int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
 {
@@ -1740,9 +1793,15 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
     return 0;
 }
 
+
 /**
+ * @brief com_token
  * token command
- *
+ * @param a_argc 
+ * @param a_argv 
+ * @param a_arg_func 
+ * @param a_str_reply 
+ * @return int 
  */
 int com_token(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
 {

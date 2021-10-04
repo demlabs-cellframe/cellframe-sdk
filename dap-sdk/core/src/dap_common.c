@@ -217,11 +217,6 @@ void dap_set_log_tag_width(size_t a_width) {
     dap_snprintf(s_log_tag_fmt_str,sizeof (s_log_tag_fmt_str), "[%%%zds]\t",a_width);
 }
 
-/**
- * @brief dap_common_init initialise
- * @param[in] a_log_file
- * @return
- */
 
 /**
  * @brief dap_common_init call this function before using dap sdk modules
@@ -231,7 +226,6 @@ void dap_set_log_tag_width(size_t a_width) {
  * @param a_log_dirpath path to log directory. Saved in s_log_dir_path variable. For example. C:\\Users\\Public\\Documents/cellframe-node/var/log
  * @return int (0 if succcess, -1 if error)
  */
-
 int dap_common_init( const char *a_console_title, const char *a_log_file_path, const char *a_log_dirpath) {
 
     // init randomer
