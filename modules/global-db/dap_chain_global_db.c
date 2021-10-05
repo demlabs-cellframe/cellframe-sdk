@@ -277,9 +277,9 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
     return l_ret_value;
 }
 
-uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
+uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
 {
-    return dap_chain_global_db_gr_get(a_key, a_data_out, GROUP_LOCAL_GENERAL);
+    return dap_chain_global_db_gr_get(a_key, a_data_len_out, GROUP_LOCAL_GENERAL);
 }
 
 
