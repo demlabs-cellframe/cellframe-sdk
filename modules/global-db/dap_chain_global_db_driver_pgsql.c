@@ -52,7 +52,7 @@ static pthread_rwlock_t s_db_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static PGconn *s_pgsql_get_connection(void)
 {
-    if (pthread_rwlock_rdlock(s&_db_rwlock) == EDEADLK) {
+    if (pthread_rwlock_rdlock(&s_db_rwlock) == EDEADLK) {
         return s_trans_conn;
     }
     PGconn *l_ret = NULL;
@@ -69,7 +69,7 @@ static PGconn *s_pgsql_get_connection(void)
 
 static void s_pgsql_free_connection(PGconn *a_conn)
 {
-    if (pthread_rwlock_rdlock(s&_db_rwlock) == EDEADLK) {
+    if (pthread_rwlock_rdlock(&s_db_rwlock) == EDEADLK) {
         return;
     }
     for (int i = 0; i < DAP_PGSQL_POOL_COUNT; i++) {
@@ -224,7 +224,7 @@ int dap_db_driver_pgsql_end_transaction(void)
 {
     if (s_trans_conn)
         return -1;
-    PGresult *l_res = PQexec(l_trans_conn, "COMMIT");
+    PGresult *l_res = PQexec(s_trans_conn, "COMMIT");
     if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
         log_it(L_ERROR, "End transaction failed with message: \"%s\"", PQresultErrorMessage(l_res));
     }
@@ -372,14 +372,15 @@ dap_store_obj_t *dap_db_driver_pgsql_read_store_obj(const char *a_group, const c
     s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        log_it(L_ERROR, "Read objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
+        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+            log_it(L_ERROR, "Read objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         return NULL;
     }
 
     // parse reply
     size_t l_count = PQntuples(l_res);
-    dap_store_obj_t *l_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * l_count);
+    dap_store_obj_t *l_obj = l_count ? DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * l_count) : NULL;
     for (int i = 0; i < l_count; i++) {
         // fill currrent item
         dap_store_obj_t *l_obj_cur = l_obj + i;
@@ -410,12 +411,16 @@ dap_store_obj_t *dap_db_driver_pgsql_read_last_store_obj(const char *a_group)
     s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        log_it(L_ERROR, "Read last object failed with message: \"%s\"", PQresultErrorMessage(l_res));
+        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+            log_it(L_ERROR, "Read last object failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         return NULL;
     }
-    dap_store_obj_t *l_obj = DAP_NEW_Z(dap_store_obj_t);
-    s_pgsql_fill_object(a_group, l_obj, l_res, 0);
+    dap_store_obj_t *l_obj = NULL;
+    if (PQntuples(l_res)) {
+        l_obj = DAP_NEW_Z(dap_store_obj_t);
+        s_pgsql_fill_object(a_group, l_obj, l_res, 0);
+    }
     PQclear(l_res);
     return l_obj;
 }
@@ -448,14 +453,15 @@ dap_store_obj_t *dap_db_driver_pgsql_read_cond_store_obj(const char *a_group, ui
     s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        log_it(L_ERROR, "Conditional read objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
+        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+            log_it(L_ERROR, "Conditional read objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         return NULL;
     }
 
     // parse reply
     size_t l_count = PQntuples(l_res);
-    dap_store_obj_t *l_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * l_count);
+    dap_store_obj_t *l_obj = l_count ? DAP_NEW_Z_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * l_count) : NULL;
     for (int i = 0; i < l_count; i++) {
         // fill currrent item
         dap_store_obj_t *l_obj_cur = l_obj + i;
@@ -491,7 +497,7 @@ dap_list_t *dap_db_driver_pgsql_get_groups_by_mask(const char *a_group_mask)
     for (int i = 0; i < PQntuples(l_res); i++) {
         char *l_table_name = (char *)PQgetvalue(l_res, i, 0);
         if(!dap_fnmatch(a_group_mask, l_table_name, 0))
-            l_ret_list = dap_list_prepend(l_ret_list, l_table_name);
+            l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(l_table_name));
     }
     PQclear(l_res);
     return l_ret_list;
@@ -512,7 +518,8 @@ size_t dap_db_driver_pgsql_read_count_store(const char *a_group, uint64_t a_id)
     s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        log_it(L_ERROR, "Count objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
+        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+            log_it(L_ERROR, "Count objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         return 0;
     }
@@ -535,7 +542,8 @@ bool dap_db_driver_pgsql_is_obj(const char *a_group, const char *a_key)
     s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        log_it(L_ERROR, "Count objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
+        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+            log_it(L_ERROR, "Existance check of object failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         return 0;
     }
