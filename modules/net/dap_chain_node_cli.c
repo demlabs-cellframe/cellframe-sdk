@@ -86,6 +86,7 @@ static dap_chain_node_cmd_item_t * s_commands = NULL;
 
 
 /**
+ * @brief int s_poll
  * Wait for data
  * timeout -  timeout in ms
  * [Specifying a negative value in timeout means an infinite timeout.]
@@ -93,6 +94,9 @@ static dap_chain_node_cmd_item_t * s_commands = NULL;
  * return zero if the time limit expired
  * return: >0 if data is present to read
  * return: -1 if error
+ * @param socket 
+ * @param timeout 
+ * @return int 
  */
 static int s_poll( int socket, int timeout )
 {
@@ -111,8 +115,13 @@ static int s_poll( int socket, int timeout )
     return res;
 }
 
+
 /**
+ * @brief is_valid_socket
  * Check socket for validity
+ * @param sock 
+ * @return true 
+ * @return false 
  */
 static bool is_valid_socket(SOCKET sock)
 {
@@ -145,10 +154,14 @@ static bool is_valid_socket(SOCKET sock)
 }
 
 /**
- * Read from socket
- *
+ * @brief s_recv
  * timeout in milliseconds
  * return the number of read bytes (-1 err or -2 timeout)
+ * @param sock 
+ * @param buf 
+ * @param bufsize 
+ * @param timeout 
+ * @return long 
  */
 long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
 {
@@ -172,13 +185,21 @@ long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
     return res;
 }
 
+
 /**
+ * @brief s_get_next_str
  * Reading from the socket till arrival the specified string
  *
  * stop_str - string to which reading will continue
  * del_stop_str - удалять ли строку для поиска в конце
  * timeout - in ms
  * return: string (if waited for final characters) or NULL, if the string requires deletion
+ * @param nSocket 
+ * @param dwLen 
+ * @param stop_str 
+ * @param del_stop_str 
+ * @param timeout 
+ * @return char* 
  */
 char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
 {
@@ -379,6 +400,16 @@ static void* thread_one_client_func(void *args)
 
 #ifdef _WIN32
 
+/**
+ * @brief p_get_next_str
+ * 
+ * @param hPipe 
+ * @param dwLen 
+ * @param stop_str 
+ * @param del_stop_str 
+ * @param timeout 
+ * @return char* 
+ */
 char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
 {
     bool bSuccess = false;
@@ -455,7 +486,14 @@ char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_s
 
 
 /**
+
+ */
+
+/**
+ * @brief thread_pipe_client_func
  * threading function for processing a request from a client
+ * @param args 
+ * @return void* 
  */
 static void *thread_pipe_client_func( void *args )
 {
@@ -603,7 +641,10 @@ static void *thread_pipe_client_func( void *args )
 
 
 /**
+ * @brief thread_pipe_func
  * main threading server function pipe win32
+ * @param args 
+ * @return void* 
  */
 static void* thread_pipe_func( void *args )
 {
@@ -650,8 +691,12 @@ static void* thread_pipe_func( void *args )
 }
 #endif
 
+
 /**
+ * @brief thread_main_func
  * main threading server function
+ * @param args 
+ * @return void* 
  */
 static void* thread_main_func(void *args)
 {
@@ -681,8 +726,13 @@ static void* thread_main_func(void *args)
     return NULL;
 }
 
+
 /**
+ * @brief dap_chain_node_cli_set_reply_text
  * Write text to reply string
+ * @param str_reply 
+ * @param str 
+ * @param ... 
  */
 void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
 {
@@ -725,10 +775,16 @@ int dap_chain_node_cli_check_option( char** argv, int arg_start, int arg_end, co
     return -1;
 }
 
+
 /**
- * find option value
- *
+ * @brief dap_chain_node_cli_find_option_val
  * return index of string in argv, or 0 if not found
+ * @param argv 
+ * @param arg_start 
+ * @param arg_end 
+ * @param opt_name 
+ * @param opt_value 
+ * @return int 
  */
 int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
 {
@@ -784,6 +840,12 @@ void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, 
     log_it(L_DEBUG,"Added command %s",l_cmd_item->name);
 }
 
+/**
+ * @brief dap_chain_node_cli_cmd_item_apply_overrides
+ * 
+ * @param a_name 
+ * @param a_overrides 
+ */
 void dap_chain_node_cli_cmd_item_apply_overrides(const char * a_name, const dap_chain_node_cmd_item_func_overrides_t * a_overrides){
     dap_chain_node_cmd_item_t *l_cmd_item = dap_chain_node_cli_cmd_find(a_name);
     if(l_cmd_item)
@@ -813,10 +875,13 @@ dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name)
 
 
 /**
+ * @brief dap_chain_node_cli_init
  * Initialization of the server side of the interaction
  * with the console kelvin-node-cli
- *
+ * init commands description
  * return 0 if OK, -1 error
+ * @param g_config 
+ * @return int 
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
@@ -1166,9 +1231,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     return 0;
 }
 
+
 /**
+ * @brief dap_chain_node_cli_delete
  * Deinitialization of the server side
- *
  */
 void dap_chain_node_cli_delete(void)
 {
