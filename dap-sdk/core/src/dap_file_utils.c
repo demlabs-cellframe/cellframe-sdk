@@ -160,8 +160,8 @@ int dap_mkdir_with_parents(const char *a_dir_path)
 #ifdef _WIN32
             int result = mkdir(path);
 #else
-            int result = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH | S_IWOTH);
-                         chmod(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH | S_IWOTH);
+            int result = mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
+                         chmod(path, S_IRWXU | S_IRWXG | S_IRWXO);
 #endif
             if(result == -1) {
                 errno = ENOTDIR;
