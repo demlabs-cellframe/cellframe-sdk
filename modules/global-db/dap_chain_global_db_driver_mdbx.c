@@ -200,5 +200,6 @@ static int s_driver_callback_apply_store_obj(pdap_store_obj_t a_store_obj)
         return -1;
     }
     int ret = 0;
+    return ret;
 }
 
