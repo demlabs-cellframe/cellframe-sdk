@@ -38,6 +38,7 @@
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"
 #include "dap_chain_global_db_driver_mdbx.h"
+#include "dap_chain_global_db_driver_pgsql.h"
 #include "dap_chain_global_db_driver.h"
 
 #define LOG_TAG "db_driver"
@@ -103,6 +104,10 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
 #ifdef DAP_CHAIN_GDB_ENGINE_MDBX
     else if(!dap_strcmp(s_used_driver, "mdbx"))
         l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback);
+#endif
+#ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
+    else if(!dap_strcmp(s_used_driver, "pgsql"))
+        l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback);
 #endif
     else
         log_it(L_ERROR, "Unknown global_db driver \"%s\"", a_driver_name);
