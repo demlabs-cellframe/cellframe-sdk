@@ -164,8 +164,11 @@ typedef struct dap_chain_net_pvt{
 
     uint16_t gdb_sync_groups_count;
     uint16_t gdb_sync_nodes_addrs_count;
+    uint16_t gdb_sync_nodes_links_count;
     char **gdb_sync_groups;
     dap_chain_node_addr_t *gdb_sync_nodes_addrs;
+    uint32_t *gdb_sync_nodes_links_ips;
+    uint16_t *gdb_sync_nodes_links_ports;
 
     uint16_t seed_aliases_count;
 
@@ -785,6 +788,15 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
         case NET_STATE_LINKS_PREPARE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_LINKS_PREPARE", l_net->pub.name);
             s_net_states_notify(l_net);
+            for (int i = 0; i < l_net_pvt->gdb_sync_nodes_links_count; i++) {
+                if (i >= l_net_pvt->gdb_sync_nodes_addrs_count)
+                    break;
+                dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                l_link_node_info->hdr.address.uint64 = l_net_pvt->gdb_sync_nodes_addrs[i].uint64;
+                l_link_node_info->hdr.ext_addr_v4.s_addr = l_net_pvt->gdb_sync_nodes_links_ips[i];
+                l_link_node_info->hdr.ext_port = l_net_pvt->gdb_sync_nodes_links_ports[i];
+                l_net_pvt->links_info = dap_list_append(l_net_pvt->links_info, l_link_node_info);
+            }
             uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(l_net);
             if (l_net_pvt->node_info) {
                 for (size_t i = 0; i < l_net_pvt->node_info->hdr.links_number; i++) {
@@ -1605,10 +1617,38 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         char **l_gdb_sync_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "gdb_sync_nodes_addrs",
                 &l_net_pvt->gdb_sync_nodes_addrs_count);
         if(l_gdb_sync_nodes_addrs && l_net_pvt->gdb_sync_nodes_addrs_count > 0) {
-            l_net_pvt->gdb_sync_nodes_addrs = (dap_chain_node_addr_t*) DAP_NEW_Z_SIZE(char**,
+            l_net_pvt->gdb_sync_nodes_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
                     sizeof(dap_chain_node_addr_t)*l_net_pvt->gdb_sync_nodes_addrs_count);
             for(uint16_t i = 0; i < l_net_pvt->gdb_sync_nodes_addrs_count; i++) {
                 dap_chain_node_addr_from_str(l_net_pvt->gdb_sync_nodes_addrs + i, l_gdb_sync_nodes_addrs[i]);
+            }
+        }
+        // links for special sync
+        uint16_t l_gdb_links_count = 0;
+        PVT(l_net)->gdb_sync_nodes_links_count = 0;
+        char **l_gdb_sync_nodes_links = dap_config_get_array_str(l_cfg, "general", "gdb_sync_nodes_links", &l_gdb_links_count);
+        if (l_gdb_sync_nodes_links && l_gdb_links_count > 0) {
+            l_net_pvt->gdb_sync_nodes_links_ips = DAP_NEW_Z_SIZE(uint32_t, l_gdb_links_count * sizeof(uint32_t));
+            l_net_pvt->gdb_sync_nodes_links_ports = DAP_NEW_SIZE(uint16_t, l_gdb_links_count * sizeof(uint16_t));
+            for(uint16_t i = 0; i < l_gdb_links_count; i++) {
+                char *l_gdb_link_port_str = strchr(l_gdb_sync_nodes_links[i], ':');
+                if (!l_gdb_link_port_str) {
+                    continue;
+                }
+                uint16_t l_gdb_link_port = atoi(l_gdb_link_port_str + 1);
+                if (!l_gdb_link_port) {
+                    continue;
+                }
+                int l_gdb_link_len = l_gdb_link_port_str - l_gdb_sync_nodes_links[i];
+                char *l_gdb_link_ip_str[l_gdb_link_len + 1];
+                memcpy(l_gdb_link_ip_str, l_gdb_sync_nodes_links[i], l_gdb_link_len);
+                l_gdb_link_ip_str[l_gdb_link_len] = '\0';
+                struct in_addr l_in_addr;
+                if (inet_pton(AF_INET, (const char *)l_gdb_link_ip_str, &l_in_addr) > 0) {
+                    PVT(l_net)->gdb_sync_nodes_links_ips[PVT(l_net)->gdb_sync_nodes_links_count] = l_in_addr.s_addr;
+                    PVT(l_net)->gdb_sync_nodes_links_ports[PVT(l_net)->gdb_sync_nodes_links_count] = l_gdb_link_port;
+                    PVT(l_net)->gdb_sync_nodes_links_count++;
+                }
             }
         }
         // groups for special sync
@@ -1620,7 +1660,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 dap_chain_global_db_add_sync_extra_group(l_gdb_sync_groups[i], s_gbd_history_callback_notify, l_net);
             }
         }
-
 
         // Add network to the list
         dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
