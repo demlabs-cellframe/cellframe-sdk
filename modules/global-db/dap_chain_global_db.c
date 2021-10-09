@@ -131,6 +131,11 @@ dap_list_t *dap_chain_db_get_sync_extra_groups()
 /**
  * Clean struct dap_global_db_obj_t
  */
+
+/**
+ * @brief Deallocates the space of key and value members in an object
+ * @param obj Pointer to the object
+ */
 void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 {
     if(!obj)
