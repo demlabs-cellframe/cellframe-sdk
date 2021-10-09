@@ -51,11 +51,13 @@
 // for access from several streams
 //static pthread_mutex_t ldb_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
+//Empty
 static inline void lock()
 {
     //pthread_mutex_lock(&ldb_mutex_);
 }
 
+//Empty
 static inline void unlock()
 {
     //pthread_mutex_unlock(&ldb_mutex_);
