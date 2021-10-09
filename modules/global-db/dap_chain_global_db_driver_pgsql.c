@@ -53,7 +53,7 @@ static pthread_rwlock_t s_db_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static PGconn *s_pgsql_get_connection(void)
 {
-    if (pthread_rwlock_rdlock(&s_db_rwlock) == EDEADLK) {
+    if (pthread_rwlock_wrlock(&s_db_rwlock) == EDEADLK) {
         return s_trans_conn;
     }
     PGconn *l_ret = NULL;
@@ -70,7 +70,7 @@ static PGconn *s_pgsql_get_connection(void)
 
 static void s_pgsql_free_connection(PGconn *a_conn)
 {
-    if (pthread_rwlock_rdlock(&s_db_rwlock) == EDEADLK) {
+    if (pthread_rwlock_wrlock(&s_db_rwlock) == EDEADLK) {
         return;
     }
     for (int i = 0; i < DAP_PGSQL_POOL_COUNT; i++) {
@@ -207,7 +207,7 @@ int dap_db_driver_pgsql_start_transaction(void)
     s_trans_conn = s_pgsql_get_connection();
     if (!s_trans_conn)
         return -1;
-    pthread_rwlock_rdlock(&s_db_rwlock);
+    pthread_rwlock_wrlock(&s_db_rwlock);
     PGresult *l_res = PQexec(s_trans_conn, "BEGIN");
     if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
         log_it(L_ERROR, "Begin transaction failed with message: \"%s\"", PQresultErrorMessage(l_res));
@@ -292,7 +292,7 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
         DAP_DELETE(a_store_obj->value);
         DAP_DELETE(a_store_obj->key);
         if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
-            if (a_store_obj->type == 'a' && s_pgsql_create_group_table(a_store_obj->group, l_conn) == 0) {
+            if (s_pgsql_create_group_table(a_store_obj->group, l_conn) == 0) {
                 PQclear(l_res);
                 l_res = PQexecParams(l_conn, l_query_str, 2, NULL, l_param_vals, l_param_lens, l_param_formats, 0);
             }
