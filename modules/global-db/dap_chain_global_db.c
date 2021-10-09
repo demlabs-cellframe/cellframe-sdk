@@ -51,11 +51,13 @@
 // for access from several streams
 //static pthread_mutex_t ldb_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
+//Do nothing
 static inline void lock()
 {
     //pthread_mutex_lock(&ldb_mutex_);
 }
 
+//Do nothing
 static inline void unlock()
 {
     //pthread_mutex_unlock(&ldb_mutex_);
@@ -127,7 +129,8 @@ dap_list_t *dap_chain_db_get_sync_extra_groups()
 }
 
 /**
- * Clean struct dap_global_db_obj_t
+ * @brief Deallocates memory of key and value members of struct dap_global_db_obj
+ * @param obj A pointer to the dap_global_db_obj
  */
 void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 {
@@ -140,7 +143,8 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 }
 
 /**
- * Delete struct dap_global_db_obj_t
+ * @brief Deallocates memory of da_p_global_obj
+ * @param obj A pointer to the dap_global_db_obj
  */
 void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
 {
@@ -149,7 +153,9 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
 }
 
 /**
- * Delete mass of struct dap_global_db_obj_t
+ * @brief Deallocates memory of array of dap_global_db_obj
+ * @param objs An array of objects
+ * @param a_count Count of objects in the array
  */
 void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
 {
@@ -160,9 +166,9 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
 }
 
 /**
- * @brief dap_chain_global_db_init
- * @param g_config
- * @return
+ * @brief Initialise DB
+ * @param g_config A congiguration
+ * @return 0 if success otherwise error
  */
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
@@ -181,7 +187,7 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 }
 
 /**
- * @brief dap_chain_global_db_deinit
+ * @brief Deinitialise DB
  */
 void dap_chain_global_db_deinit(void)
 {
@@ -207,7 +213,7 @@ void dap_chain_global_db_deinit(void)
 }
 
 /**
- * @brief dap_chain_global_db_flush
+ * @brief Flush DB
  * @return
  */
 int dap_chain_global_db_flush(void){
@@ -218,9 +224,10 @@ int dap_chain_global_db_flush(void){
 }
 
 /**
- * Get entry from base
- *
- * return dap_store_obj_t*
+ * @brief Get object from DB by a_key and a_group
+ * @param a_key The key
+ * @param a_group The group
+ * @return Pointer to dap_store_obj
  */
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 {
