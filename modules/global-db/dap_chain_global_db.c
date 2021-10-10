@@ -587,7 +587,7 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
 }
 
 /**
- * @brief Saves items to a database from an array of data_size bytes
+ * @brief Saves(deletes) items to a database from an array of data_size bytes
  * @param a_store_data a pointer to data
  * @param a_objs_count a count of items
  * @return

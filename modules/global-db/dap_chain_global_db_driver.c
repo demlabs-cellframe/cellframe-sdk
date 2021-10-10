@@ -404,7 +404,7 @@ static void* func_write_buf(void * arg)
  * @brief Applies items to datebase
  * @param a_store an array of items
  * @param a_store_count a count of items
- * @return 0, 
+ * @return 
  */
 int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
