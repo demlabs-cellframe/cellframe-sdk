@@ -73,7 +73,7 @@ static void* func_write_buf(void * arg);
 static dap_db_driver_callbacks_t s_drv_callback;
 
 /**
- * @brief Initializes a database driver. Befor using any library function must call this fuction.
+ * @brief Initializes a database driver. Befor using the driver must call this fuction.
  * @param driver_name a string determining a type of datebase driver. 
  * Maybe "сdb", "sqlite" ("sqlite3"), "pgsql", "mdbx"
  * @param a_filename_db a name of a datebase file
@@ -129,7 +129,7 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
 }
 
 /**
- * @brief Deinitializes a database driver. Must call this function after using.
+ * @brief Deinitializes a database driver. Must call this function after using the driver.
  */
 void dap_db_driver_deinit(void)
 {
@@ -179,10 +179,10 @@ int dap_db_driver_flush(void)
 }
 
 /**
- * @brief Copies a_store_count items from a_store_obj to return
- * @param a_store_obj a pointer to an array of source items
+ * @brief Copies a_store_count items from a_store_obj to return.
+ * @param a_store_obj a pointer to source items
  * @param a_store_count a count of items
- * @return a pointer to the copy
+ * @return A pointer to the copied items.
  */
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
@@ -203,7 +203,7 @@ dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store
 
 /**
  * @brief Deallocates memory of items.
- * @param a_store_obj a pointer to an array of items
+ * @param a_store_obj a pointer to items
  * @param a_store_count a count of items
  * @return (none)
  */
@@ -221,7 +221,7 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
 }
 
 /**
- * @brief Calc hash for data
+ * @brief Calcs hash string for data
  * @param data a pointer to data
  * @param data_size a size of data
  * @return Hash string or NULL.
@@ -586,8 +586,8 @@ dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char
 
 /**
  * @brief Checks an element in a database by a_group and a_key.
- * @param a_group the group namme
- * @param a_key the key name
+ * @param a_group a group namme
+ * @param a_key a key
  * @return True if is, 0 otherwise.
  */
 bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key)
