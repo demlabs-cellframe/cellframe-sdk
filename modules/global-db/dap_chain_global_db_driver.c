@@ -426,6 +426,12 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
 
 }
 
+/**
+ * @brief Adds items to a database
+ * @param a_store_obj items to be added
+ * @param a_store_count a count added items
+ * @return If sucseesful, 1, otherwise 0 or <0
+ */
 int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     for(size_t i = 0; i < a_store_count; i++)
@@ -433,6 +439,12 @@ int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_
     return dap_chain_global_db_driver_appy(a_store_obj, a_store_count);
 }
 
+/**
+ * @brief Deletes items from a database
+ * @param a_store_obj items to be deleted
+ * @param a_store_count a count deleted items
+ * @return If sucseesful, 1, otherwise 0 or <0
+ */
 int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     for(size_t i = 0; i < a_store_count; i++)
@@ -441,10 +453,10 @@ int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_sto
 }
 
 /**
- * Read the number of items
- *
- * a_group - group name
- * a_id - from this id
+ * @brief Gets a count of items in a database by a_group and id
+ * @param a_group the group name
+ * @param a_id id
+ * @return The count of items
  */
 size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id)
 {
@@ -456,11 +468,12 @@ size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id)
 }
 
 /**
- * Get group matching the pattern
+ * @brief Gets a list of group names matching the pattern
  * Check whether the groups match the pattern a_group_mask, which is a shell wildcard pattern
  * patterns: [] {} [!] * ?
  * https://en.wikipedia.org/wiki/Glob_(programming)
- * a_group_mask - group mask
+ * @param a_group_mask the group mask
+ * @return If successful, the list of group names, otherwise NULL
  */
 dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_mask)
 {
@@ -472,9 +485,9 @@ dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_ma
 
 
 /**
- * Read last items
- *
- * a_group - group name
+ * @brief Reads last items in the database
+ * @param a_group the group name
+ * @return If successful, a pointer to the item, otherwise NULL
  */
 dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group)
 {
@@ -490,13 +503,12 @@ dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group)
 }
 
 /**
- * Read several items
- *
- * a_group - group name
- * a_key - key name, may by NULL, it means reading the whole group
- * a_id - from this id
- * a_count_out[in], how many items to read, 0 - no limits
- * a_count_out[out], how many items was read
+ * @brief Reads several items from a database by a_group and id
+ * @param a_group the group name
+ * @param a_id id
+ * @param a_count_out[in] a count of items to read, if 0 - no limits
+ * @param a_count_out[out] a count of items was read
+ * @return If successful, a pointer to an array of items, otherwise NULL
  */
 dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint64_t id, size_t *a_count_out)
 {
@@ -512,12 +524,13 @@ dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint6
 }
 
 /**
- * Read several items
- *
- * a_group - group name
- * a_key - key name, may by NULL, it means reading the whole group
- * a_count_out[in], how many items to read, 0 - no limits
- * a_count_out[out], how many items was read
+ * @brief Reads several items from a database by a_group and a_key.
+ * If a_key is NULL, reads whole group.
+ * @param a_group the group name
+ * @param a_key  key name, may by NULL. it means reading the whole group
+ * @param a_count_out[in] a count of items to read, if 0 - no limits
+ * @param a_count_out[out] a count of items was read
+ * @return If successful, a pointer to an array of items, otherwise NULL
  */
 dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char *a_key, size_t *a_count_out)
 {
@@ -533,10 +546,10 @@ dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char
 }
 
 /**
- * Check an element in the database
- *
- * a_group - group name
- * a_key - key name
+ * @brief Checks an element in a database by a_group and a_key
+ * @param a_group the group namme
+ * @param a_key the key name
+ * @return true if is, 0 otherwise
  */
 bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key)
 {
