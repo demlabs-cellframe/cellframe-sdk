@@ -1520,7 +1520,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
             }
         }
     #elif defined (DAP_EVENTS_CAPS_POLL)
-        if( a_esocket->worker){
+        if( a_esocket->worker && a_esocket->is_initalized){
             if (a_esocket->poll_index < a_esocket->worker->poll_count ){
                 struct pollfd * l_poll = &a_esocket->worker->poll[a_esocket->poll_index];
                 l_poll->events = a_esocket->poll_base_flags | POLLERR ;
@@ -1709,7 +1709,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
     }else
         log_it(L_WARNING,"Trying to set readable/writable event, queue or timer thats you shouldnt do");
 #else
-    if( a_esocket->worker )
+    if( a_esocket->worker)
         dap_events_socket_worker_poll_update_unsafe(a_esocket);
     else if( a_esocket->proc_thread)
         dap_proc_thread_esocket_update_poll_flags(a_esocket->proc_thread,a_esocket );
