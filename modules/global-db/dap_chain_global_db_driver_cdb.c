@@ -38,7 +38,7 @@
 
 #define LOG_TAG "dap_chain_global_db_cdb"
 
-//
+/** Struct for a item */
 typedef struct _obj_arg {
     pdap_store_obj_t o;
     uint64_t q;
@@ -46,6 +46,7 @@ typedef struct _obj_arg {
     uint64_t id;
 } obj_arg, *pobj_arg;
 
+/** Struct for a CDB instanse */
 typedef struct _cdb_instance {
     CDB *cdb;
     char *local_group;
@@ -53,20 +54,25 @@ typedef struct _cdb_instance {
     UT_hash_handle hh;
 } cdb_instance, *pcdb_instance;
 
-/**Path to CDB file*/
+/** A path to a CDB file. */
 static char *s_cdb_path = NULL;
-//** Pointer to instance CDB
+/** A pointer to a CDB instance. */
 static pcdb_instance s_cdb = NULL;
+/** A mutex for working with a CDB instanse. */
 static pthread_mutex_t cdb_mutex = PTHREAD_MUTEX_INITIALIZER;
+/** A read-write lock for working with a CDB instanse. */
 static pthread_rwlock_t cdb_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 /**
- * @brief Serialize key and val in dap_store_obj
+ * @brief Serialize key and val to a item
  * key -> key
  * val[0..8] => id
  * val[..] => value_len
  * val[..] => value
  * val[..] => timestamp
+ * @param a_obj a pointer to a item
+ * @param key a key
+ * @param val a serialize string
  */
 static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const char *key, const char *val) {
     if (!key || !val) {
@@ -85,6 +91,7 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     a_obj->timestamp = (time_t)dap_hex_to_uint(val + offset, sizeof(time_t));
 }
 
+/** A callback function designed for finding a last item */
 bool dap_cdb_get_last_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     UNUSED(ksize);
     UNUSED(val);
@@ -99,6 +106,7 @@ bool dap_cdb_get_last_obj_iter_callback(void *arg, const char *key, int ksize, c
     return true;
 }
 
+//** A callback function designed for finding a some items */
 bool dap_cdb_get_some_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     UNUSED(ksize);
     UNUSED(val);
@@ -114,6 +122,7 @@ bool dap_cdb_get_some_obj_iter_callback(void *arg, const char *key, int ksize, c
     return true;
 }
 
+//** A callback function designed for finding a some items by conditionals */
 bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     UNUSED(ksize);
     UNUSED(val);
@@ -132,6 +141,7 @@ bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, c
     return true;
 }
 
+//** A callback function designed for countng items*/
 bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     UNUSED(ksize);
     UNUSED(val);
@@ -150,13 +160,12 @@ bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, cons
 }
 
 /** 
- * @brief dap_cdb_init_group
- * Initiate a CDB with main hash table size: 1000000,
- * record cache: 128Mb, index page cache: 1024Mb
- * @param a_group filename 
+ * @brief Initiates a CDB with main hash table size: 1000000,
+ * record cache: 128Mb, index page cache: 1024Mb.
+ * @param a_group a group name 
  * @param a_flags should be combination of CDB_CREAT / CDB_TRUNC / CDB_PAGEWARMUP 
    CDB_PAGEWARMUP
- * @return pcdb_instance if success, NULL if error 
+ * @return A pointer to CDB, if success. NULL, if error.
  */
 pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
     pcdb_instance l_cdb_i = NULL;
@@ -219,10 +228,10 @@ ERR:
 }
 
 /**
- * @brief Initiate a CDB with callback fuctions.
- * @param a_cdb_path path to CDB. Saved in s_cdb_path
- * @param a_drv_callback struct for callback functions
- * @return 0 if success, -1 if сouldn't open db directory, -2 if dap_cdb_init_group() returns NULL
+ * @brief Initiates a CDB with callback fuctions.
+ * @param a_cdb_path a path to CDB. Saved in s_cdb_path
+ * @param a_drv_callback a struct for callback functions
+ * @return 0 if success, -1 if сouldn't open db directory, -2 if dap_cdb_init_group() returns NULL.
  */
 int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_drv_callback) {
     s_cdb_path = dap_strdup(a_cdb_path);
@@ -278,9 +287,9 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
 }
 
 /**
- * @brief Get pcbd_instance by group
- * @param a_group 
- * @return pcdb_instance or NULL it was not found
+ * @brief Gets CDB by a_group.
+ * @param a_group a group name
+ * @return if CDB is found, a pointer to CDB, otherwise NULL.
  */ 
 pcdb_instance dap_cdb_get_db_by_group(const char *a_group) {
     pcdb_instance l_cdb_i = NULL;
@@ -291,8 +300,8 @@ pcdb_instance dap_cdb_get_db_by_group(const char *a_group) {
 }
 
 /**
- * @brief Creates a directory on the path s_cdb_path/a_group
- * @param a_group the group
+ * @brief Creates a directory on the path s_cdb_path/a_group.
+ * @param a_group the group name
  * @return 0
  */
 int dap_cdb_add_group(const char *a_group) {
@@ -308,7 +317,7 @@ int dap_cdb_add_group(const char *a_group) {
 }
 
 /**
- * @brief Destroy CDB
+ * @brief Deinitialize CDB.
  * @return 0
  */
 int dap_db_driver_cdb_deinit() {
@@ -326,7 +335,7 @@ int dap_db_driver_cdb_deinit() {
 }
 
 /**
- * @brief Flushing CDB to the disk
+ * @brief Flushing CDB to the disk.
  * @return 0
  */
 int dap_db_driver_cdb_flush(void) {
@@ -343,9 +352,9 @@ int dap_db_driver_cdb_flush(void) {
 }
 
 /**
- * @brief Read last store object from CDB
- * @param a_group 
- * @return Pointer to obj_arg struct
+ * @brief Read last store item from CDB.
+ * @param a_group a group name
+ * @return If successful, a pointer to item, otherwise NULL.
  */  
 dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {
     if (!a_group) {
@@ -370,7 +379,7 @@ dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {
 
 /**
  * @brief Checks if CDB has a_key
- * @param a_group the group
+ * @param a_group the group name
  * @param a_key the key
  * @return true or false
  */  
@@ -394,11 +403,11 @@ bool dap_db_driver_cdb_is_obj(const char *a_group, const char *a_key)
 }
 
 /**
- * @brief Gets dap_store_obj from CDB by a_group and a_key. If a_key=NULL then gets a_count_out objects
- * @param a_group the group
- * @param a_key the key or NULL.
- * @param a_count_out IN. Count of read records. OUT Count of objects was read.
- * @return Pointer to dap_store_obj or NULL
+ * @brief Gets items from CDB by a_group and a_key. If a_key=NULL then gets a_count_out items.
+ * @param a_group the group name
+ * @param a_key the key or NULL
+ * @param a_count_out IN. Count of read items. OUT Count of items was read
+ * @return If successful, pointer to items; otherwise NULL.
  */  
 dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out) {
     if (!a_group) {
@@ -453,11 +462,12 @@ dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char *a_group, const cha
 }
 
 /**
- * @brief Gets objects from CDB by a_group and a_id
- * @param a_group the group
+ * @brief Gets items from CDB by a_group and a_id.
+ * @param a_group the group name
  * @param a_id id
- * @param a_count_out IN. Count of objects. OUT count of recordobjects were get.
- * @return Array of objects or NULL
+ * @param a_count_out[in] a count of items
+ * @param a_count[out] a count of items were got
+ * @return If successful, pointer to items, otherwise NULL.
  */  
 dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out) {
     if (!a_group) {
@@ -507,10 +517,10 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
 
 
 /**
- * @brief Reads count of records in CDB by a_group and a_id
- * @param a_group the group
+ * @brief Reads count of items in CDB by a_group and a_id.
+ * @param a_group the group name
  * @param a_id id
- * @return Count of store object or 0
+ * @return If successful, count of store items; otherwise 0.
  */  
 size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
 {
@@ -534,9 +544,9 @@ size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
 }
 
 /**
- * @brief Check whether the groups match the pattern a_group_mask, which is a shell wildcard pattern
+ * @brief Check whether the groups match the pattern a_group_mask, which is a shell wildcard pattern.
  * @param a_group_mask the mask
- * @return dap_list with groups
+ * @return If successful, pointer to dap_list with group names; otherwise NULL.
  */
 dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
 {
@@ -556,9 +566,9 @@ dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
 
 
 /**
- * @brief Add or del object in CDB depending on a_store_obj->type
- * @param a_store_obj pointer to the object
- * @return 0 if success, <0 error
+ * @brief Adds or deletes item in CDB depending on a_store_obj->type.
+ * @param a_store_obj a pointer to the item
+ * @return 0 if success, <0 error.
  */
 int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
     if(!a_store_obj || !a_store_obj->group) {

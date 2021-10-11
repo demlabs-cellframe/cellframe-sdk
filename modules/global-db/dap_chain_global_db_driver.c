@@ -546,7 +546,7 @@ dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group)
  * @param a_group the group name
  * @param a_id id
  * @param a_count_out[in] a count of items to read, if 0 - no limits
- * @param a_count_out[out] a count of items was read
+ * @param a_count_out[out] a count of items were read
  * @return If successful, a pointer to an array of items, otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint64_t id, size_t *a_count_out)
