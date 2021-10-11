@@ -53,7 +53,7 @@ static pthread_rwlock_t s_db_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static PGconn *s_pgsql_get_connection(void)
 {
-    if (pthread_rwlock_rdlock(&s_db_rwlock) == EDEADLK) {
+    if (pthread_rwlock_wrlock(&s_db_rwlock) == EDEADLK) {
         return s_trans_conn;
     }
     PGconn *l_ret = NULL;
@@ -70,7 +70,7 @@ static PGconn *s_pgsql_get_connection(void)
 
 static void s_pgsql_free_connection(PGconn *a_conn)
 {
-    if (pthread_rwlock_rdlock(&s_db_rwlock) == EDEADLK) {
+    if (pthread_rwlock_wrlock(&s_db_rwlock) == EDEADLK) {
         return;
     }
     for (int i = 0; i < DAP_PGSQL_POOL_COUNT; i++) {
@@ -192,7 +192,7 @@ int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks
 int dap_db_driver_pgsql_deinit(void)
 {
     pthread_rwlock_wrlock(&s_db_rwlock);
-    for (int j = 0; j <= DAP_PGSQL_POOL_COUNT; j++)
+    for (int j = 0; j < DAP_PGSQL_POOL_COUNT; j++)
         PQfinish(s_conn_pool[j].conn);
     pthread_rwlock_unlock(&s_db_rwlock);
     pthread_rwlock_destroy(&s_db_rwlock);
@@ -207,7 +207,7 @@ int dap_db_driver_pgsql_start_transaction(void)
     s_trans_conn = s_pgsql_get_connection();
     if (!s_trans_conn)
         return -1;
-    pthread_rwlock_rdlock(&s_db_rwlock);
+    pthread_rwlock_wrlock(&s_db_rwlock);
     PGresult *l_res = PQexec(s_trans_conn, "BEGIN");
     if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
         log_it(L_ERROR, "Begin transaction failed with message: \"%s\"", PQresultErrorMessage(l_res));
@@ -292,7 +292,7 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
         DAP_DELETE(a_store_obj->value);
         DAP_DELETE(a_store_obj->key);
         if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
-            if (a_store_obj->type == 'a' && s_pgsql_create_group_table(a_store_obj->group, l_conn) == 0) {
+            if (s_pgsql_create_group_table(a_store_obj->group, l_conn) == 0) {
                 PQclear(l_res);
                 l_res = PQexecParams(l_conn, l_query_str, 2, NULL, l_param_vals, l_param_lens, l_param_formats, 0);
             }
@@ -313,9 +313,10 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
         // execute delete request
         l_res = PQexec(l_conn, l_query_str);
         if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
-            if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+            if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE)) {
                 log_it(L_ERROR, "Delete object failed with message: \"%s\"", PQresultErrorMessage(l_res));
-            l_ret = -4;
+                l_ret = -4;
+            }
         }
     }
     else {
@@ -375,12 +376,12 @@ dap_store_obj_t *dap_db_driver_pgsql_read_store_obj(const char *a_group, const c
     }
 
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
-    s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
         if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Read objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
+        s_pgsql_free_connection(l_conn);
         return NULL;
     }
 
@@ -393,6 +394,7 @@ dap_store_obj_t *dap_db_driver_pgsql_read_store_obj(const char *a_group, const c
         s_pgsql_fill_object(a_group, l_obj_cur, l_res, i);
     }
     PQclear(l_res);
+    s_pgsql_free_connection(l_conn);
     if (a_count_out)
         *a_count_out = l_count;
     return l_obj;
@@ -414,12 +416,12 @@ dap_store_obj_t *dap_db_driver_pgsql_read_last_store_obj(const char *a_group)
     }
     char *l_query_str = dap_strdup_printf("SELECT * FROM \"%s\" ORDER BY obj_id DESC LIMIT 1", a_group);
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
-    s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
         if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Read last object failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
+        s_pgsql_free_connection(l_conn);
         return NULL;
     }
     dap_store_obj_t *l_obj = NULL;
@@ -428,6 +430,7 @@ dap_store_obj_t *dap_db_driver_pgsql_read_last_store_obj(const char *a_group)
         s_pgsql_fill_object(a_group, l_obj, l_res, 0);
     }
     PQclear(l_res);
+    s_pgsql_free_connection(l_conn);
     return l_obj;
 }
 
@@ -456,12 +459,12 @@ dap_store_obj_t *dap_db_driver_pgsql_read_cond_store_obj(const char *a_group, ui
         l_query_str = dap_strdup_printf("SELECT * FROM \"%s\" WHERE obj_id >= '%"DAP_UINT64_FORMAT_U"' "
                                         "ORDER BY obj_id ASC", a_group, a_id);
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
-    s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
         if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Conditional read objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
+        s_pgsql_free_connection(l_conn);
         return NULL;
     }
 
@@ -474,6 +477,7 @@ dap_store_obj_t *dap_db_driver_pgsql_read_cond_store_obj(const char *a_group, ui
         s_pgsql_fill_object(a_group, l_obj_cur, l_res, i);
     }
     PQclear(l_res);
+    s_pgsql_free_connection(l_conn);
     if (a_count_out)
         *a_count_out = l_count;
     return l_obj;
@@ -492,10 +496,10 @@ dap_list_t *dap_db_driver_pgsql_get_groups_by_mask(const char *a_group_mask)
     const char *l_query_str = "SELECT tablename FROM pg_catalog.pg_tables WHERE "
                               "schemaname != 'information_schema' AND schemaname != 'pg_catalog'";
     PGresult *l_res = PQexec(l_conn, l_query_str);
-    s_pgsql_free_connection(l_conn);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
         log_it(L_ERROR, "Read tables failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
+        s_pgsql_free_connection(l_conn);
         return NULL;
     }
 
@@ -506,6 +510,7 @@ dap_list_t *dap_db_driver_pgsql_get_groups_by_mask(const char *a_group_mask)
             l_ret_list = dap_list_prepend(l_ret_list, dap_strdup(l_table_name));
     }
     PQclear(l_res);
+    s_pgsql_free_connection(l_conn);
     return l_ret_list;
 }
 
@@ -521,16 +526,17 @@ size_t dap_db_driver_pgsql_read_count_store(const char *a_group, uint64_t a_id)
     char *l_query_str = dap_strdup_printf("SELECT count(*) FROM \"%s\" WHERE obj_id >= '%"DAP_UINT64_FORMAT_U"'",
                                           a_group, a_id);
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
-    s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
         if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Count objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
+        s_pgsql_free_connection(l_conn);
         return 0;
     }
     size_t l_ret = be64toh(*(uint64_t *)PQgetvalue(l_res, 0, 0));
     PQclear(l_res);
+    s_pgsql_free_connection(l_conn);
     return l_ret;
 }
 
@@ -545,16 +551,17 @@ bool dap_db_driver_pgsql_is_obj(const char *a_group, const char *a_key)
     }
     char *l_query_str = dap_strdup_printf("SELECT EXISTS(SELECT * FROM \"%s\" WHERE obj_key = '%s')", a_group, a_key);
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
-    s_pgsql_free_connection(l_conn);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
         if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Existance check of object failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
+        s_pgsql_free_connection(l_conn);
         return 0;
     }
     int l_ret = *PQgetvalue(l_res, 0, 0);
     PQclear(l_res);
+    s_pgsql_free_connection(l_conn);
     return l_ret;
 }
 
