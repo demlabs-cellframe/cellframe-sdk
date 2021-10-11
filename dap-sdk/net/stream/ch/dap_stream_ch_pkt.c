@@ -75,6 +75,8 @@ void dap_stream_ch_pkt_deinit()
  */
 size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type, const char * a_format,...)
 {
+    if (!a_worker)
+        return 0;
     va_list ap;
     va_start(ap,a_format);
     int l_data_size = dap_vsnprintf(NULL,0,a_format,ap);
@@ -161,6 +163,8 @@ size_t dap_stream_ch_pkt_write_f_inter(dap_events_socket_t * a_queue  , dap_stre
  */
 size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type, const void * a_data, size_t a_data_size)
 {
+    if (!a_worker)
+        return 0;
     dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
     l_msg->ch_uuid = a_ch_uuid;
     l_msg->ch_pkt_type = a_type;
