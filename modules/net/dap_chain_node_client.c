@@ -179,6 +179,12 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         l_node_client->callbacks.error(l_node_client, EINVAL,l_node_client->callbacks_arg );
 }
 
+/**
+ * @brief s_node_client_connected_synchro_start_callback
+ * 
+ * @param a_worker dap_worker_t
+ * @param a_arg void 
+ */
 static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worker, void *a_arg)
 {
     UNUSED(a_worker);
@@ -493,6 +499,13 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
     //}
 }
 
+/**
+ * @brief save_stat_to_database
+ * 
+ * @param a_request 
+ * @param a_node_client 
+ * @return int 
+ */
 static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_request, dap_chain_node_client_t * a_node_client)
 {
     int l_ret = 0;
@@ -538,6 +551,7 @@ static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_reque
     json_object_put(jobj);
     return l_ret;
 }
+
 /**
  * @brief s_ch_chain_callback_notify_packet_R - Callback for channel 'R'
  * @param a_ch_chain
@@ -571,12 +585,15 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
     }
 }
 
-/**
- * Create connection to server
- *
- * return a connection handle, or NULL, if an error
- */
 
+/**
+ * @brief dap_chain_node_client_connect_channels
+ * Create connection to server
+ * @param l_net 
+ * @param a_node_info 
+ * @param a_active_channels 
+ * @return dap_chain_node_client_t* return a connection handle, or NULL, if an error
+ */
 dap_chain_node_client_t* dap_chain_node_client_connect_channels(dap_chain_net_t * l_net, dap_chain_node_info_t *a_node_info, const char *a_active_channels)
 {
     return dap_chain_net_client_create_n_connect_channels(l_net,a_node_info,a_active_channels);
@@ -631,7 +648,15 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     return NULL;
 }
 
-// Create new dap_client, setup it, and send it in adventure trip
+
+/**
+ * @brief dap_chain_node_client_connect_internal
+ * Create new dap_client, setup it, and send it in adventure trip
+ * @param a_node_client dap_chain_node_client_t
+ * @param a_active_channels a_active_channels
+ * @return true 
+ * @return false 
+ */
 static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
 {
     a_node_client->client = dap_client_new(a_node_client->events, s_stage_status_callback,
@@ -669,9 +694,11 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
 }
 
 /**
+ * @brief dap_chain_node_client_connect
  * Create connection to server
- *
- * return a connection handle, or NULL, if an error
+ * @param a_net 
+ * @param a_node_info 
+ * @return dap_chain_node_client_t* return a connection handle, or NULL, if an error
  */
 dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_net_t * a_net,dap_chain_node_info_t *a_node_info)
 {
@@ -679,7 +706,11 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_net_t * a_net,d
     return dap_chain_node_client_connect_channels(a_net,a_node_info, l_active_channels);
 }
 
-
+/**
+ * @brief dap_chain_node_client_reset
+ * 
+ * @param a_client dap_chain_node_client_t
+ */
 void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
 {
     if (a_client->state > NODE_CLIENT_STATE_ESTABLISHED) {
@@ -687,8 +718,11 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
     }
 }
 
+
 /**
+ * @brief dap_chain_node_client_close
  * Close connection to server, delete chain_node_client_t *client
+ * @param a_client dap_chain_node_client_t
  */
 void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
 {
@@ -721,8 +755,16 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
     }
 }
 
+
 /**
+ * @brief dap_chain_node_client_send_ch_pkt 
  * Send stream request to server
+ * @param a_client 
+ * @param a_ch_id 
+ * @param a_type 
+ * @param a_pkt_data 
+ * @param a_pkt_data_size 
+ * @return int 
  */
 int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t a_ch_id, uint8_t a_type,
         const void *a_pkt_data, size_t a_pkt_data_size)
@@ -735,12 +777,17 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
     return 0;
 }
 
+
 /**
+ * @brief dap_chain_node_client_wait
  * wait for the complete of request
  *
  * timeout_ms timeout in milliseconds
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
- * return -2 false, -1 timeout, 0 end of connection or sending data
+ * @param a_client 
+ * @param a_waited_state 
+ * @param a_timeout_ms 
+ * @return int return -2 false, -1 timeout, 0 end of connection or sending data
  */
 int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_state, int a_timeout_ms)
 {
@@ -816,6 +863,13 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     return ret;
 }
 
+/**
+ * @brief dap_chain_node_client_set_callbacks
+ * 
+ * @param a_client dap_client_t
+ * @param a_ch_id uint8_t
+ * @return int 
+ */
 int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
 {
     int l_ret = -1;
@@ -867,8 +921,12 @@ static void nodelist_response_error_callback(dap_client_t *a_client, int a_err)
 {
 }*/
 
+
 /**
+ * @brief dap_chain_node_client_send_nodelist_req
  * Send nodelist request to server
+ * @param a_client 
+ * @return int 
  */
 int dap_chain_node_client_send_nodelist_req(dap_chain_node_client_t *a_client)
 {

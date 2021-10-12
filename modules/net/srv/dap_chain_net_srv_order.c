@@ -369,13 +369,17 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str,&l_orders_count);
         log_it( L_DEBUG ,"Loaded %zd orders", l_orders_count);
         bool l_order_pass_first=true;
-        size_t l_order_passed_index = 0;
-        size_t l_orders_size = 0;
+        size_t l_order_passed_index;
+        size_t l_orders_size;
 lb_order_pass:
         l_order_passed_index = 0;
         l_orders_size = 0;
         for (size_t i=0; i< l_orders_count; i++){
             dap_chain_net_srv_order_t * l_order = (dap_chain_net_srv_order_t *) l_orders[i].value;
+            if (l_order->version > 2 || l_order->direction > SERV_DIR_SELL ||
+                    dap_chain_net_srv_order_get_size(l_order) != l_orders[i].value_len) {
+                continue; // order is corrupted
+            }
             // Check direction
             if (a_direction != SERV_DIR_UNDEFINED )
                 if ( l_order->direction != a_direction )
@@ -475,7 +479,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016llX\n", a_order->srv_uid.uint64 );
-        dap_string_append_printf(a_str_out, "  price:           \xA0""%.7Lf (%"DAP_UINT64_FORMAT_U")\n", dap_chain_datoshi_to_coins(a_order->price) , a_order->price);
+        dap_string_append_printf(a_str_out, "  price:            %.7Lf (%"DAP_UINT64_FORMAT_U")\n", dap_chain_datoshi_to_coins(a_order->price) , a_order->price);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
         if ( a_order->node_addr.uint64)

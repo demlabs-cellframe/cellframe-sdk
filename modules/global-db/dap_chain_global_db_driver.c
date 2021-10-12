@@ -38,6 +38,7 @@
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"
 #include "dap_chain_global_db_driver_mdbx.h"
+#include "dap_chain_global_db_driver_pgsql.h"
 #include "dap_chain_global_db_driver.h"
 
 #define LOG_TAG "db_driver"
@@ -103,6 +104,10 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
 #ifdef DAP_CHAIN_GDB_ENGINE_MDBX
     else if(!dap_strcmp(s_used_driver, "mdbx"))
         l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback);
+#endif
+#ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
+    else if(!dap_strcmp(s_used_driver, "pgsql"))
+        l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback);
 #endif
     else
         log_it(L_ERROR, "Unknown global_db driver \"%s\"", a_driver_name);
@@ -405,10 +410,12 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
             if(l_ret_tmp == 1) {
                 log_it(L_INFO, "item is missing (may be already deleted) %s/%s\n", l_store_obj_cur->group, l_store_obj_cur->key);
                 l_ret = 1;
+                break;
             }
             if(l_ret_tmp < 0) {
                 log_it(L_ERROR, "Can't write item %s/%s (code %d)\n", l_store_obj_cur->group, l_store_obj_cur->key, l_ret_tmp);
                 l_ret -= 1;
+                break;
             }
         }
 

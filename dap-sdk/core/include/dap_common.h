@@ -123,6 +123,7 @@ typedef uint8_t byte_t;
   #define DAP_REALLOC(a, b)     rprealloc(a,b)
   #define DAP_DELETE(a)         rpfree(a)
   #define DAP_DUP(a)            memcpy(rpmalloc(sizeof(*a)), a, sizeof(*a))
+  #define DAP_DUP_SIZE(a, s)    memcpy(rpmalloc(s), a, s)
 #else
   #define DAP_MALLOC(a)         malloc(a)
   #define DAP_FREE(a)           free(a)
@@ -139,6 +140,7 @@ typedef uint8_t byte_t;
   #define DAP_REALLOC(a, b)     realloc(a,b)
   #define DAP_DELETE(a)         free(a)
   #define DAP_DUP(a)            memcpy(malloc(sizeof(*a)), a, sizeof(*a))
+  #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
 #endif
 
 #define DAP_DEL_Z(a)          if(a) { DAP_DELETE(a); a=NULL;}
@@ -189,12 +191,18 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 #if __SIZEOF_LONG__==8
 #define DAP_UINT64_FORMAT_X  "lX"
-#define     DAP_UINT64_FORMAT_x  "lx"
+#define DAP_UINT64_FORMAT_x  "lx"
 #define DAP_UINT64_FORMAT_U  "lu"
+#define DAP_UINT32_FORMAT_X  "X"
+#define DAP_UINT32_FORMAT_x  "x"
+#define DAP_UINT32_FORMAT_U  "u"
 #elif __SIZEOF_LONG__==4
 #define DAP_UINT64_FORMAT_X  "llX"
 #define DAP_UINT64_FORMAT_x  "llx"
 #define DAP_UINT64_FORMAT_U  "llu"
+#define DAP_UINT32_FORMAT_X  "lX"
+#define DAP_UINT32_FORMAT_x  "lx"
+#define DAP_UINT32_FORMAT_U  "lu"
 #else
 #error "DAP_UINT64_FORMAT_* are undefined for your platform"
 #endif
