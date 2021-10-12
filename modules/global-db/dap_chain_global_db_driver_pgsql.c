@@ -38,10 +38,11 @@
 #include "dap_file_utils.h"
 #include "dap_chain_global_db_driver_pgsql.h"
 
-#define LOG_TAG "db_pgsql"
-
 #ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
 #include <pwd.h>
+
+#define LOG_TAG "db_pgsql"
+
 struct dap_pgsql_conn_pool_item {
     PGconn *conn;
     int busy;
@@ -223,7 +224,7 @@ int dap_db_driver_pgsql_start_transaction(void)
  */
 int dap_db_driver_pgsql_end_transaction(void)
 {
-    if (s_trans_conn)
+    if (!s_trans_conn)
         return -1;
     PGresult *l_res = PQexec(s_trans_conn, "COMMIT");
     if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
@@ -292,6 +293,11 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
         DAP_DELETE(a_store_obj->value);
         DAP_DELETE(a_store_obj->key);
         if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
+            if (s_trans_conn) { //we shouldn't fail within a transaacion
+                dap_db_driver_pgsql_end_transaction();
+                dap_db_driver_pgsql_start_transaction();
+                l_conn = s_pgsql_get_connection();
+            }
             if (s_pgsql_create_group_table(a_store_obj->group, l_conn) == 0) {
                 PQclear(l_res);
                 l_res = PQexecParams(l_conn, l_query_str, 2, NULL, l_param_vals, l_param_lens, l_param_formats, 0);

@@ -338,7 +338,8 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
 
     if (l_token_item) {
-        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+        if(s_debug_more)
+            log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
         return -3;
     }
 
