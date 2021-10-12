@@ -51,13 +51,13 @@
 // for access from several streams
 //static pthread_mutex_t ldb_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
-//Do nothing
+// The function does nothing
 static inline void lock()
 {
     //pthread_mutex_lock(&ldb_mutex_);
 }
 
-//Do nothing
+// The function does nothing
 static inline void unlock()
 {
     //pthread_mutex_unlock(&ldb_mutex_);
@@ -129,8 +129,9 @@ dap_list_t *dap_chain_db_get_sync_extra_groups()
 }
 
 /**
- * @brief Deallocates memory of key and value members of a item.
- * @param obj A pointer to the item
+ * @brief Deallocates memory of a key and a value members of an obj structure.
+ * @param obj A pointer to the structure
+ * @return (none)
  */
 void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 {
@@ -143,8 +144,9 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 }
 
 /**
- * @brief Deallocates memory of a item.
+ * @brief Deallocates memory of a obj structure.
  * @param obj A pointer to the item
+ * @return (none)
  */
 void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
 {
@@ -153,9 +155,10 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
 }
 
 /**
- * @brief Deallocates memory of array of items.
- * @param objs an array of items
- * @param a_count A aount of items in the array.
+ * @brief Deallocates memory of an objs array.
+ * @param objs a pointer to the first element of the array
+ * @param a_count a number of elements in the array.
+ * @return (none)
  */
 void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
 {
@@ -166,9 +169,9 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
 }
 
 /**
- * @brief Initialise a datebase. Befor using must call this fuction.
- * @param g_config a pointer to a congiguration struct
- * @return 0 if success, otherwise error,
+ * @brief Initializes a database by g_config structure. Call this function before calling any other functions in this library.
+ * @param g_config a pointer to the configuration structure
+ * @return Returns 0 if successful; otherwise, <0
  */
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
@@ -187,7 +190,8 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 }
 
 /**
- * @brief Deinitialise a datebase.
+ * @brief Deinitialize a database. Call this function at the end.
+ * @return (none)
  */
 void dap_chain_global_db_deinit(void)
 {
@@ -213,7 +217,7 @@ void dap_chain_global_db_deinit(void)
 }
 
 /**
- * @brief Flushes a datebase.
+ * @brief Flushes a database cahce to disk.
  * @return 0
  */
 int dap_chain_global_db_flush(void){
@@ -224,10 +228,10 @@ int dap_chain_global_db_flush(void){
 }
 
 /**
- * @brief Gets an item from a datebase by a_key and a_group
+ * @brief Gets an item from a database by a_key and a_group.
  * @param a_key a key
- * @param a_group the group name
- * @return If successful, a pointer to an array of items, otherwise NULL.
+ * @param a_group a group name
+ * @return If successful, returns a pointer to the item, otherwise NULL.
  */
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 {
@@ -238,11 +242,12 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 }
 
 /**
- * @brief dap_chain_global_db_obj_gr_get
- * @param a_key
- * @param a_data_out
- * @param a_group
- * @return
+ * @brief Gets an array consisting of a_data_len_out items from a database by a_key and a_group.
+ * @param a_key a key
+ * @param a_data_len_out[in] a number of items to be gotten
+ * @param a_data_len_out[out] a number of items that were gotten
+ * @param a_group a group name
+ * @return If successful, returns a pointer to the first item in the array; otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
@@ -259,10 +264,11 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
 }
 
 /**
- * @brief dap_chain_global_db_gr_get
- * @param a_key
- * @param a_data_out
- * @param a_group
+ * @brief ??Gets an array consisting of a_data_len_out from database by a_key and a_group
+ * @param a_key a key
+ * @param a_data_out[in] a number of items to be gotten
+ * @param a_data_out[out] a number of items that were gotten
+ * @param a_group a group name
  * @return
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
@@ -284,6 +290,13 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
     return l_ret_value;
 }
 
+
+/**
+ * @brief ??
+ * @param a_key
+ * @param a_data_out
+ * @return
+ */
 uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
 {
     return dap_chain_global_db_gr_get(a_key, a_data_out, GROUP_LOCAL_GENERAL);
@@ -318,10 +331,9 @@ static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_times
 
 
 /**
- * @brief global_db_gr_del_del:
- * Delete info about the deleted entry from the base
- * @param a_key - key, looked like "0x8FAFBD00B..."
- * @param a_group - group name, for example "kelvin-testnet.nodes"
+ * @brief Deletes info about the deleted entry from the database
+ * @param a_key a key, looked like "0x8FAFBD00B..."
+ * @param a_group a group name, for example "kelvin-testnet.nodes"
  * @return true 
  * @return false 
  */
@@ -389,7 +401,7 @@ bool dap_chain_global_db_del(char *a_key)
 
 
 /**
- * @brief Gets a last item from a datebase by a_group.
+ * @brief Gets a last item from a database by a_group.
  * @param a_group a group name
  * @return If successful, a pointer to item; otherwise NULL.
  */
@@ -519,7 +531,7 @@ void dap_global_db_obj_track_history(void* a_store_data)
 
 
 /**
- * @brief Adds a value to a datebase.
+ * @brief Adds a value to a database.
  * @param a_key a key
  * @param a_value a value to be added
  * @param a_value_len length of value. If a_value_len=-1, counts it in function
@@ -565,7 +577,7 @@ bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
 }
 
 /**
- * @brief Deletes item from a datebase by a a_key and a_group.
+ * @brief Deletes item from a database by a a_key and a_group.
  * @param a_key a key
  * @param a_group a group name
  * @return True or false.
@@ -640,7 +652,7 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
 }
 
 /**
- * @brief Saves items in a datebase by a_group.
+ * @brief Saves items in a database by a_group.
  * @param a_objs a pointer to items
  * @param a_objs_count a count of items
  * @param a_group a group name
