@@ -79,9 +79,11 @@ static sync_group_item_t *s_sync_group_extra_items = NULL;
 static bool s_track_history = false;
 
 /**
- * @brief dap_chain_global_db_add_sync_group
- * @details Add group name for synchronization
- * @param a_group_prefix
+ * @brief Adds a group name for synchronization
+ * @param a_group_prefix prefix of the group name
+ * @param a_callback a callback fuction
+ * @param a_arg a pointer to an argument
+ * @return (none)
  */
 void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
@@ -94,9 +96,10 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
 }
 
 /**
- * @brief dap_chain_global_db_add_sync_extra_group
- * @details Add group name for synchronization with especially node addresses
- * @param a_group_prefix
+ * @brief Adds a group name for synchronization with especially node addresses
+ * @param a_group_mask
+ * @param a_callback a callabck function
+ * @param a_arg a pointer to an argument
  */
 void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
@@ -107,6 +110,12 @@ void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_glob
     l_item->callback_arg = a_arg;
     HASH_ADD_STR(s_sync_group_extra_items, group_mask, l_item);
 }
+
+/**
+ * @brief Gets a list of
+ * @param a_table
+ * @return Returns a pointer to a list of a group mask
+ */
 
 dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
 {
@@ -145,7 +154,7 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 
 /**
  * @brief Deallocates memory of a obj structure.
- * @param obj A pointer to the item
+ * @param obj A pointer to the object
  * @return (none)
  */
 void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
@@ -156,7 +165,7 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
 
 /**
  * @brief Deallocates memory of an objs array.
- * @param objs a pointer to the first element of the array
+ * @param objs a pointer to the first object of the array
  * @param a_count a number of elements in the array.
  * @return (none)
  */
@@ -228,7 +237,7 @@ int dap_chain_global_db_flush(void){
 }
 
 /**
- * @brief Gets an item from a database by a_key and a_group.
+ * @brief Gets an object from a database by a_key and a_group.
  * @param a_key a key
  * @param a_group a group name
  * @return If successful, returns a pointer to the item, otherwise NULL.
@@ -242,7 +251,7 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 }
 
 /**
- * @brief Gets an array consisting of a_data_len_out items from a database by a_key and a_group.
+ * @brief Gets an array consisting of a_data_len_out objectss from a database by a_key and a_group.
  * @param a_key a key
  * @param a_data_len_out[in] a number of items to be gotten
  * @param a_data_len_out[out] a number of items that were gotten
@@ -304,7 +313,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
 
 
 /**
- * Add info about the deleted entry to the base
+ * ??Add info about the deleted entry to the base
  */
 static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_timestamp)
 {
@@ -331,11 +340,10 @@ static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_times
 
 
 /**
- * @brief Deletes info about the deleted entry from the database
- * @param a_key a key, looked like "0x8FAFBD00B..."
+ * @brief Deletes info about the deleted item from the database
+ * @param a_key a key of the item, looked like "0x8FAFBD00B..."
  * @param a_group a group name, for example "kelvin-testnet.nodes"
- * @return true 
- * @return false 
+ * @return If successful, returns true; otherwise, false. 
  */
 static bool global_db_gr_del_del(char *a_key, const char *a_group)
 {
@@ -390,7 +398,7 @@ time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
 }
 
 /**
- * @brief Call dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL).
+ * @brief Calls dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL).
  * @param a_key key
  * @return True or false
  */
