@@ -27,7 +27,6 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
-#include <pwd.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -42,6 +41,8 @@
 #define LOG_TAG "db_pgsql"
 
 #ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
+#include <pwd.h>
+
 struct dap_pgsql_conn_pool_item {
     PGconn *conn;
     int busy;
