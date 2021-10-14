@@ -47,6 +47,7 @@ int main(void)
     dap_enc_sig_bliss_tests_run();
     dap_enc_dilithium_tests_run();
     dap_enc_msrln_tests_run();
+    dap_enc_ecdsa_tests_run();
 
     dap_enc_base64_tests_run();
     dap_enc_base58_tests_run();
