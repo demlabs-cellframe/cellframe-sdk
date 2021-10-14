@@ -43,6 +43,7 @@
 
 #define LOG_TAG "db_driver"
 
+// A selected datebase driver.
 static char *s_used_driver = NULL;
 
 //#define USE_WRITE_BUFFER
@@ -72,10 +73,11 @@ static void* func_write_buf(void * arg);
 static dap_db_driver_callbacks_t s_drv_callback;
 
 /**
- * Select driver
- * driver_name may be "ldb", "sqlite"
- *
- * return 0 OK, <0 Error
+ * @brief Initializes a database driver. Befor using the driver must call this fuction.
+ * @param driver_name a string determining a type of datebase driver. 
+ * Maybe "сdb", "sqlite" ("sqlite3"), "pgsql", "mdbx"
+ * @param a_filename_db a name of a datebase file
+ * @return If successful, 0 , otherwise <0.
  */
 int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
 {
@@ -127,9 +129,8 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
 }
 
 /**
- * Shutting down the db library
+ * @brief Deinitializes a database driver. Must call this function after using the driver.
  */
-
 void dap_db_driver_deinit(void)
 {
 #ifdef USE_WRITE_BUFFER
@@ -168,11 +169,21 @@ void dap_db_driver_deinit(void)
     }
 }
 
+/**
+ * @brief Flush data to disk
+ * @return 0
+ */
 int dap_db_driver_flush(void)
 {
     return s_drv_callback.flush();
 }
 
+/**
+ * @brief Copies a_store_count items from a_store_obj to return.
+ * @param a_store_obj a pointer to source items
+ * @param a_store_count a count of items
+ * @return A pointer to the copied items.
+ */
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
     if(!a_store_obj || !a_store_count)
@@ -190,6 +201,12 @@ dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store
     return l_store_obj;
 }
 
+/**
+ * @brief Deallocates memory of items.
+ * @param a_store_obj a pointer to items
+ * @param a_store_count a count of items
+ * @return (none)
+ */
 void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
     if(!a_store_obj)
@@ -204,9 +221,10 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
 }
 
 /**
- * Calc hash for data
- *
- * return hash or NULL
+ * @brief Calcs hash string for data
+ * @param data a pointer to data
+ * @param data_size a size of data
+ * @return Hash string or NULL.
  */
 char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size)
 {
@@ -226,8 +244,11 @@ char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size)
 }
 
 /**
- * Wait data to write buffer
- * return 0 - Ok, 1 - timeout
+ * @brief Wait data to write buffer
+ * @param a_mutex a mutex
+ * @param a_cond condition
+ * @param l_timeout_ms timeout in ms, if -1 endless waiting
+ * @return 0 - Ok, 1 - timeout
  */
 static int wait_data(pthread_mutex_t *a_mutex, pthread_cond_t *a_cond, int l_timeout_ms)
 {
@@ -257,7 +278,11 @@ static int wait_data(pthread_mutex_t *a_mutex, pthread_cond_t *a_cond, int l_tim
 }
 
 #ifdef USE_WRITE_BUFFER
-// return 0 if buffer empty, 1 data present
+/
+/**
+ * @brief Checks buffer is fill
+ * @return 0 if buffer empty, 1 data present
+ */
 static bool check_fill_buf(void)
 {
     dap_list_t *l_list_begin;
@@ -275,7 +300,9 @@ static bool check_fill_buf(void)
     return l_ret;
 }
 
-// wait apply write buffer
+/**
+ * @brief Waits apply write buffer.
+ */
 static void wait_write_buf()
 {
 //    printf("** Start wait data\n");
@@ -289,7 +316,10 @@ static void wait_write_buf()
 //    printf("** End wait data\n");
 }
 
-// save data from buffer to database
+/**
+ * @brief Saves data from buffer to database
+ * @return 0
+ */
 static int save_write_buf(void)
 {
     dap_list_t *l_list_end;
@@ -348,7 +378,11 @@ static int save_write_buf(void)
     return 0;
 }
 
-// thread for save data from buffer to database
+/**
+ * @brief thread for save data from buffer to database
+ * @param arg
+ * @return NULL
+ */
 static void* func_write_buf(void * arg)
 {
     while(1) {
@@ -366,6 +400,12 @@ static void* func_write_buf(void * arg)
 }
 #endif //USE_WRITE_BUFFER
 
+/**
+ * @brief Applies items to datebase
+ * @param a_store an array of items
+ * @param a_store_count a count of items
+ * @return 
+ */
 int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     //dap_store_obj_t *l_store_obj = dap_store_obj_copy(a_store_obj, a_store_count);
@@ -426,6 +466,12 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
 
 }
 
+/**
+ * @brief Adds items to a database.
+ * @param a_store_obj items to be added
+ * @param a_store_count a count added items
+ * @return If sucseesful, 1, otherwise 0 or <0.
+ */
 int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     for(size_t i = 0; i < a_store_count; i++)
@@ -433,6 +479,12 @@ int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_
     return dap_chain_global_db_driver_appy(a_store_obj, a_store_count);
 }
 
+/**
+ * @brief Deletes items from a database.
+ * @param a_store_obj items to be deleted
+ * @param a_store_count a count deleted items
+ * @return If sucseesful, 1, otherwise 0 or <0.
+ */
 int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {
     for(size_t i = 0; i < a_store_count; i++)
@@ -441,10 +493,10 @@ int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_sto
 }
 
 /**
- * Read the number of items
- *
- * a_group - group name
- * a_id - from this id
+ * @brief Gets a count of items in a database by a_group and id.
+ * @param a_group the group name
+ * @param a_id id
+ * @return The count of items.
  */
 size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id)
 {
@@ -456,11 +508,11 @@ size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id)
 }
 
 /**
- * Get group matching the pattern
+ * @brief Gets a list of group names matching the pattern.
  * Check whether the groups match the pattern a_group_mask, which is a shell wildcard pattern
- * patterns: [] {} [!] * ?
- * https://en.wikipedia.org/wiki/Glob_(programming)
- * a_group_mask - group mask
+ * patterns: [] {} [!] * ? https://en.wikipedia.org/wiki/Glob_(programming).
+ * @param a_group_mask the group mask
+ * @return If successful, the list of group names, otherwise NULL.
  */
 dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_mask)
 {
@@ -472,9 +524,9 @@ dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_ma
 
 
 /**
- * Read last items
- *
- * a_group - group name
+ * @brief Reads last items in the database.
+ * @param a_group the group name
+ * @return If successful, a pointer to the item, otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group)
 {
@@ -490,13 +542,12 @@ dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group)
 }
 
 /**
- * Read several items
- *
- * a_group - group name
- * a_key - key name, may by NULL, it means reading the whole group
- * a_id - from this id
- * a_count_out[in], how many items to read, 0 - no limits
- * a_count_out[out], how many items was read
+ * @brief Reads several items from a database by a_group and id.
+ * @param a_group the group name
+ * @param a_id id
+ * @param a_count_out[in] a count of items to read, if 0 - no limits
+ * @param a_count_out[out] a count of items were read
+ * @return If successful, a pointer to an array of items, otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint64_t id, size_t *a_count_out)
 {
@@ -512,12 +563,13 @@ dap_store_obj_t* dap_chain_global_db_driver_cond_read(const char *a_group, uint6
 }
 
 /**
- * Read several items
- *
- * a_group - group name
- * a_key - key name, may by NULL, it means reading the whole group
- * a_count_out[in], how many items to read, 0 - no limits
- * a_count_out[out], how many items was read
+ * @brief Reads several items from a database by a_group and a_key.
+ * If a_key is NULL, reads whole group.
+ * @param a_group the group name
+ * @param a_key  key name, may by NULL. it means reading the whole group
+ * @param a_count_out[in] a count of items to read, if 0 - no limits
+ * @param a_count_out[out] a count of items was read
+ * @return If successful, a pointer to an array of items, otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char *a_key, size_t *a_count_out)
 {
@@ -533,10 +585,10 @@ dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char
 }
 
 /**
- * Check an element in the database
- *
- * a_group - group name
- * a_key - key name
+ * @brief Checks an element in a database by a_group and a_key.
+ * @param a_group a group namme
+ * @param a_key a key
+ * @return True if is, 0 otherwise.
  */
 bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key)
 {
