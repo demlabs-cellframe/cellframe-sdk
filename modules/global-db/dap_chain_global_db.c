@@ -51,13 +51,13 @@
 // for access from several streams
 //static pthread_mutex_t ldb_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
-// The function does nothing
+// The function does nothing [+]
 static inline void lock()
 {
     //pthread_mutex_lock(&ldb_mutex_);
 }
 
-// The function does nothing
+// The function does nothing [+]
 static inline void unlock()
 {
     //pthread_mutex_unlock(&ldb_mutex_);
@@ -78,9 +78,9 @@ static sync_group_item_t *s_sync_group_items = NULL;
 static sync_group_item_t *s_sync_group_extra_items = NULL;
 static bool s_track_history = false;
 
-/**
+/** [?]
  * @brief Adds a group name for synchronization
- * @param a_group_prefix prefix of the group name
+ * @param a_group_prefix a prefix of the group name
  * @param a_callback a callback fuction
  * @param a_arg a pointer to an argument
  * @return (none)
@@ -95,7 +95,7 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
     HASH_ADD_STR(s_sync_group_items, group_mask, l_item);
 }
 
-/**
+/** [?]
  * @brief Adds a group name for synchronization with especially node addresses
  * @param a_group_mask
  * @param a_callback a callabck function
@@ -111,12 +111,11 @@ void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_glob
     HASH_ADD_STR(s_sync_group_extra_items, group_mask, l_item);
 }
 
-/**
- * @brief Gets a list of
+/** [?]
+ * @brief ??Gets a list of a group mask
  * @param a_table
  * @return Returns a pointer to a list of a group mask
  */
-
 dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
 {
     dap_list_t *l_ret = NULL;
@@ -127,17 +126,27 @@ dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
     return l_ret;
 }
 
+/** [?]
+ * @brief ??Gets a list of a group mask
+ * @param a_table
+ * @return Returns a pointer to a list of a group mask
+ */
 dap_list_t *dap_chain_db_get_sync_groups()
 {
     return dap_chain_db_get_sync_groups_internal(s_sync_group_items);
 }
 
+/** [?]
+ * @brief ??Gets a list of a  group mask
+ * @param a_table
+ * @return Returns a pointer to a list of a group mask
+ */
 dap_list_t *dap_chain_db_get_sync_extra_groups()
 {
     return dap_chain_db_get_sync_groups_internal(s_sync_group_extra_items);
 }
 
-/**
+/** [+]
  * @brief Deallocates memory of a key and a value members of an obj structure.
  * @param obj A pointer to the structure
  * @return (none)
@@ -152,9 +161,9 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
     obj->value = NULL;
 }
 
-/**
+/** [+]
  * @brief Deallocates memory of a obj structure.
- * @param obj A pointer to the object
+ * @param obj A pointer to the object 
  * @return (none)
  */
 void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
@@ -236,9 +245,9 @@ int dap_chain_global_db_flush(void){
     return res;
 }
 
-/**
- * @brief Gets an object from a database by a_key and a_group.
- * @param a_key a key
+/** [+]
+ * @brief Gets an object from a database by a_key and a_group arguments.
+ * @param a_key a key of object
  * @param a_group a group name
  * @return If successful, returns a pointer to the item, otherwise NULL.
  */
@@ -250,12 +259,12 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
     return l_store_data;
 }
 
-/**
- * @brief Gets an array consisting of a_data_len_out objectss from a database by a_key and a_group.
- * @param a_key a key
+/** [+]
+ * @brief Gets an array consisting of a_data_len_out objects from a database by a_key and a_group arguments.
+ * @param a_key a object key string
  * @param a_data_len_out[in] a number of items to be gotten
  * @param a_data_len_out[out] a number of items that were gotten
- * @param a_group a group name
+ * @param a_group a group name string  
  * @return If successful, returns a pointer to the first item in the array; otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
