@@ -317,7 +317,7 @@ static void wait_write_buf()
 }
 
 /**
- * @brief Saves data from buffer to database
+ * @brief Saves data from a buffer to a database.
  * @return 0
  */
 static int save_write_buf(void)
@@ -379,7 +379,7 @@ static int save_write_buf(void)
 }
 
 /**
- * @brief thread for save data from buffer to database
+ * @brief A thread for savinv data from buffer to a database
  * @param arg
  * @return NULL
  */
@@ -401,10 +401,10 @@ static void* func_write_buf(void * arg)
 #endif //USE_WRITE_BUFFER
 
 /**
- * @brief Applies items to datebase
+ * @brief Applies items to datebase.
  * @param a_store an array of items
  * @param a_store_count a count of items
- * @return 
+ * @return If successful, returns 0.
  */
 int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store_count)
 {

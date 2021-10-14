@@ -493,8 +493,9 @@ dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out)
 
 /**
  * @brief Finds item by a_group
- * @param a_group
- * @return
+ * @param a_items 
+ * @param a_group a group name string
+ * @return 
  */
 static sync_group_item_t *find_item_by_mask(sync_group_item_t *a_items, const char *a_group)
 {
@@ -507,9 +508,9 @@ static sync_group_item_t *find_item_by_mask(sync_group_item_t *a_items, const ch
 }
 
 /**
- * @brief Adda data
+ * @brief Adds data to the history log
  * 
- * @param a_store_data a pointer to a object
+ * @param a_store_data a pointer to an object
  * @return (none)
  */
 void dap_global_db_obj_track_history(void* a_store_data)
@@ -601,7 +602,7 @@ bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
     return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, GROUP_LOCAL_GENERAL);
 }
 
-/** [+]
+/** 
  * @brief Deletes object from a database by a a_key and a_group arguments.
  * @param a_key a object key string
  * @param a_group a group name string
