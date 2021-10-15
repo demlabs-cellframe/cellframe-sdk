@@ -56,6 +56,7 @@ typedef int SOCKET;
     #include <netinet/in.h>
     #include <sys/eventfd.h>
     #include <mqueue.h>
+    #include <sys/un.h>
 #elif defined (DAP_OS_BSD)
     #define DAP_EVENTS_CAPS_KQUEUE
     #define DAP_EVENTS_CAPS_PIPE_POSIX
@@ -235,7 +236,12 @@ typedef struct dap_events_socket {
     char *service;
 
     // Remote address, port and others
-    struct sockaddr_in remote_addr;
+    union {
+        struct sockaddr_in remote_addr;
+#ifdef DAP_OS_LINUX
+        struct sockaddr_un remote_path;
+#endif
+    };
     //char remote_addr_str[INET_ADDRSTRLEN];
     //char remote_addr_str6[INET6_ADDRSTRLEN];
     char *remote_addr_str;

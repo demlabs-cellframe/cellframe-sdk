@@ -369,6 +369,12 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
             l_sock_class = AF_INET;
 #endif
         break;
+#ifdef DAP_OS_LINUX
+        case DESCRIPTOR_TYPE_SOCKET_LOCAL_CLIENT:
+            l_sock_type = SOCK_STREAM;
+            l_sock_class = AF_UNIX;
+        break;
+#endif
         default:
             log_it(L_CRITICAL,"Can't create socket type %d", a_type );
             return NULL;
