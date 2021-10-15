@@ -4328,7 +4328,7 @@ int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply)
         if (dap_chain_global_db_driver_appy(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
         }
-        dap_store_obj_free(l_group_store, l_records_count);
+        //dap_store_obj_free(l_group_store, l_records_count);
     }
     json_object_put(l_json);
     return 0;
