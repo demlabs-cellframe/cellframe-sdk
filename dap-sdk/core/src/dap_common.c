@@ -219,12 +219,11 @@ void dap_set_log_tag_width(size_t a_width) {
 
 
 /**
- * @brief dap_common_init call this function before using dap sdk modules
- * 
- * @param a_console_title set console title. Can be result of dap_get_appname(). For example: cellframe-node
- * @param a_log_file_path path to log file. Saved in s_log_file_path variable. For example: C:\\Users\\Public\\Documents/cellframe-node/var/log/cellframe-node.log
- * @param a_log_dirpath path to log directory. Saved in s_log_dir_path variable. For example. C:\\Users\\Public\\Documents/cellframe-node/var/log
- * @return int (0 if succcess, -1 if error)
+ * @brief this function is used for dap sdk modules initialization
+ * @param a_console_title const char *: set console title. Can be result of dap_get_appname(). For example: cellframe-node
+ * @param a_log_file_path const char *: path to log file. Saved in s_log_file_path variable. For example: C:\\Users\\Public\\Documents\\cellframe-node\\var\\log\\cellframe-node.log
+ * @param a_log_dirpath const char *: path to log directory. Saved in s_log_dir_path variable. For example. C:\\Users\\Public\\Document\\cellframe-node\\var\\log
+ * @return int. (0 if succcess, -1 if error)
  */
 int dap_common_init( const char *a_console_title, const char *a_log_file_path, const char *a_log_dirpath) {
 

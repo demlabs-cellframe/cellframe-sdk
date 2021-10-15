@@ -104,6 +104,11 @@ static dap_worker_t **s_workers = NULL;
 static dap_thread_t *s_threads = NULL;
 static dap_events_t * s_events_default = NULL;
 
+/**
+ * @brief dap_get_cpu_count
+ * 
+ * @return uint32_t 
+ */
 uint32_t dap_get_cpu_count( )
 {
 #ifdef _WIN32
@@ -144,6 +149,11 @@ uint32_t dap_get_cpu_count( )
 #endif
 }
 
+/**
+ * @brief dap_cpu_assign_thread_on
+ * 
+ * @param a_cpu_id 
+ */
 void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
 {
 #ifndef DAP_OS_WINDOWS
@@ -240,6 +250,7 @@ void dap_events_deinit( )
 
 /**
  * @brief server_new Creates new empty instance of server_t
+ * Additionally checking s_events_default and create thread (pthread_key_create)
  * @return New instance
  */
 dap_events_t * dap_events_new( )
@@ -253,6 +264,11 @@ dap_events_t * dap_events_new( )
     return ret;
 }
 
+/**
+ * @brief dap_events_get_default
+ * simply return s_events_default
+ * @return dap_events_t* 
+ */
 dap_events_t* dap_events_get_default( )
 {
     return s_events_default;
@@ -272,6 +288,13 @@ void dap_events_delete( dap_events_t *a_events )
     }
 }
 
+/**
+ * @brief dap_events_remove_and_delete_socket_unsafe
+ * calls dap_events_socket_remove_and_delete_unsafe
+ * @param a_events 
+ * @param a_socket 
+ * @param a_preserve_inheritor 
+ */
 void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
 {
     (void) a_events;
@@ -364,7 +387,7 @@ int dap_events_start( dap_events_t *a_events )
 
 /**
  * @brief dap_events_wait
- * @param sh
+ * @param dap_events_t *a_events
  * @return
  */
 int dap_events_wait( dap_events_t *a_events )
@@ -379,7 +402,7 @@ int dap_events_wait( dap_events_t *a_events )
 
 /**
  * @brief dap_events_stop
- * @param a_events
+ * @param
  */
 void dap_events_stop_all( )
 {
