@@ -651,6 +651,7 @@ void *dap_worker_thread(void *arg)
                     int l_errno=0;
 
                     switch (l_cur->type){
+                        case DESCRIPTOR_TYPE_SOCKET_LOCAL_CLIENT:
                         case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                             l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
                                                 l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
