@@ -266,6 +266,11 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
         DAP_DELETE(a_server);
         return -1;
     } else {
+#ifdef DAP_OS_LINUX
+        if (a_server->type == SERVER_LOCAL)
+            log_it(L_INFO, "Binded %s", a_server->listener_path.sun_path);
+        else
+#endif
         log_it(L_INFO,"Binded %s:%u",a_server->address,a_server->port);
         listen(a_server->socket_listener, SOMAXCONN);
     }
@@ -324,7 +329,11 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
     dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->events, a_server->socket_listener, &l_callbacks);
     if (l_es) {
         a_server->es_listeners = dap_list_append(a_server->es_listeners, l_es);
-        l_es->type = a_server->type == SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
+//        l_es->type = a_server->type == SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
+        l_es->type = a_server->type == SERVER_TCP ?
+                    DESCRIPTOR_TYPE_SOCKET_LISTENING : (
+                        a_server->type == SERVER_LOCAL ? DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP
+                        );
         l_es->_inheritor = a_server;
         pthread_mutex_lock(&a_server->started_mutex);
         dap_worker_add_events_socket( l_es, l_w );
