@@ -22,9 +22,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "dap_common.h"
-
-#ifdef _WIN32
+#ifdef DAP_OS_WINDOWS
 #include <winsock2.h>
 #include <windows.h>
 #include <mswsock.h>
@@ -33,6 +31,7 @@
 #include <time.h>
 #endif
 
+#include "dap_common.h"
 #include <pthread.h>
 
 
@@ -104,7 +103,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         dap_enc_key_type_t l_enc_block_type = DAP_ENC_KEY_TYPE_IAES;
         size_t l_pkey_exchange_size=MSRLN_PKA_BYTES;
         size_t l_block_key_size=32;
-        sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd,block_key_size=%zd",
+        sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%"DAP_SIZET_FORMAT_Z",block_key_size=%"DAP_SIZET_FORMAT_Z,
                                       &l_enc_block_type,&l_pkey_exchange_type,&l_pkey_exchange_size,&l_block_key_size);
 
         log_it(L_DEBUG, "Stream encryption: %s\t public key exchange: %s",dap_enc_get_type_name(l_enc_block_type),

@@ -24,12 +24,11 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
-
+#include "dap_events_socket.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_list.h"
 #include "dap_strfuncs.h"
-#include "dap_events_socket.h"
 #include "dap_server.h"
 #include "dap_events.h"
 #include "dap_notify_srv.h"

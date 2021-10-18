@@ -1426,9 +1426,9 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, d
 static bool dap_chain_ledger_item_is_used_out(dap_chain_ledger_tx_item_t *a_item, int a_idx_out)
 {
     bool l_used_out = false;
-    if(!a_item) {
+    if (!a_item || !a_item->cache_data.n_outs) {
         //log_it(L_DEBUG, "list_cached_item is NULL");
-        return false;
+        return true;
     }
     if(a_idx_out >= MAX_OUT_ITEMS) {
         if(s_debug_more)
@@ -1995,7 +1995,7 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
     return 0;
 }
 
-int dap_chain_ledger_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_balance)
+static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_balance)
 {
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_BALANCES_STR);
     uint128_t *l_balance_value = DAP_NEW_Z(uint128_t);
@@ -2006,6 +2006,25 @@ int dap_chain_ledger_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wal
         DAP_DELETE(l_balance_value);
         return -1;
     }
+    DAP_DELETE(l_gdb_group);
+    return 0;
+}
+
+static int s_tx_cache_update(dap_ledger_t *a_ledger, dap_chain_ledger_tx_item_t *a_item)
+{
+    size_t l_tx_size = dap_chain_datum_tx_get_size(a_item->tx);
+    uint8_t *l_tx_cache = DAP_NEW_Z_SIZE(uint8_t, l_tx_size + sizeof(a_item->cache_data));
+    memcpy(l_tx_cache, &a_item->cache_data, sizeof(a_item->cache_data));
+    memcpy(l_tx_cache + sizeof(a_item->cache_data), a_item->tx, l_tx_size);
+    char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
+    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&a_item->tx_hash_fast);
+    if (!dap_chain_global_db_gr_set(l_tx_hash_str, l_tx_cache, l_tx_size + sizeof(a_item->cache_data), l_gdb_group)) {
+        if(s_debug_more)
+            log_it(L_WARNING, "Ledger cache mismatch");
+        DAP_DELETE(l_tx_cache);
+        return -1;
+    }
+    DAP_DELETE(l_gdb_group);
     return 0;
 }
 
@@ -2110,7 +2129,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             l_multichannel = true;
         }
         l_ticker_old_trl = dap_stpcpy(l_token_ticker_old, l_token_ticker);
-        dap_chain_hash_fast_t *l_tx_prev_hash;
+        int l_tx_prev_out_used_idx;
         if (l_type == TX_ITEM_TYPE_IN) {
             dap_chain_tx_in_t *l_tx_in = bound_item->in.tx_cur_in;
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
@@ -2133,7 +2152,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 uint128_t l_sub = dap_chain_uint128_from(l_value);
                 wallet_balance->balance = dap_uint128_substract(wallet_balance->balance, l_sub);
                 // Update the cache
-                dap_chain_ledger_balance_cache_update(a_ledger, wallet_balance);
+                s_balance_cache_update(a_ledger, wallet_balance);
             } else {
                 if(s_debug_more)
                     log_it(L_ERROR,"!!! Attempt to SPEND from some non-existent balance !!!: %s %s", l_addr_str, l_token_ticker);
@@ -2141,17 +2160,18 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             DAP_DELETE(l_addr_str);
             DAP_DELETE(l_wallet_balance_key);
             /// Mark 'out' item in cache because it used
-            l_tx_prev_hash = &(l_prev_item_out->cache_data.tx_hash_spent_fast[l_tx_in->header.tx_out_prev_idx]);
+            l_tx_prev_out_used_idx = l_tx_in->header.tx_out_prev_idx;
         } else { // TX_ITEM_TYPE_IN_COND
             // all balance deducts performed with previous conditional transaction
             dap_chain_tx_in_cond_t *l_tx_in_cond = bound_item->in.tx_cur_in_cond;
             /// Mark 'out' item in cache because it used
-            l_tx_prev_hash = &(l_prev_item_out->cache_data.tx_hash_spent_fast[l_tx_in_cond->header.tx_out_prev_idx]);
+            l_tx_prev_out_used_idx = l_tx_in_cond->header.tx_out_prev_idx;
         }
-        memcpy(l_tx_prev_hash, l_tx_hash, sizeof(dap_chain_hash_fast_t));
         // add a used output
+        memcpy(&(l_prev_item_out->cache_data.tx_hash_spent_fast[l_tx_prev_out_used_idx]), l_tx_hash, sizeof(dap_chain_hash_fast_t));
         l_prev_item_out->cache_data.n_outs_used++;
-        char * l_tx_prev_hash_str = dap_chain_hash_fast_to_str_new(l_tx_prev_hash);
+        // mirror it in the cache
+        s_tx_cache_update(a_ledger, l_prev_item_out);
 
         // delete previous transactions from cache because all out is used
         if(l_prev_item_out->cache_data.n_outs_used == l_prev_item_out->cache_data.n_outs) {
@@ -2159,31 +2179,26 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             // remove from memory ledger
             int res = dap_chain_ledger_tx_remove(a_ledger, &l_tx_prev_hash_to_del);
             if(res == -2) {
-                if(s_debug_more)
+                if(s_debug_more) {
+                    char * l_tx_prev_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_prev_hash_to_del);
                     log_it(L_ERROR, "Can't delete previous transactions because hash=0x%x not found", l_tx_prev_hash_str);
+                    DAP_DELETE(l_tx_prev_hash_str);
+                }
                 ret = -100;
-                DAP_DELETE(l_tx_prev_hash_str);
                 dap_list_free_full(l_list_bound_items, free);
                 goto FIN;
             }
             else if(res != 1) {
-                if(s_debug_more)
+                if(s_debug_more) {
+                    char * l_tx_prev_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_prev_hash_to_del);
                     log_it(L_ERROR, "Can't delete previous transactions with hash=0x%x", l_tx_prev_hash_str);
+                    DAP_DELETE(l_tx_prev_hash_str);
+                }
                 ret = -101;
-                DAP_DELETE(l_tx_prev_hash_str);
                 dap_list_free_full(l_list_bound_items, free);
                 goto FIN;
             }
-            // TODO restore when the blockchain appears
-            // remove from mempool ledger
-            /*char *l_tx_prev_hash_to_del_str = dap_chain_hash_fast_to_str_new(&l_tx_prev_hash_to_del);
-             if(!dap_chain_global_db_gr_del( dap_strdup(l_tx_prev_hash_to_del_str), c_dap_datum_mempool_gdb_group)) {
-             log_it(L_ERROR, "Can't delete previous transactions from mempool with hash=0x%x",
-             l_tx_prev_hash_str);
-             }
-             DAP_DELETE( l_tx_prev_hash_to_del_str);*/
         }
-        DAP_DELETE(l_tx_prev_hash_str);
         // go to next previous transaction
         l_list_tmp = dap_list_next(l_list_tmp);
     }
@@ -2242,7 +2257,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
                 DAP_DELETE (l_wallet_balance_key);
                 // Update the cache
-                dap_chain_ledger_balance_cache_update(a_ledger, wallet_balance);
+                s_balance_cache_update(a_ledger, wallet_balance);
             } else {
                 wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
                 wallet_balance->key = l_wallet_balance_key;
@@ -2256,7 +2271,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                                 strlen(l_wallet_balance_key), wallet_balance);
                 pthread_rwlock_unlock(&l_ledger_priv->balance_accounts_rwlock);
                 // Add it to cache
-                dap_chain_ledger_balance_cache_update(a_ledger, wallet_balance);
+                s_balance_cache_update(a_ledger, wallet_balance);
             }
             DAP_DELETE (l_addr_str);
         } else {
@@ -2274,26 +2289,18 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         memcpy(&l_item_tmp->tx_hash_fast, l_tx_hash, sizeof(dap_chain_hash_fast_t));
         l_item_tmp->tx = DAP_NEW_SIZE(dap_chain_datum_tx_t, dap_chain_datum_tx_get_size(a_tx));
         l_item_tmp->cache_data.ts_created = (time_t) a_tx->header.ts_created;
-        //calculate l_item_tmp->n_outs;
-
+        dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_item_tmp->cache_data.n_outs);
         // If debug mode dump the UTXO
-        if ( dap_log_level_get() == L_DEBUG){
-            l_item_tmp->cache_data.n_outs = 0;
-            if( l_item_tmp->cache_data.n_outs){
-                dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT, &l_item_tmp->cache_data.n_outs);
-                for (size_t i =0; i < (size_t) l_item_tmp->cache_data.n_outs; i++){
-                    // TODO list conditional outputs
-                    dap_chain_tx_out_t * l_tx_out = l_tist_tmp->data;
-                    char * l_tx_out_addr_str = dap_chain_addr_to_str( &l_tx_out->addr );
-                    if(s_debug_more)
-                        log_it(L_DEBUG,"Added tx out to %s",l_tx_out_addr_str );
-                    DAP_DELETE (l_tx_out_addr_str);
-                }
-                if(l_tist_tmp)
-                    dap_list_free(l_tist_tmp);
+        if (dap_log_level_get() == L_DEBUG && s_debug_more) {
+            for (size_t i =0; i < (size_t) l_item_tmp->cache_data.n_outs; i++){
+                dap_chain_tx_out_t * l_tx_out = l_tist_tmp->data;
+                char * l_tx_out_addr_str = dap_chain_addr_to_str( &l_tx_out->addr );
+                log_it(L_DEBUG,"Added tx out to %s",l_tx_out_addr_str );
+                DAP_DELETE (l_tx_out_addr_str);
             }
         }
-
+        if(l_tist_tmp)
+            dap_list_free(l_tist_tmp);
         if (!l_ticker_trl) { //No token ticker in previous txs
             if(s_debug_more)
                 log_it(L_DEBUG, "No token ticker in previous txs");

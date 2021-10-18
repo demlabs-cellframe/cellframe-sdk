@@ -916,7 +916,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         l_es_new->type != DESCRIPTOR_TYPE_TIMER
             )
 #else
-    if(l_es_new->socket!=0 && l_es_new->socket != -1)
+    if(l_es_new->socket!=0 && l_es_new->socket != INVALID_SOCKET)
 
 #endif
     if(dap_worker_esocket_find_uuid( l_worker, l_es_new->uuid)){
@@ -955,7 +955,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }else{
         // Add in worker
         l_es_new->me = l_es_new;
-        if (l_es_new->socket!=0 && l_es_new->socket != -1){
+        if (l_es_new->socket!=0 && l_es_new->socket != INVALID_SOCKET){
             pthread_rwlock_wrlock(&l_worker->esocket_rwlock);
             HASH_ADD(hh_worker, l_worker->esockets, uuid, sizeof(l_es_new->uuid), l_es_new );
             l_worker->event_sockets_count++;

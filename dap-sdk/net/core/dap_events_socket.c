@@ -149,6 +149,12 @@ void dap_events_socket_deinit( )
 #ifdef DAP_OS_WINDOWS
 void __stdcall mq_receive_cb(HRESULT hr, QUEUEHANDLE qh, DWORD timeout
                              , DWORD action, MQMSGPROPS *pmsgprops, LPOVERLAPPED pov, HANDLE cursor) {
+    UNUSED(hr);
+    UNUSED(qh);
+    UNUSED(timeout);
+    UNUSED(action);
+    UNUSED(pmsgprops);
+    UNUSED(cursor);
     switch (hr) {
     case MQ_OK:
         SetEvent(pov->hEvent);
@@ -263,7 +269,11 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
     l_msg->esocket_uuid = a_es->uuid;
     l_msg->worker_new = a_worker_new;
     if( dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, l_msg) != 0 ){
+#ifdef DAP_OS_WINDOWS
+        log_it(L_ERROR,"Haven't sent reassign message with esocket %"DAP_UINT64_FORMAT_U, a_es ? a_es->socket : (SOCKET)-1);
+#else
         log_it(L_ERROR,"Haven't sent reassign message with esocket %d", a_es?a_es->socket:-1);
+#endif
         DAP_DELETE(l_msg);
     }
 }
@@ -278,6 +288,9 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
 dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
 #ifdef DAP_OS_WINDOWS
+    UNUSED(a_w);
+    UNUSED(a_callback);
+    UNUSED(a_flags);
     return NULL;
 #else
     UNUSED(a_flags);
@@ -1091,7 +1104,11 @@ typedef struct dap_events_socket_buf_item
  *  Waits on the socket
  *  return 0: timeout, 1: may send data, -1 error
  */
+#ifdef DAP_OS_WINDOWS
+static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
+#else
 static int wait_send_socket(int a_sockfd, long timeout_ms)
+#endif
 {
     struct timeval l_tv;
     fd_set l_outfd, l_errfd;
@@ -1162,6 +1179,7 @@ static void *dap_events_socket_buf_thread(void *arg)
 
     DAP_DELETE(l_item);
     pthread_exit(0);
+    return NULL;
 }
 
 static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
@@ -2197,37 +2215,3 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
     }
 
 }
-
-#ifdef DAP_OS_WINDOWS
-inline int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
-    struct sockaddr_in l_dummy;
-    socklen_t l_size = sizeof(l_dummy);
-    int ret;
-    if (buf_in) {
-        memset(buf_in, 0, buf_size);
-        ret = recvfrom(s, (char*)buf_in, (long)buf_size, 0, (struct sockaddr *)&l_dummy, &l_size);
-    } else {
-        char l_tempbuf[sizeof(void*)];
-        ret = recvfrom(s, l_tempbuf, sizeof(l_tempbuf), 0, (struct sockaddr *)&l_dummy, &l_size);
-    }
-    return ret;
-}
-
-inline int dap_sendto(SOCKET s, u_short port, void* buf_out, size_t buf_out_size) {
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = port;
-    l_addr_len = sizeof(struct sockaddr_in);
-    int ret;
-    if (buf_out) {
-        ret = sendto(s, (char*)buf_out, (long)buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
-    } else {
-        char l_bytes[sizeof(void*)] = { 0 };
-        ret = sendto(s, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
-    }
-    return ret;
-}
-#endif

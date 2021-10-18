@@ -455,11 +455,11 @@ void dap_cert_dump(dap_cert_t * a_cert)
 {
     printf ("Certificate name: %s\n",a_cert->name);
     printf ("Signature type: %s\n", dap_sign_type_to_str( dap_sign_type_from_key_type(a_cert->enc_key->type) ) );
-    printf ("Private key size: %lu\n",a_cert->enc_key->priv_key_data_size);
-    printf ("Public key size: %lu\n", a_cert->enc_key->pub_key_data_size);
+    printf ("Private key size: %"DAP_SIZET_FORMAT_Z"\n",a_cert->enc_key->priv_key_data_size);
+    printf ("Public key size: %"DAP_SIZET_FORMAT_Z"\n", a_cert->enc_key->pub_key_data_size);
     size_t l_meta_items_cnt = dap_binary_tree_count(a_cert->metadata);
-    printf ("Metadata section count: %lu\n", l_meta_items_cnt);
-    printf ("Certificates signatures chain size: %lu\n",dap_cert_count_cert_sign (a_cert));
+    printf ("Metadata section count: %"DAP_SIZET_FORMAT_Z"\n", l_meta_items_cnt);
+    printf ("Certificates signatures chain size: %"DAP_SIZET_FORMAT_Z"\n",dap_cert_count_cert_sign (a_cert));
     if (l_meta_items_cnt) {
         printf ("Metadata sections\n");
         dap_list_t *l_meta_list = dap_binary_tree_inorder_list(a_cert->metadata);

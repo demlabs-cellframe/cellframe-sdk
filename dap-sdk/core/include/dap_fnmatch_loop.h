@@ -1055,7 +1055,7 @@ EXT (int opt, const char *pattern, const char *string, const char *string_end,
 #define NEW_PATTERN \
         struct patternlist *newp;                         \
         size_t slen = (opt == '?' || opt == '@'             \
-               ? pattern_len : (p - startp + 1));             \
+               ? pattern_len : (size_t)(p - startp + 1));             \
         slen = sizeof (struct patternlist) + (slen * sizeof (char));      \
         int malloced = ! __libc_use_alloca (alloca_used + slen);          \
         if (__builtin_expect (malloced, 0))                   \

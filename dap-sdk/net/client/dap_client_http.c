@@ -24,10 +24,10 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#include "dap_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
-#include "dap_net.h"
 #include "dap_events_socket.h"
 #include "dap_timerfd.h"
 #include "dap_stream_ch_proc.h"
@@ -642,6 +642,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         return NULL;
     }
 #endif
+    return NULL;
 }
 
 #ifndef DAP_NET_CLIENT_NO_SSL
@@ -678,8 +679,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     assert(a_esocket);
     dap_client_http_pvt_t * l_http_pvt = PVT(a_esocket);
     assert(l_http_pvt);
-    dap_worker_t *l_worker = l_http_pvt->worker;
-    assert(l_worker);
+    assert(l_http_pvt->worker);
 
     log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", l_http_pvt->uplink_addr, l_http_pvt->uplink_port, a_esocket->socket);
     // add to dap_worker
@@ -713,7 +713,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
                 : 0;
 
         // Set request size as Content-Length header
-        l_offset += dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "Content-Length: %lu\r\n", l_http_pvt->request_size);
+        l_offset += dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "Content-Length: %"DAP_SIZET_FORMAT_Z"\r\n", l_http_pvt->request_size);
     }
 
     // adding string for GET request

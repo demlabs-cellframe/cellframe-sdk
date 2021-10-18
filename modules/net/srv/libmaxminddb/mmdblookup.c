@@ -75,7 +75,7 @@ int wmain(int argc, wchar_t **wargv)
         utf8_width = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, NULL, 0,
                                          NULL, NULL);
         if (utf8_width < 1) {
-            fprintf(stderr, "WideCharToMultiByte() failed: %d\n",
+            fprintf(stderr, "WideCharToMultiByte() failed: %ld\n",
                     GetLastError());
             exit(1);
         }
@@ -86,7 +86,7 @@ int wmain(int argc, wchar_t **wargv)
         }
         if (WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, utf8_string,
                                 utf8_width, NULL, NULL) < 1) {
-            fprintf(stderr, "WideCharToMultiByte() failed: %d\n",
+            fprintf(stderr, "WideCharToMultiByte() failed: %ld\n",
                     GetLastError());
             exit(1);
         }
