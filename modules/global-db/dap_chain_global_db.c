@@ -187,7 +187,8 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
 }
 
 /**
- * @brief Initializes a database by g_config structure. Call this function before calling any other functions in this library.
+ * @brief Initializes a database by g_config structure. 
+ * @note You should call this function before calling any other functions in this library.
  * @param g_config a pointer to the configuration structure
  * @return Returns 0 if successful; otherwise, <0.
  */
@@ -208,7 +209,8 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 }
 
 /**
- * @brief Deinitialize a database. Call this function at the end.
+ * @brief Deinitialize a database. 
+ * @note You should call this function at the end.
  * @return (none)
  */
 void dap_chain_global_db_deinit(void)
@@ -247,7 +249,7 @@ int dap_chain_global_db_flush(void){
 
 /**
  * @brief Gets an object from a database by a_key and a_group arguments.
- * @param a_key a object key string
+ * @param a_key an object key string
  * @param a_group a group name string
  * @return If successful, returns a pointer to the item, otherwise NULL.
  */
@@ -261,7 +263,7 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 
 /**
  * @brief Gets an array consisting of a_data_len_out objects from a database by a_key and a_group arguments.
- * @param a_key a object key string
+ * @param a_key an object key string
  * @param a_data_len_out[in] a number of objects to be gotten, if NULL - no limits
  * @param a_data_len_out[out] a number of objects that were gotten
  * @param a_group a group name string  
@@ -283,7 +285,7 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
 
 /**
  * @brief Gets an object value from database by a_key and a_group.
- * @param a_key a object key string
+ * @param a_key an object key string
  * @param a_data_out[in] a number of objects to be gotten, if NULL - no limits
  * @param a_data_out[out] a length of values that were gotten
  * @param a_group a group name string
@@ -311,7 +313,7 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
 
 /**
  * @brief Gets an object value from database by a_key for the "local.general" group.
- * @param a_key a object key string
+ * @param a_key an object key string
  * @param a_data_out a length of value that were gotten
  * @return If successful, returns a pointer to the object value, otherwise NULL.
  */
@@ -354,7 +356,7 @@ static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_times
 
 /**
  * @brief Deletes info about the deleted object from the database
- * @param a_key a object key string, looked like "0x8FAFBD00B..."
+ * @param a_key an object key string, looked like "0x8FAFBD00B..."
  * @param a_group a group name string, for example "kelvin-testnet.nodes"
  * @return If successful, returns true; otherwise, false. 
  */
