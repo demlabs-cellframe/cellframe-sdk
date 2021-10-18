@@ -27,7 +27,6 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
-#include <pwd.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -39,9 +38,11 @@
 #include "dap_file_utils.h"
 #include "dap_chain_global_db_driver_pgsql.h"
 
+#ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
+#include <pwd.h>
+
 #define LOG_TAG "db_pgsql"
 
-#ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
 struct dap_pgsql_conn_pool_item {
     PGconn *conn;
     int busy;
@@ -223,7 +224,7 @@ int dap_db_driver_pgsql_start_transaction(void)
  */
 int dap_db_driver_pgsql_end_transaction(void)
 {
-    if (s_trans_conn)
+    if (!s_trans_conn)
         return -1;
     PGresult *l_res = PQexec(s_trans_conn, "COMMIT");
     if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
@@ -292,6 +293,11 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
         DAP_DELETE(a_store_obj->value);
         DAP_DELETE(a_store_obj->key);
         if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
+            if (s_trans_conn) { //we shouldn't fail within a transaacion
+                dap_db_driver_pgsql_end_transaction();
+                dap_db_driver_pgsql_start_transaction();
+                l_conn = s_pgsql_get_connection();
+            }
             if (s_pgsql_create_group_table(a_store_obj->group, l_conn) == 0) {
                 PQclear(l_res);
                 l_res = PQexecParams(l_conn, l_query_str, 2, NULL, l_param_vals, l_param_lens, l_param_formats, 0);
@@ -313,7 +319,8 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
         // execute delete request
         l_res = PQexec(l_conn, l_query_str);
         if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
-            if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE)) {
+            const char *l_err = PQresultErrorField(l_res, PG_DIAG_SQLSTATE);
+            if (!l_err || strcmp(l_err, PGSQL_INVALID_TABLE)) {
                 log_it(L_ERROR, "Delete object failed with message: \"%s\"", PQresultErrorMessage(l_res));
                 l_ret = -4;
             }
@@ -378,7 +385,8 @@ dap_store_obj_t *dap_db_driver_pgsql_read_store_obj(const char *a_group, const c
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+        const char *l_err = PQresultErrorField(l_res, PG_DIAG_SQLSTATE);
+        if (!l_err || strcmp(l_err, PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Read objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         s_pgsql_free_connection(l_conn);
@@ -418,7 +426,8 @@ dap_store_obj_t *dap_db_driver_pgsql_read_last_store_obj(const char *a_group)
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+        const char *l_err = PQresultErrorField(l_res, PG_DIAG_SQLSTATE);
+        if (!l_err || strcmp(l_err, PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Read last object failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         s_pgsql_free_connection(l_conn);
@@ -461,7 +470,8 @@ dap_store_obj_t *dap_db_driver_pgsql_read_cond_store_obj(const char *a_group, ui
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+        const char *l_err = PQresultErrorField(l_res, PG_DIAG_SQLSTATE);
+        if (!l_err || strcmp(l_err, PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Conditional read objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         s_pgsql_free_connection(l_conn);
@@ -528,7 +538,8 @@ size_t dap_db_driver_pgsql_read_count_store(const char *a_group, uint64_t a_id)
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+        const char *l_err = PQresultErrorField(l_res, PG_DIAG_SQLSTATE);
+        if (!l_err || strcmp(l_err, PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Count objects failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         s_pgsql_free_connection(l_conn);
@@ -553,7 +564,8 @@ bool dap_db_driver_pgsql_is_obj(const char *a_group, const char *a_key)
     PGresult *l_res = PQexecParams(l_conn, l_query_str, 0, NULL, NULL, NULL, NULL, 1);
     DAP_DELETE(l_query_str);
     if (PQresultStatus(l_res) != PGRES_TUPLES_OK) {
-        if (strcmp(PQresultErrorField(l_res, PG_DIAG_SQLSTATE), PGSQL_INVALID_TABLE))
+        const char *l_err = PQresultErrorField(l_res, PG_DIAG_SQLSTATE);
+        if (!l_err || strcmp(l_err, PGSQL_INVALID_TABLE))
             log_it(L_ERROR, "Existance check of object failed with message: \"%s\"", PQresultErrorMessage(l_res));
         PQclear(l_res);
         s_pgsql_free_connection(l_conn);
