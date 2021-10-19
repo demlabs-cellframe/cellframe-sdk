@@ -385,7 +385,7 @@ static bool global_db_gr_del_del(char *a_key, const char *a_group)
 /**
  * @brief Gets time stamp of the deleted object by a_group and a_key arguments.
  * @param a_group a group name sring, for example "kelvin-testnet.nodes"
- * @param a_key an oblect key string, looked like "0x8FAFBD00B..."
+ * @param a_key an object key string, looked like "0x8FAFBD00B..."
  * @return If successful, a time stamp, otherwise 0.
  */
 time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
@@ -438,7 +438,7 @@ dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group)
 }
 
 /**
- * @brief Gets oblects from a database by a_group_name and a_first_id.
+ * @brief Gets objects from a database by a_group_name and a_first_id.
  * @param a_group a group name string
  * @param a_first_id a first id
  * @param a_objs_count[in] a number of object to be read, if 0 - no limits
@@ -563,7 +563,7 @@ void dap_global_db_obj_track_history(void* a_store_data)
  * @brief Adds a value to a database.
  * @param a_key a object key string
  * @param a_value a value to be added
- * @param a_value_len length of value. If a_value_len=-1, the function counts length.
+ * @param a_value_len length of value. If a_value_len=-1, the function calculates length.
  * @param a_group a group name string
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
  * @return True if successful, false otherwise.
