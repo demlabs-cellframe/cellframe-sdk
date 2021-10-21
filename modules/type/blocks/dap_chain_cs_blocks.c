@@ -22,10 +22,10 @@
 */
 
 #include <pthread.h>
+#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_chain.h"
-#include "dap_chain_net.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_block.h"
@@ -647,7 +647,7 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
                 l_ret=-1;
         }
         if (l_ret != 0 ){
-            log_it(L_WARNING, "Can't load datum #%d (%s) from block %s to ledger: code %d", i,
+            log_it(L_WARNING, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                    dap_chain_datum_type_id_to_str(l_datum->header.type_id),
                                       a_block_cache->block_hash_str, l_ret);
             break;

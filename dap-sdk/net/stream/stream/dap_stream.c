@@ -483,7 +483,7 @@ static void s_esocket_data_read(dap_events_socket_t* a_client, void * a_arg)
     int * l_ret = (int *) a_arg;
 
     if (s_dump_packet_headers ) {
-        log_it(L_DEBUG,"dap_stream_data_read: ready_to_write=%s, client->buf_in_size=%u" ,
+        log_it(L_DEBUG,"dap_stream_data_read: ready_to_write=%s, client->buf_in_size=%zu" ,
                (a_client->flags & DAP_SOCK_READY_TO_WRITE)?"true":"false", a_client->buf_in_size );
     }
     *l_ret = dap_stream_data_proc_read( l_stream);
@@ -511,7 +511,7 @@ static void s_esocket_write(dap_events_socket_t* a_esocket , void * a_arg){
         }
     }
     if (s_dump_packet_headers ) {
-        log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%u" ,
+        log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%zu" ,
                l_ready_to_write?"true":"false", a_esocket->buf_out_size );
     }
     dap_events_socket_set_writable_unsafe(a_esocket, l_ready_to_write);
@@ -759,12 +759,12 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
 
         size_t l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache));
         if (l_dec_pkt_size == 0) {
-            log_it(L_WARNING, "Input: can't decode packet size=%d",l_pkt_size);
+            log_it(L_WARNING, "Input: can't decode packet size=%zu",l_pkt_size);
             DAP_DELETE(l_pkt);
             return;
         }
         if (l_dec_pkt_size != l_ch_pkt->hdr.size + sizeof(l_ch_pkt->hdr)) {
-            log_it(L_WARNING, "Input: decoded packet has bad size = %d, decoded size = %d", l_ch_pkt->hdr.size, l_dec_pkt_size);
+            log_it(L_WARNING, "Input: decoded packet has bad size = %u, decoded size = %zu", l_ch_pkt->hdr.size, l_dec_pkt_size);
             DAP_DELETE(l_pkt);
             return;
         }
@@ -785,7 +785,7 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
             l_ch->stat.bytes_read+=l_ch_pkt->hdr.size;
             if(l_ch->proc && l_ch->proc->packet_in_callback){
                 if ( s_dump_packet_headers ){
-                    log_it(L_INFO,"Income channel packet: id='%c' size=%u type=0x%02Xu seq_id=0x%016X enc_type=0x%02X",(char) l_ch_pkt->hdr.id,
+                    log_it(L_INFO,"Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X",(char) l_ch_pkt->hdr.id,
                         l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id , l_ch_pkt->hdr.enc_type);
                 }
                 l_ch->proc->packet_in_callback(l_ch,l_ch_pkt);
@@ -831,12 +831,12 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
     if(l_count_loosed_packets > 0)
     {
         log_it(L_WARNING, "Detected loosed %d packets. "
-                          "Last read seq_id packet: %d Current: %d", l_count_loosed_packets,
+                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
     } else if(l_count_loosed_packets < 0) {
         if(a_stream->client_last_seq_id_packet != 0 && l_ch_pkt->hdr.seq_id != 0) {
         log_it(L_WARNING, "Something wrong. count_loosed packets %d can't less than zero. "
-                          "Last read seq_id packet: %d Current: %d", l_count_loosed_packets,
+                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
         } // else client don't support seqid functionality
     }
@@ -859,8 +859,8 @@ static bool s_callback_keepalive( void * a_arg)
     dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid);
     if( l_es){
         if(s_debug)
-            log_it(L_DEBUG,"Keepalive for sock fd %d uuid 0x%016llu", l_es->socket, *l_es_uuid);
-        dap_stream_pkt_hdr_t l_pkt = {0};
+            log_it(L_DEBUG,"Keepalive for sock fd %zu uuid 0x%016"DAP_UINT64_FORMAT_U, l_es->socket, *l_es_uuid);
+        dap_stream_pkt_hdr_t l_pkt = {};
         l_pkt.type = STREAM_PKT_TYPE_KEEPALIVE;
         memcpy(l_pkt.sig, c_dap_stream_sig, sizeof(l_pkt.sig));
         dap_events_socket_write_unsafe( l_es, &l_pkt, sizeof(l_pkt));

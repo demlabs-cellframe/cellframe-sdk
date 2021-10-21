@@ -106,7 +106,7 @@ static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg)
     HASH_FIND(hh_worker, l_stream_worker->channels , &l_msg->ch_uuid , sizeof (l_msg->ch_uuid ), l_msg_ch );
     pthread_rwlock_unlock(&l_stream_worker->channels_rwlock);
     if ( l_msg_ch == NULL){
-        log_it(L_DEBUG, "We got i/o message for client thats now not in list. Lost %u data", l_msg->data_size);
+        log_it(L_DEBUG, "We got i/o message for client thats now not in list. Lost %zu data", l_msg->data_size);
         DAP_DELETE(l_msg);
         return;
     }

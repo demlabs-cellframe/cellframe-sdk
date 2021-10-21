@@ -35,7 +35,7 @@
 //static FILE * _proc_stat = NULL;
 static dap_cpu_stats_t _cpu_stats = {0};
 
-static dap_cpu_t _cpu_old_stats[MAX_CPU_COUNT] = {0};
+static dap_cpu_t _cpu_old_stats[MAX_CPU_COUNT] = {};
 static dap_cpu_t _cpu_summary_old = {0};
 
 typedef struct proc_stat_line
@@ -103,12 +103,11 @@ dap_cpu_stats_t dap_cpu_get_stats()
   /*********************************************/
 
   SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION pinfo[64];
-  ULONG outsize;
-  uint32_t ntstatus_error;
+  ULONG outsize = 0;
+  uint32_t ntstatus_error = 0;
 
   /*ntstatus_error = NtQuerySystemInformation( SystemProcessorPerformanceInformation, &pinfo,
                               sizeof(SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION) * 64, &outsize );*/ // ! ! ! Legacy method, must be replaced
-  ntstatus_error = 0;
 
   if ( ntstatus_error ) {
     log_it(L_ERROR, "NtQuerySystemInformation returned an error %u", ntstatus_error );

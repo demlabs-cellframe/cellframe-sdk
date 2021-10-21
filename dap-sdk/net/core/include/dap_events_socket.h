@@ -123,7 +123,7 @@ typedef void (*dap_events_socket_callback_event_t) (dap_events_socket_t *, uint6
 typedef void (*dap_events_socket_callback_pipe_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_queue_ptr_t) (dap_events_socket_t *, void *); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_timer_t) (dap_events_socket_t * ); // Callback for specific client operations
-typedef void (*dap_events_socket_callback_accept_t) (dap_events_socket_t * , int, struct sockaddr* ); // Callback for accept of new connection
+typedef void (*dap_events_socket_callback_accept_t) (dap_events_socket_t * , SOCKET, struct sockaddr* ); // Callback for accept of new connection
 typedef void (*dap_events_socket_callback_connected_t) (dap_events_socket_t * ); // Callback for connected client connection
 typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
 
@@ -182,11 +182,7 @@ typedef uint64_t dap_events_socket_uuid_t;
 
 typedef struct dap_events_socket {
     union {
-#ifdef DAP_OS_WINDOWS
         SOCKET socket;
-#else
-        int socket;
-#endif
         int fd;
 #if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         mqd_t mqd;

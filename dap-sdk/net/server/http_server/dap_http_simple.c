@@ -358,11 +358,11 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
             DAP_HTTP_SIMPLE(a_http_client)->request = DAP_NEW_Z_SIZE(void, DAP_HTTP_SIMPLE(a_http_client)->request_size_max);
             if(!DAP_HTTP_SIMPLE(a_http_client)->request){
                 DAP_HTTP_SIMPLE(a_http_client)->request_size_max = 0;
-                log_it(L_ERROR, "Too big content-length %u in request", a_http_client->in_content_length);
+                log_it(L_ERROR, "Too big content-length %zu in request", a_http_client->in_content_length);
             }
         }
         else
-            log_it(L_ERROR, "Not defined content-length %u in request", a_http_client->in_content_length);
+            log_it(L_ERROR, "Not defined content-length %zu in request", a_http_client->in_content_length);
     } else {
         log_it( L_DEBUG, "No data section, execution proc callback" );
         dap_events_socket_remove_from_worker_unsafe(l_http_simple->esocket ,l_http_simple->worker);
@@ -394,7 +394,7 @@ static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a
                                               a_http_client->out_content_length - l_http_simple->reply_sent );
 
     if ( l_http_simple->reply_sent >= a_http_client->out_content_length ) {
-        log_it(L_INFO, "All the reply (%u) is sent out", a_http_client->out_content_length );
+        log_it(L_INFO, "All the reply (%zu) is sent out", a_http_client->out_content_length );
         //cl_ht->client->signal_close=cl_ht->keep_alive;
         a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         //dap_client_ready_to_write(cl_ht->client,false);
@@ -423,7 +423,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
     if( bytes_to_read ) {
         // Oops! The client sent more data than write in the CONTENT_LENGTH header
         if(l_http_simple->request_size + bytes_to_read > l_http_simple->request_size_max){
-            log_it(L_WARNING, "Oops! Client sent more data length=%u than in content-length=%u in request", l_http_simple->request_size + bytes_to_read, a_http_client->in_content_length);
+            log_it(L_WARNING, "Oops! Client sent more data length=%zu than in content-length=%zu in request", l_http_simple->request_size + bytes_to_read, a_http_client->in_content_length);
             l_http_simple->request_size_max = l_http_simple->request_size + bytes_to_read + 1;
             // increase input buffer
             l_http_simple->request = DAP_REALLOC(l_http_simple->request, l_http_simple->request_size_max);

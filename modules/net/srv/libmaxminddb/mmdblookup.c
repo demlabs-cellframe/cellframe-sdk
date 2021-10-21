@@ -340,8 +340,14 @@ LOCAL void dump_meta(MMDB_s *mmdb)
 
     char date[40];
     const time_t epoch = (const time_t)mmdb->metadata.build_epoch;
+#ifdef DAP_OS_WINDOWS
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat"
+#endif
     strftime(date, 40, "%F %T UTC", gmtime(&epoch));
-
+#ifdef DAP_OS_WINDOWS
+#pragma GCC diagnostic pop
+#endif
     fprintf(stdout, meta_dump,
             mmdb->metadata.node_count,
             mmdb->metadata.record_size,

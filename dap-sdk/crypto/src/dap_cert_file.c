@@ -54,7 +54,7 @@ int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
         if ( l_data ){
             size_t l_retbytes;
             if ( (l_retbytes = fwrite(l_data,1,l_data_size,l_file)) != l_data_size ){
-                log_it(L_ERROR, "Can't write %u bytes on disk (processed only %u)!", l_data_size,l_retbytes);
+                log_it(L_ERROR, "Can't write %u bytes on disk (processed only %zu)!", l_data_size,l_retbytes);
                 return -3;
             }
             fclose(l_file);
@@ -343,7 +343,7 @@ dap_cert_t* dap_cert_file_load(const char * a_cert_file_path)
         rewind(l_file);
         uint8_t * l_data = DAP_NEW_SIZE(uint8_t,l_file_size);
         if ( fread(l_data,1,l_file_size,l_file ) != l_file_size ){
-            log_it(L_ERROR, "Can't read %u bytes from the disk!", l_file_size);
+            log_it(L_ERROR, "Can't read %"DAP_UINT64_FORMAT_U" bytes from the disk!", l_file_size);
             DAP_DELETE (l_data);
             goto lb_exit;
         }else{

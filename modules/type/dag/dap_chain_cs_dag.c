@@ -597,7 +597,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                                 if(l_atom_treshold) {
                                     int l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
                                     if(l_res < 0) {
-                                        log_it(L_ERROR, "Can't save event 0x%x from treshold to the file '%s'",
+                                        log_it(L_ERROR, "Can't save event %p from treshold to the file '%s'",
                                                 l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
                                     }
                                 }
@@ -854,7 +854,7 @@ int dap_chain_cs_dag_event_verify_hashes_with_treshold(dap_chain_cs_dag_t * a_da
         //looks like an alternative genesis event
         return DAP_THRESHOLD_CONFLICTING;
     }
-    dap_dag_threshold_verification_res_t ret;
+    dap_dag_threshold_verification_res_t ret = DAP_THRESHOLD_OK;
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
         dap_chain_cs_dag_event_item_t * l_event_search = NULL;
@@ -903,24 +903,25 @@ dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t
             HASH_DEL(PVT(a_dag)->events_treshold,l_event_item);
 
             if(ret == DAP_THRESHOLD_OK){
-                char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-                if(s_debug_more)
+
+                if(s_debug_more) {
+                    char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
                     log_it(L_DEBUG, "Processing event (threshold): %s...", l_event_hash_str);
+                    DAP_DELETE(l_event_hash_str);
+                }
                 int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
                 HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (l_event_item->hash), l_event_item);
                 s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
                 if(! l_add_res){
                     if(s_debug_more)
-                        log_it(L_INFO, "... moved from treshold to main chains", l_event_hash_str);
-                    DAP_DELETE(l_event_hash_str);
+                        log_it(L_INFO, "... moved from treshold to main chains");
                     res = true;
                     break;
                 }else{
                     if(s_debug_more)
-                        log_it(L_WARNING, "... error adding", l_event_hash_str);
+                        log_it(L_WARNING, "... error adding");
                     //todo: delete event
                 }
-                DAP_DELETE(l_event_hash_str);
                 //res = true;
             }else if(ret == DAP_THRESHOLD_CONFLICTING)
                 HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash,sizeof (l_event_item->hash),  l_event_item);
@@ -979,7 +980,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_
     l_atom_iter->chain = a_chain;
     pthread_rwlock_rdlock(&a_chain->atoms_rwlock);
 #ifdef WIN32
-    log_it(L_DEBUG, "! Create caller id %d", GetThreadId(GetCurrentThread()));
+    log_it(L_DEBUG, "! Create caller id %lu", GetThreadId(GetCurrentThread()));
 #endif
     return l_atom_iter;
 }
@@ -1194,7 +1195,7 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
 {
     pthread_rwlock_unlock(&a_atom_iter->chain->atoms_rwlock);
 #ifdef WIN32
-    log_it(L_DEBUG, "! Delete caller id %d", GetThreadId(GetCurrentThread()));
+    log_it(L_DEBUG, "! Delete caller id %lu", GetThreadId(GetCurrentThread()));
 #endif
     DAP_DELETE(a_atom_iter);
 }

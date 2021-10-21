@@ -170,7 +170,7 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
 
     if (!dap_client_pvt_find(a_client_pvt->uuid)) {
         if(s_debug_more)
-            log_it(L_DEBUG, "dap_client_pvt 0x%x already deleted", a_client_pvt);
+            log_it(L_DEBUG, "dap_client_pvt 0x%p already deleted", a_client_pvt);
         return;
     }
     if(a_client_pvt->delete_callback)
@@ -181,7 +181,7 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
     // delete from list
     dap_client_pvt_hh_del_unsafe(a_client_pvt);
     if(s_debug_more)
-        log_it(L_INFO, "dap_client_pvt_delete 0x%x", a_client_pvt);
+        log_it(L_INFO, "dap_client_pvt_delete 0x%p", a_client_pvt);
 
     if(a_client_pvt->uplink_addr)
         DAP_DELETE(a_client_pvt->uplink_addr);
@@ -210,7 +210,7 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
  */
 static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
 {
-    log_it(L_INFO, "Remote address connected for streaming on (%s:%u) with sock_id %d (assign on worker #%u)", a_client_pvt->uplink_addr,
+    log_it(L_INFO, "Remote address connected for streaming on (%s:%u) with sock_id %zu (assign on worker #%u)", a_client_pvt->uplink_addr,
             a_client_pvt->uplink_port, a_client_pvt->stream_socket, a_client_pvt->stream_worker->worker->id);
     a_client_pvt->stage_status = STAGE_STATUS_DONE;
     s_stage_status_after(a_client_pvt);
@@ -218,7 +218,7 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
     assert(a_client_pvt->stream_es);
     *l_es_uuid_ptr = a_client_pvt->stream_es->uuid;
     if( dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_read_after_connect_seconds * 1000, s_stream_timer_timeout_after_connected_check ,l_es_uuid_ptr) == NULL ){
-        log_it(L_ERROR,"Can't run timer for stream after connect check for esocket uuid %"DAP_UINT64_FORMAT_U" ");
+        log_it(L_ERROR,"Can't run timer for stream after connect check for esocket uuid %"DAP_UINT64_FORMAT_U, *l_es_uuid_ptr);
         DAP_DEL_Z(l_es_uuid_ptr);
     }
 }
@@ -246,7 +246,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
                 if(l_es->callbacks.error_callback) {
                     l_es->callbacks.error_callback(l_es,ETIMEDOUT);
                 }
-                log_it(L_INFO, "Close %s sock %u type %d by timeout",
+                log_it(L_INFO, "Close %s sock %zu type %d by timeout",
                        l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
                 dap_client_delete_unsafe(l_client_pvt->client);
             } else {
@@ -255,7 +255,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
             }
         }else
             if(s_debug_more)
-                log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
+                log_it(L_DEBUG,"Socket %zu is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
             log_it(L_DEBUG,"Esocket %"DAP_UINT64_FORMAT_U" is finished, close check timer", *l_es_uuid_ptr);
@@ -289,12 +289,12 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
                 if(l_es->callbacks.error_callback) {
                     l_es->callbacks.error_callback(l_es,ETIMEDOUT);
                 }
-                log_it(L_INFO, "Close streaming socket %s by timeout",
+                log_it(L_INFO, "Close streaming socket %s (%zu) by timeout",
                        l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket);
                 dap_client_delete_unsafe(l_client_pvt->client);
             }else
                 if(s_debug_more)
-                    log_it(L_DEBUG,"Streaming socket %d is connected, close check timer", l_es->socket);
+                    log_it(L_DEBUG,"Streaming socket %zu is connected, close check timer", l_es->socket);
         } else {
             log_it(L_ERROR,"Activity timeout for unexistent client");
             dap_events_socket_remove_and_delete_unsafe(l_es,true);
@@ -396,7 +396,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     // DAP_ENC_DATA_TYPE_B64_URLSAFE not need because send it by POST request
                     size_t l_data_str_enc_size = dap_enc_base64_encode(l_data, l_key_size + l_sign_size, l_data_str, DAP_ENC_DATA_TYPE_B64);
                     if(s_debug_more)
-                        log_it(L_DEBUG, "ENC request size %u", l_data_str_enc_size);
+                        log_it(L_DEBUG, "ENC request size %zu", l_data_str_enc_size);
 
                     char l_enc_init_url[1024] = { '\0' };
                     dap_snprintf(l_enc_init_url, sizeof(l_enc_init_url), DAP_UPLINK_PATH_ENC_INIT
@@ -416,7 +416,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     char *l_request = dap_strdup_printf("%d", DAP_CLIENT_PROTOCOL_VERSION);
                     size_t l_request_size = dap_strlen(l_request);
                     if(s_debug_more)
-                        log_it(L_DEBUG, "STREAM_CTL request size %u", strlen(l_request));
+                        log_it(L_DEBUG, "STREAM_CTL request size %zu", strlen(l_request));
 
                     char *l_suburl;
 
@@ -462,10 +462,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 #ifdef DAP_OS_WINDOWS
                     u_long l_socket_flags = 1;
                     if (ioctlsocket(a_client_pvt->stream_socket, (long)FIONBIO, &l_socket_flags) == SOCKET_ERROR) {
-                        log_it(L_ERROR, "Can't set socket %d to nonblocking mode, error %d", a_client_pvt->stream_socket, WSAGetLastError());
+                        log_it(L_ERROR, "Can't set socket %zu to nonblocking mode, error %d", a_client_pvt->stream_socket, WSAGetLastError());
                     }
-                    int buffsize = 0x40000;
-                    int optsize = sizeof( int );
 #else
                     // Get socket flags
                     int l_socket_flags = fcntl(a_client_pvt->stream_socket, F_GETFL);
@@ -538,8 +536,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                 strerror_r(l_err,l_errbuf,sizeof (l_errbuf));
                             else
                                 strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
-                            log_it(L_ERROR, "Remote address can't connect (%s:%u) with sock_id %d: \"%s\" (code %d)", a_client_pvt->uplink_addr,
-                                    a_client_pvt->uplink_port, l_errbuf, l_err);
+                            log_it(L_ERROR, "Remote address can't connect (%s:%hu) with sock_id %zu: \"%s\" (code %d)", a_client_pvt->uplink_addr,
+                                    a_client_pvt->uplink_port, a_client_pvt->stream_es->socket, l_errbuf, l_err);
 #ifdef DAP_OS_WINDOWS
                             closesocket(a_client_pvt->stream_socket);
 #else
@@ -1027,7 +1025,7 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
                         dap_client_get_stage_str(a_client), dap_client_get_stage_status_str(a_client));
             }
         } else {
-            log_it(L_ERROR, "ENC: Wrong response (size %u data '%s')", a_response_size, (char* ) a_response);
+            log_it(L_ERROR, "ENC: Wrong response (size %zu data '%s')", a_response_size, (char* ) a_response);
             l_client_pvt->last_error = ERROR_ENC_NO_KEY;
             l_client_pvt->stage_status = STAGE_STATUS_ERROR;
             s_stage_status_after(l_client_pvt);
@@ -1036,12 +1034,12 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
         DAP_DELETE(l_session_id_b64);
         DAP_DELETE(l_bob_message_b64);
     } else if(a_response_size > 1) {
-        log_it(L_ERROR, "ENC: Wrong response (size %u data '%s')", a_response_size, (char* ) a_response);
+        log_it(L_ERROR, "ENC: Wrong response (size %zu data '%s')", a_response_size, (char* ) a_response);
         l_client_pvt->last_error = ERROR_ENC_NO_KEY;
         l_client_pvt->stage_status = STAGE_STATUS_ERROR;
         s_stage_status_after(l_client_pvt);
     } else {
-        log_it(L_ERROR, "ENC: Wrong response (size %u)", a_response_size);
+        log_it(L_ERROR, "ENC: Wrong response (size %zu)", a_response_size);
         l_client_pvt->last_error = ERROR_ENC_NO_KEY;
         l_client_pvt->stage_status = STAGE_STATUS_ERROR;
         s_stage_status_after(l_client_pvt);
@@ -1078,7 +1076,7 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
     dap_client_pvt_t *l_client_pvt = dap_client_pvt_find(a_client->pvt_uuid);
     if (!l_client_pvt) return;
     if(s_debug_more)
-        log_it(L_DEBUG, "STREAM_CTL response %u bytes length recieved", a_data_size);
+        log_it(L_DEBUG, "STREAM_CTL response %zu bytes length recieved", a_data_size);
     char * l_response_str = DAP_NEW_Z_SIZE(char, a_data_size + 1);
     memcpy(l_response_str, a_data, a_data_size);
 
@@ -1188,7 +1186,7 @@ static void s_stream_response(dap_client_t * a_client, void * a_data, size_t a_d
     dap_client_pvt_t * l_client_pvt = DAP_CLIENT_PVT(a_client);
     assert(l_client_pvt);
     if(s_debug_more)
-        log_it(L_DEBUG, "STREAM response %u bytes length recieved", a_data_size);
+        log_it(L_DEBUG, "STREAM response %zu bytes length recieved", a_data_size);
 //    char * l_response_str = DAP_NEW_Z_SIZE(char, a_data_size + 1);
 //    memcpy(l_response_str, a_data, a_data_size);
 
@@ -1249,7 +1247,7 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     }
 
     if(s_debug_more)
-        log_it(L_DEBUG, "Delete stream socket for client_pvt=0x%x", l_client_pvt);
+        log_it(L_DEBUG, "Delete stream socket for client_pvt=0x%p", l_client_pvt);
 
     dap_stream_delete(l_client_pvt->stream);
     if (l_client_pvt->stream_es) {
@@ -1282,7 +1280,7 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
                 if(l_pos_endl) {
                     if(*(l_pos_endl + 1) == '\n') {
                         dap_events_socket_shrink_buf_in(a_es, l_pos_endl - (char*)a_es->buf_in);
-                        log_it(L_DEBUG, "Header passed, go to streaming (%lu bytes already are in input buffer",
+                        log_it(L_DEBUG, "Header passed, go to streaming (%zu bytes already are in input buffer",
                                 a_es->buf_in_size);
 
                         l_client_pvt->stage = STAGE_STREAM_STREAMING;

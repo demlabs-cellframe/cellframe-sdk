@@ -190,7 +190,7 @@ static void s_notify_server_callback_new(dap_events_socket_t * a_es, void * a_ar
     HASH_FIND(hh,s_notify_server_clients, &a_es->uuid, sizeof (a_es->uuid), l_hh_new);
     if (l_hh_new){
         uint64_t *l_uuid_u64 =(uint64_t*) &a_es->uuid;
-        log_it(L_WARNING,"Trying to add notify client with uuid 0x%016"DAP_UINT64_FORMAT_X"%016"DAP_UINT64_FORMAT_X" but already present this UUID in list, updating only esocket pointer if so",l_uuid_u64 );
+        log_it(L_WARNING,"Trying to add notify client with uuid 0x%016"DAP_UINT64_FORMAT_X" but already present this UUID in list, updating only esocket pointer if so", *l_uuid_u64);
         l_hh_new->esocket = a_es;
         l_hh_new->worker_id = a_es->worker->id;
     }else {
@@ -218,7 +218,7 @@ static void s_notify_server_callback_delete(dap_events_socket_t * a_es, void * a
         HASH_DELETE(hh,s_notify_server_clients, l_hh_new);
     }else{
         uint64_t *l_uuid_u64 =(uint64_t*) &a_es->uuid;
-        log_it(L_WARNING,"Trying to remove notify client with uuid 0x%016"DAP_UINT64_FORMAT_X"%016"DAP_UINT64_FORMAT_X" but can't find such client in table",l_uuid_u64 );
+        log_it(L_WARNING,"Trying to remove notify client with uuid 0x%016"DAP_UINT64_FORMAT_X" but can't find such client in table", *l_uuid_u64);
     }
     pthread_rwlock_unlock(&s_notify_server_clients_mutex);
 }
