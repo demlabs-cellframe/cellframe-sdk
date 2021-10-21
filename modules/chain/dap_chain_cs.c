@@ -63,8 +63,8 @@ void dap_chain_cs_deinit(void)
 
 /**
  * @brief dap_chain_class_add
- * @param a_cs_str
- * @param a_callback_init
+ * @param a_cs_str consensus name
+ * @param a_callback_init callback function
  */
 void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init)
 {

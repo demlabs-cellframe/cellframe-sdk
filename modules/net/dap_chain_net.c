@@ -1580,10 +1580,10 @@ static int callback_compare_prioritity_list(const void * a_item1, const void * a
 }
 
 /**
- * @brief load netowrk config settings from cellframe-node.cfg file
+ * @brief load network config settings from cellframe-node.cfg file
  * 
- * @param a_net_name 
- * @param a_acl_idx 
+ * @param a_net_name const char *: network name, for example "home21-network"
+ * @param a_acl_idx currently 0
  * @return int 
  */
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
