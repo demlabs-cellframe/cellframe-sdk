@@ -78,9 +78,11 @@ typedef struct _SQLITE_ROW_VALUE_
 static int dap_db_driver_sqlite_exec(sqlite3 *l_db, const char *l_query, char **l_error_message);
 
 /**
- * SQLite library initialization, no thread safe
- *
- * return 0 if Ok, else error code >0
+ * @brief Initialize a SQLite database
+ * @note no thread safe
+ * @param a_filename_db a path to the 
+ * @param a_drv_callback a structure with callback functions
+ * @return Returns 0 if successful, code >0 else error.
  */
 int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks_t *a_drv_callback)
 {
