@@ -1,0 +1,120 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2
+					],
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.0"
+					},
+					"projectIndex" : 0,
+					"source" : "."
+				},
+				{
+					"build" : "crypto",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.0"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 1,
+					"source" : "crypto",
+					"targetIndexes" : 
+					[
+						0
+					]
+				},
+				{
+					"build" : "cert",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.0"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 2,
+					"source" : "cert",
+					"targetIndexes" : 
+					[
+						1
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"childIndexes" : 
+					[
+						1,
+						2
+					],
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "test"
+				},
+				{
+					"directoryIndexes" : 
+					[
+						1
+					],
+					"name" : "crypto-test",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						0
+					]
+				},
+				{
+					"directoryIndexes" : 
+					[
+						2
+					],
+					"name" : "crypto_cert_test",
+					"parentIndex" : 0,
+					"targetIndexes" : 
+					[
+						1
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 1,
+					"id" : "crypto-test::@1d62b725e69adc70ad4a",
+					"jsonFile" : "target-crypto-test-Debug-e3f61afe447a96d36a44.json",
+					"name" : "crypto-test",
+					"projectIndex" : 1
+				},
+				{
+					"directoryIndex" : 2,
+					"id" : "crypto_cert_test::@c24598666805a2394ef2",
+					"jsonFile" : "target-crypto_cert_test-Debug-35d709c64a0696b4fd79.json",
+					"name" : "crypto_cert_test",
+					"projectIndex" : 2
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug",
+		"source" : "/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 0
+	}
+}

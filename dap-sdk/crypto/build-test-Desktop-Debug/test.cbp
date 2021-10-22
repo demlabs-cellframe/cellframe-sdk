@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6"/>
+	<Project>
+		<Option title="test"/>
+		<Option makefile_is_custom="1"/>
+		<Option compiler="gcc"/>
+		<Option virtualFolders="CMake Files\;CMake Files\crypto\;CMake Files\cert\;"/>
+		<Build>
+			<Target title="all">
+				<Option working_dir="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 all"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="rebuild_cache">
+				<Option working_dir="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 rebuild_cache"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="edit_cache">
+				<Option working_dir="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug"/>
+				<Option type="4"/>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 edit_cache"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="crypto-test">
+				<Option output="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/crypto-test" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/Makefile&quot;  VERBOSE=1 crypto-test"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="crypto-test/fast">
+				<Option output="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/crypto-test" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/Makefile&quot;  VERBOSE=1 crypto-test/fast"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/crypto/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="crypto_cert_test">
+				<Option output="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/crypto_cert_test" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/Makefile&quot;  VERBOSE=1 crypto_cert_test"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+			<Target title="crypto_cert_test/fast">
+				<Option output="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/crypto_cert_test" prefix_auto="0" extension_auto="0"/>
+				<Option working_dir="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert"/>
+				<Option object_output="./"/>
+				<Option type="1"/>
+				<Option compiler="gcc"/>
+				<Compiler>
+					<Add directory="/usr/include/c++/9"/>
+					<Add directory="/usr/include/x86_64-linux-gnu/c++/9"/>
+					<Add directory="/usr/include/c++/9/backward"/>
+					<Add directory="/usr/lib/gcc/x86_64-linux-gnu/9/include"/>
+					<Add directory="/usr/local/include"/>
+					<Add directory="/usr/include/x86_64-linux-gnu"/>
+					<Add directory="/usr/include"/>
+				</Compiler>
+				<MakeCommands>
+					<Build command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/Makefile&quot;  VERBOSE=1 crypto_cert_test/fast"/>
+					<CompileFile command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/Makefile&quot;  VERBOSE=1 &quot;$file&quot;"/>
+					<Clean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/Makefile&quot;  VERBOSE=1 clean"/>
+					<DistClean command="/usr/bin/make -j4 -f &quot;/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/build-test-Desktop-Debug/cert/Makefile&quot;  VERBOSE=1 clean"/>
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/cert/dap_crypto_cert_save_tests.c">
+			<Option target="crypto_cert_test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/cert/dap_crypto_cert_save_tests.h">
+			<Option target="crypto_cert_test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/cert/dap_sha3_tests.c">
+			<Option target="crypto_cert_test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/cert/main.c">
+			<Option target="crypto_cert_test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_base58_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_base58_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_base64_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_base64_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_defeo_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_defeo_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_dilithium_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_dilithium_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_ecdsa_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_ecdsa_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_msrln_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_msrln_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_newhope_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_picnic_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_picnic_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_ringct20_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_ringct20_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_sig_bliss_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_sig_bliss_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_sign_multi_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_sign_multi_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_tesla_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_tesla_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_test.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/dap_enc_test.h">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/main.c">
+			<Option target="crypto-test"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/crypto/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\crypto\"/>
+		</Unit>
+		<Unit filename="/home/anton/Documents/c_projects/cellframe-sdk/dap-sdk/crypto/test/cert/CMakeLists.txt">
+			<Option virtualFolder="CMake Files\cert\"/>
+		</Unit>
+	</Project>
+</CodeBlocks_project_file>
