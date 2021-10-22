@@ -54,8 +54,6 @@ typedef struct dap_chain_cell_file_header
 } DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
 
 
-//static const char* s_cells_path = NULL;
-
 /**
  * @brief dap_chain_cell_init
  * current version simply returns 0
@@ -69,9 +67,9 @@ int dap_chain_cell_init(void)
 
 /**
  * @brief dap_chain_cell_find_by_id
- * 
- * @param a_chain 
- * @param a_cell_id 
+ * get dap_chain_cell_t object by cell (shard) id
+ * @param a_chain dap_chain_t object
+ * @param a_cell_id dap_chain_cell_id_t cell (shard) id
  * @return dap_chain_cell_t* 
  */
 dap_chain_cell_t * dap_chain_cell_find_by_id(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
@@ -86,9 +84,11 @@ dap_chain_cell_t * dap_chain_cell_find_by_id(dap_chain_t * a_chain, dap_chain_ce
 }
 
 /**
- * @brief dap_chain_cell_create_fill
- * a_cell_id if <0 then not used
- * @return
+ * @brief 
+ * a_cell_id if < 0 then not used
+ * @param a_chain dap_chain_t object
+ * @param a_cell_id dap_chain_cell_id_t cell (shard) id
+ * @return dap_chain_cell_t* 
  */
 dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
@@ -125,9 +125,9 @@ dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char
 }
 
 /**
- * @brief dap_chain_cell_close
- * 
- * @param a_cell 
+ * @brief
+ * close a_cell->file_storage file object
+ * @param a_cell dap_chain_cell_t object
  */
 void dap_chain_cell_close(dap_chain_cell_t *a_cell)
 {
@@ -140,8 +140,9 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
 }
 
 /**
- * @brief dap_chain_cell_delete
- * @return
+ * @brief 
+ * free chain cell objects
+ * @param a_cell dap_chain_cell_t object
  */
 void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
 {
@@ -168,7 +169,7 @@ void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
 /**
  * @brief dap_chain_cell_load
  * load cell file, which is pointed in a_cell_file_path variable, for example "0.dchaincell"
- * @param a_chain
+ * @param a_chain dap_chain_t object
  * @param a_cell_file_path contains name of chain, for example "0.dchaincell" 
  * @return
  */
@@ -347,8 +348,9 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
 }
 
 /**
- * @brief dap_chain_cell_file_update
- * @param a_cell
+ * @brief
+ * return dap_chain_cell_file_append(a_cell, NULL, 0);
+ * @param a_cell dap_chain_cell_t
  * @return
  */
 int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
