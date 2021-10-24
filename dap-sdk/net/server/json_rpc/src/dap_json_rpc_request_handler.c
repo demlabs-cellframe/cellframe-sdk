@@ -50,7 +50,7 @@ void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request,  dap_http_s
             log_it(L_NOTICE, "Can't processing the request. Handler %s not registration. ", a_request->method);
         } else {
             l_response->error = NULL;
-            l_handler->func(a_request->params, l_response);
+            l_handler->func(a_request->params, l_response, a_request->method);
             log_it(L_NOTICE, "Calling handler request name: %s", a_request->method);
         }
         dap_json_rpc_response_send(l_response, a_client);
