@@ -116,7 +116,7 @@ size_t dap_enc_bf_cbc_decrypt_fast(struct dap_enc_key *a_key, const void * a_in,
     int bf_cbc_padding_length = *(uint8_t*)(a_out + a_in_size - BLOWFISH_BLOCK_SIZE - 1);
     size_t a_out_size = *(uint32_t*)(a_out + a_in_size - BLOWFISH_BLOCK_SIZE - 1 - bf_cbc_padding_length - 4);
     if (a_out_size > a_in_size + BLOWFISH_BLOCK_SIZE) {
-        log_it(L_WARNING, "blowfish_cbc decryption out size %d too big", a_out_size);
+        log_it(L_WARNING, "blowfish_cbc decryption out size %zu too big", a_out_size);
         return a_in_size + BLOWFISH_BLOCK_SIZE;
     }
     return a_out_size;
@@ -129,7 +129,7 @@ size_t dap_enc_bf_cbc_encrypt_fast(struct dap_enc_key * a_key, const void * a_in
     //generate iv and put it in *a_out first bytes
     size_t a_out_size = (a_in_size + 4 + 1 + BLOWFISH_BLOCK_SIZE-1)/BLOWFISH_BLOCK_SIZE*BLOWFISH_BLOCK_SIZE + BLOWFISH_BLOCK_SIZE;
     if(a_out_size > buf_out_size) {
-        log_it(L_ERROR, "blowfish_cbc fast_encryption too small buf_out_size, %d < %d", buf_out_size, a_out_size);
+        log_it(L_ERROR, "blowfish_cbc fast_encryption too small buf_out_size, %zu < %zu", buf_out_size, a_out_size);
         return 0;
     }
 

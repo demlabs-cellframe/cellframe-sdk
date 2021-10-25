@@ -62,10 +62,14 @@ void dap_list_free1(dap_list_t *list)
  * Convenience method, which frees all the memory used by a DapList,
  * and calls @free_func on every element's data.
  */
-void dap_list_free_full(dap_list_t *list, dap_callback_destroyed_t free_func)
+void dap_list_free_full(dap_list_t *a_list, dap_callback_destroyed_t a_free_func)
 {
-    dap_list_foreach(list, (dap_callback_t) free_func, NULL);
-    dap_list_free(list);
+    dap_list_t *l_list = a_list;
+    while (l_list) {
+        a_free_func(l_list->data);
+        l_list = l_list->next;
+    }
+    dap_list_free(a_list);
 }
 
 /**
@@ -790,7 +794,7 @@ void dap_list_foreach(dap_list_t *list, dap_callback_t func, void* user_data)
     }
 }
 
-static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap_callback_t func, void* user_data)
+static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap_callback_compare_data_t func, void* user_data)
 {
     dap_list_t *tmp_list = list;
     dap_list_t *new_list;
@@ -805,13 +809,13 @@ static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap
         return new_list;
     }
 
-    cmp = ((dap_callback_compare_data_t) func)(data, tmp_list->data, user_data);
+    cmp = func(data, tmp_list->data, user_data);
 
     while((tmp_list->next) && (cmp > 0))
     {
         tmp_list = tmp_list->next;
 
-        cmp = ((dap_callback_compare_data_t) func)(data, tmp_list->data, user_data);
+        cmp = func(data, tmp_list->data, user_data);
     }
 
     new_list = dap_list_alloc();
@@ -857,9 +861,9 @@ static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap
  *
  * Returns: the (possibly changed) start of the DapList
  */
-dap_list_t *dap_list_insert_sorted(dap_list_t *list, void* data, dap_callback_compare_t func)
+dap_list_t *dap_list_insert_sorted(dap_list_t *list, void* data, dap_callback_compare_data_t func)
 {
-    return dap_list_insert_sorted_real(list, data, (dap_callback_t) func, NULL);
+    return dap_list_insert_sorted_real(list, data, func, NULL);
 }
 
 /**
@@ -884,10 +888,10 @@ dap_list_t *dap_list_insert_sorted(dap_list_t *list, void* data, dap_callback_co
  */
 dap_list_t * dap_list_insert_sorted_with_data(dap_list_t *list, void* data, dap_callback_compare_data_t func, void* user_data)
 {
-    return dap_list_insert_sorted_real(list, data, (dap_callback_t) func, user_data);
+    return dap_list_insert_sorted_real(list, data, func, user_data);
 }
 
-static dap_list_t *dap_list_sort_merge(dap_list_t *l1, dap_list_t *l2, dap_callback_t compare_func, void* user_data)
+static dap_list_t *dap_list_sort_merge(dap_list_t *l1, dap_list_t *l2, dap_callback_compare_data_t compare_func, void* user_data)
 {
     dap_list_t list, *l, *lprev;
     int cmp;
@@ -897,7 +901,7 @@ static dap_list_t *dap_list_sort_merge(dap_list_t *l1, dap_list_t *l2, dap_callb
 
     while(l1 && l2)
     {
-        cmp = ((dap_callback_compare_data_t) compare_func)(l1->data, l2->data, user_data);
+        cmp = compare_func(l1->data, l2->data, user_data);
 
         if(cmp <= 0)
                 {
@@ -919,7 +923,7 @@ static dap_list_t *dap_list_sort_merge(dap_list_t *l1, dap_list_t *l2, dap_callb
     return list.next;
 }
 
-static dap_list_t *dap_list_sort_real(dap_list_t *list, dap_callback_t compare_func, void* user_data)
+static dap_list_t *dap_list_sort_real(dap_list_t *list, dap_callback_compare_data_t compare_func, void* user_data)
 {
     dap_list_t *l1, *l2;
 
@@ -973,9 +977,9 @@ static dap_list_t *dap_list_sort_real(dap_list_t *list, dap_callback_t compare_f
  * Returns: negative value if @a < @b; zero if @a = @b; positive
  *          value if @a > @b
  */
-dap_list_t *dap_list_sort(dap_list_t *list, dap_callback_compare_t compare_func)
+dap_list_t *dap_list_sort(dap_list_t *list, dap_callback_compare_data_t compare_func)
 {
-    return dap_list_sort_real(list, (dap_callback_t) compare_func, NULL);
+    return dap_list_sort_real(list, compare_func, NULL);
 }
 
 /**
@@ -1005,5 +1009,5 @@ dap_list_t *dap_list_sort(dap_list_t *list, dap_callback_compare_t compare_func)
  */
 dap_list_t *dap_list_sort_with_data(dap_list_t *list, dap_callback_compare_data_t compare_func, void* user_data)
 {
-    return dap_list_sort_real(list, (dap_callback_t) compare_func, user_data);
+    return dap_list_sort_real(list, compare_func, user_data);
 }

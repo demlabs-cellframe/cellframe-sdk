@@ -24,6 +24,13 @@
 
 #pragma once
 
+#include <pthread.h>
+#include "uthash.h"
+#include "utlist.h"
+
+#include "dap_list.h"
+#include "dap_cpu_monitor.h"
+#include "dap_events_socket.h"
 #include "dap_common.h"
 
 #ifdef DAP_OS_UNIX
@@ -49,13 +56,6 @@
 #error "No poll headers for your platform"
 #endif
 
-#include <pthread.h>
-#include "uthash.h"
-#include "utlist.h"
-
-#include "dap_list.h"
-#include "dap_cpu_monitor.h"
-#include "dap_events_socket.h"
 
 typedef enum dap_server_type {SERVER_TCP, SERVER_UDP,SERVER_LOCAL} dap_server_type_t;
 

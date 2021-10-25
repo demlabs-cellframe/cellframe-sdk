@@ -76,7 +76,7 @@
 static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_sock,
                                              dap_events_socket_callbacks_t * a_callbacks, dap_server_t * a_server);
 static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *a_callbacks );
-static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, struct sockaddr* a_remote_addr);
+static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket, struct sockaddr* a_remote_addr);
 static void s_es_server_error(dap_events_socket_t *a_es, int a_arg);
 static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg);
 /**
@@ -208,7 +208,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         return NULL;
     }
 
-    log_it(L_NOTICE,"Listen socket %d created...", l_server->socket_listener);
+    log_it(L_NOTICE,"Listen socket %zu created...", l_server->socket_listener);
     int reuse=1;
 
     if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
@@ -372,7 +372,7 @@ static void s_es_server_error(dap_events_socket_t *a_es, int a_arg)
  * @param a_remote_socket
  * @param a_remote_addr
  */
-static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, struct sockaddr *a_remote_addr)
+static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket, struct sockaddr *a_remote_addr)
 {
     socklen_t a_remote_addr_size = sizeof(*a_remote_addr);
     a_es->buf_in_size = 0; // It should be 1 so we reset it to 0
@@ -382,7 +382,7 @@ static void s_es_server_accept(dap_events_socket_t *a_es, int a_remote_socket, s
 
     dap_events_socket_t * l_es_new = NULL;
     log_it(L_DEBUG, "Listening socket (binded on %s:%u) got new incomming connection",l_server->address,l_server->port);
-    log_it(L_DEBUG, "Accepted new connection (sock %d from %d)", a_remote_socket, a_es->socket);
+    log_it(L_DEBUG, "Accepted new connection (sock %"DAP_FORMAT_SOCKET" from %"DAP_FORMAT_SOCKET")", a_remote_socket, a_es->socket);
     l_es_new = s_es_server_create(a_es->events,a_remote_socket,&l_server->client_callbacks,l_server);
     //l_es_new->is_dont_reset_write_flag = true; // By default all income connection has this flag
     getnameinfo(a_remote_addr,a_remote_addr_size, l_es_new->hostaddr

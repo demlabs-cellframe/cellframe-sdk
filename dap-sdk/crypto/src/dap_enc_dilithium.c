@@ -561,7 +561,7 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key_old2(const uint8_t *a_
         return NULL;
     dilithium_param_t p;
     if(!dilithium_params_init(&p,(dilithium_kind_t) kind)){
-        log_it(L_ERROR,"::read_public_key_old2() Can't find params for signature kind %d", kind);
+        log_it(L_ERROR,"::read_public_key_old2() Can't find params for signature kind %zu", kind);
         return NULL;
     }
 

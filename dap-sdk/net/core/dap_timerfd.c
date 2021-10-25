@@ -56,7 +56,7 @@ int dap_timerfd_init()
 #ifdef DAP_OS_WINDOWS
         hTimerQueue = CreateTimerQueue();
         if (!hTimerQueue) {
-            log_it(L_CRITICAL, "Timer queue failed, err %d", GetLastError());
+            log_it(L_CRITICAL, "Timer queue failed, err %lu", GetLastError());
             return -4;
         }
 #endif
@@ -238,7 +238,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     } */
     if (!CreateTimerQueueTimer(&l_timerfd->th, hTimerQueue,
                                (WAITORTIMERCALLBACK)TimerRoutine, l_timerfd, (unsigned long)a_timeout_ms, 0, 0)) {
-        log_it(L_CRITICAL, "Timer not set, error %d", GetLastError());
+        log_it(L_CRITICAL, "Timer not set, error %lu", GetLastError());
         DAP_DELETE(l_timerfd);
         return NULL;
     }

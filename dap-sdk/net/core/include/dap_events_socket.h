@@ -21,6 +21,18 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+#ifndef DAP_OS_WINDOWS
+#include "unistd.h"
+typedef int SOCKET;
+#define closesocket close
+#define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
+#define SOCKET_ERROR    -1  // for win32 =  (-1)
+#else
+#include <ws2tcpip.h>
+#include <mq.h>
+#define INVALID_SOCKET (SOCKET)(~0)
+#endif
+
 #include <pthread.h>
 #include "uthash.h"
 
@@ -28,14 +40,6 @@
 #include "dap_math_ops.h"
 
 #define DAP_EVENTS_SOCKET_MAX 8194
-
-#ifndef _WIN32
-#include "unistd.h"
-typedef int SOCKET;
-#define closesocket close
-#define INVALID_SOCKET  -1  // for win32 =  (SOCKET)(~0)
-#define SOCKET_ERROR    -1  // for win32 =  (-1)
-#endif
 
 // Caps for different platforms
 #if defined (DAP_OS_ANDROID)
@@ -76,10 +80,12 @@ typedef int SOCKET;
     #define DAP_EVENTS_CAPS_EVENT_WEVENT
     //#define DAP_EVENTS_CAPS_PIPE_POSIX
     #define DAP_EVENTS_CAPS_MSMQ
-    #define INET_ADDRSTRLEN     16
-    #define INET6_ADDRSTRLEN    46
-#include <mq.h>
-#include <ws2tcpip.h>
+    #ifndef INET_ADDRSTRLEN
+        #define INET_ADDRSTRLEN     16
+    #endif
+    #ifndef INET6_ADDRSTRLEN
+        #define INET6_ADDRSTRLEN    46
+    #endif
 #define MSG_DONTWAIT 0
 #define MSG_NOSIGNAL 0
 #endif
@@ -117,7 +123,7 @@ typedef void (*dap_events_socket_callback_event_t) (dap_events_socket_t *, uint6
 typedef void (*dap_events_socket_callback_pipe_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_queue_ptr_t) (dap_events_socket_t *, void *); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_timer_t) (dap_events_socket_t * ); // Callback for specific client operations
-typedef void (*dap_events_socket_callback_accept_t) (dap_events_socket_t * , int, struct sockaddr* ); // Callback for accept of new connection
+typedef void (*dap_events_socket_callback_accept_t) (dap_events_socket_t * , SOCKET, struct sockaddr* ); // Callback for accept of new connection
 typedef void (*dap_events_socket_callback_connected_t) (dap_events_socket_t * ); // Callback for connected client connection
 typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
 
@@ -176,11 +182,7 @@ typedef uint64_t dap_events_socket_uuid_t;
 
 typedef struct dap_events_socket {
     union {
-#ifdef DAP_OS_WINDOWS
         SOCKET socket;
-#else
-        int socket;
-#endif
         int fd;
 #if defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         mqd_t mqd;
@@ -378,8 +380,37 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
 
 #ifdef DAP_OS_WINDOWS
-extern inline int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size);
-extern inline int dap_sendto(SOCKET s, u_short port, void* buf_in, size_t buf_size);
+DAP_STATIC_INLINE int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
+    struct sockaddr_in l_dummy;
+    socklen_t l_size = sizeof(l_dummy);
+    int ret;
+    if (buf_in) {
+        memset(buf_in, 0, buf_size);
+        ret = recvfrom(s, (char*)buf_in, (long)buf_size, 0, (struct sockaddr *)&l_dummy, &l_size);
+    } else {
+        char l_tempbuf[sizeof(void*)];
+        ret = recvfrom(s, l_tempbuf, sizeof(l_tempbuf), 0, (struct sockaddr *)&l_dummy, &l_size);
+    }
+    return ret;
+}
+
+DAP_STATIC_INLINE int dap_sendto(SOCKET s, u_short port, void* buf_out, size_t buf_out_size) {
+    int l_addr_len;
+    struct sockaddr_in l_addr;
+    l_addr.sin_family = AF_INET;
+    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
+    l_addr.sin_addr = _in_addr;
+    l_addr.sin_port = port;
+    l_addr_len = sizeof(struct sockaddr_in);
+    int ret;
+    if (buf_out) {
+        ret = sendto(s, (char*)buf_out, (long)buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
+    } else {
+        char l_bytes[sizeof(void*)] = { 0 };
+        ret = sendto(s, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
+    }
+    return ret;
+}
 #endif
 
 

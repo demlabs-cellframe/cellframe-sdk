@@ -22,9 +22,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "dap_common.h"
-
-#ifdef _WIN32
+#ifdef DAP_OS_WINDOWS
 #include <winsock2.h>
 #include <windows.h>
 #include <mswsock.h>
@@ -33,10 +31,8 @@
 #include <time.h>
 #endif
 
-#include <pthread.h>
-
-
 #include "dap_common.h"
+#include <pthread.h>
 #include "dap_sign.h"
 
 #include "include/dap_http.h"
@@ -104,7 +100,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         dap_enc_key_type_t l_enc_block_type = DAP_ENC_KEY_TYPE_IAES;
         size_t l_pkey_exchange_size=MSRLN_PKA_BYTES;
         size_t l_block_key_size=32;
-        sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zd,block_key_size=%zd",
+        dap_sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zu,block_key_size=%zu",
                                       &l_enc_block_type,&l_pkey_exchange_type,&l_pkey_exchange_size,&l_block_key_size);
 
         log_it(L_DEBUG, "Stream encryption: %s\t public key exchange: %s",dap_enc_get_type_name(l_enc_block_type),
@@ -119,7 +115,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         } else if (l_decode_len > l_pkey_exchange_size+ sizeof (dap_sign_hdr_t)) {
             dap_sign_t *l_sign = (dap_sign_t *)&alice_msg[l_pkey_exchange_size];
             if (l_sign->header.sign_size == 0 || l_sign->header.sign_size > (l_decode_len - l_pkey_exchange_size)  ){
-                log_it(L_WARNING,"Wrong signature size %zd (decoded length %zd)",l_sign->header.sign_size, l_decode_len);
+                log_it(L_WARNING,"Wrong signature size %u (decoded length %zu)",l_sign->header.sign_size, l_decode_len);
                 *return_code = Http_Status_BadRequest;
                 return;
             }

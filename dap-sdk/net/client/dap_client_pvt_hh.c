@@ -24,8 +24,8 @@
 #include <pthread.h>
 #include <uthash.h>
 
-#include "dap_common.h"
 #include "dap_client_pvt.h"
+#include "dap_common.h"
 
 typedef struct dap_client_pvt_hh {
     uint64_t client_pvt_uuid;

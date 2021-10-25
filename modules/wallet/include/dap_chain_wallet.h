@@ -23,12 +23,12 @@
 */
 
 #pragma once
+#include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_enc_key.h"
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_cert.h"
-#include "dap_chain_net.h"
 
 typedef struct dap_chain_wallet{
     char * name;

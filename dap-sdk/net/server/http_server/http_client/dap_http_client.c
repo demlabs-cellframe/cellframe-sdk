@@ -257,7 +257,7 @@ static bool s_request_line_parse( dap_http_client_t *a_http_client, char *a_buf,
 
         memcpy( a_http_client->url_path, a_buf + l_pos_kw_begin, c_size );
         a_http_client->url_path[c_size] = 0;
-        log_it( L_WARNING, "Input: url '%s' pos=%lu pos_kw_begin=%lu", a_http_client->url_path, (uint32_t)l_pos, (uint32_t)l_pos_kw_begin );
+        log_it( L_WARNING, "Input: url '%s' pos=%u pos_kw_begin=%u", a_http_client->url_path, (uint32_t)l_pos, (uint32_t)l_pos_kw_begin );
         l_parse_state = PS_TYPE;
         l_pos_kw_begin = l_pos + 1;
         break;
@@ -292,7 +292,7 @@ static bool s_request_line_parse( dap_http_client_t *a_http_client, char *a_buf,
     memcpy( a_http_client->in_content_type, a_buf + l_pos_kw_begin, l_c_size );
     a_http_client->in_content_type[l_c_size] = 0;
 
-    log_it( L_WARNING, "Input: type '%s' pos=%lu pos_kw_begin=%lu", a_http_client->in_content_type, (uint32_t)l_pos, (uint32_t)l_pos_kw_begin );
+    log_it( L_WARNING, "Input: type '%s' pos=%u pos_kw_begin=%u", a_http_client->in_content_type, (uint32_t)l_pos, (uint32_t)l_pos_kw_begin );
   }
 
   return a_http_client->url_path[0] && a_http_client->action[0];
@@ -325,12 +325,13 @@ static inline void s_report_error_and_restart( dap_events_socket_t *a_esocket, d
  */
 void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
 {
+    UNUSED(a_arg);
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
 
 //  log_it( L_DEBUG, "dap_http_client_read..." );
     do{
         if(s_debug_http)
-            log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %lu", l_http_client->state_read, a_esocket->buf_in_size );
+            log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %"DAP_UINT64_FORMAT_U, l_http_client->state_read, a_esocket->buf_in_size );
         switch( l_http_client->state_read ) {
             case DAP_HTTP_CLIENT_STATE_START: { // Beginning of the session. We try to detect
                 char l_buf_line[4096];
@@ -418,7 +419,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                                 strncpy(l_http_client->reply_reason_phrase,l_http_cache->response_phrase,sizeof (l_http_client->reply_reason_phrase)-1);
 
                             if(s_debug_http)
-                                log_it(L_DEBUG,"%d Out: prepare cached headers", l_http_client->esocket->socket);
+                                log_it(L_DEBUG,"%zu Out: prepare cached headers", l_http_client->esocket->socket);
 
                         }else if (l_http_cache){
                             pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
@@ -564,7 +565,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
         case DAP_HTTP_CLIENT_STATE_HEADERS: {
             dap_http_header_t *hdr = l_http_client->out_headers;
             if ( hdr == NULL ) {
-                log_it(L_DEBUG, "Output: headers are over (reply status code %u content_lentgh %u)",
+                log_it(L_DEBUG, "Output: headers are over (reply status code %hu content_lentgh %zu)",
                        l_http_client->reply_status_code, l_http_client->out_content_length);
                 dap_events_socket_write_f_unsafe(a_esocket, "\r\n");
                 dap_events_socket_set_writable_unsafe(a_esocket, true);
@@ -610,7 +611,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                     if(l_sent){
                         if ( l_http_client->out_cache_position + l_sent >= l_http_client->proc->cache->body_size ){ // All is sent
                             if(s_debug_http)
-                                log_it(L_DEBUG,"Out %d: All cached data over, signal to close connection", l_http_client->esocket->socket);
+                                log_it(L_DEBUG,"Out %zu: All cached data over, signal to close connection", l_http_client->esocket->socket);
                             l_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                             dap_events_socket_set_writable_unsafe( a_esocket, false );
@@ -637,7 +638,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
 
     if ( a_http_client->reply_status_code == 200 ) {
         if (s_debug_http)
-            log_it(L_DEBUG, "Out headers generate for sock %d", a_http_client->esocket->socket);
+            log_it(L_DEBUG, "Out headers generate for sock %"DAP_UINT64_FORMAT_U, a_http_client->esocket->socket);
         if ( a_http_client->out_last_modified ) {
             dap_time_to_str_rfc822( buf, sizeof(buf), a_http_client->out_last_modified );
             dap_http_header_add( &a_http_client->out_headers, "Last-Modified", buf );
@@ -647,13 +648,13 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
             log_it(L_DEBUG,"output: Content-Type = '%s'",a_http_client->out_content_type);
         }
         if ( a_http_client->out_content_length ) {
-            dap_snprintf(buf,sizeof(buf),"%"DAP_UINT64_FORMAT_U"",a_http_client->out_content_length);
+            dap_snprintf(buf,sizeof(buf),"%zu",a_http_client->out_content_length);
             dap_http_header_add(&a_http_client->out_headers,"Content-Length",buf);
-            log_it(L_DEBUG,"output: Content-Length = %"DAP_UINT64_FORMAT_U"",a_http_client->out_content_length);
+            log_it(L_DEBUG,"output: Content-Length = %zu",a_http_client->out_content_length);
         }
     }else
         if (s_debug_http)
-            log_it(L_WARNING, "Out headers: nothing generate for sock %d, http code %d", a_http_client->esocket->socket,
+            log_it(L_WARNING, "Out headers: nothing generate for sock %"DAP_UINT64_FORMAT_U", http code %d", a_http_client->esocket->socket,
                    a_http_client->reply_status_code);
 
     if ( a_http_client->out_connection_close || !a_http_client->keep_alive )
