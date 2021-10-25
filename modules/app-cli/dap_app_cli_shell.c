@@ -21,6 +21,7 @@
 #include <ws2tcpip.h>
 #include <io.h>
 #include <pthread.h>
+#include <conio.h>
 #else
 #include <sys/ttydefaults.h>
 #endif
@@ -152,7 +153,7 @@ char *rl_readline(const char *prompt)
     {
         unsigned char c = rl_getc(rl_instream);
 
-        if(c == EOF || c == NEWLINE)
+        if((char)c == EOF || c == NEWLINE)
             break;
         value[value_len] = c;
         value_len++;

@@ -25,11 +25,10 @@
 
 #pragma once
 
+#include "dap_events_socket.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "uthash.h"
-
-#include "dap_events_socket.h"
 
 typedef int cmdfunc_t(int argc, char ** argv, void *arg_func, char **str_reply);
 

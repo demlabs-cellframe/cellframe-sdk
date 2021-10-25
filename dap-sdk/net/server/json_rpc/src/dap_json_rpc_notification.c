@@ -39,6 +39,6 @@ void dap_json_rpc_notification_handler(const char *a_name_method, dap_json_rpc_p
         l_handler->func(a_params);
         log_it(L_DEBUG, "Call method handling notfication: %s", a_name_method);
     } else {
-        log_it(L_NOTICE, "Not found method %s. This method handler notification");
+        log_it(L_NOTICE, "Not found method %s. This method handler notification", a_name_method);
     }
 }

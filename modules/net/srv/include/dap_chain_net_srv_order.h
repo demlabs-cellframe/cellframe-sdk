@@ -23,10 +23,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #pragma once
+#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
-#include "dap_chain_net.h"
 #include "dap_chain_net_srv_common.h"
 
 typedef struct dap_chain_net_srv_order

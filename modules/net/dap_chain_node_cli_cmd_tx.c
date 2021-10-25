@@ -26,6 +26,7 @@
 #include <stddef.h>
 #include <pthread.h>
 
+#include "dap_chain_wallet.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_strfuncs.h"
@@ -33,7 +34,6 @@
 #include "dap_list.h"
 #include "dap_hash.h"
 
-#include "dap_chain_wallet.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
@@ -1171,7 +1171,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
             //if(a_datum_start < 0 || (l_datum_num >= a_datum_start && l_datum_num < a_datum_end))
             // datum out of page
-            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < a_datum_start || l_datum_num+l_datum_num_global >= a_datum_end)){
+            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)){
                 l_token_num++;
                 break;
             }
@@ -1221,7 +1221,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
             // emission
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             // datum out of page
-            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < a_datum_start || l_datum_num+l_datum_num_global >= a_datum_end)) {
+            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
                  l_token_num++;
                  break;
             }
@@ -1276,7 +1276,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
         case DAP_CHAIN_DATUM_TX:{
 
             // datum out of page
-            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < a_datum_start || l_datum_num+l_datum_num_global >= a_datum_end)) {
+            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
                 l_tx_num++;
                 break;
             }
