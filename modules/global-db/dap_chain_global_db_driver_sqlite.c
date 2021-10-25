@@ -312,7 +312,7 @@ int dap_db_driver_sqlite_flush()
  * @brief Executes SQL statements.
  * 
  * @param l_db a pointer to an instance of SQLite database structure
- * @param l_query SQL statement
+ * @param l_query the SQL statement
  * @param l_error_message[out] an error message that's received from the SQLite database
  * @return Returns 0 if successful.
  */
@@ -416,7 +416,6 @@ static int dap_db_driver_sqlite_query(sqlite3 *db, char *query, sqlite3_stmt **l
  *
  * return 0 if Ok, else -1
  */
-
 /**
  * @brief Releases memory allocated for a row
  * 
@@ -444,7 +443,6 @@ static void dap_db_driver_sqlite_row_free(SQLITE_ROW_VALUE *row)
  * SQLITE_DONE(101) finished executing,
  * SQLITE_CONSTRAINT(19) data is not unique and will not be added
  */
-
 /**
  * @brief Fetches 
  * 
@@ -499,6 +497,13 @@ static int dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VALU
 
 /**
  * Clear memory when request processing is complete
+ */
+
+/**
+ * @brief Destroys a prepared statement structure
+ * 
+ * @param l_res a pointer to the statement structure
+ * @return Returnes true if successful, otherwise false.
  */
 static bool dap_db_driver_sqlite_query_free(sqlite3_stmt *l_res)
 {
