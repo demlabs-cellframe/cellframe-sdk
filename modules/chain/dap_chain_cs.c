@@ -114,8 +114,8 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_ca
  * get consensus from chain cfg file [dag_pos, dag_poa, block_poa, none]
  * dap_config_get_item_str( a_chain_cfg, "chain", "consensus");
  * verify if consensus was created by dap_chain_cs_add function
- * @param a_chain
- * @param a_chain_cfg
+ * @param a_chain dap_chain_t chain object
+ * @param a_chain_cfg dap_config_t 
  * @return
  */
 int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
