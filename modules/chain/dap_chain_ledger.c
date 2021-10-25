@@ -205,6 +205,7 @@ static bool s_debug_more = false;
 
 /**
  * @brief dap_chain_ledger_init
+ * current function version set s_debug_more parameter, if it define in config, and returns 0
  * @return
  */
 int dap_chain_ledger_init()
@@ -215,6 +216,7 @@ int dap_chain_ledger_init()
 
 /**
  * @brief dap_chain_ledger_deinit
+ * nothing do
  */
 void dap_chain_ledger_deinit()
 {
@@ -222,7 +224,9 @@ void dap_chain_ledger_deinit()
 }
 
 /**
- * Create dap_ledger_t structure
+ * @brief dap_chain_ledger_handle_new
+ * Create empty dap_ledger_t structure
+ * @return dap_ledger_t* 
  */
 static dap_ledger_t * dap_chain_ledger_handle_new(void)
 {
@@ -240,7 +244,9 @@ static dap_ledger_t * dap_chain_ledger_handle_new(void)
 }
 
 /**
+ * @brief dap_chain_ledger_handle_free
  * Remove dap_ledger_t structure
+ * @param a_ledger 
  */
 void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger)
 {
@@ -406,9 +412,12 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
 
 /**
  * @brief s_token_tsd_parse
- * @param a_ledger
- * @param a_token
- * @param a_token_size
+ * 
+ * @param a_ledger 
+ * @param a_token_item 
+ * @param a_token 
+ * @param a_token_size 
+ * @return int 
  */
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size)
 {

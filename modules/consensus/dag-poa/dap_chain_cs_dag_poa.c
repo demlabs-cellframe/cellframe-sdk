@@ -260,9 +260,10 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 }
 
 /**
- * @brief s_callback_created
- * @param a_chain
- * @param a_chain_cfg
+ * @brief create callback load certificate for event signing for specific chain
+ * path to certificate iw written to chain config file in dag_poa section
+ * @param a_chain chain object
+ * @param a_chain_net_cfg 
  * @return
  */
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_cfg)
