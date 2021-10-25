@@ -78,7 +78,7 @@ typedef struct _SQLITE_ROW_VALUE_
 static int dap_db_driver_sqlite_exec(sqlite3 *l_db, const char *l_query, char **l_error_message);
 
 /**
- * @brief Initialize a SQLite database
+ * @brief Initialize a SQLite database.
  * @note no thread safe
  * @param a_filename_db a path to the database file
  * @param a_drv_callback a structure with callback functions
@@ -248,8 +248,6 @@ void dap_db_driver_sqlite_free(char *memory)
  *PRAGMA journal_mode = DELETE | TRUNCATE | PERSIST | MEMORY | WAL | OFF;
  *PRAGMA synchronous = 0 | OFF | 1 | NORMAL | 2 | FULL;
  */
-
-
 /**
  * @brief Executes a PRAGMA statement.
  * 
@@ -387,15 +385,14 @@ static int dap_db_driver_sqlite_create_group_table(const char *a_table_name)
  * additional function of line to number _uint8
  * byte_to_bin(x'ff') -> 255
  */
-
 /**
  * @brief 
  * 
- * @param db 
- * @param query 
- * @param l_res 
- * @param l_error_message 
- * @return int 
+ * @param db a pointer to an instance of SQLite database structure
+ * @param query a query
+ * @param l_res[out] a pointer to a pointer to a structure with result
+ * @param l_error_message[out] an error message that's received from the SQLite database
+ * @return Returns 0 if successful, 
  */
 static int dap_db_driver_sqlite_query(sqlite3 *db, char *query, sqlite3_stmt **l_res, char **l_error_message)
 {
@@ -419,6 +416,13 @@ static int dap_db_driver_sqlite_query(sqlite3 *db, char *query, sqlite3_stmt **l
  *
  * return 0 if Ok, else -1
  */
+
+/**
+ * @brief Releases memory allocated for a row
+ * 
+ * @param row a database row
+ * @return (none)
+ */
 static void dap_db_driver_sqlite_row_free(SQLITE_ROW_VALUE *row)
 {
     if(row) {
@@ -439,6 +443,14 @@ static void dap_db_driver_sqlite_row_free(SQLITE_ROW_VALUE *row)
  * SQLITE_ROW(100) has another row ready
  * SQLITE_DONE(101) finished executing,
  * SQLITE_CONSTRAINT(19) data is not unique and will not be added
+ */
+
+/**
+ * @brief Fetches 
+ * 
+ * @param l_res 
+ * @param l_row_out 
+ * @return int 
  */
 static int dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VALUE **l_row_out)
 {
@@ -501,6 +513,14 @@ static bool dap_db_driver_sqlite_query_free(sqlite3_stmt *l_res)
 /**
  * Convert the array into a string to save to blob
  */
+
+/**
+ * @brief Convers a byte array into a hexadecimal string
+ * 
+ * @param blob a byte array
+ * @param len a length of byte array
+ * @return Returns a hexadecimal string
+ */
 static char* dap_db_driver_get_string_from_blob(uint8_t *blob, int len)
 {
     char *str_out;
@@ -518,6 +538,13 @@ static char* dap_db_driver_get_string_from_blob(uint8_t *blob, int len)
  * Cleaning the database from the deleted data
  *
  * return 0 if Ok, else error code >0
+ */
+
+/**
+ * @brief Executes a VACUUM statement in a database.
+ * 
+ * @param l_db a a pointer to an instance of SQLite database structure
+ * @return Returns 0 if successful.
  */
 int dap_db_driver_sqlite_vacuum(sqlite3 *l_db)
 {
@@ -617,6 +644,13 @@ char *dap_db_driver_sqlite_make_table_name(const char *a_group_name)
 /**
  * Apply data (write or delete)
  *
+ */
+
+/**
+ * @brief Applies an object into a database.
+ * 
+ * @param a_store_obj a pointer to the object structure
+ * @return Returns 0 if successful.
  */
 int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
 {
@@ -935,6 +969,12 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     return l_obj;
 }
 
+/**
+ * @brief Gets a list of group names from s_db by a_group_mask.
+ * 
+ * @param a_group_mask a group name mask
+ * @return Returns a pointer to a list of group names.
+ */
 dap_list_t* dap_db_driver_sqlite_get_groups_by_mask(const char *a_group_mask)
 {
     if(!a_group_mask || !s_db)
@@ -961,6 +1001,13 @@ dap_list_t* dap_db_driver_sqlite_get_groups_by_mask(const char *a_group_mask)
     return l_ret_list;
 }
 
+/**
+ * @brief Reads a number of objects in s_db by a_group and a_id
+ * 
+ * @param a_group a group name string
+ * @param a_id id starting from which the quantity is calculated
+ * @return Returns a number of objects.
+ */
 size_t dap_db_driver_sqlite_read_count_store(const char *a_group, uint64_t a_id)
 {
     sqlite3_stmt *l_res;
@@ -989,6 +1036,13 @@ size_t dap_db_driver_sqlite_read_count_store(const char *a_group, uint64_t a_id)
     return l_ret_val;
 }
 
+/**
+ * @brief Checks if an object is in a s_db database by a_group and a_key.
+ * 
+ * @param a_group a group name string
+ * @param a_key a object key string
+ * @return Returns true if it is, false it's not.
+ */
 bool dap_db_driver_sqlite_is_obj(const char *a_group, const char *a_key)
 {
     sqlite3_stmt *l_res;
