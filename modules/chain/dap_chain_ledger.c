@@ -1045,9 +1045,15 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
 }
 
 /**
- * @brief dap_chain_ledger_create
- * @param a_check_flags
- * @return dap_ledger_t
+ * @brief 
+ * create ledger for specific net
+ * load ledger cache
+ * @param a_check_flags checking flags
+ *          DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION
+ *          DAP_CHAIN_LEDGER_CHECK_CELLS_DS
+ *          DAP_CHAIN_LEDGER_CHECK_CELLS_DS
+ * @param a_net_name char * network name, for example "kelvin-testnet"
+ * @return dap_ledger_t* 
  */
 dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
 {

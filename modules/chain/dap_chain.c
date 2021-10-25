@@ -129,12 +129,14 @@ void dap_chain_enum_unlock(void)
 }
 
 /**
- * @brief dap_chain_create
- * @param a_chain_net_name
- * @param a_chain_name
- * @param a_chain_net_id
- * @param a_chain_id
- * @return
+ * @brief 
+ * create dap chain object
+ * @param a_ledger dap_ledger_t ledger object
+ * @param a_chain_net_name blockchain network name
+ * @param a_chain_name chain name
+ * @param a_chain_net_id 
+ * @param a_chain_id chain id
+ * @return dap_chain_t* 
  */
 dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
 {
@@ -159,8 +161,9 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
 }
 
 /**
- * @brief dap_chain_delete
- * @param a_chain
+ * @brief
+ * delete dap chain object
+ * @param a_chain dap_chain_t object
  */
 void dap_chain_delete(dap_chain_t * a_chain)
 {
