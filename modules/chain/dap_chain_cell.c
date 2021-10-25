@@ -115,7 +115,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char
 {
     dap_chain_cell_t * l_cell = DAP_NEW_Z(dap_chain_cell_t);
     l_cell->chain = a_chain;
-    sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell->id.uint64);
+    dap_sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell->id.uint64);
     l_cell->file_storage_path = dap_strdup_printf(a_filename);
     pthread_rwlock_init(&l_cell->storage_rwlock, NULL);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
@@ -218,16 +218,16 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
             }
             ++q;
         } else {
-            log_it(L_ERROR, "Read only %zd of %zd bytes, stop cell loading", l_read, l_el_size);
+            log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
             DAP_DELETE(l_element);
             ret = -6;
             break;
         }
     }
     if (ret < 0) {
-        log_it(L_INFO, "Couldn't load all atoms, %d only", q);
+        log_it(L_INFO, "Couldn't load all atoms, %lu only", q);
     } else {
-        log_it(L_INFO, "Loaded all %d atoms in cell %s", q, a_cell_file_path);
+        log_it(L_INFO, "Loaded all %lu atoms in cell %s", q, a_cell_file_path);
     }
     if (q)
         dap_chain_cell_create_fill2(a_chain, a_cell_file_path);
@@ -253,7 +253,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
     if(!a_cell)
         return -1;
     if (!a_atom && !a_cell->chain) {
-        log_it(L_WARNING,"Chain not found for cell 0x%016X ( %s )",
+        log_it(L_WARNING,"Chain not found for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                                a_cell->id.uint64, a_cell->file_storage_path);
         return -1;
     }
@@ -267,7 +267,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
             a_cell->file_storage = fopen(l_file_path, "w+b");
         }
         if (!a_cell->file_storage) {
-            log_it(L_ERROR, "Chain cell \"%s\" cannot be opened 0x%016X",
+            log_it(L_ERROR, "Chain cell \"%s\" cannot be opened 0x%016"DAP_UINT64_FORMAT_X,
                     a_cell->file_storage_path,
                     a_cell->id.uint64);
             return -3;
@@ -285,10 +285,10 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
             .chain_net_id = a_cell->chain->net_id
         };
         if(fwrite(&l_hdr, 1, sizeof(l_hdr), a_cell->file_storage) == sizeof(l_hdr)) {
-            log_it(L_NOTICE, "Initialized file storage for cell 0x%016X ( %s )",
+            log_it(L_NOTICE, "Initialized file storage for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                     a_cell->id.uint64, a_cell->file_storage_path);
         } else {
-            log_it(L_ERROR, "Can't init file storage for cell 0x%016X ( %s )",
+            log_it(L_ERROR, "Can't init file storage for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                     a_cell->id.uint64, a_cell->file_storage_path);
             dap_chain_cell_close(a_cell);
             return -4;
@@ -306,7 +306,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
          l_atom = a_atom ? NULL : a_cell->chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size), l_count++)
     {
         if (fwrite(&l_atom_size, 1, sizeof(l_atom_size), a_cell->file_storage) != sizeof(l_atom_size)) {
-            log_it (L_ERROR,"Can't write atom data size from cell 0x%016X in \"%s\"",
+            log_it (L_ERROR,"Can't write atom data size from cell 0x%016"DAP_UINT64_FORMAT_X" in \"%s\"",
                     a_cell->id.uint64,
                     a_cell->file_storage_path);
             dap_chain_cell_close(a_cell);
@@ -315,7 +315,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
         }
         l_total_wrote_bytes += sizeof(l_atom_size);
         if (fwrite(l_atom, 1, l_atom_size, a_cell->file_storage) != l_atom_size) {
-            log_it (L_ERROR, "Can't write data from cell 0x%016X to the file \"%s\"",
+            log_it (L_ERROR, "Can't write data from cell 0x%016"DAP_UINT64_FORMAT_X" to the file \"%s\"",
                             a_cell->id.uint64,
                             a_cell->file_storage_path);
             dap_chain_cell_close(a_cell);
@@ -334,7 +334,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
         fflush(a_cell->file_storage);
         if (!a_atom) {
             ftruncate(fileno(a_cell->file_storage), l_total_wrote_bytes + sizeof(dap_chain_cell_file_header_t));
-            log_it(L_DEBUG, "Saved %d atoms (total %"DAP_UINT64_FORMAT_U" bytes", l_count, l_total_wrote_bytes);
+            log_it(L_DEBUG, "Saved %zu atoms (total %zu bytes", l_count, l_total_wrote_bytes);
         }
     } else if (!a_atom) {
         log_it(L_WARNING, "Nothing to save, event table is empty");

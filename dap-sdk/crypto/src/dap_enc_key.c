@@ -727,7 +727,7 @@ dap_enc_key_t* dap_enc_key_dup(dap_enc_key_t * a_key)
 dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size)
 {
     if(buf_size != sizeof (dap_enc_key_serealize_t)) {
-        log_it(L_ERROR, "Key can't be deserealize. buf_size(%d) != sizeof (dap_enc_key_serealize_t)(%d)",buf_size,sizeof (dap_enc_key_serealize_t));
+        log_it(L_ERROR, "Key can't be deserealize. buf_size(%zu) != sizeof (dap_enc_key_serealize_t)(%zu)",buf_size,sizeof (dap_enc_key_serealize_t));
         return NULL;
     }
     const dap_enc_key_serealize_t *in_key = (const dap_enc_key_serealize_t *)buf;
@@ -760,7 +760,7 @@ dap_enc_key_t* dap_enc_key_deserealize(const void *buf, size_t buf_size)
 dap_enc_key_t *dap_enc_key_new(dap_enc_key_type_t a_key_type)
 {
     dap_enc_key_t * ret = NULL;
-    if(a_key_type < c_callbacks_size ){
+    if ((size_t)a_key_type < c_callbacks_size) {
         ret = DAP_NEW_Z(dap_enc_key_t);
         if(s_callbacks[a_key_type].new_callback){
             s_callbacks[a_key_type].new_callback(ret);
@@ -786,7 +786,7 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, const voi
                                         size_t seed_size, size_t key_size)
 {
     dap_enc_key_t * ret = NULL;
-    if(a_key_type< c_callbacks_size ) {
+    if ((size_t)a_key_type < c_callbacks_size) {
         ret = dap_enc_key_new(a_key_type);
         if(s_callbacks[a_key_type].new_generate_callback) {
             s_callbacks[a_key_type].new_generate_callback( ret, kex_buf, kex_size, seed, seed_size, key_size);

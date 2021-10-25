@@ -919,7 +919,7 @@ size_t dap_db_driver_sqlite_read_count_store(const char *a_group, uint64_t a_id)
         //log_it(L_ERROR, "Count l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         return 0;
     }
-    size_t l_ret_val;
+    size_t l_ret_val = 0;
     SQLITE_ROW_VALUE *l_row = NULL;
     if (dap_db_driver_sqlite_fetch_array(l_res, &l_row) == SQLITE_ROW && l_row) {
         l_ret_val = (size_t)l_row->val->val.val_int64;
@@ -947,7 +947,7 @@ bool dap_db_driver_sqlite_is_obj(const char *a_group, const char *a_key)
         //log_it(L_ERROR, "Exists l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
         return false;
     }
-    bool l_ret_val;
+    bool l_ret_val = false;
     SQLITE_ROW_VALUE *l_row = NULL;
     if (dap_db_driver_sqlite_fetch_array(l_res, &l_row) == SQLITE_ROW && l_row) {
         l_ret_val = (size_t)l_row->val->val.val_int64;

@@ -385,7 +385,7 @@ static void * s_proc_thread_function(void * a_arg)
     l_shed_params.sched_priority = 0;
 #if defined(DAP_OS_WINDOWS)
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST))
-        log_it(L_ERROR, "Couldn't set thread priority, err: %d", GetLastError());
+        log_it(L_ERROR, "Couldn't set thread priority, err: %lu", GetLastError());
 #elif defined (DAP_OS_LINUX)
     pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
 #elif defined (DAP_OS_BSD)
@@ -436,7 +436,7 @@ static void * s_proc_thread_function(void * a_arg)
 #ifdef DAP_OS_WINDOWS
 		errno = WSAGetLastError();    	
 #endif
-        log_it(L_CRITICAL, "Can't add proc queue %d on epoll ctl, error", l_thread->proc_queue->esocket->socket, errno);
+        log_it(L_CRITICAL, "Can't add proc queue %zu on epoll ctl, error %d", l_thread->proc_queue->esocket->socket, errno);
         return NULL;
     }
 
@@ -687,7 +687,7 @@ static void * s_proc_thread_function(void * a_arg)
 #endif
             assert(l_cur);
             if(s_debug_reactor)
-                log_it(L_DEBUG, "Proc thread #%u esocket %p fd=%d type=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
+                log_it(L_DEBUG, "Proc thread #%u esocket %p fd=%zu type=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
                     l_cur->type, l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
 
@@ -703,7 +703,7 @@ static void * s_proc_thread_function(void * a_arg)
 #endif
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf,sizeof (l_errbuf));
-                log_it(L_ERROR,"Some error on proc thread #%u with %d socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
+                log_it(L_ERROR,"Some error on proc thread #%u with %zu socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
                 if(l_cur->callbacks.error_callback)
                     l_cur->callbacks.error_callback(l_cur, errno);
             }
@@ -757,7 +757,7 @@ static void * s_proc_thread_function(void * a_arg)
                                 HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
 
                                 if (hr != MQ_OK) {
-                                    log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
+                                    log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
                                     break;
                                 } else {
                                     if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {

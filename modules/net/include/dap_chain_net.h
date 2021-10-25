@@ -27,9 +27,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include <stdint.h>
 #include <string.h>
+#include "dap_net.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
-#include "dap_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
 #include "dap_chain.h"

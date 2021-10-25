@@ -323,9 +323,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 
             // Recognize chains id
             if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
-                if ( sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
-                    if ( sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
-                        if ( sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_U,&l_chain_id_u ) !=1 ){
+                if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
+                    if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
+                        if ( dap_sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_U,&l_chain_id_u ) !=1 ){
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
@@ -346,7 +346,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
             // Read chain name
             if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL ){
-                log_it (L_ERROR,"Can't read chain net name ",l_chain_id_str);
+                log_it (L_ERROR,"Can't read chain net name %s",l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
             }
@@ -387,7 +387,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             char** l_datum_types = NULL;
             uint16_t l_datum_types_count = 0;
             if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain datum types ", l_chain_id_str);
+                log_it(L_WARNING, "Can't read chain datum types for chain %s", l_chain_id_str);
                 //dap_config_close(l_cfg);
                 //return NULL;
             }
@@ -405,7 +405,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 l_chain->datum_types_count = l_count_recognized;
             }
             if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain mempool auto types ", l_chain_id_str);
+                log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
             }
             // add datum types
             if(l_chain && l_datum_types && l_datum_types_count) {

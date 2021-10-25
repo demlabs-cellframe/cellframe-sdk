@@ -77,7 +77,7 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token, size
     }
 
     if (l_tsd_size+l_hdr_size > a_token_size){
-        log_it(L_WARNING, "TSD size %zd overlaps with header, corrupted data");
+        log_it(L_WARNING, "TSD size %zd overlaps with header, corrupted data", l_tsd_size);
     }else if (l_tsd_size +l_hdr_size == a_token_size){
         log_it(L_INFO, "No signatures at all, returning pointer to the top of data");
         return (dap_tsd_t*) a_token->data_n_tsd;

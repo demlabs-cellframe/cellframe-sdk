@@ -184,7 +184,7 @@ dap_config_t * dap_config_open(const char * a_name)
                                                 l_param_name_size = j;
                                                 if (l_param_name_size > (sizeof(l_param_name) -1) ){
                                                     l_param_name_size = (sizeof(l_param_name) - 1 );
-                                                    log_it(L_WARNING,"Too long param name in config, %u is more than %u maximum",
+                                                    log_it(L_WARNING,"Too long param name in config, %zu is more than %zu maximum",
                                                            j,sizeof(l_param_name) -1);
                                                 }
                                                 strncpy(l_param_name,l_line,j);
@@ -203,7 +203,7 @@ dap_config_t * dap_config_open(const char * a_name)
                                         if (l_param_value_size ){
                                             if (l_param_value_size > (sizeof(l_param_value) -1) ){
                                                 l_param_value_size = (sizeof(l_param_value) - 1 );
-                                                log_it(L_WARNING,"Too long param value in config, %u is more than %u maximum",
+                                                log_it(L_WARNING,"Too long param value in config, %zu is more than %zu maximum",
                                                        l_line_length - j,sizeof(l_param_value) -1);
                                             }
                                             strncpy(l_param_value,l_line +j, l_param_value_size);

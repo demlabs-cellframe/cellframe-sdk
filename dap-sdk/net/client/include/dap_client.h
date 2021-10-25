@@ -23,9 +23,9 @@
 */
 #pragma once
 
+#include "dap_events.h"
 #include <stdint.h>
 #include "dap_enc_key.h"
-#include "dap_events.h"
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
 #include "dap_cert.h"

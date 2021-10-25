@@ -262,7 +262,7 @@ int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename
         if( s_log_file == NULL)
             s_log_file = _wfopen( a_log_filename , L"w" );
         if ( s_log_file == NULL ) {
-            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
+            dap_fprintf( stderr, "Can't open log file %ls to append\n", a_log_filename );
             return -1;
         }
         //dap_stpcpy(s_log_file_path, a_log_filename);
@@ -355,6 +355,7 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
     va_end( va );
     char *dummy = (offset2 == 0) ? memcpy(&l_log_string->str[sizeof(l_log_string->str) - 6], "...\n\0", 5)
         : memcpy(&l_log_string->str[offset], "\n", 1);
+    UNUSED(dummy);
     pthread_mutex_lock(&s_log_mutex);
     DL_APPEND(s_log_buffer, l_log_string);
     ++s_log_count;

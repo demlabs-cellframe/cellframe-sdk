@@ -22,7 +22,6 @@
 */
 #pragma once
 
-#include "dap_common.h"
 #ifdef WIN32
 // for Windows
 #include <winsock2.h>
@@ -42,5 +41,7 @@
 #include <netinet/in.h>
 
 #endif
+
+#include "dap_common.h"
 
 int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_addr_out);

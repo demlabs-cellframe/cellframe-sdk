@@ -24,12 +24,14 @@
 //#include <sys/socket.h>
 #include <time.h>
 #include <errno.h>
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #define __USE_GNU   /* See feature_test_macros(7) */
 #include <pthread.h>
 
-#include "dap_common.h"
 #include "dap_client.h"
+#include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
@@ -77,7 +79,7 @@
 
 static void* node_ping_proc(void *a_arg)
 {
-    struct in_addr l_addr = { 0 };
+    struct in_addr l_addr = {};
     int l_port = 0;
     int l_count;
     if(!a_arg)
@@ -150,7 +152,7 @@ static void* node_ping_proc(void *a_arg)
         DAP_DELETE(host4);
         closesocket(l_socket);
     }
-    return (void*) res;
+    return (void*)(size_t)res;
 }
 
 // start sending ping

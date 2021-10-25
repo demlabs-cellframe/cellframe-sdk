@@ -120,14 +120,14 @@ void *dap_worker_thread(void *arg)
     l_shed_params.sched_priority = 0;
 #ifdef DAP_OS_WINDOWS
 	if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL))
-        log_it(L_ERROR, "Couldn'r set thread priority, err: %d", GetLastError());
+        log_it(L_ERROR, "Couldn'r set thread priority, err: %lu", GetLastError());
 #else
     pthread_setschedparam(pthread_self(),SCHED_FIFO ,&l_shed_params);
 #endif
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
     struct epoll_event l_epoll_events[ DAP_EVENTS_SOCKET_MAX]= {{0}};
-    log_it(L_INFO, "Worker #%d started with epoll fd %d and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
+    log_it(L_INFO, "Worker #%d started with epoll fd %"DAP_FORMAT_HANDLE" and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_worker->kqueue_fd = kqueue();
         if (l_worker->kqueue_fd == -1 ){
@@ -285,7 +285,7 @@ void *dap_worker_thread(void *arg)
                 continue;
             }
             if(s_debug_reactor) {
-                log_it(L_DEBUG, "--Worker #%u esocket %p uuid 0x%016llx type %d fd=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
+                log_it(L_DEBUG, "--Worker #%u esocket %p uuid 0x%016llx type %d fd=%zu flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
                        l_worker->id, l_cur, l_cur->uuid, l_cur->type, l_cur->socket,
                     l_cur_flags, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"",
@@ -299,35 +299,33 @@ void *dap_worker_thread(void *arg)
                 switch (l_cur->type ){
                 case DESCRIPTOR_TYPE_SOCKET_UDP:
                 case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
-                    int l_err = getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
+                    getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
 #ifndef DAP_OS_WINDOWS
                     if (l_sock_err) {
                          log_it(L_DEBUG, "Socket %d error %d", l_cur->socket, l_sock_err);
 #else
-                    //if (l_err == SOCKET_ERROR) {
-                        log_it(L_DEBUG, "Socket %d will be shutdown (EPOLLHUP), error %d", l_cur->socket, WSAGetLastError());
+                    log_it(L_DEBUG, "Socket %"DAP_FORMAT_SOCKET" will be shutdown (EPOLLHUP), error %d", l_cur->socket, WSAGetLastError());
 #endif
-                        dap_events_socket_set_readable_unsafe(l_cur, false);
-                        dap_events_socket_set_writable_unsafe(l_cur, false);
-                        l_cur->buf_out_size = 0;
-                        l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                        l_flag_error = l_flag_write = false;
-                        l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
+                    dap_events_socket_set_readable_unsafe(l_cur, false);
+                    dap_events_socket_set_writable_unsafe(l_cur, false);
+                    l_cur->buf_out_size = 0;
+                    l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    l_flag_error = l_flag_write = false;
+                    l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
 #ifndef DAP_OS_WINDOWS
                         log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                     }
 #endif
-                    //}
                     break;
                 }
                 default:
                     if(s_debug_reactor)
-                        log_it(L_INFO,"RDHUP event on esocket %p (%d) type %d", l_cur, l_cur->socket, l_cur->type );
+                        log_it(L_INFO,"RDHUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
                 }
             }
 
             if(l_flag_nval ){
-                log_it(L_WARNING, "NVAL flag armed for socket %p (%d)", l_cur, l_cur->socket);
+                log_it(L_WARNING, "NVAL flag armed for socket %p (%"DAP_FORMAT_SOCKET")", l_cur, l_cur->socket);
                 l_cur->buf_out_size = 0;
                 l_cur->buf_in_size = 0;
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
@@ -376,7 +374,7 @@ void *dap_worker_thread(void *arg)
 
                 //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
                 if(l_cur->buf_in_size_max && l_cur->buf_in_size >= l_cur->buf_in_size_max ) {
-                    log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped! esocket %p (%d)", l_cur, l_cur->socket);
+                    log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped! esocket %p (%zu)", l_cur, l_cur->socket);
                     l_cur->buf_in_size = 0;
                 }
 
@@ -448,7 +446,7 @@ void *dap_worker_thread(void *arg)
                             if (l_errno == WSAEWOULDBLOCK)
                                 continue;
                             else {
-                                log_it(L_WARNING,"Can't accept on socket %d, WSA errno: %d",l_cur->socket, l_errno);
+                                log_it(L_WARNING,"Can't accept on socket %zu, WSA errno: %d",l_cur->socket, l_errno);
                                 break;
                             }
 #else
@@ -480,7 +478,7 @@ void *dap_worker_thread(void *arg)
                         if (l_cur->callbacks.timer_callback)
                             l_cur->callbacks.timer_callback(l_cur);
                         else
-                            log_it(L_ERROR, "Socket %d with timer callback fired, but callback is NULL ", l_cur->socket);
+                            log_it(L_ERROR, "Socket %zu with timer callback fired, but callback is NULL ", l_cur->socket);
 
                     } break;
                     case DESCRIPTOR_TYPE_QUEUE:
@@ -513,7 +511,7 @@ void *dap_worker_thread(void *arg)
                                 continue;
                             }
                         }else{
-                            log_it(L_WARNING, "We have incomming %u data but no read callback on socket %d, removing from read set",
+                            log_it(L_WARNING, "We have incomming %d data but no read callback on socket %zu, removing from read set",
                                    l_bytes_read, l_cur->socket);
                             dap_events_socket_set_readable_unsafe(l_cur,false);
                         }
@@ -521,7 +519,7 @@ void *dap_worker_thread(void *arg)
                     else if(l_bytes_read < 0) {
 #ifdef DAP_OS_WINDOWS
                         if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != WSAEWOULDBLOCK) {
-                            log_it(L_ERROR, "Can't recv on socket %d, WSA error: %d", l_cur->socket, l_errno);
+                            log_it(L_ERROR, "Can't recv on socket %zu, WSA error: %d", l_cur->socket, l_errno);
 #else
                         if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != EAGAIN && l_errno != EWOULDBLOCK)
                         { // If we have non-blocking socket
@@ -564,7 +562,7 @@ void *dap_worker_thread(void *arg)
                     default:{}
                 }
                 if(s_debug_reactor)
-                    log_it(L_INFO,"RDHUP event on esocket %p (%d) type %d", l_cur, l_cur->socket, l_cur->type );
+                    log_it(L_INFO,"RDHUP event on esocket %p (%zu) type %d", l_cur, l_cur->socket, l_cur->type );
             }
 
             // If its outgoing connection
@@ -621,7 +619,7 @@ void *dap_worker_thread(void *arg)
             if(   ( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
                  (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
                 if(s_debug_reactor)
-                    log_it(L_DEBUG, "Main loop output: %u bytes to send", l_cur->buf_out_size);
+                    log_it(L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
 
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
@@ -709,7 +707,7 @@ void *dap_worker_thread(void *arg)
 
                                  if (hr != MQ_OK) {
                                      l_errno = hr;
-                                     log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
+                                     log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
                                      break;
                                  } else {
                                      l_errno = WSAGetLastError();
@@ -757,14 +755,14 @@ void *dap_worker_thread(void *arg)
                             l_errno = errno;
                         break;
                         default:
-                            log_it(L_WARNING, "Socket %d is not SOCKET, PIPE or FILE but has WRITE state on. Switching it off");
+                            log_it(L_WARNING, "Socket %"DAP_FORMAT_SOCKET" is not SOCKET, PIPE or FILE but has WRITE state on. Switching it off", l_cur->socket);
                             dap_events_socket_set_writable_unsafe(l_cur,false);
                     }
 
                     if(l_bytes_sent < 0) {
 #ifdef DAP_OS_WINDOWS
                         if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != WSAEWOULDBLOCK) {
-                            log_it(L_ERROR, "Can't send to socket %d, WSA error: %d", l_cur->socket, l_errno);
+                            log_it(L_ERROR, "Can't send to socket %zu, WSA error: %d", l_cur->socket, l_errno);
 #else
                         if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != EAGAIN && l_errno != EWOULDBLOCK)
                         { // If we have non-blocking socket
@@ -806,7 +804,7 @@ void *dap_worker_thread(void *arg)
             {
                 if (l_cur->buf_out_size == 0) {
                     if(s_debug_reactor)
-                        log_it(L_INFO, "Process signal to close %s sock %d (ptr 0x%p uuid 0x%016llx) type %d [thread %u]",
+                        log_it(L_INFO, "Process signal to close %s sock %zu (ptr 0x%p uuid 0x%016llx) type %d [thread %u]",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
                                l_cur->type, l_tn);
 
@@ -843,7 +841,7 @@ void *dap_worker_thread(void *arg)
 #endif
                 } else if (l_cur->buf_out_size ) {
                     if(s_debug_reactor)
-                        log_it(L_INFO, "Got signal to close %s sock %u [thread %u] type %d but buffer is not empty(%zd)",
+                        log_it(L_INFO, "Got signal to close %s sock %zu [thread %u] type %d but buffer is not empty(%zd)",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn,
                            l_cur->buf_out_size);
                 }
@@ -901,7 +899,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }
 
     if(s_debug_reactor)
-        log_it(L_NOTICE, "Received event socket %p (ident %d type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
+        log_it(L_NOTICE, "Received event socket %p (ident %zu type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
 
     switch( l_es_new->type){
         case DESCRIPTOR_TYPE_SOCKET_UDP: break;
@@ -916,7 +914,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         l_es_new->type != DESCRIPTOR_TYPE_TIMER
             )
 #else
-    if(l_es_new->socket!=0 && l_es_new->socket != -1)
+    if(l_es_new->socket!=0 && l_es_new->socket != INVALID_SOCKET)
 
 #endif
     if(dap_worker_esocket_find_uuid( l_worker, l_es_new->uuid)){
@@ -955,7 +953,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }else{
         // Add in worker
         l_es_new->me = l_es_new;
-        if (l_es_new->socket!=0 && l_es_new->socket != -1){
+        if (l_es_new->socket!=0 && l_es_new->socket != INVALID_SOCKET){
             pthread_rwlock_wrlock(&l_worker->esocket_rwlock);
             HASH_ADD(hh_worker, l_worker->esockets, uuid, sizeof(l_es_new->uuid), l_es_new );
             l_worker->event_sockets_count++;
@@ -982,7 +980,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
         //l_es->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
         dap_events_socket_remove_and_delete_unsafe(l_es,false);
     }else
-        log_it(L_INFO, "While we were sending the delete() message, esocket %"DAP_UINT64_FORMAT_U" has been disconnected ", l_es_uuid_ptr);
+        log_it(L_INFO, "While we were sending the delete() message, esocket %"DAP_UINT64_FORMAT_U" has been disconnected ", *l_es_uuid_ptr);
     DAP_DELETE(l_es_uuid_ptr);
 }
 
@@ -1054,7 +1052,7 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
     // Check if it was removed from the list
     dap_events_socket_t *l_msg_es = dap_worker_esocket_find_uuid(l_worker, l_msg->esocket_uuid);
     if ( l_msg_es == NULL){
-        log_it(L_INFO, "We got i/o message for esocket %"DAP_UINT64_FORMAT_U" thats now not in list. Lost %u data", l_msg->esocket_uuid, l_msg->data_size);
+        log_it(L_INFO, "We got i/o message for esocket %"DAP_UINT64_FORMAT_U" thats now not in list. Lost %zu data", l_msg->esocket_uuid, l_msg->data_size);
         DAP_DELETE(l_msg);
         return;
     }
@@ -1105,7 +1103,8 @@ static bool s_socket_all_check_activity( void * a_arg)
         if (l_es->type == DESCRIPTOR_TYPE_SOCKET_CLIENT){
             if ( !(l_es->flags & DAP_SOCK_SIGNAL_CLOSE) &&
                  (  l_curtime >=  (l_es->last_time_active + s_connection_timeout) ) && !l_es->no_close ) {
-                log_it( L_INFO, "Socket %u timeout (diff %u ), closing...", l_es->socket, l_curtime -  (time_t)l_es->last_time_active - s_connection_timeout );
+                log_it( L_INFO, "Socket %"DAP_FORMAT_SOCKET" timeout (diff %"DAP_UINT64_FORMAT_U" ), closing...",
+                                l_es->socket, l_curtime -  (time_t)l_es->last_time_active - s_connection_timeout );
                 if (l_es->callbacks.error_callback) {
                     l_es->callbacks.error_callback(l_es, ETIMEDOUT);
                 }
@@ -1133,7 +1132,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
 
 #else*/
     if(s_debug_reactor)
-        log_it(L_DEBUG,"Worker add esocket %d", a_events_socket->socket);
+        log_it(L_DEBUG,"Worker add esocket %zu", a_events_socket->socket);
     int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
     if(l_ret != 0 ){
         char l_errbuf[128];
@@ -1168,7 +1167,7 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
 int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker )
 {
     if(s_debug_reactor){
-        log_it(L_DEBUG,"Add event socket %p (socket %d )", a_esocket, a_esocket->socket);
+        log_it(L_DEBUG,"Add event socket %p (socket %zu)", a_esocket, a_esocket->socket);
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
         // Init events for EPOLL

@@ -246,10 +246,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *) l_ch_chain_net_pkt->data;
                         if(l_session_data)
                             memcpy( &l_session_data->addr_remote,l_addr,sizeof (*l_addr) );
-                        log_it(L_NOTICE,"Accepted remote node addr 0x%016llX",l_addr->uint64);
+                        log_it(L_NOTICE,"Accepted remote node addr 0x%016"DAP_UINT64_FORMAT_X, l_addr->uint64);
                     }else {
-                        log_it(L_WARNING,"Wrong data secion size %u",l_ch_chain_net_pkt_data_size,
-                               sizeof (dap_chain_node_addr_t));
+                        log_it(L_WARNING,"Wrong data secion size %zu",l_ch_chain_net_pkt_data_size);
                     }
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }break;
@@ -274,8 +273,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         if(l_session_data)
                             memcpy( &l_session_data->addr_remote,l_addr,sizeof (*l_addr) );
                     }else {
-                        log_it(L_WARNING,"Wrong data secion size %u",l_ch_chain_net_pkt_data_size,
-                               sizeof (dap_chain_node_addr_t));
+                        log_it(L_WARNING,"Wrong data secion size %zu",l_ch_chain_net_pkt_data_size);
                     }
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }break;

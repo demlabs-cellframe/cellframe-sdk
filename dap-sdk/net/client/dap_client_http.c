@@ -24,10 +24,10 @@
 #include <errno.h>
 #include <fcntl.h>
 
+#include "dap_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
-#include "dap_net.h"
 #include "dap_events_socket.h"
 #include "dap_timerfd.h"
 #include "dap_stream_ch_proc.h"
@@ -85,8 +85,10 @@ typedef struct dap_http_client_internal {
 
 #define PVT(a) (a ? (dap_client_http_pvt_t *) (a)->_inheritor : NULL)
 
-static void s_http_connected(dap_events_socket_t * a_esocket); // Connected callback
+static void s_http_connected(dap_events_socket_t * a_esocket); // Connected
+#ifndef DAP_NET_CLIENT_NO_SSL
 static void s_http_ssl_connected(dap_events_socket_t * a_esocket); // connected SSL callback
+#endif
 static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt);
 static void s_http_read(dap_events_socket_t * a_es, void * arg);
 static void s_http_error(dap_events_socket_t * a_es, int a_arg);
@@ -197,7 +199,7 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
                 l_http_pvt->were_callbacks_called = true;
             }
             l_http_pvt->is_closed_by_timeout = true;
-            log_it(L_INFO, "Close %s sock %u type %d by timeout",
+            log_it(L_INFO, "Close %s sock %zu type %d by timeout",
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
             dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }
@@ -233,12 +235,12 @@ static bool s_timer_timeout_check(void * a_arg)
                 l_http_pvt->were_callbacks_called = true;
             }
             l_http_pvt->is_closed_by_timeout = true;
-            log_it(L_INFO, "Close %s sock %u type %d by timeout",
+            log_it(L_INFO, "Close %s sock %"DAP_FORMAT_SOCKET" type %d by timeout",
                    l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
             dap_events_socket_remove_and_delete_unsafe(l_es, true);
         }else
             if(s_debug_more)
-                log_it(L_DEBUG,"Socket %d is connected, close check timer", l_es->socket);
+                log_it(L_DEBUG,"Socket %zu is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
             log_it(L_DEBUG,"Esocket %"DAP_UINT64_FORMAT_U" is finished, close check timer", *l_es_uuid);
@@ -254,6 +256,7 @@ static bool s_timer_timeout_check(void * a_arg)
  */
 static void s_http_read(dap_events_socket_t * a_es, void * arg)
 {
+    UNUSED(arg);
     dap_client_http_pvt_t * l_http_pvt = PVT(a_es);
     if(!l_http_pvt) {
         log_it(L_ERROR, "s_http_read: l_client_http_internal is NULL!");
@@ -267,7 +270,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
 
     // if buffer is overfull then read once more
     if(l_http_pvt->response_size >= DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX) {
-        log_it(L_ERROR, "s_http_read response_size(%d) overfull!!!", l_http_pvt->response_size);
+        log_it(L_ERROR, "s_http_read response_size(%zu) overfull!!!", l_http_pvt->response_size);
     }
 
     // search http header
@@ -342,9 +345,9 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
         strncpy(l_errbuf,"Unknown Error", sizeof (l_errbuf)-1);
 
     if (a_es->flags & DAP_SOCK_CONNECTING){
-        log_it(L_WARNING, "Socket %d connecting error: %s (code %d)" , a_es->socket, l_errbuf, a_errno);
+        log_it(L_WARNING, "Socket %zu connecting error: %s (code %d)" , a_es->socket, l_errbuf, a_errno);
     }else
-        log_it(L_WARNING, "Socket %d error: %s (code %d)", a_es->socket, l_errbuf, a_errno);
+        log_it(L_WARNING, "Socket %zu error: %s (code %d)", a_es->socket, l_errbuf, a_errno);
 
     dap_client_http_pvt_t * l_client_http_internal = PVT(a_es);
 
@@ -520,7 +523,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
 
     dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_socket, &l_s_callbacks);
 
-    log_it(L_DEBUG,"Created client request socket %d", l_socket);
+    log_it(L_DEBUG,"Created client request socket %zu", l_socket);
     // create private struct
     dap_client_http_pvt_t *l_http_pvt = DAP_NEW_Z(dap_client_http_pvt_t);
     l_ev_socket->_inheritor = l_http_pvt;
@@ -605,7 +608,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
             }
             return l_http_pvt;
         } else {
-            log_it(L_ERROR, "Socket %d connecting error: %d", l_ev_socket->socket, l_err2);
+            log_it(L_ERROR, "Socket %zu connecting error: %d", l_ev_socket->socket, l_err2);
             s_client_http_delete( l_http_pvt);
             l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
@@ -642,6 +645,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         return NULL;
     }
 #endif
+    return NULL;
 }
 
 #ifndef DAP_NET_CLIENT_NO_SSL
@@ -678,10 +682,9 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
     assert(a_esocket);
     dap_client_http_pvt_t * l_http_pvt = PVT(a_esocket);
     assert(l_http_pvt);
-    dap_worker_t *l_worker = l_http_pvt->worker;
-    assert(l_worker);
+    assert(l_http_pvt->worker);
 
-    log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %d", l_http_pvt->uplink_addr, l_http_pvt->uplink_port, a_esocket->socket);
+    log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %zu", l_http_pvt->uplink_addr, l_http_pvt->uplink_port, a_esocket->socket);
     // add to dap_worker
     //dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*) a_obj;
     //dap_events_new();
@@ -713,7 +716,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
                 : 0;
 
         // Set request size as Content-Length header
-        l_offset += dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "Content-Length: %lu\r\n", l_http_pvt->request_size);
+        l_offset += dap_snprintf(l_request_headers + l_offset, l_offset2 -= l_offset, "Content-Length: %zu\r\n", l_http_pvt->request_size);
     }
 
     // adding string for GET request

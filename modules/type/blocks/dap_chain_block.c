@@ -128,11 +128,11 @@ size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block
         return 0;
     }
     if(l_block->hdr.meta_count == UINT16_MAX){
-        log_it(L_ERROR,"Meta add: Can't add more, maximum meta count %u is achieved", UINT16_MAX);
+        log_it(L_ERROR,"Meta add: Can't add more, maximum meta count %hu is achieved", UINT16_MAX);
         return 0;
     }
     if( UINT32_MAX - l_block->hdr.meta_n_datum_n_signs_size < a_data_size + sizeof (l_meta->hdr) ){
-        log_it(L_ERROR,"Meta add: Can't add more, maximum block data section size %zd achieved", UINT32_MAX);
+        log_it(L_ERROR,"Meta add: Can't add more, maximum block data section size %u achieved", UINT32_MAX);
         return 0;
     }
 
@@ -187,7 +187,7 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
         }
         // Check if size of of block size
         if (l_datum_size+l_offset >(a_block_size-sizeof (l_block->hdr))){
-            log_it(L_ERROR,"Datum size is too big %zf thats with offset %zd is bigger than block size %zd (without header)", l_datum_size, l_offset,
+            log_it(L_ERROR,"Datum size is too big %zu thats with offset %zu is bigger than block size %zu (without header)", l_datum_size, l_offset,
                    (a_block_size-sizeof (l_block->hdr)));
             return a_block_size;
         }
@@ -208,7 +208,7 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
         l_block->hdr.meta_n_datum_n_signs_size = l_offset;
         return l_offset+sizeof (l_block->hdr);
     }else{
-        log_it(L_ERROR,"");
+        //log_it(L_ERROR,"");
         return a_block_size;
     }
 }
@@ -243,7 +243,7 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
         }
         // Check if size of of block size
         if (l_datum_size+l_offset >(a_block_size-sizeof (l_block->hdr))){
-            log_it(L_ERROR,"Datum size is too big %zf thats with offset %zd is bigger than block size %zd(without hdr)", l_datum_size, l_offset,
+            log_it(L_ERROR,"Datum size is too big %zu thats with offset %zu is bigger than block size %zu(without hdr)", l_datum_size, l_offset,
                    (a_block_size-sizeof (l_block->hdr)));
             return a_block_size;
         }
@@ -301,7 +301,7 @@ static size_t s_block_get_sign_offset(dap_chain_block_t * a_block, size_t a_bloc
         }
         // Check if size of of block size
         if ( (l_datum_size+l_offset) > (a_block_size-sizeof (a_block->hdr)) ){
-            log_it(L_ERROR,"Datum size is too big %zf thats with offset %zd is bigger than block size %zd", l_datum_size, l_offset, a_block_size);
+            log_it(L_ERROR,"Datum size is too big %zu thats with offset %zu is bigger than block size %zu", l_datum_size, l_offset, a_block_size);
             return a_block_size;
         }
         l_offset += l_datum_size;
@@ -400,7 +400,7 @@ dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size
         }
         // Check if size of of block size
         if (l_datum_size+l_offset >(a_block_size-sizeof (a_block->hdr))){
-            log_it(L_ERROR,"Datum size is too big %zf thats with offset %zd is bigger than block size %zd (without header)", l_datum_size, l_offset,
+            log_it(L_ERROR,"Datum size is too big %zu thats with offset %zu is bigger than block size %zu (without header)", l_datum_size, l_offset,
                    (a_block_size-sizeof (a_block->hdr)));
             return l_ret;
         }
@@ -428,7 +428,7 @@ dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size
 dap_chain_block_meta_t** dap_chain_block_get_meta(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_meta_count )
 {
     if( a_block_size < sizeof(a_block->hdr) ){
-        log_it(L_ERROR,"Meta add: Corrupted block size %zd thats smaller then block header size %zd ", a_block_size, sizeof (a_block->hdr));
+        log_it(L_ERROR,"Meta add: Corrupted block size %zu thats smaller then block header size %zu ", a_block_size, sizeof (a_block->hdr));
     }
     *a_meta_count = a_block->hdr.meta_count;
     if (a_block->hdr.meta_count ==0) // no meta - nothing to return
@@ -489,7 +489,7 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
         switch (l_meta->hdr.type) {
             case DAP_CHAIN_BLOCK_META_GENESIS:
                 if(l_was_genesis){
-                    log_it(L_WARNING, "Genesis meta could be only one in the block, meta #%u is ignored ", i);
+                    log_it(L_WARNING, "Genesis meta could be only one in the block, meta #%zu is ignored ", i);
                     break;
                 }
                 l_was_genesis = true;
@@ -498,7 +498,7 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
             break;
             case DAP_CHAIN_BLOCK_META_PREV:
                 if(l_was_prev){
-                    log_it(L_WARNING, "Prev meta could be only one in the block, meta #%u is ignored ", i);
+                    log_it(L_WARNING, "Prev meta could be only one in the block, meta #%zu is ignored ", i);
                     break;
                 }
                 l_was_prev = true;
@@ -506,12 +506,12 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                     if (l_meta->hdr.data_size == sizeof (*a_block_prev_hash) )
                         memcpy(a_block_prev_hash, l_meta->data, l_meta->hdr.data_size);
                     else
-                        log_it(L_WARNING, "Meta  #%zd PREV has wrong size %zd when expecting %zd",i, l_meta->hdr.data_size, sizeof (*a_block_prev_hash));
+                        log_it(L_WARNING, "Meta  #%zu PREV has wrong size %hu when expecting %zu",i, l_meta->hdr.data_size, sizeof (*a_block_prev_hash));
                 }
             break;
             case DAP_CHAIN_BLOCK_META_ANCHOR:
                 if(l_was_anchor){
-                    log_it(L_WARNING, "Anchor meta could be only one in the block, meta #%u is ignored ", i);
+                    log_it(L_WARNING, "Anchor meta could be only one in the block, meta #%zu is ignored ", i);
                     break;
                 }
                 l_was_anchor = true;
@@ -519,7 +519,7 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                     if (l_meta->hdr.data_size == sizeof (*a_block_anchor_hash) )
                         memcpy(a_block_anchor_hash, l_meta->data, l_meta->hdr.data_size);
                     else
-                        log_it(L_WARNING, "Anchor meta #%zd has wrong size %zd when expecting %zd",i, l_meta->hdr.data_size, sizeof (*a_block_prev_hash));
+                        log_it(L_WARNING, "Anchor meta #%zu has wrong size %hu when expecting %zu",i, l_meta->hdr.data_size, sizeof (*a_block_prev_hash));
                 }
             break;
             case DAP_CHAIN_BLOCK_META_LINK:
@@ -536,12 +536,12 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                         memcpy(&a_block_links[*a_block_links_count], l_meta->data, l_meta->hdr.data_size);
                         (*a_block_links_count)++;
                     }else
-                        log_it(L_WARNING, "Link meta #%zd has wrong size %zd when expecting %zd", i, l_meta->hdr.data_size, sizeof (*a_block_prev_hash));
+                        log_it(L_WARNING, "Link meta #%zu has wrong size %hu when expecting %zu", i, l_meta->hdr.data_size, sizeof (*a_block_prev_hash));
                 }
             break;
             case DAP_CHAIN_BLOCK_META_NONCE:
                 if(l_was_nonce){
-                    log_it(L_WARNING, "NONCE could be only one in the block, meta #%u is ignored ", i);
+                    log_it(L_WARNING, "NONCE could be only one in the block, meta #%zu is ignored ", i);
                     break;
                 }
                 l_was_nonce = true;
@@ -550,12 +550,12 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                     if (l_meta->hdr.data_size == sizeof (*a_nonce ) )
                         memcpy(a_nonce, l_meta->data, l_meta->hdr.data_size);
                     else
-                        log_it(L_WARNING, "NONCE meta #%zd has wrong size %zd when expecting %zd",i, l_meta->hdr.data_size, sizeof (*a_nonce));
+                        log_it(L_WARNING, "NONCE meta #%zu has wrong size %hu when expecting %zu",i, l_meta->hdr.data_size, sizeof (*a_nonce));
                 }
             break;
             case DAP_CHAIN_BLOCK_META_NONCE2:
                 if(l_was_nonce2){
-                    log_it(L_WARNING, "NONCE2 could be only one in the block, meta #%u is ignored ", i);
+                    log_it(L_WARNING, "NONCE2 could be only one in the block, meta #%zu is ignored ", i);
                     break;
                 }
                 l_was_nonce2 = true;
@@ -563,10 +563,10 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                     if (l_meta->hdr.data_size == sizeof (*a_nonce2 ) )
                         memcpy(a_nonce2, l_meta->data, l_meta->hdr.data_size);
                     else
-                        log_it(L_WARNING, "NONCE2 meta #%zd has wrong size %zd when expecting %zd",i, l_meta->hdr.data_size, sizeof (*a_nonce2));
+                        log_it(L_WARNING, "NONCE2 meta #%zd has wrong size %hu when expecting %zu",i, l_meta->hdr.data_size, sizeof (*a_nonce2));
                 }
             break;
-            default: { log_it(L_WARNING, "Unknown meta #%zd type 0x%02x (size %zd), possible corrupted block or you need to upgrade your software",
+            default: { log_it(L_WARNING, "Unknown meta #%zu type 0x%02hx (size %hu), possible corrupted block or you need to upgrade your software",
                                  i, l_meta->hdr.type, l_meta->hdr.type); }
         }
     }
