@@ -447,9 +447,9 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
 }
 
 /**
- * @brief s_chain_in_pkt_callback
- * @param a_thread
- * @param a_arg
+ * @brief s_sync_in_chains_callback
+ * @param a_thread dap_proc_thread_t
+ * @param a_arg void
  * @return
  */
 static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)

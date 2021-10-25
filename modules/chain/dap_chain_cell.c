@@ -54,10 +54,9 @@ typedef struct dap_chain_cell_file_header
 } DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
 
 
-//static const char* s_cells_path = NULL;
-
 /**
  * @brief dap_chain_cell_init
+ * current version simply returns 0
  * @return
  */
 int dap_chain_cell_init(void)
@@ -66,6 +65,13 @@ int dap_chain_cell_init(void)
     return  0;
 }
 
+/**
+ * @brief dap_chain_cell_find_by_id
+ * get dap_chain_cell_t object by cell (shard) id
+ * @param a_chain dap_chain_t object
+ * @param a_cell_id dap_chain_cell_id_t cell (shard) id
+ * @return dap_chain_cell_t* 
+ */
 dap_chain_cell_t * dap_chain_cell_find_by_id(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
     if (!a_chain->cells)
@@ -78,9 +84,11 @@ dap_chain_cell_t * dap_chain_cell_find_by_id(dap_chain_t * a_chain, dap_chain_ce
 }
 
 /**
- * @brief dap_chain_cell_create_fill
- * a_cell_id if <0 then not used
- * @return
+ * @brief 
+ * a_cell_id if < 0 then not used
+ * @param a_chain dap_chain_t object
+ * @param a_cell_id dap_chain_cell_id_t cell (shard) id
+ * @return dap_chain_cell_t* 
  */
 dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
@@ -95,6 +103,14 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     return l_cell;
 }
 
+/**
+ * @brief dap_chain_cell_create_fill2
+ * set l_cell->file_storage_path and l_cell->id.uint64 from name of chain. 
+ * For example, 0.dchaincell. 0 - chain id, dchaincell - name of file
+ * @param a_chain - chain object
+ * @param a_filename - chain filename, for example "0.dchaincell"
+ * @return dap_chain_cell_t* 
+ */
 dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char *a_filename)
 {
     dap_chain_cell_t * l_cell = DAP_NEW_Z(dap_chain_cell_t);
@@ -108,6 +124,11 @@ dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char
     return l_cell;
 }
 
+/**
+ * @brief
+ * close a_cell->file_storage file object
+ * @param a_cell dap_chain_cell_t object
+ */
 void dap_chain_cell_close(dap_chain_cell_t *a_cell)
 {
     if(!a_cell)
@@ -119,8 +140,9 @@ void dap_chain_cell_close(dap_chain_cell_t *a_cell)
 }
 
 /**
- * @brief dap_chain_cell_delete
- * @return
+ * @brief 
+ * free chain cell objects
+ * @param a_cell dap_chain_cell_t object
  */
 void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
 {
@@ -146,8 +168,9 @@ void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
 
 /**
  * @brief dap_chain_cell_load
- * @param a_chain
- * @param a_cell_file_path
+ * load cell file, which is pointed in a_cell_file_path variable, for example "0.dchaincell"
+ * @param a_chain dap_chain_t object
+ * @param a_cell_file_path contains name of chain, for example "0.dchaincell" 
  * @return
  */
 int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
@@ -215,7 +238,12 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
 
 /**
  * @brief s_cell_file_append
- * @param a_cell
+ * add atoms to selected chain
+ * @param a_cell - cell object. Contains file path to cell storage data, for example - "0.dchaincell"
+ * a_cell->chain contains 
+ *  name - "zerochain"
+ *  net_name - "kelvin-testnet"
+ *  filepath - "C:\\Users\\Public\\Documents\\cellframe-node\\var\\lib\\network\\kelvin-testnet\\zerochain\\/0.dchaincell"
  * @param a_atom
  * @param a_atom_size
  * @return
@@ -320,8 +348,9 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
 }
 
 /**
- * @brief dap_chain_cell_file_update
- * @param a_cell
+ * @brief
+ * return dap_chain_cell_file_append(a_cell, NULL, 0);
+ * @param a_cell dap_chain_cell_t
  * @return
  */
 int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
