@@ -1061,7 +1061,9 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
 
 
 /**
- * @brief dap_chain_net_init
+ * @brief
+ * init network settings from cellrame-node.cfg file
+ * register net* commands in cellframe-node-cli interface
  * @return
  */
 int dap_chain_net_init()
@@ -1105,6 +1107,10 @@ int dap_chain_net_init()
     return 0;
 }
 
+/**
+ * @brief 
+ * load network config settings
+ */
 void dap_chain_net_load_all()
 {
     char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
@@ -1173,9 +1179,10 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 }
 
 /**
- * @brief s_cli_net
- * @param argc
- * @param argv
+ * @brief
+ * register net* command in cellframe-node-cli interface
+ * @param argc arguments count
+ * @param argv arguments value
  * @param arg_func
  * @param str_reply
  * @return

@@ -56,6 +56,15 @@ extern "C" {
 //size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_hash_fast_t * a_hash);
 
+/**
+ * @brief 
+ * get SHA3_256 hash for specific data
+ * @param a_data_in input data
+ * @param a_data_in_size size of input data
+ * @param a_hash_out returned hash
+ * @return true 
+ * @return false 
+ */
 static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, dap_hash_fast_t *a_hash_out )
 {
     if ( (a_data_in == NULL) || (a_data_in_size == 0) || (a_hash_out == NULL) )
@@ -72,9 +81,10 @@ static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, 
 
 
 /**
- * @brief dap_hash_fast_compare
- * @param a_hash1
- * @param a_hash2
+ * @brief 
+ * compare to hashes (dap_hash_fast_t) through memcmp
+ * @param a_hash1 - dap_hash_fast_t hash1
+ * @param a_hash2 - dap_hash_fast_t hash2
  * @return
  */
 static inline bool dap_hash_fast_compare(dap_hash_fast_t *a_hash1, dap_hash_fast_t *a_hash2)
