@@ -978,12 +978,12 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 }
 
 /**
- * @brief dap_chain_net_new
- * @param a_id
- * @param a_name
- * @param a_node_role
- * @param a_node_name
- * @return
+ * @brief set node role
+ * [root_master, root, archive, cell_master, master, full, light]
+ * @param a_id 
+ * @param a_name 
+ * @param a_node_role 
+ * @return dap_chain_net_t* 
  */
 static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
                                     const char * a_node_role)
@@ -1046,6 +1046,7 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
 
 /**
  * @brief dap_chain_net_delete
+ * free dap_chain_net_t * a_net object
  * @param a_net
  */
 void dap_chain_net_delete( dap_chain_net_t * a_net )
@@ -1059,7 +1060,9 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
 
 
 /**
- * @brief dap_chain_net_init
+ * @brief
+ * init network settings from cellrame-node.cfg file
+ * register net* commands in cellframe-node-cli interface
  * @return
  */
 int dap_chain_net_init()
@@ -1103,6 +1106,10 @@ int dap_chain_net_init()
     return 0;
 }
 
+/**
+ * @brief 
+ * load network config settings
+ */
 void dap_chain_net_load_all()
 {
     char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
@@ -1171,9 +1178,10 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 }
 
 /**
- * @brief s_cli_net
- * @param argc
- * @param argv
+ * @brief
+ * register net* command in cellframe-node-cli interface
+ * @param argc arguments count
+ * @param argv arguments value
  * @param arg_func
  * @param str_reply
  * @return
@@ -1580,9 +1588,11 @@ static int callback_compare_prioritity_list(const void * a_item1, const void * a
 }
 
 /**
- * @brief s_net_load
- * @param a_net_name
- * @return
+ * @brief load network config settings from cellframe-node.cfg file
+ * 
+ * @param a_net_name const char *: network name, for example "home21-network"
+ * @param a_acl_idx currently 0
+ * @return int 
  */
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 {
@@ -2517,6 +2527,10 @@ bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr
 
 /**
  * @brief dap_chain_net_verify_datum_for_add
+ * process datum verification process. Can be:
+ *   if DAP_CHAIN_DATUM_TX, called dap_chain_ledger_tx_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_chain_ledger_token_decl_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_chain_ledger_token_emission_add_check
  * @param a_net
  * @param a_datum
  * @return

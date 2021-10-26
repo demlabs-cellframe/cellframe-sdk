@@ -2306,6 +2306,7 @@ int com_mempool_delete(int argc, char ** argv, void *arg_func, char ** a_str_rep
 
 /**
  * @brief com_mempool_proc
+ * process mempool datums
  * @param argc
  * @param argv
  * @param arg_func

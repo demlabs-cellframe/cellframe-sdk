@@ -182,12 +182,14 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 }
 
 /**
- * @brief s_callback_event_create
- * @param a_dag
- * @param a_datum
- * @param a_hashes
- * @param a_hashes_count
- * @return
+ * @brief 
+ * create event
+ * @param a_dag 
+ * @param a_datum 
+ * @param a_hashes 
+ * @param a_hashes_count 
+ * @param a_dag_event_size 
+ * @return dap_chain_cs_dag_event_t* 
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count,
@@ -210,10 +212,12 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 }
 
 /**
- * @brief s_callback_event_verify
- * @param a_dag
- * @param a_dag_event
- * @return
+ * @brief 
+ * function makes event singing verification
+ * @param a_dag dag object
+ * @param a_dag_event dap_chain_cs_dag_event_t
+ * @param a_dag_event_size size_t size of event object
+ * @return int 
  */
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size)
 {

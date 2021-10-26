@@ -106,6 +106,7 @@ static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
 /**
  * @brief dap_chain_cs_gdb_init
+ * Initialize GDB chain items organization class
  * @return
  */
 int dap_chain_gdb_init(void)
