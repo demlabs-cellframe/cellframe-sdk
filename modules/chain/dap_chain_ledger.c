@@ -929,7 +929,8 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_chain_ledger_token_item_t *l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
-        strncpy(l_token_item->ticker, l_objs[i].key, sizeof(l_token_item->ticker));
+        strncpy(l_token_item->ticker, l_objs[i].key, sizeof(l_token_item->ticker) - 1);
+        l_token_item->ticker[sizeof(l_token_item->ticker) - 1] = '\0';
         l_token_item->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_objs[i].value_len);
         memcpy(l_token_item->datum_token, l_objs[i].value, l_objs[i].value_len);
         pthread_rwlock_init(&l_token_item->token_emissions_rwlock, NULL);

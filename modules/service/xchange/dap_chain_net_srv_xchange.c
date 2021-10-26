@@ -765,7 +765,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             dap_string_t *l_reply_str = dap_string_new("");
             HASH_ITER(hh, s_srv_xchange->pricelist, l_price, l_tmp) {
                 char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
-                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %lu %llf %s\n", l_order_hash_str, l_price->token_sell,
+                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %"DAP_UINT64_FORMAT_U" %Lf %s\n", l_order_hash_str, l_price->token_sell,
                                          l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
                                          l_price->datoshi_sell, l_price->rate, l_price->wallet_str);
                 DAP_DELETE(l_order_hash_str);
@@ -833,7 +833,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char *
                     continue;
                 // TODO add filters to list (tokens, network, etc.)
                 l_price = s_xchange_price_from_order(l_net, l_order);
-                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %lu %llf\n", l_orders[i].key, l_price->token_sell,
+                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %"DAP_UINT64_FORMAT_U" %Lf\n", l_orders[i].key, l_price->token_sell,
                                          l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
                                          l_price->datoshi_sell, l_price->rate);
                 DAP_DELETE(l_price);

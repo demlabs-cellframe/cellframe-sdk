@@ -1123,7 +1123,8 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
                 if(l_client_pvt->stream_key)
                     dap_enc_key_delete(l_client_pvt->stream_key);
 
-                strncpy(l_client_pvt->stream_id, l_stream_id, sizeof(l_client_pvt->stream_id) - 1);
+                strncpy(l_client_pvt->stream_id, (char *)l_stream_id, sizeof(l_client_pvt->stream_id) -1 );
+                l_client_pvt->stream_id[sizeof(l_client_pvt->stream_id) - 1] = '\0';
                 l_client_pvt->stream_key =
                         dap_enc_key_new_generate(l_enc_type, l_stream_key, strlen(l_stream_key), NULL, 0,
                                 32);

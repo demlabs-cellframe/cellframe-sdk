@@ -1049,14 +1049,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, NULL, "Token emission",
             "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> -addr <addr> -token <token ticker> -certs <cert> -emission_value <val>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, NULL, "List mempool entries for selected chain network and chain id",
-            "mempool_list -net <net name> -chain <chain name>\n");
+    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, NULL, "List mempool entries for selected chain network",
+            "mempool_list -net <net name>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, NULL, "Proc mempool entries for selected chain network and chain id",
-            "mempool_proc -net <net name> -chain <chain name>\n");
+    dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, NULL, "Proc mempool entrie with specified hash for selected chain network",
+            "mempool_proc -net <net name> -datum <datum hash>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, NULL, "Delete datum with hash <datum hash>",
-            "mempool_delete -net <net name> -chain <chain name> -datum <datum hash>\n");
+    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, NULL, "Delete datum with hash <datum hash> for selected chain network",
+            "mempool_delete -net <net name> -datum <datum hash>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_add_ca", com_mempool_add_ca, NULL,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
@@ -1086,7 +1086,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token info
     dap_chain_node_cli_cmd_item_create("token", com_token, NULL, "Token info",
             "token list -net <network name>\n"
-            "token tx all name <token name> -net <network name> [-page_start <page>] [-page <page>]\n");
+            "token info -net <network name> -name <token name>\n"
+            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token name> -net <network name> [-page_start <page>] [-page <page>]\n");
 
     // Log
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, NULL, "Print log info",

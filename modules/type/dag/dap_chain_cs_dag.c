@@ -435,9 +435,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             ret = ATOM_MOVE_TO_THRESHOLD;
             break;
         default:
-            l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-            if (s_debug_more)
+            if (s_debug_more) {
+                l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
                 log_it(L_WARNING, "Atom %s (size %zd) error adding (code %d)", l_event_hash_str, a_atom_size, l_consensus_check);
+            }
             ret = ATOM_REJECT;
             break;
         }
@@ -580,7 +581,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                     if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
                         // add events to file
                         if (!l_cell) {
-                            dap_chain_cell_create_fill(a_chain, l_cell_id);
+                            l_cell = dap_chain_cell_create_fill(a_chain, l_cell_id);
                         }
                         if (dap_chain_cell_file_append(l_cell, l_event, l_event_size )  < 0) {
                             log_it(L_ERROR, "Can't add new event to the file '%s'", l_cell->file_storage_path);
@@ -1596,8 +1597,8 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                     // Nested datum
                     const char *l_datum_type = NULL;
                     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type)
-                    dap_string_append_printf(l_str_tmp,"\t\t\t\tdatum:\tdatum_size: %u\n",l_datum_size);
-                    dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
+                    dap_string_append_printf(l_str_tmp,"\t\t\t\tdatum:\tdatum_size: %zu\n",l_datum_size);
+                    dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tversion:=0x%02hhX\n", l_datum->header.version_id);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype_id:=%s\n", l_datum_type);
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tts_create=%s\n", dap_ctime_r( &l_datum_ts_create,buf ));
                     dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
@@ -1644,7 +1645,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                         dap_global_db_obj_t * l_objs;
                         size_t l_objs_count = 0;
                         l_objs = dap_chain_global_db_gr_load(l_gdb_group_events,&l_objs_count);
-                        dap_string_append_printf(l_str_tmp,"%s.%s: Found %u records :\n",l_net->pub.name,l_chain->name,l_objs_count);
+                        dap_string_append_printf(l_str_tmp,"%s.%s: Found %zu records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
                         for (size_t i = 0; i< l_objs_count; i++){
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_objs[i].value;
@@ -1670,7 +1671,7 @@ static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
-                    dap_string_append_printf(l_str_tmp,"%s.%s: Have %u events :\n",
+                    dap_string_append_printf(l_str_tmp,"%s.%s: Have %zu events :\n",
                                              l_net->pub.name,l_chain->name,l_events_count);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
