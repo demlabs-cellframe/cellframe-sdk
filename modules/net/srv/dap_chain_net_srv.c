@@ -397,12 +397,12 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                     dap_string_append(l_string_ret,"\n");
                 }
                 ret = 0;
-            }else{
+                if (l_orders_num)
+                    DAP_DELETE(l_orders);
+             }else{
                 ret = -5 ;
                 dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
             }
-            DAP_DELETE(l_orders);
-
         }else if( dap_strcmp( l_order_str, "dump" ) == 0 ){
             // Select with specified service uid
             if ( l_order_hash_str ){
