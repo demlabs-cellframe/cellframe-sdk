@@ -193,12 +193,10 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #define DAP_UINT64_FORMAT_X  "lX"
 #define DAP_UINT64_FORMAT_x  "lx"
 #define DAP_UINT64_FORMAT_U  "lu"
-#define DAP_UINT128_FORMAT_U "llu"
 #elif __SIZEOF_LONG__==4
 #define DAP_UINT64_FORMAT_X  "llX"
 #define DAP_UINT64_FORMAT_x  "llx"
 #define DAP_UINT64_FORMAT_U  "llu"
-#define DAP_UINT128_FORMAT_U "llu"  // TODO expand it to 128 bits width
 #else
 #error "DAP_UINT64_FORMAT_* are undefined for your platform"
 #endif
@@ -211,8 +209,8 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #endif
 #define DAP_FORMAT_HANDLE "p"
 #else
-#define DAP_FORMAT_SOCKET "n"
-#define DAP_FORMAT_HANDLE "n"
+#define DAP_FORMAT_SOCKET "d"
+#define DAP_FORMAT_HANDLE "d"
 #endif
 
 #ifndef LOWORD

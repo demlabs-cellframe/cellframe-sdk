@@ -498,7 +498,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                     (l_tx_out) ? dap_chain_addr_to_str(&l_tx_out->addr) :
                     NULL;
             if(l_tx_out)
-                dap_string_append_printf(l_str_out, " OUT item %lld %s to %s\n",
+                dap_string_append_printf(l_str_out, " OUT item %"DAP_UINT64_FORMAT_U" %s to %s\n",
                     l_tx_out->header.value,
                     dap_strlen(l_token_str) > 0 ? l_token_str : "?",
                     l_dst_to_str ? l_dst_to_str : "?"
@@ -549,7 +549,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                                                (dap_chain_tx_out_t*) l_list_out_prev_item->data :
                                                NULL;
                 // print value from prev out item
-                dap_string_append_printf(l_str_out, "  prev OUT item value=%lld",
+                dap_string_append_printf(l_str_out, "  prev OUT item value=%"DAP_UINT64_FORMAT_U,
                         l_tx_prev_out ? l_tx_prev_out->header.value : 0);
             }
             dap_string_append_printf(l_str_out, "\n");
@@ -1045,11 +1045,11 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
                     char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
                     dap_string_append_printf(l_str_out,
-                            " total_supply: %.0Lf(%"DAP_UINT128_FORMAT_U"), flags: 0x%x\n, premine_supply: %"DAP_UINT128_FORMAT_U", premine_address '%s'\n",
+                            " total_supply: %.0Lf(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
                             l_token->header_public.total_supply / DATOSHI_LD,
-                            l_token->header_public.total_supply,
+                            dap_chain_balance_print(l_token->header_public.total_supply),
                             l_token->header_public.flags,
-                            l_token->header_public.premine_supply,
+                            dap_chain_balance_print(l_token->header_public.premine_supply),
                             l_addr ? l_addr : "-");
                     DAP_DELETE(l_addr);
                 }
@@ -1176,11 +1176,11 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
                     char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
                     dap_string_append_printf(l_str_out,
-                            " total_supply: %.0Lf(%"DAP_UINT128_FORMAT_U"), flags: 0x%x\n, premine_supply: %"DAP_UINT128_FORMAT_U", premine_address '%s'\n",
+                            " total_supply: %.0Lf(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
                             l_token->header_public.total_supply / DATOSHI_LD,
-                            l_token->header_public.total_supply,
+                            dap_chain_balance_print(l_token->header_public.total_supply),
                             l_token->header_public.flags,
-                            l_token->header_public.premine_supply,
+                            dap_chain_balance_print(l_token->header_public.premine_supply),
                             l_addr ? l_addr : "-");
                     DAP_DELETE(l_addr);
                 }

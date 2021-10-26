@@ -625,7 +625,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_sdata->srv = l_srv;
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
-        log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
+        log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
         //l_srv = l_sdata->srv;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
@@ -662,7 +662,7 @@ int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
         l_srv->callback_stream_ch_write = a_callback_stream_ch_write;
         l_srv->callback_stream_ch_closed = a_callback_stream_ch_closed;
     }else{
-        log_it(L_ERROR, "Can't find service with 0x%016llX", a_uid.uint64);
+        log_it(L_ERROR, "Can't find service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
         l_ret= -1;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);

@@ -208,7 +208,7 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
         return NULL;
     }
 
-    log_it(L_NOTICE,"Listen socket %zu created...", l_server->socket_listener);
+    log_it(L_NOTICE,"Listen socket %"DAP_FORMAT_SOCKET" created...", l_server->socket_listener);
     int reuse=1;
 
     if (setsockopt(l_server->socket_listener, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)

@@ -497,7 +497,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
                             default:{
                                 char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.data_size*2+3);
                                 dap_bin2hex(l_data_hex, l_meta->data, l_meta->hdr.data_size);
-                                dap_string_append_printf(l_str_tmp,"\t\t\0x%0X: 0x%s\n", i, l_data_hex );
+                                dap_string_append_printf(l_str_tmp, "\t\t 0x%0X: 0x%s\n", i, l_data_hex );
                                 DAP_DELETE(l_data_hex);
                             }
                         }

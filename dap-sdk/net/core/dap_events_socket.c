@@ -410,7 +410,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
     }
     l_es->type = a_type ;
     if(s_debug_reactor)
-        log_it(L_DEBUG,"Created socket %"DAP_UINT64_FORMAT_U" type %d", l_sock,l_es->type);
+        log_it(L_DEBUG,"Created socket %"DAP_FORMAT_SOCKET" type %d", l_sock,l_es->type);
     return l_es;
 }
 
@@ -818,7 +818,7 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_
 #ifdef DAP_OS_WINDOWS
             errno = WSAGetLastError();
 #endif
-            log_it(L_ERROR, "Can't add esocket %zu to polling, err %d", l_es->socket, errno);
+            log_it(L_ERROR, "Can't add esocket %"DAP_FORMAT_SOCKET" to polling, err %d", l_es->socket, errno);
         }
     }
     return  l_es;
@@ -918,7 +918,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #endif
         }
     }else{
-        log_it(L_ERROR, "Queue socket %zu accepted data but callback is NULL ", a_esocket->socket);
+        log_it(L_ERROR, "Queue socket %"DAP_FORMAT_SOCKET" accepted data but callback is NULL ", a_esocket->socket);
         return -1;
     }
     return 0;
@@ -1090,7 +1090,7 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
 #error "No Queue fetch mechanism implemented on your platform"
 #endif
     } else
-        log_it(L_ERROR, "Event socket %zu accepted data but callback is NULL ", a_esocket->socket);
+        log_it(L_ERROR, "Event socket %"DAP_FORMAT_SOCKET" accepted data but callback is NULL ", a_esocket->socket);
 }
 
 
@@ -1131,7 +1131,7 @@ static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
         if(l_res == -1) {
             if(errno == EINTR)
                 continue;
-            log_it(L_DEBUG, "socket %zu waiting errno=%d", a_sockfd, errno);
+            log_it(L_DEBUG, "socket %"DAP_FORMAT_SOCKET" waiting errno=%d", a_sockfd, errno);
             return l_res;
         }
         break;
@@ -1545,7 +1545,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
                 if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
                     l_poll->events |= POLLOUT;
             }else{
-                log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
+                log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %zu", a_esocket->poll_index,
                        a_esocket->worker->poll_count);
             }
         }
@@ -1847,7 +1847,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
 {
     if (!a_es->worker) {
-        log_it(L_INFO, "No worker assigned to esocket %zu", a_es->socket);
+        log_it(L_INFO, "No worker assigned to esocket %"DAP_FORMAT_SOCKET, a_es->socket);
         return;
     }
 
@@ -1911,7 +1911,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         a_worker->poll[a_es->poll_index].fd = -1;
         a_worker->poll_compress = true;
     }else{
-        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->poll_count);
+        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %zu", a_es->poll_index, a_worker->poll_count);
     }
 #else
 #error "Unimplemented new esocket on worker callback for current platform"

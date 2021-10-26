@@ -191,7 +191,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
            DAP_DELETE(a_chain->_inheritor);
        DAP_DELETE(l_item);
     }else
-       log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX chain",a_chain->id.uint64,
+       log_it(L_WARNING,"Trying to remove non-existent 0x%16"DAP_UINT64_FORMAT_X":0x%16"DAP_UINT64_FORMAT_X" chain",a_chain->id.uint64,
               a_chain->net_id.uint64);
     a_chain->datum_types_count = 0;
     DAP_DELETE(a_chain->datum_types);
@@ -353,7 +353,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
-                log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
+                log_it (L_NOTICE,"Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x,
                         l_chain_id.uint64 );
 
                 if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) ) {

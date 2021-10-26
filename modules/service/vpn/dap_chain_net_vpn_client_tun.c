@@ -625,8 +625,7 @@ int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pk
     size_t l_route_net_count = 0;
 
     if(a_pkt_data_size < (sizeof(l_addr) + sizeof(l_gw))) {
-        log_it(L_ERROR, "Too small ADDR_REPLY packet (%u bytes, need at least %u"
-                , a_pkt_data_size, sizeof(l_addr));
+        log_it(L_ERROR, "Too small ADDR_REPLY packet (%zu bytes, need at least %zu", a_pkt_data_size, sizeof(l_addr));
         return -1;
     }
 
@@ -640,7 +639,7 @@ int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pk
     char l_gw_buf[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &l_addr, l_addr_buf, sizeof(l_addr_buf));
     inet_ntop(AF_INET, &l_gw, l_gw_buf, sizeof(l_gw_buf));
-    log_it(L_INFO,"Leased address %s with gateway %s", l_addr, l_gw_buf);
+    log_it(L_INFO, "Leased address %s with gateway %s", l_addr_buf, l_gw_buf);
 
     // start new tun connection with vpn address and vpn gateway
     int l_res = dap_chain_net_vpn_client_tun_create(l_addr_buf, l_gw_buf);
