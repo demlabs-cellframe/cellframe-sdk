@@ -23,10 +23,10 @@
 */
 #include <stdlib.h>
 
+#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
-#include "dap_chain_net.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_pos.h"
@@ -113,7 +113,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         l_pos_pvt->tokens_hold[i] = dap_strdup( l_tokens_hold[i] );
         if ( ( l_pos_pvt->tokens_hold_value[i] =
                strtoull(l_tokens_hold_value_str[i],NULL,10) ) == 0 ) {
-             log_it(L_CRITICAL, "Token %s has inproper hold value \"%s\"",l_pos_pvt->tokens_hold[i],
+             log_it(L_CRITICAL, "Token %s has inproper hold value %"DAP_UINT64_FORMAT_U, l_pos_pvt->tokens_hold[i],
                     l_pos_pvt->tokens_hold_value[i] );
              goto lb_err;
         }
@@ -182,12 +182,14 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 }
 
 /**
- * @brief s_callback_event_create
- * @param a_dag
- * @param a_datum
- * @param a_hashes
- * @param a_hashes_count
- * @return
+ * @brief 
+ * create event
+ * @param a_dag 
+ * @param a_datum 
+ * @param a_hashes 
+ * @param a_hashes_count 
+ * @param a_dag_event_size 
+ * @return dap_chain_cs_dag_event_t* 
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count,
@@ -210,15 +212,15 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 }
 
 /**
- * @brief s_callback_event_verify
- * @param a_dag
- * @param a_dag_event
- * @return
+ * @brief 
+ * function makes event singing verification
+ * @param a_dag dag object
+ * @param a_dag_event dap_chain_cs_dag_event_t
+ * @param a_dag_event_size size_t size of event object
+ * @return int 
  */
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size)
 {
-
-    dap_chain_cs_dag_pos_t * l_pos =DAP_CHAIN_CS_DAG_POS( a_dag ) ;
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( DAP_CHAIN_CS_DAG_POS( a_dag ) );
 
     if(a_dag->chain->ledger == NULL){
@@ -237,7 +239,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
             dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, a_dag_event_size,l_sig_pos);
             if ( l_sign == NULL){
-                log_it(L_WARNING, "Event is NOT signed with anything: sig pos %zd, event size %zd", a_dag_event_size);
+                log_it(L_WARNING, "Event is NOT signed with anything: sig pos %zu, event size %zu", l_sig_pos, a_dag_event_size);
                 return -4;
             }
             size_t l_dag_event_size_without_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
@@ -314,7 +316,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             // Passed all checks
             return 0;
         }else{
-            log_it(L_WARNING, "Wrong event: only %su/%su signs are valid", l_verified_num, l_pos_pvt->confirmations_minimum );
+            log_it(L_WARNING, "Wrong event: only %hu/%hu signs are valid", l_verified_num, l_pos_pvt->confirmations_minimum );
             return -2;
         }
     }else{

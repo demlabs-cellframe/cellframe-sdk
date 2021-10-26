@@ -63,8 +63,8 @@ void dap_chain_cs_deinit(void)
 
 /**
  * @brief dap_chain_class_add
- * @param a_cs_str
- * @param a_callback_init
+ * @param a_cs_str consensus name
+ * @param a_callback_init callback function
  */
 void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init)
 {
@@ -97,6 +97,7 @@ int dap_chain_cs_type_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
 /**
  * @brief dap_chain_cs_add
+ * add consensus [dag_pos, dag_poa, block_poa, none] to s_cs_callbacks linked list
  * @param a_cs_str
  * @param a_callback_init
  */
@@ -110,8 +111,11 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_ca
 
 /**
  * @brief dap_chain_cs_create
- * @param a_chain
- * @param a_chain_cfg
+ * get consensus from chain cfg file [dag_pos, dag_poa, block_poa, none]
+ * dap_config_get_item_str( a_chain_cfg, "chain", "consensus");
+ * verify if consensus was created by dap_chain_cs_add function
+ * @param a_chain dap_chain_t chain object
+ * @param a_chain_cfg dap_config_t 
  * @return
  */
 int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)

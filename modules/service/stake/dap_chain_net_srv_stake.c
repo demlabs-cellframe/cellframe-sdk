@@ -23,10 +23,10 @@
 */
 
 #include <math.h>
+#include "dap_chain_node_cli.h"
 #include "dap_string.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
-#include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv_common.h"
 #include "dap_chain_net_srv_stake.h"

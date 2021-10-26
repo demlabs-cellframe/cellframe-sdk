@@ -129,12 +129,14 @@ void dap_chain_enum_unlock(void)
 }
 
 /**
- * @brief dap_chain_create
- * @param a_chain_net_name
- * @param a_chain_name
- * @param a_chain_net_id
- * @param a_chain_id
- * @return
+ * @brief 
+ * create dap chain object
+ * @param a_ledger dap_ledger_t ledger object
+ * @param a_chain_net_name blockchain network name
+ * @param a_chain_name chain name
+ * @param a_chain_net_id 
+ * @param a_chain_id chain id
+ * @return dap_chain_t* 
  */
 dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
 {
@@ -159,8 +161,9 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
 }
 
 /**
- * @brief dap_chain_delete
- * @param a_chain
+ * @brief
+ * delete dap chain object
+ * @param a_chain dap_chain_t object
  */
 void dap_chain_delete(dap_chain_t * a_chain)
 {
@@ -234,6 +237,12 @@ dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_i
     return l_ret_item ? l_ret_item->chain : NULL;
 }
 
+/**
+ * @brief s_chain_type_from_str
+ * get dap_chain_type_t value by str value a_type_str
+ * @param a_type_str str values:token,emission,transaction,ca
+ * @return dap_chain_type_t 
+ */
 static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
 {
     if(!dap_strcmp(a_type_str, "token")) {
@@ -251,6 +260,12 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     return CHAIN_TYPE_LAST;
 }
 
+/**
+ * @brief s_datum_type_from_str
+ * get datum type (DAP_CHAIN_DATUM_TOKEN_DECL, DAP_CHAIN_DATUM_TOKEN_EMISSION, DAP_CHAIN_DATUM_TX) by str value
+ * @param a_type_str datum type in string value (token,emission,transaction)
+ * @return uint16_t 
+ */
 static uint16_t s_datum_type_from_str(const char *a_type_str)
 {
     if(!dap_strcmp(a_type_str, "token")) {
@@ -265,6 +280,12 @@ static uint16_t s_datum_type_from_str(const char *a_type_str)
     return DAP_CHAIN_DATUM_CUSTOM;
 }
 
+/**
+ * @brief s_chain_type_convert
+ * convert dap_chain_type_t to  DAP_CNAIN* constants
+ * @param a_type - dap_chain_type_t a_type [CHAIN_TYPE_TOKEN, CHAIN_TYPE_EMISSION, CHAIN_TYPE_TX]
+ * @return uint16_t 
+ */
 static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
 {
     switch (a_type) {
@@ -281,10 +302,12 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
 
 /**
  * @brief dap_chain_load_from_cfg
- * @param a_chain_net_name
- * @param a_chain_net_id
- * @param a_chain_cfg_path
- * @return
+ * Loading chain from config file
+ * @param a_ledger - ledger object
+ * @param a_chain_net_name - chain name, taken from config, for example - "home21-network"
+ * @param a_chain_net_id - dap_chain_net_id_t chain network identification
+ * @param a_chain_cfg_name chain config name, for example "network/home21-network/chain-0"
+ * @return dap_chain_t* 
  */
 dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_chain_net_name,dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name)
 {
@@ -300,9 +323,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 
             // Recognize chains id
             if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
-                if ( sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
-                    if ( sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
-                        if ( sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_U,&l_chain_id_u ) !=1 ){
+                if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
+                    if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
+                        if ( dap_sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_U,&l_chain_id_u ) !=1 ){
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
@@ -323,7 +346,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
             // Read chain name
             if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL ){
-                log_it (L_ERROR,"Can't read chain net name ",l_chain_id_str);
+                log_it (L_ERROR,"Can't read chain net name %s",l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
             }
@@ -364,7 +387,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             char** l_datum_types = NULL;
             uint16_t l_datum_types_count = 0;
             if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain datum types ", l_chain_id_str);
+                log_it(L_WARNING, "Can't read chain datum types for chain %s", l_chain_id_str);
                 //dap_config_close(l_cfg);
                 //return NULL;
             }
@@ -382,7 +405,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 l_chain->datum_types_count = l_count_recognized;
             }
             if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain mempool auto types ", l_chain_id_str);
+                log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
             }
             // add datum types
             if(l_chain && l_datum_types && l_datum_types_count) {

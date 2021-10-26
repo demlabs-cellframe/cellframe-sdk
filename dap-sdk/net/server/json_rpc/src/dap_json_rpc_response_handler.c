@@ -14,7 +14,7 @@ int dap_json_rpc_response_registration_with_id(uint64_t a_id, dap_json_rpc_respo
         l_handler->id = a_id;
         l_handler->func = func;
         HASH_ADD_INT(s_response_handlers, id, l_handler);
-        log_it(L_NOTICE, "Registrayion handler response with id: %d", a_id);
+        log_it(L_NOTICE, "Registrayion handler response with id: %"DAP_UINT64_FORMAT_U, a_id);
         return 0;
     }
     return 1;
@@ -32,7 +32,7 @@ void dap_json_rpc_response_unregistration(uint64_t a_id)
     if (l_handler != NULL){
         HASH_DEL(s_response_handlers, l_handler);
         DAP_FREE(l_handler);
-        log_it(L_NOTICE, "Unregistrayion handler response with id: %d", a_id);
+        log_it(L_NOTICE, "Unregistrayion handler response with id: %"DAP_UINT64_FORMAT_U, a_id);
     }
 }
 
@@ -41,11 +41,11 @@ void dap_json_rpc_response_handler(dap_json_rpc_response_t *a_response)
     dap_json_rpc_response_handler_t *l_handler = NULL;
     HASH_FIND_INT(s_response_handlers, (void*)a_response->id, l_handler);
     if (l_handler != NULL){
-        log_it(L_NOTICE, "Calling handler response id: %d", a_response->id);
+        log_it(L_NOTICE, "Calling handler response id: %"DAP_UINT64_FORMAT_U, a_response->id);
         l_handler->func(a_response);
         dap_json_rpc_response_unregistration(a_response->id);
     } else {
-        log_it(L_NOTICE, "Can't calling handler response id: %d. This handler not found", a_response->id);
+        log_it(L_NOTICE, "Can't calling handler response id: %"DAP_UINT64_FORMAT_U". This handler not found", a_response->id);
     }
 }
 

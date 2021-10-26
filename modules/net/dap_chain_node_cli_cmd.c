@@ -1112,7 +1112,7 @@ int com_node(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
         }
 
         log_it(L_NOTICE, "Stream connection established");
-        dap_stream_ch_chain_sync_request_t l_sync_request = { { 0 } };
+        dap_stream_ch_chain_sync_request_t l_sync_request = {};
          dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
          // fill begin id
          l_sync_request.id_start = 1;
@@ -2004,7 +2004,7 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
                     dap_sign_t * l_sign = (dap_sign_t *) l_datum_token->data_n_tsd + l_offset;
                     l_offset += dap_sign_get_size(l_sign);
                     if( dap_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header_private)) != 1) {
-                        log_it(L_WARNING, "Wrong signature %u for datum_token with key %s in mempool!", l_signs_count, l_datum_hash_out_str);
+                        log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", l_signs_count, l_datum_hash_out_str);
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %u, break process and exit",
                                 l_datum_hash_out_str, l_signs_count );
@@ -2013,10 +2013,10 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
                         DAP_DELETE(l_gdb_group_mempool);
                         return -666;
                     }else{
-                        log_it(L_DEBUG,"Sign %lu passed",l_signs_count);
+                        log_it(L_DEBUG,"Sign %zu passed",l_signs_count);
                     }
                 }
-                log_it(L_DEBUG, "Datum %s with token declaration: %u signatures are verified well (sign_size = %u)", l_datum_hash_out_str, l_signs_count, l_signs_size);
+                log_it(L_DEBUG, "Datum %s with token declaration: %zu signatures are verified well (sign_size = %zu)", l_datum_hash_out_str, l_signs_count, l_signs_size);
 
                 // Check if all signs are present
                 if(l_signs_count == l_datum_token->header_private.signs_total) {
@@ -2053,7 +2053,7 @@ int com_token_decl_sign(int argc, char ** argv, void *arg_func, char ** a_str_re
                             l_datum_token = (dap_chain_datum_token_t*) l_datum->data;
                             l_datum->header.data_size = l_datum_token_size;
                             memcpy(l_datum_token->data_n_tsd + l_offset, l_sign, l_sign_size);
-                            log_it(L_DEBUG, "Added datum token declaration sign with cert %s (new size %lu)",
+                            log_it(L_DEBUG, "Added datum token declaration sign with cert %s (new size %zu)",
                                    l_certs[i]->name , l_datum_size);
                             DAP_DELETE(l_sign);
 
@@ -2308,6 +2308,7 @@ int com_mempool_delete(int argc, char ** argv, void *arg_func, char ** a_str_rep
 
 /**
  * @brief com_mempool_proc
+ * process mempool datums
  * @param argc
  * @param argv
  * @param arg_func
@@ -3021,7 +3022,7 @@ int com_token_decl(int a_argc, char ** a_argv, void *a_arg_func, char ** a_str_r
                         log_it(L_DEBUG,"== TX_RECEIVER_BLOCKED_ADD: %s",
                                 dap_tsd_get_string_const(l_tsd) );
                     break;
-                    default: log_it(L_DEBUG, "== 0x%04X: binary data %zd size ",l_tsd->type, l_tsd->size );
+                    default: log_it(L_DEBUG, "== 0x%04X: binary data %u size ",l_tsd->type, l_tsd->size );
                 }
                 size_t l_tsd_size = dap_tsd_size( l_tsd);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
@@ -4218,7 +4219,7 @@ int cmd_gdb_export(int argc, char ** argv, void *arg_func, char ** a_str_reply)
         }
         size_t l_data_size = 0;
         pdap_store_obj_t l_data = dap_chain_global_db_obj_gr_get(NULL, &l_data_size, d->d_name);
-        log_it(L_INFO, "Exporting group %s, number of records: %d", d->d_name, l_data_size);
+        log_it(L_INFO, "Exporting group %s, number of records: %zu", d->d_name, l_data_size);
         if (!l_data_size) {
             continue;
         }
@@ -4301,7 +4302,7 @@ int cmd_gdb_import(int argc, char ** argv, void *arg_func, char ** a_str_reply)
         struct json_object *l_json_group_name = json_object_object_get(l_group_obj, "group");
         const char *l_group_name = json_object_get_string(l_json_group_name);
         // proc group name
-        log_it(L_INFO, "Group %d: %s", i, l_group_name);
+        log_it(L_INFO, "Group %zu: %s", i, l_group_name);
         struct json_object *l_json_records = json_object_object_get(l_group_obj, "records");
         size_t l_records_count = json_object_array_length(l_json_records);
         pdap_store_obj_t l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));

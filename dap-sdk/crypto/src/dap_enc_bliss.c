@@ -22,8 +22,8 @@ void dap_enc_sig_bliss_key_new(struct dap_enc_key *key) {
 
     key->type = DAP_ENC_KEY_TYPE_SIG_BLISS;
     key->enc = NULL;
-    key->gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_sig_bliss_get_sign;
-    key->gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_sig_bliss_verify_sign;
+    //key->gen_bob_shared_key = (dap_enc_gen_bob_shared_key) dap_enc_sig_bliss_get_sign;
+    //key->gen_alice_shared_key = (dap_enc_gen_alice_shared_key) dap_enc_sig_bliss_verify_sign;
 }
 
 /**

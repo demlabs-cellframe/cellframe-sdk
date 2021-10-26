@@ -73,8 +73,11 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **str_reply);
 
 static bool s_seed_mode = false;
+
 /**
- * @brief dap_chain_cs_dag_poa_init
+ * @brief
+ * init consensus dag_poa
+ * read parameters from config and register dag_poa commands to cellframe-node-cli
  * @return
  */
 int dap_chain_cs_dag_poa_init(void)
@@ -100,9 +103,10 @@ void dap_chain_cs_dag_poa_deinit(void)
 
 
 /**
- * @brief s_cli_dag_poa
- * @param argc
- * @param argv
+ * @brief
+ * parse and execute cellframe-node-cli dag-poa commands
+ * @param argc arguments count
+ * @param argv array with arguments
  * @param arg_func
  * @param str_reply
  * @return
@@ -219,8 +223,11 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
 
 /**
  * @brief s_cs_callback
- * @param a_chain
- * @param a_chain_cfg
+ * dap_chain_callback_new_cfg_item_t->callback_init function.
+ * get dag-poa consensus parameters from config
+ * and set dap_chain_cs_dag_t l_dag->chain->callback_created = s_callback_new
+ * @param a_chain dap_chain_t chain object
+ * @param a_chain_cfg chain config object
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
@@ -242,7 +249,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t));
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
-                dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%lu",l_poa_pvt->auth_certs_prefix, i);
+                dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
                 if ( (l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) != NULL ) {
                     log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
                 } else{
@@ -260,9 +267,10 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 }
 
 /**
- * @brief s_callback_created
- * @param a_chain
- * @param a_chain_cfg
+ * @brief create callback load certificate for event signing for specific chain
+ * path to certificate iw written to chain config file in dag_poa section
+ * @param a_chain chain object (for example, a_chain.name = zerochain, a_chain.network = kelvin-testnet)
+ * @param a_chain_net_cfg dap_config_t network config object
  * @return
  */
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_cfg)
@@ -287,8 +295,9 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
 }
 
 /**
- * @brief s_chain_cs_dag_callback_delete
- * @param a_dag
+ * @brief 
+ * delete dap_chain_cs_dag_poa_pvt_t callback
+ * @param a_dag dap_chain_cs_dag_t object
  */
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 {
@@ -312,12 +321,14 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 }
 
 /**
- * @brief s_callback_event_create
- * @param a_dag
- * @param a_datum
- * @param a_hashes
- * @param a_hashes_count
- * @return
+ * @brief 
+ * callback for create event operation
+ * @param a_dag dap_chain_cs_dag_t DAG object
+ * @param a_datum dap_chain_datum_t
+ * @param a_hashes  dap_chain_hash_fast_t 
+ * @param a_hashes_count size_t
+ * @param a_dag_event_size size_t
+ * @return dap_chain_cs_dag_event_t* 
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size)
@@ -338,12 +349,13 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 }
 
 
-
 /**
- * @brief s_chain_cs_dag_callback_event_verify
- * @param a_dag
- * @param a_dag_event
- * @return
+ * @brief 
+ * function makes event singing verification
+ * @param a_dag dag object
+ * @param a_dag_event dap_chain_cs_dag_event_t
+ * @param a_dag_event_size size_t size of event object
+ * @return int 
  */
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size)
 {

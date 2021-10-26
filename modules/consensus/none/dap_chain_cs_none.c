@@ -28,6 +28,7 @@
 
 #include "utlist.h"
 
+#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_config.h"
@@ -35,7 +36,6 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_driver.h"
-#include "dap_chain_net.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_none.h"
 
@@ -107,6 +107,7 @@ static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
 /**
  * @brief dap_chain_cs_gdb_init
+ * Initialize GDB chain items organization class
  * @return
  */
 int dap_chain_gdb_init(void)
@@ -134,7 +135,7 @@ static void s_history_callback_notify(void * a_arg, const char a_op_code, const 
     if (a_arg){
         dap_chain_gdb_t * l_gdb = (dap_chain_gdb_t *) a_arg;
         dap_chain_net_t *l_net = dap_chain_net_by_id( l_gdb->chain->net_id);
-        log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%u",l_net->pub.name,
+        log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",l_net->pub.name,
                l_gdb->chain->name, a_op_code, a_group, a_key, a_value_size);
         dap_chain_node_mempool_autoproc_notify((void *)l_net, a_op_code, a_group, a_key, a_value, a_value_size);
         dap_chain_net_sync_gdb_broadcast((void *)l_net, a_op_code, a_group, a_key, a_value, a_value_size);

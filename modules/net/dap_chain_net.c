@@ -436,7 +436,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
              pthread_rwlock_unlock(&l_pvt_net->rwlock);
          } else {
              log_it(L_WARNING, "Not found link %s."NODE_ADDR_FP_STR" in the node list", a_net->pub.name,
-                    NODE_ADDR_FPS_ARGS(l_link_addr));
+                    NODE_ADDR_FP_ARGS(l_link_addr));
          }
      }
 }
@@ -749,6 +749,7 @@ static void s_net_links_notify(dap_chain_net_t * a_net )
  */
 static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 {
+    UNUSED(a_thread);
     bool l_repeat_after_exit = false; // If true - repeat on next iteration of proc thread loop
     dap_chain_net_t *l_net = (dap_chain_net_t *) a_arg;
     assert(l_net);
@@ -873,12 +874,12 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                                     log_it(L_CRITICAL,"Can't allocate memory for node link info");
                                     break;
                                 }
-    #ifdef DAP_OS_UNIX
+/*    #ifdef DAP_OS_UNIX
                                 struct in_addr _in_addr = { .s_addr = l_addr.s_addr  };
     #else
                                 struct in_addr _in_addr = { { .S_addr = l_addr.S_un.S_addr } };
     #endif
-
+*/
                                 l_sync_fill_root_nodes = false;
                                 if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
                                     l_net_pvt->links_dns_requests++;
@@ -919,7 +920,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
         case NET_STATE_LINKS_ESTABLISHED:{
             log_it(L_INFO,"%s.state: NET_STATE_LINKS_ESTABLISHED", l_net->pub.name);
             for (dap_list_t *l_tmp = l_net_pvt->links ; l_tmp; l_tmp = dap_list_next(l_tmp)) {
-                dap_chain_node_client_t *l_link = (dap_chain_node_client_t *)l_tmp->data;
+                //dap_chain_node_client_t *l_link = (dap_chain_node_client_t *)l_tmp->data;
                 //
             }
         }break;
@@ -978,12 +979,12 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 }
 
 /**
- * @brief dap_chain_net_new
- * @param a_id
- * @param a_name
- * @param a_node_role
- * @param a_node_name
- * @return
+ * @brief set node role
+ * [root_master, root, archive, cell_master, master, full, light]
+ * @param a_id 
+ * @param a_name 
+ * @param a_node_role 
+ * @return dap_chain_net_t* 
  */
 static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
                                     const char * a_node_role)
@@ -1002,7 +1003,7 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
     PVT(ret)->state_proc_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
 #endif
 
-    if ( sscanf(a_id,"0x%016lx", &ret->pub.id.uint64 ) == 1 ){
+    if ( sscanf(a_id,"0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64 ) == 1 ){
         if (strcmp (a_node_role, "root_master")==0){
             PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
             log_it (L_NOTICE, "Node role \"root master\" selected");
@@ -1046,6 +1047,7 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
 
 /**
  * @brief dap_chain_net_delete
+ * free dap_chain_net_t * a_net object
  * @param a_net
  */
 void dap_chain_net_delete( dap_chain_net_t * a_net )
@@ -1059,7 +1061,9 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
 
 
 /**
- * @brief dap_chain_net_init
+ * @brief
+ * init network settings from cellrame-node.cfg file
+ * register net* commands in cellframe-node-cli interface
  * @return
  */
 int dap_chain_net_init()
@@ -1103,6 +1107,10 @@ int dap_chain_net_init()
     return 0;
 }
 
+/**
+ * @brief 
+ * load network config settings
+ */
 void dap_chain_net_load_all()
 {
     char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
@@ -1171,9 +1179,10 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 }
 
 /**
- * @brief s_cli_net
- * @param argc
- * @param argv
+ * @brief
+ * register net* command in cellframe-node-cli interface
+ * @param argc arguments count
+ * @param argv arguments value
  * @param arg_func
  * @param str_reply
  * @return
@@ -1567,8 +1576,9 @@ typedef struct list_priority_{
     char * chains_path;
 }list_priority;
 
-static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2)
+static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2, void *a_unused)
 {
+    UNUSED(a_unused);
     list_priority *l_item1 = (list_priority*) a_item1;
     list_priority *l_item2 = (list_priority*) a_item2;
     if(!l_item1 || !l_item2 || l_item1->prior == l_item2->prior)
@@ -1579,9 +1589,11 @@ static int callback_compare_prioritity_list(const void * a_item1, const void * a
 }
 
 /**
- * @brief s_net_load
- * @param a_net_name
- * @return
+ * @brief load network config settings from cellframe-node.cfg file
+ * 
+ * @param a_net_name const char *: network name, for example "home21-network"
+ * @param a_acl_idx currently 0
+ * @return int 
  */
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 {
@@ -1850,7 +1862,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i],l_seed_node_addr))
                                 log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list",NODE_ADDR_FP_ARGS(l_seed_node_addr) );
                             else {
-                                log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS(l_seed_node_addr));
+                                log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR, l_net_pvt->seed_aliases[i], NODE_ADDR_FP_ARGS(l_seed_node_addr));
                             }
                         }else{
                             log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d",
@@ -1946,7 +1958,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
                         dap_chain_node_info_save(l_net,l_net_pvt->node_info);
                     }
-                    log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016X ",
+                    log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016"DAP_UINT64_FORMAT_X,
                            NODE_ADDR_FP_ARGS(l_node_addr),
                            l_net_pvt->node_info->hdr.links_number,
                            l_net_pvt->node_info->hdr.cell_id.uint64);
@@ -2399,7 +2411,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
         size_t l_objs_size = 0;
         dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
         if(l_objs_size) {
-            log_it(L_INFO, "%s.%s: Found %u records :", a_net->pub.name, l_chain->name,
+            log_it(L_INFO, "%s.%s: Found %zu records :", a_net->pub.name, l_chain->name,
                     l_objs_size);
             size_t l_datums_size = l_objs_size;
             dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
@@ -2437,7 +2449,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
                 }
             }
             if(l_objs_processed < l_datums_size)
-                log_it(L_WARNING, "%s.%s: %d records not processed", a_net->pub.name, l_chain->name,
+                log_it(L_WARNING, "%s.%s: %zu records not processed", a_net->pub.name, l_chain->name,
                         l_datums_size - l_objs_processed);
             dap_chain_global_db_objs_delete(l_objs, l_objs_size);
 
@@ -2516,6 +2528,10 @@ bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr
 
 /**
  * @brief dap_chain_net_verify_datum_for_add
+ * process datum verification process. Can be:
+ *   if DAP_CHAIN_DATUM_TX, called dap_chain_ledger_tx_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_chain_ledger_token_decl_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_chain_ledger_token_emission_add_check
  * @param a_net
  * @param a_datum
  * @return
@@ -2579,7 +2595,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                         size_t l_offset_max = l_token->header_private_decl.tsd_total_size;
                         while( l_offset< l_offset_max){
                             if ( (l_tsd->size+l_offset) >l_offset_max){
-                                log_it(L_WARNING, "<CORRUPTED TSD> too big size %zd when left maximum %zd",
+                                log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
                                        l_tsd->size, l_offset_max - l_offset);
                                 return;
                             }
@@ -2694,7 +2710,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                         while( l_offset< l_offset_max){
                             dap_tsd_t * l_tsd = (void*)l_tsd_first + l_offset;
                             if ( (l_tsd->size+l_offset) >l_offset_max){
-                                log_it(L_WARNING, "<CORRUPTED TSD> too big size %zd when left maximum %zd",
+                                log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
                                        l_tsd->size, l_offset_max - l_offset);
                                 return;
                             }
