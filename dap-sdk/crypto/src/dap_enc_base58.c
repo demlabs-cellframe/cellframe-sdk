@@ -203,8 +203,8 @@ size_t dap_enc_base58_encode(const void * a_in, size_t a_in_size, char * a_out)
 
 /**
  * @brief dap_enc_base58_encode_to_str Encode to base58 and convert to string like '0xXXXXXXXXXXXXXXX'
- * @param a_in
- * @param a_in_size
+ * @param a_in buffer for encode
+ * @param a_in_size size of string
  * @return allocated string or NULL if error
  */
 char* dap_enc_base58_encode_to_str(const void * a_in, size_t a_in_size)

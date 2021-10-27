@@ -37,11 +37,10 @@ static const char s_key_inheritor[] = "Inheritor";
 
 /**
  * @brief dap_cert_file_save
- * @param a_cert
- * @param a_cert_file_path
+ * @param a_cert dap_cert_t certificate struucture
+ * @param a_cert_file_path path to certificate
  * @return int
  */
-
 int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
 {
     char * l_file_dir = dap_path_get_dirname(a_cert_file_path);
@@ -77,11 +76,10 @@ int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
 /**
  * @brief s_balance_the_tree
  * 
- * @param a_reorder 
- * @param a_left_idx 
- * @param a_right_idx 
+ * @param a_reorder dap_cert_file_aux_t
+ * @param a_left_idx size_t left tree node
+ * @param a_right_idx size_t right tree node
  */
-
 void s_balance_the_tree(dap_cert_file_aux_t *a_reorder, size_t a_left_idx, size_t a_right_idx)
 {
     if (a_left_idx == a_right_idx) {
