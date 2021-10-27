@@ -627,7 +627,7 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
     unlock();
     if(l_res >= 0) {
         // add to Del group
-        global_db_gr_del_add(dap_strdup(store_data.key), store_data.group, store_data.timestamp);
+        global_db_gr_del_add(dap_strdup(a_key), store_data.group, store_data.timestamp);
     }
     // do not add to history if l_res=1 (already deleted)
     if (!l_res) {

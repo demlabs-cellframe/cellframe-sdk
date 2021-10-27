@@ -477,7 +477,7 @@ static char* dap_db_driver_get_string_from_blob(uint8_t *blob, int len)
  */
 int dap_db_driver_sqlite_vacuum(sqlite3 *l_db)
 {
-    if(!s_db)
+    if(!l_db)
         return -1;
     int l_rc = dap_db_driver_sqlite_exec(l_db, "VACUUM", NULL);
     return l_rc;

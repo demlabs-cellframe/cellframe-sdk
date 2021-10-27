@@ -256,7 +256,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE");
                     if ( l_ch_chain_net_pkt_data_size == sizeof (dap_chain_node_addr_t) ) {
                         dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *) l_ch_chain_net_pkt->data;
-                        log_it(L_NOTICE,"Leased new node addr 0x%016llX",l_addr->uint64);
+                        log_it(L_NOTICE,"Leased new node addr 0x%016"DAP_UINT64_FORMAT_X,l_addr->uint64);
                         dap_chain_net_t * l_net = dap_chain_net_by_id( l_ch_chain_net_pkt->hdr.net_id );
                         if ( l_net == NULL){
                             char l_err_str[]="ERROR_NET_INVALID_ID";
@@ -266,9 +266,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             log_it(L_ERROR, "Invalid net id in packet");
                         } else {
                             if (dap_db_set_cur_node_addr_exp( l_addr->uint64, l_net->pub.name ))
-                                log_it(L_NOTICE,"Set up cur node address 0x%016llX",l_addr->uint64);
+                                log_it(L_NOTICE,"Set up cur node address 0x%016"DAP_UINT64_FORMAT_X,l_addr->uint64);
                             else
-                                log_it(L_ERROR,"Can't set up cur node address 0x%016llX",l_addr->uint64);
+                                log_it(L_ERROR,"Can't set up cur node address 0x%016"DAP_UINT64_FORMAT_X,l_addr->uint64);
                         }
                         if(l_session_data)
                             memcpy( &l_session_data->addr_remote,l_addr,sizeof (*l_addr) );

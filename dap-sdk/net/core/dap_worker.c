@@ -93,7 +93,7 @@ int dap_worker_init( size_t a_conn_timeout )
     l_fdlimit.rlim_cur = l_fdlimit.rlim_max;
     if (setrlimit(RLIMIT_NOFILE, &l_fdlimit))
         return -2;
-    log_it(L_INFO, "Set maximum opened descriptors from %d to %d", l_oldlimit, l_fdlimit.rlim_cur);
+    log_it(L_INFO, "Set maximum opened descriptors from %lu to %lu", l_oldlimit, l_fdlimit.rlim_cur);
 #endif
     return 0;
 }
@@ -285,7 +285,7 @@ void *dap_worker_thread(void *arg)
                 continue;
             }
             if(s_debug_reactor) {
-                log_it(L_DEBUG, "--Worker #%u esocket %p uuid 0x%016llx type %d fd=%zu flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
+                log_it(L_DEBUG, "--Worker #%u esocket %p uuid 0x%016"DAP_UINT64_FORMAT_x" type %d fd=%"DAP_FORMAT_SOCKET" flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
                        l_worker->id, l_cur, l_cur->uuid, l_cur->type, l_cur->socket,
                     l_cur_flags, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"",
@@ -374,7 +374,7 @@ void *dap_worker_thread(void *arg)
 
                 //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
                 if(l_cur->buf_in_size_max && l_cur->buf_in_size >= l_cur->buf_in_size_max ) {
-                    log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped! esocket %p (%zu)", l_cur, l_cur->socket);
+                    log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped! esocket %p (%"DAP_FORMAT_SOCKET")", l_cur, l_cur->socket);
                     l_cur->buf_in_size = 0;
                 }
 
@@ -478,7 +478,7 @@ void *dap_worker_thread(void *arg)
                         if (l_cur->callbacks.timer_callback)
                             l_cur->callbacks.timer_callback(l_cur);
                         else
-                            log_it(L_ERROR, "Socket %zu with timer callback fired, but callback is NULL ", l_cur->socket);
+                            log_it(L_ERROR, "Socket %"DAP_FORMAT_SOCKET" with timer callback fired, but callback is NULL ", l_cur->socket);
 
                     } break;
                     case DESCRIPTOR_TYPE_QUEUE:
@@ -511,7 +511,7 @@ void *dap_worker_thread(void *arg)
                                 continue;
                             }
                         }else{
-                            log_it(L_WARNING, "We have incomming %d data but no read callback on socket %zu, removing from read set",
+                            log_it(L_WARNING, "We have incomming %d data but no read callback on socket %"DAP_FORMAT_SOCKET", removing from read set",
                                    l_bytes_read, l_cur->socket);
                             dap_events_socket_set_readable_unsafe(l_cur,false);
                         }
@@ -562,7 +562,7 @@ void *dap_worker_thread(void *arg)
                     default:{}
                 }
                 if(s_debug_reactor)
-                    log_it(L_INFO,"RDHUP event on esocket %p (%zu) type %d", l_cur, l_cur->socket, l_cur->type );
+                    log_it(L_INFO,"RDHUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
             }
 
             // If its outgoing connection
@@ -804,7 +804,7 @@ void *dap_worker_thread(void *arg)
             {
                 if (l_cur->buf_out_size == 0) {
                     if(s_debug_reactor)
-                        log_it(L_INFO, "Process signal to close %s sock %zu (ptr 0x%p uuid 0x%016llx) type %d [thread %u]",
+                        log_it(L_INFO, "Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr 0x%p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [thread %u]",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
                                l_cur->type, l_tn);
 
@@ -841,7 +841,7 @@ void *dap_worker_thread(void *arg)
 #endif
                 } else if (l_cur->buf_out_size ) {
                     if(s_debug_reactor)
-                        log_it(L_INFO, "Got signal to close %s sock %zu [thread %u] type %d but buffer is not empty(%zd)",
+                        log_it(L_INFO, "Got signal to close %s sock %"DAP_FORMAT_SOCKET" [thread %u] type %d but buffer is not empty(%zu)",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn,
                            l_cur->buf_out_size);
                 }
@@ -899,7 +899,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }
 
     if(s_debug_reactor)
-        log_it(L_NOTICE, "Received event socket %p (ident %zu type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
+        log_it(L_NOTICE, "Received event socket %p (ident %"DAP_FORMAT_SOCKET" type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
 
     switch( l_es_new->type){
         case DESCRIPTOR_TYPE_SOCKET_UDP: break;
@@ -1132,7 +1132,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
 
 #else*/
     if(s_debug_reactor)
-        log_it(L_DEBUG,"Worker add esocket %zu", a_events_socket->socket);
+        log_it(L_DEBUG,"Worker add esocket %"DAP_FORMAT_SOCKET, a_events_socket->socket);
     int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
     if(l_ret != 0 ){
         char l_errbuf[128];
@@ -1167,7 +1167,7 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
 int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker )
 {
     if(s_debug_reactor){
-        log_it(L_DEBUG,"Add event socket %p (socket %zu)", a_esocket, a_esocket->socket);
+        log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET")", a_esocket, a_esocket->socket);
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
         // Init events for EPOLL
@@ -1181,7 +1181,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (  a_worker->poll_count == a_worker->poll_count_max ){ // realloc
         a_worker->poll_count_max *= 2;
-        log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %u", a_worker->poll_count, a_worker->poll_count_max);
+        log_it(L_WARNING, "Too many descriptors (%zu), resizing array twice to %zu", a_worker->poll_count, a_worker->poll_count_max);
         a_worker->poll =DAP_REALLOC(a_worker->poll, a_worker->poll_count_max * sizeof(*a_worker->poll));
         a_worker->poll_esocket =DAP_REALLOC(a_worker->poll_esocket, a_worker->poll_count_max * sizeof(*a_worker->poll_esocket));
     }

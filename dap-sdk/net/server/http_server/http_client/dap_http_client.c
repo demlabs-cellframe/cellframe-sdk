@@ -419,7 +419,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                                 strncpy(l_http_client->reply_reason_phrase,l_http_cache->response_phrase,sizeof (l_http_client->reply_reason_phrase)-1);
 
                             if(s_debug_http)
-                                log_it(L_DEBUG,"%zu Out: prepare cached headers", l_http_client->esocket->socket);
+                                log_it(L_DEBUG,"%"DAP_FORMAT_SOCKET" Out: prepare cached headers", l_http_client->esocket->socket);
 
                         }else if (l_http_cache){
                             pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
@@ -611,7 +611,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                     if(l_sent){
                         if ( l_http_client->out_cache_position + l_sent >= l_http_client->proc->cache->body_size ){ // All is sent
                             if(s_debug_http)
-                                log_it(L_DEBUG,"Out %zu: All cached data over, signal to close connection", l_http_client->esocket->socket);
+                                log_it(L_DEBUG,"Out %"DAP_FORMAT_SOCKET" All cached data over, signal to close connection", l_http_client->esocket->socket);
                             l_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                             dap_events_socket_set_writable_unsafe( a_esocket, false );
@@ -638,7 +638,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
 
     if ( a_http_client->reply_status_code == 200 ) {
         if (s_debug_http)
-            log_it(L_DEBUG, "Out headers generate for sock %"DAP_UINT64_FORMAT_U, a_http_client->esocket->socket);
+            log_it(L_DEBUG, "Out headers generate for sock %"DAP_FORMAT_SOCKET, a_http_client->esocket->socket);
         if ( a_http_client->out_last_modified ) {
             dap_time_to_str_rfc822( buf, sizeof(buf), a_http_client->out_last_modified );
             dap_http_header_add( &a_http_client->out_headers, "Last-Modified", buf );
@@ -654,7 +654,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
         }
     }else
         if (s_debug_http)
-            log_it(L_WARNING, "Out headers: nothing generate for sock %"DAP_UINT64_FORMAT_U", http code %d", a_http_client->esocket->socket,
+            log_it(L_WARNING, "Out headers: nothing generate for sock %"DAP_FORMAT_SOCKET", http code %d", a_http_client->esocket->socket,
                    a_http_client->reply_status_code);
 
     if ( a_http_client->out_connection_close || !a_http_client->keep_alive )

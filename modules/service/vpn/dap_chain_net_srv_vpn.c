@@ -380,7 +380,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
             if(s_debug_more){
                 char l_addrbuf[INET_ADDRSTRLEN]= { [0]='\0'};
                 inet_ntop(AF_INET,&l_msg->ip_assigment.addr, l_addrbuf, sizeof (l_addrbuf));
-                log_it(L_DEBUG, "Tun:%u message: send %zd bytes for ch vpn protocol",a_esocket_queue->worker->id,
+                log_it(L_DEBUG, "Tun:%u message: send %u bytes for ch vpn protocol",a_esocket_queue->worker->id,
                        l_msg->ch_vpn_send.pkt->header.op_data.data_size );
             }
             if(dap_worker_esocket_find_uuid( a_esocket_queue->worker, l_msg->esocket_uuid )== l_msg->esocket  ){
@@ -682,7 +682,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_gw.s_addr;
 
     s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", false);
-    log_it(L_NOTICE,"auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment);
+    log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
 
     memset(&s_raw_server->ifr, 0, sizeof(s_raw_server->ifr));
     s_raw_server->ifr.ifr_flags = IFF_TUN | IFF_MULTI_QUEUE| IFF_NO_PI;
@@ -1646,7 +1646,7 @@ static void s_es_tun_error(dap_events_socket_t * a_es, int a_error)
 {
     if (! a_es->_inheritor)
         return;
-    log_it(L_ERROR,"%s: error %d in socket %u (socket type %d)", a_error, __PRETTY_FUNCTION__, a_es->socket, a_es->type);
+    log_it(L_ERROR,"%s: error %d in socket %"DAP_FORMAT_SOCKET" (socket type %d)", __PRETTY_FUNCTION__, a_error, a_es->socket, a_es->type);
 }
 
 /**

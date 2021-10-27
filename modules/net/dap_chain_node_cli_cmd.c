@@ -602,7 +602,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         // set short reply with node param
         if(!a_is_full)
             dap_string_append_printf(l_string_reply,
-                    "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tport: %s\tnumber of links %u",
+                    "node address "NODE_ADDR_FP_STR"\tcell 0x%016"DAP_UINT64_FORMAT_x"\tipv4 %s\tport: %s\tnumber of links %u",
                     NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                     node_info_read->hdr.cell_id.uint64, str_ip4,
                     node_info_read->hdr.ext_port ? l_port_str : "default",
@@ -610,7 +610,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         else
             // set full reply with node param
             dap_string_append_printf(l_string_reply,
-                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s\nport: %s%s\nlinks %u%s",
+                    "node address " NODE_ADDR_FP_STR "\ncell 0x%016"DAP_UINT64_FORMAT_x"\nipv4 %s\nipv6 %s\nport: %s%s\nlinks %u%s",
                     NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                     node_info_read->hdr.cell_id.uint64,
                     str_ip4, str_ip6,
@@ -637,8 +637,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
             return -1;
         } else {
-            size_t l_nodes_count_real = 0;
-            dap_string_append_printf(l_string_reply, "Got %u records:\n", l_nodes_count);
+            dap_string_append_printf(l_string_reply, "Got %zu records:\n", l_nodes_count);
             for(size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
                 // find addr by alias or addr_str
@@ -700,7 +699,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 // set short reply with node param
                 if(!a_is_full)
                     dap_string_append_printf(l_string_reply,
-                            "node address "NODE_ADDR_FP_STR"\tcell 0x%016llx\tipv4 %s\tport: %s\tnumber of links %u",
+                            "node address "NODE_ADDR_FP_STR"\tcell 0x%016"DAP_UINT64_FORMAT_x"\tipv4 %s\tport: %s\tnumber of links %u",
                             NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                             node_info_read->hdr.cell_id.uint64, str_ip4,
                             node_info_read->hdr.ext_port ? l_port_str : "default",
@@ -708,7 +707,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 else
                     // set full reply with node param
                     dap_string_append_printf(l_string_reply,
-                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016llx\nipv4 %s\nipv6 %s\nport: %s%s\nlinks %u%s",
+                            "node address " NODE_ADDR_FP_STR "\ncell 0x%016"DAP_UINT64_FORMAT_x"\nipv4 %s\nipv6 %s\nport: %s%s\nlinks %u%s",
                             NODE_ADDR_FP_ARGS_S(node_info_read->hdr.address),
                             node_info_read->hdr.cell_id.uint64,
                             str_ip4, str_ip6,
@@ -1615,7 +1614,6 @@ int com_help(int argc, char ** argv, void *arg_func, char **str_reply)
         log_it(L_DEBUG, "General help requested");
         dap_string_t * l_help_list_str = dap_string_new(NULL);
         dap_chain_node_cmd_item_t *l_cmd = dap_chain_node_cli_cmd_get_first();
-        dap_string_printf(l_help_list_str, "");
         while(l_cmd) {
             dap_string_append_printf(l_help_list_str, "%s:\t\t\t%s\n",
                     l_cmd->name, l_cmd->doc ? l_cmd->doc : "(undocumented command)");
@@ -2158,7 +2156,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         size_t l_objs_size = 0;
         dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
         if(l_objs_size > 0)
-            dap_string_append_printf(a_str_tmp, "%s.%s: Found %u records :\n", a_net->pub.name, a_chain->name,
+            dap_string_append_printf(a_str_tmp, "%s.%s: Found %zu records :\n", a_net->pub.name, a_chain->name,
                     l_objs_size);
         else
             dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
@@ -2331,23 +2329,17 @@ int com_mempool_proc(int argc, char ** argv, void *arg_func, char ** a_str_reply
     }
 
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
-    if(!l_net){
-        return -1;
-    }else {
-        if(*a_str_reply) {
-            DAP_DELETE(*a_str_reply);
-            *a_str_reply = NULL;
-        }
-    }
-    char * l_gdb_group_mempool = NULL, *l_gdb_group_mempool_tmp;
-    if(l_chain) {
-        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-        l_gdb_group_mempool_tmp = l_gdb_group_mempool;
-    }else{
-        dap_chain_node_cli_set_reply_text(a_str_reply, "no -chain param");
+    if (!l_net || !l_chain)
         return -1;
 
+    if(*a_str_reply) {
+        DAP_DELETE(*a_str_reply);
+        *a_str_reply = NULL;
     }
+
+    char * l_gdb_group_mempool = NULL, *l_gdb_group_mempool_tmp;
+    l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    l_gdb_group_mempool_tmp = l_gdb_group_mempool;
 
     // If full or light it doesnt work
     if(dap_chain_net_get_role(l_net).enums>= NODE_ROLE_FULL){

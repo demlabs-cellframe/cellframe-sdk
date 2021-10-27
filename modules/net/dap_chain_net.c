@@ -116,7 +116,6 @@
 static size_t s_max_links_count = 5;// by default 5
 // number of required connections
 static size_t s_required_links_count = 3;// by default 3
-static pthread_t s_net_check_pid;
 static bool s_debug_more = false;
 
 struct link_dns_request {
@@ -240,7 +239,7 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
 static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg, int a_errno);
 
 
-static void s_net_proc_kill( dap_chain_net_t * a_net );
+//static void s_net_proc_kill( dap_chain_net_t * a_net );
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx);
 
 // Notify callback for GlobalDB changes
@@ -717,13 +716,13 @@ static void s_net_links_notify(dap_chain_net_t * a_net )
             inet_ntop(AF_INET6,&l_info->hdr.ext_addr_v6,l_ext_addr_v6,sizeof (l_info->hdr.ext_addr_v6));
 
             dap_string_append_printf(l_str_reply,"{"
-                                        "id:%u,"
+                                        "id:%zu,"
                                         "address:\""NODE_ADDR_FP_STR"\","
                                         "alias:\"%s\","
                                         "cell_id:0x%016"DAP_UINT64_FORMAT_X","
                                         "ext_ipv4:\"%s\","
                                         "ext_ipv6:\"%s\","
-                                        "ext_port:%u"
+                                        "ext_port:%hu"
                                         "state:\"%s\""
                                     "}", i,NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->hdr.alias, l_info->hdr.cell_id.uint64,
                                      l_ext_addr_v4, l_ext_addr_v6,l_info->hdr.ext_port
@@ -735,7 +734,7 @@ static void s_net_links_notify(dap_chain_net_t * a_net )
 
     dap_notify_server_send_f_mt("{"
                                     "class:\"NetLinks\","
-                                    "net_id:0x%016" DAP_UINT64_FORMAT_X ","
+                                    "net_id:0x%016"DAP_UINT64_FORMAT_X","
                                     "links:%s"
                                 "}\n", a_net->pub.id.uint64,
                                        l_str_reply->str);
@@ -1374,7 +1373,7 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 pthread_rwlock_rdlock(&l_net_pvt->rwlock );
                 size_t l_links_count = dap_list_length(l_net_pvt->links);
                 dap_string_t *l_reply = dap_string_new("");
-                dap_string_append_printf(l_reply,"Links %u:\n", l_links_count);
+                dap_string_append_printf(l_reply,"Links %zu:\n", l_links_count);
                 for (dap_list_t * l_item = l_net_pvt->links; l_item;  l_item = l_item->next ) {
                     dap_chain_node_client_t * l_node_client = l_item->data;
 
@@ -1392,10 +1391,10 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                                                     "\t\text_ipv4: %s\n"
                                                     "\t\text_ipv6: %s\n"
                                                     "\t\text_port: %u\n"
-                                                    "\t\tstate: %s\n"
-                                                , NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->hdr.alias, l_info->hdr.cell_id,
-                                                 l_ext_addr_v4, l_ext_addr_v6,l_info->hdr.ext_port
-                                                 , dap_chain_node_client_state_to_str(l_node_client->state) );
+                                                    "\t\tstate: %s\n",
+                                                 NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->hdr.alias, l_info->hdr.cell_id.uint64,
+                                                 l_ext_addr_v4, l_ext_addr_v6, l_info->hdr.ext_port,
+                                                 dap_chain_node_client_state_to_str(l_node_client->state) );
                     }
                     i++;
                 }
@@ -1655,7 +1654,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     continue;
                 }
                 int l_gdb_link_len = l_gdb_link_port_str - l_gdb_sync_nodes_links[i];
-                char *l_gdb_link_ip_str[l_gdb_link_len + 1];
+                char l_gdb_link_ip_str[l_gdb_link_len + 1];
                 memcpy(l_gdb_link_ip_str, l_gdb_sync_nodes_links[i], l_gdb_link_len);
                 l_gdb_link_ip_str[l_gdb_link_len] = '\0';
                 struct in_addr l_in_addr;
@@ -1910,7 +1909,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             else{
                 l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 bool parse_succesfully = false;
-                if ( sscanf(l_node_addr_str, "0x%016" DAP_UINT64_FORMAT_x ,&l_node_addr->uint64 ) == 1 ){
+                if (dap_sscanf(l_node_addr_str, "0x%016"DAP_UINT64_FORMAT_x, &l_node_addr->uint64 ) == 1 ){
                     log_it(L_DEBUG, "Parse node address with format 0x016llx");
                     parse_succesfully = true;
                 }
@@ -2100,7 +2099,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             dap_chain_net_state_go_to(l_net, l_target_state);
 
         // Start the proc thread
-        log_it(L_INFO, "Сhain network \"%s\" initialized",l_net_item->name);
+        log_it(L_INFO, "Chain network \"%s\" initialized",l_net_item->name);
 
         dap_config_close(l_cfg);
     }
@@ -2570,20 +2569,19 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
             dap_chain_datum_token_t * l_token = (dap_chain_datum_token_t*) a_datum->data;
             size_t l_token_size = a_datum->header.data_size;
             if(l_token_size < sizeof(dap_chain_datum_token_t)){
-                dap_string_append_printf(a_str_out,"==Datum has incorrect size. Only %lu, while at least %lu is expected\n",
+                dap_string_append_printf(a_str_out,"==Datum has incorrect size. Only %zu, while at least %zu is expected\n",
                                          l_token_size, sizeof(dap_chain_datum_token_t));
                 return;
             }
             dap_string_append_printf(a_str_out,"==Datum Token Declaration\n");
             dap_string_append_printf(a_str_out, "ticker: %s\n", l_token->ticker);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_token_size);
-            dap_hash_fast_t l_hash ={0};
             switch (l_token->type) {
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:{
                     dap_string_append_printf(a_str_out, "type: SIMPLE\n");
-                    dap_string_append_printf(a_str_out, "sign_total: %u\n", l_token->header_private.signs_total );
-                    dap_string_append_printf(a_str_out, "sign_valid: %u\n", l_token->header_private.signs_valid );
-                    dap_string_append_printf(a_str_out, "total_supply: %u\n", l_token->header_private.total_supply );
+                    dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->header_private.signs_total );
+                    dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->header_private.signs_valid );
+                    dap_string_append_printf(a_str_out, "total_supply: %"DAP_UINT64_FORMAT_U"\n", l_token->header_private.total_supply );
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
                     dap_string_append_printf(a_str_out,"type: PRIVATE_UPDATE\n");
@@ -2611,8 +2609,8 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                                                      dap_tsd_get_scalar(l_tsd, uint16_t));
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                                    dap_string_append_printf(a_str_out,"total_supply: %u\n",
-                                                             dap_tsd_get_scalar(l_tsd, uint128_t) );
+                                    dap_string_append_printf(a_str_out,"total_supply: %s\n",
+                                                             dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint128_t)));
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
                                     dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",
@@ -2628,7 +2626,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                         dap_string_append_printf(a_str_out,"total_signs_add: %s\n", l_hash_str );
                                         DAP_DELETE( l_hash_str );
                                     }else
-                                        dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %zd>\n", l_tsd->size);
+                                        dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %u>\n", l_tsd->size);
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE :
                                     if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
@@ -2640,7 +2638,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                         dap_string_append_printf(a_str_out,"total_signs_remove: %s\n", l_hash_str );
                                         DAP_DELETE( l_hash_str );
                                     }else
-                                        dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %zd>\n", l_tsd->size);
+                                        dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %u>\n", l_tsd->size);
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD  :
                                     dap_string_append_printf(a_str_out,"datum_type_allowed_add: %s\n",
@@ -2690,7 +2688,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     dap_string_append_printf(a_str_out, "tx_receiver_blocked_remove: %s\n",
                                                              dap_tsd_get_string_const(l_tsd) );
                                 break;
-                                default: dap_string_append_printf(a_str_out, "<0x%04X>: <size %zd>\n", l_tsd->type, l_tsd->size);
+                                default: dap_string_append_printf(a_str_out, "<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
                             }
                             l_offset += dap_tsd_size(l_tsd);
 
@@ -2716,8 +2714,8 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                             }
                             switch( l_tsd->type){
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:
-                                    dap_string_append_printf(a_str_out,"total_supply: %lu\n",
-                                                             dap_tsd_get_scalar(l_tsd, uint128_t) );
+                                    dap_string_append_printf(a_str_out,"total_supply: %s\n",
+                                                             dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint128_t)));
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
                                     dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",
@@ -2747,7 +2745,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     dap_string_append_printf(a_str_out, "tx_receiver_blocked: %s\n",
                                                              dap_tsd_get_string_const(l_tsd) );
                                 break;
-                                default: dap_string_append_printf(a_str_out, "<0x%04X>: <size %zd>\n", l_tsd->type, l_tsd->size);
+                                default: dap_string_append_printf(a_str_out, "<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
                             }
                             l_offset += dap_tsd_size(l_tsd);
 
@@ -2778,21 +2776,20 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                 case TX_ITEM_TYPE_IN:{
                                     dap_chain_tx_in_t * l_in = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\ttx_out_prev_idx: %u\n", l_in->header.tx_out_prev_idx );
-                                    dap_string_append_printf(a_str_out,"\ttx_out_prev_idx : %u\n", l_in->header.tx_prev_hash );
                                     char l_tx_prev_hash_str[70]={[0]='\0'};
-                                    dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str,sizeof (l_tx_prev_hash_str)-1);
+                                    dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str, sizeof (l_tx_prev_hash_str)-1);
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
                                 case TX_ITEM_TYPE_OUT:{
                                     dap_chain_tx_out_t * l_out = l_cur->data;
-                                    dap_string_append_printf(a_str_out,"\tvalue: %u\n", l_out->header.value );
+                                    dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out->header.value );
                                     char * l_addr_str = dap_chain_addr_to_str(&l_out->addr);
                                     dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
                                     DAP_DELETE(l_addr_str);
                                 } break;
                                 case TX_ITEM_TYPE_OUT_EXT:{
                                     dap_chain_tx_out_ext_t * l_out_ext = l_cur->data;
-                                    dap_string_append_printf(a_str_out,"\tvalue: %u\n", l_out_ext->header.value );
+                                    dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out_ext->header.value );
                                     char * l_addr_str = dap_chain_addr_to_str(&l_out_ext->addr);
                                     dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
                                     dap_string_append_printf(a_str_out,"\ttoken : %s\n", l_out_ext->token );
@@ -2812,7 +2809,7 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                 case TX_ITEM_TYPE_TOKEN:{
                                     dap_chain_tx_token_t * l_token = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\tticker: %s\n", l_token->header.ticker );
-                                    dap_string_append_printf(a_str_out,"\ttoken_emission_chain: 0x%016x\n", l_token->header.token_emission_chain_id );
+                                    dap_string_append_printf(a_str_out,"\ttoken_emission_chain: 0x%016"DAP_UINT64_FORMAT_x"\n", l_token->header.token_emission_chain_id.uint64 );
                                     char l_token_emission_hash_str[70]={ [0]='\0'};
                                     dap_chain_hash_fast_to_str(& l_token->header.token_emission_hash,l_token_emission_hash_str,
                                                                sizeof (l_token_emission_hash_str)-1);
@@ -2822,9 +2819,9 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     dap_chain_tx_token_ext_t * l_token = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\tversion: %u\n",l_token->header.version );
                                     dap_string_append_printf(a_str_out,"\tticker: %s\n", l_token->header.ticker );
-                                    dap_string_append_printf(a_str_out,"\text_net: 0x%016x\n",l_token->header.ext_net_id );
-                                    dap_string_append_printf(a_str_out,"\text_chain: 0x%016x\n",l_token->header.ext_chain_id  );
-                                    dap_string_append_printf(a_str_out,"\text_tx_out_idx: %u\n",l_token->header.ext_tx_out_idx  );
+                                    dap_string_append_printf(a_str_out,"\text_net: 0x%016"DAP_UINT64_FORMAT_x"\n",l_token->header.ext_net_id.uint64 );
+                                    dap_string_append_printf(a_str_out,"\text_chain: 0x%016"DAP_UINT64_FORMAT_x"\n",l_token->header.ext_chain_id.uint64  );
+                                    dap_string_append_printf(a_str_out,"\text_tx_out_idx: %hu\n",l_token->header.ext_tx_out_idx  );
                                     char l_token_emission_hash_str[70]={ [0]='\0'};
                                     dap_chain_hash_fast_to_str(& l_token->header.ext_tx_hash,l_token_emission_hash_str,
                                                                sizeof (l_token_emission_hash_str)-1);
@@ -2833,7 +2830,6 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                 case TX_ITEM_TYPE_IN_COND:{
                                     dap_chain_tx_in_cond_t * l_in = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\ttx_out_prev_idx: %u\n", l_in->header.tx_out_prev_idx );
-                                    dap_string_append_printf(a_str_out,"\ttx_out_prev_idx : %u\n", l_in->header.tx_prev_hash );
                                     dap_string_append_printf(a_str_out,"\treceipt_idx : %u\n", l_in->header.receipt_idx );
                                     char l_tx_prev_hash_str[70]={[0]='\0'};
                                     dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str,sizeof (l_tx_prev_hash_str)-1);
@@ -2841,11 +2837,11 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                 } break;
                                 case TX_ITEM_TYPE_OUT_COND:{
                                     dap_chain_tx_out_cond_t * l_out = l_cur->data;
-                                    dap_string_append_printf(a_str_out,"\tvalue: %u\n", l_out->header.value );
+                                    dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out->header.value );
                                     switch ( l_out->header.subtype){
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
                                             dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY\n");
-                                            dap_string_append_printf(a_str_out,"\tsrv_uid: 0x%016x\n", l_out->subtype.srv_pay.srv_uid.uint64 );
+                                            dap_string_append_printf(a_str_out,"\tsrv_uid: 0x%016"DAP_UINT64_FORMAT_x"\n", l_out->subtype.srv_pay.srv_uid.uint64 );
                                             switch (l_out->subtype.srv_pay.unit.enm) {
                                                 case SERV_UNIT_UNDEFINED: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_UNDEFINED\n"); break;
                                                 case SERV_UNIT_MB: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_MB\n"); break;
