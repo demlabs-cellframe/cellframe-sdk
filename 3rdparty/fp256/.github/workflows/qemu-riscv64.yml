@@ -1,0 +1,90 @@
+name: qemu-riscv64
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  linux-gcc:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: cache-qemu
+      id: cache-qemu
+      uses: actions/cache@v1
+      with:
+        path: qemu-install
+        key: qemu-riscv64-install-1
+
+    - name: checkout-qemu
+      if: steps.cache-qemu.outputs.cache-hit != 'true'
+      uses: actions/checkout@v2
+      with:
+        repository: qemu/qemu
+        path: qemu
+        ref: v5.1.0
+
+    - name: qemu
+      if: steps.cache-qemu.outputs.cache-hit != 'true'
+      run: |
+        cd qemu
+        ./configure --prefix=install --target-list=riscv64-linux-user --disable-system
+        make -j2
+        make install
+        cp -r riscv64-linux-user/install $GITHUB_WORKSPACE/qemu-install
+
+    - name: riscv64-gnu-toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install gcc-riscv64-linux-gnu
+
+    # static library
+    - name: configure-static
+      run: |
+        mkdir build-static
+        cd build-static
+        cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain/riscv64-linux-gcc.cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_STATIC=ON -DBUILD_SHARED=OFF
+
+    - name: build-static
+      run: cd build-static && make -j VERBOSE=1
+
+    - name: test-static
+      run: |
+        export PATH=$GITHUB_WORKSPACE/qemu-install/bin:$PATH
+        cd build-static
+        TESTS_EXECUTABLE_LOADER=qemu-riscv64 TESTS_EXECUTABLE_LOADER_ARGUMENTS="-L;/usr/riscv64-linux-gnu" ctest --output-on-failure
+
+    # shared library
+    - name: configure-shared
+      run: |
+        mkdir build-shared
+        cd build-shared
+        cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain/riscv64-linux-gcc.cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_STATIC=OFF -DBUILD_SHARED=ON
+
+    - name: build-shared
+      run: cd build-shared && make -j VERBOSE=1
+
+    - name: test-shared
+      run: |
+        export PATH=$GITHUB_WORKSPACE/qemu-install/bin:$PATH
+        cd build-shared
+        TESTS_EXECUTABLE_LOADER=qemu-riscv64 TESTS_EXECUTABLE_LOADER_ARGUMENTS="-L;/usr/riscv64-linux-gnu" ctest --output-on-failure
+
+    # shared library no asm
+    - name: configure-shared-no-asm
+      run: |
+        mkdir build-shared-no-asm
+        cd build-shared-no-asm
+        cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchain/riscv64-linux-gcc.cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_STATIC=OFF -DBUILD_SHARED=ON -DUSE_ASM=OFF
+
+    - name: build-shared-no-asm
+      run: cd build-shared-no-asm && make -j VERBOSE=1
+
+    - name: test-shared-no-asm
+      run: |
+        export PATH=$GITHUB_WORKSPACE/qemu-install/bin:$PATH
+        cd build-shared-no-asm
+        TESTS_EXECUTABLE_LOADER=qemu-riscv64 TESTS_EXECUTABLE_LOADER_ARGUMENTS="-L;/usr/riscv64-linux-gnu" ctest --output-on-failure

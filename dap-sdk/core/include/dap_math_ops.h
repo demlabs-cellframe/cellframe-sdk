@@ -736,10 +736,6 @@ static inline int MULT_256_256_NEW(uint256_t a_256_bit,uint256_t b_256_bit,uint2
     accum_256_bit->hi.lo=two_128_coeff.lo;
 
 
-
-//    
-//
-//    
 //    uint64_t two_192_coeff=0;
 //    uint64_t two_192_coeff_one=0;
 //    int overflow_two_192_coeff_one=0;
@@ -762,8 +758,7 @@ static inline int MULT_256_256_NEW(uint256_t a_256_bit,uint256_t b_256_bit,uint2
 //    overflow_two_192_coeff_sum_two=SUM_64_64(two_192_coeff_three,two_192_coeff_four,&two_192_coeff_sum_two);
 //    int overflow_two_192_coeff_sum=0;
 //    overflow_two_192_coeff_sum=SUM_64_64(two_192_coeff_sum_one,two_192_coeff_sum_two,&two_192_coeff);
-    
-
+   
     return 0;
     
 }
@@ -781,106 +776,6 @@ static inline int MULT_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t
     }
     return overflow;
 }
-
-int compare128(uint128_t N1, uint128_t N2)
-{
-    return    (((N1.hi > N2.hi) || ((N1.hi == N2.hi) && (N1.lo > N2.lo))) ? 1 : 0) 
-         -    (((N1.hi < N2.hi) || ((N1.hi == N2.hi) && (N1.lo < N2.lo))) ? 1 : 0);
-}
-
-size_t nlz64(uint64_t N)
-{
-    uint64_t I;
-    size_t C;
-
-    I = ~N;
-    C = ((I ^ (I + 1)) & I) >> 63;
-
-    I = (N >> 32) + 0xffffffff;
-    I = ((I & 0x100000000) ^ 0x100000000) >> 27;
-    C += I;  N <<= I;
-
-    I = (N >> 48) + 0xffff;
-    I = ((I & 0x10000) ^ 0x10000) >> 12;
-    C += I;  N <<= I;
-
-    I = (N >> 56) + 0xff;
-    I = ((I & 0x100) ^ 0x100) >> 5;
-    C += I;  N <<= I;
-
-    I = (N >> 60) + 0xf;
-    I = ((I & 0x10) ^ 0x10) >> 2;
-    C += I;  N <<= I;
-
-    I = (N >> 62) + 3;
-    I = ((I & 4) ^ 4) >> 1;
-    C += I;  N <<= I;
-
-    C += (N >> 63) ^ 1;
-
-    return C;
-}
-
-size_t nlz128(uint128_t N)
-{
-    return (N.hi == 0) ? nlz64(N.lo) + 64 : nlz64(N.hi);
-}
-
-void shiftleft128(uint128_t N, unsigned S, uint128_t* A)
-{
-    uint64_t M1, M2;
-    S &= 127;
-
-    M1 = ((((S + 127) | S) & 64) >> 6) - 1llu;
-    M2 = (S >> 6) - 1llu;
-    S &= 63;
-    A->hi = (N.lo << S) & (~M2);
-    A->lo = (N.lo << S) & M2;
-    A->hi |= ((N.hi << S) | ((N.lo >> (64 - S)) & M1)) & M2;
-}
-
-void shiftright128(uint128_t N, unsigned S, uint128_t* A)
-{
-    uint64_t M1, M2;
-    S &= 127;
-
-    M1 = ((((S + 127) | S) & 64) >> 6) - 1llu;
-    M2 = (S >> 6) - 1llu;
-    S &= 63;
-    A->lo = (N.hi >> S) & (~M2);
-    A->hi = (N.hi >> S) & M2;
-    A->lo |= ((N.lo >> S) | ((N.hi << (64 - S)) & M1)) & M2;
-} 
-
-void sub128(uint128_t* Ans, uint128_t N, uint128_t M)
-{
-    Ans->lo = N.lo - M.lo;
-    uint64_t C = (((Ans->lo & M.lo) & 1) + (M.lo >> 1) + (Ans->lo >> 1)) >> 63;
-    Ans->hi = N.hi - (M.hi + C);
-}
-void bindivmod128(uint128_t M, uint128_t N, uint128_t* Q, uint128_t* R)
-{
-    Q->hi = Q->lo = 0;
-    size_t Shift = nlz128(N) - nlz128(M);
-    shiftleft128(N, Shift, &N);
-
-    do
-    {
-        shiftleft128(*Q, 1, Q);
-        if(compare128(M, N) >= 0)
-        {
-            sub128(&M, N, M);
-            Q->lo |= 1;
-        }
-
-        shiftright128(N, 1, &N);
-    }while(Shift-- != 0);
-
-    R->hi = M.hi;
-    R->lo = M.lo;
-}
-
-
 
 
 
