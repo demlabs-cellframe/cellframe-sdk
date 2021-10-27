@@ -268,6 +268,12 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t 
 
 static bool s_mempool_auto = false;
 
+/**
+ * @brief 
+ * get automatic mempool processing, when network config contains mempool_auto_types for specific datums
+ * @return true 
+ * @return false 
+ */
 bool dap_chain_node_mempool_autoproc_init()
 {
     uint16_t l_net_count;

@@ -28,7 +28,9 @@
 #define LOG_TAG "dap_chain_vf"
 
 /**
- * @brief dap_chain_vf_init
+ * @brief
+ * empty function
+ * return 0
  * @return
  */
 int dap_chain_vf_init()
@@ -45,9 +47,9 @@ void dap_chain_vf_deinit()
 }
 
 /**
- * @brief dap_chain_vf_add
- * @param a_vf_id
- * @param a_callback
+ * @brief 
+ * empty function
+ * return 0
  * @return
  */
 int dap_chain_vf_add(dap_chain_vf_id_t a_vf_id, dap_chain_vf_callback_t a_callback)
@@ -57,6 +59,8 @@ int dap_chain_vf_add(dap_chain_vf_id_t a_vf_id, dap_chain_vf_callback_t a_callba
 
 /**
  * @brief dap_chain_vf_check
+ * empty function
+ * return true
  * @param a_vf_id
  * @param a_ledger
  * @param a_receipt
