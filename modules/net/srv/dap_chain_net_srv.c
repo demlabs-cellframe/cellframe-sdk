@@ -388,7 +388,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
             dap_chain_net_srv_order_t * l_orders;
             size_t l_orders_num = 0;
             if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_num) == 0 ){
-                dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_num);
+                dap_string_append_printf(l_string_ret, "Found %zu orders:\n", l_orders_num);
                 size_t l_orders_size = 0;
                 for (size_t i = 0; i< l_orders_num; i++){
                     dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
@@ -397,12 +397,12 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                     dap_string_append(l_string_ret,"\n");
                 }
                 ret = 0;
-            }else{
+                if (l_orders_num)
+                    DAP_DELETE(l_orders);
+             }else{
                 ret = -5 ;
                 dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
             }
-            DAP_DELETE(l_orders);
-
         }else if( dap_strcmp( l_order_str, "dump" ) == 0 ){
             // Select with specified service uid
             if ( l_order_hash_str ){
@@ -625,7 +625,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_sdata->srv = l_srv;
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
-        log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
+        log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
         //l_srv = l_sdata->srv;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
@@ -662,7 +662,7 @@ int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
         l_srv->callback_stream_ch_write = a_callback_stream_ch_write;
         l_srv->callback_stream_ch_closed = a_callback_stream_ch_closed;
     }else{
-        log_it(L_ERROR, "Can't find service with 0x%016llX", a_uid.uint64);
+        log_it(L_ERROR, "Can't find service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
         l_ret= -1;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);

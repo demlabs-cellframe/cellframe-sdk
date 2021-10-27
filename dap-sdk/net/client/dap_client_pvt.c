@@ -210,7 +210,7 @@ void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
  */
 static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
 {
-    log_it(L_INFO, "Remote address connected for streaming on (%s:%u) with sock_id %zu (assign on worker #%u)", a_client_pvt->uplink_addr,
+    log_it(L_INFO, "Remote address connected for streaming on (%s:%u) with sock_id %"DAP_FORMAT_SOCKET" (assign on worker #%u)", a_client_pvt->uplink_addr,
             a_client_pvt->uplink_port, a_client_pvt->stream_socket, a_client_pvt->stream_worker->worker->id);
     a_client_pvt->stage_status = STAGE_STATUS_DONE;
     s_stage_status_after(a_client_pvt);
@@ -246,7 +246,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
                 if(l_es->callbacks.error_callback) {
                     l_es->callbacks.error_callback(l_es,ETIMEDOUT);
                 }
-                log_it(L_INFO, "Close %s sock %zu type %d by timeout",
+                log_it(L_INFO, "Close %s sock %"DAP_FORMAT_SOCKET" type %d by timeout",
                        l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
                 dap_client_delete_unsafe(l_client_pvt->client);
             } else {
@@ -255,7 +255,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
             }
         }else
             if(s_debug_more)
-                log_it(L_DEBUG,"Socket %zu is connected, close check timer", l_es->socket);
+                log_it(L_DEBUG,"Socket %"DAP_FORMAT_SOCKET" is connected, close check timer", l_es->socket);
     }else
         if(s_debug_more)
             log_it(L_DEBUG,"Esocket %"DAP_UINT64_FORMAT_U" is finished, close check timer", *l_es_uuid_ptr);
@@ -289,12 +289,12 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
                 if(l_es->callbacks.error_callback) {
                     l_es->callbacks.error_callback(l_es,ETIMEDOUT);
                 }
-                log_it(L_INFO, "Close streaming socket %s (%zu) by timeout",
+                log_it(L_INFO, "Close streaming socket %s (%"DAP_FORMAT_SOCKET") by timeout",
                        l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket);
                 dap_client_delete_unsafe(l_client_pvt->client);
             }else
                 if(s_debug_more)
-                    log_it(L_DEBUG,"Streaming socket %zu is connected, close check timer", l_es->socket);
+                    log_it(L_DEBUG,"Streaming socket %"DAP_FORMAT_SOCKET" is connected, close check timer", l_es->socket);
         } else {
             log_it(L_ERROR,"Activity timeout for unexistent client");
             dap_events_socket_remove_and_delete_unsafe(l_es,true);
@@ -536,7 +536,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                 strerror_r(l_err,l_errbuf,sizeof (l_errbuf));
                             else
                                 strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
-                            log_it(L_ERROR, "Remote address can't connect (%s:%hu) with sock_id %zu: \"%s\" (code %d)", a_client_pvt->uplink_addr,
+                            log_it(L_ERROR, "Remote address can't connect (%s:%hu) with sock_id %"DAP_FORMAT_SOCKET": \"%s\" (code %d)", a_client_pvt->uplink_addr,
                                     a_client_pvt->uplink_port, a_client_pvt->stream_es->socket, l_errbuf, l_err);
 #ifdef DAP_OS_WINDOWS
                             closesocket(a_client_pvt->stream_socket);
@@ -1123,7 +1123,8 @@ static void s_stream_ctl_response(dap_client_t * a_client, void * a_data, size_t
                 if(l_client_pvt->stream_key)
                     dap_enc_key_delete(l_client_pvt->stream_key);
 
-                strncpy(l_client_pvt->stream_id, l_stream_id, sizeof(l_client_pvt->stream_id) - 1);
+                strncpy(l_client_pvt->stream_id, (char *)l_stream_id, sizeof(l_client_pvt->stream_id) -1 );
+                l_client_pvt->stream_id[sizeof(l_client_pvt->stream_id) - 1] = '\0';
                 l_client_pvt->stream_key =
                         dap_enc_key_new_generate(l_enc_type, l_stream_key, strlen(l_stream_key), NULL, 0,
                                 32);

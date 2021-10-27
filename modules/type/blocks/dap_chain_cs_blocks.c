@@ -290,7 +290,7 @@ static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_met
 {
     if(a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t) ){
         char * l_hash_str = dap_chain_hash_fast_to_str_new( (dap_chain_hash_fast_t *) a_meta->data);
-        dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\"\n", a_meta_title,l_hash_str);
+        dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\": 0x%s\n", a_meta_title,l_hash_str);
         DAP_DELETE(l_hash_str);
     }else{
         char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.data_size*2+3);
@@ -465,10 +465,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
                     time_t l_ts_reated = (time_t) l_block->hdr.ts_created;
                      // Header
                     dap_string_append_printf(l_str_tmp,"Block %s:\n", l_subcmd_str_arg);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tversion: 0x%04sX\n",l_block->hdr.version);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016llX\n",l_block->hdr.cell_id.uint64);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016llX\n",l_block->hdr.chain_id.uint64);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n",ctime_r(&l_ts_reated, buf) );
+                    dap_string_append_printf(l_str_tmp,"\t\t\tversion: 0x%04hX\n",l_block->hdr.version);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.cell_id.uint64);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.chain_id.uint64);
+                    ctime_r(&l_ts_reated, buf);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);
 
                     // Dump Metadata
                     dap_string_append_printf(l_str_tmp,"\tMetadata. Count: %us\n",l_block->hdr.meta_count );
@@ -496,32 +497,34 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
                             default:{
                                 char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.data_size*2+3);
                                 dap_bin2hex(l_data_hex, l_meta->data, l_meta->hdr.data_size);
-                                dap_string_append_printf(l_str_tmp,"\t\t\0x%0X: 0x%s\n", l_data_hex );
+                                dap_string_append_printf(l_str_tmp, "\t\t 0x%0X: 0x%s\n", i, l_data_hex );
+                                DAP_DELETE(l_data_hex);
                             }
                         }
                     }
-                    dap_string_append_printf(l_str_tmp,"\t\tdatums:\tcount: %uz\n",l_block_cache->datum_count);
+                    dap_string_append_printf(l_str_tmp,"\t\tdatums:\tcount: %zu\n",l_block_cache->datum_count);
                     for (uint32_t i=0; i < l_block_cache->datum_count ; i++){
                         dap_chain_datum_t * l_datum = l_block_cache->datum[i];
                         size_t l_datum_size =  dap_chain_datum_size(l_datum);
-                        dap_string_append_printf(l_str_tmp,"\t\t\tdatum:\tdatum_size: %u\n",l_datum_size);
+                        dap_string_append_printf(l_str_tmp,"\t\t\tdatum:\tdatum_size: %zu\n",l_datum_size);
                         if (l_datum_size < sizeof (l_datum->header) ){
-                            dap_string_append_printf(l_str_tmp,"\t\t\tERROR: datum size %zd is smaller than header size %zd \n",l_datum_size,
+                            dap_string_append_printf(l_str_tmp,"\t\t\tERROR: datum size %zu is smaller than header size %zu \n",l_datum_size,
                                                      sizeof (l_datum->header));
                             break;
                         }
                         time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
                         // Nested datums
                         dap_string_append_printf(l_str_tmp,"\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
-			const char * l_datum_type_str="UNKNOWN";
-			DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
+                        const char * l_datum_type_str="UNKNOWN";
+                        DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
                         dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                        dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n",ctime_r( &l_datum_ts_create,buf ));
+                        ctime_r(&l_datum_ts_create, buf);
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
                         dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                         dap_chain_net_dump_datum(l_str_tmp, l_datum, "hex" );
                     }
                     // Signatures
-                    dap_string_append_printf(l_str_tmp,"\t\tsignatures:\tcount: %u\n",l_block_cache->sign_count );
+                    dap_string_append_printf(l_str_tmp,"\t\tsignatures:\tcount: %zu\n",l_block_cache->sign_count );
                     for (uint32_t i=0; i < l_block_cache->sign_count ; i++){
                         dap_sign_t * l_sign =l_block_cache->sign[i];
                         size_t l_sign_size = dap_sign_get_size(l_sign);
@@ -547,14 +550,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_s
 
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);
-                dap_string_append_printf(l_str_tmp,"%s.%s: Have %u blocks :\n",
+                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
                                          l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
                 dap_chain_block_cache_t * l_block_cache = NULL,*l_block_cache_tmp = NULL;
 
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
-                    char  l_buf[50];
+                    char l_buf[50];
+                    ctime_r(&l_block_cache->ts_created, l_buf);
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                             l_block_cache->block_hash_str, ctime_r( &l_block_cache->ts_created,l_buf ) );
+                                             l_block_cache->block_hash_str, l_buf);
                 }
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 

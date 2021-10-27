@@ -859,7 +859,7 @@ static bool s_callback_keepalive( void * a_arg)
     dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid);
     if( l_es){
         if(s_debug)
-            log_it(L_DEBUG,"Keepalive for sock fd %zu uuid 0x%016"DAP_UINT64_FORMAT_U, l_es->socket, *l_es_uuid);
+            log_it(L_DEBUG,"Keepalive for sock fd %"DAP_FORMAT_SOCKET" uuid 0x%016"DAP_UINT64_FORMAT_x, l_es->socket, *l_es_uuid);
         dap_stream_pkt_hdr_t l_pkt = {};
         l_pkt.type = STREAM_PKT_TYPE_KEEPALIVE;
         memcpy(l_pkt.sig, c_dap_stream_sig, sizeof(l_pkt.sig));
@@ -867,7 +867,7 @@ static bool s_callback_keepalive( void * a_arg)
         return true;
     }else{
         if(s_debug)
-            log_it(L_INFO,"Keepalive for sock uuid %016llx removed", *l_es_uuid);
+            log_it(L_INFO,"Keepalive for sock uuid %016"DAP_UINT64_FORMAT_x" removed", *l_es_uuid);
         DAP_DELETE(l_es_uuid);
         return false; // Socket is removed from worker
     }

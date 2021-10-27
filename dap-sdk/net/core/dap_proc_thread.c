@@ -225,7 +225,7 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (  a_thread->poll_count == a_thread->poll_count_max ){ // realloc
         a_thread->poll_count_max *= 2;
-        log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %u", a_thread->poll_count, a_thread->poll_count_max);
+        log_it(L_WARNING, "Too many descriptors (%zu), resizing array twice to %zu", a_thread->poll_count, a_thread->poll_count_max);
         a_thread->poll =DAP_REALLOC(a_thread->poll, a_thread->poll_count_max * sizeof(*a_thread->poll));
         a_thread->esockets =DAP_REALLOC(a_thread->esockets, a_thread->poll_count_max * sizeof(*a_thread->esockets));
     }
@@ -289,7 +289,7 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (  a_thread->poll_count == a_thread->poll_count_max ){ // realloc
         a_thread->poll_count_max *= 2;
-        log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %u", a_thread->poll_count, a_thread->poll_count_max);
+        log_it(L_WARNING, "Too many descriptors (%zu), resizing array twice to %zu", a_thread->poll_count, a_thread->poll_count_max);
         a_thread->poll =DAP_REALLOC(a_thread->poll, a_thread->poll_count_max * sizeof(*a_thread->poll));
         a_thread->esockets =DAP_REALLOC(a_thread->esockets, a_thread->poll_count_max * sizeof(*a_thread->esockets));
     }
@@ -627,7 +627,7 @@ static void * s_proc_thread_function(void * a_arg)
             l_flag_msg = false;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
             if(n>=l_thread->poll_count){
-                log_it(L_WARNING,"selected_sockets(%d) is bigger then poll count (%u)", l_selected_sockets, l_thread->poll_count);
+                log_it(L_WARNING,"selected_sockets(%d) is bigger then poll count (%zu)", l_selected_sockets, l_thread->poll_count);
                 break;
             }
             short l_cur_events = l_thread->poll[n].revents ;
@@ -687,7 +687,7 @@ static void * s_proc_thread_function(void * a_arg)
 #endif
             assert(l_cur);
             if(s_debug_reactor)
-                log_it(L_DEBUG, "Proc thread #%u esocket %p fd=%zu type=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
+                log_it(L_DEBUG, "Proc thread #%u esocket %p fd=%"DAP_FORMAT_SOCKET" type=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
                     l_cur->type, l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
 
@@ -703,7 +703,7 @@ static void * s_proc_thread_function(void * a_arg)
 #endif
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf,sizeof (l_errbuf));
-                log_it(L_ERROR,"Some error on proc thread #%u with %zu socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
+                log_it(L_ERROR,"Some error on proc thread #%u with %"DAP_FORMAT_SOCKET" socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
                 if(l_cur->callbacks.error_callback)
                     l_cur->callbacks.error_callback(l_cur, errno);
             }

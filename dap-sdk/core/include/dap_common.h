@@ -209,8 +209,8 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #endif
 #define DAP_FORMAT_HANDLE "p"
 #else
-#define DAP_FORMAT_SOCKET "n"
-#define DAP_FORMAT_HANDLE "n"
+#define DAP_FORMAT_SOCKET "d"
+#define DAP_FORMAT_HANDLE "d"
 #endif
 
 #ifndef LOWORD

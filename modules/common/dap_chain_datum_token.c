@@ -160,7 +160,7 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
 
         char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
 
-        dap_string_append_printf(a_str_out, "%d) %s, %s, %lu bytes\n", i, l_hash_str,
+        dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
     }
 }

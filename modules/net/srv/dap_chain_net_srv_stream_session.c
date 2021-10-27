@@ -67,7 +67,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
         pthread_mutex_lock(&a_srv_session->parent->mutex);
         HASH_ADD_INT( a_srv_session->usages, id,l_ret );
         pthread_mutex_unlock(&a_srv_session->parent->mutex);
-        log_it( L_NOTICE, "Added service %s:0x%016llX , usage id: %d", l_ret->net->pub.name, a_srv->uid.uint64, l_ret->id);
+        log_it( L_NOTICE, "Added service %s:0x%016"DAP_UINT64_FORMAT_X" , usage id: %d", l_ret->net->pub.name, a_srv->uid.uint64, l_ret->id);
         return l_ret;
     }else{
         log_it( L_ERROR, "Some NULLs was in input");

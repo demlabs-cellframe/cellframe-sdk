@@ -197,7 +197,8 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
         dg->http=a_http_simple->http_client;
        // dg->isOk=true;
 
-        strncpy(dg->action,a_http_simple->http_client->action,sizeof(dg->action)-1);
+        strncpy(dg->action,(char *)a_http_simple->http_client->action,sizeof(dg->action) - 1);
+        dg->action[sizeof(dg->action) - 1] = '\0';
         if(a_http_simple->http_client->in_cookie[0])
             dg->cookie=strdup(a_http_simple->http_client->in_cookie);
 

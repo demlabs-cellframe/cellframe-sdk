@@ -646,7 +646,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 // TODO add filters to list (token, address, etc.)
                 l_stake = s_stake_item_from_order(l_net, l_order);
                 char *l_addr = dap_chain_addr_to_str(&l_stake->addr_to);
-                dap_string_append_printf(l_reply_str, "%s %lu %s %s %llf\n", l_orders[i].key, l_stake->value, l_stake->token,
+                dap_string_append_printf(l_reply_str, "%s %"DAP_UINT64_FORMAT_U" %s %s %Lf\n", l_orders[i].key, l_stake->value, l_stake->token,
                                          l_addr, l_stake->fee_value);
                 DAP_DELETE(l_addr);
                 DAP_DELETE(l_stake);
@@ -789,7 +789,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
                 char *l_addr_from_str = dap_chain_addr_to_str(&l_stake->addr_from);
                 char *l_addr_to_str = dap_chain_addr_to_str(&l_stake->addr_to);
                 char *l_addr_fee_str = dap_chain_addr_to_str(&l_stake->addr_fee);
-                dap_string_append_printf(l_reply_str, "%s %s %lu %s %s %s %llf\n", l_tx_hash_str, l_stake->token,
+                dap_string_append_printf(l_reply_str, "%s %s %"DAP_UINT64_FORMAT_U" %s %s %s %Lf\n", l_tx_hash_str, l_stake->token,
                                          l_stake->value, l_addr_from_str, l_addr_to_str,
                                          l_addr_fee_str, l_stake->fee_value);
                 DAP_DELETE(l_tx_hash_str);
