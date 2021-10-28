@@ -378,6 +378,13 @@ dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
         goto l_exit;
     }
     if (l_hdr.version >= 1 ){
+        log_it(L_DEBUG,"sizeof(l_hdr)=%"DAP_UINT64_FORMAT_U" "
+               "l_hdr.data_pvt_size=%"DAP_UINT64_FORMAT_U" "
+               "l_hdr.data_size=%"DAP_UINT64_FORMAT_U" "
+               "l_hdr.metadata_size=%"DAP_UINT64_FORMAT_U" "
+               "a_data_size=%"DAP_UINT64_FORMAT_U" ",
+               sizeof(l_hdr), l_hdr.data_pvt_size, l_hdr.data_size, l_hdr.metadata_size, a_data_size);
+
         if ( (sizeof(l_hdr) + l_hdr.data_size+l_hdr.data_pvt_size +l_hdr.metadata_size) > a_data_size ){
             log_it(L_ERROR,"Corrupted cert data, data sections size is smaller than exists on the disk! (%"DAP_UINT64_FORMAT_U" expected, %"DAP_UINT64_FORMAT_U" on disk)",
                     sizeof(l_hdr)+l_hdr.data_pvt_size+l_hdr.data_size+l_hdr.metadata_size, a_data_size);
