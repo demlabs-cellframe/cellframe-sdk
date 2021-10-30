@@ -954,7 +954,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, NULL, "Token update",
             "\nPrivate token update\n"
-            "\t token_update -net <net name> -chain <chain name> -token <token ticker> -type private [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t token_update -net <net name> -chain <chain name> -token <token ticker> [-type private] [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Update private token <token ticker> for <netname>:<chain name> with"
             "\t   custom parameters list <Param 1>, <Param 2>...<Param N>."
             "\n"
