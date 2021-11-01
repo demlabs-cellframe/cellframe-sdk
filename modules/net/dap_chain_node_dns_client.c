@@ -251,7 +251,7 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
     dap_dns_buf_put_uint16(l_dns_client->dns_request, DNS_RECORD_TYPE_A);
     dap_dns_buf_put_uint16(l_dns_client->dns_request, DNS_CLASS_TYPE_IN);
 
-    dap_events_socket_callbacks_t l_esocket_callbacks={0};
+    dap_events_socket_callbacks_t l_esocket_callbacks={};
 
     l_esocket_callbacks.worker_assign_callback = s_dns_client_esocket_worker_assign_callback;
     l_esocket_callbacks.delete_callback = s_dns_client_esocket_delete_callback; // Delete client callback
@@ -329,37 +329,4 @@ void dap_dns_buf_put_uint64(dap_dns_buf_t *buf, uint64_t val)
 {
     dap_dns_buf_put_uint32(buf, val >> 32);
     dap_dns_buf_put_uint32(buf, val);
-}
-
-/**
- * @brief dap_dns_resolve_hostname
- * @param str
- * @return
- */
-dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
-{
-    log_it(L_DEBUG, "DNS parser retrieve hostname %s", str);
-    dap_chain_net_t *l_net = dap_chain_net_by_name(str);
-    if (l_net == NULL) {
-        uint16_t l_nets_count;
-        dap_chain_net_t **l_nets = dap_chain_net_list(&l_nets_count);
-        if (!l_nets_count) {
-            log_it(L_WARNING, "No chain network present");
-            return 0;
-        }
-        l_net = l_nets[rand() % l_nets_count];
-    }
-    // get nodes list from global_db
-    dap_global_db_obj_t *l_objs = NULL;
-    size_t l_nodes_count = 0;
-    // read all node
-    l_objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes, &l_nodes_count);
-    if (!l_nodes_count || !l_objs)
-        return 0;
-    size_t l_node_num = rand() % l_nodes_count;
-    dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-    memcpy(l_node_info, l_objs[l_node_num].value, sizeof(dap_chain_node_info_t));
-    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
-    log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(l_node_info->hdr.ext_addr_v4));
-    return l_node_info;
 }

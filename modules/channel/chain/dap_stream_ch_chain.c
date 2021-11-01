@@ -258,7 +258,7 @@ static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void 
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     l_ch_chain->request_atom_iter = l_sync_request->chain.request_atom_iter;
     // last packet
-    dap_stream_ch_chain_sync_request_t l_request = {0};
+    dap_stream_ch_chain_sync_request_t l_request = {};
     if (s_debug_more )
         log_it(L_INFO,"Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS");
     dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS,
@@ -1274,7 +1274,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS_RVRS: {
             if(l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t)) {
-                dap_stream_ch_chain_sync_request_t l_request={0};
+                dap_stream_ch_chain_sync_request_t l_request={};
                 dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if( l_chain){
                     dap_chain_get_atom_last_hash(l_chain,& l_request.hash_from); // Move away from i/o reactor to callback processor
@@ -1552,7 +1552,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     break;
             }
             if(!l_ch_chain->request_atom_iter || !l_ch_chain->request_atom_iter->cur)  { // All chains synced
-                dap_stream_ch_chain_sync_request_t l_request = {0};
+                dap_stream_ch_chain_sync_request_t l_request = {};
                 // last message
                 l_was_sent_smth = true;
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS,

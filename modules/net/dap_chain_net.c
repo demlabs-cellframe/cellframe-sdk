@@ -458,13 +458,15 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     }
 
     a_node_client->resync_gdb = l_net_pvt->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO;
-    if( !a_node_client->is_reconnecting || s_debug_more )
+    if (!a_node_client->is_reconnecting) {
+        if ( s_debug_more )
         log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
                NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-    l_net_pvt->links = dap_list_append(l_net_pvt->links, a_node_client);
-    l_net_pvt->links_connected_count++;
-    s_net_links_notify(l_net);
+        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+        l_net_pvt->links = dap_list_append(l_net_pvt->links, a_node_client);
+        l_net_pvt->links_connected_count++;
+        s_net_links_notify(l_net);
+    }
 
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
@@ -484,30 +486,27 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_c
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-        if ( l_net_pvt->state_target ==NET_STATE_ONLINE ){
-            if(s_debug_more)
-                log_it(L_NOTICE, "%s."NODE_ADDR_FP_STR" disconnected, reconnecting back...",
-                   l_net->pub.name,
-                   NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr) );
-
-            a_node_client->is_reconnecting = true;
-
-            dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
-        }else if (l_net_pvt->state_target == NET_STATE_OFFLINE){
-            log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
-
-        }else{
-            log_it(L_CRITICAL,"Link "NODE_ADDR_FP_STR" disconnected, but wrong target state %s: could be only NET_STATE_ONLINE or NET_STATE_OFFLINE "
-                   ,NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr)
-                   , c_net_states[l_net_pvt->state_target]  );
-        }
-        if(l_net_pvt->links_connected_count)
+    if ( l_net_pvt->state_target ==NET_STATE_ONLINE ){
+        if(s_debug_more)
+            log_it(L_NOTICE, "%s."NODE_ADDR_FP_STR" disconnected, reconnecting back...",
+               l_net->pub.name,
+               NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr) );
+        a_node_client->is_reconnecting = true;
+        dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
+    }else if (l_net_pvt->state_target == NET_STATE_OFFLINE){
+        if(l_net_pvt->links_connected_count) {
+            s_node_link_callback_delete(a_node_client,a_arg);
             l_net_pvt->links_connected_count--;
-        else
+        } else
             log_it(L_CRITICAL,"Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+        log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
 
-    s_node_link_callback_delete(a_node_client,a_arg);
+    }else{
+        log_it(L_CRITICAL,"Link "NODE_ADDR_FP_STR" disconnected, but wrong target state %s: could be only NET_STATE_ONLINE or NET_STATE_OFFLINE "
+               ,NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr)
+               , c_net_states[l_net_pvt->state_target]  );
+    }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
 
 /**
@@ -617,10 +616,10 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
     l_dns_request->tries++;
     l_net_pvt->links_dns_requests--;
     if (l_net_pvt->links_dns_requests == 0){ // It was the last one
-        if (l_net_pvt->state != NET_STATE_LINKS_ESTABLISHED){
-            l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
-            dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
+        if (l_net_pvt->state != NET_STATE_LINKS_CONNECTING){
+            l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
         }
+        dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
     dap_notify_server_send_f_mt("{"
