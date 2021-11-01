@@ -31,6 +31,7 @@
 #include "dap_config.h"
 #include "dap_stream_session.h"
 #include "dap_stream_ch.h"
+#include "dap_timerfd.h"
 
 #define CHUNK_SIZE_MAX (3 * 1024)
 
@@ -55,6 +56,8 @@ typedef struct dap_stream {
     uint128_t esocket_uuid;
     dap_stream_worker_t * stream_worker;
     struct dap_http_client * conn_http; // HTTP-specific
+
+    dap_timerfd_t *keepalive_timer;
 
     char * service_key;
 

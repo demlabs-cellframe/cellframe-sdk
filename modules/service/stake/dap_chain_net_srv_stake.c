@@ -69,7 +69,7 @@ int dap_chain_net_srv_stake_init()
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_ledger_t *l_ledger = l_net_list[i]->pub.ledger;
         dap_chain_datum_tx_t *l_tx_tmp;
-        dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
+        dap_chain_hash_fast_t l_tx_cur_hash = {}; // start hash
         dap_chain_tx_out_cond_t *l_out_cond;
         int l_out_cond_idx;
         char l_token[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -355,8 +355,25 @@ char *s_stake_order_create(dap_chain_net_srv_stake_item_t *a_item, dap_enc_key_t
 
 dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order)
 {
-    dap_chain_net_srv_stake_item_t *l_item = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+    if (a_order->version < 2) {
+        log_it(L_WARNING, "Order is unsigned");
+        return NULL;
+    }
     dap_srv_stake_order_ext_t *l_ext = (dap_srv_stake_order_ext_t *)a_order->ext;
+    dap_sign_t *l_sign = (dap_sign_t *)(&a_order->ext[a_order->ext_size]);
+    if (!dap_sign_verify(l_sign, a_order, dap_chain_net_srv_order_get_size(a_order))) {
+        log_it(L_WARNING, "Order sign is invalid");
+        return NULL;
+    }
+    dap_hash_fast_t l_pkey_hash;
+    dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+    dap_chain_addr_t l_cert_addr;
+    dap_chain_addr_fill(&l_cert_addr, l_sign->header.type, &l_pkey_hash, a_net->pub.id);
+    dap_chain_net_srv_stake_item_t *l_item = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+    if (memcmp(&l_cert_addr, &l_ext->addr_to, sizeof(dap_chain_addr_t))) {
+        log_it(L_WARNING, "Order sign addr & addr_to are different");
+        return NULL;
+    }
     memcpy(&l_item->addr_from, &l_ext->addr_from, sizeof(dap_chain_addr_t));
     memcpy(&l_item->addr_to, &l_ext->addr_to, sizeof(dap_chain_addr_t));
     l_item->fee_value = l_ext->fee_value;
@@ -740,6 +757,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
             if (l_order) {
                 dap_chain_net_srv_stake_item_t *l_stake = s_stake_item_from_order(l_net, l_order);
+                if (!l_stake) {
+                    DAP_DELETE(l_order);
+                    DAP_DELETE(l_addr_fee);
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order is invalid");
+                    return -22;
+                }
                 memcpy(&l_stake->addr_fee, l_addr_fee, sizeof(dap_chain_addr_t));
                 DAP_DELETE(l_addr_fee);
                 // Create conditional transaction
