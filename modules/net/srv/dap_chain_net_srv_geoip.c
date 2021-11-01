@@ -25,12 +25,12 @@
 #include <stdio.h>
 #include <stddef.h>
 
+#include "dap_client_http.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 #include "dap_enc_key.h"
 #include "dap_enc_base64.h"
-#include "dap_client_http.h"
 #include "dap_chain_net_srv_geoip.h"
 #include "libmaxminddb/maxminddb.h"
 

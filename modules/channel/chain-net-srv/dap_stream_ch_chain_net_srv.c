@@ -23,10 +23,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #include <sys/time.h>
+#include "dap_timerfd.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
-#include "dap_timerfd.h"
 
 #include "dap_chain.h"
 #include "dap_chain_datum_tx.h"
@@ -205,8 +205,8 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
 
             // Check cond output if it equesl or not to request
             if ( l_tx_out_cond->subtype.srv_pay.srv_uid.uint64 != l_request->hdr.srv_uid.uint64 ){
-                log_it( L_WARNING, "Wrong service uid in request, tx expect to close its output with 0x%016lX",
-                        l_tx_out_cond->subtype.srv_pay.srv_uid );
+                log_it( L_WARNING, "Wrong service uid in request, tx expect to close its output with 0x%016"DAP_UINT64_FORMAT_X,
+                        l_tx_out_cond->subtype.srv_pay.srv_uid.uint64 );
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID  ;
                 goto free_exit;
             }
@@ -472,7 +472,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             // only for server
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE:{
                 if (l_ch_pkt->hdr.size <= sizeof(dap_chain_receipt_info_t) + 1) {
-                    log_it(L_ERROR, "Wrong sign response size, %zd when expected at least %zd with smth", l_ch_pkt->hdr.size,
+                    log_it(L_ERROR, "Wrong sign response size, %u when expected at least %zu with smth", l_ch_pkt->hdr.size,
                            sizeof(dap_chain_receipt_info_t)+1 );
                     break;
                 }
@@ -704,7 +704,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     log_it( L_NOTICE, "Remote responsed with error code 0x%08X", l_err->code );
                     // TODO code for service client mode
                 }else{
-                    log_it(L_ERROR, "Wrong error response size, %zd when expected %zd", l_ch_pkt->hdr.size,
+                    log_it(L_ERROR, "Wrong error response size, %u when expected %zu", l_ch_pkt->hdr.size,
                            sizeof ( dap_stream_ch_chain_net_srv_pkt_error_t) );
                 }
             } break;

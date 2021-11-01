@@ -14,6 +14,12 @@
 // default time of node address expired in hours
 #define NODE_TIME_EXPIRED_DEFAULT 720
 
+/**
+ * @brief Sets current node adress
+ * @param a_address a current node adress
+ * @param a_net_name a net name
+ * @return True if success, otherwise false
+ */
 static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name, time_t a_expire_time)
 {
     if(!a_net_name)

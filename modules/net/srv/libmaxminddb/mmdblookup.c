@@ -75,7 +75,7 @@ int wmain(int argc, wchar_t **wargv)
         utf8_width = WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, NULL, 0,
                                          NULL, NULL);
         if (utf8_width < 1) {
-            fprintf(stderr, "WideCharToMultiByte() failed: %d\n",
+            fprintf(stderr, "WideCharToMultiByte() failed: %ld\n",
                     GetLastError());
             exit(1);
         }
@@ -86,7 +86,7 @@ int wmain(int argc, wchar_t **wargv)
         }
         if (WideCharToMultiByte(CP_UTF8, 0, wargv[i], -1, utf8_string,
                                 utf8_width, NULL, NULL) < 1) {
-            fprintf(stderr, "WideCharToMultiByte() failed: %d\n",
+            fprintf(stderr, "WideCharToMultiByte() failed: %ld\n",
                     GetLastError());
             exit(1);
         }
@@ -340,8 +340,14 @@ LOCAL void dump_meta(MMDB_s *mmdb)
 
     char date[40];
     const time_t epoch = (const time_t)mmdb->metadata.build_epoch;
+#ifdef DAP_OS_WINDOWS
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat"
+#endif
     strftime(date, 40, "%F %T UTC", gmtime(&epoch));
-
+#ifdef DAP_OS_WINDOWS
+#pragma GCC diagnostic pop
+#endif
     fprintf(stdout, meta_dump,
             mmdb->metadata.node_count,
             mmdb->metadata.record_size,

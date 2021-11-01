@@ -45,7 +45,7 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
     const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
 
     if(a_str_max < c_hash_str_size) {
-        log_it(L_ERROR, "String for hash too small, need %u but have only %u", c_hash_str_size, a_str_max);
+        log_it(L_ERROR, "String for hash too small, need %zu but have only %zu", c_hash_str_size, a_str_max);
     }
     size_t i;
     dap_snprintf(a_str, 3, "0x");
@@ -203,10 +203,11 @@ dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_u
                 l_byte[2]='\0';
 
                 // Read byte chars
-                if ( sscanf(l_byte,"%02hhx",&l_ret.raw[l_pos] ) != 1)
-                    if( sscanf(l_byte,"%02hhX",&l_ret.raw[l_pos] ) ==1 )
+                unsigned int l_bytechar;
+                if ( sscanf(l_byte,"%02x", &l_bytechar) != 1)
+                    if( sscanf(l_byte,"%02X", &l_bytechar) != 1 )
                         break;
-
+                l_ret.raw[l_pos] = l_bytechar;
                 // Update pos
                 l_pos++;
                 // Reduce in two steps to not to break if input will have bad input

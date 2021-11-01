@@ -30,8 +30,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <stdint.h>
 #include <string.h>
 
-#include <dap_common.h>
 #include <dap_stream.h>
+#include <dap_common.h>
 #include <dap_stream_pkt.h>
 #include <dap_stream_ch_pkt.h>
 #include "dap_stream_ch_chain_net_srv_pkt.h"

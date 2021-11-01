@@ -219,12 +219,11 @@ void dap_set_log_tag_width(size_t a_width) {
 
 
 /**
- * @brief dap_common_init call this function before using dap sdk modules
- * 
- * @param a_console_title set console title. Can be result of dap_get_appname(). For example: cellframe-node
- * @param a_log_file_path path to log file. Saved in s_log_file_path variable. For example: C:\\Users\\Public\\Documents/cellframe-node/var/log/cellframe-node.log
- * @param a_log_dirpath path to log directory. Saved in s_log_dir_path variable. For example. C:\\Users\\Public\\Documents/cellframe-node/var/log
- * @return int (0 if succcess, -1 if error)
+ * @brief this function is used for dap sdk modules initialization
+ * @param a_console_title const char *: set console title. Can be result of dap_get_appname(). For example: cellframe-node
+ * @param a_log_file_path const char *: path to log file. Saved in s_log_file_path variable. For example: C:\\Users\\Public\\Documents\\cellframe-node\\var\\log\\cellframe-node.log
+ * @param a_log_dirpath const char *: path to log directory. Saved in s_log_dir_path variable. For example. C:\\Users\\Public\\Document\\cellframe-node\\var\\log
+ * @return int. (0 if succcess, -1 if error)
  */
 int dap_common_init( const char *a_console_title, const char *a_log_file_path, const char *a_log_dirpath) {
 
@@ -263,7 +262,7 @@ int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename
         if( s_log_file == NULL)
             s_log_file = _wfopen( a_log_filename , L"w" );
         if ( s_log_file == NULL ) {
-            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
+            dap_fprintf( stderr, "Can't open log file %ls to append\n", a_log_filename );
             return -1;
         }
         //dap_stpcpy(s_log_file_path, a_log_filename);
@@ -356,6 +355,7 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
     va_end( va );
     char *dummy = (offset2 == 0) ? memcpy(&l_log_string->str[sizeof(l_log_string->str) - 6], "...\n\0", 5)
         : memcpy(&l_log_string->str[offset], "\n", 1);
+    UNUSED(dummy);
     pthread_mutex_lock(&s_log_mutex);
     DL_APPEND(s_log_buffer, l_log_string);
     ++s_log_count;

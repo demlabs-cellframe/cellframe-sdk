@@ -27,11 +27,10 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#include "dap_events_socket.h"
 #include "dap_config.h"
 #include "dap_stream_session.h"
 #include "dap_stream_ch.h"
-
-#include "dap_events_socket.h"
 
 #define CHUNK_SIZE_MAX (3 * 1024)
 

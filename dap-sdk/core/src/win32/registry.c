@@ -135,7 +135,7 @@ wchar_t* getUserSID(LPCWSTR homePath) {
 
 wchar_t* shGetUsrPath(){
     static WCHAR path[MAX_PATH];
-    memset(path, L'\0', MAX_PATH);
+    memset(path, L'\0', MAX_PATH * sizeof(WCHAR));
     SHGetFolderPathW(NULL, CSIDL_PROFILE, NULL, 0, path);
     return path;
 }

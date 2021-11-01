@@ -23,10 +23,10 @@
 */
 
 #pragma once
+#include "dap_json_rpc_response_handler.h"
 #include "dap_common.h"
 #include "dap_json_rpc_params.h"
 #include "json-c/json.h"
-#include "dap_json_rpc_response_handler.h"
 #include "dap_string.h"
 #include "dap_client_http.h"
 

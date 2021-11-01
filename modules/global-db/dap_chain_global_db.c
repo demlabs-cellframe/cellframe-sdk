@@ -51,11 +51,13 @@
 // for access from several streams
 //static pthread_mutex_t ldb_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 
+// The function does nothing
 static inline void lock()
 {
     //pthread_mutex_lock(&ldb_mutex_);
 }
 
+// The function does nothing
 static inline void unlock()
 {
     //pthread_mutex_unlock(&ldb_mutex_);
@@ -77,9 +79,11 @@ static sync_group_item_t *s_sync_group_extra_items = NULL;
 static bool s_track_history = false;
 
 /**
- * @brief dap_chain_global_db_add_sync_group
- * @details Add group name for synchronization
- * @param a_group_prefix
+ * @brief Adds a group name for synchronization.
+ * @param a_group_prefix a prefix of the group name 
+ * @param a_callback a callback function
+ * @param a_arg a pointer to an argument
+ * @return (none)
  */
 void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
@@ -92,9 +96,11 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
 }
 
 /**
- * @brief dap_chain_global_db_add_sync_extra_group
- * @details Add group name for synchronization with especially node addresses
- * @param a_group_prefix
+ * @brief Adds a group name for synchronization with especially node addresses.
+ * @param a_group_mask a group mask string
+ * @param a_callback a callabck function
+ * @param a_arg a pointer to an argument
+ * @return (none)
  */
 void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
@@ -106,6 +112,11 @@ void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_glob
     HASH_ADD_STR(s_sync_group_extra_items, group_mask, l_item);
 }
 
+/**
+ * @brief Gets a list of a group mask.
+ * @param a_table a table
+ * @return Returns a pointer to a list of a group mask.
+ */
 dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
 {
     dap_list_t *l_ret = NULL;
@@ -116,18 +127,29 @@ dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
     return l_ret;
 }
 
+/** 
+ * @brief Gets a list of a group mask for s_sync_group_items.
+ * @return Returns a pointer to a list of a group mask.
+ */
 dap_list_t *dap_chain_db_get_sync_groups()
 {
     return dap_chain_db_get_sync_groups_internal(s_sync_group_items);
 }
 
+/** 
+ * @brief Gets a list of a group mask for s_sync_group_items.
+ * @param a_table a table
+ * @return Returns a pointer to a list of a group mask.
+ */
 dap_list_t *dap_chain_db_get_sync_extra_groups()
 {
     return dap_chain_db_get_sync_groups_internal(s_sync_group_extra_items);
 }
 
 /**
- * Clean struct dap_global_db_obj_t
+ * @brief Deallocates memory of a key and a value members of an obj structure.
+ * @param obj a pointer to the structure
+ * @return (none)
  */
 void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 {
@@ -140,7 +162,9 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 }
 
 /**
- * Delete struct dap_global_db_obj_t
+ * @brief Deallocates memory of an obj structure.
+ * @param obj a pointer to the object 
+ * @return (none)
  */
 void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
 {
@@ -149,7 +173,10 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
 }
 
 /**
- * Delete mass of struct dap_global_db_obj_t
+ * @brief Deallocates memory of an objs array.
+ * @param objs a pointer to the first object of the array
+ * @param a_count a number of objects in the array
+ * @return (none)
  */
 void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
 {
@@ -160,9 +187,10 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
 }
 
 /**
- * @brief dap_chain_global_db_init
- * @param g_config
- * @return
+ * @brief Initializes a database by g_config structure. 
+ * @note You should call this function before calling any other functions in this library.
+ * @param g_config a pointer to the configuration structure
+ * @return Returns 0 if successful; otherwise, <0.
  */
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
@@ -181,7 +209,9 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 }
 
 /**
- * @brief dap_chain_global_db_deinit
+ * @brief Deinitialize a database. 
+ * @note You should call this function at the end.
+ * @return (none)
  */
 void dap_chain_global_db_deinit(void)
 {
@@ -207,8 +237,8 @@ void dap_chain_global_db_deinit(void)
 }
 
 /**
- * @brief dap_chain_global_db_flush
- * @return
+ * @brief Flushes a database cahce to disk.
+ * @return 0
  */
 int dap_chain_global_db_flush(void){
     lock();
@@ -218,9 +248,10 @@ int dap_chain_global_db_flush(void){
 }
 
 /**
- * Get entry from base
- *
- * return dap_store_obj_t*
+ * @brief Gets an object from a database by a_key and a_group arguments.
+ * @param a_key an object key string
+ * @param a_group a group name string
+ * @return If successful, returns a pointer to the item, otherwise NULL.
  */
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 {
@@ -231,11 +262,12 @@ void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 }
 
 /**
- * @brief dap_chain_global_db_obj_gr_get
- * @param a_key
- * @param a_data_out
- * @param a_group
- * @return
+ * @brief Gets an array consisting of a_data_len_out objects from a database by a_key and a_group arguments.
+ * @param a_key an object key string
+ * @param a_data_len_out[in] a number of objects to be gotten, if NULL - no limits
+ * @param a_data_len_out[out] a number of objects that were gotten
+ * @param a_group a group name string  
+ * @return If successful, returns a pointer to the first item in the array; otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
@@ -252,11 +284,12 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
 }
 
 /**
- * @brief dap_chain_global_db_gr_get
- * @param a_key
- * @param a_data_out
- * @param a_group
- * @return
+ * @brief Gets an object value from database by a_key and a_group.
+ * @param a_key an object key string
+ * @param a_data_out[in] a number of objects to be gotten, if NULL - no limits
+ * @param a_data_out[out] a length of values that were gotten
+ * @param a_group a group name string
+ * @return If successful, returns a pointer to the object value.
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
@@ -277,6 +310,13 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
     return l_ret_value;
 }
 
+
+/**
+ * @brief Gets an object value from database by a_key for the "local.general" group.
+ * @param a_key an object key string
+ * @param a_data_out a length of value that were gotten
+ * @return If successful, returns a pointer to the object value, otherwise NULL.
+ */
 uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
 {
     return dap_chain_global_db_gr_get(a_key, a_data_out, GROUP_LOCAL_GENERAL);
@@ -284,7 +324,11 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
 
 
 /**
- * Add info about the deleted entry to the base
+ * @brief Adds info about the deleted entry to the database.
+ * @param a_key an object key string
+ * @param a_group a group name string
+ * @param a_timestamp an object time stamp
+ * @return True if successful, false otherwise.
  */
 static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_timestamp)
 {
@@ -311,12 +355,10 @@ static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_times
 
 
 /**
- * @brief global_db_gr_del_del:
- * Delete info about the deleted entry from the base
- * @param a_key - key, looked like "0x8FAFBD00B..."
- * @param a_group - group name, for example "kelvin-testnet.nodes"
- * @return true 
- * @return false 
+ * @brief Deletes info about the deleted object from the database
+ * @param a_key an object key string, looked like "0x8FAFBD00B..."
+ * @param a_group a group name string, for example "kelvin-testnet.nodes"
+ * @return If successful, returns true; otherwise, false. 
  */
 static bool global_db_gr_del_del(char *a_key, const char *a_group)
 {
@@ -341,11 +383,10 @@ static bool global_db_gr_del_del(char *a_key, const char *a_group)
 
 
 /**
- * @brief global_db_gr_del_get_timestamp
- *  Get timestamp of the deleted entry
- * @param a_group group name, for example "kelvin-testnet.nodes"
- * @param a_key key, looked like "0x8FAFBD00B..."
- * @return time_t 
+ * @brief Gets time stamp of the deleted object by a_group and a_key arguments.
+ * @param a_group a group name sring, for example "kelvin-testnet.nodes"
+ * @param a_key an object key string, looked like "0x8FAFBD00B..."
+ * @return If successful, a time stamp, otherwise 0.
  */
 time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
 {
@@ -372,11 +413,9 @@ time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
 }
 
 /**
- * @brief dap_chain_global_db_del
- * call dap_chain_global_db_gr_del
- * @param a_key 
- * @return true 
- * @return false 
+ * @brief Deletes item from a database by a a_key for the "local.general" group.
+ * @param a_key an object key string
+ * @return True if successful, false otherwise.
  */
 bool dap_chain_global_db_del(char *a_key)
 {
@@ -385,10 +424,9 @@ bool dap_chain_global_db_del(char *a_key)
 
 
 /**
- * @brief dap_chain_global_db_get_last
- * Read last item in global_db
- * @param a_group 
- * @return dap_store_obj_t* array (note:not Null-terminated string) on NULL in case of an error
+ * @brief Gets a last item from a database by a_group.
+ * @param a_group a group name string
+ * @return If successful, a pointer to the object; otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group)
 {
@@ -400,10 +438,12 @@ dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group)
 }
 
 /**
- * Read the entire database with condition into an array of size bytes
- *
- * @param data_size[out] size of output array
- * @return array (note:not Null-terminated string) on NULL in case of an error
+ * @brief Gets objects from a database by a_group_name and a_first_id.
+ * @param a_group a group name string
+ * @param a_first_id a first id
+ * @param a_objs_count[in] a number of object to be read, if 0 - no limits
+ * @param a_objs_count[out] a number of object were read
+ * @return If successful, a pointer to objects; otherwise NULL.
  */
 dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_first_id, size_t *a_objs_count)
 {
@@ -415,10 +455,11 @@ dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_f
 }
 
 /**
- * Read the entire database into an array of size bytes
- *
- * @param data_size[out] size of output array
- * @return array (note:not Null-terminated string) on NULL in case of an error
+ * @brief Gets all data from a database by a_group.
+ * @param a_group a group name string
+ * @param a_data_size[in] a poiter to return a number of data
+ * @param a_data_size[out] a number of data
+ * @return If successful, a pointer to data; otherwise NULL.
  */
 dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out)
 {
@@ -445,15 +486,19 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
     return l_data;
 }
 
+/**
+ * @brief Gets all data from a database for the "local.general" group
+ */
 dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out)
 {
     return dap_chain_global_db_gr_load(GROUP_LOCAL_GENERAL, a_data_size_out);
 }
 
 /**
- * @brief extract_group_mask
- * @param a_group
- * @return
+ * @brief Finds item by a_items and a_group 
+ * @param a_items items
+ * @param a_group a group name string
+ * @return 
  */
 static sync_group_item_t *find_item_by_mask(sync_group_item_t *a_items, const char *a_group)
 {
@@ -465,7 +510,12 @@ static sync_group_item_t *find_item_by_mask(sync_group_item_t *a_items, const ch
     return NULL;
 }
 
-
+/**
+ * @brief Adds data to the history log
+ * 
+ * @param a_store_data a pointer to an object
+ * @return (none)
+ */
 void dap_global_db_obj_track_history(void* a_store_data)
 {
     dap_store_obj_t *l_obj = (dap_store_obj_t *)a_store_data;
@@ -510,13 +560,13 @@ void dap_global_db_obj_track_history(void* a_store_data)
 
 
 /**
- * @brief dap_chain_global_db_gr_set
- * @param a_key
- * @param a_value
- * @param a_value_len
- * @param a_group
+ * @brief Adds a value to a database.
+ * @param a_key a object key string
+ * @param a_value a value to be added
+ * @param a_value_len length of value. If a_value_len=-1, the function calculates length.
+ * @param a_group a group name string
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
- * @return
+ * @return True if successful, false otherwise.
  */
 bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, const char *a_group)
 {
@@ -547,13 +597,22 @@ bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, 
     return !l_res;
 }
 
+/**
+ * @brief Adds a value to a database for the "local.general" group
+ * @param a_value a value to be added
+ * @param a_value_len length of value. If a_value_len=-1, the function counts length.
+ * @return True if successful, false otherwise.
+ */
 bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
 {
     return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, GROUP_LOCAL_GENERAL);
 }
 
-/**
- * Delete entry from base
+/** 
+ * @brief Deletes object from a database by a a_key and a_group arguments.
+ * @param a_key a object key string
+ * @param a_group a group name string
+ * @return True if object was deleted or false otherwise.
  */
 bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
 {
@@ -568,7 +627,7 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
     unlock();
     if(l_res >= 0) {
         // add to Del group
-        global_db_gr_del_add(dap_strdup(store_data.key), store_data.group, store_data.timestamp);
+        global_db_gr_del_add(dap_strdup(a_key), store_data.group, store_data.timestamp);
     }
     // do not add to history if l_res=1 (already deleted)
     if (!l_res) {
@@ -581,9 +640,10 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
 }
 
 /**
- * Write to the database from an array of data_size bytes
- *
- * @return
+ * @brief Saves(deletes) objects to (from) a database.
+ * @param a_store_data a pointer to objects
+ * @param a_objs_count a number of objects
+ * @return True if object was deleted or false otherwise.
  */
 bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
 {
@@ -623,6 +683,13 @@ bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count)
     return !l_res;
 }
 
+/**
+ * @brief Saves objects in a database by a_group.
+ * @param a_objs a pointer to objects
+ * @param a_objs_count a number of objects
+ * @param a_group a group name string
+ * @return If successful, true; otherwise false.
+ */
 bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group)
 {
     dap_store_obj_t *l_store_data = DAP_NEW_Z_SIZE(dap_store_obj_t, a_objs_count * sizeof(struct dap_store_obj));
@@ -643,15 +710,22 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
     return l_res;
 }
 
+/**
+ * @brief Saves objectss in a database.
+ * @param a_objs a pointer to objects
+ * @param a_objs_count a number of objects
+ * @return If successful, true; otherwise false.
+ */
 bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count)
 {
     return dap_chain_global_db_gr_save(a_objs, a_objs_count, GROUP_LOCAL_GENERAL);
 }
 
 /**
- * Calc hash for data
- *
- * return hash or NULL
+ * @brief Calcs a hash string for data
+ * @param data a pointer to data
+ * @param data_size a size of data
+ * @return A hash string or NULL.
  */
 char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
 {

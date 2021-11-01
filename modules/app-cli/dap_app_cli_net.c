@@ -227,7 +227,7 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
     dap_string_printf(l_post_data, "POST /connect HTTP/1.1\r\n"
                                    "Host: localhost\r\n"
                                    "Content-Type: text/text\r\n"
-                                   "Content-Length: %d\r\n"
+                                   "Content-Length: %zu\r\n"
                                    "\r\n"
                                    "%s", l_cmd_data->len, l_cmd_data->str);
     send(*a_socket, l_post_data->str, l_post_data->len, 0);

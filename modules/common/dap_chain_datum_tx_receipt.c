@@ -123,6 +123,6 @@ uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * a
         l_ret++;
     }
     if(a_receipt_size != (size_t) ((byte_t *) l_sign - (byte_t *) a_receipt) )
-        log_it(L_ERROR, "Receipt 0x%x (size=%ud) is corrupted", a_receipt, a_receipt_size);
+        log_it(L_ERROR, "Receipt 0x%zu (size=%zu) is corrupted", (size_t)a_receipt, a_receipt_size);
     return l_ret;
 }

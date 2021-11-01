@@ -167,7 +167,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
 
     size_t node_info_size_must_be = dap_chain_node_info_get_size(l_node_info);
     if(node_info_size_must_be != node_info_size) {
-        log_it(L_ERROR, "Node has bad size in base=%u (must be %u)", node_info_size, node_info_size_must_be);
+        log_it(L_ERROR, "Node has bad size in base=%zu (must be %zu)", node_info_size, node_info_size_must_be);
         DAP_DELETE(l_node_info);
         DAP_DELETE(l_key);
         return NULL;
@@ -254,6 +254,12 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t 
 
 static bool s_mempool_auto = false;
 
+/**
+ * @brief 
+ * get automatic mempool processing, when network config contains mempool_auto_types for specific datums
+ * @return true 
+ * @return false 
+ */
 bool dap_chain_node_mempool_autoproc_init()
 {
     uint16_t l_net_count;
