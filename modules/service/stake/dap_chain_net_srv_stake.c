@@ -33,7 +33,7 @@
 
 #define LOG_TAG "dap_chain_net_srv_stake"
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a_str_reply);
+static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply);
 
 static dap_chain_net_srv_stake_t *s_srv_stake;
 
@@ -45,7 +45,7 @@ static dap_chain_net_srv_stake_t *s_srv_stake;
  */
 int dap_chain_net_srv_stake_init()
 {
-    dap_chain_node_cli_cmd_item_create("srv_stake", s_cli_srv_stake, NULL, "Delegated stake service commands",
+    dap_chain_node_cli_cmd_item_create("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
     "srv_stake order create -net <net name> -from_addr <addr> -token <ticker> -coins <value> -cert <name> -fee_percent <value>\n"
         "\tCreate a new order with specified amount of datoshi to delegate it to the specified address."
         "The fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
@@ -683,9 +683,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
     return 0;
 }
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a_str_reply)
+static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
-    UNUSED(a_arg_func);
     enum {
         CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_TX, CMD_INVALIDATE
     };

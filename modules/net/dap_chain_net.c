@@ -248,7 +248,7 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
                                                      const size_t a_value_len);
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size);
 
-static int s_cli_net(int argc, char ** argv, void *arg_func, char **str_reply);
+static int s_cli_net(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
 
@@ -1067,7 +1067,7 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
 int dap_chain_net_init()
 {
     dap_chain_node_client_init();
-    dap_chain_node_cli_cmd_item_create ("net", s_cli_net, NULL, "Network commands",
+    dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
         "net list [chains -n <chain net name>]"
             "\tList all networks or list all chains in selected network"
         "net -net <chain net name> [-mode update|all] go < online | offline >\n"
@@ -1185,9 +1185,8 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
  * @param str_reply
  * @return
  */
-static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
+static int s_cli_net(int argc, char **argv, char **a_str_reply)
 {
-    UNUSED(arg_func);
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -1560,7 +1559,8 @@ static int s_cli_net( int argc, char **argv, void *arg_func, char **a_str_reply)
                 }
             }
         } else {
-            dap_chain_node_cli_set_reply_text(a_str_reply,"Command requires one of subcomand: sync, links\n");
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                                              "Command requires one of subcomand: sync, link, go, get, stats, ca, ledger");
             ret = -1;
         }
 

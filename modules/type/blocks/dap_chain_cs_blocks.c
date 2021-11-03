@@ -85,7 +85,7 @@ typedef struct dap_chain_cs_blocks_iter
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, char **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
 static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
-static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply);
+static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply);
 
 // Setup BFT consensus and select the longest chunk
 static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks);
@@ -135,7 +135,7 @@ int dap_chain_cs_blocks_init()
 {
     dap_chain_cs_type_add("blocks", dap_chain_cs_blocks_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_chain_node_cli_cmd_item_create ("block", s_cli_blocks, NULL, "Create and explore blockchains",
+    dap_chain_node_cli_cmd_item_create ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:"
             "\tblock -net <chain net name> -chain <chain name> new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
@@ -320,9 +320,8 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
  * @param a_str_reply
  * @return
  */
-static int s_cli_blocks(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
+static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 {
-    (void) a_arg_func;
     enum {
         SUBCMD_UNDEFINED =0,
         SUBCMD_NEW_FLUSH,

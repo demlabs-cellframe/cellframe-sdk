@@ -1550,7 +1550,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
  * @param a_str_reply 
  * @return int 
  */
-int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
+int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum { CMD_NONE, CMD_LIST, CMD_TX_HISTORY, CMD_TX_INFO };
     int arg_index = 1;
@@ -1719,9 +1719,9 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
         int l_sub_cmd = SUBCMD_NONE;
         if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "coins", NULL ))
                 l_sub_cmd = SUBCMD_LIST_COIN;
-        dap_chain_node_cli_find_option_val(a_argv, 4, a_argc, "-net", &l_net_str);
-        if (l_net == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "command requires key -net");
+        dap_chain_node_cli_find_option_val(a_argv, 3, a_argc, "-net", &l_net_str);
+        if (l_net_str == NULL){
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Command requires key -net");
             return -1;
         }
         dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
@@ -1729,7 +1729,16 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get ledger for net %s", l_net_str);
             return -2;
         }
-        //dap_chain_ledger_
+        dap_string_t *l_str_ret = dap_string_new("");
+        dap_list_t *l_token_list = dap_chain_ledger_token_info(l_ledger);
+        dap_string_append_printf(l_str_ret, "Found %u tokens in %s ledger\n", dap_list_length(l_token_list), l_net_str);
+        for (dap_list_t *l_list = l_token_list; l_list; l_list = dap_list_next(l_list)) {
+            dap_string_append(l_str_ret, (char *)l_list->data);
+        }
+        dap_list_free_full(l_token_list, free);
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
+        dap_string_free(l_str_ret, true);
+        return 0;
     } else if (l_cmd == CMD_TX_INFO){
         //GET hash
         dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
@@ -1781,7 +1790,7 @@ int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
  * @param a_str_reply 
  * @return int 
  */
-int com_token(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply)
+int com_token(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum { CMD_NONE, CMD_LIST, CMD_INFO, CMD_TX };
     int arg_index = 1;
