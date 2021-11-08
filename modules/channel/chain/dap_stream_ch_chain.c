@@ -104,7 +104,6 @@ static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void 
 static void s_sync_out_chains_first_worker_callback(dap_worker_t *a_worker, void *a_arg);
 
 static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
-static void s_sync_out_gdb_synced_data_worker_callback(dap_worker_t *a_worker, void *a_arg);
 
 static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg);
 

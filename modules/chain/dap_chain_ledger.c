@@ -1803,11 +1803,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         // Get permissions
         l_token_item = NULL;
         pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
-        HASH_FIND_STR(l_ledger_priv->tokens,l_token, l_token_item);
+        HASH_FIND_STR(l_ledger_priv->tokens, l_token, l_token_item);
         pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
         if (! l_token_item){
             if(s_debug_more)
-                log_it(L_WARNING, "No token permissions found for token %s", l_token);
+                log_it(L_WARNING, "No token item found for token %s", l_token);
             l_err_num = -15;
             break;
         }
@@ -1934,7 +1934,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
         if (! l_token_item){
             if(s_debug_more)
-                log_it(L_WARNING, "No token permissions found for token %s", l_token);
+                log_it(L_WARNING, "No token item found for token %s", l_token);
             l_err_num = -15;
             break;
         }

@@ -262,6 +262,10 @@ uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out)
     uint8_t *l_priv_key_data = a_cert->enc_key->priv_key_data ?
                 dap_enc_key_serealize_priv_key(l_key, &l_priv_key_data_size) :
                 NULL;
+    dap_hash_fast_t l_priv_hash;
+    dap_hash_fast(l_priv_key_data, l_priv_key_data_size, &l_priv_hash);
+    dap_hash_fast_t l_pub_hash;
+    dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_pub_hash);
     uint8_t *l_metadata = dap_cert_serialize_meta(a_cert, &l_metadata_size);
 
     l_hdr.sign = dap_cert_FILE_HDR_SIGN;
@@ -410,11 +414,15 @@ dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
         if ( l_hdr.data_size > 0 ){
 
             dap_enc_key_deserealize_pub_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_size);
+            dap_hash_fast_t l_pub_hash;
+            dap_hash_fast(l_data + l_data_offset, l_hdr.data_size, &l_pub_hash);
             l_data_offset += l_hdr.data_size;
         }
         if ( l_hdr.data_pvt_size > 0 ){
 
             dap_enc_key_deserealize_priv_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_pvt_size);
+            dap_hash_fast_t l_priv_hash;
+            dap_hash_fast(l_data + l_data_offset, l_hdr.data_pvt_size, &l_priv_hash);
             l_data_offset += l_hdr.data_pvt_size;
         }
         if ( l_hdr.metadata_size > 0 ){

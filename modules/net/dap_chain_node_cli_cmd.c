@@ -1385,6 +1385,8 @@ int com_traceroute(int argc, char** argv, char **str_reply)
     }
     return res;
 #else
+    UNUSED(argc);
+    UNUSED(argv);
     dap_chain_node_cli_set_reply_text(str_reply, "Not realized for your platform");
     return -1;
 #endif
@@ -1467,8 +1469,10 @@ int com_tracepath(int argc, char** argv, char **str_reply)
     }
     return res;
 #else
-        dap_chain_node_cli_set_reply_text(str_reply, "Not realized for your platform");
-        return -1;
+    UNUSED(argc);
+    UNUSED(argv);
+    dap_chain_node_cli_set_reply_text(str_reply, "Not realized for your platform");
+    return -1;
 #endif
 }
 
@@ -1538,8 +1542,10 @@ int com_ping(int argc, char** argv, char **str_reply)
     }
     return res;
 #else
-        dap_chain_node_cli_set_reply_text(str_reply, "Not realized for your platform");
-        return -1;
+    UNUSED(argc);
+    UNUSED(argv);
+    dap_chain_node_cli_set_reply_text(str_reply, "Not realized for your platform");
+    return -1;
 #endif
 }
 
@@ -2457,16 +2463,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 
     const char * l_ticker = NULL;
 
-    const char * l_total_supply_str = NULL;
-    uint64_t l_total_supply = 0;
-
-    const char * l_signs_emission_str = NULL;
-    uint16_t l_signs_emission = 0;
-
-    const char * l_signs_total_str = NULL;
     uint16_t l_signs_total = 0;
-
-    const char * l_certs_str = NULL;
 
     dap_cert_t ** l_certs = NULL;
     size_t l_certs_count = 0;
@@ -3159,9 +3156,6 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_cert_t ** l_certs = NULL;
     size_t l_certs_size = 0;
 
-    const char * l_wallet_str = NULL;
-    dap_chain_wallet_t * l_wallet = NULL;
-
     const char * l_chain_emission_str = NULL;
     dap_chain_t * l_chain_emission = NULL;
 
@@ -3636,36 +3630,28 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
 
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net);
-
-    // Check for network if was set or not
     if ( l_net == NULL ){
-        dap_chain_node_cli_set_reply_text(a_str_reply,
-                "mempool_add_ca_public requires parameter '-net' to specify the chain network name");
         return -1;
+    } else if (a_str_reply && *a_str_reply) {
+        DAP_DELETE(*a_str_reply);
+        *a_str_reply = NULL;
     }
 
     // Chech for chain if was set or not
     if ( l_chain == NULL){
        // If wasn't set - trying to auto detect
         l_chain = dap_chain_net_get_chain_by_chain_type( l_net, CHAIN_TYPE_CA );
-        if (l_chain == NULL) {
-            l_chain = l_net->pub.default_chain;
-        }
         if (l_chain == NULL) { // If can't auto detect
             // clean previous error code
-            if(a_str_reply && *a_str_reply) {
-                DAP_DELETE(*a_str_reply);
-                *a_str_reply = NULL;
-            }
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "No chains for CA datum in network \"%s\"", l_net->pub.name );
             return -2;
         }
     }
-    // Check if '-name' wasn't specified
+    // Check if '-ca_name' wasn't specified
     if (l_ca_name == NULL){
         dap_chain_node_cli_set_reply_text(a_str_reply,
-                "mempool_add_ca_public requires parameter '-name' to specify the certificate name");
+                "mempool_add_ca_public requires parameter '-ca_name' to specify the certificate name");
         return -3;
     }
 
@@ -3706,9 +3692,15 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
     }
 
     // Finaly add datum to mempool
-    if ( dap_chain_mempool_datum_add ( l_datum,l_chain ) == 0 ){
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum,l_chain);
+    if (l_hash_str) {
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Datum %s was successfully placed to mempool", l_hash_str);
+        DAP_DELETE(l_hash_str);
         return 0;
-    }else{
+    } else {
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't place certificate \"%s\" to mempool", l_ca_name);
         DAP_DELETE( l_datum );
         return -8;
     }
@@ -4192,7 +4184,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
         for (size_t i = 0; i < l_data_size; ++i) {
             size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len) + 1;
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
-            size_t l_enc_size = dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
+            //size_t l_enc_size = dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
 
             struct json_object *jobj = json_object_new_object();
             json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_data[i].id));
@@ -4282,9 +4274,9 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
             l_group_store[j].timestamp = json_object_get_int64(l_ts);
             l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
             l_group_store[j].type   = 'a';
-            const char *l_value_str = json_object_get_string(l_value);
+            //const char *l_value_str = json_object_get_string(l_value);
             char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
-            size_t l_dec_size = dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
+            //size_t l_dec_size = dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
             l_group_store[j].value  = (uint8_t*)l_val;
         }
         if (dap_chain_global_db_driver_appy(l_group_store, l_records_count)) {
