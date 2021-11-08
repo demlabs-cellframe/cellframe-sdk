@@ -28,6 +28,12 @@ typedef struct dap_tx_data{
 
 #define LOG_TAG "dap_chain_global_db_hist"
 
+/**
+ * @brief Packs members of a_rec structure into a single string.
+ * 
+ * @param a_rec a pointer to the structure
+ * @return Returns the string.
+ */
 static char* dap_db_history_pack_hist(dap_global_db_hist_t *a_rec)
 {
     char *l_ret = dap_strdup_printf("%c%s%u%s%s%s%s", a_rec->type, GLOBAL_DB_HIST_REC_SEPARATOR, a_rec->keys_count,
@@ -35,6 +41,13 @@ static char* dap_db_history_pack_hist(dap_global_db_hist_t *a_rec)
     return l_ret;
 }
 
+/**
+ * @brief Unpacks a single string into a structure.
+ * 
+ * @param l_str_in the string
+ * @param a_rec_out the structure
+ * @return Returns 1 if successful, otherwise -1. 
+ */
 static int dap_db_history_unpack_hist(char *l_str_in, dap_global_db_hist_t *a_rec_out)
 {
     char **l_strv = dap_strsplit(l_str_in, GLOBAL_DB_HIST_REC_SEPARATOR, -1);
@@ -49,6 +62,11 @@ static int dap_db_history_unpack_hist(char *l_str_in, dap_global_db_hist_t *a_re
     return 1;
 }
 
+/**
+ * @brief Gets a current time with a suffix.
+ * 
+ * @return Returns a string with a current time and sufix.
+ */
 static char* dap_db_new_history_timestamp()
 {
     static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -76,6 +94,16 @@ static char* dap_db_new_history_timestamp()
 
 /**
  * Add data to the history log
+ */
+
+/**
+ * @brief Adds data to the history log
+ * 
+ * @param a_type a type of
+ * @param a_store_obj a pointer to the object structure
+ * @param a_dap_store_count a number of objectd
+ * @param a_group a group name string
+ * @return Returns true if successful,  
  */
 bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_store_count, const char *a_group)
 {
@@ -129,6 +157,13 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
 /**
  * Get last id in log
  */
+
+/**
+ * @brief Gets last id of log
+ * 
+ * @param a_group_name a group name string
+ * @return Returns id if succeess.
+ */
 uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
 {
     uint64_t result = 0;
@@ -143,6 +178,12 @@ uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
 /**
  * Get last id in log
  */
+
+/**
+ * @brief Gets last id in the 
+ * 
+ * @return Returns id if succeess
+ */
 uint64_t dap_db_log_get_last_id(void)
 {
     return dap_db_log_get_group_last_id(GROUP_LOCAL_HISTORY);
@@ -151,6 +192,13 @@ uint64_t dap_db_log_get_last_id(void)
 /**
  * Thread for reading log list
  * instead dap_db_log_get_list()
+ */
+
+/**
+ * @brief 
+ * 
+ * @param arg 
+ * @return void* 
  */
 static void *s_list_thread_proc(void *arg)
 {
@@ -220,6 +268,14 @@ static void *s_list_thread_proc(void *arg)
 /**
  * instead dap_db_log_get_list()
  */
+/**
+ * @brief  
+ * @note instead dap_db_log_get_list()
+ * 
+ * @param a_addr 
+ * @param a_flags 
+ * @return Returns a pointer to the log list structure if successful, otherwise NULL pointer.
+ */
 dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_flags)
 {
 #ifdef GDB_SYNC_ALWAYS_FROM_ZERO
@@ -262,6 +318,12 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
 /**
  * Get number of items
  */
+/**
+ * @brief Gets a number of rest objects from log list
+ * 
+ * @param a_db_log_list a pointer to the log list
+ * @return Returns a number if successful, otherwise 0.
+ */
 size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list)
 {
     if(!a_db_log_list)
@@ -273,6 +335,12 @@ size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list)
     return l_items_number;
 }
 
+/**
+ * @brief 
+ * 
+ * @param a_db_log_list 
+ * @return size_t 
+ */
 size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
 {
     if(!a_db_log_list)
@@ -285,6 +353,12 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
 }
 /**
  * Get one item from log_list
+ */
+/**
+ * @brief Gets an object from a list.
+ * 
+ * @param a_db_log_list  a pointer to the log list
+ * @return Returns a pointer to the object.
  */
 dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 {
@@ -318,6 +392,14 @@ dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
     //return l_list;
 }
 
+
+/**
+ * @brief Deletes a 
+ * 
+ * @param a_item a pointer to the object
+ * @returns (none)
+ *  
+ */
 void dap_db_log_list_delete_item(void *a_item)
 {
     dap_db_log_list_obj_t *l_list_item = (dap_db_log_list_obj_t *)a_item;
@@ -327,6 +409,11 @@ void dap_db_log_list_delete_item(void *a_item)
 
 /**
  * Get log diff as list_write
+ */
+/**
+ * @brief Deletes log of list
+ * 
+ * @param a_db_log_list 
  */
 void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
 {
