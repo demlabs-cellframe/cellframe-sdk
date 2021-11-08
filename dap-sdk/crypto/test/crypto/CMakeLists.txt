@@ -18,7 +18,7 @@ if (ANDROID)
     include_directories(cellframe-sdk/cellframe-sdk/3rdparty/)
 endif()
 
-add_subdirectory(cellframe-sdk/dap-sdk)
+#add_subdirectory(cellframe-sdk/dap-sdk)
 #enable_testing()
 add_subdirectory(test)
 
@@ -35,7 +35,7 @@ file(GLOB SRC *.h *.c)
 
 add_executable(${PROJECT_NAME} ${SRC})
 
-target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto -lm)
+target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto m)
 
 add_test(
     NAME crypto-test

@@ -10,7 +10,8 @@
 #include "dap_enc_tesla.h"
 #include "dap_enc_dilithium.h"
 #include "dap_enc.h"
-#include "dap_test.h"
+
+int get_cur_time_msec();
 
 #define TEST_SER_FILE_NAME "keystorage.txt"
 void test_encypt_decrypt(int count_steps, const dap_enc_key_type_t key_type, const int cipher_key_size)

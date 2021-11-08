@@ -192,7 +192,7 @@ uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
     size_t l_mem_shift = 0;
     while (l_meta_list_item) {
         dap_cert_metadata_t *l_meta_item = l_meta_list_item->data;
-        size_t l_meta_item_size = sizeof(dap_cert_metadata_t) - sizeof(const char *) + l_meta_item->length + strlen(l_meta_item->key) + 1;
+        size_t l_meta_item_size = sizeof(uint32_t) + 1 + l_meta_item->length + strlen(l_meta_item->key) + 1;
         if (l_buf) {
             l_buf = DAP_REALLOC(l_buf, l_mem_shift + l_meta_item_size);
         } else {

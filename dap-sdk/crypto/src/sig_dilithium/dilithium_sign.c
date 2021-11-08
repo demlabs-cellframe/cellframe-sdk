@@ -314,7 +314,7 @@ int dilithium_crypto_sign( dilithium_signature_t *sig, const unsigned char *m, u
 
     return 0;
 }
-
+#include "dap_hash.h"
 /*************************************************/
 int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilithium_signature_t *sig, const dilithium_public_key_t * public_key)
 {
@@ -338,6 +338,11 @@ int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilit
     poly c, chat, cp;
     polyvecl mat[p->PARAM_K], z;
     polyveck t1, w1, h, tmp1, tmp2;
+
+    dap_hash_fast_t l_hash;
+    dap_hash_fast(sig->sig_data, sig->sig_len, &l_hash);
+    dap_hash_fast_t p_hash;
+    dap_hash_fast(public_key->data, p->CRYPTO_PUBLICKEYBYTES, &p_hash);
 
     if((sig->sig_len - p->CRYPTO_BYTES) != mlen) {
         free(p);

@@ -1,7 +1,7 @@
 #include "rand/dap_rand.h"
 #include "dap_enc_dilithium_test.h"
 #include "dap_enc_dilithium.h"
-#include "../sig_dilithium/dilithium_params.h"
+#include "dap_sign.h"
 
 static void test_signing_verifying(void)
 {
@@ -33,6 +33,29 @@ static void test_signing_verifying(void)
     dap_enc_key_delete(key);
 }
 
+static void test_signing_verifying_serial(void)
+{
+    size_t seed_size = sizeof(uint8_t);
+    uint8_t seed[seed_size];
+
+    randombytes(seed, seed_size);
+
+    dap_enc_key_t *key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_SIG_DILITHIUM, NULL, 0, seed, seed_size, 0);
+
+    size_t source_size = 1 + random_uint32_t(20);
+    uint8_t source[source_size];
+    randombytes(source, source_size);
+
+    dap_sign_t *sign = dap_sign_create(key, source, source_size, 0);
+    dap_assert_PIF(sign > 0, "Signing message and serialize");
+
+    int verify = dap_sign_verify(sign, source, source_size);
+    dap_assert_PIF(verify == 1, "Deserialize and verifying signature");
+
+    free(sign);
+    dap_enc_key_delete(key);
+}
+
 static void init_test_case()
 {
     srand((uint32_t) time(NULL));
@@ -50,6 +73,8 @@ void dap_enc_dilithium_tests_run()
     init_test_case();
 
     benchmark_mgs_time("Signing and verifying message 1 time", benchmark_test_time(test_signing_verifying, 1));
+
+    benchmark_mgs_time("Signing and verifying message with serialization 1 time", benchmark_test_time(test_signing_verifying_serial, 1));
 
     cleanup_test_case();
 }
