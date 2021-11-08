@@ -93,17 +93,13 @@ static char* dap_db_new_history_timestamp()
 }
 
 /**
- * Add data to the history log
- */
-
-/**
  * @brief Adds data to the history log
  * 
  * @param a_type a type of
  * @param a_store_obj a pointer to the object structure
  * @param a_dap_store_count a number of objectd
  * @param a_group a group name string
- * @return Returns true if successful,  
+ * @return Returns true if successful, otherwise false
  */
 bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_store_count, const char *a_group)
 {
@@ -155,14 +151,10 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
 }
 
 /**
- * Get last id in log
- */
-
-/**
- * @brief Gets last id of log
+ * @brief Gets last id of the log
  * 
  * @param a_group_name a group name string
- * @return Returns id if succeess.
+ * @return Returns id if succeessful.
  */
 uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
 {
@@ -176,11 +168,7 @@ uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
 }
 
 /**
- * Get last id in log
- */
-
-/**
- * @brief Gets last id in the 
+ * @brief Gets last id of local.history group 
  * 
  * @return Returns id if succeess
  */
@@ -266,14 +254,11 @@ static void *s_list_thread_proc(void *arg)
 }
 
 /**
- * instead dap_db_log_get_list()
- */
-/**
  * @brief  
  * @note instead dap_db_log_get_list()
  * 
- * @param a_addr 
- * @param a_flags 
+ * @param a_addr a pointer to the structure
+ * @param a_flags flags
  * @return Returns a pointer to the log list structure if successful, otherwise NULL pointer.
  */
 dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_flags)
@@ -316,12 +301,9 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
 }
 
 /**
- * Get number of items
- */
-/**
- * @brief Gets a number of rest objects from log list
+ * @brief Gets a number of rest objects from a log list
  * 
- * @param a_db_log_list a pointer to the log list
+ * @param a_db_log_list a pointer to the log list structure
  * @return Returns a number if successful, otherwise 0.
  */
 size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list)
@@ -351,13 +333,11 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
     pthread_mutex_unlock(&a_db_log_list->list_mutex);
     return l_items_rest;
 }
-/**
- * Get one item from log_list
- */
+
 /**
  * @brief Gets an object from a list.
  * 
- * @param a_db_log_list  a pointer to the log list
+ * @param a_db_log_list a pointer to the log list
  * @return Returns a pointer to the object.
  */
 dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
@@ -407,9 +387,6 @@ void dap_db_log_list_delete_item(void *a_item)
     DAP_DELETE(l_list_item);
 }
 
-/**
- * Get log diff as list_write
- */
 /**
  * @brief Deletes log of list
  * 
