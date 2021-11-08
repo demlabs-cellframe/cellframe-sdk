@@ -20,8 +20,6 @@ int main(void)
  // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
     const int  test_numbers = 100;
-        dap_enc_dilithium_tests_run();
-        return 0;
 //    dap_enc_ringct20_tests_run(test_numbers);//return 0;
     dap_enc_newhope_tests_run(test_numbers);
     test_encypt_decrypt      (test_numbers, DAP_ENC_KEY_TYPE_SALSA2012, 32);
