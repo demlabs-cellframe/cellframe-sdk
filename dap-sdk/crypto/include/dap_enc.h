@@ -36,6 +36,7 @@ extern "C" {
 
 int dap_enc_init(void);
 void dap_enc_deinit(void);
+bool dap_enc_debug_more();
 
 // if include_base64 == true. Calc out size with base64 encoding
 size_t dap_enc_code_out_size(dap_enc_key_t* a_key, const size_t a_buf_in_size, dap_enc_data_type_t type);

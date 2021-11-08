@@ -66,15 +66,11 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
     memcpy(l_event_new->hashes_n_datum_n_signs+l_hashes_size, a_datum,l_datum_size );
 
     if ( a_key ){
-        dap_sign_t *l_sign = dap_sign_create(a_key, l_event_new, l_event_size, 0);
-        size_t l_priv_key_data_size = 0;
-        uint8_t *l_priv_key_data = dap_enc_key_serealize_priv_key(a_key, &l_priv_key_data_size);
-        dap_hash_fast_t l_priv_hash;
-        dap_hash_fast(l_priv_key_data, l_priv_key_data_size, &l_priv_hash);
+        dap_sign_t * l_sign = dap_sign_create(a_key, l_event_new, l_event_size, 0);
         if ( l_sign ){
             size_t l_sign_size = dap_sign_get_size(l_sign);
-            dap_hash_fast_t l_hash;
-            dap_sign_get_pkey_hash(l_sign, &l_hash);
+            l_event_new = (dap_chain_cs_dag_event_t *)DAP_REALLOC(l_event_new, l_event_size + l_sign_size );
+            memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
             l_event_size += l_sign_size;
             if (a_event_size)
                 *a_event_size = l_event_size;

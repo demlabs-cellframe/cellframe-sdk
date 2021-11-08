@@ -31,6 +31,7 @@
 #include "dap_enc_base64.h"
 #include "dap_enc_key.h"
 #include "dap_common.h"
+#include "dap_config.h"
 
 #define LOG_TAG "dap_enc"
 
@@ -40,10 +41,13 @@
  * @return int 
  */
 
+static bool s_debug_more = false;
+
 int dap_enc_init()
 {
     srand(time(NULL));
     dap_enc_key_init();
+    s_debug_more = g_config ? dap_config_get_item_bool_default(g_config, "crypto", "debug_more", false) : false;
     return 0;
 }
 
@@ -53,6 +57,11 @@ int dap_enc_init()
 void dap_enc_deinit()
 {
 
+}
+
+bool dap_enc_debug_more()
+{
+    return s_debug_more;
 }
 
 /**
