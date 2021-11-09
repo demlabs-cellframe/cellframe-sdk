@@ -65,7 +65,7 @@ static int dap_db_history_unpack_hist(char *l_str_in, dap_global_db_hist_t *a_re
 /**
  * @brief Gets a current time with a suffix.
  * 
- * @return Returns a string with a current time and sufix.
+ * @return Returns a string containing a current time and a suffix.
  */
 static char* dap_db_new_history_timestamp()
 {
@@ -93,13 +93,13 @@ static char* dap_db_new_history_timestamp()
 }
 
 /**
- * @brief Adds data to the history log
+ * @brief Adds data to the history log.
  * 
- * @param a_type a type of
+ * @param a_type a type of record
  * @param a_store_obj a pointer to the object structure
- * @param a_dap_store_count a number of objectd
+ * @param a_dap_store_count a number of objects
  * @param a_group a group name string
- * @return Returns true if successful, otherwise false
+ * @return Returns true if successful, otherwise false.
  */
 bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_store_count, const char *a_group)
 {
@@ -151,7 +151,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
 }
 
 /**
- * @brief Gets last id of the log
+ * @brief Gets last id of the log.
  * 
  * @param a_group_name a group name string
  * @return Returns id if succeessful.
@@ -168,9 +168,9 @@ uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
 }
 
 /**
- * @brief Gets last id of local.history group 
+ * @brief Gets last id of local.history group.
  * 
- * @return Returns id if succeess
+ * @return Returns id if succeess.
  */
 uint64_t dap_db_log_get_last_id(void)
 {
@@ -178,15 +178,10 @@ uint64_t dap_db_log_get_last_id(void)
 }
 
 /**
- * Thread for reading log list
- * instead dap_db_log_get_list()
- */
-
-/**
- * @brief 
+ * @brief A function for a thread for reading a log list
  * 
- * @param arg 
- * @return void* 
+ * @param arg a pointer to the log list structure
+ * @return Returns NULL.
  */
 static void *s_list_thread_proc(void *arg)
 {
@@ -254,7 +249,7 @@ static void *s_list_thread_proc(void *arg)
 }
 
 /**
- * @brief  
+ * @brief Starts a thread that readding a log list
  * @note instead dap_db_log_get_list()
  * 
  * @param a_addr a pointer to the structure
@@ -301,10 +296,10 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
 }
 
 /**
- * @brief Gets a number of rest objects from a log list
+ * @brief Gets a number of objects from a log list.
  * 
  * @param a_db_log_list a pointer to the log list structure
- * @return Returns a number if successful, otherwise 0.
+ * @return Returns the number if successful, otherwise 0.
  */
 size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list)
 {
@@ -318,10 +313,10 @@ size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list)
 }
 
 /**
- * @brief 
+ * @brief Gets a number of rest objects from a log list.
  * 
- * @param a_db_log_list 
- * @return size_t 
+ * @param a_db_log_list a pointer to the log list structure
+ * @return Returns the number if successful, otherwise 0.
  */
 size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
 {
@@ -374,11 +369,10 @@ dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 
 
 /**
- * @brief Deletes a 
+ * @brief Deallocates memory of a list item
  * 
- * @param a_item a pointer to the object
+ * @param a_item a pointer to the list item
  * @returns (none)
- *  
  */
 void dap_db_log_list_delete_item(void *a_item)
 {
@@ -388,9 +382,10 @@ void dap_db_log_list_delete_item(void *a_item)
 }
 
 /**
- * @brief Deletes log of list
+ * @brief Deallocates memory of a log list.
  * 
- * @param a_db_log_list 
+ * @param a_db_log_list a pointer to the log list structure
+ * @returns (none)
  */
 void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
 {
