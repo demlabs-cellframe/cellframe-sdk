@@ -439,6 +439,8 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size)
 {
+    if (!a_atom_iter)
+        return NULL;
     dap_chain_datum_t * l_datum = NULL;
     a_atom_iter->cur_item = PVT ( DAP_CHAIN_GDB(a_atom_iter->chain) )->hash_items;
     if (a_atom_iter->cur_item ){
@@ -448,8 +450,9 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE( a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
-        *a_atom_size = l_datum_size;
-    }else
+        if (a_atom_size)
+            *a_atom_size = l_datum_size;
+    } else if (a_atom_size)
         *a_atom_size = 0;
     return l_datum;
 }

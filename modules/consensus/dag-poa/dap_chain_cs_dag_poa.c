@@ -70,7 +70,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size);
 // CLI commands
-static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **str_reply);
+static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
 
@@ -85,7 +85,7 @@ int dap_chain_cs_dag_poa_init(void)
     // Add consensus constructor
     dap_chain_cs_add ("dag_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_chain_node_cli_cmd_item_create ("dag_poa", s_cli_dag_poa, NULL, "DAG PoA commands",
+    dap_chain_node_cli_cmd_item_create ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
         "dag_poa -net <chain net name> -chain <chain name> event sign -event <event hash> [-H hex|base58(default)]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
 
@@ -111,9 +111,8 @@ void dap_chain_cs_dag_poa_deinit(void)
  * @param str_reply
  * @return
  */
-static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_reply)
+static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
 {
-    (void) arg_func;
     int ret = -666;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
@@ -124,11 +123,13 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net);
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net)) {
+        return -3;
+    }
 
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(l_chain);
     //dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( l_dag ) ;
@@ -143,17 +144,29 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
 
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "event", &l_event_cmd_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-event", &l_event_hash_str);
+    if (!l_event_hash_str) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Command dag_poa requires parameter '-event' <event hash>");
+        return -4;
+    }
 
     // event hash may be in hex or base58 format
     char *l_event_hash_hex_str;
     char *l_event_hash_base58_str;
-    if(!dap_strncmp(l_event_hash_str, "0x", 2) || !dap_strncmp(l_event_hash_str, "0X", 2)) {
+    if(!dap_strcmp(l_hash_out_type, "hex")) {
         l_event_hash_hex_str = dap_strdup(l_event_hash_str);
         l_event_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_event_hash_str);
+        if (!l_event_hash_base58_str) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid hex hash format");
+            return -5;
+        }
     }
     else {
         l_event_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_event_hash_str);
         l_event_hash_base58_str = dap_strdup(l_event_hash_str);
+        if (!l_event_hash_hex_str) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid base58 hash format");
+        }
+        return -6;
     }
 
     if ( l_event_cmd_str != NULL ){
@@ -216,7 +229,11 @@ static int s_cli_dag_poa(int argc, char ** argv, void *arg_func, char **a_str_re
             }
             DAP_DELETE( l_gdb_group_events );
             DAP_DELETE(l_event);
+        } else {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Command dag_poa requires subcommand 'sign'");
         }
+    } else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Command dag_poa requires subcommand 'event'");
     }
     return ret;
 }

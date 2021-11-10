@@ -205,7 +205,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
     }
     if(a_datum || (a_hashes && a_hashes_count)) {
         dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, l_net->pub.cell_id, a_datum,
-        PVT(l_pos)->events_sign_key, a_hashes, a_hashes_count, a_dag_event_size);
+                                                                        PVT(l_pos)->events_sign_key, a_hashes, a_hashes_count, a_dag_event_size);
         return l_event;
     } else
         return NULL;
@@ -242,14 +242,20 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 log_it(L_WARNING, "Event is NOT signed with anything: sig pos %zu, event size %zu", l_sig_pos, a_dag_event_size);
                 return -4;
             }
-            size_t l_dag_event_size_without_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
 
-            bool l_sign_verify_ret = dap_sign_verify_size(l_sign, a_dag_event_size) &&
-                    dap_sign_verify(l_sign,a_dag_event,l_dag_event_size_without_sign) == 0;
-            if ( !l_sign_verify_ret ){
-                log_it(L_WARNING, "Event's sign is incorrect: code %d", l_sign_verify_ret);
+            bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_dag_event_size);
+            if (!l_sign_size_correct) {
+                log_it(L_WARNING, "Event's sign size is incorrect");
                 return -41;
-
+            }
+            size_t l_signs_total = a_dag_event->header.signs_count;
+            a_dag_event->header.signs_count = l_sig_pos;    // temporary change for sign verification
+            size_t l_dag_event_size_without_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
+            int l_sign_verified = dap_sign_verify(l_sign, a_dag_event, l_dag_event_size_without_sign);
+            a_dag_event->header.signs_count = l_signs_total;
+            if (l_sign_verified != 1) {
+                log_it(L_WARNING, "Event's sign is incorrect: code %d", l_sign_verified);
+                return -41;
             }
 
             if (!l_dag_event_size_without_sign){

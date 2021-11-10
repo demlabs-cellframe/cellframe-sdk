@@ -36,11 +36,11 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
  * ledger command
  *
  */
-int com_ledger(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply);
+int com_ledger(int a_argc, char ** a_argv, char **a_str_reply);
 
 /**
  * token command
  *
  */
-int com_token(int a_argc, char ** a_argv, void *a_arg_func, char **a_str_reply);
+int com_token(int a_argc, char ** a_argv, char **a_str_reply);
 

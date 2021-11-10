@@ -32,7 +32,7 @@
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
-static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char **a_str_reply);
+static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply);
 static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t *a_srv_client, const void *a_data, size_t a_data_size);
@@ -49,7 +49,7 @@ static dap_chain_net_srv_xchange_t *s_srv_xchange;
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, NULL, "eXchange service commands",
+    dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
     "srv_xchange price create -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>"
                                         "-wallet <name> -coins <value> -rate <value>\n"
         "\tCreate a new price with specified amount of datoshi to exchange with specified rate (sell : buy)\n"
@@ -327,7 +327,7 @@ static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
         return false;
     }
     // Processing will be made according to autoprocess policy
-    if (dap_chain_mempool_datum_add(l_datum, l_chain)) {
+    if (!dap_chain_mempool_datum_add(l_datum, l_chain)) {
         DAP_DELETE(l_datum);
         return false;
     }
@@ -783,9 +783,8 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
     return 0;
 }
 
-static int s_cli_srv_xchange(int a_argc, char **a_argv, void *a_arg_func, char **a_str_reply)
+static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 {
-    UNUSED(a_arg_func);
     enum {
         CMD_NONE, CMD_PRICE, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE
     };

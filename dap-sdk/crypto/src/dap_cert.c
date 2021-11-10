@@ -415,7 +415,7 @@ dap_pkey_t * dap_cert_to_pkey(dap_cert_t * a_cert)
  */
 int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
 {
-    dap_return_val_if_fail(a_cert && a_cert->enc_key && a_sign, -1);
+    dap_return_val_if_fail(a_cert && a_cert->enc_key && a_sign, -4);
     if ( dap_sign_type_from_key_type( a_cert->enc_key->type ).type == a_sign->header.type.type ){
         int l_ret;
         size_t l_pub_key_size = 0;
@@ -428,7 +428,7 @@ int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
         DAP_DELETE(l_pub_key);
         return l_ret;
     }else
-        return -1; // Wrong sign type
+        return -3; // Wrong sign type
 }
 
 

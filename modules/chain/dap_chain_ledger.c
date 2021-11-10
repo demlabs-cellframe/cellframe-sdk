@@ -220,7 +220,12 @@ int dap_chain_ledger_init()
  */
 void dap_chain_ledger_deinit()
 {
-
+    uint16_t l_net_count = 0;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for(uint16_t i =0; i < l_net_count; i++) {
+        dap_chain_ledger_purge(l_net_list[i]->pub.ledger);
+    }
+    DAP_DELETE(l_net_list);
 }
 
 /**
@@ -265,7 +270,7 @@ void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger)
 }
 
 
-static int compare_datum_items(const void * l_a, const void * l_b)
+/*static int compare_datum_items(const void * l_a, const void * l_b)
 {
     const dap_chain_datum_t *l_item_a = (const dap_chain_datum_t*) l_a;
     const dap_chain_datum_t *l_item_b = (const dap_chain_datum_t*) l_b;
@@ -274,7 +279,7 @@ static int compare_datum_items(const void * l_a, const void * l_b)
     if(l_item_a->header.ts_create < l_item_b->header.ts_create)
         return -1;
     return 1;
-}
+}*/
 
 
 /**
@@ -421,7 +426,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
  */
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size)
 {
-    dap_ledger_private_t * l_ledger_pvt = PVT(a_ledger);
+    UNUSED(a_ledger);
     dap_tsd_t * l_tsd= dap_chain_datum_token_tsd_get(a_token,a_token_size);
     size_t l_tsd_size=0;
     size_t l_tsd_total_size =a_token_size-  (((byte_t*)l_tsd)- (byte_t*) a_token );
@@ -867,6 +872,40 @@ int dap_chain_ledger_token_load(dap_ledger_t *a_ledger,  dap_chain_datum_token_t
     }
     return 0;
 }
+
+dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
+{
+    dap_list_t *l_ret_list = NULL;
+    dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        const char *l_type_str;
+        switch (l_token_item->type) {
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
+            l_type_str = "SIMPLE"; break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+            l_type_str = "PRIVATE_DECL"; break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+            l_type_str = "PRIVATE_UPDATE"; break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:
+            l_type_str = "PUBLIC";
+        default:
+            l_type_str = "UNKNOWN"; break;
+        }
+        char *l_item_str = dap_strdup_printf("Token name '%s', type %s, flags %hu\n"
+                                             "\tSupply (current/total) %"DAP_UINT64_FORMAT_U"/%"DAP_UINT64_FORMAT_U"\n"
+                                             "\tAuth signs (valid/total) %zu/%zu\n"
+                                             "\tTotal emissions %u\n",
+                                             &l_token_item->ticker, l_type_str, l_token_item->flags,
+                                             l_token_item->current_supply, l_token_item->total_supply,
+                                             l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
+                                             HASH_COUNT(l_token_item->token_emissions));
+        l_ret_list = dap_list_append(l_ret_list, l_item_str);
+    }
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    return l_ret_list;
+}
+
 /**
  * @brief s_treshold_emissions_proc
  * @param a_ledger
@@ -1764,11 +1803,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         // Get permissions
         l_token_item = NULL;
         pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
-        HASH_FIND_STR(l_ledger_priv->tokens,l_token, l_token_item);
+        HASH_FIND_STR(l_ledger_priv->tokens, l_token, l_token_item);
         pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
         if (! l_token_item){
             if(s_debug_more)
-                log_it(L_WARNING, "No token permissions found for token %s", l_token);
+                log_it(L_WARNING, "No token item found for token %s", l_token);
             l_err_num = -15;
             break;
         }
@@ -1895,7 +1934,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
         if (! l_token_item){
             if(s_debug_more)
-                log_it(L_WARNING, "No token permissions found for token %s", l_token);
+                log_it(L_WARNING, "No token item found for token %s", l_token);
             l_err_num = -15;
             break;
         }

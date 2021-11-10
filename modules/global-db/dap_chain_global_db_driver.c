@@ -231,7 +231,7 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
  */
 char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size)
 {
-    if(!data || data_size <= 0)
+    if(!data || !data_size)
         return NULL;
     dap_chain_hash_fast_t l_hash;
     memset(&l_hash, 0, sizeof(dap_chain_hash_fast_t));

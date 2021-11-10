@@ -43,7 +43,7 @@ void dap_datum_mempool_free(dap_datum_mempool_t *datum);
 
 void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url);
 
-int dap_chain_mempool_datum_add(dap_chain_datum_t *a_datum, dap_chain_t *a_chain);
+char *dap_chain_mempool_datum_add(dap_chain_datum_t *a_datum, dap_chain_t *a_chain);
 dap_hash_fast_t*  dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,
@@ -67,8 +67,6 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
 dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net,dap_chain_hash_fast_t *a_tx_prev_hash,
         const dap_chain_addr_t* a_addr_to, dap_enc_key_t * l_key_tx_sign, dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size);
 
-
-int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain );
 int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,

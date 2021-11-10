@@ -120,7 +120,7 @@ static dap_chain_datum_t* s_chain_callback_datum_iter_get_first( dap_chain_datum
 static dap_chain_datum_t* s_chain_callback_datum_iter_get_next( dap_chain_datum_iter_t * a_datum_iter ); // Get the next datum from dag
 */
 
-static int s_cli_dag(int argc, char ** argv, void *arg_func, char **str_reply);
+static int s_cli_dag(int argc, char ** argv, char **str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static bool s_seed_mode = false;
@@ -136,7 +136,7 @@ int dap_chain_cs_dag_init(void)
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
 
-    dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, NULL, "DAG commands",
+    dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, "DAG commands",
         "dag -net <chain net name> -chain <chain name> event create -datum <datum hash> [-H hex|base58(default)]\n"
             "\tCreate event from datum mempool element\n\n"
         "dag -net <chain net name> -chain <chain name> event cancel -event <event hash>\n"
@@ -1209,9 +1209,8 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
  * @param str_reply
  * @return
  */
-static int s_cli_dag(int argc, char ** argv, void *arg_func, char **a_str_reply)
+static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 {
-    (void) arg_func;
     enum {
         SUBCMD_EVENT_CREATE,
         SUBCMD_EVENT_CANCEL,
