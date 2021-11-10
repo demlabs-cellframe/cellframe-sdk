@@ -527,11 +527,8 @@ void ringct20_public_key_delete(ringct20_public_key_t *public_key)
 }
 
 void ringct20_private_and_public_keys_delete(ringct20_private_key_t *private_key, ringct20_public_key_t *public_key){
-
-    free(private_key->data);
-    private_key->data = NULL;
-    free(public_key->data);
-    public_key->data = NULL;
+    DAP_DEL_Z(private_key->data);
+    DAP_DEL_Z(public_key->data);
 }
 
 int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_key, ringct20_public_key_t *public_key, ringct20_param_t *p){

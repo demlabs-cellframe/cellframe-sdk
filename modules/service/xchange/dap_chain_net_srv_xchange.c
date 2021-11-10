@@ -74,6 +74,7 @@ int dap_chain_net_srv_xchange_init()
                                                        s_callback_response_error, s_callback_receipt_next_success);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
     l_srv->_inhertor = s_srv_xchange;
+    s_srv_xchange->parent = l_srv;
     s_srv_xchange->enabled = false;
     size_t l_prices_count = 0;
     dap_global_db_obj_t *l_prices = dap_chain_global_db_gr_load(GROUP_LOCAL_XCHANGE, &l_prices_count);

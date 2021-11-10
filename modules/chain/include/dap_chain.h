@@ -119,7 +119,7 @@ typedef struct dap_chain{
 
     // read/write atoms rwlock
     pthread_rwlock_t atoms_rwlock;
-
+    pthread_rwlock_t cell_rwlock;
 
     dap_chain_callback_new_cfg_t callback_created;
     dap_chain_callback_t callback_delete;

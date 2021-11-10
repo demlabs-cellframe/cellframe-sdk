@@ -15,7 +15,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_VPN_SRCS} ${DAP_CHAIN_NET_SRV_VPN_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv dap_modules_dynamic_cdb)
 add_definitions("-DDAP_TUN_IN_WORKER")
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)

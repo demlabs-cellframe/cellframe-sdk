@@ -34,7 +34,7 @@
 #if DAP_SRV_STAKE_USED
 #include "dap_chain_net_srv_stake.h"
 #else
-static bool dap_chain_net_srv_stake_key_delegated() { return false; }
+static bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr) { UNUSED(a_addr); return false; }
 #endif
 //#include "dap_chain_net_srv_geoip.h"
 
@@ -63,7 +63,7 @@ char *s_server_continents[]={
 		"Antarctica"
  };
 
-static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
                                    const char *a_key, const void *a_value, const size_t a_value_len);
 
 /**
@@ -417,7 +417,8 @@ lb_order_pass:
         if (l_order_pass_first) {
             l_order_pass_first = false;
             *a_output_orders_count = l_order_passed_index;
-            *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_orders_size);
+            if(l_orders_size)
+                *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_orders_size);
             goto lb_order_pass;
         }
         // If we here - its the second pass through
@@ -474,7 +475,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016llX\n", a_order->srv_uid.uint64 );
-        dap_string_append_printf(a_str_out, "  price:           \xA0""%.7Lf (%llu)\n", dap_chain_datoshi_to_coins(a_order->price) , a_order->price);
+        dap_string_append_printf(a_str_out, "  price:           \xA0""%.7Lf (%"DAP_UINT64_FORMAT_U")\n", dap_chain_datoshi_to_coins(a_order->price) , a_order->price);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
         if ( a_order->node_addr.uint64)
@@ -519,10 +520,9 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
     }
 }
 
-static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
                                    const char *a_key, const void *a_value, const size_t a_value_len)
 {
-    UNUSED(a_prefix);
     UNUSED(a_value_len);
     if (!a_arg || !a_value || a_op_code != 'a' || !dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
         return;
@@ -535,7 +535,8 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
             dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
         } else {
             dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
-            if (!dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size)) {
+            if (!dap_sign_verify_size(l_sign, a_value_len) ||
+                    dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
                 dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
                 DAP_DELETE(l_gdb_group_str);
                 return;

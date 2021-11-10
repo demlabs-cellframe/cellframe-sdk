@@ -310,7 +310,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
 
                 pthread_mutex_lock(&s_clients_mutex);
                 // sent packet to vpn server
-                dap_stream_ch_pkt_write_mt(l_ch->stream_worker,l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                dap_stream_ch_pkt_write_mt(l_ch->stream_worker,l_ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
                         pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
                 pthread_mutex_unlock(&s_clients_mutex);
 
@@ -466,7 +466,7 @@ int dap_chain_net_vpn_client_tun_delete(void)
 {
     if(s_tun_events_socket) {
         pthread_mutex_lock(&s_clients_mutex);
-        dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket);
+        dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket->uuid);
         s_tun_events_socket = NULL;
         pthread_mutex_unlock(&s_clients_mutex);
     }

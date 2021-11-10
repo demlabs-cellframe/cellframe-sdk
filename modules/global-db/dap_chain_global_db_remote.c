@@ -14,6 +14,12 @@
 // default time of node address expired in hours
 #define NODE_TIME_EXPIRED_DEFAULT 720
 
+/**
+ * @brief Sets current node adress
+ * @param a_address a current node adress
+ * @param a_net_name a net name
+ * @return True if success, otherwise false
+ */
 static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name, time_t a_expire_time)
 {
     if(!a_net_name)
@@ -90,7 +96,6 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
     time_t l_dt = time(NULL) - l_node_time;
     //NODE_TIME_EXPIRED
     if(l_node_time && l_dt > addr_time_expired) {
-        //log_it(L_NOTICE, "Node 0x%016X set last synced timestamp %llu", a_id);
         l_node_addr_ret = 0;
     }
     DAP_DELETE(l_key);
@@ -103,31 +108,33 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 /**
  * Set last id for remote node
  */
-bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id)
+bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group)
 {
-    //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %llu", a_node_addr, a_id);
-    uint64_t *l_id = DAP_NEW(uint64_t);
-    *l_id = a_id;
-    return dap_chain_global_db_gr_set(dap_strdup_printf("%ju", a_node_addr),
-                                      l_id, sizeof(uint64_t),
-                                      GROUP_LOCAL_NODE_LAST_ID);
+    //log_it( L_DEBUG, "Node 0x%016X set last synced id %"DAP_UINT64_FORMAT_U"", a_node_addr, a_id);
+    char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
+    bool l_ret = dap_chain_global_db_gr_set(l_node_addr_str, &a_id, sizeof(uint64_t),
+                                            GROUP_LOCAL_NODE_LAST_ID);
+    DAP_DELETE(l_node_addr_str);
+    return l_ret;
 }
 
 /**
  * Get last id for remote node
  */
-uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr)
+uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 {
-    char *l_node_addr_str = dap_strdup_printf("%ju", a_node_addr);
-    size_t l_timestamp_len = 0;
-    uint8_t *l_timestamp = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_timestamp_len,
-    GROUP_LOCAL_NODE_LAST_ID);
-    uint64_t l_ret_timestamp = 0;
-    if(l_timestamp && l_timestamp_len == sizeof(uint64_t))
-        memcpy(&l_ret_timestamp, l_timestamp, l_timestamp_len);
+    char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
+    size_t l_id_len = 0;
+    uint8_t *l_id = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_id_len,
+                                                GROUP_LOCAL_NODE_LAST_ID);
+    uint64_t l_ret_id = 0;
+    if (l_id) {
+        if (l_id_len == sizeof(uint64_t))
+            memcpy(&l_ret_id, l_id, l_id_len);
+        DAP_DELETE(l_id);
+    }
     DAP_DELETE(l_node_addr_str);
-    DAP_DELETE(l_timestamp);
-    return l_ret_timestamp;
+    return l_ret_id;
 }
 
 /**
@@ -135,7 +142,7 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr)
  */
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
-    //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %llu", a_id);
+    //log_it( L_DEBUG, "Node 0x%016X set last synced timestamp %"DAP_UINT64_FORMAT_U"", a_id);
     return dap_chain_global_db_gr_set(dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name),
                                       a_hash, sizeof(*a_hash), GROUP_LOCAL_NODE_LAST_ID);
 }
@@ -151,4 +158,146 @@ dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_cha
                                                  GROUP_LOCAL_NODE_LAST_ID);
     DAP_DELETE(l_node_chain_str);
     return (dap_chain_hash_fast_t *)l_hash;
+}
+
+static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
+{
+    size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(time_t)
+            + 2 * sizeof(uint64_t) + dap_strlen(store_obj->group) +
+            dap_strlen(store_obj->key) + store_obj->value_len;
+    return size;
+}
+
+/**
+ * serialization
+ * @param a_old_pkt an object for multiplexation
+ * @param a_new_pkt an object for multiplexation
+ * @return NULL in case of an error
+ */
+dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt)
+{
+    if (!a_new_pkt)
+        return a_old_pkt;
+    if (a_old_pkt)
+        a_old_pkt = (dap_store_obj_pkt_t *)DAP_REALLOC(a_old_pkt,
+                                                       a_old_pkt->data_size + a_new_pkt->data_size + sizeof(dap_store_obj_pkt_t));
+    else
+        a_old_pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, a_new_pkt->data_size + sizeof(dap_store_obj_pkt_t));
+    memcpy(a_old_pkt->data + a_old_pkt->data_size, a_new_pkt->data, a_new_pkt->data_size);
+    a_old_pkt->data_size += a_new_pkt->data_size;
+    a_old_pkt->obj_count++;
+    return a_old_pkt;
+}
+
+void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
+{
+    uint16_t l_gr_len;
+    memcpy(&l_gr_len, a_pkt->data + sizeof(uint32_t), sizeof(uint16_t));
+    size_t l_id_offset = sizeof(uint32_t) + sizeof(uint16_t) + l_gr_len;
+    memcpy(a_pkt->data + l_id_offset, &a_id, sizeof(uint64_t));
+}
+
+/**
+ * serialization
+ * @param a_store_obj an object for serialization
+ * @return NULL in case of an error
+ */
+dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj)
+{
+    if (!a_store_obj)
+        return NULL;
+
+    uint32_t l_data_size_out = dap_db_get_size_pdap_store_obj_t(a_store_obj);
+    dap_store_obj_pkt_t *l_pkt = DAP_NEW_SIZE(dap_store_obj_pkt_t, l_data_size_out + sizeof(dap_store_obj_pkt_t));
+    l_pkt->data_size = l_data_size_out;
+    l_pkt->obj_count = 1;
+    l_pkt->timestamp = 0;
+    uint32_t l_type = a_store_obj->type;
+    memcpy(l_pkt->data, &l_type, sizeof(uint32_t));
+    uint64_t l_offset = sizeof(uint32_t);
+    uint16_t group_size = (uint16_t) dap_strlen(a_store_obj->group);
+    memcpy(l_pkt->data + l_offset, &group_size, sizeof(uint16_t));
+    l_offset += sizeof(uint16_t);
+    memcpy(l_pkt->data + l_offset, a_store_obj->group, group_size);
+    l_offset += group_size;
+    memcpy(l_pkt->data + l_offset, &a_store_obj->id, sizeof(uint64_t));
+    l_offset += sizeof(uint64_t);
+    memcpy(l_pkt->data + l_offset, &a_store_obj->timestamp, sizeof(time_t));
+    l_offset += sizeof(time_t);
+    uint16_t key_size = (uint16_t) dap_strlen(a_store_obj->key);
+    memcpy(l_pkt->data + l_offset, &key_size, sizeof(uint16_t));
+    l_offset += sizeof(uint16_t);
+    memcpy(l_pkt->data + l_offset, a_store_obj->key, key_size);
+    l_offset += key_size;
+    memcpy(l_pkt->data + l_offset, &a_store_obj->value_len, sizeof(uint64_t));
+    l_offset += sizeof(uint64_t);
+    memcpy(l_pkt->data + l_offset, a_store_obj->value, a_store_obj->value_len);
+    l_offset += a_store_obj->value_len;
+    assert(l_offset == l_data_size_out);
+    return l_pkt;
+}
+/**
+ * deserialization
+ * @param store_obj_count[out] count of the output structures store_obj
+ * @return NULL in case of an error*
+ */
+
+dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, size_t *store_obj_count)
+{
+    if(!pkt || pkt->data_size < 1)
+        return NULL;
+    uint64_t offset = 0;
+    uint32_t count = pkt->obj_count;
+    dap_store_obj_t *store_obj = DAP_NEW_SIZE(dap_store_obj_t, count * sizeof(struct dap_store_obj));
+    for(size_t q = 0; q < count; ++q) {
+        dap_store_obj_t *obj = store_obj + q;
+        uint16_t str_length;
+
+        uint32_t l_type;
+        if (offset+sizeof (uint32_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'type' field"); break;} // Check for buffer boundries
+        memcpy(&l_type, pkt->data + offset, sizeof(uint32_t));
+        obj->type = l_type;
+        offset += sizeof(uint32_t);
+
+        if (offset+sizeof (uint16_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'group_length' field"); break;} // Check for buffer boundries
+        memcpy(&str_length, pkt->data + offset, sizeof(uint16_t));
+        offset += sizeof(uint16_t);
+
+        if (offset+str_length> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'group' field"); break;} // Check for buffer boundries
+        obj->group = DAP_NEW_SIZE(char, str_length + 1);
+        memcpy(obj->group, pkt->data + offset, str_length);
+        obj->group[str_length] = '\0';
+        offset += str_length;
+
+        if (offset+sizeof (uint64_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'id' field"); break;} // Check for buffer boundries
+        memcpy(&obj->id, pkt->data + offset, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
+
+        if (offset+sizeof (time_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'timestamp' field"); break;} // Check for buffer boundries
+        memcpy(&obj->timestamp, pkt->data + offset, sizeof(time_t));
+        offset += sizeof(time_t);
+
+        if (offset+sizeof (uint16_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'key_length' field"); break;} // Check for buffer boundries
+        memcpy(&str_length, pkt->data + offset, sizeof(uint16_t));
+        offset += sizeof(uint16_t);
+
+        if (offset+ str_length > pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'key' field"); break;} // Check for buffer boundries
+        obj->key = DAP_NEW_SIZE(char, str_length + 1);
+        memcpy(obj->key, pkt->data + offset, str_length);
+        obj->key[str_length] = '\0';
+        offset += str_length;
+
+        if (offset+sizeof (uint64_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;} // Check for buffer boundries
+        memcpy(&obj->value_len, pkt->data + offset, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
+
+        if (offset+obj->value_len> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field"); break;} // Check for buffer boundries
+        obj->value = DAP_NEW_SIZE(uint8_t, obj->value_len);
+        memcpy(obj->value, pkt->data + offset, obj->value_len);
+        offset += obj->value_len;
+    }
+    //assert(pkt->data_size == offset);
+    if(store_obj_count)
+        *store_obj_count = count;
+    return store_obj;
 }

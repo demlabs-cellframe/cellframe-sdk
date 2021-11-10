@@ -60,6 +60,9 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
+#ifdef DAP_MODULES_DYNAMIC
+#include "dap_modules_dynamic_cdb.h"
+#endif
 
 #include "dap_chain_node_cli_cmd.h"
 
@@ -176,29 +179,6 @@ void dap_chain_net_srv_deinit(void)
     // TODO Stop all services
 
     dap_chain_net_srv_del_all();
-}
-
-
-static void* get_cdb_func(const char *func_name)
-{
-    void *l_ref_func = NULL;
-    //  find func from dynamic library
-#if defined (DAP_OS_LINUX) && !defined (__ANDROID__) && defined(DAP_MODULES_DYNAMIC)
-    const char * s_default_path_modules = "var/modules";
-    const char * l_cdb_so_name = "libcellframe-node-cdb.so";
-    char *l_lib_path = dap_strdup_printf("%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
-    void* l_cdb_handle = NULL;
-    l_cdb_handle = dlopen(l_lib_path, RTLD_NOW);
-    DAP_DELETE(l_lib_path);
-    if(!l_cdb_handle) {
-        log_it(L_ERROR, "Can't load %s module: %s", l_cdb_so_name, dlerror());
-    }
-    else {
-        l_ref_func = dlsym(l_cdb_handle, func_name);
-        dlclose(l_cdb_handle);
-    }
-#endif
-    return l_ref_func;
 }
 
 /**
@@ -552,12 +532,13 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 dap_string_append_printf( l_string_ret, "Missed some required params\n");
                 ret=-5;
             }
-        }else if( dap_strcmp( l_order_str, "recheck" ) == 0 ){
+        }
+#ifdef DAP_MODULES_DYNAMIC
+        else if( dap_strcmp( l_order_str, "recheck" ) == 0 ){
             //int dap_chain_net_srv_vpn_cdb_server_list_check_orders(dap_chain_net_t *a_net);
-            int (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(dap_chain_net_t *a_net) = NULL;
-            *(void **) (&dap_chain_net_srv_vpn_cdb_server_list_check_orders) = get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
-            int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders ? (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(l_net) : -5;
-            //int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders(l_net);
+            int (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(dap_chain_net_t *a_net);
+            dap_chain_net_srv_vpn_cdb_server_list_check_orders = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
+            int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders ? dap_chain_net_srv_vpn_cdb_server_list_check_orders(l_net) : -5;
             ret = (l_init_res > 0) ? 0 : -10;
 
         }else if( dap_strcmp( l_order_str, "static" ) == 0 ){
@@ -570,12 +551,11 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
             int (*dap_chain_net_srv_vpn_cdb_server_list_static_delete)(dap_chain_net_t *a_net) = NULL;
             //  find func from dinamic library
             if(l_subcmd_save || l_subcmd_del) {
-                *(void **) (&dap_chain_net_srv_vpn_cdb_server_list_static_create) = get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_static_create");
-                *(void **) (&dap_chain_net_srv_vpn_cdb_server_list_static_delete) = get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_static_delete");
+                dap_chain_net_srv_vpn_cdb_server_list_static_create = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_static_create");
+                dap_chain_net_srv_vpn_cdb_server_list_static_delete = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_static_delete");
             }
             if(l_subcmd_save) {
-                int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_create ? (*dap_chain_net_srv_vpn_cdb_server_list_static_create)(l_net) : -5;
-                //int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_create(l_net);
+                int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_create ? dap_chain_net_srv_vpn_cdb_server_list_static_create(l_net) : -5;
                 if(l_init_res >= 0){
                     dap_string_append_printf(l_string_ret, "Static node list saved, %d orders in list\n", l_init_res);
                     ret = 0;
@@ -586,8 +566,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 }
 
             } else if(l_subcmd_del) {
-                int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_delete ? (*dap_chain_net_srv_vpn_cdb_server_list_static_delete)(l_net) : -5;
-                //int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_delete(l_net);
+                int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_static_delete ? dap_chain_net_srv_vpn_cdb_server_list_static_delete(l_net) : -5;
                 if(!l_init_res){
                     dap_string_append_printf(l_string_ret, "Static node list deleted\n");
                     ret = 0;
@@ -602,7 +581,9 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                 dap_string_append(l_string_ret, "not found subcommand 'save' or 'delete'\n");
                 ret = -13;
             }
-        } else {
+        }
+#endif
+        else {
             dap_string_append_printf(l_string_ret, "Unknown subcommand '%s'\n", l_order_str);
             ret = -3;
         }

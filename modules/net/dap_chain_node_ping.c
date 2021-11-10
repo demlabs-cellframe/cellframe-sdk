@@ -90,8 +90,10 @@ static void* node_ping_proc(void *a_arg)
     char *host4 = DAP_NEW_SIZE(char, INET_ADDRSTRLEN);
     struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_addr };
     const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, INET_ADDRSTRLEN);
-    if(!str_ip4)
+    if(!str_ip4){
+        DAP_DELETE(host4);
         return NULL ;
+    }
     //printf(" %s %d ping start\n", str_ip4, l_count);
     /*
      // send ping
@@ -116,6 +118,7 @@ static void* node_ping_proc(void *a_arg)
         SOCKET l_socket = socket( PF_INET, SOCK_STREAM, 0);
         if(l_socket == INVALID_SOCKET) {
             log_it(L_ERROR, "Can't create socket");
+            DAP_DELETE(host4);
             return (void*) -1;
         }
         clock_gettime(CLOCK_MONOTONIC, &l_time_start);
@@ -144,6 +147,7 @@ static void* node_ping_proc(void *a_arg)
         else {
             ; //log_it(L_INFO, "Can't connect to node for ping");
         }
+        DAP_DELETE(host4);
         closesocket(l_socket);
     }
     return (void*) res;
@@ -202,7 +206,7 @@ static void* node_ping_background_proc(void *a_arg)
     uint64_t *l_nodes_addr = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_nodes_count);
     dap_list_t *l_node_list0 = l_node_list;
 
-    dap_chain_node_addr_t *s_node_addr_tr = NULL, *l_node_addr_ping = NULL;
+    dap_chain_node_addr_t *l_node_addr_tr2 = NULL, *l_node_addr_ping = NULL;
     int l_min_hops = INT32_MAX;
     int l_min_ping = INT32_MAX;
     // send ping to all nodes
@@ -214,15 +218,17 @@ static void* node_ping_background_proc(void *a_arg)
         char *host4 = DAP_NEW_SIZE(char, INET_ADDRSTRLEN);
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
         const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, INET_ADDRSTRLEN);
-        if(!str_ip4)
+        if(!str_ip4){
+            DAP_DELETE(host4);
             continue;
+        }
         int hops = 0, time_usec = 0;
 #ifdef DAP_OS_LINUX
         int res = traceroute_util(str_ip4, &hops, &time_usec);
 #endif
         DAP_DELETE(host4);
         if(l_min_hops>hops)
-            s_node_addr_tr = l_node_list->data;
+            l_node_addr_tr2 = l_node_list->data;
 
         // start sending ping
         start_node_ping(&l_threads[l_thread_id], l_node_info->hdr.ext_addr_v4, l_node_info->hdr.ext_port, 1);
@@ -258,13 +264,14 @@ static void* node_ping_background_proc(void *a_arg)
     }
 
     // allocate memory for best node addresses
-    dap_chain_node_addr_t *s_node_addr_tmp;
-    s_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
-    memcpy(s_node_addr_tmp, s_node_addr_tr, sizeof(dap_chain_node_addr_t));
-    s_node_addr_tr = s_node_addr_tmp;
-    s_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
-    memcpy(s_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
-    s_node_addr_ping = s_node_addr_tmp;
+    dap_chain_node_addr_t *l_node_addr_tmp;
+    l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
+    memcpy(l_node_addr_tmp, l_node_addr_tr2, sizeof(dap_chain_node_addr_t));
+    DAP_DELETE(l_node_addr_tr2);
+    l_node_addr_tr2 = l_node_addr_tmp;
+    l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
+    memcpy(l_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
+    s_node_addr_ping = l_node_addr_tmp;
 
     // delete memory
     DAP_DELETE(l_nodes_addr);

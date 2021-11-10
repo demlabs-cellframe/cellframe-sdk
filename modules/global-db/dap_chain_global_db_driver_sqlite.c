@@ -27,13 +27,16 @@
 #include <stddef.h>
 #include <string.h>
 #include <pthread.h>
+#include <errno.h>
 
 #ifdef DAP_OS_UNIX
 #include <unistd.h>
 #endif
 #include "dap_common.h"
 #include "dap_hash.h"
+#include "dap_file_utils.h"
 #include "dap_strfuncs.h"
+#include "dap_file_utils.h"
 #include "dap_chain_global_db_driver_sqlite.h"
 
 #define LOG_TAG "db_sqlite"
@@ -88,8 +91,26 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
         log_it(L_ERROR, "Can't init sqlite err=%d (%s)", l_ret, sqlite3_errstr(l_ret));
         return -2;
     }
+    // Check paths and create them if nessesary
+    char * l_filename_dir = dap_path_get_dirname(a_filename_db);
+    if(!dap_dir_test(l_filename_dir)){
+        log_it(L_NOTICE, "No directory %s, trying to create...",l_filename_dir);
+        int l_mkdir_ret = dap_mkdir_with_parents(l_filename_dir);
+        int l_errno = errno;
+        if(!dap_dir_test(l_filename_dir)){
+            char l_errbuf[255];
+            l_errbuf[0] = '\0';
+            strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
+            log_it(L_ERROR, "Can't create directory, error code %d, error string \"%s\"", l_mkdir_ret, l_errbuf);
+            DAP_DELETE(l_filename_dir);
+            return -21;
+        }else
+            log_it(L_NOTICE,"Directory created");
+    }
+    DAP_DEL_Z(l_filename_dir);
+    // Open Sqlite file, create if nessesary
     char *l_error_message = NULL;
-    s_db = dap_db_driver_sqlite_open(a_filename_db, SQLITE_OPEN_READWRITE, &l_error_message);
+    s_db = dap_db_driver_sqlite_open(a_filename_db, SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE, &l_error_message);
     if(!s_db) {
         log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
@@ -112,6 +133,9 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
         a_drv_callback->read_last_store_obj = dap_db_driver_sqlite_read_last_store_obj;
         a_drv_callback->transaction_start = dap_db_driver_sqlite_start_transaction;
         a_drv_callback->transaction_end = dap_db_driver_sqlite_end_transaction;
+        a_drv_callback->get_groups_by_mask  = dap_db_driver_sqlite_get_groups_by_mask;
+        a_drv_callback->read_count_store = dap_db_driver_sqlite_read_count_store;
+        a_drv_callback->is_obj = dap_db_driver_sqlite_is_obj;
         a_drv_callback->deinit = dap_db_driver_sqlite_deinit;
         a_drv_callback->flush = dap_db_driver_sqlite_flush;
         s_filename_db = strdup(a_filename_db);
@@ -234,11 +258,11 @@ int dap_db_driver_sqlite_flush()
         return -666;
     }
     dap_db_driver_sqlite_close(s_db);
-    char *l_error_message;
+    char *l_error_message = NULL;
     s_db = dap_db_driver_sqlite_open(s_filename_db, SQLITE_OPEN_READWRITE, &l_error_message);
     if(!s_db) {
         pthread_rwlock_unlock(&s_db_rwlock);
-        log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message);
+        log_it(L_ERROR, "Can't init sqlite err: \"%s\"", l_error_message? l_error_message: "UNKNOWN");
         dap_db_driver_sqlite_free(l_error_message);
         return -3;
     }
@@ -396,7 +420,6 @@ static int dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VALU
                 if(cur_val->type == SQLITE_INTEGER)
                 {
                     cur_val->val.val_int64 = sqlite3_column_int64(l_res, l_iCol);
-                    cur_val->val.val_int = sqlite3_column_int(l_res, l_iCol);
                 }
                 else if(cur_val->type == SQLITE_FLOAT)
                     cur_val->val.val_float = sqlite3_column_double(l_res, l_iCol);
@@ -499,6 +522,22 @@ int dap_db_driver_sqlite_end_transaction(void)
     }
 }
 
+char *dap_db_driver_sqlite_make_group_name(const char *a_table_name)
+{
+    char *l_table_name = dap_strdup(a_table_name);
+    ssize_t l_table_name_len = (ssize_t)dap_strlen(l_table_name);
+    const char *l_needle = "_";
+    // replace '_' to '.'
+    while(1){
+    char *l_str = dap_strstr_len(l_table_name, l_table_name_len, l_needle);
+    if(l_str)
+        *l_str = '.';
+    else
+        break;
+    }
+    return l_table_name;
+}
+
 char *dap_db_driver_sqlite_make_table_name(const char *a_group_name)
 {
     char *l_group_name = dap_strdup(a_group_name);
@@ -525,6 +564,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         return -1;
     char *l_query = NULL;
     char *l_error_message = NULL;
+    char *l_table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
     if(a_store_obj->type == 'a') {
         if(!a_store_obj->key || !a_store_obj->value || !a_store_obj->value_len)
             return -1;
@@ -534,10 +574,8 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         char *l_blob_hash = "";//dap_db_driver_get_string_from_blob((uint8_t*) &l_hash, sizeof(dap_chain_hash_fast_t));
         char *l_blob_value = dap_db_driver_get_string_from_blob(a_store_obj->value, (int)a_store_obj->value_len);
         //add one record
-        char *table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
         l_query = sqlite3_mprintf("insert into '%s' values(NULL, '%s', x'%s', '%lld', x'%s')",
-                table_name, a_store_obj->key, l_blob_hash, a_store_obj->timestamp, l_blob_value);
-        DAP_DELETE(table_name);
+                                   l_table_name, a_store_obj->key, l_blob_hash, a_store_obj->timestamp, l_blob_value);
         //dap_db_driver_sqlite_free(l_blob_hash);
         dap_db_driver_sqlite_free(l_blob_value);
     }
@@ -545,12 +583,10 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         //delete one record
         if(a_store_obj->key)
             l_query = sqlite3_mprintf("delete from '%s' where key = '%s'",
-                    a_store_obj->group, a_store_obj->key);
+                                      l_table_name, a_store_obj->key);
         // remove all group
-        else{
-            char * l_table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
+        else {
             l_query = sqlite3_mprintf("drop table if exists '%s'", l_table_name);
-            DAP_DELETE(l_table_name);
         }
     }
     else {
@@ -569,9 +605,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         dap_db_driver_sqlite_free(l_error_message);
         l_error_message = NULL;
         // create table
-        char *table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
-        dap_db_driver_sqlite_create_group_table(table_name);
-        DAP_DELETE(table_name);
+        dap_db_driver_sqlite_create_group_table(l_table_name);
         // repeat request
         l_ret = dap_db_driver_sqlite_exec(s_db, l_query, &l_error_message);
 
@@ -580,11 +614,9 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
     if(l_ret == SQLITE_CONSTRAINT) {
         dap_db_driver_sqlite_free(l_error_message);
         l_error_message = NULL;
-        char *table_name = dap_db_driver_sqlite_make_table_name(a_store_obj->group);
         //delete exist record
-        char *l_query_del = sqlite3_mprintf("delete from '%s' where key = '%s'", table_name, a_store_obj->key);
+        char *l_query_del = sqlite3_mprintf("delete from '%s' where key = '%s'", l_table_name, a_store_obj->key);
         l_ret = dap_db_driver_sqlite_exec(s_db, l_query_del, &l_error_message);
-        DAP_DELETE(table_name);
         dap_db_driver_sqlite_free(l_query_del);
         if(l_ret != SQLITE_OK) {
             log_it(L_INFO, "Entry with the same key is already present and can't delete, %s", l_error_message);
@@ -602,6 +634,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         l_ret = -1;
     }
     dap_db_driver_sqlite_free(l_query);
+    DAP_DELETE(l_table_name);
     return l_ret;
 }
 
@@ -652,7 +685,7 @@ dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group)
         return NULL;
     char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
     char *l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id DESC LIMIT 1", l_table_name);
-    pthread_rwlock_rdlock(&s_db_rwlock);
+    pthread_rwlock_wrlock(&s_db_rwlock);
     if(!s_db){
         pthread_rwlock_unlock(&s_db_rwlock);
         return NULL;
@@ -707,12 +740,12 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
         l_count_out = (int)*a_count_out;
     char *l_str_query;
     if(l_count_out)
-        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC LIMIT %d",
+        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>='%lld' ORDER BY id ASC LIMIT %d",
                 l_table_name, a_id, l_count_out);
     else
-        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>'%lld' ORDER BY id ASC",
+        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>='%lld' ORDER BY id ASC",
                 l_table_name, a_id);
-    pthread_rwlock_rdlock(&s_db_rwlock);
+    pthread_rwlock_wrlock(&s_db_rwlock);
     if(!s_db){
         pthread_rwlock_unlock(&s_db_rwlock);
         return NULL;
@@ -771,12 +804,10 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
  */
 dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
-    dap_store_obj_t *l_obj = NULL;
-    char *l_error_message = NULL;
-    sqlite3_stmt *l_res;
-    if(!a_group)
+    if(!a_group || !s_db)
         return NULL;
-
+    dap_store_obj_t *l_obj = NULL;
+    sqlite3_stmt *l_res;
     char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
     // no limit
     uint64_t l_count_out = 0;
@@ -798,19 +829,14 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
         else
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC", l_table_name);
     }
-    pthread_rwlock_rdlock(&s_db_rwlock);
-    if(!s_db){
-        pthread_rwlock_unlock(&s_db_rwlock);
-        return NULL;
-    }
-
-    int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, &l_error_message);
+    pthread_rwlock_wrlock(&s_db_rwlock);
+    int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, NULL);
     pthread_rwlock_unlock(&s_db_rwlock);
+
     sqlite3_free(l_str_query);
     DAP_DEL_Z(l_table_name);
     if(l_ret != SQLITE_OK) {
         //log_it(L_ERROR, "read l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
-        dap_db_driver_sqlite_free(l_error_message);
         return NULL;
     }
 
@@ -844,4 +870,86 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     if(a_count_out)
         *a_count_out = l_count_out;
     return l_obj;
+}
+
+dap_list_t* dap_db_driver_sqlite_get_groups_by_mask(const char *a_group_mask)
+{
+    if(!a_group_mask || !s_db)
+        return NULL;
+    sqlite3_stmt *l_res;
+    const char *l_str_query = "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%'";
+    dap_list_t *l_ret_list = NULL;
+    pthread_rwlock_wrlock(&s_db_rwlock);
+    int l_ret = dap_db_driver_sqlite_query(s_db, (char *)l_str_query, &l_res, NULL);
+    pthread_rwlock_unlock(&s_db_rwlock);
+    if(l_ret != SQLITE_OK) {
+        //log_it(L_ERROR, "Get tables l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        return NULL;
+    }
+    char * l_mask = dap_db_driver_sqlite_make_table_name(a_group_mask);
+    SQLITE_ROW_VALUE *l_row = NULL;
+    while (dap_db_driver_sqlite_fetch_array(l_res, &l_row) == SQLITE_ROW && l_row) {
+        char *l_table_name = (char *)l_row->val->val.val_str;
+        if(!dap_fnmatch(l_mask, l_table_name, 0))
+            l_ret_list = dap_list_prepend(l_ret_list, dap_db_driver_sqlite_make_group_name(l_table_name));
+        dap_db_driver_sqlite_row_free(l_row);
+    }
+    dap_db_driver_sqlite_query_free(l_res);
+    return l_ret_list;
+}
+
+size_t dap_db_driver_sqlite_read_count_store(const char *a_group, uint64_t a_id)
+{
+    sqlite3_stmt *l_res;
+    if(!a_group || ! s_db)
+        return 0;
+
+    char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
+    char *l_str_query = sqlite3_mprintf("SELECT COUNT(*) FROM '%s' WHERE id>='%lld'", l_table_name, a_id);
+    pthread_rwlock_wrlock(&s_db_rwlock);
+    int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, NULL);
+    pthread_rwlock_unlock(&s_db_rwlock);
+    sqlite3_free(l_str_query);
+    DAP_DEL_Z(l_table_name);
+
+    if(l_ret != SQLITE_OK) {
+        //log_it(L_ERROR, "Count l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        return 0;
+    }
+    size_t l_ret_val;
+    SQLITE_ROW_VALUE *l_row = NULL;
+    if (dap_db_driver_sqlite_fetch_array(l_res, &l_row) == SQLITE_ROW && l_row) {
+        l_ret_val = (size_t)l_row->val->val.val_int64;
+        dap_db_driver_sqlite_row_free(l_row);
+    }
+    dap_db_driver_sqlite_query_free(l_res);
+    return l_ret_val;
+}
+
+bool dap_db_driver_sqlite_is_obj(const char *a_group, const char *a_key)
+{
+    sqlite3_stmt *l_res;
+    if(!a_group || ! s_db)
+        return false;
+
+    char * l_table_name = dap_db_driver_sqlite_make_table_name(a_group);
+    char *l_str_query = sqlite3_mprintf("SELECT EXISTS(SELECT * FROM '%s' WHERE key='%s')", l_table_name, a_key);
+    pthread_rwlock_wrlock(&s_db_rwlock);
+    int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, NULL);
+    pthread_rwlock_unlock(&s_db_rwlock);
+    sqlite3_free(l_str_query);
+    DAP_DEL_Z(l_table_name);
+
+    if(l_ret != SQLITE_OK) {
+        //log_it(L_ERROR, "Exists l_ret=%d, %s\n", sqlite3_errcode(s_db), sqlite3_errmsg(s_db));
+        return false;
+    }
+    bool l_ret_val;
+    SQLITE_ROW_VALUE *l_row = NULL;
+    if (dap_db_driver_sqlite_fetch_array(l_res, &l_row) == SQLITE_ROW && l_row) {
+        l_ret_val = (size_t)l_row->val->val.val_int64;
+        dap_db_driver_sqlite_row_free(l_row);
+    }
+    dap_db_driver_sqlite_query_free(l_res);
+    return l_ret_val;
 }

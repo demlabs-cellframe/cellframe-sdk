@@ -115,7 +115,7 @@ static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_st
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
-void dap_chain_net_set_flag_sync_from_zero( dap_chain_net_t * a_net, bool a_flag_sync_from_zero);
+void dap_chain_net_set_flag_sync_from_zero(dap_chain_net_t * a_net, bool a_flag_sync_from_zero);
 bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net);
 
 
@@ -170,12 +170,12 @@ DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_cha
 dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
 char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
-dap_list_t * dap_chain_net_get_add_gdb_group(dap_chain_net_t * a_net, dap_chain_node_addr_t a_node_addr);
+bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
 void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum, const char *a_hash_out_type);
 void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a_callback);
-void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_group,
                                       const char *a_key, const void *a_value, const size_t a_value_len);
 
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net, struct dap_chain_node_info *a_link_info);

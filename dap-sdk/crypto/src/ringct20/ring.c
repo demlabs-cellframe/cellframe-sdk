@@ -630,8 +630,9 @@ int MIMO_LRCT_SigVer(poly_ringct20 *c1, poly_ringct20 *tList, poly_ringct20 *hLi
 		poly_frombytes(&ctmp, bpoly);
 		poly_serial(&ctmp);//
 	}
-	if (poly_equal(&ctmp, c1) == 1)
-	{
+    DAP_DELETE(H2q);
+    DAP_DELETE(A2qp);
+    if (poly_equal(&ctmp, c1) == 1){
 		return 1;
 	}
 	return 0;	

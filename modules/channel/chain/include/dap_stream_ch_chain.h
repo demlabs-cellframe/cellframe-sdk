@@ -65,23 +65,15 @@ typedef struct dap_stream_ch_chain {
     uint64_t stats_request_atoms_processed;
     uint64_t stats_request_gdb_processed;
 
-
-    dap_stream_ch_chain_update_element_t *local_gdbs;
-    uint64_t local_gdbs_count;
     dap_stream_ch_chain_hash_item_t * remote_atoms; // Remote atoms
     dap_stream_ch_chain_hash_item_t * remote_gdbs; // Remote gdbs
 
     // request section
     dap_chain_atom_iter_t *request_atom_iter;
-    dap_db_log_list_t *request_global_db_trs; // list of global db records
+    dap_db_log_list_t *request_db_log; // list of global db records
     dap_stream_ch_chain_sync_request_t request;
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;
-
-    bool request_updates_complete;
-
-    bool is_on_request; // Protects request section
-    bool is_on_reverse_request;
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
@@ -89,7 +81,7 @@ typedef struct dap_stream_ch_chain {
 } dap_stream_ch_chain_t;
 
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
-
+#define DAP_CHAIN_PKT_EXPECT_SIZE 7168
 
 int dap_stream_ch_chain_init(void);
 void dap_stream_ch_chain_deinit(void);

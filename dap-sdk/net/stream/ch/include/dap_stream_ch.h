@@ -36,12 +36,13 @@ typedef struct dap_events_socket dap_events_socket_t;
 
 typedef void (*dap_stream_ch_callback_t) (dap_stream_ch_t*,void*);
 
+typedef uint64_t dap_stream_ch_uuid_t;
 typedef struct dap_stream_ch{
     pthread_mutex_t mutex;
     bool ready_to_write;
     bool ready_to_read;
     dap_stream_t * stream;
-    uint128_t uuid;
+    dap_stream_ch_uuid_t uuid;
     dap_stream_worker_t * stream_worker;
     struct{
         uint64_t bytes_write;
@@ -59,10 +60,12 @@ typedef struct dap_stream_ch{
 int dap_stream_ch_init();
 void dap_stream_ch_deinit();
 
-dap_stream_ch_t* dap_stream_ch_new( dap_stream_t * dap_stream,uint8_t id);
-void dap_stream_ch_set_ready_to_read_unsafe(dap_stream_ch_t * ch,bool is_ready);
-void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready);
+dap_stream_ch_t* dap_stream_ch_new( dap_stream_t * a_stream, uint8_t a_id);
+void dap_stream_ch_set_ready_to_read_unsafe(dap_stream_ch_t * a_ch,bool a_is_ready);
+void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * a_ch,bool a_is_ready);
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch);
+
+dap_stream_ch_t * dap_stream_ch_find_by_uuid_unsafe(dap_stream_worker_t * a_worker, dap_stream_ch_uuid_t a_uuid);
 
 
 #endif

@@ -178,12 +178,14 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 }
 
 /**
- * @brief s_callback_event_create
- * @param a_dag
- * @param a_datum
- * @param a_hashes
- * @param a_hashes_count
- * @return
+ * @brief 
+ * create event
+ * @param a_dag 
+ * @param a_datum 
+ * @param a_hashes 
+ * @param a_hashes_count 
+ * @param a_dag_event_size 
+ * @return dap_chain_cs_dag_event_t* 
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count,
@@ -238,8 +240,9 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             }
             size_t l_dag_event_size_without_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
 
-            int l_sign_verify_ret = dap_sign_verify(l_sign,a_dag_event,l_dag_event_size_without_sign);
-            if ( l_sign_verify_ret != 0){
+            bool l_sign_verify_ret = dap_sign_verify_size(l_sign, a_dag_event_size) &&
+                    dap_sign_verify(l_sign,a_dag_event,l_dag_event_size_without_sign) == 0;
+            if ( !l_sign_verify_ret ){
                 log_it(L_WARNING, "Event's sign is incorrect: code %d", l_sign_verify_ret);
                 return -41;
 

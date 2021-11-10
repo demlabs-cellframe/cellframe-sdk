@@ -130,12 +130,29 @@ void dap_http_delete( dap_server_t *a_server, void * a_arg )
 
 
 /**
- * @brief dap_http_add_proc   Add custom procesor for the HTTP server
- * @param a_http              Server's instance
- * @param a_url_path          Part of URL to be processed
- * @param a_read_callback     Callback for read in DATA state
- * @param a_write_callback    Callback for write in DATA state
- * @param a_error_callback    Callback for error processing
+ * @brief dap_http_add_proc             Add custom procesor for the HTTP server
+ * 
+ * @param a_http                        Server's instance
+ * @param a_url_path                    Part of URL to be processed
+ * @param a_inheritor                   Internal data specific to the current URL processor
+ * @param a_new_callback                additional callback function
+ * 
+ * Called in s_queue_add_es_callback    
+ * if ( ! l_es_new->is_initalized ){
+        if (l_es_new->callbacks.new_callback)
+            l_es_new->callbacks.new_callback(l_es_new, NULL);
+        l_es_new->is_initalized = true;
+    }
+ * @param a_delete_callback             callback which is called, when HTTP server object is deleted
+ * @param a_headers_read_callback       Callback for read HTTP headers callback
+ * @param a_headers_write_callback      Callback for write HTTP headers callback
+ * @param a_data_read_callback          Callback for read in DATA state
+ * @param a_data_write_callback         Callback for write in DATA state
+ * @param a_error_callback              Callback for error processing
+ * @note 
+ * data_read_callback is called, when headers is finished in body request, and next part of 
+ * body request contains remaining part of buffer. If data contains only in header, a_data_read_callback is not called.
+ * @return dap_http_url_proc_t* 
  */
 dap_http_url_proc_t * dap_http_add_proc(dap_http_t *a_http, const char *a_url_path, void *a_inheritor
                       ,dap_http_client_callback_t a_new_callback

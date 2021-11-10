@@ -185,7 +185,7 @@ typedef struct dap_chain_net_srv_usage dap_chain_net_srv_usage_t;
 
 typedef struct dap_chain_net_srv_grace {
     dap_stream_worker_t *stream_worker;
-    dap_stream_ch_t *ch;
+    dap_stream_ch_uuid_t ch_uuid;
     dap_chain_net_srv_usage_t *usage;
     dap_stream_ch_chain_net_srv_pkt_request_t *request;
     size_t request_size;

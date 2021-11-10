@@ -351,7 +351,7 @@ struct dap_enc_key_callbacks{
 
 const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
 /**
- * @brief dap_enc_key_init
+ * @brief dap_enc_key_init empty stub
  * @return
  */
 int dap_enc_key_init()

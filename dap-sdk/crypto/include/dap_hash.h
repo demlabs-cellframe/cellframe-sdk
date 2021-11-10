@@ -36,7 +36,7 @@
 
 #define DAP_HASH_FAST_SIZE  32
 #define DAP_CHAIN_HASH_FAST_SIZE    32
-
+#define DAP_CHAIN_HASH_FAST_STR_SIZE (DAP_CHAIN_HASH_FAST_SIZE * 2 + 2 /* heading 0x */ + 1 /*trailing zero*/)
 #define DAP_CHAIN_HASH_MAX_SIZE 63
 
 typedef enum dap_hash_type {
@@ -56,6 +56,15 @@ extern "C" {
 //size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_hash_fast_t * a_hash);
 
+/**
+ * @brief 
+ * get SHA3_256 hash for specific data
+ * @param a_data_in input data
+ * @param a_data_in_size size of input data
+ * @param a_hash_out returned hash
+ * @return true 
+ * @return false 
+ */
 static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, dap_hash_fast_t *a_hash_out )
 {
     if ( (a_data_in == NULL) || (a_data_in_size == 0) || (a_hash_out == NULL) )
@@ -73,8 +82,9 @@ static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, 
 
 /**
  * @brief dap_hash_fast_compare
- * @param a_hash1
- * @param a_hash2
+ * compare to hashes (dap_hash_fast_t) through memcmp
+ * @param a_hash1 - dap_hash_fast_t hash1
+ * @param a_hash2 - dap_hash_fast_t hash2
  * @return
  */
 static inline bool dap_hash_fast_compare(dap_hash_fast_t *a_hash1, dap_hash_fast_t *a_hash2)
@@ -100,30 +110,32 @@ static inline bool dap_hash_fast_is_blank( dap_hash_fast_t *a_hash )
 
 DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_hash_fast_t *a_hash, char *a_str, size_t a_str_max )
 {
-    assert(a_str_max >= (DAP_CHAIN_HASH_FAST_SIZE * 2 + 2));
+    if(! a_hash )
+        return -1;
+    if(! a_str )
+        return -2;
+    if( a_str_max < DAP_CHAIN_HASH_FAST_STR_SIZE )
+        return -3;
     a_str[0] = '0';
     a_str[1] = 'x';
-    a_str[ DAP_CHAIN_HASH_FAST_SIZE * 2 + 2] = 0;
+    a_str[ DAP_CHAIN_HASH_FAST_STR_SIZE - 1 ] = 0;
     dap_htoa64((a_str + 2), a_hash->raw, DAP_CHAIN_HASH_FAST_SIZE);
-    return DAP_CHAIN_HASH_FAST_SIZE * 2 + 2;
+    return DAP_CHAIN_HASH_FAST_STR_SIZE;
 }
 
-DAP_STATIC_INLINE int dap_hash_fast_to_str(dap_hash_fast_t *a_hash, char *a_str, size_t a_str_max){
-    return dap_chain_hash_fast_to_str(a_hash,a_str,a_str_max);
-}
+#define dap_hash_fast_to_str dap_chain_hash_fast_to_str
 
 DAP_STATIC_INLINE char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
 {
-    const size_t c_hash_str_size = sizeof(*a_hash)*2 +1 /*trailing zero*/ +2 /* heading 0x */+4/*just to be sure*/ ;
+    const size_t c_hash_str_size = DAP_CHAIN_HASH_FAST_STR_SIZE;
     char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
-    dap_chain_hash_fast_to_str( a_hash, ret, c_hash_str_size );
+    if(dap_chain_hash_fast_to_str( a_hash, ret, c_hash_str_size ) < 0 )
+        DAP_DEL_Z(ret);
     return ret;
 }
 
-DAP_STATIC_INLINE char *dap_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
-{
-    return dap_chain_hash_fast_to_str_new(a_hash);
-}
+#define dap_hash_fast_to_str_new dap_chain_hash_fast_to_str_new
+
 #ifdef __cplusplus
 }
 #endif

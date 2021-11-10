@@ -152,14 +152,10 @@ dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(dap_chain_hash_fast_t
 {
     if(!a_ticker)
         return NULL;
-    size_t a_ticker_len = strlen(a_ticker);
     dap_chain_tx_token_t *l_item = DAP_NEW_Z(dap_chain_tx_token_t);
     l_item->header.type = TX_ITEM_TYPE_TOKEN;
     memcpy (& l_item->header.token_emission_hash, a_datum_token_hash, sizeof ( *a_datum_token_hash ) );
-    if(a_ticker_len >= sizeof(l_item->header.ticker))
-        a_ticker_len = sizeof(l_item->header.ticker) - 1;
-    strncpy(l_item->header.ticker, a_ticker, a_ticker_len);
-
+    strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
     return l_item;
 }
 
@@ -243,6 +239,9 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_enc
 
 
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size);
+    if(l_item == NULL)
+        return NULL;
+
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY; // By default creatre cond for service pay. Rework with smth more flexible

@@ -37,8 +37,6 @@ typedef struct dap_thread {
 } dap_thread_t;
 
 typedef struct dap_events {
-    dap_events_socket_t *sockets; // Hashmap of event sockets
-    pthread_rwlock_t sockets_rwlock;
     pthread_key_t pth_key_worker;
     void *_inheritor;  // Pointer to the internal data, HTTP for example
     dap_thread_t proc_thread;
@@ -55,6 +53,7 @@ void dap_events_deinit( ); // Deinit server module
 dap_events_t* dap_events_new( );
 dap_events_t* dap_events_get_default( );
 void dap_events_delete( dap_events_t * a_events );
+void dap_events_remove_and_delete_socket_unsafe(dap_events_t*, dap_events_socket_t*, bool);
 
 int32_t dap_events_start( dap_events_t *a_events );
 void dap_events_stop_all();

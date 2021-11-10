@@ -45,6 +45,6 @@ void dap_stream_ch_proc_add(uint8_t id,
                           dap_stream_ch_callback_t packet_in_callback,
                           dap_stream_ch_callback_t packet_out_callback
                           );
-stream_ch_proc_t* stream_ch_proc_find(uint8_t id);
+stream_ch_proc_t* dap_stream_ch_proc_find(uint8_t id);
 
 #endif

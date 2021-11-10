@@ -190,7 +190,7 @@ const char * dap_get_appname()
 }
 
 /**
- * @brief dap_set_appname
+ * @brief dap_set_appname set application name in global s_appname variable
  * @param a_appname
  * @return
  */
@@ -221,6 +221,14 @@ void dap_set_log_tag_width(size_t a_width) {
  * @brief dap_common_init initialise
  * @param[in] a_log_file
  * @return
+ */
+
+/**
+ * @brief this function is used for dap sdk modules initialization
+ * @param a_console_title const char *: set console title. Can be result of dap_get_appname(). For example: cellframe-node
+ * @param a_log_file_path const char *: path to log file. Saved in s_log_file_path variable. For example: C:\\Users\\Public\\Documents\\cellframe-node\\var\\log\\cellframe-node.log
+ * @param a_log_dirpath const char *: path to log directory. Saved in s_log_dir_path variable. For example. C:\\Users\\Public\\Document\\cellframe-node\\var\\log
+ * @return int. (0 if succcess, -1 if error)
  */
 int dap_common_init( const char *a_console_title, const char *a_log_file_path, const char *a_log_dirpath) {
 
@@ -844,6 +852,13 @@ static CRITICAL_SECTION s_timers_lock;
 #else
 static pthread_mutex_t s_timers_lock;
 #endif
+
+void dap_interval_timer_deinit()
+{
+    for (int i = 0; i < s_timers_count; i++) {
+        dap_interval_timer_delete(s_timers[i].timer);
+    }
+}
 
 static int s_timer_find(void *a_timer)
 {

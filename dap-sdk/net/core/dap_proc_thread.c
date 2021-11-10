@@ -295,9 +295,9 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
     }
     a_thread->poll[a_esocket->poll_index].events= a_esocket->poll_base_flags;
     if( a_esocket->flags & DAP_SOCK_READY_TO_READ)
-        a_thread->poll[a_esocket->poll_index].revents |= POLLIN;
+        a_thread->poll[a_esocket->poll_index].events |= POLLIN;
     if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE)
-        a_thread->poll[a_esocket->poll_index].revents |= POLLOUT;
+        a_thread->poll[a_esocket->poll_index].events |= POLLOUT;
         
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
 
@@ -380,7 +380,7 @@ static void * s_proc_thread_function(void * a_arg)
     dap_proc_thread_t * l_thread = (dap_proc_thread_t*) a_arg;
     assert(l_thread);
     dap_cpu_assign_thread_on(l_thread->cpu_id);
-    
+
     struct sched_param l_shed_params;
     l_shed_params.sched_priority = 0;
 #if defined(DAP_OS_WINDOWS)
@@ -462,7 +462,6 @@ static void * s_proc_thread_function(void * a_arg)
         return NULL;
     }
 
-
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
         // Queue asssign
         l_thread->queue_assign_input[n]->ev.events      = l_thread->queue_assign_input[n]->ev_base_flags ;
@@ -518,7 +517,6 @@ static void * s_proc_thread_function(void * a_arg)
     l_thread->poll[l_thread->poll_count].events = l_thread->event_exit->poll_base_flags;
     l_thread->esockets[l_thread->poll_count] = l_thread->event_exit;
     l_thread->poll_count++;
-
 
     for (size_t n = 0; n< dap_events_worker_get_count(); n++){
         dap_events_socket_t * l_queue_assign_input =  l_thread->queue_assign_input[n];
@@ -806,7 +804,7 @@ static void * s_proc_thread_function(void * a_arg)
                                     else{
                                         l_errno = errno;
                                         log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_es_w_data->ptr, l_errno);
-                                        DAP_DELETE(l_es_w_data->ptr);
+                                        DAP_DELETE(l_es_w_data);
                                     }
                                 #else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
@@ -888,19 +886,19 @@ static void * s_proc_thread_function(void * a_arg)
 
         }
 #ifdef DAP_EVENTS_CAPS_POLL
-      /***********************************************************/
-       /* If the compress_array flag was turned on, we need       */
-       /* to squeeze together the array and decrement the number  */
-       /* of file descriptors. We do not need to move back the    */
-       /* events and revents fields because the events will always*/
-       /* be POLLIN in this case, and revents is output.          */
-       /***********************************************************/
-       if ( l_poll_compress){
+        /***********************************************************/
+        /* If the compress_array flag was turned on, we need       */
+        /* to squeeze together the array and decrement the number  */
+        /* of file descriptors.                                    */
+        /***********************************************************/
+        if ( l_poll_compress){
            l_poll_compress = false;
            for (size_t i = 0; i < l_thread->poll_count ; i++)  {
                if ( l_thread->poll[i].fd == -1){
                     for(size_t j = i; j +1 < l_thread->poll_count; j++){
                         l_thread->poll[j].fd = l_thread->poll[j+1].fd;
+                        l_thread->poll[j].events = l_thread->poll[j+1].events;
+                        l_thread->poll[j].revents = l_thread->poll[j+1].revents;
                         l_thread->esockets[j] = l_thread->esockets[j+1];
                         if(l_thread->esockets[j])
                             l_thread->esockets[j]->poll_index = j;
@@ -909,7 +907,7 @@ static void * s_proc_thread_function(void * a_arg)
                    l_thread->poll_count--;
                }
            }
-       }
+        }
 #endif
     }
     log_it(L_ATT, "Stop processing thread #%u", l_thread->cpu_id);
@@ -950,16 +948,16 @@ bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_wo
  * @brief dap_proc_thread_esocket_write_inter
  * @param a_thread
  * @param a_worker
- * @param a_esocket
+ * @param a_es_uuid
  * @param a_data
  * @param a_data_size
  * @return
  */
-int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
+int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,   dap_events_socket_uuid_t a_es_uuid,
                                         const void * a_data, size_t a_data_size)
 {
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
-    dap_events_socket_write_inter(l_es_io_input,a_esocket, a_data, a_data_size);
+    dap_events_socket_write_inter(l_es_io_input,a_es_uuid, a_data, a_data_size);
     // TODO Make this code platform-independent
 #ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
@@ -973,11 +971,11 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
  * @brief dap_proc_thread_esocket_write_f_inter
  * @param a_thread
  * @param a_worker
- * @param a_esocket
+ * @param a_es_uuid,
  * @param a_format
  * @return
  */
-int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_t *a_esocket,
+int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_uuid_t a_es_uuid,
                                         const char * a_format,...)
 {
     va_list ap, ap_copy;
@@ -992,16 +990,21 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
     }
 
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
-    char * l_data = DAP_NEW_SIZE(char,l_data_size+1); if (!l_data) return -1;
+    char * l_data = DAP_NEW_SIZE(char,l_data_size+1);
+    if (!l_data){
+        va_end(ap_copy);
+        return -1;
+    }
     l_data_size = dap_vsprintf(l_data,a_format,ap_copy);
     va_end(ap_copy);
 
-    dap_events_socket_write_inter(l_es_io_input,a_esocket, l_data, l_data_size);
+    dap_events_socket_write_inter(l_es_io_input, a_es_uuid, l_data, l_data_size);
     // TODO Make this code platform-independent
 #ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
 #endif
+    DAP_DELETE(l_data);
     return 0;
 }
 

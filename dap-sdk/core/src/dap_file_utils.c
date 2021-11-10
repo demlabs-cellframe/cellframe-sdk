@@ -114,12 +114,14 @@ bool dap_dir_test(const char * a_dir_path)
     return false;
 }
 
+
 /**
- * Create a new directory with intermediate sub-directories
- *
- * @dir_path new directory pathname
- * @return 0, if the directory was created or already exist, else -1
+ * @brief dap_mkdir_with_parents Create a new directory with intermediate sub-directories
+ * 
+ * @param a_dir_path new directory pathname
+ * @return int 0, if the directory was created or already exist, else -1
  */
+
 int dap_mkdir_with_parents(const char *a_dir_path)
 {
     // validation of a pointer
@@ -158,8 +160,8 @@ int dap_mkdir_with_parents(const char *a_dir_path)
 #ifdef _WIN32
             int result = mkdir(path);
 #else
-            int result = mkdir(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH | S_IWOTH);
-                         chmod(path, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH | S_IWOTH);
+            int result = mkdir(path, S_IRWXU | S_IRWXG | S_IRWXO);
+                         chmod(path, S_IRWXU | S_IRWXG | S_IRWXO);
 #endif
             if(result == -1) {
                 errno = ENOTDIR;

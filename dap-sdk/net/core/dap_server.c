@@ -104,7 +104,7 @@ void dap_server_delete(dap_server_t *a_server)
 {
     while (a_server->es_listeners) {
         dap_events_socket_t *l_es = (dap_events_socket_t *)a_server->es_listeners->data;
-        dap_events_socket_remove_and_delete_mt(l_es->worker, l_es);
+        dap_events_socket_remove_and_delete_mt(l_es->worker, l_es->uuid); // TODO unsafe moment. Replace storage to uuids
         dap_list_t *l_tmp = a_server->es_listeners;
         a_server->es_listeners = l_tmp->next;
         DAP_DELETE(l_tmp);

@@ -26,6 +26,29 @@ uint32_t random_uint32_t(const uint32_t MAX_NUMBER)
     return ret;
 }
 
+/**
+ * @brief dap_random_byte
+ * @return
+ */
+byte_t dap_random_byte()
+{
+    byte_t ret;
+    randombytes(&ret, 1);
+    return ret;
+}
+
+/**
+ * @brief dap_random_uint16
+ * @return
+ */
+uint16_t dap_random_uint16()
+{
+    uint16_t l_ret;
+    randombytes(&l_ret, 2);
+    return l_ret;
+}
+
+
 int randombase64(void*random_array, unsigned int size)
 {
     int off = size - (size/4)*3;

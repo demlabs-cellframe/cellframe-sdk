@@ -29,15 +29,12 @@
 #include "dap_common.h"
 #include "dap_list.h"
 
-#define DAP_CHAIN_PKT_EXPECT_SIZE 7168
-
 typedef struct dap_store_obj {
 	uint64_t id;
     time_t timestamp;
 	uint8_t type;
     char *group;
     char *key;
-    //const char *c_group;
     const char *c_key;
     uint8_t *value;
 	size_t value_len;
@@ -92,8 +89,3 @@ dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char
 bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key);
 size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id);
 dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_mask);
-
-dap_list_t *dap_store_packet_multiple(pdap_store_obj_t a_store_obj,
-		time_t a_timestamp, size_t a_store_obj_count);
-dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt,
-		size_t *a_store_obj_count);

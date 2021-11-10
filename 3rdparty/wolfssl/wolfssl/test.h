@@ -2340,7 +2340,7 @@ static WC_INLINE void StackTrap(void)
     struct rlimit  rl;
     if (getrlimit(RLIMIT_STACK, &rl) != 0)
         err_sys_with_errno("getrlimit failed");
-    printf("rlim_cur = %llu\n", rl.rlim_cur);
+    printf("rlim_cur = %"DAP_UINT64_FORMAT_U"\n", rl.rlim_cur);
     rl.rlim_cur = 1024*21;  /* adjust trap size here */
     if (setrlimit(RLIMIT_STACK, &rl) != 0)
         err_sys_with_errno("setrlimit failed");

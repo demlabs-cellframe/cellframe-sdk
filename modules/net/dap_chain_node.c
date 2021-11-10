@@ -268,6 +268,12 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t 
 
 static bool s_mempool_auto = false;
 
+/**
+ * @brief 
+ * get automatic mempool processing, when network config contains mempool_auto_types for specific datums
+ * @return true 
+ * @return false 
+ */
 bool dap_chain_node_mempool_autoproc_init()
 {
     uint16_t l_net_count;
@@ -323,10 +329,9 @@ void dap_chain_node_mempool_autoproc_deinit()
     s_mempool_auto = false;
 }
 
-void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, const char *a_prefix, const char *a_group,
+void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, const char *a_group,
                                              const char *a_key, const void *a_value, const size_t a_value_len)
 {
-    UNUSED(a_prefix);
     UNUSED(a_value_len);
     if (!a_arg || !a_value || !s_mempool_auto || a_op_code != 'a') {
         return;

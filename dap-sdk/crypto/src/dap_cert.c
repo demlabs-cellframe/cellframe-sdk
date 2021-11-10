@@ -73,7 +73,7 @@ static dap_cert_item_t * s_certs = NULL;
 static dap_cert_folder_t * s_cert_folders = NULL;
 
 /**
- * @brief dap_cert_init
+ * @brief dap_cert_init empty stub for certificate init
  * @return
  */
 int dap_cert_init()

@@ -84,7 +84,7 @@ void dap_stream_ch_proc_add(uint8_t id,dap_stream_ch_callback_t new_callback,dap
  * @param id
  * @return
  */
-stream_ch_proc_t* stream_ch_proc_find(uint8_t id)
+stream_ch_proc_t* dap_stream_ch_proc_find(uint8_t id)
 {
     return s_proc+id;
 }

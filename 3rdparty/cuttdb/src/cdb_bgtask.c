@@ -16,14 +16,7 @@
 #include "cdb_bgtask.h"
 #include <stdlib.h>
 #include <errno.h>
-#if defined(DAP_OS_DARWIN)
 #include <signal.h>
-#elif defined(_WIN32)
-#include <sys/signal.h>
-#else
-#include <signal.h>
-#endif
-
 
 /* where thread begins */
 static void *_cdb_bgtask_func(void *arg);

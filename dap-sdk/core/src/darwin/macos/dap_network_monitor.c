@@ -313,9 +313,15 @@ static OSStatus CopyIPAddressListSCF(CFArrayRef *addrList)
     }
     // Clean up.
 
-    CFQRelease(ref);
-    CFQRelease(pattern);
-    CFQRelease(patternList);
+    if(valueDict)
+        CFQRelease(valueDict);
+    if(ref)
+        CFQRelease(ref);
+    if(pattern)
+        CFQRelease(pattern);
+    if(patternList)
+        CFQRelease(patternList);
+
     if (err != noErr && result != NULL) {
         CFQRelease(result);
         result = NULL;

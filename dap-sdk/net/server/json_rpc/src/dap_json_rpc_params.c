@@ -5,7 +5,8 @@
 dap_json_rpc_params_t* dap_json_rpc_params_create(void)
 {
     dap_json_rpc_params_t *l_params = DAP_NEW(dap_json_rpc_params_t);
-    l_params->lenght = 0;
+    if(l_params)
+        l_params->lenght = 0;
     return l_params;
 }
 
@@ -47,7 +48,8 @@ void dap_json_rpc_params_add_param(dap_json_rpc_params_t *a_params, dap_json_rpc
 {
     uint32_t l_len_new_params = a_params->lenght + 1;
     dap_json_rpc_param_t **l_new_params = DAP_NEW_SIZE(dap_json_rpc_param_t*, l_len_new_params);
-    memcpy(l_new_params, a_params->params, sizeof(dap_json_rpc_param_t*) * a_params->lenght);
+    if(a_params->lenght && a_params->params)
+       memcpy(l_new_params, a_params->params, sizeof(dap_json_rpc_param_t*) * a_params->lenght);
     memcpy(l_new_params+a_params->lenght, &a_param, sizeof(dap_json_rpc_param_t*));
     if (a_params->lenght != 0)
         DAP_FREE(a_params->params);

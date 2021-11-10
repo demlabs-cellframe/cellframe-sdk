@@ -207,6 +207,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                                                                              a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING,"Not enough funds to transfer");
+        DAP_DELETE(l_objs);
         return -2;
     }
 
@@ -230,9 +231,9 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
             if(dap_chain_datum_tx_add_in_item(&l_tx_new, &item->tx_hash_fast, (uint32_t) item->num_idx_out) == 1) {
                 l_value_to_items += item->value;
-                log_it(L_DEBUG,"Added input %s with %llu datoshi",l_in_hash_str, item->value);
+                log_it(L_DEBUG,"Added input %s with %"DAP_UINT64_FORMAT_U" datoshi",l_in_hash_str, item->value);
             }else{
-                log_it(L_WARNING,"Can't add input from %s with %llu datoshi",l_in_hash_str, item->value);
+                log_it(L_WARNING,"Can't add input from %s with %"DAP_UINT64_FORMAT_U" datoshi",l_in_hash_str, item->value);
             }
             l_list_used_out = l_list_tmp->next;
             DAP_DELETE(l_list_tmp->data);
@@ -242,9 +243,10 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 break;
         }
         if ( l_value_to_items <  (a_value + a_value_fee) ){
-            log_it(L_ERROR,"Not enought values on output %llu to produce enought ins %llu when need %llu",
+            log_it(L_ERROR,"Not enought values on output %"DAP_UINT64_FORMAT_U" to produce enought ins %"DAP_UINT64_FORMAT_U" when need %"DAP_UINT64_FORMAT_U"",
                    l_value_to_items, l_value_transfer,
                    l_value_need);
+            DAP_DELETE(l_objs);
             return -5;
         }
 
@@ -261,7 +263,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // coin back
         l_value_back = l_value_transfer - l_value_pack;
         if(l_value_back) {
-            //log_it(L_DEBUG,"Change back %llu", l_value_back);
+            //log_it(L_DEBUG,"Change back %"DAP_UINT64_FORMAT_U"", l_value_back);
             if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx_new);
                 return -3;
@@ -280,7 +282,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
         // If we have value back - update balance cache
         if(l_value_back) {
-            //log_it(L_DEBUG,"We have value back %llu now lets see how many outputs we have", l_value_back);
+            //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
             int l_item_count = 0;
             dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT,
                     &l_item_count);
@@ -321,7 +323,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         //continue;
         l_objs[i].value = (uint8_t*) l_datum;
         l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
-        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %llu)",
+        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
 
     }
@@ -802,7 +804,6 @@ dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser
         shift_size += size_one;
     }
     assert(shift_size == a_datum_mempool_ser_size);
-    DAP_DELETE(a_datum_mempool_ser);
     return datum_mempool;
 }
 
@@ -920,8 +921,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
             dap_datum_mempool_t *datum_mempool =
                     (action != DAP_DATUM_MEMPOOL_NONE) ?
                             dap_datum_mempool_deserialize((uint8_t*) request_str, (size_t) request_size) : NULL;
-            if(datum_mempool)
-            {
+            if(datum_mempool){
                 dap_datum_mempool_free(datum_mempool);
                 char *a_key = calc_datum_hash(request_str, (size_t) request_size);
                 switch (action)
@@ -935,7 +935,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                     }
                     log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
                             (*return_code == Http_Status_OK) ? "OK" : "False!");
-                    DAP_DELETE(a_key);
+                    DAP_DEL_Z(a_key);
                     break;
 
                 case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
@@ -945,7 +945,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"));
                     if(str) {
                         dg->response = strdup("1");
-                        DAP_DELETE(str);
+                        DAP_DEL_Z(str);
                         log_it(L_INFO, "Check hash: key=%s result: Present", a_key);
                     }
                     else
@@ -977,16 +977,18 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 
                 default: // unsupported command
                     log_it(L_INFO, "Unknown request=%s! key=%s", (suburl) ? suburl : "-", a_key);
-                    DAP_DELETE(a_key);
+                    DAP_DEL_Z(a_key);
                     enc_http_delegate_delete(dg);
                     if(key)
                         dap_enc_key_delete(key);
                     return;
                 }
-                DAP_DELETE(a_key);
-            }
-            else
+                DAP_DEL_Z(a_key);
+            } else{
                 *return_code = Http_Status_BadRequest;
+            }
+
+            DAP_DELETE(request_str);
         }
         else
             *return_code = Http_Status_BadRequest;
