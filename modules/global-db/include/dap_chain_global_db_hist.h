@@ -18,11 +18,6 @@ typedef struct dap_global_db_hist {
     char *keys;
 } dap_global_db_hist_t;
 
-typedef struct dap_db_log_list_obj {
-    dap_global_db_obj_t obj;
-    dap_hash_fast_t hash;
-} dap_db_log_list_obj_t;
-
 //Add data to the history log
 bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_store_count, const char *a_group);
 

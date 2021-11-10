@@ -1182,7 +1182,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (  a_worker->poll_count == a_worker->poll_count_max ){ // realloc
         a_worker->poll_count_max *= 2;
-        log_it(L_WARNING, "Too many descriptors (%zu), resizing array twice to %zu", a_worker->poll_count, a_worker->poll_count_max);
+        log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %zu", a_worker->poll_count, a_worker->poll_count_max);
         a_worker->poll =DAP_REALLOC(a_worker->poll, a_worker->poll_count_max * sizeof(*a_worker->poll));
         a_worker->poll_esocket =DAP_REALLOC(a_worker->poll_esocket, a_worker->poll_count_max * sizeof(*a_worker->poll_esocket));
     }
