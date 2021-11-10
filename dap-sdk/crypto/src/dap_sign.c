@@ -374,8 +374,6 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
 
     if ( ! l_sign_data ){
         log_it(L_WARNING,"Incorrect signature, can't deserialize signature's data");
-            l_sign_data_size = a_chain_sign->header.sign_size;
-            uint8_t * l_sign_data = dap_enc_key_deserealize_sign(l_key->type, l_sign_data_ser, &l_sign_data_size);
         dap_enc_key_delete(l_key);
         return -5;
     }
