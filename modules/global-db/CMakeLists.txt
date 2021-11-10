@@ -1,8 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 project (dap_chain_global_db C)
 
-set(BUILD_WITH_GDB_DRIVER_PGSQL ON)
-
 file(GLOB DAP_CHAIN_GLOBAL_DB_SRC *.c)
 file(GLOB DAP_CHAIN_GLOBAL_DB_HDR include/*.h)
 

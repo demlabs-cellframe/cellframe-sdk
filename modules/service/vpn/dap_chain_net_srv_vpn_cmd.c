@@ -30,7 +30,7 @@ static void add_value_text(dap_string_t *l_str, char *l_addstr, uintmax_t a_valu
  *
  * VPN statistics
  */
-int com_vpn_statistics(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
+int com_vpn_statistics(int a_argc, char ** a_argv, char **a_str_reply)
 {
     dap_stream_ch_t* a_ch;
     dap_stream_t * stream;
@@ -48,10 +48,10 @@ int com_vpn_statistics(int a_argc, char ** a_argv, void *arg_func, char **a_str_
             dap_string_append_printf(l_str, "VPN connection %d\n", l_conn);
             l_conn++;
             // time start/length
-            time_t l_time_len_sec = time(NULL) - l_session->time_created;
+            uint32_t l_time_len_sec = time(NULL) - l_session->time_created;
             char l_buf[1024];
             if(dap_time_to_str_rfc822(l_buf, sizeof(l_buf), l_session->time_created) > 0)
-                dap_string_append_printf(l_str, "  start at %s (length %02d:%02d:%02d)\n", l_buf,
+                dap_string_append_printf(l_str, "  start at %s (length %02u:%02u:%02u)\n", l_buf,
                         l_time_len_sec / 3600, (l_time_len_sec % 3600) / 60, l_time_len_sec % 60);
             // client ip
             const int l_tun_client_addr_str_len = 128;
@@ -64,10 +64,10 @@ int com_vpn_statistics(int a_argc, char ** a_argv, void *arg_func, char **a_str_
             add_value_text(l_str, "  recv lost.........", l_stats.bytes_recv_lost);
             add_value_text(l_str, "  send..............", l_stats.bytes_sent);
             add_value_text(l_str, "  send lost.........", l_stats.bytes_sent_lost);
-            dap_string_append_printf(l_str, "  packets recv.......%d\n", l_stats.packets_recv);
-            dap_string_append_printf(l_str, "  packets recv lost..%d\n", l_stats.packets_recv_lost);
-            dap_string_append_printf(l_str, "  packets send.......%d\n", l_stats.packets_sent);
-            dap_string_append_printf(l_str, "  packets send lost..%d\n", l_stats.packets_sent_lost);
+            dap_string_append_printf(l_str, "  packets recv.......%ld\n", l_stats.packets_recv);
+            dap_string_append_printf(l_str, "  packets recv lost..%ld\n", l_stats.packets_recv_lost);
+            dap_string_append_printf(l_str, "  packets send.......%ld\n", l_stats.packets_sent);
+            dap_string_append_printf(l_str, "  packets send lost..%ld\n", l_stats.packets_sent_lost);
             // average bitrate
             double l_bitrate = (l_stats.bytes_recv - l_stats.bytes_recv_lost +
                     l_stats.bytes_sent - l_stats.bytes_sent_lost) * 1. / l_time_len_sec;
@@ -95,7 +95,7 @@ int com_vpn_statistics(int a_argc, char ** a_argv, void *arg_func, char **a_str_
  *
  * VPN client control
  */
-int com_vpn_client(int a_argc, char ** a_argv, void *arg_func, char **a_str_reply)
+int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
 {
 #ifndef _WIN32
     enum {

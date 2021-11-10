@@ -415,7 +415,7 @@ dap_pkey_t * dap_cert_to_pkey(dap_cert_t * a_cert)
  */
 int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
 {
-    dap_return_val_if_fail(a_cert && a_cert->enc_key && a_sign, -1);
+    dap_return_val_if_fail(a_cert && a_cert->enc_key && a_sign, -4);
     if ( dap_sign_type_from_key_type( a_cert->enc_key->type ).type == a_sign->header.type.type ){
         int l_ret;
         size_t l_pub_key_size = 0;
@@ -428,7 +428,7 @@ int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
         DAP_DELETE(l_pub_key);
         return l_ret;
     }else
-        return -1; // Wrong sign type
+        return -3; // Wrong sign type
 }
 
 
@@ -453,13 +453,13 @@ size_t dap_cert_count_cert_sign(dap_cert_t * a_cert)
  */
 void dap_cert_dump(dap_cert_t * a_cert)
 {
-    printf ("Certificate name: %s\n",a_cert->name);
-    printf ("Signature type: %s\n", dap_sign_type_to_str( dap_sign_type_from_key_type(a_cert->enc_key->type) ) );
-    printf ("Private key size: %lu\n",a_cert->enc_key->priv_key_data_size);
-    printf ("Public key size: %lu\n", a_cert->enc_key->pub_key_data_size);
+    dap_printf ("Certificate name: %s\n",a_cert->name);
+    dap_printf ("Signature type: %s\n", dap_sign_type_to_str( dap_sign_type_from_key_type(a_cert->enc_key->type) ) );
+    dap_printf ("Private key size: %zu\n",a_cert->enc_key->priv_key_data_size);
+    dap_printf ("Public key size: %zu\n", a_cert->enc_key->pub_key_data_size);
     size_t l_meta_items_cnt = dap_binary_tree_count(a_cert->metadata);
-    printf ("Metadata section count: %lu\n", l_meta_items_cnt);
-    printf ("Certificates signatures chain size: %lu\n",dap_cert_count_cert_sign (a_cert));
+    dap_printf ("Metadata section count: %zu\n", l_meta_items_cnt);
+    dap_printf ("Certificates signatures chain size: %zu\n",dap_cert_count_cert_sign (a_cert));
     if (l_meta_items_cnt) {
         printf ("Metadata sections\n");
         dap_list_t *l_meta_list = dap_binary_tree_inorder_list(a_cert->metadata);

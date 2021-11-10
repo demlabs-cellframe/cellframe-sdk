@@ -85,16 +85,17 @@ bool s_debug_cli = false;
 static dap_chain_node_cmd_item_t * s_commands = NULL;
 
 /**
- * @brief 
+ * @brief int s_poll
  * Wait for data
  * timeout -  timeout in ms
  * [Specifying a negative value in timeout means an infinite timeout.]
  * [Specifying a timeout of zero causes poll() to return immediately, even if no file descriptors are ready.]
+ * return zero if the time limit expired
+ * return: >0 if data is present to read
+ * return: -1 if error
  * @param socket 
  * @param timeout 
- * @return zero if the time limit expired
- * @return: >0 if data is present to read
- * @return: -1 if error
+ * @return int 
  */
 static int s_poll( int socket, int timeout )
 {
@@ -113,12 +114,13 @@ static int s_poll( int socket, int timeout )
     return res;
 }
 
+
 /**
  * @brief is_valid_socket
  * Check socket for validity
  * @param sock 
  * @return true 
- * @return false
+ * @return false 
  */
 static bool is_valid_socket(SOCKET sock)
 {
@@ -181,6 +183,7 @@ long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
     }
     return res;
 }
+
 
 /**
  * @brief s_get_next_str
@@ -272,7 +275,7 @@ static void* thread_one_client_func(void *args)
 {
     SOCKET newsockfd = (SOCKET) (intptr_t) args;
     if(s_debug_cli)
-        log_it(L_DEBUG, "new connection sockfd=%d", newsockfd);
+        log_it(L_DEBUG, "new connection sockfd=%"DAP_FORMAT_SOCKET, newsockfd);
 
     int str_len, marker = 0;
     int timeout = 5000; // 5 sec
@@ -343,9 +346,13 @@ static void* thread_one_client_func(void *args)
 
                     char **l_argv = dap_strsplit(str_cmd, ";", -1);
                     // Call the command function
-                    if(l_cmd &&  l_argv && l_cmd->func)
-                        res = (*(l_cmd->func))(argc, l_argv, l_cmd->arg_func, &str_reply);
-                    else if (l_cmd){
+                    if(l_cmd &&  l_argv && l_cmd->func) {
+                        if (l_cmd->arg_func) {
+                            res = l_cmd->func_ex(argc, l_argv, l_cmd->arg_func, &str_reply);
+                        } else {
+                            res = l_cmd->func(argc, l_argv, &str_reply);
+                        }
+                    } else if (l_cmd) {
                         log_it(L_WARNING,"NULL arguments for input for command \"%s\"", str_cmd);
                     }else {
                         log_it(L_WARNING,"No function for command \"%s\" but it registred?!", str_cmd);
@@ -390,7 +397,7 @@ static void* thread_one_client_func(void *args)
     // close connection
     int cs = closesocket(newsockfd);
     if (s_debug_cli)
-        log_it(L_DEBUG, "close connection=%d sockfd=%d", cs, newsockfd);
+        log_it(L_DEBUG, "close connection=%d sockfd=%"DAP_FORMAT_SOCKET, cs, newsockfd);
     return NULL;
 }
 
@@ -408,6 +415,7 @@ static void* thread_one_client_func(void *args)
  */
 char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
 {
+    UNUSED(timeout);
     bool bSuccess = false;
     long nRecv = 0; // count of bytes received
     size_t stop_str_len = (stop_str) ? strlen(stop_str) : 0;
@@ -480,7 +488,6 @@ char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_s
     return NULL;
 }
 
-
 /**
  * @brief thread_pipe_client_func
  * threading function for processing a request from a client
@@ -493,7 +500,7 @@ static void *thread_pipe_client_func( void *args )
 
 //    SOCKET newsockfd = (SOCKET) (intptr_t) args;
     if(s_debug_cli)
-        log_it(L_INFO, "new connection pipe = %X", hPipe );
+        log_it(L_INFO, "new connection pipe = %p", hPipe);
 
     int str_len, marker = 0;
     int timeout = 5000; // 5 sec
@@ -573,8 +580,13 @@ static void *thread_pipe_client_func( void *args )
                     char **l_argv = dap_strsplit( str_cmd, ";", -1 );
                     // Call the command function
 
-                    if ( l_cmd &&  l_argv && l_cmd->func )
-                        res = (* (l_cmd->func))( argc, l_argv, NULL, &str_reply );
+                    if ( l_cmd &&  l_argv && l_cmd->func ) {
+                        if (l_cmd->arg_func) {
+                            res = l_cmd->func_ex(argc, l_argv, l_cmd->arg_func, &str_reply);
+                        } else {
+                            res = l_cmd->func(argc, l_argv, &str_reply);
+                        }
+                    }
 
                     else if ( l_cmd ) {
                         log_it(L_WARNING,"NULL arguments for input for command \"%s\"", str_cmd );
@@ -622,7 +634,7 @@ static void *thread_pipe_client_func( void *args )
     // close connection
 //    int cs = closesocket(newsockfd);
 
-    log_it( L_INFO, "close connection pipe = %X", hPipe );
+    log_it( L_INFO, "close connection pipe = %p", hPipe );
 
     FlushFileBuffers( hPipe );
     DisconnectNamedPipe( hPipe );
@@ -640,9 +652,10 @@ static void *thread_pipe_client_func( void *args )
  */
 static void* thread_pipe_func( void *args )
 {
+   UNUSED(args);
    BOOL   fConnected = FALSE;
    pthread_t threadId;
-   HANDLE hPipe = INVALID_HANDLE_VALUE, hThread = NULL;
+   HANDLE hPipe = INVALID_HANDLE_VALUE;
    static const char *cPipeName = "\\\\.\\pipe\\node_cli.pipe";
 
    for (;;)
@@ -662,7 +675,7 @@ static void* thread_pipe_func( void *args )
           NULL );                   // default security attribute
 
       if ( hPipe == INVALID_HANDLE_VALUE ) {
-          log_it( L_ERROR, "CreateNamedPipe failed, GLE = %d.\n", GetLastError() );
+          log_it( L_ERROR, "CreateNamedPipe failed, GLE = %lu.\n", GetLastError() );
           return NULL;
       }
 
@@ -670,7 +683,7 @@ static void* thread_pipe_func( void *args )
 
       if ( fConnected )
       {
-        log_it( L_INFO, "Client %X connected, creating a processing thread.\n", hPipe );
+        log_it( L_INFO, "Client %p connected, creating a processing thread.\n", hPipe );
 
         pthread_create( &threadId, NULL, thread_pipe_client_func, hPipe );
         pthread_detach( threadId );
@@ -682,6 +695,7 @@ static void* thread_pipe_func( void *args )
     return NULL;
 }
 #endif
+
 
 /**
  * @brief thread_main_func
@@ -703,7 +717,7 @@ static void* thread_main_func(void *args)
         socklen_t size = sizeof(peer);
         // received a new connection request
         if((newsockfd = accept(sockfd, (struct sockaddr*) &peer, &size)) == (SOCKET) -1) {
-            log_it(L_ERROR, "new connection break newsockfd=%d", newsockfd);
+            log_it(L_ERROR, "new connection break newsockfd=%"DAP_FORMAT_SOCKET, newsockfd);
             break;
         }
         // create child thread for a client connection
@@ -713,9 +727,10 @@ static void* thread_main_func(void *args)
     };
     // close connection
     int cs = closesocket(sockfd);
-    log_it(L_INFO, "Exit server thread=%d socket=%d", cs, sockfd);
+    log_it(L_INFO, "Exit server thread=%d socket=%"DAP_FORMAT_SOCKET, cs, sockfd);
     return NULL;
 }
+
 
 /**
  * @brief dap_chain_node_cli_set_reply_text
@@ -764,6 +779,7 @@ int dap_chain_node_cli_check_option( char** argv, int arg_start, int arg_end, co
     }
     return -1;
 }
+
 
 /**
  * @brief dap_chain_node_cli_find_option_val
@@ -817,14 +833,18 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
  * @param doc_ex
  * @return
  */
-void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex)
+void dap_chain_node_cli_cmd_item_create_ex(const char * a_name, cmdfunc_ex_t *a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex)
 {
     dap_chain_node_cmd_item_t *l_cmd_item = DAP_NEW_Z(dap_chain_node_cmd_item_t);
     dap_snprintf(l_cmd_item->name,sizeof (l_cmd_item->name),"%s",a_name);
     l_cmd_item->doc = strdup( a_doc);
     l_cmd_item->doc_ex = strdup( a_doc_ex);
-    l_cmd_item->func = a_func;
-    l_cmd_item->arg_func = a_arg_func;
+    if (a_arg_func) {
+        l_cmd_item->func_ex = a_func;
+        l_cmd_item->arg_func = a_arg_func;
+    } else {
+        l_cmd_item->func = (cmdfunc_t *)(void *)a_func;
+    }
     HASH_ADD_STR(s_commands,name,l_cmd_item);
     log_it(L_DEBUG,"Added command %s",l_cmd_item->name);
 }
@@ -867,7 +887,6 @@ dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name)
  * @brief dap_chain_node_cli_init
  * Initialization of the server side of the interaction
  * with the console kelvin-node-cli
- *
  * init commands description
  * return 0 if OK, -1 error
  * @param g_config 
@@ -904,13 +923,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     }
 #endif
 
-    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, NULL, "Work with global database",
+    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell id> \n"
             "global_db flush \n\n"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
 
-    dap_chain_node_cli_cmd_item_create("node", com_node, NULL, "Work with node",
+    dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
             "node add  -net <net name> -addr {<node address> | -alias <node alias>} {-port <port>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
                     "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
                     "node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
@@ -919,32 +938,32 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node handshake {<node address> | -alias <node alias>}\n"
                     "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
                                         );
-    dap_chain_node_cli_cmd_item_create ("ping", com_ping, NULL, "Send ICMP ECHO_REQUEST to network hosts",
+    dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
-    dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, NULL, "Print the hops and time of packets trace to network host",
+    dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
             "traceroute host\n");
-    dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath, NULL, "Traces path to a network host along this path",
+    dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath,"Traces path to a network host along this path",
             "tracepath host\n");
-    dap_chain_node_cli_cmd_item_create ("version", com_version, NULL, "Return software version",
+    dap_chain_node_cli_cmd_item_create ("version", com_version, "Return software version",
                                         "version\n"
                                         "\tReturn version number\n"
                                         );
 
-    dap_chain_node_cli_cmd_item_create ("help", com_help, NULL, "Description of command parameters",
+    dap_chain_node_cli_cmd_item_create ("help", com_help, "Description of command parameters",
                                         "help [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_chain_node_cli_cmd_item_create ("?", com_help, NULL, "Synonym for \"help\"",
+    dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for \"help\"",
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, NULL, "Wallet operations",
+    dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
             "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
 
     // Token commands
-    dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, NULL, "Token update",
+    dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, "Token update",
             "\nPrivate token update\n"
-            "\t token_update -net <net name> -chain <chain name> -token <token ticker> -type private [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t token_update -net <net name> -chain <chain name> -token <token ticker> [-type private] [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Update private token <token ticker> for <netname>:<chain name> with"
             "\t   custom parameters list <Param 1>, <Param 2>...<Param N>."
             "\n"
@@ -992,7 +1011,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\n"
             );
     // Token commands
-    dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, NULL, "Token declaration",
+    dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
             "Simple token declaration:\n"
             "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
@@ -1031,73 +1050,74 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\n"
             );
 
-    dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, NULL, "Token declaration add sign",
+    dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
             "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
-    dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, NULL, "Token emission",
+    dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
             "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> -addr <addr> -token <token ticker> -certs <cert> -emission_value <val>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, NULL, "List mempool entries for selected chain network and chain id",
-            "mempool_list -net <net name> -chain <chain name>\n");
+    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network",
+            "mempool_list -net <net name>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, NULL, "Proc mempool entries for selected chain network and chain id",
-            "mempool_proc -net <net name> -chain <chain name> -datum <datum hash>\n");
+    dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
+            "mempool_proc -net <net name> -datum <datum hash>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, NULL, "Delete datum with hash <datum hash>",
-            "mempool_delete -net <net name> -chain <chain name> -datum <datum hash>\n");
+    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
+            "mempool_delete -net <net name> -datum <datum hash>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_add_ca", com_mempool_add_ca, NULL,
+    dap_chain_node_cli_cmd_item_create ("mempool_add_ca", com_mempool_add_ca,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
             "mempool_add_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
 
 
     // Transaction commands
-    dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, NULL, "Make transaction",
+    dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
             "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
-    dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, NULL, "Make cond transaction",
+    dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
             "tx_cond_create -net <net name> -token <token_ticker> -wallet_f <wallet_from> -wallet_t <wallet_to>"
                                         "-value <value_datoshi> -unit <mb|kb|b|sec|day> -service <vpn>\n" );
-    dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, NULL, "Verifing transaction",
+    dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction",
             "tx_verify  -wallet <wallet name> \n" );
 
     // Transaction history
-    dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, NULL, "Transaction history (for address or by hash)",
+    dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history (for address or by hash)",
             "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
 
     // Ledger info
-    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, NULL, "Ledger info",
+    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger info",
             "ledger list coins -net <network name>\n"
             "ledger list coins_cond -net <network name>\n"
             "ledger list addrs -net <network name>\n"
             "ledger tx [all | -addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
 
     // Token info
-    dap_chain_node_cli_cmd_item_create("token", com_token, NULL, "Token info",
+    dap_chain_node_cli_cmd_item_create("token", com_token, "Token info",
             "token list -net <network name>\n"
-            "token tx all name <token name> -net <network name> [-page_start <page>] [-page <page>]\n");
+            "token info -net <network name> -name <token name>\n"
+            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token name> -net <network name> [-page_start <page>] [-page <page>]\n");
 
     // Log
-    dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, NULL, "Print log info",
+    dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
                 "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
 
     // Statisticss
-    dap_chain_node_cli_cmd_item_create("stats", com_stats, NULL, "Print statistics",
+    dap_chain_node_cli_cmd_item_create("stats", com_stats, "Print statistics",
                 "stats cpu");
 
 
 
     // Exit
-    dap_chain_node_cli_cmd_item_create ("exit", com_exit, NULL, "Stop application and exit",
+    dap_chain_node_cli_cmd_item_create ("exit", com_exit, "Stop application and exit",
                 "exit\n" );
 
      // Export GDB to JSON
-     dap_chain_node_cli_cmd_item_create("gdb_export", cmd_gdb_export, NULL, "Export gdb to JSON",
+     dap_chain_node_cli_cmd_item_create("gdb_export", cmd_gdb_export, "Export gdb to JSON",
                                         "gdb_export filename <filename without extension>");
 
      //Import GDB from JSON
-     dap_chain_node_cli_cmd_item_create("gdb_import", cmd_gdb_import, NULL, "Import gdb from JSON",
+     dap_chain_node_cli_cmd_item_create("gdb_import", cmd_gdb_import, "Import gdb from JSON",
                                         "gdb_import filename <filename without extension>");
 
     // create thread for waiting of clients
@@ -1114,7 +1134,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     if ( l_listen_unix_socket_path && l_listen_unix_socket_permissions ) {
         if ( l_listen_unix_socket_permissions_str ) {
-            dap_sscanf(l_listen_unix_socket_permissions_str,"%ou", &l_listen_unix_socket_permissions );
+            uint16_t l_perms;
+            dap_sscanf(l_listen_unix_socket_permissions_str,"%hu", &l_perms);
+            l_listen_unix_socket_permissions = l_perms;
         }
         log_it( L_INFO, "Console interace on path %s (%04o) ", l_listen_unix_socket_path, l_listen_unix_socket_permissions );
 
@@ -1221,13 +1243,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     return 0;
 }
 
+
 /**
+ * @brief dap_chain_node_cli_delete
  * Deinitialization of the server side
- *
  */
 void dap_chain_node_cli_delete(void)
 {
-    if(server_sockfd >= 0)
+    if(server_sockfd != INVALID_SOCKET)
         closesocket(server_sockfd);
 #ifdef __WIN32
     WSACleanup();

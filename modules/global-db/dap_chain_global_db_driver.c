@@ -43,6 +43,7 @@
 
 #define LOG_TAG "db_driver"
 
+// A selected database driver.
 static char *s_used_driver = NULL;
 
 //#define USE_WRITE_BUFFER
@@ -185,7 +186,7 @@ int dap_db_driver_flush(void)
  * @param a_store_obj a pointer to the source objects
  * @param a_store_count a number of objects
  * @return A pointer to the copied objects.
- */ 
+ */
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
     if(!a_store_obj || !a_store_count)
@@ -230,7 +231,7 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
  */
 char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size)
 {
-    if(!data || data_size <= 0)
+    if(!data || !data_size)
         return NULL;
     dap_chain_hash_fast_t l_hash;
     memset(&l_hash, 0, sizeof(dap_chain_hash_fast_t));
@@ -452,10 +453,12 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
             if(l_ret_tmp == 1) {
                 log_it(L_INFO, "item is missing (may be already deleted) %s/%s\n", l_store_obj_cur->group, l_store_obj_cur->key);
                 l_ret = 1;
+                break;
             }
             if(l_ret_tmp < 0) {
                 log_it(L_ERROR, "Can't write item %s/%s (code %d)\n", l_store_obj_cur->group, l_store_obj_cur->key, l_ret_tmp);
                 l_ret -= 1;
+                break;
             }
         }
 

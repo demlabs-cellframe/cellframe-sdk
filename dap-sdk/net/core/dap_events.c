@@ -250,6 +250,7 @@ void dap_events_deinit( )
 
 /**
  * @brief server_new Creates new empty instance of server_t
+ * Additionally checking s_events_default and create thread (pthread_key_create)
  * @return New instance
  */
 dap_events_t * dap_events_new( )
@@ -401,7 +402,7 @@ int dap_events_wait( dap_events_t *a_events )
 
 /**
  * @brief dap_events_stop
- * @param a_events
+ * @param
  */
 void dap_events_stop_all( )
 {

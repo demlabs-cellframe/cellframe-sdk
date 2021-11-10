@@ -314,7 +314,7 @@ int dilithium_crypto_sign( dilithium_signature_t *sig, const unsigned char *m, u
 
     return 0;
 }
-
+#include "dap_hash.h"
 /*************************************************/
 int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilithium_signature_t *sig, const dilithium_public_key_t * public_key)
 {

@@ -43,13 +43,13 @@ dap_json_rpc_request_t *dap_json_rpc_request_from_json(const char *a_data)
         if (json_object_object_get_ex(l_jobj, "method", &l_jobj_method)){
             l_request->method = dap_strdup(json_object_get_string(l_jobj_method));
         }else{
-            log_it(L_ERROR, "Error parse JSON string, Can't searching method for request with id: %lu", l_request->id);
+            log_it(L_ERROR, "Error parse JSON string, Can't searching method for request with id: %"DAP_UINT64_FORMAT_U, l_request->id);
             l_err_parse_request = true;
         }
         if (json_object_object_get_ex(l_jobj, "params", &l_jobj_params) && !l_err_parse_request){
             l_request->params = dap_json_rpc_params_create_from_array_list(l_jobj_params);
         }else{
-            log_it(L_ERROR, "Error parse JSON string, Can't searching array params for request with id: %lu", l_request->id);
+            log_it(L_ERROR, "Error parse JSON string, Can't searching array params for request with id: %"DAP_UINT64_FORMAT_U, l_request->id);
             l_err_parse_request = true;
         }
     } else {

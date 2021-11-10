@@ -82,7 +82,7 @@ typedef struct service_list {
 static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_reply);
+static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all(void);
 
@@ -98,22 +98,23 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
     if( dap_chain_net_srv_order_init() != 0 )
         return -1;
 
-    dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, NULL, "Network services managment",
-        "net_srv -net <chain net name> order find [-direction <sell|buy>][-srv_uid <Service UID>] [-price_unit <price unit>]\\\n"
+    dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, "Network services managment",
+        "net_srv -net <chain net name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
         "                                         [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <chain net name> order delete -hash <Order hash>\n"
         "\tOrder delete\n"
         "net_srv -net <chain net name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -price <Price>\\\n"
-        "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>] \\\n"
-        "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
-        "        [-cert <cert name to sign order>]\\\n"
+        "net_srv -net <chain net name> order create -direction <sell | buy> -srv_uid <Service UID> -price <Price>\n"
+        "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
+        "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
+        "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
+
         "\tOrder create\n"
-            "net_srv -net <chain net name> order static [save | delete]\\\n"
+            "net_srv -net <chain net name> order static [save | delete]\n"
             "\tStatic nodelist create/delete\n"
-            "net_srv -net <chain net name> order recheck\\\n"
+            "net_srv -net <chain net name> order recheck\n"
             "\tCheck the availability of orders\n"
 
         );
@@ -188,9 +189,8 @@ void dap_chain_net_srv_deinit(void)
  * @param a_str_reply
  * @return
  */
-static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_reply)
+static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 {
-    UNUSED(arg_func);
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -388,7 +388,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
             dap_chain_net_srv_order_t * l_orders;
             size_t l_orders_num = 0;
             if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_num) == 0 ){
-                dap_string_append_printf(l_string_ret,"Found %u orders:\n",l_orders_num);
+                dap_string_append_printf(l_string_ret, "Found %zu orders:\n", l_orders_num);
                 size_t l_orders_size = 0;
                 for (size_t i = 0; i< l_orders_num; i++){
                     dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
@@ -397,12 +397,12 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                     dap_string_append(l_string_ret,"\n");
                 }
                 ret = 0;
-            }else{
+                if (l_orders_num)
+                    DAP_DELETE(l_orders);
+             }else{
                 ret = -5 ;
                 dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
             }
-            DAP_DELETE(l_orders);
-
         }else if( dap_strcmp( l_order_str, "dump" ) == 0 ){
             // Select with specified service uid
             if ( l_order_hash_str ){
@@ -498,7 +498,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
                     if (dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str ) == 0 )
                         log_it( L_DEBUG, "node addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_addr) );
                     else
-                        log_it( L_ERROR, "Can't parse \"%s\" as node addr");
+                        log_it( L_ERROR, "Can't parse \"%s\" as node addr", l_node_addr_str);
                 }
                 if (l_tx_cond_hash_str)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
@@ -584,7 +584,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
         }
 #endif
         else {
-            dap_string_append_printf(l_string_ret, "Unknown subcommand '%s'\n", l_order_str);
+            dap_string_append_printf(l_string_ret, "Command 'net_srv' requires subcommand 'order'");
             ret = -3;
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, l_string_ret->str);
@@ -625,7 +625,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
         l_sdata->srv = l_srv;
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
-        log_it(L_ERROR, "Already present service with 0x%016llX ", a_uid.uint64);
+        log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
         //l_srv = l_sdata->srv;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
@@ -662,7 +662,7 @@ int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
         l_srv->callback_stream_ch_write = a_callback_stream_ch_write;
         l_srv->callback_stream_ch_closed = a_callback_stream_ch_closed;
     }else{
-        log_it(L_ERROR, "Can't find service with 0x%016llX", a_uid.uint64);
+        log_it(L_ERROR, "Can't find service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
         l_ret= -1;
     }
     pthread_mutex_unlock(&s_srv_list_mutex);

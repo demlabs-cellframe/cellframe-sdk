@@ -22,6 +22,7 @@
 //#include <winnt.h>
 #include <winternl.h>
 
+#define __USE_MINGW_ANSI_STDIO 1
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -75,7 +76,7 @@ bool save_process_pid_in_file( const char* file_path )
     return false;
   }
 
-  fprintf( fpid, "%u", GetCurrentProcessId() );
+  fprintf( fpid, "%lu", GetCurrentProcessId() );
   fclose( fpid );
 
   return true;
@@ -97,7 +98,7 @@ pid_t get_pid_from_file( const char* file_path ) {
 
   pid_t f_pid = 0;
 
-  fscanf( fpid, "%u", &f_pid );
+  fscanf( fpid, "%lld", &f_pid );
   fclose( fpid );
 
   return f_pid;

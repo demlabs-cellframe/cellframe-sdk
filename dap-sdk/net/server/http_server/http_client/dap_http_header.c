@@ -110,7 +110,8 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
 //                    cl_ht->keep_alive=true;
 //                }
             }else if(strcmp(name,"Content-Type")==0){
-                strncpy( cl_ht->in_content_type, value, sizeof(cl_ht->in_content_type) );
+                strncpy( cl_ht->in_content_type, (char *)value, sizeof(cl_ht->in_content_type) );
+                cl_ht->in_content_type[sizeof(cl_ht->in_content_type) - 1] = '\0';
             }else if(strcmp(name,"Content-Length")==0){
                 cl_ht->in_content_length = atoi( value );
             }else  if(strcmp(name,"Cookie")==0){

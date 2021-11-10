@@ -22,7 +22,7 @@
 
 int cdb_errno(CDB *db)
 {
-    return (long)pthread_getspecific(*(pthread_key_t*)db->errkey);
+    return (size_t)pthread_getspecific(*(pthread_key_t*)db->errkey);
 }
 
 const char *cdb_errmsg(int ecode)
@@ -71,7 +71,7 @@ void cdb_seterrcb(CDB *db, CDB_ERRCALLBACK errcb, void *arg)
 
 void cdb_seterrno(CDB *db, int ecode, const char *source, int line)
 {
-    pthread_setspecific(*(pthread_key_t*)db->errkey, (void*)(long)ecode);
+    pthread_setspecific(*(pthread_key_t*)db->errkey, (void*)(size_t)ecode);
     if (ecode != CDB_SUCCESS && db->errcb) {
         db->errcb(db->errcbarg, ecode, source, line);
     }

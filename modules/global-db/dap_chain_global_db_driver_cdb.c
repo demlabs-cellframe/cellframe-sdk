@@ -38,6 +38,7 @@
 
 #define LOG_TAG "dap_chain_global_db_cdb"
 
+/** Struct for a item */
 typedef struct _obj_arg {
     pdap_store_obj_t o;
     uint64_t q;
@@ -45,6 +46,7 @@ typedef struct _obj_arg {
     uint64_t id;
 } obj_arg, *pobj_arg;
 
+/** Struct for a CDB instanse */
 typedef struct _cdb_instance {
     CDB *cdb;
     char *local_group;
@@ -138,6 +140,7 @@ bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, c
     }
     return true;
 }
+
 //** A callback function designed for countng items*/
 bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     UNUSED(ksize);
@@ -169,7 +172,7 @@ pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
     pthread_mutex_lock(&cdb_mutex);
     char l_cdb_path[strlen(s_cdb_path) + strlen(a_group) + 2];
     HASH_FIND_STR(s_cdb, a_group, l_cdb_i);
-    if (l_cdb_i && !(a_flags & (1 << 1))) {
+    if (l_cdb_i && !(a_flags & CDB_TRUNC)) {
         goto FIN;
     }
     l_cdb_i = DAP_NEW(cdb_instance);
@@ -186,10 +189,10 @@ pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
         log_it(L_ERROR, "An error occured while opening CDB: \"%s\"", cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
         goto ERR;
     }
-    if (!(a_flags & (1 << 1))) {
+    if (!(a_flags & CDB_TRUNC)) {
         CDBSTAT l_cdb_stat;
         cdb_stat(l_cdb_i->cdb, &l_cdb_stat);
-        if (l_cdb_stat.rnum > 0) {
+        if (l_cdb_stat.rnum > 0 || !(a_flags & CDB_CREAT)) {
             void *l_iter = cdb_iterate_new(l_cdb_i->cdb, 0);
             obj_arg l_arg;
             l_arg.o = DAP_NEW_Z(dap_store_obj_t);
@@ -262,7 +265,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
         if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
             continue;
         }
-        pcdb_instance l_cdb_i = dap_cdb_init_group(d->d_name, CDB_CREAT | CDB_PAGEWARMUP);
+        pcdb_instance l_cdb_i = dap_cdb_init_group(d->d_name, CDB_PAGEWARMUP);
         if (!l_cdb_i) {
             dap_db_driver_cdb_deinit();
             closedir(dir);
@@ -287,7 +290,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
  * @brief Gets CDB by a_group.
  * @param a_group a group name
  * @return if CDB is found, a pointer to CDB, otherwise NULL.
- */
+ */ 
 pcdb_instance dap_cdb_get_db_by_group(const char *a_group) {
     pcdb_instance l_cdb_i = NULL;
     pthread_rwlock_rdlock(&cdb_rwlock);
@@ -300,7 +303,7 @@ pcdb_instance dap_cdb_get_db_by_group(const char *a_group) {
  * @brief Creates a directory on the path s_cdb_path/a_group.
  * @param a_group the group name
  * @return 0
- */ 
+ */
 int dap_cdb_add_group(const char *a_group) {
     char l_cdb_path[strlen(s_cdb_path) + strlen(a_group) + 2];
     memset(l_cdb_path, '\0', sizeof(l_cdb_path));
@@ -352,7 +355,7 @@ int dap_db_driver_cdb_flush(void) {
  * @brief Read last store item from CDB.
  * @param a_group a group name
  * @return If successful, a pointer to item, otherwise NULL.
- */ 
+ */  
 dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {
     if (!a_group) {
         return NULL;
@@ -517,7 +520,7 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
  * @param a_group the group name
  * @param a_id id
  * @return If successful, count of store items; otherwise 0.
- */
+ */  
 size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
 {
     if (!a_group) {
@@ -579,11 +582,11 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         return -1;
     }
     if(a_store_obj->type == 'a') {
-        if(!a_store_obj->key) {// || !a_store_obj->value || !a_store_obj->value_len){
+        if(!a_store_obj->key) {
             return -2;
         }
         cdb_record l_rec;
-        l_rec.key = dap_strdup(a_store_obj->key);
+        l_rec.key = a_store_obj->key; //dap_strdup(a_store_obj->key);
         int offset = 0;
         char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(unsigned long) + a_store_obj->value_len + sizeof(time_t));
         dap_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
@@ -592,6 +595,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         offset += sizeof(unsigned long);
         if(a_store_obj->value && a_store_obj->value_len){
             memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
+            DAP_DELETE(a_store_obj->value);
         }
         offset += a_store_obj->value_len;
         unsigned long l_time = (unsigned long)a_store_obj->timestamp;
@@ -614,6 +618,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
                 ret = -1;
             }
         }
+        DAP_DELETE(a_store_obj->key);
     }
     return ret;
 }

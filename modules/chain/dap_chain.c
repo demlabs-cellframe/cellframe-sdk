@@ -191,7 +191,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
            DAP_DELETE(a_chain->_inheritor);
        DAP_DELETE(l_item);
     }else
-       log_it(L_WARNING,"Trying to remove non-existent 0x%16llX:0x%16llX chain",a_chain->id.uint64,
+       log_it(L_WARNING,"Trying to remove non-existent 0x%16"DAP_UINT64_FORMAT_X":0x%16"DAP_UINT64_FORMAT_X" chain",a_chain->id.uint64,
               a_chain->net_id.uint64);
     a_chain->datum_types_count = 0;
     DAP_DELETE(a_chain->datum_types);
@@ -301,6 +301,7 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
 }
 
 /**
+ * @brief dap_chain_load_from_cfg
  * Loading chain from config file
  * @param a_ledger - ledger object
  * @param a_chain_net_name - chain name, taken from config, for example - "home21-network"
@@ -322,9 +323,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 
             // Recognize chains id
             if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
-                if ( sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
-                    if ( sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
-                        if ( sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_U,&l_chain_id_u ) !=1 ){
+                if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
+                    if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
+                        if ( dap_sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_U,&l_chain_id_u ) !=1 ){
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
@@ -345,14 +346,14 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
             // Read chain name
             if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL ){
-                log_it (L_ERROR,"Can't read chain net name ",l_chain_id_str);
+                log_it (L_ERROR,"Can't read chain net name %s",l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
             }
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
-                log_it (L_NOTICE,"Consensus initialized for chain id 0x%016llX",
+                log_it (L_NOTICE,"Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x,
                         l_chain_id.uint64 );
 
                 if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) ) {
@@ -364,7 +365,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                                 log_it(L_DEBUG, "Added atom from treshold");
                             }
                         }
-                        //dap_chain_save_all( l_chain );
+                        /* Temporary garbage cleaner */
+                        dap_chain_save_all( l_chain );  // Save only the valid chain, throw all garbage out!
                         log_it (L_NOTICE, "Loaded chain files");
                     } else {
                         dap_chain_save_all( l_chain );
@@ -385,7 +387,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             char** l_datum_types = NULL;
             uint16_t l_datum_types_count = 0;
             if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain datum types ", l_chain_id_str);
+                log_it(L_WARNING, "Can't read chain datum types for chain %s", l_chain_id_str);
                 //dap_config_close(l_cfg);
                 //return NULL;
             }
@@ -403,7 +405,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 l_chain->datum_types_count = l_count_recognized;
             }
             if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain mempool auto types ", l_chain_id_str);
+                log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
             }
             // add datum types
             if(l_chain && l_datum_types && l_datum_types_count) {

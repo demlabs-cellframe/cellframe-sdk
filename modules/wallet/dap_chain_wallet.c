@@ -131,7 +131,7 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_nam
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
     l_wallet->name = strdup(a_wallet_name);
     l_wallet_internal->certs_count = 1;
-    l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count);
+    l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
 
     size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
     l_wallet_internal->file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
@@ -230,7 +230,7 @@ dap_pkey_t* dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet,uint32_t a_
     if( l_wallet_internal->certs_count > a_pkey_idx ){
         return dap_cert_to_pkey(l_wallet_internal->certs[a_pkey_idx]);
     }else{
-        log_it( L_WARNING, "No pkey with index %u in the wallet (total size %u)",a_pkey_idx,l_wallet_internal->certs_count);
+        log_it( L_WARNING, "No pkey with index %u in the wallet (total size %zu)",a_pkey_idx,l_wallet_internal->certs_count);
         return 0;
     }
 }
@@ -264,7 +264,7 @@ dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t 
                     l_wallet_internal->certs[a_pkey_idx]->enc_key
                   : NULL;
     }else{
-        log_it( L_WARNING, "No key with index %u in the wallet (total size %u)",a_pkey_idx,l_wallet_internal->certs_count);
+        log_it( L_WARNING, "No key with index %u in the wallet (total size %zu)",a_pkey_idx,l_wallet_internal->certs_count);
         return 0;
     }
 }
@@ -299,8 +299,6 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet)
                 uint32_t l_cert_raw_size=0;
                 uint8_t * l_buf = dap_cert_mem_save(l_wallet_internal->certs[i], &l_cert_raw_size);
                 l_wallet_cert_hdr.cert_raw_size= l_cert_raw_size;
-                //l_wallet_cert_hdr.cert_raw_size = dap_cert_save_mem_size(  l_wallet_internal->certs[i] );
-                //uint8_t * l_buf = DAP_NEW_SIZE (uint8_t, l_wallet_cert_hdr.cert_raw_size);
                 fwrite( &l_wallet_cert_hdr,1, sizeof (l_wallet_cert_hdr), l_file);
                 if ( l_buf ){
                     fwrite( l_buf, 1, l_wallet_cert_hdr.cert_raw_size, l_file);

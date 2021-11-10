@@ -39,7 +39,7 @@ static void dap_string_maybe_expand(dap_string_t *a_string, size_t a_len)
             strcpy(l_str, a_string->str);
         DAP_DELETE(a_string->str);
         a_string->str = l_str;*/
-        a_string->str = DAP_REALLOC(a_string->str, a_string->allocated_len);
+        a_string->str = DAP_REALLOC(a_string->str, (uint32_t)a_string->allocated_len);
     }
 }
 

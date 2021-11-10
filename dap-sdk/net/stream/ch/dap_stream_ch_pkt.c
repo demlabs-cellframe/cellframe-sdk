@@ -75,6 +75,8 @@ void dap_stream_ch_pkt_deinit()
  */
 size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type, const char * a_format,...)
 {
+    if (!a_worker)
+        return 0;
     va_list ap;
     va_start(ap,a_format);
     int l_data_size = dap_vsnprintf(NULL,0,a_format,ap);
@@ -161,6 +163,8 @@ size_t dap_stream_ch_pkt_write_f_inter(dap_events_socket_t * a_queue  , dap_stre
  */
 size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type, const void * a_data, size_t a_data_size)
 {
+    if (!a_worker)
+        return 0;
     dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
     l_msg->ch_uuid = a_ch_uuid;
     l_msg->ch_pkt_type = a_type;
@@ -236,7 +240,7 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
     a_ch->stream->seq_id++;
 
     if ( dap_stream_get_dump_packet_headers() ){
-        log_it(L_INFO,"Outgoing channel packet: id='%c' size=%u type=0x%02Xu seq_id=0x%016X enc_type=0x%02hhX",
+        log_it(L_INFO,"Outgoing channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02hhX",
             (char) l_hdr.id, l_hdr.size, l_hdr.type, l_hdr.seq_id , l_hdr.enc_type );
     }
 
@@ -245,7 +249,7 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
     size_t  l_buf_size_required = a_data_size + sizeof(l_hdr);
 
     if(l_buf_size_required > sizeof(a_ch->buf) ){
-        log_it(L_WARNING,"packet size is way too big: %lu bytes", a_data_size);
+        log_it(L_WARNING,"packet size is way too big: %zu bytes", a_data_size);
         l_buf_allocated = DAP_NEW_Z_SIZE(uint8_t, l_buf_size_required);
         l_buf_selected = l_buf_allocated;
     }

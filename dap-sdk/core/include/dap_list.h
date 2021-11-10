@@ -31,11 +31,11 @@ struct _dap_list
 dap_list_t* dap_list_alloc(void);
 void dap_list_free(dap_list_t *list);
 void dap_list_free1(dap_list_t *list);
-void dap_list_free_full(dap_list_t *list, dap_callback_destroyed_t free_func);
+void dap_list_free_full(dap_list_t *a_list, dap_callback_destroyed_t free_func);
 dap_list_t* dap_list_append(dap_list_t *list, void* data);
 dap_list_t* dap_list_prepend(dap_list_t *list, void* data);
 dap_list_t* dap_list_insert(dap_list_t *list, void* data, int position);
-dap_list_t* dap_list_insert_sorted(dap_list_t *list, void* data, dap_callback_compare_t func);
+dap_list_t* dap_list_insert_sorted(dap_list_t *list, void* data, dap_callback_compare_data_t func);
 dap_list_t* dap_list_insert_sorted_with_data(dap_list_t *list, void* data, dap_callback_compare_data_t func, void* user_data);
 dap_list_t* dap_list_insert_before(dap_list_t *list, dap_list_t *sibling, void* data);
 dap_list_t* dap_list_concat(dap_list_t *list1, dap_list_t *list2);
@@ -58,7 +58,7 @@ dap_list_t* dap_list_last(dap_list_t *list);
 dap_list_t* dap_list_first(dap_list_t *list);
 unsigned int dap_list_length(dap_list_t *list);
 void dap_list_foreach(dap_list_t *list, dap_callback_t func, void* user_data);
-dap_list_t* dap_list_sort(dap_list_t *list, dap_callback_compare_t compare_func);
+dap_list_t* dap_list_sort(dap_list_t *list, dap_callback_compare_data_t compare_func);
 dap_list_t* dap_list_sort_with_data(dap_list_t *list, dap_callback_compare_data_t compare_func, void* user_data);
 void* dap_list_nth_data(dap_list_t *list, unsigned int n);
 

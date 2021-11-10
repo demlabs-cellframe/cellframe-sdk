@@ -61,6 +61,7 @@ void dap_enc_salsa2012_key_delete(struct dap_enc_key *a_key)
     //a_key->priv_key_data_size = 0;
 }
 
+//------SALSA2012-----------
 /**
  * @brief dap_enc_salsa2012_key_new
  * 

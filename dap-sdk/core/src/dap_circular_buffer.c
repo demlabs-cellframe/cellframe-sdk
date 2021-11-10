@@ -340,7 +340,8 @@ void circular_buffer_print(circular_buffer_t cBuf, bool hex)
             dap_sprintf(str+i*2, "%c|",c);
     }
 
-    printf("CircularBuffer: %s <size %zu dataSize:%zu>\n",str,circular_buffer_get_capacity(cBuf),circular_buffer_get_data_size(cBuf));
+    dap_printf("CircularBuffer: %s <size %zu dataSize:%zu>\n",
+           str,circular_buffer_get_capacity(cBuf),circular_buffer_get_data_size(cBuf));
 
     free(str);
 }

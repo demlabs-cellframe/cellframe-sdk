@@ -132,7 +132,7 @@ dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_t * l_net,dap_chain
 bool dap_chain_node_check_addr(dap_chain_net_t * l_net,dap_chain_node_addr_t *addr, dap_chain_cell_id_t *a_cell_id);
 
 dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * l_net,const char *alias);
-bool dap_chain_node_alias_register(dap_chain_net_t * l_net,const char *alias, dap_chain_node_addr_t *addr);
+bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, dap_chain_node_addr_t *a_addr);
 bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
 
 int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);

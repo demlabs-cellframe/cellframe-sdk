@@ -54,10 +54,9 @@ typedef struct dap_chain_cell_file_header
 } DAP_ALIGN_PACKED dap_chain_cell_file_header_t;
 
 
-//static const char* s_cells_path = NULL;
-
 /**
  * @brief dap_chain_cell_init
+ * current version simply returns 0
  * @return
  */
 int dap_chain_cell_init(void)
@@ -97,6 +96,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     l_cell->chain = a_chain;
     l_cell->id.uint64 = a_cell_id.uint64;
     l_cell->file_storage_path = dap_strdup_printf("%0"DAP_UINT64_FORMAT_x".dchaincell", l_cell->id.uint64);
+    pthread_rwlock_init(&l_cell->storage_rwlock, NULL);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
@@ -115,8 +115,9 @@ dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char
 {
     dap_chain_cell_t * l_cell = DAP_NEW_Z(dap_chain_cell_t);
     l_cell->chain = a_chain;
-    sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell->id.uint64);
+    dap_sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell->id.uint64);
     l_cell->file_storage_path = dap_strdup_printf(a_filename);
+    pthread_rwlock_init(&l_cell->storage_rwlock, NULL);
     pthread_rwlock_wrlock(&a_chain->cell_rwlock);
     HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
@@ -161,10 +162,12 @@ void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
     }
     a_cell->chain = NULL;
     DAP_DEL_Z(a_cell->file_storage_path)
+    pthread_rwlock_destroy(&a_cell->storage_rwlock);
     DAP_DEL_Z(a_cell);
 }
 
 /**
+ * @brief dap_chain_cell_load
  * load cell file, which is pointed in a_cell_file_path variable, for example "0.dchaincell"
  * @param a_chain dap_chain_t object
  * @param a_cell_file_path contains name of chain, for example "0.dchaincell" 
@@ -209,21 +212,25 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         }
         unsigned long l_read = fread(l_element, 1, l_el_size, l_f);
         if(l_read == l_el_size) {
-            a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
+            dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
+            if (l_res == ATOM_PASS && l_res == ATOM_REJECT) {
+                DAP_DELETE(l_element);
+            }
             ++q;
         } else {
-            log_it(L_ERROR, "Read only %zd of %zd bytes, stop cell loading", l_read, l_el_size);
-            ret = -6;
+            log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
             DAP_DELETE(l_element);
+            ret = -6;
             break;
         }
     }
     if (ret < 0) {
-        log_it(L_INFO, "Couldn't load all atoms, %d only", q);
+        log_it(L_INFO, "Couldn't load all atoms, %lu only", q);
     } else {
-        log_it(L_INFO, "Loaded all %d atoms in cell %s", q, a_cell_file_path);
-        dap_chain_cell_create_fill2(a_chain, a_cell_file_path);
+        log_it(L_INFO, "Loaded all %lu atoms in cell %s", q, a_cell_file_path);
     }
+    if (q)
+        dap_chain_cell_create_fill2(a_chain, a_cell_file_path);
     fclose(l_f);
     return ret;
 
@@ -236,14 +243,17 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
  * a_cell->chain contains 
  *  name - "zerochain"
  *  net_name - "kelvin-testnet"
- *  filepath - "C:\\Users\\Public\\Documents\\cellframe-node\\var\\lib\\network\\kelvin-testnet\\zerochain\\/0.dchaincell
+ *  filepath - "C:\\Users\\Public\\Documents\\cellframe-node\\var\\lib\\network\\kelvin-testnet\\zerochain\\/0.dchaincell"
+ * @param a_atom
+ * @param a_atom_size
+ * @return
  */
 int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, size_t a_atom_size)
 {
     if(!a_cell)
         return -1;
     if (!a_atom && !a_cell->chain) {
-        log_it(L_WARNING,"Chain not found for cell 0x%016X ( %s )",
+        log_it(L_WARNING,"Chain not found for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                                a_cell->id.uint64, a_cell->file_storage_path);
         return -1;
     }
@@ -251,19 +261,19 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
         char l_file_path[MAX_PATH] = {'\0'};
         dap_snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_cell->chain)->file_storage_dir,
                      a_cell->file_storage_path);
-        if(!a_cell->file_storage)
-            a_cell->file_storage = fopen(l_file_path, "r+b");
+        a_cell->file_storage = fopen(l_file_path, "r+b");
         if (!a_cell->file_storage) {
             log_it(L_INFO, "Create chain cell");
             a_cell->file_storage = fopen(l_file_path, "w+b");
         }
         if (!a_cell->file_storage) {
-            log_it(L_ERROR, "Chain cell \"%s\" cannot be opened 0x%016X",
+            log_it(L_ERROR, "Chain cell \"%s\" cannot be opened 0x%016"DAP_UINT64_FORMAT_X,
                     a_cell->file_storage_path,
                     a_cell->id.uint64);
             return -3;
         }
     }
+    pthread_rwlock_wrlock(&a_cell->storage_rwlock);
     fseek(a_cell->file_storage, 0L, SEEK_END);
     if (ftell(a_cell->file_storage) < (long)sizeof(dap_chain_cell_file_header_t)) { // fill the header
         fseek(a_cell->file_storage, 0L, SEEK_SET);
@@ -275,10 +285,10 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
             .chain_net_id = a_cell->chain->net_id
         };
         if(fwrite(&l_hdr, 1, sizeof(l_hdr), a_cell->file_storage) == sizeof(l_hdr)) {
-            log_it(L_NOTICE, "Initialized file storage for cell 0x%016X ( %s )",
+            log_it(L_NOTICE, "Initialized file storage for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                     a_cell->id.uint64, a_cell->file_storage_path);
         } else {
-            log_it(L_ERROR, "Can't init file storage for cell 0x%016X ( %s )",
+            log_it(L_ERROR, "Can't init file storage for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                     a_cell->id.uint64, a_cell->file_storage_path);
             dap_chain_cell_close(a_cell);
             return -4;
@@ -286,17 +296,17 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
     }
     // if no atom provided in arguments, we flush all the atoms in given chain
     size_t l_atom_size = a_atom_size ? a_atom_size : 0;
-    int l_total_wrote_bytes = 0;
+    size_t l_total_wrote_bytes = 0, l_count = 0;
     dap_chain_atom_iter_t *l_atom_iter = a_atom ? NULL : a_cell->chain->callback_atom_iter_create(a_cell->chain);
     if (!a_atom) {
         fseek(a_cell->file_storage, sizeof(dap_chain_cell_file_header_t), SEEK_SET);
     }
     for (dap_chain_atom_ptr_t l_atom = a_atom ? (dap_chain_atom_ptr_t)a_atom : a_cell->chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
          l_atom;
-         l_atom = a_atom ? NULL : a_cell->chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size))
+         l_atom = a_atom ? NULL : a_cell->chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size), l_count++)
     {
         if (fwrite(&l_atom_size, 1, sizeof(l_atom_size), a_cell->file_storage) != sizeof(l_atom_size)) {
-            log_it (L_ERROR,"Can't write atom data size from cell 0x%016X in \"%s\"",
+            log_it (L_ERROR,"Can't write atom data size from cell 0x%016"DAP_UINT64_FORMAT_X" in \"%s\"",
                     a_cell->id.uint64,
                     a_cell->file_storage_path);
             dap_chain_cell_close(a_cell);
@@ -305,7 +315,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
         }
         l_total_wrote_bytes += sizeof(l_atom_size);
         if (fwrite(l_atom, 1, l_atom_size, a_cell->file_storage) != l_atom_size) {
-            log_it (L_ERROR, "Can't write data from cell 0x%016X to the file \"%s\"",
+            log_it (L_ERROR, "Can't write data from cell 0x%016"DAP_UINT64_FORMAT_X" to the file \"%s\"",
                             a_cell->id.uint64,
                             a_cell->file_storage_path);
             dap_chain_cell_close(a_cell);
@@ -322,9 +332,15 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
     }
     if (l_total_wrote_bytes > 0) {
         fflush(a_cell->file_storage);
-        if (!a_atom)
+        if (!a_atom) {
             ftruncate(fileno(a_cell->file_storage), l_total_wrote_bytes + sizeof(dap_chain_cell_file_header_t));
+            log_it(L_DEBUG, "Saved %zu atoms (total %zu bytes", l_count, l_total_wrote_bytes);
+        }
+    } else if (!a_atom) {
+        log_it(L_WARNING, "Nothing to save, event table is empty");
     }
+
+    pthread_rwlock_unlock(&a_cell->storage_rwlock);
     if (l_atom_iter) {
         a_cell->chain->callback_atom_iter_delete(l_atom_iter);
     }
@@ -335,6 +351,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
  * @brief
  * return dap_chain_cell_file_append(a_cell, NULL, 0);
  * @param a_cell dap_chain_cell_t
+ * @return
  */
 int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
 {

@@ -153,7 +153,8 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         return;
     // check for last attempt
     bool l_is_last_attempt = a_arg ? true : false;
-    if(l_is_last_attempt){
+    if (l_is_last_attempt) {
+        dap_chain_node_client_state_t l_prev_state = l_node_client->state;
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
 #ifndef _WIN32
@@ -164,7 +165,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         l_node_client->esocket_uuid = 0;
 
-        if (l_node_client->callbacks.disconnected) {
+        if (l_prev_state >= NODE_CLIENT_STATE_ESTABLISHED && l_node_client->callbacks.disconnected) {
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
         } else if (l_node_client->keep_connection) {
             dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
@@ -490,7 +491,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             } break;
             case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
                 if(s_stream_ch_chain_debug_more)
-                    log_it(L_INFO,"Out: chain %x sent to uplink "NODE_ADDR_FP_STR,l_node_client->cur_chain ? l_node_client->cur_chain->id.uint64 : 0, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
+                    log_it(L_INFO,"Out: chain %"DAP_UINT64_FORMAT_x" sent to uplink "NODE_ADDR_FP_STR,l_node_client->cur_chain ? l_node_client->cur_chain->id.uint64 : 0, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
             }break;
             default: {
             }
@@ -507,6 +508,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
  */
 static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_request, dap_chain_node_client_t * a_node_client)
 {
+    UNUSED(a_node_client);
     int l_ret = 0;
     if(!a_request)
         return -1;
@@ -530,7 +532,7 @@ static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_reque
     char *l_group = NULL;
     dap_chain_net_t * l_net = dap_chain_net_by_id(a_request->net_id);
     if(l_net) {
-        l_group = dap_strdup_printf("%s.orders-test-stat", l_net->pub.gdb_groups_prefix);
+        l_group = dap_strdup_printf("local.%s.orders-test-stat", l_net->pub.gdb_groups_prefix);
     }
     if(l_group) {
         dap_store_obj_t *l_obj = dap_chain_global_db_get_last(l_group);
@@ -550,6 +552,7 @@ static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_reque
     json_object_put(jobj);
     return l_ret;
 }
+
 /**
  * @brief s_ch_chain_callback_notify_packet_R - Callback for channel 'R'
  * @param a_ch_chain
@@ -583,11 +586,10 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
     }
 }
 
+
 /**
  * @brief dap_chain_node_client_connect_channels
  * Create connection to server
- *
- * return a connection handle, or NULL, if an error
  * @param l_net 
  * @param a_node_info 
  * @param a_active_channels 
@@ -694,8 +696,6 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
 /**
  * @brief dap_chain_node_client_connect
  * Create connection to server
- *
- * return a connection handle, or NULL, if an error
  * @param a_net 
  * @param a_node_info 
  * @return dap_chain_node_client_t* return a connection handle, or NULL, if an error
@@ -717,6 +717,7 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
         a_client->state = NODE_CLIENT_STATE_ESTABLISHED;
     }
 }
+
 
 /**
  * @brief dap_chain_node_client_close
@@ -754,6 +755,7 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
     }
 }
 
+
 /**
  * @brief dap_chain_node_client_send_ch_pkt 
  * Send stream request to server
@@ -775,13 +777,13 @@ int dap_chain_node_client_send_ch_pkt(dap_chain_node_client_t *a_client, uint8_t
     return 0;
 }
 
+
 /**
  * @brief dap_chain_node_client_wait
  * wait for the complete of request
  *
  * timeout_ms timeout in milliseconds
  * waited_state state which we will wait, sample NODE_CLIENT_STATE_CONNECT or NODE_CLIENT_STATE_SENDED
- * return -2 false, -1 timeout, 0 end of connection or sending data
  * @param a_client 
  * @param a_waited_state 
  * @param a_timeout_ms 
@@ -918,6 +920,7 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
 static void nodelist_response_error_callback(dap_client_t *a_client, int a_err)
 {
 }*/
+
 
 /**
  * @brief dap_chain_node_client_send_nodelist_req

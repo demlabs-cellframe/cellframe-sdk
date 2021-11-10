@@ -149,6 +149,12 @@ void dap_events_socket_deinit( )
 #ifdef DAP_OS_WINDOWS
 void __stdcall mq_receive_cb(HRESULT hr, QUEUEHANDLE qh, DWORD timeout
                              , DWORD action, MQMSGPROPS *pmsgprops, LPOVERLAPPED pov, HANDLE cursor) {
+    UNUSED(hr);
+    UNUSED(qh);
+    UNUSED(timeout);
+    UNUSED(action);
+    UNUSED(pmsgprops);
+    UNUSED(cursor);
     switch (hr) {
     case MQ_OK:
         SetEvent(pov->hEvent);
@@ -263,7 +269,11 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
     l_msg->esocket_uuid = a_es->uuid;
     l_msg->worker_new = a_worker_new;
     if( dap_events_socket_queue_ptr_send(a_worker_old->queue_es_reassign, l_msg) != 0 ){
+#ifdef DAP_OS_WINDOWS
+        log_it(L_ERROR,"Haven't sent reassign message with esocket %"DAP_UINT64_FORMAT_U, a_es ? a_es->socket : (SOCKET)-1);
+#else
         log_it(L_ERROR,"Haven't sent reassign message with esocket %d", a_es?a_es->socket:-1);
+#endif
         DAP_DELETE(l_msg);
     }
 }
@@ -278,6 +288,9 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
 dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
 #ifdef DAP_OS_WINDOWS
+    UNUSED(a_w);
+    UNUSED(a_callback);
+    UNUSED(a_flags);
     return NULL;
 #else
     UNUSED(a_flags);
@@ -397,7 +410,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
     }
     l_es->type = a_type ;
     if(s_debug_reactor)
-        log_it(L_DEBUG,"Created socket %d type %d", l_sock,l_es->type);
+        log_it(L_DEBUG,"Created socket %"DAP_FORMAT_SOCKET" type %d", l_sock,l_es->type);
     return l_es;
 }
 
@@ -520,13 +533,13 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
         Sleep(300);
         hr = MQOpenQueue(l_direct_name, MQ_SEND_ACCESS, MQ_DENY_NONE, &(l_es->mqh));
         if (hr != MQ_OK) {
-            log_it(L_ERROR, "Can't open message queue for queue type, error: 0x%x", hr);
+            log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
             return NULL;
         }
     }
     hr = MQOpenQueue(l_direct_name, MQ_RECEIVE_ACCESS, MQ_DENY_NONE, &(l_es->mqh_recv));
     if (hr != MQ_OK) {
-        log_it(L_ERROR, "Can't open message queue for queue type, error: 0x%x", hr);
+        log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
         return NULL;
     }
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
@@ -733,7 +746,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     DWORD l_buflen = sizeof(l_format_name);
     HRESULT hr = MQCreateQueue(NULL, &l_qps, l_format_name, &l_buflen);
     if ((hr != MQ_OK) && (hr != MQ_ERROR_QUEUE_EXISTS) && (hr != MQ_INFORMATION_PROPERTY)) {
-        log_it(L_ERROR, "Can't create message queue for queue type, error: 0x%x", hr);
+        log_it(L_ERROR, "Can't create message queue for queue type, error: %ld", hr);
         DAP_DELETE(l_es);
         return NULL;
     }
@@ -745,7 +758,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
         Sleep(300);
         hr = MQOpenQueue(l_direct_name, MQ_SEND_ACCESS, MQ_DENY_NONE, &(l_es->mqh));
         if (hr != MQ_OK) {
-            log_it(L_ERROR, "Can't open message queue for queue type, error: 0x%x", hr);
+            log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
             DAP_DELETE(l_es);
             MQDeleteQueue(l_format_name);
             return NULL;
@@ -753,7 +766,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
     hr = MQOpenQueue(l_direct_name, MQ_RECEIVE_ACCESS, MQ_DENY_NONE, &(l_es->mqh_recv));
     if (hr != MQ_OK) {
-        log_it(L_ERROR, "Can't open message queue for queue type, error: 0x%x", hr);
+        log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
         DAP_DELETE(l_es);
         MQCloseQueue(l_es->mqh);
         MQDeleteQueue(l_format_name);
@@ -761,7 +774,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
     hr = MQPurgeQueue(l_es->mqh_recv);
     if (hr != MQ_OK) {
-        log_it(L_DEBUG, "Message queue %d NOT purged, possible data corruption, err %d", l_es->mq_num, hr);
+        log_it(L_DEBUG, "Message queue %u NOT purged, possible data corruption, err %ld", l_es->mq_num, hr);
     }
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     // We don't create descriptor for kqueue at all
@@ -805,7 +818,7 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_
 #ifdef DAP_OS_WINDOWS
             errno = WSAGetLastError();
 #endif
-            log_it(L_ERROR, "Can't add esocket %d to polling, err %d", l_es->socket, errno);
+            log_it(L_ERROR, "Can't add esocket %"DAP_FORMAT_SOCKET" to polling, err %d", l_es->socket, errno);
         }
     }
     return  l_es;
@@ -862,13 +875,13 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 
             HRESULT hr = MQReceiveMessage(a_esocket->mqh_recv, 1000, MQ_ACTION_RECEIVE, &l_mps, NULL, NULL, NULL, MQ_NO_TRANSACTION);
             if (hr != MQ_OK) {
-                log_it(L_ERROR, "An error 0x%x occured receiving a message from queue", hr);
+                log_it(L_ERROR, "An error %ld occured receiving a message from queue", hr);
                 return -1;
             }
             if (l_mpvar[1].ulVal % sizeof(void*)) {
-                log_it(L_ERROR, "Queue message size incorrect: %d", l_mpvar[1].ulVal);
+                log_it(L_ERROR, "Queue message size incorrect: %lu", l_mpvar[1].ulVal);
                 if (l_mpvar[1].ulVal < sizeof(void*)) {
-                    log_it(L_ERROR, "Queue socket %d received invalid data", a_esocket->socket);
+                    log_it(L_ERROR, "Queue socket %zu received invalid data", a_esocket->socket);
                     return -1;
                 }
             }
@@ -890,7 +903,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #ifdef DAP_OS_WINDOWS
             int l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max);
             if (l_read == SOCKET_ERROR) {
-                log_it(L_ERROR, "Queue socket %d received invalid data, error %d", a_esocket->socket, WSAGetLastError());
+                log_it(L_ERROR, "Queue socket %zu received invalid data, error %d", a_esocket->socket, WSAGetLastError());
                 return -1;
             }
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
@@ -905,7 +918,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #endif
         }
     }else{
-        log_it(L_ERROR, "Queue socket %d accepted data but callback is NULL ", a_esocket->socket);
+        log_it(L_ERROR, "Queue socket %"DAP_FORMAT_SOCKET" accepted data but callback is NULL ", a_esocket->socket);
         return -1;
     }
     return 0;
@@ -1077,7 +1090,7 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
 #error "No Queue fetch mechanism implemented on your platform"
 #endif
     } else
-        log_it(L_ERROR, "Event socket %d accepted data but callback is NULL ", a_esocket->socket);
+        log_it(L_ERROR, "Event socket %"DAP_FORMAT_SOCKET" accepted data but callback is NULL ", a_esocket->socket);
 }
 
 
@@ -1091,7 +1104,7 @@ typedef struct dap_events_socket_buf_item
  *  Waits on the socket
  *  return 0: timeout, 1: may send data, -1 error
  */
-static int wait_send_socket(int a_sockfd, long timeout_ms)
+static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
 {
     struct timeval l_tv;
     fd_set l_outfd, l_errfd;
@@ -1118,7 +1131,7 @@ static int wait_send_socket(int a_sockfd, long timeout_ms)
         if(l_res == -1) {
             if(errno == EINTR)
                 continue;
-            log_it(L_DEBUG, "socket %d waiting errno=%d", errno);
+            log_it(L_DEBUG, "socket %"DAP_FORMAT_SOCKET" waiting errno=%d", a_sockfd, errno);
             return l_res;
         }
         break;
@@ -1162,6 +1175,7 @@ static void *dap_events_socket_buf_thread(void *arg)
 
     DAP_DELETE(l_item);
     pthread_exit(0);
+    return NULL;
 }
 
 static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
@@ -1290,7 +1304,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
     HRESULT hr = MQSendMessage(a_es->mqh, &l_mps, MQ_NO_TRANSACTION);
 
     if (hr != MQ_OK) {
-        log_it(L_ERROR, "An error occured on sending message to queue, errno: 0x%x", hr);
+        log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
         return hr;
     }
     
@@ -1354,7 +1368,8 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg)
             return 0;
         }else {
             char l_errbuf[128];
-            log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", strerror_r(l_errno, l_errbuf, sizeof (l_errbuf)), l_errno);
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", l_errbuf, l_errno);
             return l_errno;
         }
     }
@@ -1515,12 +1530,12 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
                 char l_errbuf[128];
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it(L_ERROR,"Can't update client socket state in the epoll_fd %d: \"%s\" (%d)",
+                log_it(L_ERROR,"Can't update client socket state in the epoll_fd %"DAP_FORMAT_HANDLE": \"%s\" (%d)",
                        a_esocket->worker->epoll_fd, l_errbuf, l_errno);
             }
         }
     #elif defined (DAP_EVENTS_CAPS_POLL)
-        if( a_esocket->worker){
+        if( a_esocket->worker && a_esocket->is_initalized){
             if (a_esocket->poll_index < a_esocket->worker->poll_count ){
                 struct pollfd * l_poll = &a_esocket->worker->poll[a_esocket->poll_index];
                 l_poll->events = a_esocket->poll_base_flags | POLLERR ;
@@ -1530,7 +1545,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
                 if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
                     l_poll->events |= POLLOUT;
             }else{
-                log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
+                log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %zu", a_esocket->poll_index,
                        a_esocket->worker->poll_count);
             }
         }
@@ -1709,7 +1724,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
     }else
         log_it(L_WARNING,"Trying to set readable/writable event, queue or timer thats you shouldnt do");
 #else
-    if( a_esocket->worker )
+    if( a_esocket->worker)
         dap_events_socket_worker_poll_update_unsafe(a_esocket);
     else if( a_esocket->proc_thread)
         dap_proc_thread_esocket_update_poll_flags(a_esocket->proc_thread,a_esocket );
@@ -1832,7 +1847,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
 {
     if (!a_es->worker) {
-        log_it(L_INFO, "No worker assigned to esocket %d", a_es->socket);
+        log_it(L_INFO, "No worker assigned to esocket %"DAP_FORMAT_SOCKET, a_es->socket);
         return;
     }
 
@@ -1847,7 +1862,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         int l_errno = errno;
         char l_errbuf[128];
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd %d  \"%s\" (%d)",
+        log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd %"DAP_FORMAT_HANDLE"  \"%s\" (%d)",
                 a_worker->epoll_fd, l_errbuf, l_errno);
     } //else
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
@@ -1896,7 +1911,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         a_worker->poll[a_es->poll_index].fd = -1;
         a_worker->poll_compress = true;
     }else{
-        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->poll_count);
+        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %zu", a_es->poll_index, a_worker->poll_count);
     }
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
@@ -2108,7 +2123,7 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_
 {
     if (a_es->buf_out_size + a_data_size > a_es->buf_out_size_max) {
         if (a_es->buf_out_size_max + a_data_size > DAP_EVENTS_SOCKET_BUF_LIMIT) {
-            log_it(L_ERROR, "Write esocket buffer overflow size=%u/max=%u", a_es->buf_out_size_max, DAP_EVENTS_SOCKET_BUF_LIMIT);
+            log_it(L_ERROR, "Write esocket buffer overflow size=%zu/max=%zu", a_es->buf_out_size_max, (size_t)DAP_EVENTS_SOCKET_BUF_LIMIT);
             return 0;
         } else {
             size_t l_new_size = a_es->buf_out_size_max * 2;
@@ -2196,37 +2211,3 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
     }
 
 }
-
-#ifdef DAP_OS_WINDOWS
-inline int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
-    struct sockaddr_in l_dummy;
-    socklen_t l_size = sizeof(l_dummy);
-    int ret;
-    if (buf_in) {
-        memset(buf_in, 0, buf_size);
-        ret = recvfrom(s, (char*)buf_in, (long)buf_size, 0, (struct sockaddr *)&l_dummy, &l_size);
-    } else {
-        char l_tempbuf[sizeof(void*)];
-        ret = recvfrom(s, l_tempbuf, sizeof(l_tempbuf), 0, (struct sockaddr *)&l_dummy, &l_size);
-    }
-    return ret;
-}
-
-inline int dap_sendto(SOCKET s, u_short port, void* buf_out, size_t buf_out_size) {
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = port;
-    l_addr_len = sizeof(struct sockaddr_in);
-    int ret;
-    if (buf_out) {
-        ret = sendto(s, (char*)buf_out, (long)buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
-    } else {
-        char l_bytes[sizeof(void*)] = { 0 };
-        ret = sendto(s, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
-    }
-    return ret;
-}
-#endif

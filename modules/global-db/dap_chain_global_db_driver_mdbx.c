@@ -36,6 +36,8 @@
 
 #include "dap_chain_global_db_driver_mdbx.h"
 
+#ifdef DAP_CHAIN_GDB_ENGINE_MDBX
+
 #define LOG_TAG "dap_chain_global_db_mdbx"
 
 static char *s_cdb_path = NULL;
@@ -203,3 +205,4 @@ static int s_driver_callback_apply_store_obj(pdap_store_obj_t a_store_obj)
     return ret;
 }
 
+#endif

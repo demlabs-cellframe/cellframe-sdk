@@ -126,7 +126,7 @@ size_t dap_enc_iaes256_cbc_decrypt_fast(struct dap_enc_key * a_key, const void *
 
     size_t l_padding_size = ((uint8_t *)data)[a_in_size - 1];
     if(l_padding_size > a_in_size){
-        log_it(L_WARNING, "%s: padding size is %u while whole message is just %u", __PRETTY_FUNCTION__, l_padding_size, a_in_size);
+        log_it(L_WARNING, "%s: padding size is %zu while whole message is just %zu", __PRETTY_FUNCTION__, l_padding_size, a_in_size);
         return 0;
     }else{
         return a_in_size - l_padding_size;

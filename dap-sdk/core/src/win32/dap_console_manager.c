@@ -156,20 +156,20 @@ void SetupConsole( const char *title, const uint16_t *fontName, int fontx, int f
 
 //  COORD conmax = GetLargestConsoleWindowSize( hConOut );
 
-  PGetCurrentConsoleFontEx pGetCurrentConsoleFontEx = (PGetCurrentConsoleFontEx)
+  PGetCurrentConsoleFontEx pGetCurrentConsoleFontEx = (PGetCurrentConsoleFontEx)(void *)
     GetProcAddress( GetModuleHandleA("kernel32.dll"), "GetCurrentConsoleFontEx" );
-  PSetCurrentConsoleFontEx pSetCurrentConsoleFontEx = (PSetCurrentConsoleFontEx)
+  PSetCurrentConsoleFontEx pSetCurrentConsoleFontEx = (PSetCurrentConsoleFontEx)(void *)
     GetProcAddress( GetModuleHandleA("kernel32.dll"), "SetCurrentConsoleFontEx" );
-  PGetConsoleScreenBufferInfoEx pGetConsoleScreenBufferInfoEx = (PGetConsoleScreenBufferInfoEx)
+  PGetConsoleScreenBufferInfoEx pGetConsoleScreenBufferInfoEx = (PGetConsoleScreenBufferInfoEx)(void *)
     GetProcAddress( GetModuleHandleA("kernel32.dll"), "GetConsoleScreenBufferInfoEx" );
-  PSetConsoleScreenBufferInfoEx pSetConsoleScreenBufferInfoEx = (PSetConsoleScreenBufferInfoEx)
+  PSetConsoleScreenBufferInfoEx pSetConsoleScreenBufferInfoEx = (PSetConsoleScreenBufferInfoEx)(void *)
     GetProcAddress( GetModuleHandleA("kernel32.dll"), "SetConsoleScreenBufferInfoEx" );
 
   if ( pGetCurrentConsoleFontEx && pSetCurrentConsoleFontEx &&
       pGetConsoleScreenBufferInfoEx && pSetConsoleScreenBufferInfoEx )
   {
     CONSOLE_SCREEN_BUFFER_INFOEX conBufferInfo; 
-    CONSOLE_FONT_INFOEX conFontInfo = {sizeof(CONSOLE_FONT_INFOEX)};
+    CONSOLE_FONT_INFOEX conFontInfo = {};
 
     conFontInfo.cbSize = sizeof( CONSOLE_FONT_INFOEX );
     pGetCurrentConsoleFontEx( hConOut, TRUE, &conFontInfo );
@@ -198,7 +198,7 @@ void SetupConsole( const char *title, const uint16_t *fontName, int fontx, int f
   else {
 //    printf("XP ?...\n" );
 
-    CONSOLE_INFO ci = { sizeof(ci) };
+    CONSOLE_INFO ci = { .Length = sizeof(ci) };
 
     GetConsoleSizeInfo( &ci, hConOut );
 

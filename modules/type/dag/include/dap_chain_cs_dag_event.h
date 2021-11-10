@@ -103,12 +103,14 @@ static inline size_t dap_chain_cs_dag_event_calc_size(dap_chain_cs_dag_event_t *
  */
 static inline ssize_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_dag_event_t * a_event,size_t a_event_size)
 {
-    if (a_event_size< sizeof (a_event->header))
+    if (a_event_size < sizeof(a_event->header))
         return -1;
     size_t l_hashes_size = a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
+    if (l_hashes_size > a_event_size)
+        return -1;
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (a_event->hashes_n_datum_n_signs + l_hashes_size);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
-    return  l_hashes_size + sizeof (a_event->header)+l_datum_size;
+    return  l_hashes_size + sizeof (a_event->header) + l_datum_size;
 }
 
 /**
@@ -119,5 +121,5 @@ static inline ssize_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_d
  */
 static inline void dap_chain_cs_dag_event_calc_hash(dap_chain_cs_dag_event_t * a_event,size_t a_event_size, dap_chain_hash_fast_t * a_event_hash)
 {
-    dap_hash_fast(a_event, a_event_size , a_event_hash);
+    dap_hash_fast(a_event, a_event_size, a_event_hash);
 }

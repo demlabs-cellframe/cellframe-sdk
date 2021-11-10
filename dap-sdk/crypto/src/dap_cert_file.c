@@ -54,7 +54,7 @@ int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
         if ( l_data ){
             size_t l_retbytes;
             if ( (l_retbytes = fwrite(l_data,1,l_data_size,l_file)) != l_data_size ){
-                log_it(L_ERROR, "Can't write %u bytes on disk (processed only %u)!", l_data_size,l_retbytes);
+                log_it(L_ERROR, "Can't write %u bytes on disk (processed only %zu)!", l_data_size,l_retbytes);
                 return -3;
             }
             fclose(l_file);
@@ -101,7 +101,6 @@ void s_balance_the_tree(dap_cert_file_aux_t *a_reorder, size_t a_left_idx, size_
  * @param a_data 
  * @param a_size 
  */
- 
 void dap_cert_deserialize_meta(dap_cert_t *a_cert, const uint8_t *a_data, size_t a_size)
 {
     dap_cert_metadata_t **l_meta_arr = NULL;
@@ -175,7 +174,6 @@ void dap_cert_deserialize_meta(dap_cert_t *a_cert, const uint8_t *a_data, size_t
  * @param a_buflen_out 
  * @return uint8_t* 
  */
-
 uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
 {
     if (!a_cert) {
@@ -193,7 +191,7 @@ uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
     size_t l_mem_shift = 0;
     while (l_meta_list_item) {
         dap_cert_metadata_t *l_meta_item = l_meta_list_item->data;
-        size_t l_meta_item_size = sizeof(dap_cert_metadata_t) - sizeof(const char *) + l_meta_item->length + strlen(l_meta_item->key) + 1;
+        size_t l_meta_item_size = sizeof(uint32_t) + 1 + l_meta_item->length + strlen(l_meta_item->key) + 1;
         if (l_buf) {
             l_buf = DAP_REALLOC(l_buf, l_mem_shift + l_meta_item_size);
         } else {
@@ -247,7 +245,6 @@ uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
  * @param a_cert_size_out
  * @return uint8_t*
  */
-
 uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out)
 {
     dap_cert_file_hdr_t l_hdr={0};
@@ -264,6 +261,7 @@ uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out)
     uint8_t *l_priv_key_data = a_cert->enc_key->priv_key_data ?
                 dap_enc_key_serealize_priv_key(l_key, &l_priv_key_data_size) :
                 NULL;
+
     uint8_t *l_metadata = dap_cert_serialize_meta(a_cert, &l_metadata_size);
 
     l_hdr.sign = dap_cert_FILE_HDR_SIGN;
@@ -334,7 +332,6 @@ lb_exit:
  * @param a_cert_file_path: path to certificate, for example "{PREFIX}/var/lib/ca/node-addr.dcert"
  * @return dap_cert_t
  */
-
 dap_cert_t* dap_cert_file_load(const char * a_cert_file_path)
 {
     dap_cert_t * l_ret = NULL;
@@ -346,7 +343,7 @@ dap_cert_t* dap_cert_file_load(const char * a_cert_file_path)
         rewind(l_file);
         uint8_t * l_data = DAP_NEW_SIZE(uint8_t,l_file_size);
         if ( fread(l_data,1,l_file_size,l_file ) != l_file_size ){
-            log_it(L_ERROR, "Can't read %u bytes from the disk!", l_file_size);
+            log_it(L_ERROR, "Can't read %"DAP_UINT64_FORMAT_U" bytes from the disk!", l_file_size);
             DAP_DELETE (l_data);
             goto lb_exit;
         }else{
@@ -368,7 +365,6 @@ lb_exit:
  * @param a_data_size - size of certificate
  * @return dap_cert_t* 
  */
-
 dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
 {
     dap_cert_t * l_ret = NULL;
@@ -382,6 +378,14 @@ dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
         goto l_exit;
     }
     if (l_hdr.version >= 1 ){
+        if (dap_enc_debug_more()) {
+            log_it(L_DEBUG,"sizeof(l_hdr)=%"DAP_UINT64_FORMAT_U" "
+                   "l_hdr.data_pvt_size=%"DAP_UINT64_FORMAT_U" "
+                   "l_hdr.data_size=%"DAP_UINT64_FORMAT_U" "
+                   "l_hdr.metadata_size=%"DAP_UINT64_FORMAT_U" "
+                   "a_data_size=%"DAP_UINT64_FORMAT_U" ",
+                   sizeof(l_hdr), l_hdr.data_pvt_size, l_hdr.data_size, l_hdr.metadata_size, a_data_size);
+        }
         if ( (sizeof(l_hdr) + l_hdr.data_size+l_hdr.data_pvt_size +l_hdr.metadata_size) > a_data_size ){
             log_it(L_ERROR,"Corrupted cert data, data sections size is smaller than exists on the disk! (%"DAP_UINT64_FORMAT_U" expected, %"DAP_UINT64_FORMAT_U" on disk)",
                     sizeof(l_hdr)+l_hdr.data_pvt_size+l_hdr.data_size+l_hdr.metadata_size, a_data_size);
@@ -405,12 +409,10 @@ dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
         l_ret->enc_key->last_used_timestamp = l_hdr.ts_last_used;
 
         if ( l_hdr.data_size > 0 ){
-
             dap_enc_key_deserealize_pub_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_size);
             l_data_offset += l_hdr.data_size;
         }
         if ( l_hdr.data_pvt_size > 0 ){
-
             dap_enc_key_deserealize_priv_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_pvt_size);
             l_data_offset += l_hdr.data_pvt_size;
         }

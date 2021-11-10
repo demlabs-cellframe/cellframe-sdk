@@ -25,9 +25,9 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
+#include "dap_server.h"
 #include "dap_common.h"
 #include "dap_math_ops.h"
-#include "dap_server.h"
 #include "dap_stream_ch.h"
 #include "dap_chain_common.h"
 #include "dap_chain_ledger.h"

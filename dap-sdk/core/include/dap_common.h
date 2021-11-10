@@ -201,6 +201,18 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #error "DAP_UINT64_FORMAT_* are undefined for your platform"
 #endif
 
+#ifdef DAP_OS_WINDOWS
+#ifdef _WIN64
+#define DAP_FORMAT_SOCKET "llu"
+#else
+#define DAP_FORMAT_SOCKET "lu"
+#endif
+#define DAP_FORMAT_HANDLE "p"
+#else
+#define DAP_FORMAT_SOCKET "d"
+#define DAP_FORMAT_HANDLE "d"
+#endif
+
 #ifndef LOWORD
   #define LOWORD( l ) ((uint16_t) (((uintptr_t) (l)) & 0xFFFF))
   #define HIWORD( l ) ((uint16_t) ((((uintptr_t) (l)) >> 16) & 0xFFFF))
@@ -427,11 +439,20 @@ void dap_log_set_max_item(unsigned int a_max);
 // get logs from list
 char *dap_log_get_item(time_t a_start_time, int a_limit);
 
-void _log_it( const char * log_tag, enum dap_log_level, const char * format,... );
-#define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
-//void _vlog_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format, va_list ap );
+#if defined __GNUC__ || defined __clang__
+#ifdef __MINGW_PRINTF_FORMAT
+#define DAP_PRINTF_ATTR(format_index, args_index) \
+    __attribute__ ((format (gnu_printf, format_index, args_index)))
+#else
+#define DAP_PRINTF_ATTR(format_index, args_index) \
+    __attribute__ ((format (printf, format_index, args_index)))
+#endif
+#else /* __GNUC__ */
+#define DAP_PRINTF_ATTR(format_index, args_index)
+#endif /* __GNUC__ */
 
-//#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, sizeof(LOG_TAG)-1, a_log_level, a_format, a_ap )
+DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
+#define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
 
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);

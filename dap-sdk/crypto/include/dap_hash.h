@@ -53,7 +53,6 @@ typedef dap_chain_hash_fast_t dap_hash_fast_t;
 extern "C" {
 #endif
 
-//size_t dap_chain_hash_fast_to_str(dap_chain_hash_fast_t * a_hash, char * a_str, size_t a_str_max);
 int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_hash_fast_t * a_hash);
 
 /**
@@ -74,9 +73,7 @@ static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, 
 
     SHA3_256( (unsigned char *)a_hash_out, (const unsigned char *)a_data_in, a_data_in_size );
 
-  //SHA3_256( (unsigned char *)a_hash_out, (const unsigned char *)a_data_in, a_data_in_size );
-
-  return true;
+    return true;
 }
 
 
@@ -98,12 +95,7 @@ static inline bool dap_hash_fast_compare(dap_hash_fast_t *a_hash1, dap_hash_fast
 
 static inline bool dap_hash_fast_is_blank( dap_hash_fast_t *a_hash )
 {
-    static dap_hash_fast_t l_blank_hash = { 0};
-//    uint8_t *l_hast_bytes = (uint8_t*) a_hash;
-//    for(size_t i = 0; i < sizeof(dap_chain_hash_fast_t); i++) {
-//        if(l_hast_bytes[i])
-//            return false;
-//    }
+    static dap_hash_fast_t l_blank_hash = {};
     return dap_hash_fast_compare( a_hash, &l_blank_hash);
 }
 

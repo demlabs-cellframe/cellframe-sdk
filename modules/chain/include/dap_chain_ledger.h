@@ -54,7 +54,9 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 #define DAP_CHAIN_LEDGER_CHECK_CELLS_DS          0x0100
 
 // Error code for no previous transaction (candidate to threshold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS          -5
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -111
+// Error code for no emission for a transaction (candidate to threshold)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -112
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
@@ -121,7 +123,7 @@ int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_t
 int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_load(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token);
-
+dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 /**
  * Add token emission datum
  */

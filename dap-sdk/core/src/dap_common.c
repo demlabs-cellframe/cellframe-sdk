@@ -217,11 +217,6 @@ void dap_set_log_tag_width(size_t a_width) {
     dap_snprintf(s_log_tag_fmt_str,sizeof (s_log_tag_fmt_str), "[%%%zds]\t",a_width);
 }
 
-/**
- * @brief dap_common_init initialise
- * @param[in] a_log_file
- * @return
- */
 
 /**
  * @brief this function is used for dap sdk modules initialization
@@ -267,7 +262,7 @@ int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename
         if( s_log_file == NULL)
             s_log_file = _wfopen( a_log_filename , L"w" );
         if ( s_log_file == NULL ) {
-            dap_fprintf( stderr, "Can't open log file %s to append\n", a_log_filename );
+            dap_fprintf( stderr, "Can't open log file %ls to append\n", a_log_filename );
             return -1;
         }
         //dap_stpcpy(s_log_file_path, a_log_filename);
@@ -360,6 +355,7 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
     va_end( va );
     char *dummy = (offset2 == 0) ? memcpy(&l_log_string->str[sizeof(l_log_string->str) - 6], "...\n\0", 5)
         : memcpy(&l_log_string->str[offset], "\n", 1);
+    UNUSED(dummy);
     pthread_mutex_lock(&s_log_mutex);
     DL_APPEND(s_log_buffer, l_log_string);
     ++s_log_count;
@@ -749,12 +745,16 @@ size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len)
     // '0'-'9' = 0x30-0x39
     // 'a'-'f' = 0x61-0x66
     // 'A'-'F' = 0x41-0x46
-    size_t ct = a_len;
-    if(!a_in || !a_out || (a_len & 1))
+    int ct = a_len;
+    if (!a_in || !a_out)
         return 0;
     while(ct > 0) {
-        char ch1 = ((*a_in >= 'a') ? (*a_in++ - 'a' + 10) : ((*a_in >= 'A') ? (*a_in++ - 'A' + 10) : (*a_in++ - '0'))) << 4;
-        char ch2 = ((*a_in >= 'a') ? (*a_in++ - 'a' + 10) : ((*a_in >= 'A') ? (*a_in++ - 'A' + 10) : (*a_in++ - '0'))); // ((*in >= 'A') ? (*in++ - 'A' + 10) : (*in++ - '0'));
+        char ch1;
+        if (ct == (int)a_len && a_len & 1)
+            ch1 = 0;
+        else
+            ch1 = ((*a_in >= 'a') ? (*a_in++ - 'a' + 10) : ((*a_in >= 'A') ? (*a_in++ - 'A' + 10) : (*a_in++ - '0'))) << 4;
+        char ch2 = ((*a_in >= 'a') ? (*a_in++ - 'a' + 10) : ((*a_in >= 'A') ? (*a_in++ - 'A' + 10) : (*a_in++ - '0')));
         *a_out++ =(uint8_t) ch1 + (uint8_t) ch2;
         ct -= 2;
     }

@@ -38,8 +38,8 @@
 #define _MSEC -10000
 #endif
 
-#include "dap_common.h"
 #include "dap_events_socket.h"
+#include "dap_common.h"
 #include "dap_proc_thread.h"
 
 typedef bool (*dap_timerfd_callback_t)(void* ); // Callback for timer. If return true,

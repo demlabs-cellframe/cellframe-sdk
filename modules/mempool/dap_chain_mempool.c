@@ -77,28 +77,25 @@ int dap_datum_mempool_init(void)
  * @param a_datum
  * @return
  */
-int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain )
+char *dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain )
 {
     if( a_datum == NULL){
         log_it(L_ERROR, "NULL datum trying to add in mempool");
-        return -1;
+        return NULL;
     }
-    int ret =0;
-
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(a_datum->data , a_datum->header.data_size, &l_key_hash);
-
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (byte_t *) a_datum, dap_chain_datum_size(a_datum)
             ,l_gdb_group)) {
         log_it(L_NOTICE, "Datum with data's hash %s was placed in mempool", l_key_str);
-    }else{
+    } else {
         log_it(L_WARNING, "Can't place data's hash %s was placed in mempool", l_key_str);
+        DAP_DELETE(l_key_str);
     }
     DAP_DELETE(l_gdb_group);
-    DAP_DELETE(l_key_str);
-    return ret;
+    return l_key_str;
 }
 
 /**
@@ -167,7 +164,9 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     dap_hash_fast_t * l_ret = DAP_NEW_Z(dap_hash_fast_t);
     dap_hash_fast(l_tx, l_tx_size, l_ret);
     DAP_DELETE(l_tx);
-    if(dap_chain_mempool_datum_add (l_datum, a_chain) == 0){
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, a_chain);
+    if (l_hash_str) {
+        DAP_DELETE(l_hash_str);
         return l_ret;
     }else{
         DAP_DELETE( l_datum );
@@ -202,7 +201,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     // Search unused out:
     uint64_t l_value_need =a_tx_num*( a_value + a_value_fee );
     uint64_t l_value_transfer = 0; // how many coins to transfer
-    log_it(L_DEBUG,"Create %lu transactions, summary %Lf.7", a_tx_num,dap_chain_datoshi_to_coins(l_value_need) ) ;
+    log_it(L_DEBUG,"Create %"DAP_UINT64_FORMAT_U" transactions, summary %Lf.7", a_tx_num,dap_chain_datoshi_to_coins(l_value_need) ) ;
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
@@ -212,7 +211,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     }
 
     for (size_t i=0; i< a_tx_num ; i++){
-        log_it(L_DEBUG, "Prepare tx %u",i);
+        log_it(L_DEBUG, "Prepare tx %zu",i);
         // find the transactions from which to take away coins
 
         // create empty transaction
@@ -333,13 +332,13 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
     //return 0;
     if( dap_chain_global_db_gr_save(l_objs,a_tx_num,l_gdb_group) ) {
-        log_it(L_NOTICE, "%u transaction are placed in mempool", a_tx_num);
-        //DAP_DELETE(l_objs);
+        log_it(L_NOTICE, "%zu transaction are placed in mempool", a_tx_num);
+        DAP_DELETE(l_objs);
         DAP_DELETE(l_gdb_group);
         return 0;
     }else{
-        log_it(L_ERROR, "Can't place %u transactions  in mempool", a_tx_num);
-        //DAP_DELETE(l_objs);
+        log_it(L_ERROR, "Can't place %zu transactions  in mempool", a_tx_num);
+        DAP_DELETE(l_objs);
         DAP_DELETE(l_gdb_group);
         return -4;
     }

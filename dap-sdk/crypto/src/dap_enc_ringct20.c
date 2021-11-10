@@ -347,8 +347,7 @@ int ringct20_crypto_sign_open_with_pbkList(const unsigned char * msg, const unsi
     if(sig->sig_len < sizeof(DAP_RINGCT20_SIGN_SECURITY) + sizeof(wLenSig))
         return -1;
     DAP_RINGCT20_SIGN_SECURITY sec_kind = *(DAP_RINGCT20_SIGN_SECURITY*)sig->sig_data;
-    wLenSig = *(typeof (&wLenSig))(sig->sig_data + sizeof(DAP_RINGCT20_SIGN_SECURITY));
-
+    wLenSig = *(int *)(sig->sig_data + sizeof(DAP_RINGCT20_SIGN_SECURITY));
     if(wpbkList != 0 && wLenSig != wpbkList)
     {
         return -1;

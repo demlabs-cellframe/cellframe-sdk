@@ -23,17 +23,17 @@
 */
 
 #include <math.h>
+#include "dap_chain_node_cli.h"
 #include "dap_string.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
-#include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv_common.h"
 #include "dap_chain_net_srv_stake.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake"
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a_str_reply);
+static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply);
 
 static dap_chain_net_srv_stake_t *s_srv_stake;
 
@@ -45,7 +45,7 @@ static dap_chain_net_srv_stake_t *s_srv_stake;
  */
 int dap_chain_net_srv_stake_init()
 {
-    dap_chain_node_cli_cmd_item_create("srv_stake", s_cli_srv_stake, NULL, "Delegated stake service commands",
+    dap_chain_node_cli_cmd_item_create("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
     "srv_stake order create -net <net name> -from_addr <addr> -token <ticker> -coins <value> -cert <name> -fee_percent <value>\n"
         "\tCreate a new order with specified amount of datoshi to delegate it to the specified address."
         "The fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
@@ -69,7 +69,7 @@ int dap_chain_net_srv_stake_init()
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_ledger_t *l_ledger = l_net_list[i]->pub.ledger;
         dap_chain_datum_tx_t *l_tx_tmp;
-        dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
+        dap_chain_hash_fast_t l_tx_cur_hash = {}; // start hash
         dap_chain_tx_out_cond_t *l_out_cond;
         int l_out_cond_idx;
         char l_token[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -278,7 +278,7 @@ static bool s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
         return false;
     }
     // Processing will be made according to autoprocess policy
-    if (dap_chain_mempool_datum_add(l_datum, l_chain)) {
+    if (!dap_chain_mempool_datum_add(l_datum, l_chain)) {
         DAP_DELETE(l_datum);
         return false;
     }
@@ -355,8 +355,25 @@ char *s_stake_order_create(dap_chain_net_srv_stake_item_t *a_item, dap_enc_key_t
 
 dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order)
 {
-    dap_chain_net_srv_stake_item_t *l_item = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+    if (a_order->version < 2) {
+        log_it(L_WARNING, "Order is unsigned");
+        return NULL;
+    }
     dap_srv_stake_order_ext_t *l_ext = (dap_srv_stake_order_ext_t *)a_order->ext;
+    dap_sign_t *l_sign = (dap_sign_t *)(&a_order->ext[a_order->ext_size]);
+    if (!dap_sign_verify(l_sign, a_order, dap_chain_net_srv_order_get_size(a_order))) {
+        log_it(L_WARNING, "Order sign is invalid");
+        return NULL;
+    }
+    dap_hash_fast_t l_pkey_hash;
+    dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+    dap_chain_addr_t l_cert_addr;
+    dap_chain_addr_fill(&l_cert_addr, l_sign->header.type, &l_pkey_hash, a_net->pub.id);
+    dap_chain_net_srv_stake_item_t *l_item = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+    if (memcmp(&l_cert_addr, &l_ext->addr_to, sizeof(dap_chain_addr_t))) {
+        log_it(L_WARNING, "Order sign addr & addr_to are different");
+        return NULL;
+    }
     memcpy(&l_item->addr_from, &l_ext->addr_from, sizeof(dap_chain_addr_t));
     memcpy(&l_item->addr_to, &l_ext->addr_to, sizeof(dap_chain_addr_t));
     l_item->fee_value = l_ext->fee_value;
@@ -646,7 +663,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 // TODO add filters to list (token, address, etc.)
                 l_stake = s_stake_item_from_order(l_net, l_order);
                 char *l_addr = dap_chain_addr_to_str(&l_stake->addr_to);
-                dap_string_append_printf(l_reply_str, "%s %lu %s %s %llf\n", l_orders[i].key, l_stake->value, l_stake->token,
+                dap_string_append_printf(l_reply_str, "%s %"DAP_UINT64_FORMAT_U" %s %s %Lf\n", l_orders[i].key, l_stake->value, l_stake->token,
                                          l_addr, l_stake->fee_value);
                 DAP_DELETE(l_addr);
                 DAP_DELETE(l_stake);
@@ -666,9 +683,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
     return 0;
 }
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a_str_reply)
+static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
-    UNUSED(a_arg_func);
     enum {
         CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_TX, CMD_INVALIDATE
     };
@@ -740,6 +756,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
             if (l_order) {
                 dap_chain_net_srv_stake_item_t *l_stake = s_stake_item_from_order(l_net, l_order);
+                if (!l_stake) {
+                    DAP_DELETE(l_order);
+                    DAP_DELETE(l_addr_fee);
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order is invalid");
+                    return -22;
+                }
                 memcpy(&l_stake->addr_fee, l_addr_fee, sizeof(dap_chain_addr_t));
                 DAP_DELETE(l_addr_fee);
                 // Create conditional transaction
@@ -789,7 +811,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void *a_arg_func, char **a
                 char *l_addr_from_str = dap_chain_addr_to_str(&l_stake->addr_from);
                 char *l_addr_to_str = dap_chain_addr_to_str(&l_stake->addr_to);
                 char *l_addr_fee_str = dap_chain_addr_to_str(&l_stake->addr_fee);
-                dap_string_append_printf(l_reply_str, "%s %s %lu %s %s %s %llf\n", l_tx_hash_str, l_stake->token,
+                dap_string_append_printf(l_reply_str, "%s %s %"DAP_UINT64_FORMAT_U" %s %s %s %Lf\n", l_tx_hash_str, l_stake->token,
                                          l_stake->value, l_addr_from_str, l_addr_to_str,
                                          l_addr_fee_str, l_stake->fee_value);
                 DAP_DELETE(l_tx_hash_str);
