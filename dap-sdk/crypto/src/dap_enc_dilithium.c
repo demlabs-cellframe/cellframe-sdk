@@ -134,9 +134,9 @@ uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t
 
     memcpy(l_buf, &l_buflen, sizeof(uint64_t));
     l_shift_mem += sizeof(uint64_t);
-    uint64_t l_kind = a_sign->kind;
-    memcpy(l_buf + l_shift_mem, &l_kind, sizeof(uint64_t));
-    l_shift_mem += sizeof(uint64_t);
+    uint32_t l_kind = a_sign->kind;
+    memcpy(l_buf + l_shift_mem, &l_kind, sizeof(uint32_t));
+    l_shift_mem += sizeof(uint32_t);
     memcpy(l_buf + l_shift_mem, &a_sign->sig_len, sizeof(uint64_t));
     l_shift_mem += sizeof(uint64_t);
     memcpy(l_buf + l_shift_mem, a_sign->sig_data, a_sign->sig_len );
@@ -154,29 +154,26 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
         log_it(L_ERROR,"::read_signature() NULL buffer on input");
         return NULL;
     }
-    if(a_buflen < sizeof(uint64_t) * 3){
+    if(a_buflen < sizeof(uint64_t) * 2 + sizeof(uint32_t)){
         log_it(L_ERROR,"::read_signature() Buflen %zd is smaller than first three fields(%zd)", a_buflen,
-               sizeof(uint64_t) * 3);
+               sizeof(uint64_t) * 2 + sizeof(uint32_t));
         return NULL;
     }
 
-    uint64_t l_shift_mem = 0;
-    uint64_t kind;
+    uint32_t kind;
     uint64_t l_buflen = 0;
     memcpy(&l_buflen, a_buf, sizeof(uint64_t));
+    uint64_t l_shift_mem = sizeof(uint64_t);
     if (l_buflen != a_buflen) {
         if (l_buflen << 32 >> 32 != a_buflen) {
             log_it(L_ERROR,"::read_public_key() Buflen field inside buffer is %"DAP_UINT64_FORMAT_U" when expected to be %"DAP_UINT64_FORMAT_U,
                    l_buflen, (uint64_t)a_buflen);
             return NULL;
-        }else {
-            memcpy(&kind, a_buf + sizeof(uint32_t), sizeof(uint32_t));
-            l_shift_mem = 2 * sizeof(uint32_t); // + sizeof(uint32_t) for old2 variant, oh
         }
-    } else {
-        memcpy(&kind, a_buf + sizeof(uint64_t), sizeof(uint64_t));
-        l_shift_mem = 2 * sizeof(uint64_t);
+        l_shift_mem = sizeof(uint32_t);
     }
+    memcpy(&kind, a_buf + sizeof(uint32_t), sizeof(uint32_t));
+    l_shift_mem += sizeof(uint32_t);
     dilithium_param_t p;
     if(!dilithium_params_init(&p, kind))
         return NULL ;
