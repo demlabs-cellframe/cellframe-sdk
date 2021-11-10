@@ -327,6 +327,11 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             }
         }
         break;
+        case DAP_CHAIN_DATUM_CA: {
+            dap_cert_chain_file_save(l_datum, a_dag->chain->net_name);
+            return DAP_CHAIN_DATUM_CA;
+        }
+        break;
         default:
             return -1;
     }
@@ -433,6 +438,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             if(s_debug_more)
                 log_it(L_DEBUG, "... tresholded");
             ret = ATOM_MOVE_TO_THRESHOLD;
+            break;
+        case DAP_CHAIN_DATUM_CA:
+            ret = ATOM_ACCEPT;
+            if(s_debug_more)
+                log_it(L_DEBUG, "... DATUM_CA");
             break;
         default:
             if (s_debug_more) {
