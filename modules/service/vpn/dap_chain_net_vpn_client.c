@@ -681,7 +681,7 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
     pthread_mutex_init(&sf_socks_mutex, NULL);
 
     // vpn client command
-    dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, NULL, "VPN client control",
+    dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, "VPN client control",
     "vpn_client [start -addr <server address> -port <server port>| stop | status] -net <net name>\n"
     "vpn_client init -w <wallet name> -token <token name> -value <value> -net <net name>\n"
             "vpn_client stop -net <net name>\n"

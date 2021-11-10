@@ -412,9 +412,14 @@ static void s_http_client_headers_write(dap_http_client_t * a_http_client, void 
         a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
         dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
         // Connection is established, setting up keepalive timer
-        dap_events_socket_uuid_t * l_es_uuid= DAP_NEW_Z(dap_events_socket_uuid_t);
-        *l_es_uuid = a_http_client->esocket->uuid;
-        dap_timerfd_start_on_worker(a_http_client->esocket->worker, STREAM_KEEPALIVE_TIMEOUT * 1000, s_callback_keepalive, l_es_uuid);
+        if (!l_stream->keepalive_timer) {
+            dap_events_socket_uuid_t * l_es_uuid= DAP_NEW_Z(dap_events_socket_uuid_t);
+            *l_es_uuid = a_http_client->esocket->uuid;
+            l_stream->keepalive_timer = dap_timerfd_start_on_worker(a_http_client->esocket->worker,
+                                                                    STREAM_KEEPALIVE_TIMEOUT * 1000,
+                                                                    s_callback_keepalive,
+                                                                    l_es_uuid);
+        }
 
     }
 }
@@ -442,20 +447,19 @@ static void s_http_client_data_write(dap_http_client_t * a_http_client, void * a
  */
 static void s_esocket_callback_worker_assign(dap_events_socket_t * a_esocket, dap_worker_t * a_worker)
 {
-    if(a_esocket->type == DESCRIPTOR_TYPE_SOCKET_UDP){
-        dap_events_socket_uuid_t * l_es_uuid= DAP_NEW_Z(dap_events_socket_uuid_t);
-        *l_es_uuid = a_esocket->uuid;
-        dap_timerfd_start_on_worker(a_worker,STREAM_KEEPALIVE_TIMEOUT * 1000, (dap_timerfd_callback_t)s_callback_keepalive, l_es_uuid);
-    }else {
-        dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
-        assert(l_http_client);
-        dap_stream_t * l_stream =DAP_STREAM(l_http_client);
-        assert(l_stream);
-        // If we were reassigned after connection was bringed up
-        if(l_http_client->state_read == DAP_HTTP_CLIENT_STATE_DATA && l_http_client->state_write == DAP_HTTP_CLIENT_STATE_DATA ){
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
+    assert(l_http_client);
+    dap_stream_t * l_stream = DAP_STREAM(l_http_client);
+    assert(l_stream);
+    if (a_esocket->type == DESCRIPTOR_TYPE_SOCKET_UDP ||
+            (l_http_client->state_read == DAP_HTTP_CLIENT_STATE_DATA && l_http_client->state_write == DAP_HTTP_CLIENT_STATE_DATA )) {
+        if (!l_stream->keepalive_timer) {
             dap_events_socket_uuid_t * l_es_uuid= DAP_NEW_Z(dap_events_socket_uuid_t);
             *l_es_uuid = a_esocket->uuid;
-            dap_timerfd_start_on_worker(a_worker, STREAM_KEEPALIVE_TIMEOUT * 1000, (dap_timerfd_callback_t)s_callback_keepalive, l_es_uuid);
+            l_stream->keepalive_timer = dap_timerfd_start_on_worker(a_worker,
+                                                                    STREAM_KEEPALIVE_TIMEOUT * 1000,
+                                                                    (dap_timerfd_callback_t)s_callback_keepalive,
+                                                                    l_es_uuid);
         }
     }
 }
@@ -467,7 +471,14 @@ static void s_esocket_callback_worker_assign(dap_events_socket_t * a_esocket, da
  */
 static void s_esocket_callback_worker_unassign(dap_events_socket_t * a_esocket, dap_worker_t * a_worker)
 {
- // TODO switch off keepalive packets sending
+    UNUSED(a_worker);
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
+    assert(l_http_client);
+    dap_stream_t * l_stream = DAP_STREAM(l_http_client);
+    assert(l_stream);
+    DAP_DEL_Z(l_stream->keepalive_timer->callback_arg);
+    dap_timerfd_delete(l_stream->keepalive_timer);
+    l_stream->keepalive_timer = NULL;
 }
 
 
@@ -807,6 +818,15 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
         l_ret_pkt.type = STREAM_PKT_TYPE_ALIVE;
         memcpy(l_ret_pkt.sig, c_dap_stream_sig, sizeof(l_ret_pkt.sig));
         dap_events_socket_write_unsafe(a_stream->esocket, &l_ret_pkt, sizeof(l_ret_pkt));
+        // Reset client keepalive timer
+        if (a_stream->keepalive_timer) {
+            void *l_arg = a_stream->keepalive_timer->callback_arg;
+            dap_timerfd_delete(a_stream->keepalive_timer);
+            a_stream->keepalive_timer = dap_timerfd_start_on_worker(a_stream->stream_worker->worker,
+                                                                    STREAM_KEEPALIVE_TIMEOUT * 1000,
+                                                                    (dap_timerfd_callback_t)s_callback_keepalive,
+                                                                    l_arg);
+        }
     } break;
     case STREAM_PKT_TYPE_ALIVE:
         //log_it(L_DEBUG, "Keep alive response recieved");
@@ -854,6 +874,8 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
  */
 static bool s_callback_keepalive( void * a_arg)
 {
+    if (!a_arg)
+        return false;
     dap_events_socket_uuid_t * l_es_uuid = (dap_events_socket_uuid_t*) a_arg;
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid);

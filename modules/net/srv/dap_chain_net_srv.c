@@ -82,7 +82,7 @@ typedef struct service_list {
 static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_reply);
+static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all(void);
 
@@ -98,22 +98,23 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
     if( dap_chain_net_srv_order_init() != 0 )
         return -1;
 
-    dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, NULL, "Network services managment",
-        "net_srv -net <chain net name> order find [-direction <sell|buy>][-srv_uid <Service UID>] [-price_unit <price unit>]\\\n"
+    dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, "Network services managment",
+        "net_srv -net <chain net name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
         "                                         [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <chain net name> order delete -hash <Order hash>\n"
         "\tOrder delete\n"
         "net_srv -net <chain net name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <chain net name> order create -direction <sell|buy> -srv_uid <Service UID> -price <Price>\\\n"
-        "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>] \\\n"
-        "        [-expires <Unix time when expires>] [-ext <Extension with params>]\\\n"
-        "        [-cert <cert name to sign order>]\\\n"
+        "net_srv -net <chain net name> order create -direction <sell | buy> -srv_uid <Service UID> -price <Price>\n"
+        "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
+        "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
+        "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
+
         "\tOrder create\n"
-            "net_srv -net <chain net name> order static [save | delete]\\\n"
+            "net_srv -net <chain net name> order static [save | delete]\n"
             "\tStatic nodelist create/delete\n"
-            "net_srv -net <chain net name> order recheck\\\n"
+            "net_srv -net <chain net name> order recheck\n"
             "\tCheck the availability of orders\n"
 
         );
@@ -188,9 +189,8 @@ void dap_chain_net_srv_deinit(void)
  * @param a_str_reply
  * @return
  */
-static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_reply)
+static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 {
-    UNUSED(arg_func);
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -584,7 +584,7 @@ static int s_cli_net_srv( int argc, char **argv, void *arg_func, char **a_str_re
         }
 #endif
         else {
-            dap_string_append_printf(l_string_ret, "Unknown subcommand '%s'\n", l_order_str);
+            dap_string_append_printf(l_string_ret, "Command 'net_srv' requires subcommand 'order'");
             ret = -3;
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, l_string_ret->str);

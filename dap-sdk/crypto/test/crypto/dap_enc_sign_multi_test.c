@@ -8,7 +8,7 @@
 
 static void test_signing_verifying(void)
 {
-    size_t seed_size = sizeof(uint8_t);
+    size_t seed_size = 10;
     uint8_t seed[seed_size];
 
     randombytes(seed, seed_size);
