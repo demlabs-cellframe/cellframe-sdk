@@ -335,8 +335,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         case DAP_CHAIN_DATUM_CA:{
             if ( dap_cert_chain_file_save(l_datum, a_chain->net_name) < 0 )
                 return ATOM_REJECT;
-
-            return ATOM_ACCEPT;
         }break;
         default: return ATOM_REJECT;
     }
