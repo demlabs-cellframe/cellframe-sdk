@@ -172,7 +172,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
         }
         l_shift_mem = sizeof(uint32_t);
     }
-    memcpy(&kind, a_buf + sizeof(uint32_t), sizeof(uint32_t));
+    memcpy(&kind, a_buf + l_shift_mem, sizeof(uint32_t));
     l_shift_mem += sizeof(uint32_t);
     dilithium_param_t p;
     if(!dilithium_params_init(&p, kind))
