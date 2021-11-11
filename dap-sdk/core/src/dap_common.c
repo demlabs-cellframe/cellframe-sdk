@@ -135,6 +135,7 @@ static unsigned int s_ansi_seq_color_len[16] = {0};
 #endif
 
 static volatile bool s_log_term_signal = false;
+// A path to the working dir 
 char* g_sys_dir_path = NULL;
 
 static char s_last_error[LAST_ERROR_MAX]    = {'\0'},
@@ -173,16 +174,17 @@ DAP_STATIC_INLINE void s_update_log_time(char *a_datetime_str) {
 }
 
 /**
- * @brief set_log_level Sets the logging level
- * @param[in] ll logging level
+ * @brief Sets a current logging level.
+ * @param a_ll a logging level
+ * @return (none)
  */
 void dap_log_level_set( enum dap_log_level a_ll ) {
     s_dap_log_level = a_ll;
 }
 
 /**
- * @brief dap_get_appname
- * @return
+ * @brief Gets an application name
+ * @return Returns a string
  */
 const char * dap_get_appname()
 {
@@ -190,9 +192,9 @@ const char * dap_get_appname()
 }
 
 /**
- * @brief dap_set_appname set application name in global s_appname variable
- * @param a_appname
- * @return
+ * @brief Sets an application name.
+ * @param a_appname an application name string
+ * @return (none)
  */
 void dap_set_appname(const char * a_appname)
 {
@@ -200,13 +202,20 @@ void dap_set_appname(const char * a_appname)
 
 }
 
+/**
+ * @brief Gets a current logging level.
+ * 
+ * @return A logging level.
+ */
 enum dap_log_level dap_log_level_get( void ) {
     return s_dap_log_level ;
 }
 
 /**
- * @brief dap_set_log_tag_width Sets the length of the label
- * @param[in] width Length not more than 99
+ * @brief Sets a width of a logging tag.
+ * @note the width cannot be more than 99.
+ * @param[in] width the width
+ * @return (none)
  */
 void dap_set_log_tag_width(size_t a_width) {
 
@@ -224,6 +233,17 @@ void dap_set_log_tag_width(size_t a_width) {
  * @param a_log_file_path const char *: path to log file. Saved in s_log_file_path variable. For example: C:\\Users\\Public\\Documents\\cellframe-node\\var\\log\\cellframe-node.log
  * @param a_log_dirpath const char *: path to log directory. Saved in s_log_dir_path variable. For example. C:\\Users\\Public\\Document\\cellframe-node\\var\\log
  * @return int. (0 if succcess, -1 if error)
+ */
+
+
+/**
+ * @brief Initializes a dap_common module.
+ * @note You should call this function before calling any other functions in this library.
+ * 
+ * @param a_console_title A console title string (unused)
+ * @param a_log_file_path A path to the logging file
+ * @param a_log_dirpath A path to the directory containing the logging file
+ * @return Returns 0 if successful, -1 otherwise.
  */
 int dap_common_init( const char *a_console_title, const char *a_log_file_path, const char *a_log_dirpath) {
 
@@ -249,6 +269,14 @@ int dap_common_init( const char *a_console_title, const char *a_log_file_path, c
 }
 
 #ifdef WIN32
+/**
+ * @brief Initializes a dap_common module.
+ * @note You should call this function before calling any other functions in this library.
+ * 
+ * @param a_console_title A console title string (unused)
+ * @param a_log_file_path A path to the logging file
+ * @return Returns 0 if successful, -1 otherwise.
+ */
 int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename ) {
 
     // init randomer
@@ -274,7 +302,9 @@ int wdap_common_init( const char *a_console_title, const wchar_t *a_log_filename
 #endif
 
 /**
- * @brief dap_common_deinit Deinitialise
+ * @brief Deinitializes a dap_common module.
+ * @note You should call this function at the end.
+ * @return (none)
  */
 void dap_common_deinit( ) {
     pthread_mutex_lock(&s_log_mutex);
@@ -288,9 +318,9 @@ void dap_common_deinit( ) {
 
 
 /**
- * @brief s_log_thread_proc
- * @param arg
- * @return
+ * @brief A function for a logging thread
+ * @param arg An argument (unused)
+ * @return (none)
  */
 static void *s_log_thread_proc(void *arg) {
     (void) arg;
@@ -331,10 +361,11 @@ static void *s_log_thread_proc(void *arg) {
 }
 
 /**
- * @brief _log_it
- * @param log_tag
- * @param ll
- * @param fmt
+ * @brief Logs a_log_tag string.
+ * @param log_tag a logging tag
+ * @param ll a logging level
+ * @param fmt 
+ * @return (none)
  */
 void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, ...) {
     if ( a_ll < s_dap_log_level || a_ll >= 16 || !a_log_tag )
@@ -364,10 +395,10 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
 }
 
 /**
- * @brief dap_log_get_item
+ * @brief Gets an item (unused),
  * @param a_start_time
- * @param a_limit
- * @return
+ * @param a_limit 
+ * @return NULL
  */
 char *dap_log_get_item(time_t a_start_time, int a_limit)
 {
@@ -377,8 +408,8 @@ char *dap_log_get_item(time_t a_start_time, int a_limit)
 }
 
 /**
- * @brief log_error Error log
- * @return
+ * @brief Gets last error.
+ * @return Returns a last logging eroor.
  */
 const char *log_error()
 {
@@ -390,9 +421,9 @@ const char *log_error()
 #define INT_DIGITS 19   /* enough for 64 bit integer */
 
 /**
- * @brief itoa  The function converts an integer num to a string equivalent and places the result in a string
+ * @brief Converts an integer number to a string equivalent and places the result in a string
  * @param[in] i number
- * @return
+ * @return Returns the converted string.
  */
 char *dap_itoa(int i)
 {
@@ -420,11 +451,11 @@ char *dap_itoa(int i)
 
 
 /**
- * @brief time_to_rfc822 Convert time_t to string with RFC822 formatted date and time
- * @param[out] out Output buffer
- * @param[out] out_size_mac Maximum size of output buffer
- * @param[in] t UNIX time
- * @return Length of resulting string if ok or lesser than zero if not
+ * @brief Converts time_t to the string with RFC822 formatted date and time.
+ * @param out Output buffer
+ * @param out_size_mac Maximum size of output buffer
+ * @param t a time
+ * @return A length of resulting string if successful, or lesser than zero if not
  */
 int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t)
 {

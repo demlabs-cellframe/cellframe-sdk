@@ -11,6 +11,7 @@
 
 typedef struct _dap_string dap_string_t;
 
+// A structure for working with C string
 struct _dap_string
 {
     char *str;

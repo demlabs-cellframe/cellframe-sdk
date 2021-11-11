@@ -12,8 +12,16 @@
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 
+// A maximum size of 
 #define MY_MAXSIZE ((size_t)-1)
 
+/**
+ * @brief Calculates the nearest power of a_base
+ * 
+ * @param a_base a base of power
+ * @param a_num a number
+ * @return Returns a number
+ */
 static inline size_t nearest_power(size_t a_base, size_t a_num)
 {
     if(a_num > MY_MAXSIZE / 2) {
@@ -29,6 +37,13 @@ static inline size_t nearest_power(size_t a_base, size_t a_num)
     }
 }
 
+/**
+ * @brief Expands a memory of a_sring by a_len 
+ * 
+ * @param a_string a pointer to the string structure
+ * @param a_len the length by which you need to increase the size of the string
+ * @return (none)
+ */
 static void dap_string_maybe_expand(dap_string_t *a_string, size_t a_len)
 {
     if(a_string->len + a_len >= a_string->allocated_len) {
@@ -55,6 +70,17 @@ static void dap_string_maybe_expand(dap_string_t *a_string, size_t a_len)
  *
  * Returns: the new #dap_string_t
  */
+
+/**
+ * @brief Creates a new #dap_string_t, with enough space for @a_a_dfl_size
+ * bytes. 
+ * @note This is useful if you are going to add a lot of
+ * text to the string and don't want it to be reallocated
+ * too often.
+ * 
+ * @param a_dfl_size the default size of a string
+ * @return Returns a pointer to the string structure.
+ */
 dap_string_t * dap_string_sized_new(size_t a_dfl_size)
 {
     dap_string_t *l_string = DAP_NEW(dap_string_t);
@@ -77,6 +103,13 @@ dap_string_t * dap_string_sized_new(size_t a_dfl_size)
  * Creates a new #dap_string_t, initialized with the given string.
  *
  * Returns: the new #dap_string_t
+ */
+
+/**
+ * @brief Creates a new string structure by a_init string
+ * 
+ * @param a_init a string
+ * @return Returns a pointer to the new structure.
  */
 dap_string_t* dap_string_new(const char *a_init)
 {
@@ -112,6 +145,14 @@ dap_string_t* dap_string_new(const char *a_init)
  *
  * Returns: a new #dap_string_t
  */
+
+/**
+ * @brief Creates a new string.
+ * 
+ * @param a_init 
+ * @param a_len 
+ * @return dap_string_t* 
+ */
 dap_string_t* dap_string_new_len(const char *a_init, ssize_t a_len)
 {
     dap_string_t *l_string;
@@ -142,6 +183,14 @@ dap_string_t* dap_string_new_len(const char *a_init, ssize_t a_len)
  * Returns: (nullable): the character data of @a_string
  *          (i.e. %NULL if @a_free_segment is %true)
  */
+
+/**
+ * @brief Deallocates memory of a string structure
+ * 
+ * @param a_string a pointer to the string structure
+ * @param a_free_segment 
+ * @return Returns 
+ */
 char* dap_string_free(dap_string_t *a_string, bool a_free_segment)
 {
     char *l_segment;
@@ -171,6 +220,15 @@ char* dap_string_free(dap_string_t *a_string, bool a_free_segment)
  *
  * Returns: %true if the strings are the same length and contain the
  *     same bytes
+ */
+
+/**
+ * @brief Cheks if a_v string equal a_v2
+ * 
+ * @param a_v a first 
+ * @param a_v2 
+ * @return true 
+ * @return false 
  */
 bool dap_string_equal(const dap_string_t *a_v, const dap_string_t *a_v2)
 {
@@ -203,6 +261,13 @@ bool dap_string_equal(const dap_string_t *a_v, const dap_string_t *a_v2)
  *
  * Returns: hash code for @a_str
  */
+
+/**
+ * @brief Calculates a hash code of a_str
+ * 
+ * @param a_str a pointer to the string structure
+ * @return Returns a hash code.
+ */
 unsigned int dap_string_hash(const dap_string_t *a_str)
 {
     const char *p = a_str->str;
@@ -231,6 +296,14 @@ unsigned int dap_string_hash(const dap_string_t *a_str)
  * have to worry about having enough space to copy the string.
  *
  * Returns: (transfer none): @a_string
+ */
+
+/**
+ * @brief 
+ * 
+ * @param a_string 
+ * @param a_rval 
+ * @return dap_string_t* 
  */
 dap_string_t* dap_string_assign(dap_string_t *a_string, const char *a_rval)
 {
