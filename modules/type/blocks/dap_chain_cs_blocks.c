@@ -124,7 +124,7 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );  
 
 static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_size);
 
-bool s_seed_mode=false;
+static bool s_seed_mode=false;
 
 
 /**
