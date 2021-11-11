@@ -122,8 +122,8 @@ typedef uint8_t byte_t;
   #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, rpcalloc(1,b))
   #define DAP_REALLOC(a, b)     rprealloc(a,b)
   #define DAP_DELETE(a)         rpfree(a)
-  #define DAP_DUP(a)            memcpy(rpmalloc(sizeof(*a)), a, sizeof(*a))
-  #define DAP_DUP_SIZE(a, s)    memcpy(rpmalloc(s), a, s)
+  #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+  #define DAP_DUP_SIZE(a,b)       ( __typeof(a) ret = memcpy(ret,a,b) )
 #else
   #define DAP_MALLOC(a)         malloc(a)
   #define DAP_FREE(a)           free(a)
@@ -139,8 +139,8 @@ typedef uint8_t byte_t;
   #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, calloc(1,b))
   #define DAP_REALLOC(a, b)     realloc(a,b)
   #define DAP_DELETE(a)         free(a)
-  #define DAP_DUP(a)            memcpy(malloc(sizeof(*a)), a, sizeof(*a))
-  #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
+  #define DAP_DUP(a)            ( __typeof(a) ret = memcpy(ret,a,sizeof(*a)) )
+  #define DAP_DUP_SIZE(a,b)       ( __typeof(a) memcpy(ret,a,b) )
 #endif
 
 #define DAP_DEL_Z(a)          if(a) { DAP_DELETE(a); a=NULL;}
@@ -191,26 +191,16 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 #if __SIZEOF_LONG__==8
 #define DAP_UINT64_FORMAT_X  "lX"
-#define DAP_UINT64_FORMAT_x  "lx"
-#define DAP_UINT64_FORMAT_U  "lu"
+#define     DAP_UINT64_FORMAT_x  "lx"
+#define DAP_UINT64_FORMAT_u  "lu"
+#define DAP_UINT64_FORMAT_U  "lU"
 #elif __SIZEOF_LONG__==4
 #define DAP_UINT64_FORMAT_X  "llX"
 #define DAP_UINT64_FORMAT_x  "llx"
-#define DAP_UINT64_FORMAT_U  "llu"
+#define DAP_UINT64_FORMAT_u  "llu"
+#define DAP_UINT64_FORMAT_U  "llU"
 #else
 #error "DAP_UINT64_FORMAT_* are undefined for your platform"
-#endif
-
-#ifdef DAP_OS_WINDOWS
-#ifdef _WIN64
-#define DAP_FORMAT_SOCKET "llu"
-#else
-#define DAP_FORMAT_SOCKET "lu"
-#endif
-#define DAP_FORMAT_HANDLE "p"
-#else
-#define DAP_FORMAT_SOCKET "d"
-#define DAP_FORMAT_HANDLE "d"
 #endif
 
 #ifndef LOWORD
@@ -280,7 +270,7 @@ typedef int dap_spinlock_t;
  * @brief The log_level enum
  */
 
-typedef enum dap_log_level { 
+typedef enum dap_log_level {
 
   L_DEBUG     = 0,
   L_INFO      = 1,
@@ -289,7 +279,7 @@ typedef enum dap_log_level {
   L_DAP       = 4,
   L_WARNING   = 5,
   L_ATT       = 6,
-  L_ERROR     = 7, 
+  L_ERROR     = 7,
   L_CRITICAL  = 8,
   L_TOTAL,
 
@@ -439,20 +429,11 @@ void dap_log_set_max_item(unsigned int a_max);
 // get logs from list
 char *dap_log_get_item(time_t a_start_time, int a_limit);
 
-#if defined __GNUC__ || defined __clang__
-#ifdef __MINGW_PRINTF_FORMAT
-#define DAP_PRINTF_ATTR(format_index, args_index) \
-    __attribute__ ((format (gnu_printf, format_index, args_index)))
-#else
-#define DAP_PRINTF_ATTR(format_index, args_index) \
-    __attribute__ ((format (printf, format_index, args_index)))
-#endif
-#else /* __GNUC__ */
-#define DAP_PRINTF_ATTR(format_index, args_index)
-#endif /* __GNUC__ */
-
-DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
+void _log_it( const char * log_tag, enum dap_log_level, const char * format,... );
 #define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
+//void _vlog_it( const char * log_tag, uint32_t taglen, enum dap_log_level, const char * format, va_list ap );
+
+//#define vlog_it( a_log_level, a_format, a_ap ) _vlog_it( LOG_TAG, sizeof(LOG_TAG)-1, a_log_level, a_format, a_ap )
 
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);
