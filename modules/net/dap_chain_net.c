@@ -2963,3 +2963,26 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
     }
     return NULL;
 }
+
+/**
+ * @brief dap_cert_chain_file_save
+ * @param datum
+ */
+int dap_cert_chain_file_save(dap_chain_datum_t * datum, char * net_name)
+{
+    const char * s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
+
+    dap_cert_t * cert = dap_cert_mem_load(datum->data, datum->header.data_size);
+    const char * cert_name = cert->name;
+
+    size_t cert_path_length = strlen(net_name)+strlen(cert_name)+9+strlen(s_system_chain_ca_dir);
+    char *cert_path = DAP_NEW_Z_SIZE(char,cert_path_length);
+
+    snprintf(cert_path,cert_path_length,"%s/%s/%s.dcert",s_system_chain_ca_dir,net_name,cert_name);
+
+//  if ( access( l_cert_path, F_OK ) != -1 ) {
+//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
+//      return -1;
+//  } else
+    return dap_cert_file_save(cert, cert_path);
+}

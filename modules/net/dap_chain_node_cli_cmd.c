@@ -3703,6 +3703,102 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
     }
 }
 
+/**
+ * @brief com_chain_ca_copy
+ * @details copy public CA into the mempool
+ * @param a_argc
+ * @param a_argv
+ * @param a_arg_func
+ * @param a_str_reply
+ * @return
+ */
+int com_chain_ca_copy( int a_argc,  char ** a_argv, char ** a_str_reply)
+{
+    return com_mempool_add_ca(a_argc, a_argv, a_str_reply);
+}
+
+
+/**
+ * @brief com_chain_ca_pub
+ * @details place public CA into the mempool
+ * @param a_argc
+ * @param a_argv
+ * @param a_arg_func
+ * @param a_str_reply
+ * @return
+ */
+int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply)
+{
+    int arg_index = 1;
+    // Read params
+    const char * l_ca_name = NULL;
+    dap_chain_net_t * l_net = NULL;
+    dap_chain_t * l_chain = NULL;
+
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+
+    dap_cert_t * l_cert = dap_cert_find_by_name( l_ca_name );
+    if( l_cert == NULL ){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't find \"%s\" certificate", l_ca_name );
+        return -4;
+    }
+
+
+    if( l_cert->enc_key == NULL ){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Corrupted certificate \"%s\" without keys certificate", l_ca_name );
+        return -5;
+    }
+
+    // Create empty new cert
+    dap_cert_t * l_cert_new = dap_cert_new(l_ca_name);
+    l_cert_new->enc_key = dap_enc_key_new( l_cert->enc_key->type);
+
+    // Copy only public key
+    l_cert_new->enc_key->pub_key_data = DAP_NEW_Z_SIZE(uint8_t,
+                                                      l_cert_new->enc_key->pub_key_data_size =
+                                                      l_cert->enc_key->pub_key_data_size );
+    memcpy(l_cert_new->enc_key->pub_key_data, l_cert->enc_key->pub_key_data,l_cert->enc_key->pub_key_data_size);
+
+    // Serialize certificate into memory
+    uint32_t l_cert_serialized_size = 0;
+    byte_t * l_cert_serialized = dap_cert_mem_save( l_cert_new, &l_cert_serialized_size );
+    if( l_cert_serialized == NULL){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't serialize in memory certificate" );
+        return -7;
+    }
+    if( l_cert_serialized == NULL){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't serialize in memory certificate");
+        return -7;
+    }
+    // Now all the chechs passed, forming datum for mempool
+    dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
+    DAP_DELETE( l_cert_serialized);
+    if( l_datum == NULL){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't produce datum from certificate");
+        return -7;
+    }
+
+    // Finaly add datum to mempool
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum,l_chain);
+    if (l_hash_str) {
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Datum %s was successfully placed to mempool", l_hash_str);
+        DAP_DELETE(l_hash_str);
+        return 0;
+    } else {
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't place certificate \"%s\" to mempool", l_ca_name);
+        DAP_DELETE( l_datum );
+        return -8;
+    }
+}
+
 
 /**
  * @brief Create transaction

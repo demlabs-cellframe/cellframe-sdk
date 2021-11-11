@@ -1071,6 +1071,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "Add pubic certificate into the mempool to prepare its way to chains",
             "mempool_add_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
 
+    dap_chain_node_cli_cmd_item_create ("chain_ca_pub", com_chain_ca_pub,
+                                        "Add pubic certificate into the mempool to prepare its way to chains",
+            "chain_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+
+    dap_chain_node_cli_cmd_item_create ("chain_ca_copy", com_chain_ca_copy,
+                                        "Copy pubic certificate into the mempool to prepare its way to chains",
+            "chain_ca -net <net name> [-chain <chain name>] -ca_name <Public certificate name>\n");
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
@@ -1135,7 +1142,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     if ( l_listen_unix_socket_path && l_listen_unix_socket_permissions ) {
         if ( l_listen_unix_socket_permissions_str ) {
             uint16_t l_perms;
-            dap_sscanf(l_listen_unix_socket_permissions_str,"%hu", &l_perms);
+            dap_sscanf(l_listen_unix_socket_permissions_str,"%ho", &l_perms);
             l_listen_unix_socket_permissions = l_perms;
         }
         log_it( L_INFO, "Console interace on path %s (%04o) ", l_listen_unix_socket_path, l_listen_unix_socket_permissions );
