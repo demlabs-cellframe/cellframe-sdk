@@ -350,6 +350,14 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
     return l_ret;
 }
 
+/**
+ * @brief Fills a object from a row
+ * @param a_group a group name string
+ * @param a_obj a pointer to the object
+ * @param a_res a pointer to the result structure
+ * @param a_row a row number
+ * @return (none)
+ */
 static void s_pgsql_fill_object(const char *a_group, dap_store_obj_t *a_obj, PGresult *a_res, int a_row)
 {
     a_obj->group = dap_strdup(a_group);
