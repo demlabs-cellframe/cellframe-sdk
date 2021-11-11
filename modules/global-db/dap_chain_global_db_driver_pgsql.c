@@ -191,7 +191,7 @@ int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks
 }
 
 /**
- * @brief Deinitializes a SQLite database.
+ * @brief Deinitializes a PostgreSQL database.
  * 
  * @return Returns 0 if successful.
  */
@@ -206,7 +206,7 @@ int dap_db_driver_pgsql_deinit(void)
 }
 
 /**
- * @brief Starts a transaction.
+ * @brief Starts a transaction in a PostgreSQL database.
  * 
  * @return Returns 0 if successful, otherwise -1.
  */
@@ -227,7 +227,7 @@ int dap_db_driver_pgsql_start_transaction(void)
 }
 
 /**
- * @brief Starts a transaction in a PostgreSQL database.
+ * @brief Ends a transaction in a PostgreSQL database.
  * 
  * @return Returns 0 if successful, otherwise -1.
  */
