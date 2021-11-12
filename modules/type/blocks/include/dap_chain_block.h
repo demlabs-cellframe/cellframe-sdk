@@ -98,6 +98,8 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
 // Add sign in block
 size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_cert_t * a_cert );
 dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block_ptr, size_t a_block_size, uint16_t a_sign_num );
+size_t dap_chain_block_get_signs_count(dap_chain_block_t * a_block, size_t a_block_size);
+size_t dap_chain_block_get_sign_offset(dap_chain_block_t *a_block, size_t a_block_size);
 
 // Create and return datums list
 dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );

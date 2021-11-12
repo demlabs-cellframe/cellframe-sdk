@@ -279,7 +279,7 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
  * @param a_block_size
  * @return
  */
-static size_t s_block_get_sign_offset(dap_chain_block_t * a_block, size_t a_block_size)
+size_t dap_chain_block_get_sign_offset(dap_chain_block_t *a_block, size_t a_block_size)
 {
     assert(a_block);
     assert(a_block_size);
@@ -309,7 +309,7 @@ static size_t s_block_get_sign_offset(dap_chain_block_t * a_block, size_t a_bloc
         l_datum =(dap_chain_datum_t *) (a_block->meta_n_datum_n_sign + l_offset);
     }
     if (l_offset> (a_block_size-sizeof (a_block->hdr))){
-        log_it(L_ERROR,"Offset %zd with block header %zd is bigger than block size %zd ", l_offset,sizeof (a_block->hdr),a_block_size);
+        log_it(L_ERROR,"Offset %zd with block header %zu is bigger than block size %zu", l_offset,sizeof (a_block->hdr),a_block_size);
         return a_block_size;
     }
 
@@ -327,7 +327,7 @@ size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_bloc
 {
     assert(a_block_ptr);
     dap_chain_block_t * l_block = *a_block_ptr;
-    size_t l_offset = s_block_get_sign_offset(l_block,a_block_size);
+    size_t l_offset = dap_chain_block_get_sign_offset(l_block,a_block_size);
     dap_sign_t * l_block_sign = dap_cert_sign(a_cert,l_block,l_offset+sizeof (l_block->hdr),0);
     size_t l_block_sign_size = dap_sign_get_size(l_block_sign);
     *a_block_ptr = l_block = DAP_REALLOC(l_block, l_block_sign_size + a_block_size);
@@ -346,18 +346,18 @@ size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_bloc
 dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block, size_t a_block_size, uint16_t a_sign_num )
 {
     assert(a_block);
-    size_t l_offset = s_block_get_sign_offset(a_block,a_block_size);
+    size_t l_offset = dap_chain_block_get_sign_offset(a_block,a_block_size);
     uint16_t l_sign_cur=0;
     dap_sign_t * l_sign = (dap_sign_t*) a_block->meta_n_datum_n_sign+l_offset;
     while( l_sign_cur <a_sign_num){
 
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        if (!l_sign){
+        if (!l_sign_size){
             log_it(L_ERROR, "Empty sign #%u",  l_sign_cur );
             return NULL;
         }
         if (l_sign_size >  a_block_size- l_offset - sizeof (a_block->hdr) ){
-            log_it(L_ERROR, "Corrupted sign #%u size %zd",  l_sign_cur, l_sign_size );
+            log_it(L_ERROR, "Corrupted sign #%u size %zu",  l_sign_cur, l_sign_size );
             return NULL;
         }
         l_offset += l_sign_size;
@@ -365,6 +365,28 @@ dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block, size_t a_blo
         l_sign = (dap_sign_t*) a_block->meta_n_datum_n_sign+l_offset;
     }
     return  l_sign_cur == a_sign_num? l_sign : NULL;
+}
+
+size_t dap_chain_block_get_signs_count(dap_chain_block_t * a_block, size_t a_block_size)
+{
+    assert(a_block);
+    assert(a_block_size);
+    uint16_t l_sign_count = 0;
+    size_t l_offset = dap_chain_block_get_sign_offset(a_block,a_block_size);
+    for ( ; l_offset < a_block_size; l_sign_count++) {
+        dap_sign_t *l_sign = (dap_sign_t *)a_block->meta_n_datum_n_sign + l_offset;
+        size_t l_sign_size = dap_sign_get_size(l_sign);
+        if (!l_sign_size){
+            log_it(L_WARNING, "Empty sign #%hu", l_sign_count);
+            return l_sign_count;
+        }
+        if (l_sign_size > a_block_size - l_offset - sizeof(a_block->hdr)) {
+            log_it(L_ERROR, "Corrupted sign #%hu size %zu", l_sign_count, l_sign_size);
+            return l_sign_count;
+        }
+        l_offset += l_sign_size;
+    }
+    return l_sign_count;
 }
 
 /**

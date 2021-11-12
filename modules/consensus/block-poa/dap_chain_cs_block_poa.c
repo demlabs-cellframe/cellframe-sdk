@@ -61,7 +61,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_t* a_block, size_t a_block_size);
 
 // CLI commands
-static int s_cli_block_poa(int argc, char ** argv, void *arg_func, char **str_reply);
+static int s_cli_block_poa(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
 /**
@@ -73,7 +73,7 @@ int dap_chain_cs_block_poa_init(void)
     // Add consensus constructor
     dap_chain_cs_add ("block_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_chain_node_cli_cmd_item_create ("block_poa", s_cli_block_poa, NULL, "Blockchain PoA commands",
+    dap_chain_node_cli_cmd_item_create ("block_poa", s_cli_block_poa, "Blockchain PoA commands",
         "block_poa -net <chain net name> -chain <chain name> block new_block_sign [-cert <cert name>] \n"
             "\tSign new block with certificate <cert name> or withs own PoA certificate\n\n");
 
@@ -98,9 +98,8 @@ void dap_chain_cs_block_poa_deinit(void)
  * @param str_reply
  * @return
  */
-static int s_cli_block_poa(int argc, char ** argv, void *arg_func, char **a_str_reply)
+static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
 {
-    (void) arg_func;
     int ret = -666;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
@@ -118,7 +117,6 @@ static int s_cli_block_poa(int argc, char ** argv, void *arg_func, char **a_str_
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net);
 
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
-    //dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( l_dag ) ;
     dap_chain_cs_block_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_BLOCK_POA( l_blocks ) );
 
     const char * l_block_new_cmd_str = NULL;
@@ -126,7 +124,7 @@ static int s_cli_block_poa(int argc, char ** argv, void *arg_func, char **a_str_
     const char * l_cert_str = NULL;
     dap_cert_t * l_cert = l_poa_pvt->sign_cert;
     if ( l_poa_pvt->sign_cert == NULL) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "No certificate to sign events\n");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "No certificate to sign blocks\n");
         return -2;
     }
 
@@ -176,8 +174,8 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_blocks->_inheritor = l_poa;
     l_blocks->callback_delete = s_callback_delete;
     l_blocks->callback_block_verify = s_callback_block_verify;
-    l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_block_poa_pvt_t );
-    dap_chain_cs_block_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
+    l_poa->_pvt = DAP_NEW_Z(dap_chain_cs_block_poa_pvt_t);
+    dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
 
     if (dap_config_get_item_str(a_chain_cfg,"block-poa","auth_certs_prefix") ) {
         l_poa_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"block-poa","auth_certs_number",0);
