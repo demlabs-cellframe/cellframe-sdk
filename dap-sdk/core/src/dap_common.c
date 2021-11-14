@@ -314,6 +314,7 @@ void dap_common_deinit( ) {
  * @brief A function for a logging thread.
  * 
  * @param arg An argument (unused)
+ * @return a null pointer.
  */
 static void *s_log_thread_proc(void *arg) {
     (void) arg;
@@ -354,11 +355,11 @@ static void *s_log_thread_proc(void *arg) {
 }
 
 /**
- * @brief Logs a_log_tag string.
+ * @brief Adds a_log_tag string into a logging buffer.
  * 
  * @param a_log_tag a logging tag
  * @param a_ll a logging level
- * @param a_fmt
+ * @param a_fmt arguments to be combined
  */
 void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, ...) {
     if ( a_ll < s_dap_log_level || a_ll >= 16 || !a_log_tag )
@@ -388,10 +389,10 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
 }
 
 /**
- * @brief Gets an item (unused),
+ * @brief Gets logging items (UNUSED).
  * @param a_start_time
  * @param a_limit 
- * @return NULL
+ * @return a null pointer.
  */
 char *dap_log_get_item(time_t a_start_time, int a_limit)
 {
@@ -401,8 +402,8 @@ char *dap_log_get_item(time_t a_start_time, int a_limit)
 }
 
 /**
- * @brief Gets last error.
- * @return Returns a last logging eroor.
+ * @brief Gets a last error.
+ * @return the last logging eroor.
  */
 const char *log_error()
 {
@@ -414,9 +415,10 @@ const char *log_error()
 #define INT_DIGITS 19   /* enough for 64 bit integer */
 
 /**
- * @brief Converts an integer number to a string equivalent and places the result in a string
+ * @brief Converts an integer number to a string equivalent and places the result in a string.
+ * 
  * @param[in] i number
- * @return Returns the converted string.
+ * @return the converted string.
  */
 char *dap_itoa(int i)
 {
@@ -445,10 +447,11 @@ char *dap_itoa(int i)
 
 /**
  * @brief Converts time_t to the string with RFC822 formatted date and time.
- * @param out Output buffer
- * @param out_size_mac Maximum size of output buffer
+ * 
+ * @param out the output string
+ * @param out_size_max a maximum size of the output string
  * @param t a time
- * @return A length of resulting string if successful, or lesser than zero if not
+ * @return a length of output string if successful, error code less than zero if not
  */
 int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t)
 {
@@ -477,11 +480,12 @@ int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t)
 }
 
 /**
- * @brief Calculate diff of two struct timespec
- * @param[in] a_start - first time
- * @param[in] a_stop - second time
- * @param[out] a_result -  diff time, may be NULL
- * @return diff time in millisecond
+ * @brief Calculates a difference between a_start and a_stop time.
+ * 
+ * @param a_start a start time
+ * @param a_stop a stop time
+ * @param[out] a_result a time difference
+ * @return a time difference specified in milliseconds if successful, 0 if not.
  */
 int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct timespec *a_result)
 {
@@ -645,12 +649,15 @@ FIN:
 }
 #endif
 
+/** All characters used in random string generation */
 static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 /**
- * @brief random_string_fill Filling a string with random characters
- * @param[out] str A pointer to a char array
- * @param[in] length The length of the array or string
+ * @brief Creates a random string.
+ * Сharacters of l_possible_chars array are used during string generation.
+ * 
+ * @param[out] str the random string
+ * @param[in] length the length of the string
  */
 void dap_random_string_fill(char *str, size_t length) {
     for(size_t i = 0; i < length; i++)
@@ -659,9 +666,11 @@ void dap_random_string_fill(char *str, size_t length) {
 }
 
 /**
- * @brief random_string_create Generates a random string
- * @param[in] a_length lenght
- * @return a pointer to an array
+ * @brief Creates a random string.
+ * Сharacters of l_possible_chars array are used during string generation.
+ * 
+ * @param[in] a_length the lenght of the string
+ * @return the random string.
  */
 char * dap_random_string_create_alloc(size_t a_length)
 {
@@ -733,11 +742,13 @@ void *memzero(void *a_buf, size_t n)
 #endif
 
 /**
- * Convert binary data to binhex encoded data.
+ * @brief Converts binary data to a hex string.
  *
- * out output buffer, must be twice the number of bytes to encode.
+ * @param a_out the output string, must be twice the number of bytes to encode.
+ * @param a_in a ponter to the binary data
+ * @param a_len a size of the data
  * len is the size of the data in the in[] buffer to encode.
- * return the number of bytes encoded, or -1 on error.
+ * @return the hex string if successful, 0 if if not.
  */
 size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len)
 {
@@ -757,12 +768,12 @@ size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len)
 }
 
 /**
- * Convert binhex encoded data to binary data
+ * @brief Converts a hex string to binary data
  *
- * len is the size of the data in the in[] buffer to decode, and must be even.
- * out outputbuffer must be at least half of "len" in size.
- * The buffers in[] and out[] can be the same to allow in-place decoding.
- * return the number of bytes encoded, or 0 on error.
+ * @param a_out a pointer to the binary data.
+ * @param a_in the hex string
+ * @param a_len a lengs of the hex string
+ * @return the number of converted characters if successful, 0 if not.
  */
 size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len)
 {
@@ -786,7 +797,11 @@ size_t dap_hex2bin(uint8_t *a_out, const char *a_in, size_t a_len)
 }
 
 /**
- * Convert string to digit
+ * @brief Converts a string to digits.
+ * 
+ * @param num_str the string to be converted 
+ * @param raw[out] a pointer to the digit array
+ * @param raw_len a length of the digit array
  */
 void dap_digit_from_string(const char *num_str, void *raw, size_t raw_len)
 {
@@ -813,6 +828,13 @@ typedef union {
   uint64_t  addr;
 } node_addr_t;
 
+/**
+ * @brief Converts a string to digits.
+ * 
+ * @param num_str the string to be converted 
+ * @param raw[out] a pointer to the digit array
+ * @param raw_len a length of the digit array
+ */
 void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len)
 {
     if(!num_str)
@@ -836,10 +858,10 @@ void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len)
 }
 
 
-/*!
- * \brief Execute shell command silently
+/**
+ * \brief Executes a shell command silently.
  * \param a_cmd command line
- * \return 0 if success, -1 otherwise
+ * \return 0 if successful, an error code if not.
  */
 int exec_silent(const char * a_cmd) {
 
@@ -869,14 +891,23 @@ int exec_silent(const char * a_cmd) {
 #endif
 }
 
+/** A number of timers */
 static int s_timers_count = 0;
+
+/** An array of timers */
 static dap_timer_interface_t s_timers[DAP_INTERVAL_TIMERS_MAX];
+
 #ifdef _WIN32
+/** A critical section object for working with a timer */
 static CRITICAL_SECTION s_timers_lock;
 #else
+/** A mutex for working with a timer */
 static pthread_mutex_t s_timers_lock;
 #endif
 
+/**
+ * @brief Deinitializes timers created in dap_interval_timer_create.
+ */
 void dap_interval_timer_deinit()
 {
     for (int i = 0; i < s_timers_count; i++) {
@@ -884,6 +915,12 @@ void dap_interval_timer_deinit()
     }
 }
 
+/**
+ * @brief Finds a timer number by a pointer to the timer.
+ * 
+ * @param a_timer the pointer
+ * @return the timer number.
+ */
 static int s_timer_find(void *a_timer)
 {
     for (int i = 0; i < s_timers_count; i++) {

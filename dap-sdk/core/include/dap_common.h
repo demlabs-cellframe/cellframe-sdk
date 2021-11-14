@@ -303,9 +303,13 @@ typedef struct dap_log_history_str_s {
 
 } dap_log_history_str_t;
 
+// A maximum number of timers in s_timers array.
 #define DAP_INTERVAL_TIMERS_MAX 15
 
+// A type of callback function for dap_timer_interface timer
 typedef void (*dap_timer_callback_t)(void *param);
+
+// A structure type for timer handling.
 typedef struct dap_timer_interface {
     void *timer;
     dap_timer_callback_t callback;
