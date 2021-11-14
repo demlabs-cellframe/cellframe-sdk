@@ -919,7 +919,7 @@ void dap_interval_timer_deinit()
  * @brief Finds a timer number by a pointer to the timer.
  * 
  * @param a_timer the pointer
- * @return the timer number.
+ * @return the timer number if successful, -1 if not.
  */
 static int s_timer_find(void *a_timer)
 {
@@ -949,11 +949,13 @@ static void s_posix_callback(union sigval a_arg)
 }
 #endif
 
-/*!
- * \brief dap_interval_timer_create Create new timer object and set callback function to it
- * \param a_msec Timer period
- * \param a_callback Function to be called with timer period
- * \return pointer to timer object if success, otherwise return NULL
+/**
+ * \brief Creates a new timer.
+ * 
+ * \param a_msec a timer period in milliseconds
+ * \param a_callback a pointer to the callback function
+ * \param a_param a parameter fot the callback function
+ * \return a pointer to the timer if successful, otherwise a null pointer.
  */
 void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param)
 {
@@ -1011,10 +1013,11 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
     return (void *)l_timer;
 }
 
-/*!
- * \brief dap_interval_timer_delete Delete existed timer object and stop callback function calls
- * \param a_timer A timer object created previously with dap_interval_timer_create
- * \return 0 if success, -1 otherwise
+/**
+ * \brief Deletes an existed timer.
+
+ * \param a_timer a pointer to the timer
+ * \return 0 if successful, -1 otherwise.
  */
 int dap_interval_timer_delete(void *a_timer)
 {
@@ -1057,9 +1060,9 @@ int dap_interval_timer_delete(void *a_timer)
 }
 
 /**
- * @brief dap_lendian_get16 Get uint16 from little endian memory
- * @param a_buf a buffer read from
- * @return uint16 in host endian memory
+ * @brief Gets uint16 from little endian memory.
+ * @param a_buf a pointer to a buffer
+ * @return in host endian memory.
  */
 uint16_t dap_lendian_get16(const uint8_t *a_buf)
 {
@@ -1068,10 +1071,10 @@ uint16_t dap_lendian_get16(const uint8_t *a_buf)
 }
 
 /**
- * @brief dap_lendian_put16 Put uint16 to little endian memory
- * @param buf a buffer write to
+ * @brief Puts uint16 to little endian memory
+ * 
+ * @param buf a pointer to a buffer
  * @param val uint16 in host endian memory
- * @return none
  */
 void dap_lendian_put16(uint8_t *a_buf, uint16_t a_val)
 {
@@ -1080,8 +1083,9 @@ void dap_lendian_put16(uint8_t *a_buf, uint16_t a_val)
 }
 
 /**
- * @brief dap_lendian_get32 Get uint32 from little endian memory
- * @param a_buf a buffer read from
+ * @brief Gets uint32 from little endian memory
+ * 
+ * @param a_buf a pointer to a buffer read from
  * @return uint32 in host endian memory
  */
 uint32_t dap_lendian_get32(const uint8_t *a_buf)
@@ -1091,10 +1095,10 @@ uint32_t dap_lendian_get32(const uint8_t *a_buf)
 }
 
 /**
- * @brief dap_lendian_put32 Put uint32 to little endian memory
- * @param buf a buffer write to
+ * @brief Puts uint32 to little endian memory
+ * 
+ * @param buf a pointer to a buffer write to
  * @param val uint32 in host endian memory
- * @return none
  */
 void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val)
 {
@@ -1103,7 +1107,8 @@ void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val)
 }
 
 /**
- * @brief dap_lendian_get64 Get uint64 from little endian memory
+ * @brief Gets uint64 from little endian memory
+ * 
  * @param a_buf a buffer read from
  * @return uint64 in host endian memory
  */
@@ -1114,10 +1119,10 @@ uint64_t dap_lendian_get64(const uint8_t *a_buf)
 }
 
 /**
- * @brief dap_lendian_put64 Put uint64 to little endian memory
+ * @brief Puts uint64 to little endian memory.
+ * 
  * @param buf a buffer write to
  * @param val uint64 in host endian memory
- * @return none
  */
 void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
 {
@@ -1126,10 +1131,9 @@ void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
 }
 
 /**
- * dap_usleep:
- * @a_microseconds: number of microseconds to pause
- *
- * Pauses the current thread for the given number of microseconds.
+ * @brief Pauses execution for a number of nanoseconds.
+ * 
+ * @a_microseconds: a timer period in microseconds to pause
  */
 void dap_usleep(time_t a_microseconds)
 {
@@ -1144,7 +1148,13 @@ void dap_usleep(time_t a_microseconds)
 #endif
 }
 
-
+/**
+ * @brief Gets a time string
+ * 
+ * @param a_time the time
+ * @param a_buf a buffer
+ * @return a string with time if successful, "(null)\r\n" if not.
+ */
 char* dap_ctime_r(time_t *a_time, char* a_buf){
     if (*a_time > DAP_END_OF_DAYS) {
         return "(null)\r\n";
