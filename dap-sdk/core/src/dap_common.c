@@ -232,7 +232,7 @@ void dap_set_log_tag_width(size_t a_width) {
 
 /**
  * @brief Initializes a dap_common module.
- * @note You should call this function before calling any other functions in this library.
+ * @note You should call this function before calling any other functions in this module.
  * 
  * @param a_console_title A console title string (unused)
  * @param a_log_file_path A path to the logging file

@@ -10,11 +10,10 @@
 
 #define LOG_TAG "dap_config"
 
+/** A current configuration */
 dap_config_t * g_config = NULL;
 
-/**
- * @brief The dap_config_item struct
- */
+/** A structure type for configuration item handling */
 typedef struct dap_config_item{
     char name[64];
     struct dap_config_item * childs;
@@ -41,14 +40,19 @@ typedef struct dap_config_internal
 } dap_config_internal_t;
 #define DAP_CONFIG_INTERNAL(a) ( (dap_config_internal_t* ) a->_internal )
 
+/** The maximal length of a configuration path */
 #define MAX_CONFIG_PATH 256
+/** A configuration directory path */
 static char s_configs_path[MAX_CONFIG_PATH] = "/opt/dap/etc";
 
 
 /**
- * @brief dap_config_init Initialization settings
- * @param[in] a_configs_path If NULL path is set to default
- * @return
+ * @brief Initializes a configuration module.
+ * 
+ * 
+ * @note You should call this function before calling any other functions in this module.
+ * @param a_configs_path a path to a directory containing a configuration file
+ * @return 0 if successful, -1 if not.
  */
 int dap_config_init(const char * a_configs_path)
 {
@@ -68,6 +72,11 @@ int dap_config_init(const char * a_configs_path)
     return -1;
 }
 
+/**
+ * @brief Gets a configuration path.
+ * 
+ * @return a path to the directory containing a current configuration file.
+ */
 const char * dap_config_path()
 {
     return s_configs_path;
@@ -75,7 +84,8 @@ const char * dap_config_path()
 
 
 /**
- * @brief dap_config_deinit Deinitialize settings
+ * @brief Deinitializes a configuration module.
+ * @note You should call this function at the end.
  */
 void dap_config_deinit()
 {
@@ -84,10 +94,11 @@ void dap_config_deinit()
 
 
 /**
- * @brief get_array_length Function parse string and return array length
- * @param[in] value
- * @details internal function parse string and return array length
- * @return
+ * @brief Parses a string and return array length
+ * @param str a string 
+ * @details internal function parse string and return array length.
+ * By default returns 1
+ * @return 
  */
 static uint16_t get_array_length(const char* str) {
     uint16_t array_length = 1; // by default if not find ','
@@ -99,9 +110,10 @@ static uint16_t get_array_length(const char* str) {
     return array_length;
 }
 /**
- * @brief dap_config_open Open the configuration settings
- * @param[in] a_name Configuration name
- * @return dap_config_t Configuration
+ * @brief Reads a configuration settings from a configuration file.
+ * 
+ * @param[in] a_name the configuration file name
+ * @return a pointer to a configuration structure.
  */
 dap_config_t * dap_config_open(const char * a_name)
 {
@@ -295,8 +307,9 @@ dap_config_t * dap_config_open(const char * a_name)
 }
 
 /**
- * @brief dap_config_close Closing the configuration
- * @param[in] a_config Configuration
+ * @brief Deallocates memory of a configuration structure.
+ *  
+ * @param a_config a pointer to the configuration structure
  */
 void dap_config_close(dap_config_t * a_config)
 {
@@ -331,11 +344,11 @@ void dap_config_close(dap_config_t * a_config)
 }
 
 /**
- * @brief dap_config_get_item_int32 Getting a configuration item as a int32
- * @param[in] a_config
- * @param[in] a_section_path
- * @param[in] a_item_name
- * @return
+ * @brief Gets an item as int32 value from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return int32 value if successful, 0 if not.
  */
 int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
@@ -343,11 +356,11 @@ int32_t dap_config_get_item_int32(dap_config_t * a_config, const char * a_sectio
 }
 
 /**
- * @brief dap_config_get_item_int64
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @return
+ * @brief Gets an item as int64 value from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return int64 value if successful, 0 if not.
  */
 int64_t dap_config_get_item_int64(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
@@ -355,11 +368,11 @@ int64_t dap_config_get_item_int64(dap_config_t * a_config, const char * a_sectio
 }
 
 /**
- * @brief dap_config_get_item_uint64
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @return
+ * @brief Gets an item as uint64 value from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return uint64 value if successful, 0 if not.
  */
 uint64_t dap_config_get_item_uint64(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
@@ -367,11 +380,11 @@ uint64_t dap_config_get_item_uint64(dap_config_t * a_config, const char * a_sect
 }
 
 /**
- * @brief dap_config_get_item_uint16
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @return
+ * @brief Gets an item as uint16 value from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return uint16 value if successful, 0 if not.
  */
 uint16_t dap_config_get_item_uint16(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
@@ -379,25 +392,23 @@ uint16_t dap_config_get_item_uint16(dap_config_t * a_config, const char * a_sect
 }
 
 /**
- * @brief dap_config_get_item_int16
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @return
+ * @brief Gets an item as int64 value from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return int64 value if successful, 0 if not.
  */
 int16_t dap_config_get_item_int16(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
     return (int16_t) atoi(dap_config_get_item_str(a_config,a_section_path,a_item_name));
 }
 
-
 /**
- * @brief dap_config_get_item_int32_default Getting a configuration item as a int32
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name setting
- * @param[in] a_default
- * @return
+ * @brief Gets an item as int32 value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return int32 value if successful, the default value  if not.
  */
 int32_t dap_config_get_item_int32_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, int32_t a_default)
 {
@@ -406,12 +417,11 @@ int32_t dap_config_get_item_int32_default(dap_config_t * a_config, const char * 
 }
 
 /**
- * @brief dap_config_get_item_uint32_default
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @param a_default
- * @return
+ * @brief Gets an item as uint32 value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return uint32 value if successful, the default value  if not.
  */
 uint32_t dap_config_get_item_uint32_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, uint32_t a_default)
 {
@@ -424,11 +434,11 @@ uint32_t dap_config_get_item_uint32_default(dap_config_t * a_config, const char 
 }
 
 /**
- * @brief dap_config_get_item_uint32
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @return
+ * @brief Gets an item as uint32 value from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return uint32 value if successful, 0 if not.
  */
 uint32_t dap_config_get_item_uint32(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
@@ -440,12 +450,11 @@ uint32_t dap_config_get_item_uint32(dap_config_t * a_config, const char * a_sect
 }
 
 /**
- * @brief dap_config_get_item_uint16_default
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @param a_default
- * @return
+ * @brief Gets an item as uint32 value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return uint32 value if successful, the default value if not.
  */
 uint16_t dap_config_get_item_uint16_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, uint16_t a_default)
 {
@@ -454,12 +463,11 @@ uint16_t dap_config_get_item_uint16_default(dap_config_t * a_config, const char 
 }
 
 /**
- * @brief dap_config_get_item_int16_default
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @param a_default
- * @return
+ * @brief Gets an item as int16 value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return int16 value if successful, the default value if not.
  */
 int16_t dap_config_get_item_int16_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, int16_t a_default)
 {
@@ -468,12 +476,11 @@ int16_t dap_config_get_item_int16_default(dap_config_t * a_config, const char * 
 }
 
 /**
- * @brief dap_config_get_item_int64_default
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @param a_default
- * @return
+ * @brief Gets an item as int64 value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return int64 value if successful, the default value if not.
  */
 int64_t dap_config_get_item_int64_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, int64_t a_default)
 {
@@ -482,12 +489,11 @@ int64_t dap_config_get_item_int64_default(dap_config_t * a_config, const char * 
 }
 
 /**
- * @brief dap_config_get_item_int64_default
- * @param a_config
- * @param a_section_path
- * @param a_item_name
- * @param a_default
- * @return
+ * @brief Gets an item as uint16 value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return uint16 value if successful, the default value if not.
  */
 uint64_t dap_config_get_item_uint64_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, uint64_t a_default)
 {
@@ -495,13 +501,12 @@ uint64_t dap_config_get_item_uint64_default(dap_config_t * a_config, const char 
     return l_str_ret? (uint64_t) atoll(l_str_ret):a_default;
 }
 
-
 /**
- * @brief dap_config_get_item Get the configuration as a item
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name setting
- * @return
+ * @brief Gets an item from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name an item name string
+ * @return a pointer to the item structure if successful, otherwise a null pointer.
  */
 static dap_config_item_t * dap_config_get_item(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
@@ -521,13 +526,12 @@ static dap_config_item_t * dap_config_get_item(dap_config_t * a_config, const ch
     return NULL;
 }
 
-
 /**
- * @brief dap_config_get_item_str Getting a configuration item as a string
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name setting
- * @return
+ * @brief Gets an item as a string from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name an item name string
+ * @return the string if successful, otherwise a null pointer.
  */
 const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
@@ -539,11 +543,12 @@ const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_sec
 
 
 /**
- * @brief dap_config_get_array_str Getting an array of configuration items as a string
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name setting
- * @return
+ * @brief Gets an item as a strings array  from a configuration structure.
+ * @param a_config[in] a pointer to the configuration structure
+ * @param a_section_path[in] a section name string
+ * @param a_item_name[in] an item name string
+ * @param array_length[out] a length of an array
+ * @return the strings array if successful, otherwise a null pointer.
  */
 char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_path,
                                 const char * a_item_name, uint16_t * array_length) {
@@ -559,14 +564,13 @@ char** dap_config_get_array_str(dap_config_t * a_config, const char * a_section_
     }
 }
 
-
 /**
- * @brief dap_config_get_item_str_default Getting an array of configuration items as a string
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name setting
- * @param[in] a_value_default Default
- * @return
+ * @brief Gets an item as a string from configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name an item name string
+ * @param a_value_default the default value
+ * @return the string if successful, the default value if not
  */
 const char * dap_config_get_item_str_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, const char * a_value_default)
 {
@@ -587,25 +591,23 @@ const char * dap_config_get_item_str_default(dap_config_t * a_config, const char
 }
 
 /**
- * @brief dap_config_get_item_bool Getting a configuration item as a boolean
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name Setting
- * @return
+ * @brief Gets an item as boolean value from a configuration structure.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return boolean value if successful, the default value if not.
  */
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
     return strcmp(dap_config_get_item_str(a_config,a_section_path,a_item_name),"true") == 0;
 }
 
-
 /**
- * @brief dap_config_get_item_bool_default Getting a configuration item as a boolean
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name Setting
- * @param[in] a_default Default
- * @return
+ * @brief Gets an item as boolean value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return boolean value if successful, the default value if not.
  */
 bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_section_path,
                                       const char * a_item_name, bool a_default)
@@ -615,24 +617,23 @@ bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_se
 }
 
 /**
- * @brief dap_config_get_item_double Getting a configuration item as a floating-point value
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name Setting
- * @return
+ * @brief Gets an item as double value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return double value if successful, the default value if not.
  */
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
     return atof(dap_config_get_item_str(a_config,a_section_path,a_item_name));
 }
 
-/**
- * @brief dap_config_get_item_double Getting a configuration item as a floating-point value
- * @param[in] a_config Configuration
- * @param[in] a_section_path Path
- * @param[in] a_item_name Setting
- * @param[in] a_default Defailt
- * @return
+ /**
+ * @brief Gets an item as double value from a configuration structure or a default value.
+ * @param a_config a pointer to the configuration structure
+ * @param a_section_path a section name string
+ * @param a_item_name a item name string
+ * @return double value if successful, the default value if not.
  */
 double dap_config_get_item_double_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, double a_default)
 {
