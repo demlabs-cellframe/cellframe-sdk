@@ -10,10 +10,10 @@
 
 #define LOG_TAG "dap_config"
 
-/** A current configuration */
+/** A current configuration. */
 dap_config_t * g_config = NULL;
 
-/** A structure type for configuration item handling */
+/** A structure type for configuration item handling. */
 typedef struct dap_config_item{
     char name[64];
     struct dap_config_item * childs;
@@ -33,18 +33,20 @@ typedef struct dap_config_item{
     UT_hash_handle hh;
 } dap_config_item_t;
 
-
+/** A structure type for an internal pointer of configuration structure. */
 typedef struct dap_config_internal
 {
     dap_config_item_t * item_root;
 } dap_config_internal_t;
+
+/** Macros for getting a pointer of dap_config_internal_t type from a variable of dap_config_t type*/
 #define DAP_CONFIG_INTERNAL(a) ( (dap_config_internal_t* ) a->_internal )
 
 /** The maximal length of a configuration path */
 #define MAX_CONFIG_PATH 256
+
 /** A configuration directory path */
 static char s_configs_path[MAX_CONFIG_PATH] = "/opt/dap/etc";
-
 
 /**
  * @brief Initializes a configuration module.
@@ -82,7 +84,6 @@ const char * dap_config_path()
     return s_configs_path;
 }
 
-
 /**
  * @brief Deinitializes a configuration module.
  * @note You should call this function at the end.
@@ -91,7 +92,6 @@ void dap_config_deinit()
 {
 
 }
-
 
 /**
  * @brief Parses a string and return array length
