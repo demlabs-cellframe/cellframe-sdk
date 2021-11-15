@@ -323,17 +323,19 @@ size_t dap_chain_block_get_sign_offset(dap_chain_block_t *a_block, size_t a_bloc
  * @param a_cert
  * @return
  */
-size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_cert_t * a_cert )
+size_t dap_chain_block_sign_add(dap_chain_block_t **a_block_ptr, size_t a_block_size, dap_enc_key_t *a_key)
 {
     assert(a_block_ptr);
-    dap_chain_block_t * l_block = *a_block_ptr;
-    size_t l_offset = dap_chain_block_get_sign_offset(l_block,a_block_size);
-    dap_sign_t * l_block_sign = dap_cert_sign(a_cert,l_block,l_offset+sizeof (l_block->hdr),0);
+    dap_chain_block_t *l_block = *a_block_ptr;
+    size_t l_offset = dap_chain_block_get_sign_offset(l_block, a_block_size);
+    dap_sign_t *l_block_sign = dap_sign_create(a_key, l_block, l_offset + sizeof(l_block->hdr), 0);
     size_t l_block_sign_size = dap_sign_get_size(l_block_sign);
+    if (!l_block_sign_size)
+        return 0;
     *a_block_ptr = l_block = DAP_REALLOC(l_block, l_block_sign_size + a_block_size);
-    memcpy(  ((byte_t *)l_block) +a_block_size,l_block_sign, l_block_sign_size  );
+    memcpy(((byte_t *)l_block) + a_block_size, l_block_sign, l_block_sign_size);
     DAP_DELETE(l_block_sign);
-    return a_block_size+l_block_sign_size;
+    return a_block_size + l_block_sign_size;
 }
 
 /**

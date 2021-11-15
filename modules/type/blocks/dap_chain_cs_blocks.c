@@ -863,7 +863,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                 log_it(L_NOTICE,"Accepting new genesis block");
                 return ATOM_ACCEPT;
             }else if(s_seed_mode){
-                log_it(L_WARNING,"Cant accept genesis blockt: already present data in blockchain");
+                log_it(L_WARNING,"Cant accept genesis block: already present data in blockchain");
                 return  ATOM_REJECT;
             }
         }else{

@@ -51,6 +51,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
+static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 
 /**
  * @brief dap_chain_cs_dag_pos_init
@@ -83,6 +84,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_blocks->_inheritor = l_pos;
     l_blocks->callback_delete = s_callback_delete;
     l_blocks->callback_block_verify = s_callback_block_verify;
+    l_blocks->callback_block_sign = s_callback_block_sign;
     l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_block_pos_pvt_t);
 
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
@@ -171,11 +173,35 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
 }
 
 /**
+ * @brief
+ * function makes block singing
+ * @param a_dag a_blocks dap_chain_cs_blocks_t
+ * @param a_block dap_chain_block_t
+ * @param a_block_size size_t size of block object
+ * @return int
+ */
+static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size)
+{
+    assert(a_blocks);
+    dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(a_blocks);
+    dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
+    if (!l_pos_pvt->blocks_sign_key) {
+        log_it(L_WARNING, "Can't sign block with block-sign-wallet in [block-pos] section");
+        return 0;
+    }
+    if (!a_block_ptr || !(*a_block_ptr) || !a_block_size) {
+        log_it(L_WARNING, "Block size or blck pointer is NULL");
+        return 0;
+    }
+    return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_pos_pvt->blocks_sign_key);
+}
+
+/**
  * @brief 
- * function makes event singing verification
- * @param a_dag dag object
- * @param a_dag_event dap_chain_cs_dag_event_t
- * @param a_dag_event_size size_t size of event object
+ * function makes block singing verification
+ * @param a_dag a_blocks dap_chain_cs_blocks_t
+ * @param a_block dap_chain_block_t
+ * @param a_block_size size_t size of block object
  * @return int 
  */
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size)
@@ -200,7 +226,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     }
 
     uint16_t l_verified_num = 0;
-    dap_chain_addr_t l_addr = {};
     for (size_t l_sig_pos = 0; l_sig_pos < l_signs_count; l_sig_pos++) {
         dap_sign_t *l_sign = dap_chain_block_sign_get(a_block, a_block_size, l_sig_pos);
         if (l_sign == NULL) {
@@ -225,11 +250,12 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             return -41;
         }
 
-        dap_chain_hash_fast_t l_pkey_hash;
+        /*dap_chain_hash_fast_t l_pkey_hash;
         if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
             log_it(L_WARNING, "Block's sign has no any key");
             return -5;
         }
+        dap_chain_addr_t l_addr = {};
         dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_blocks->chain->net_id);
 
         if (l_sig_pos == 0) {
@@ -261,7 +287,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             log_it(L_WARNING, "Verify of block is false, because balance is not enough for addr=%s", l_addr_str);
             DAP_DELETE(l_addr_str);
             return -1;
-        }
+        }*/ // TODO comlete stake validator for all datums in the block
     }
 
     // Check number

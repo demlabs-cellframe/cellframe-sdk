@@ -44,7 +44,7 @@
 
 typedef struct dap_chain_cs_dag_poa_pvt
 {
-    dap_cert_t * sign_cert;
+    dap_enc_key_t *sign_key;
     dap_cert_t ** auth_certs;
     char * auth_certs_prefix;
     uint16_t auth_certs_count;
@@ -59,6 +59,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t* a_blocks);
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_block_t* a_block, size_t a_block_size);
+static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 
 // CLI commands
 static int s_cli_block_poa(int argc, char ** argv, char **str_reply);
@@ -174,6 +175,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_blocks->_inheritor = l_poa;
     l_blocks->callback_delete = s_callback_delete;
     l_blocks->callback_block_verify = s_callback_block_verify;
+    l_blocks->callback_block_sign = s_callback_block_sign;
     l_poa->_pvt = DAP_NEW_Z(dap_chain_cs_block_poa_pvt_t);
     dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
 
@@ -217,14 +219,19 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     if (PVT(l_poa)->prev_callback_created )
         PVT(l_poa)->prev_callback_created(a_chain,a_chain_net_cfg);
 
-    const char * l_sign_cert = NULL;
-    if ( ( l_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"block-poa","sign-cert") ) != NULL ) {
-
-        if ( ( PVT(l_poa)->sign_cert = dap_cert_find_by_name(l_sign_cert)) == NULL ){
-            log_it(L_ERROR,"Can't load sign certificate, name \"%s\" is wrong",l_sign_cert);
-        }else
-            log_it(L_NOTICE,"Loaded \"%s\" certificate to sign poa blocks", l_sign_cert);
-
+    const char * l_sign_cert_str = NULL;
+    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","sign-cert") ) != NULL ) {
+        dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert);
+        if (l_sign_cert == NULL) {
+            log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
+        } else if (l_sign_cert->enc_key->priv_key_data) {
+            PVT(l_poa)->sign_key = l_sign_cert->enc_key;
+            log_it(L_NOTICE, "Loaded \"%s\" certificate to sign poa blocks", l_sign_cert_str);
+        } else {
+            log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
+        }
+    } else {
+        log_it(L_ERROR, "No sign certificate provided, can't sign any blocks");
     }
     return 0;
 }
@@ -254,6 +261,29 @@ static void s_callback_delete(dap_chain_cs_blocks_t * a_blocks)
     }
 }
 
+/**
+ * @brief
+ * function makes block singing
+ * @param a_dag a_blocks dap_chain_cs_blocks_t
+ * @param a_block dap_chain_block_t
+ * @param a_block_size size_t size of block object
+ * @return int
+ */
+static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size)
+{
+    assert(a_blocks);
+    dap_chain_cs_block_poa_t *l_poa = DAP_CHAIN_CS_BLOCK_POA(a_blocks);
+    dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
+    if (!l_poa_pvt->sign_cert) {
+        log_it(L_WARNING, "Can't sign block with block-sign-cert in [block-poa] section");
+        return 0;
+    }
+    if (!a_block_ptr || !(*a_block_ptr) || !a_block_size) {
+        log_it(L_WARNING, "Block size or blck pointer is NULL");
+        return 0;
+    }
+    return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_poa_pvt->blocks_sign_key);
+}
 
 /**
  * @brief s_callbac_block_verify
