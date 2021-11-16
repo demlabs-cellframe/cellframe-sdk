@@ -123,19 +123,23 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
     const char * l_block_new_cmd_str = NULL;
     const char * l_block_hash_str = NULL;
     const char * l_cert_str = NULL;
-    dap_cert_t * l_cert = l_poa_pvt->sign_cert;
-    if ( l_poa_pvt->sign_cert == NULL) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "No certificate to sign blocks\n");
-        return -2;
-    }
 
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "block", &l_block_new_cmd_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-block", &l_block_hash_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
 
+    dap_enc_key_t *l_sign_key;
     // Load cert to sign if its present
-    if (l_cert_str)
-        l_cert = dap_cert_find_by_name( l_cert_str);
+    if (l_cert_str) {
+        dap_cert_t *l_cert = dap_cert_find_by_name( l_cert_str);
+        l_sign_key = l_cert->enc_key;
+    } else {
+        l_sign_key = l_poa_pvt->sign_key;
+    }
+    if (!l_sign_key || !l_sign_key->priv_key_data) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "No certificate to sign blocks\n");
+        return -2;
+    }
 
     // block hash may be in hex or base58 format
     char *l_block_hash_hex_str;
@@ -149,12 +153,10 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
         l_event_hash_base58_str = dap_strdup(l_block_hash_str);
     }
 
-    // Parse block ccmd
+    // Parse block cmd
     if ( l_block_new_cmd_str != NULL ){
-        if (l_poa_pvt->sign_cert )
-        ret = -1;
         if ( strcmp(l_block_new_cmd_str,"new_block_sign") == 0) { // Sign event command
-                l_blocks->block_new_size = dap_chain_block_sign_add( &l_blocks->block_new,l_blocks->block_new_size,  l_cert );
+                l_blocks->block_new_size = dap_chain_block_sign_add( &l_blocks->block_new,l_blocks->block_new_size, l_sign_key);
                 //dap_chain_hash_fast_t l_block_new_hash;
                 //dap_hash_fast(l_blocks->block_new, l_blocks->block_new_size,&l_block_new_hash);
         }
@@ -169,7 +171,7 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    dap_chain_cs_create(a_chain,a_chain_cfg);
+    dap_chain_cs_blocks_new(a_chain, a_chain_cfg);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS( a_chain );
     dap_chain_cs_block_poa_t * l_poa = DAP_NEW_Z ( dap_chain_cs_block_poa_t);
     l_blocks->_inheritor = l_poa;
@@ -221,7 +223,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
 
     const char * l_sign_cert_str = NULL;
     if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","sign-cert") ) != NULL ) {
-        dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert);
+        dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
         } else if (l_sign_cert->enc_key->priv_key_data) {
@@ -274,7 +276,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     assert(a_blocks);
     dap_chain_cs_block_poa_t *l_poa = DAP_CHAIN_CS_BLOCK_POA(a_blocks);
     dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
-    if (!l_poa_pvt->sign_cert) {
+    if (!l_poa_pvt->sign_key) {
         log_it(L_WARNING, "Can't sign block with block-sign-cert in [block-poa] section");
         return 0;
     }
@@ -282,7 +284,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
         log_it(L_WARNING, "Block size or blck pointer is NULL");
         return 0;
     }
-    return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_poa_pvt->blocks_sign_key);
+    return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_poa_pvt->sign_key);
 }
 
 /**

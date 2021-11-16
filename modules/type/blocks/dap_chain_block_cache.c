@@ -53,7 +53,7 @@ void dap_chain_block_cache_deinit()
  * @param a_block_size
  * @return
  */
-dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block, size_t a_block_size)
+dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t * a_block, size_t a_block_size)
 {
     if (! a_block)
         return NULL;
@@ -61,6 +61,7 @@ dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block,
     dap_chain_block_cache_t * l_block_cache = DAP_NEW_Z(dap_chain_block_cache_t);
     l_block_cache->block = a_block;
     l_block_cache->block_size= a_block_size;
+    l_block_cache->_inheritor = a_blocks;
     dap_chain_block_cache_update(l_block_cache);
 
     log_it(L_DEBUG,"Block cache created");
@@ -143,4 +144,3 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
     DAP_DELETE(a_block_cache);
     log_it(L_DEBUG,"Block cache deleted");
 }
-

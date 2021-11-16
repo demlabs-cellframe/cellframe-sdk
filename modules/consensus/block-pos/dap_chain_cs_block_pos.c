@@ -54,19 +54,19 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 
 /**
- * @brief dap_chain_cs_dag_pos_init
+ * @brief dap_chain_cs_block_pos_init
  * @return
  */
-int dap_chain_cs_dag_pos_init()
+int dap_chain_cs_block_pos_init()
 {
     dap_chain_cs_add("block_pos", s_callback_new);
     return 0;
 }
 
 /**
- * @brief dap_chain_cs_dag_pos_deinit
+ * @brief dap_chain_cs_block_pos_deinit
  */
-void dap_chain_cs_dag_pos_deinit(void)
+void dap_chain_cs_block_pos_deinit(void)
 {
 
 }
@@ -162,8 +162,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
 
 /**
- * @brief s_chain_cs_dag_callback_delete
- * @param a_dag
+ * @brief s_chain_cs_block_callback_delete
+ * @param a_block
  */
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
 {
@@ -175,7 +175,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
 /**
  * @brief
  * function makes block singing
- * @param a_dag a_blocks dap_chain_cs_blocks_t
+ * @param a_block a_blocks dap_chain_cs_blocks_t
  * @param a_block dap_chain_block_t
  * @param a_block_size size_t size of block object
  * @return int
@@ -199,7 +199,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
 /**
  * @brief 
  * function makes block singing verification
- * @param a_dag a_blocks dap_chain_cs_blocks_t
+ * @param a_block a_blocks dap_chain_cs_blocks_t
  * @param a_block dap_chain_block_t
  * @param a_block_size size_t size of block object
  * @return int 

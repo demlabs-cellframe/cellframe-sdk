@@ -83,7 +83,7 @@ typedef struct dap_chain_cs_blocks_iter
     dap_chain_block_cache_t * cache;
 } dap_chain_cs_blocks_iter_t;
 
-#define PVT(a) ((dap_chain_cs_blocks_pvt_t *) a->_pvt )
+#define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
 
 #define ITER_PVT(a) ((dap_chain_cs_blocks_iter_t *) a->_inheritor )
 
@@ -185,6 +185,7 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
     a_chain->_inheritor = l_cs_blocks;
+    l_cs_blocks->chain = a_chain;
 
     a_chain->callback_delete = s_callback_delete;
 
@@ -592,7 +593,7 @@ static void s_callback_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_blocks->_pvt);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
-    pthread_rwlock_destroy(&PVT(l_blocks)->datums_lock;)
+    pthread_rwlock_destroy(&PVT(l_blocks)->datums_lock);
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks );
     log_it(L_INFO,"callback_delete() called");
 }
@@ -777,7 +778,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         log_it(L_DEBUG, "... already present in blocks %s",l_block_cache->block_hash_str);
         return ATOM_PASS;
     } else {
-        l_block_cache = dap_chain_block_cache_new( l_block, l_block_size);
+        l_block_cache = dap_chain_block_cache_new(l_blocks, l_block, l_block_size);
         log_it(L_DEBUG, "... new block %s",l_block_cache->block_hash_str);
         ret = ATOM_ACCEPT;
     }
@@ -913,7 +914,8 @@ static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t * a_c
         dap_hash_fast(a_atom, a_atom_size, &l_atom_hash);
         dap_chain_atom_iter_t * l_atom_iter = s_callback_atom_iter_create(a_chain);
         if (l_atom_iter){
-            l_atom_iter->cur_item =ITER_PVT(l_atom_iter)->cache = dap_chain_block_cache_get_by_hash(l_atom_hash);
+            dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+            l_atom_iter->cur_item = ITER_PVT(l_atom_iter)->cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_atom_hash);
             l_atom_iter->cur = a_atom;
             l_atom_iter->cur_size = a_atom_size;
             return l_atom_iter;
@@ -959,7 +961,7 @@ static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * 
     dap_chain_tx_block_index_t * l_tx_block_index = NULL;
     HASH_FIND(hh, PVT(l_cs_blocks)->tx_block_index,a_tx_hash, sizeof (*a_tx_hash), l_tx_block_index);
     if (l_tx_block_index){
-        dap_chain_block_cache_t * l_block_cache = dap_chain_block_cache_get_by_hash( l_tx_block_index->block_hash );
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_tx_block_index->block_hash);
         if ( l_block_cache){
             return dap_chain_block_cache_get_tx_by_hash(l_block_cache, a_tx_hash);
         }else
@@ -1048,7 +1050,8 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
             *a_links_size = l_block_cache->links_hash_count;
             dap_chain_atom_ptr_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, l_block_cache->links_hash_count *sizeof (dap_chain_atom_ptr_t) );
             for (size_t i = 0; i< l_block_cache->links_hash_count; i ++){
-                dap_chain_block_cache_t * l_link =  dap_chain_block_cache_get_by_hash(l_block_cache->links_hash[i]);
+                dap_chain_cs_blocks_t *l_cs_blocks = (dap_chain_cs_blocks_t *)l_block_cache->_inheritor;
+                dap_chain_block_cache_t *l_link =  dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_block_cache->links_hash[i]);
                 assert(l_link);
                 (*a_links_size_ptr)[i] = l_link->block_size;
                 l_ret[i] = l_link->block;
@@ -1140,9 +1143,9 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     for (size_t i = 0; i < a_datums_count; i++) {
         size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
         if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum) {
-            s_new_block_complete(a_blocks);
+            s_new_block_complete(l_blocks);
             pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
-            s_callback_add_datums(a_chain, &a_datums[i], a_count - i);
+            s_callback_add_datums(a_chain, &a_datums[i], a_datums_count - i);
             pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
         }
         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size,
