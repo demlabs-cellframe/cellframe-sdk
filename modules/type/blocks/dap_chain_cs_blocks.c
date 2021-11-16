@@ -31,7 +31,7 @@
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 #include "dap_chain_block_chunk.h"
-
+#include "dap_timerfd.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #define LOG_TAG "dap_chain_cs_blocks"
@@ -59,7 +59,7 @@ typedef struct dap_chain_cs_blocks_pvt
 
     dap_chain_tx_block_index_t * tx_block_index; // To find block hash by tx hash
 
-    // General lins
+    // General links
     dap_chain_block_cache_t * block_cache_first; // Mapped area start
     dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
     dap_chain_hash_fast_t genesis_block_hash;
@@ -70,6 +70,10 @@ typedef struct dap_chain_cs_blocks_pvt
     time_t time_between_blocks_minimum; // Minimal time between blocks
     size_t block_size_maximum; // Maximum block size
     bool is_celled;
+
+    dap_timerfd_t *fill_timer;
+    pthread_rwlock_t datums_lock;
+    uint64_t fill_timeout;
 
 } dap_chain_cs_blocks_pvt_t;
 
@@ -122,7 +126,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
 // Delete iterator
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt block
 
-static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_size);
+static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count);
 
 static bool s_seed_mode=false;
 
@@ -209,8 +213,8 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 
     dap_chain_cs_blocks_pvt_t *l_cs_blocks_pvt = DAP_NEW_Z(dap_chain_cs_blocks_pvt_t);
     l_cs_blocks->_pvt = l_cs_blocks_pvt;
-    a_chain->_pvt = l_cs_blocks_pvt;
     pthread_rwlock_init(&l_cs_blocks_pvt->rwlock,NULL);
+    pthread_rwlock_init(&l_cs_blocks_pvt->datums_lock, NULL);
 
     const char * l_genesis_blocks_hash_str = dap_config_get_item_str_default(a_chain_config,"blocks","genesis_block",NULL);
     if ( l_genesis_blocks_hash_str ){
@@ -222,15 +226,10 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     l_cs_blocks_pvt->is_celled = dap_config_get_item_bool_default(a_chain_config,"blocks","is_celled",false);
 
     l_cs_blocks_pvt->chunks = dap_chain_block_chunks_create(l_cs_blocks);
-//    dap_chain_node_role_t l_net_role= dap_chain_net_get_role( dap_chain_net_by_id(a_chain->net_id) );
 
-    // Datum operations callbacks
-/*
-    a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
-    a_chain->callback_datum_iter_delete = s_chain_callback_datum_iter_delete; // Datum iterator delete
-    a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
-    a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
-*/
+    l_cs_blocks_pvt->block_size_maximum = 10 * 1024 * 1024; // 10 Mb
+    l_cs_blocks_pvt->fill_timeout = dap_config_get_item_uint64_default(a_chain_config, "blocks", "fill_timeout", 600); // 1 min
+
     return 0;
 }
 
@@ -240,8 +239,7 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
  */
 void dap_chain_cs_blocks_delete(dap_chain_t * a_chain)
 {
-   pthread_rwlock_destroy(&PVT( DAP_CHAIN_CS_BLOCKS(a_chain) )->rwlock );
-   dap_chain_block_chunks_delete(PVT(DAP_CHAIN_CS_BLOCKS(a_chain))->chunks );
+    s_callback_delete(a_chain);
 }
 
 /**
@@ -594,6 +592,8 @@ static void s_callback_delete(dap_chain_t * a_chain)
         DAP_DELETE(l_blocks->_pvt);
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
+    pthread_rwlock_destroy(&PVT(l_blocks)->datums_lock;)
+    dap_chain_block_chunks_delete(PVT(l_blocks)->chunks );
     log_it(L_INFO,"callback_delete() called");
 }
 
@@ -676,9 +676,7 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
         res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
         if (res) {
-            pthread_rwlock_rdlock( &PVT(a_blocks)->rwlock );
             log_it(L_INFO,"Block %s checked, but ledger declined", a_block_cache->block_hash_str );
-            pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
             return res;
         }
         //All correct, no matter for result
@@ -1098,6 +1096,32 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
     DAP_DELETE(a_atom_iter);
 }
 
+static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)
+{
+    size_t l_signed_size = a_blocks->callback_block_sign(a_blocks, &a_blocks->block_new, a_blocks->block_new_size);
+    if (l_signed_size)
+        a_blocks->block_new_size = l_signed_size;
+    else {
+        log_it(L_WARNING, "Block signing failed");
+        return -1;
+    }
+    dap_chain_atom_verify_res_t l_res = s_callback_atom_add(a_blocks->chain, a_blocks->block_new, a_blocks->block_new_size);
+    DAP_DEL_Z(a_blocks->block_new);
+    if (l_res == ATOM_ACCEPT)
+        return 0;
+    return -2;
+}
+
+static bool s_callback_datums_timer(void *a_arg)
+{
+    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT((dap_chain_cs_blocks_t *)a_arg);
+    // IMPORTANT - all datums on input should be checket before for curruption because datum size is taken from datum's header
+    pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
+    s_new_block_complete((dap_chain_cs_blocks_t *)a_arg);
+    pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+    return false;
+}
+
 /**
  * @brief s_callback_datums_pool_proc
  * @param a_chain
@@ -1105,13 +1129,27 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
  * @param a_datums_size
  * @return
  */
-static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_size)
+static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_datums, size_t a_datums_count)
 {
-    // IMPORTANT - all datums on input should be checket before for curruption because datum size is taken from datum's header
-    for (size_t i = 0; i < a_datums_size; i++) {
-        DAP_CHAIN_CS_BLOCKS(a_chain)->block_new_size = dap_chain_block_datum_add( &DAP_CHAIN_CS_BLOCKS(a_chain)->block_new,
-                                                                                         DAP_CHAIN_CS_BLOCKS(a_chain)->block_new_size,
-                                                                                         a_datums[i],dap_chain_datum_size(a_datums[i]) );
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
+    // IMPORTANT - all datums on input should be checked before for curruption because datum size is taken from datum's header
+    pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
+    if (!l_blocks->block_new)
+        l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash);
+    for (size_t i = 0; i < a_datums_count; i++) {
+        size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
+        if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum) {
+            s_new_block_complete(a_blocks);
+            pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+            s_callback_add_datums(a_chain, &a_datums[i], a_count - i);
+            pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
+        }
+        l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size,
+                                                             a_datums[i], l_datum_size);
     }
-    return DAP_CHAIN_CS_BLOCKS(a_chain)->block_new_size;
+    if (!l_blocks_pvt->fill_timer)
+        l_blocks_pvt->fill_timer = dap_timerfd_start(l_blocks_pvt->fill_timeout, s_callback_datums_timer, l_blocks);
+    pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+    return l_blocks->block_new_size;
 }
