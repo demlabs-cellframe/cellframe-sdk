@@ -141,7 +141,7 @@ bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, c
     return true;
 }
 
-//** A callback function designed for countng items*/
+//** A callback function designed for counting items*/
 bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     UNUSED(ksize);
     UNUSED(val);
