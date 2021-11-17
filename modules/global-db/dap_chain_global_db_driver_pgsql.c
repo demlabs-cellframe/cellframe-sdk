@@ -83,9 +83,10 @@ static void s_pgsql_free_connection(PGconn *a_conn)
 }
 
 /**
- * SQLite library initialization, no thread safe
- *
- * return 0 if Ok, else error code >0
+ * @brief Initializes a PostgreSQL database.
+ * @param a_filename_dir a path to the database file
+ * @param a_drv_callback a pointer to a structure of callback functions 
+ * @return If successful returns 0, else a error code <0.
  */
 int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks_t *a_drv_callback)
 {
@@ -189,7 +190,11 @@ int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks
     return 0;
 }
 
-
+/**
+ * @brief Deinitializes a PostgreSQL database.
+ * 
+ * @return Returns 0 if successful.
+ */
 int dap_db_driver_pgsql_deinit(void)
 {
     pthread_rwlock_wrlock(&s_db_rwlock);
@@ -201,7 +206,9 @@ int dap_db_driver_pgsql_deinit(void)
 }
 
 /**
- * Start a transaction
+ * @brief Starts a transaction in a PostgreSQL database.
+ * 
+ * @return Returns 0 if successful, otherwise -1.
  */
 int dap_db_driver_pgsql_start_transaction(void)
 {
@@ -220,7 +227,9 @@ int dap_db_driver_pgsql_start_transaction(void)
 }
 
 /**
- * End of transaction
+ * @brief Ends a transaction in a PostgreSQL database.
+ * 
+ * @return Returns 0 if successful, otherwise -1.
  */
 int dap_db_driver_pgsql_end_transaction(void)
 {
@@ -237,9 +246,11 @@ int dap_db_driver_pgsql_end_transaction(void)
 }
 
 /**
- * Create table
- *
- * return 0 if Ok, else error code
+ * @brief Creates a table in a PostgreSQL database.
+ * 
+ * @param a_table_name a table name string
+ * @param a_conn a pointer to the connection object
+ * @return Returns 0 if successful, otherwise -1.
  */
 static int s_pgsql_create_group_table(const char *a_table_name, PGconn *a_conn)
 {
@@ -261,8 +272,10 @@ static int s_pgsql_create_group_table(const char *a_table_name, PGconn *a_conn)
 }
 
 /**
- * Apply data (write or delete)
- *
+ * @brief Applies an object to a PostgreSQL database.
+ * 
+ * @param a_store_obj a pointer to the object structure
+ * @return Returns 0 if successful, else a error code less than zero.
  */
 int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
 {
@@ -337,6 +350,14 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
     return l_ret;
 }
 
+/**
+ * @brief Fills a object from a row
+ * @param a_group a group name string
+ * @param a_obj a pointer to the object
+ * @param a_res a pointer to the result structure
+ * @param a_row a row number
+ * @return (none)
+ */
 static void s_pgsql_fill_object(const char *a_group, dap_store_obj_t *a_obj, PGresult *a_res, int a_row)
 {
     a_obj->group = dap_strdup(a_group);
@@ -356,12 +377,12 @@ static void s_pgsql_fill_object(const char *a_group, dap_store_obj_t *a_obj, PGr
 }
 
 /**
- * Read several items
- *
- * a_group - group name
- * a_key - key name, may by NULL, it means reading the whole group
- * a_count_out[in], how many items to read, 0 - no limits
- * a_count_out[out], how many items was read
+ * @brief Reads some objects from a PostgreSQL database by a_group and a_key.
+ * @param a_group a group name string
+ * @param a_key an object key string, if equals NULL reads the whole group
+ * @param a_count_out[in] a number of objects to be read, if equals 0 reads with no limits
+ * @param a_count_out[out] a number of objects that were read
+ * @return If successful, a pointer to an objects, otherwise a null pointer.
  */
 dap_store_obj_t *dap_db_driver_pgsql_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
@@ -409,9 +430,9 @@ dap_store_obj_t *dap_db_driver_pgsql_read_store_obj(const char *a_group, const c
 }
 
 /**
- * Read last item
- *
- * a_group - group name
+ * @brief Reads a last object from a PostgreSQL database.
+ * @param a_group a group name string
+ * @return Returns a pointer to the object if successful, otherwise a null pointer.
  */
 dap_store_obj_t *dap_db_driver_pgsql_read_last_store_obj(const char *a_group)
 {
@@ -444,12 +465,12 @@ dap_store_obj_t *dap_db_driver_pgsql_read_last_store_obj(const char *a_group)
 }
 
 /**
- * Read several items with conditoin
- *
- * a_group - group name
- * a_id - read from this id
- * a_count_out[in], how many items to read, 0 - no limits
- * a_count_out[out], how many items was read
+ * @brief Reads some objects from a PostgreSQL database by conditions.
+ * @param a_group a group name string
+ * @param a_id id
+ * @param a_count_out[in] a number of objects to be read, if equals 0 reads with no limits
+ * @param a_count_out[out] a number of objects that were read 
+ * @return If successful, a pointer to an objects, otherwise a null pointer. 
  */
 dap_store_obj_t *dap_db_driver_pgsql_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
 {
@@ -493,7 +514,11 @@ dap_store_obj_t *dap_db_driver_pgsql_read_cond_store_obj(const char *a_group, ui
     return l_obj;
 }
 
-
+/**
+ * @brief Gets a list of group names from a PostgreSQL database by a_group_mask.
+ * @param a_group_mask a group name mask
+ * @return Returns a pointer to a list of group names if successful, otherwise a null pointer.
+ */
 dap_list_t *dap_db_driver_pgsql_get_groups_by_mask(const char *a_group_mask)
 {
     if (!a_group_mask)
@@ -524,6 +549,12 @@ dap_list_t *dap_db_driver_pgsql_get_groups_by_mask(const char *a_group_mask)
     return l_ret_list;
 }
 
+/**
+ * @brief Reads a number of objects from a PostgreSQL database by a_group and a_id.
+ * @param a_group a group name string
+ * @param a_id id starting from which the quantity is calculated
+ * @return Returns a number of objects.
+ */
 size_t dap_db_driver_pgsql_read_count_store(const char *a_group, uint64_t a_id)
 {
     if (!a_group)
@@ -551,6 +582,12 @@ size_t dap_db_driver_pgsql_read_count_store(const char *a_group, uint64_t a_id)
     return l_ret;
 }
 
+/**
+ * @brief Checks if an object is in a PostgreSQL database by a_group and a_key.
+ * @param a_group a group name string
+ * @param a_key a object key string
+ * @return Returns true if it is, false it's not.
+ */
 bool dap_db_driver_pgsql_is_obj(const char *a_group, const char *a_key)
 {
     if (!a_group)
@@ -577,6 +614,10 @@ bool dap_db_driver_pgsql_is_obj(const char *a_group, const char *a_key)
     return l_ret;
 }
 
+/**
+ * @brief Flushes a PostgreSQ database cahce to disk.
+ * @return Returns 0 if successful, else a error code less than zero.
+ */
 int dap_db_driver_pgsql_flush()
 {
     PGconn *l_conn = s_pgsql_get_connection();
