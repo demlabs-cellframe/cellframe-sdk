@@ -145,17 +145,19 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(l_blocks);
 
-    const char *l_blocks_sign_wallet = NULL;
-    if ((l_blocks_sign_wallet = dap_config_get_item_str(a_chain_net_cfg, "block-pos", "blocks-sign-wallet")) == NULL) {
-        log_it(L_WARNING, "Block's sign wallet is empty for %s chain, can't sign any blocks for it", a_chain->name);
-        return -1;
-    }
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_blocks_sign_wallet, dap_chain_wallet_get_path(g_config));
-    if (!l_wallet) {
-        log_it(L_ERROR,"Can't load block's sign wallet, name \"%s\" is wrong", l_blocks_sign_wallet);
+    const char * l_sign_cert_str = NULL;
+    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-pos","sign-cert") ) != NULL ) {
+        dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
+        if (l_sign_cert == NULL) {
+            log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
+        } else if (l_sign_cert->enc_key->priv_key_data) {
+            PVT(l_pos)->blocks_sign_key = l_sign_cert->enc_key;
+            log_it(L_NOTICE, "Loaded \"%s\" certificate to sign PoS blocks", l_sign_cert_str);
+        } else {
+            log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
+        }
     } else {
-        PVT(l_pos)->blocks_sign_key = dap_chain_wallet_get_key(l_wallet, 0);
-        log_it(L_NOTICE,"Loaded \"%s\" wallet to sign PoS block's", l_blocks_sign_wallet);
+        log_it(L_ERROR, "No sign certificate provided, can't sign any blocks");
     }
     return 0;
 }
@@ -186,11 +188,11 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(a_blocks);
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
     if (!l_pos_pvt->blocks_sign_key) {
-        log_it(L_WARNING, "Can't sign block with block-sign-wallet in [block-pos] section");
+        log_it(L_WARNING, "Can't sign block with sign-cert in [block-pos] section");
         return 0;
     }
     if (!a_block_ptr || !(*a_block_ptr) || !a_block_size) {
-        log_it(L_WARNING, "Block size or blck pointer is NULL");
+        log_it(L_WARNING, "Block size or block pointer is NULL");
         return 0;
     }
     return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_pos_pvt->blocks_sign_key);
