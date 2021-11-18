@@ -75,7 +75,7 @@ int dap_chain_cs_block_poa_init(void)
     dap_chain_cs_add ("block_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_node_cli_cmd_item_create ("block_poa", s_cli_block_poa, "Blockchain PoA commands",
-        "block_poa -net <chain net name> -chain <chain name> block new_block_sign [-cert <cert name>] \n"
+        "block_poa -net <chain net name> -chain <chain name> block sign [-cert <cert name>] \n"
             "\tSign new block with certificate <cert name> or withs own PoA certificate\n\n");
 
     return 0;
@@ -155,7 +155,7 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
 
     // Parse block cmd
     if ( l_block_new_cmd_str != NULL ){
-        if ( strcmp(l_block_new_cmd_str,"new_block_sign") == 0) { // Sign event command
+        if ( strcmp(l_block_new_cmd_str,"sign") == 0) { // Sign event command
                 l_blocks->block_new_size = dap_chain_block_sign_add( &l_blocks->block_new,l_blocks->block_new_size, l_sign_key);
                 //dap_chain_hash_fast_t l_block_new_hash;
                 //dap_hash_fast(l_blocks->block_new, l_blocks->block_new_size,&l_block_new_hash);
@@ -222,7 +222,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
         PVT(l_poa)->prev_callback_created(a_chain,a_chain_net_cfg);
 
     const char * l_sign_cert_str = NULL;
-    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","blocks-sign-cert") ) != NULL ) {
+    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","sign-cert") ) != NULL ) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
@@ -277,7 +277,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     dap_chain_cs_block_poa_t *l_poa = DAP_CHAIN_CS_BLOCK_POA(a_blocks);
     dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     if (!l_poa_pvt->sign_key) {
-        log_it(L_WARNING, "Can't sign block with block-sign-cert in [block-poa] section");
+        log_it(L_WARNING, "Can't sign block with sign-cert in [block-poa] section");
         return 0;
     }
     if (!a_block_ptr || !(*a_block_ptr) || !a_block_size) {

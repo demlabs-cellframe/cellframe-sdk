@@ -94,14 +94,14 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     uint16_t l_tokens_hold_size = 0;
     uint16_t l_tokens_hold_value_size = 0;
 
-    l_tokens_hold = dap_config_get_array_str(a_chain_cfg, "block-pos", "tokens_hold", &l_tokens_hold_size);
-    l_tokens_hold_value_str = dap_config_get_array_str(a_chain_cfg, "block-pos", "tokens_hold_value", &l_tokens_hold_value_size);
+    l_tokens_hold = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens", &l_tokens_hold_size);
+    l_tokens_hold_value_str = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens_value", &l_tokens_hold_value_size);
 
     if (l_tokens_hold_size != l_tokens_hold_value_size){
         log_it(L_CRITICAL, "Entries tokens_hold and tokens_hold_value are different size!");
         goto lb_err;
     }
-    l_pos_pvt->confirmations_minimum = dap_config_get_item_uint16_default(a_chain_cfg, "block-pos", "confirmations_minimum", 1);
+    l_pos_pvt->confirmations_minimum = dap_config_get_item_uint16_default(a_chain_cfg, "block-pos", "verifications_minimum", 1);
     l_pos_pvt->tokens_hold_size = l_tokens_hold_size;
     l_pos_pvt->tokens_hold = DAP_NEW_Z_SIZE(char *, sizeof(char *) * l_tokens_hold_size);
     l_pos_pvt->tokens_hold_value = DAP_NEW_Z_SIZE(uint64_t, l_tokens_hold_value_size * sizeof(uint64_t));
