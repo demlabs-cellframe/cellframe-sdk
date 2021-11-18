@@ -222,7 +222,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
         PVT(l_poa)->prev_callback_created(a_chain,a_chain_net_cfg);
 
     const char * l_sign_cert_str = NULL;
-    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","sign-cert") ) != NULL ) {
+    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","blocks-sign-cert") ) != NULL ) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
@@ -281,7 +281,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
         return 0;
     }
     if (!a_block_ptr || !(*a_block_ptr) || !a_block_size) {
-        log_it(L_WARNING, "Block size or blck pointer is NULL");
+        log_it(L_WARNING, "Block size or block pointer is NULL");
         return 0;
     }
     return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_poa_pvt->sign_key);
@@ -306,21 +306,23 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_b
         return -2;
     }
     // Parse the rest signs
-    size_t l_offset = (byte_t*)l_sign - (byte_t*) a_block;
-    while (l_offset < a_block_size - sizeof (a_block->hdr) ){
+    size_t l_offset = (byte_t *)l_sign - a_block->meta_n_datum_n_sign;
+    while (l_offset < a_block_size - sizeof(a_block->hdr)) {
+        if (!dap_sign_verify_size(l_sign, a_block_size)) {
+            log_it(L_ERROR, "Corrupted block: sign size is bigger than block size");
+            return -3;
+        }
         size_t l_sign_size = dap_sign_get_size(l_sign);
         // Check if sign size 0
         if (!l_sign_size){
             log_it(L_ERROR, "Corrupted block: sign size got zero");
-            return -3;
+            return -4;
         }
         // Check if sign size too big
         if (l_sign_size > a_block_size- sizeof (a_block->hdr)-l_offset ){
             log_it(L_ERROR, "Corrupted block: sign size %zd is too big, out from block size %zd", l_sign_size, a_block_size);
-            return -3;
+            return -5;
         }
-        l_offset += l_sign_size;
-
         // Compare signature with auth_certs
         for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
             if (dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j], l_sign) == 0){
@@ -328,6 +330,12 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_b
                 break;
             }
         }
+        l_offset += l_sign_size;
+        l_sign = (dap_sign_t *)(a_block->meta_n_datum_n_sign + l_offset);
+    }
+    if (l_offset != a_block_size - sizeof(a_block->hdr)) {
+        log_it(L_ERROR, "Corrupted block: sign end exceeded the block bound");
+        return -6;
     }
     return l_signs_verified_count >= l_poa_pvt->auth_certs_count_verify ? 0 : -1;
 }

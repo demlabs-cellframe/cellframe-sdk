@@ -84,6 +84,8 @@ void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks)
  */
 void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_block_cache_t  * a_block_cache)
 {
+    if (!a_block_cache)
+        return;
     dap_chain_block_cache_hash_t  * l_chunk_cache_hash = NULL;
     // Parse block and produce cache object
     dap_chain_block_t *l_block = a_block_cache->block;

@@ -26,6 +26,7 @@
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_chain.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_block.h"
@@ -229,7 +230,7 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     l_cs_blocks_pvt->chunks = dap_chain_block_chunks_create(l_cs_blocks);
 
     l_cs_blocks_pvt->block_size_maximum = 10 * 1024 * 1024; // 10 Mb
-    l_cs_blocks_pvt->fill_timeout = dap_config_get_item_uint64_default(a_chain_config, "blocks", "fill_timeout", 600); // 1 min
+    l_cs_blocks_pvt->fill_timeout = dap_config_get_item_uint64_default(a_chain_config, "blocks", "fill_timeout", 60) * 1000; // 1 min
 
     return 0;
 }
@@ -380,8 +381,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
             if ( l_blocks->block_new )
                 DAP_DELETE( l_blocks->block_new );
-            l_blocks->block_new = dap_chain_block_new( PVT(l_blocks)->block_cache_last? &PVT(l_blocks)->block_cache_last->block_hash: NULL );
-            l_blocks->block_new_size = sizeof (l_blocks->block_new->hdr);
+            l_blocks->block_new = dap_chain_block_new(PVT(l_blocks)->block_cache_last ?
+                                                      &PVT(l_blocks)->block_cache_last->block_hash : NULL,
+                                                      &l_blocks->block_new_size);
             pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
         } break;
 
@@ -475,7 +477,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                         dap_chain_block_meta_t * l_meta = l_block_cache->meta[i];
                         switch (l_meta->hdr.type) {
                             case DAP_CHAIN_BLOCK_META_GENESIS:{
-                                dap_string_append_printf(l_str_tmp,"\t\tGENESIS\n");
+                                dap_string_append_printf(l_str_tmp, "\t\tGENESIS\n");
                             }break;
                             case DAP_CHAIN_BLOCK_META_PREV:{
                                 s_cli_meta_hash_print(l_str_tmp, "PREV", l_meta);
@@ -685,7 +687,8 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
         if (! (PVT(a_blocks)->block_cache_first ) )
                 PVT(a_blocks)->block_cache_first = a_block_cache;
-        PVT(a_blocks)->block_cache_last->next = a_block_cache;
+        if (PVT(a_blocks)->block_cache_last)
+            PVT(a_blocks)->block_cache_last->next = a_block_cache;
         a_block_cache->prev = PVT(a_blocks)->block_cache_last;
         PVT(a_blocks)->block_cache_last = a_block_cache;
 
@@ -779,6 +782,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         return ATOM_PASS;
     } else {
         l_block_cache = dap_chain_block_cache_new(l_blocks, l_block, l_block_size);
+        if (!l_block_cache) {
+            log_it(L_DEBUG, "... corrupted block");
+            return ATOM_REJECT;
+        }
         log_it(L_DEBUG, "... new block %s",l_block_cache->block_hash_str);
         ret = ATOM_ACCEPT;
     }
@@ -786,7 +793,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     // verify hashes and consensus
     if(ret == ATOM_ACCEPT){
         ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
-        log_it(L_DEBUG, "Verified atom %p: code %d", a_atom, ret);
+        log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
+                                                       (ret == ATOM_REJECT ? "rejected" : "thresholded"));
     }
 
     if( ret == ATOM_ACCEPT){
@@ -844,6 +852,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     dap_chain_block_meta_extract(l_meta, l_meta_count,
                                         &l_block_prev_hash,
                                         &l_block_anchor_hash,
+                                        NULL,
                                         NULL,
                                         NULL,
                                         &l_is_genesis,
@@ -1101,6 +1110,9 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
 
 static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)
 {
+    dap_hash_fast_t l_merkle_root = {};     // TODO compute the merkle root of block's datums
+    a_blocks->block_new_size = dap_chain_block_meta_add(&a_blocks->block_new, a_blocks->block_new_size,
+                                                        DAP_CHAIN_BLOCK_META_MERKLE, &l_merkle_root, sizeof(l_merkle_root));
     size_t l_signed_size = a_blocks->callback_block_sign(a_blocks, &a_blocks->block_new, a_blocks->block_new_size);
     if (l_signed_size)
         a_blocks->block_new_size = l_signed_size;
@@ -1118,10 +1130,10 @@ static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)
 static bool s_callback_datums_timer(void *a_arg)
 {
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT((dap_chain_cs_blocks_t *)a_arg);
-    // IMPORTANT - all datums on input should be checket before for curruption because datum size is taken from datum's header
     pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
     s_new_block_complete((dap_chain_cs_blocks_t *)a_arg);
     pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+    l_blocks_pvt->fill_timer = NULL;
     return false;
 }
 
@@ -1138,8 +1150,12 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
     // IMPORTANT - all datums on input should be checked before for curruption because datum size is taken from datum's header
     pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
-    if (!l_blocks->block_new)
-        l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash);
+    if (!l_blocks->block_new) {
+        l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash, &l_blocks->block_new_size);
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_blocks->chain->net_id);
+        l_blocks->block_new->hdr.cell_id.uint64 = l_net->pub.cell_id.uint64;
+        l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
+    }
     for (size_t i = 0; i < a_datums_count; i++) {
         size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
         if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum) {

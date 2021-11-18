@@ -398,7 +398,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     case ATOM_ACCEPT:
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
         if(s_debug_more)
-            log_it(L_DEBUG, "Verified atom %p: code %d", a_atom, ret);
+            log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
+                                                           (ret == ATOM_REJECT ? "rejected" : "thresholded"));
         break;
     case ATOM_PASS:
         if(s_debug_more) {
