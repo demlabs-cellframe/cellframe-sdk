@@ -225,6 +225,35 @@ typedef struct dap_chain_datum_token_emission{
     } data;
 } DAP_ALIGN_PACKED dap_chain_datum_token_emission_t;
 
+// 256 Token emission
+typedef struct dap_chain_datum_256_token_emission{
+    struct  {
+        uint8_t version;
+        uint8_t type; // Emission Type
+        char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+        dap_chain_addr_t address; // Emission holder's address
+        uint256_t value;
+    } DAP_ALIGN_PACKED hdr;
+    union {
+        struct {
+            dap_chain_addr_t addr;
+            int flags;
+            uint64_t lock_time;
+        } DAP_ALIGN_PACKED type_presale;
+        struct {
+            uint256_t value_start;// Default value. Static if nothing else is defined
+            char value_change_algo_codename[32];
+        } DAP_ALIGN_PACKED type_atom_owner;
+        struct {
+            char codename[32];
+        } DAP_ALIGN_PACKED type_algo;
+        struct {
+            uint16_t signs_count;
+            byte_t  signs[];
+        } DAP_ALIGN_PACKED type_auth;// Signs if exists
+    } data;
+} DAP_ALIGN_PACKED dap_chain_datum_256_token_emission_t;
+
 // Different emissions type
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED         0x00
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH              0x01

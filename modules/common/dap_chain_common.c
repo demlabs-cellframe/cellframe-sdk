@@ -421,25 +421,29 @@ uint128_t dap_chain_balance_scan(char *a_balance)
             return l_nul;
         }
         l_tmp = (l_tmp << 64) + c_pow10[i].u64[1] * l_digit;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        // l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret == l_nul)
             return l_nul;
 #else
         uint128_t l_tmp;
         l_tmp.u64[0] = 0;
         l_tmp.u64[1] = c_pow10[i].u32[2] * l_digit;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        // l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
             return l_nul;
         uint64_t l_mul = c_pow10[i].u32[3] * l_digit;
         l_tmp.u64[1] = l_mul << 32;
         l_tmp.u64[0] = l_mul >> 32;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        // l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
             return l_nul;
         l_tmp.u64[1] = 0;
         l_tmp.u64[0] = c_pow10[i].u32[0] * l_digit;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        //l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
             return l_nul;
         l_mul = c_pow10[i].u32[1] * l_digit;
@@ -448,7 +452,8 @@ uint128_t dap_chain_balance_scan(char *a_balance)
             return l_nul;
         }
         l_tmp.u64[0] = l_mul << 32;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        //l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
             return l_nul;
 #endif
