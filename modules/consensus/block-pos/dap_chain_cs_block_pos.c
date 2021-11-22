@@ -253,7 +253,10 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         }
 
         if (l_sig_pos == 0) {
-            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
+            dap_chain_addr_t l_addr = {};
+            dap_chain_hash_fast_t l_pkey_hash;
+            dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_blocks->chain->net_id);
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
             if (!l_datums || !l_datums_count) {

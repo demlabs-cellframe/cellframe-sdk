@@ -99,7 +99,6 @@
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_node_dns_client.h"
-
 #include "dap_module.h"
 
 #include <stdio.h>
@@ -2865,11 +2864,14 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:{
                                             dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE\n");
                                         }break;
+                                        default:{
+                                            dap_string_append_printf(a_str_out,"\tsubtype: UNKNOWN\n");
+                                        }break;
                                     }
                                     dap_string_append_printf(a_str_out,"\tparams_size : %u\n", l_out->params_size );
                                 } break;
-                                case TX_ITEM_TYPE_RECEIPT:{} break;
-                                default:{}
+                                case TX_ITEM_TYPE_RECEIPT:
+                                default: break;
                             }
                             n++;
                         }

@@ -234,7 +234,6 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     }
     if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
         uint16_t l_verified_num = 0;
-        dap_chain_addr_t l_addr = { 0 };
 
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
             dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, a_dag_event_size,l_sig_pos);
@@ -258,17 +257,10 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 return -41;
             }
 
-            if (!l_dag_event_size_without_sign){
-                log_it(L_WARNING,"Event has nothing except sign, nothing to verify so I pass it (who knows why we have it?)");
-                return 0;
-            }
-
-            dap_chain_hash_fast_t l_pkey_hash;
-            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
-                log_it(L_WARNING, "Event's sign has no any key");
-                return -5;
-            }
             if (l_sig_pos == 0) {
+                dap_chain_addr_t l_addr = {};
+                dap_chain_hash_fast_t l_pkey_hash;
+                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
                 dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
                 dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event, a_dag_event_size);
                 if (!dap_chain_net_srv_stake_validator(&l_addr, l_datum)) {

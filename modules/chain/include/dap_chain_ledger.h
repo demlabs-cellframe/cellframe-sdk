@@ -42,7 +42,7 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
-typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx);
+typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 
 // Checks the emission of the token, usualy on zero chain
 #define DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION    0x0001
