@@ -207,6 +207,7 @@ typedef enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_256_OUT_COND = 0x61, // 256
 
     TX_ITEM_TYPE_RECEIPT = 0x70,
+    TX_ITEM_TYPE_256_RECEIPT = 0x71,
 
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff

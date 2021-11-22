@@ -67,7 +67,7 @@ dap_chain_datum_256_tx_receipt_t * dap_chain_datum_256_tx_receipt_create( dap_ch
                                                                   const void * a_ext, size_t a_ext_size)
 {
     dap_chain_datum_256_tx_receipt_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_datum_256_tx_receipt_t, dap_chain_datum_256_tx_receipt_get_size_hdr() +a_ext_size );
-    l_ret->type = TX_ITEM_TYPE_RECEIPT;
+    l_ret->type = TX_ITEM_TYPE_256_RECEIPT;
     l_ret->receipt_info.units_type = a_units_type;
     l_ret->receipt_info.srv_uid = a_srv_uid;
     l_ret->receipt_info.units = a_units;
@@ -202,6 +202,6 @@ uint16_t dap_chain_datum_256_tx_receipt_signs_count(dap_chain_datum_256_tx_recei
         l_ret++;
     }
     if(a_receipt_size != (size_t) ((byte_t *) l_sign - (byte_t *) a_receipt) )
-        log_it(L_ERROR, "Receipt 0x%zu (size=%zu) is corrupted", (size_t)a_receipt, a_receipt_size);
+        log_it(L_ERROR, "256 Receipt 0x%zu (size=%zu) is corrupted", (size_t)a_receipt, a_receipt_size);
     return l_ret;
 }

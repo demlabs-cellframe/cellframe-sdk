@@ -54,16 +54,17 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_IN: return "TX_ITEM_TYPE_IN";
         case TX_ITEM_TYPE_OUT: return "TX_ITEM_TYPE_OUT";
         case TX_ITEM_TYPE_OUT_EXT: return "TX_ITEM_TYPE_OUT_EXT";
-        case TX_ITEM_TYPE_256_OUT: return "TX_ITEM_TYPE_256_OUT"; //256
-        case TX_ITEM_TYPE_256_OUT_EXT: return "TX_ITEM_TYPE_256_OUT_EXT"; //256
+        case TX_ITEM_TYPE_256_OUT: return "TX_ITEM_TYPE_256_OUT"; // 256
+        case TX_ITEM_TYPE_256_OUT_EXT: return "TX_ITEM_TYPE_256_OUT_EXT"; // 256
         case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
         case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
         case TX_ITEM_TYPE_TOKEN: return "TX_ITEM_TYPE_TOKEN";
         case TX_ITEM_TYPE_TOKEN_EXT: return "TX_ITEM_TYPE_TOKEN_EXT";
         case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
         case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND";
-        case TX_ITEM_TYPE_256_OUT_COND: return "TX_ITEM_TYPE_256_OUT_COND"; //256
+        case TX_ITEM_TYPE_256_OUT_COND: return "TX_ITEM_TYPE_256_OUT_COND"; // 256
         case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
+        case TX_ITEM_TYPE_256_RECEIPT: return "TX_ITEM_TYPE_256_RECEIPT"; // 256
         case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_ALL";
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         default: return "UNDEFINED";

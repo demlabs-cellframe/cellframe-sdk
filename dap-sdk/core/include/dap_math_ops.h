@@ -13,7 +13,7 @@
 
 #if __SIZEOF_INT128__ == 16
 
-//#define DAP_GLOBAL_IS_INT128
+#define DAP_GLOBAL_IS_INT128
 
 #endif
 
