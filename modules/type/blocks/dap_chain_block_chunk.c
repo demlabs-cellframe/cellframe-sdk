@@ -44,7 +44,7 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
     size_t l_objs_count =0;
     dap_global_db_obj_t * l_objs= dap_chain_global_db_gr_load(l_ret->gdb_group, &l_objs_count);
     for(size_t n=0; n< l_objs_count; n++){
-        dap_chain_block_cache_t * l_block_cache = dap_chain_block_cache_new((dap_chain_block_t*) l_objs[n].value,l_objs[n].value_len);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_new(a_blocks, (dap_chain_block_t*)l_objs[n].value, l_objs[n].value_len);
         dap_chain_block_chunks_add(l_ret, l_block_cache );
     }
     dap_chain_global_db_objs_delete(l_objs,l_objs_count);
@@ -84,6 +84,8 @@ void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks)
  */
 void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_block_cache_t  * a_block_cache)
 {
+    if (!a_block_cache)
+        return;
     dap_chain_block_cache_hash_t  * l_chunk_cache_hash = NULL;
     // Parse block and produce cache object
     dap_chain_block_t *l_block = a_block_cache->block;

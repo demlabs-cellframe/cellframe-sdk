@@ -38,18 +38,8 @@ if (CELLFRAME_MODULES MATCHES "srv")
 endif()
 
 # Consensus type dag
-if (CELLFRAME_MODULES MATCHES "cs-dag")
+if (CELLFRAME_MODULES MATCHES "cs-dag-")
     add_subdirectory(type/dag)
-endif()
-
-# Consensus type dag
-if (CELLFRAME_MODULES MATCHES "cs-blocks")
-    add_subdirectory(type/blocks)
-endif()
-
-# No consensus
-if (CELLFRAME_MODULES MATCHES "cs-none")
-    add_subdirectory(consensus/none)
 endif()
 
 # DAG PoA
@@ -60,6 +50,31 @@ endif()
 # DAG PoS
 if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
     add_subdirectory(consensus/dag-pos)
+endif()
+
+# Consensus type blocks
+if (CELLFRAME_MODULES MATCHES "cs-block-")
+    add_subdirectory(type/blocks)
+endif()
+
+# Block PoA
+if (CELLFRAME_MODULES MATCHES "cs-block-poa")
+    add_subdirectory(consensus/block-poa)
+endif()
+
+# Block PoS
+if (CELLFRAME_MODULES MATCHES "cs-block-pos")
+    add_subdirectory(consensus/block-pos)
+endif()
+
+# Block PoW
+if (CELLFRAME_MODULES MATCHES "cs-block-pow")
+    add_subdirectory(consensus/block-pow)
+endif()
+
+# No consensus
+if (CELLFRAME_MODULES MATCHES "cs-none")
+    add_subdirectory(consensus/none)
 endif()
 
 # Service App
