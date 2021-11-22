@@ -1768,7 +1768,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             const uint8_t *l_pkey_ser = dap_sign_get_pkey(l_sign, &l_pkey_ser_size);
             dap_chain_tx_out_cond_t *l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_tx_prev_out;
             bool l_owner = false;
-            if (l_pkey_ser_size == l_prev_pkey_ser_size ||
+            if (l_pkey_ser_size == l_prev_pkey_ser_size &&
                     !memcmp(l_prev_pkey_ser, l_pkey_ser, l_prev_pkey_ser_size)) {
                 l_owner = true;
             }
