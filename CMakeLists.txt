@@ -105,6 +105,30 @@ if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag_pos)
 endif()
 
+# Blocks based consensus(es)
+if (CELLFRAME_MODULES MATCHES "cs-block-" )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag)
+endif()
+
+# PoA consensus for blocks
+if (CELLFRAME_MODULES MATCHES "cs-block-poa")
+    message("[+] Module 'cs-block-poa'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_block_poa)
+endif()
+
+# PoS consensus for blocks
+if (CELLFRAME_MODULES MATCHES "cs-block-pos")
+    message("[+] Module 'cs-block-pos'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_block_pos)
+endif()
+
+# PoW consensus for blocks
+if (CELLFRAME_MODULES MATCHES "cs-block-pow")
+    message("[+] Module 'cs-block-pow'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_block_pos)
+endif()
+
+
 # No-consensus
 if (CELLFRAME_MODULES MATCHES "cs-none")
     message("[+] Module 'cs-none'")
