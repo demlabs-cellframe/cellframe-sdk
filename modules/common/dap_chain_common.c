@@ -282,6 +282,15 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     return -1;
 }
 
+// 256
+uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
+{
+    if ( !( EQUAL_128(a_from.hi, zero_128) ) ) {
+        log_it(L_ERROR, "Can't convert to uint128_t. It's too big.");
+    }
+    return a_from.lo;
+}
+
 uint64_t dap_chain_uint128_to(uint128_t a_from)
 {
 #ifdef DAP_GLOBAL_IS_INT128
@@ -296,6 +305,13 @@ uint64_t dap_chain_uint128_to(uint128_t a_from)
     return a_from.u64[1];
 #endif
 }
+
+// 256
+uint64_t dap_chain_uint256_to(uint256_t a_from)
+{
+    return dap_chain_uint128_to(a_from.lo);
+}
+
 
 char *dap_chain_balance_print(uint128_t a_balance)
 {

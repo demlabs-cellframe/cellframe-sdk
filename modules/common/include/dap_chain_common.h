@@ -258,15 +258,33 @@ DAP_STATIC_INLINE uint64_t dap_chain_coins_to_datoshi(long double a_count)
 
 DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from)
 {
-#ifdef DAP_GLOBAL_IS_INT128
-    return (uint128_t)a_from;
-#else
-    uint128_t l_ret = {{ .0, a_from}};
+// #ifdef DAP_GLOBAL_IS_INT128
+//     return (uint128_t)a_from;
+// #else
+//     uint128_t l_ret = {{ .0, a_from}};
+//     return l_ret;
+// #endif
+    uint128_t l_ret = zero_128;
+    ADD_64_INTO_128(a_from, &l_ret );
     return l_ret;
-#endif
+}
+
+// 256
+uint128_t dap_chain_uint128_from_uint256(uint256_t a_from);
+
+// 256
+DAP_STATIC_INLINE uint256_t dap_chain_uint256_from(uint64_t a_from)
+{
+    uint128_t l_temp_128 = zero_128;
+    uint256_t l_ret_256 = zero_256;
+    ADD_64_INTO_128(a_from, &l_temp_128);
+    ADD_128_INTO_256(l_temp_128, &l_ret_256);
+    return l_ret_256;
 }
 
 uint64_t dap_chain_uint128_to(uint128_t a_from);
+// 256
+uint64_t dap_chain_uint256_to(uint256_t a_from);
 
 char *dap_chain_balance_print(uint128_t a_balance);
 char *dap_chain_balance_to_coins(uint128_t a_balance);
