@@ -322,8 +322,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
                 return ATOM_REJECT;
         }break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_token_emission, l_datum->header.data_size))
+            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_datum->data, l_datum->header.data_size))
                 return ATOM_REJECT;
         }break;
         case DAP_CHAIN_DATUM_TX:{
