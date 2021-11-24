@@ -1321,7 +1321,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
         }
             break;
 
-            // emission
+        // emission
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             // datum out of page
             if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
@@ -1373,7 +1373,74 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 l_emission_num++;
             }
         }
-            break;
+        break;
+
+
+        // emission
+        case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: {
+            // datum out of page
+            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
+                 l_token_num++;
+                 break;
+            }
+            dap_chain_datum_256_token_emission_t *l_token_em = (dap_chain_datum_256_token_emission_t*) l_datum->data;
+            if(!a_filter_token_name || !dap_strcmp(l_token_em->hdr.ticker, a_filter_token_name)) {
+                char * l_token_emission_address_str = dap_chain_addr_to_str(&(l_token_em->hdr.address));
+                // filter for addr
+                if(dap_strcmp(a_filtr_addr_base58,l_token_emission_address_str)) {
+                     break;
+                }
+
+                // it is temporary :-)
+                uint256_t value_start = uint256_0;
+                uint256_t emission_value = uint256_0;
+                DIV_256(l_token_em->hdr.value, GET_256(DATOSHI_LD), &emission_value);
+
+                dap_string_append_printf(l_str_out, "emission: %.0Lf(%"DAP_UINT64_FORMAT_U") %s, type: %s, version: %d\n",
+                        dap_chain_uint128_from_uint256(emission_value),
+                        dap_chain_uint128_from_uint256(l_token_em->hdr.value),
+                        l_token_em->hdr.ticker,
+                        c_dap_chain_datum_token_emission_type_str[l_token_em->hdr.type],
+                        l_token_em->hdr.version);
+                dap_string_append_printf(l_str_out, "  to addr: %s\n", l_token_emission_address_str);
+
+                DAP_DELETE(l_token_emission_address_str);
+                switch (l_token_em->hdr.type) {
+                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
+                    break;
+                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:
+                    dap_string_append_printf(l_str_out, "  signs_count: %d\n", l_token_em->data.type_auth.signs_count);
+                    break;
+                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
+                    dap_string_append_printf(l_str_out, "  codename: %s\n", l_token_em->data.type_algo.codename);
+                    break;
+                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
+                    
+                    // it is temporary :-)
+                    DIV_256(l_token_em->data.type_atom_owner.value_start, GET_256(DATOSHI_LD), &value_start);
+
+                    dap_string_append_printf(l_str_out, " value_start: %.0Lf(%"DAP_UINT64_FORMAT_U"), codename: %s\n",
+                            dap_chain_uint128_from_uint256(value_start),
+                            dap_chain_uint128_from_uint256(l_token_em->data.type_atom_owner.value_start),
+                            l_token_em->data.type_atom_owner.value_change_algo_codename);
+                    break;
+                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT: {
+                    char *l_addr = dap_chain_addr_to_str(&l_token_em->data.type_presale.addr);
+                    // get time of create datum
+                    if(dap_time_to_str_rfc822(l_time_str, 71, l_token_em->data.type_presale.lock_time) < 1)
+                            l_time_str[0] = '\0';
+                    dap_string_append_printf(l_str_out, "  flags: 0x%x, lock_time: %s\n", l_token_em->data.type_presale.flags, l_time_str);
+                    dap_string_append_printf(l_str_out, "  addr: %s\n", l_addr);
+                    DAP_DELETE(l_addr);
+                }
+                    break;
+                }
+                dap_string_append_printf(l_str_out, "\n");
+                l_emission_num++;
+            }
+        }
+        break;
+
 
             // transaction
         case DAP_CHAIN_DATUM_TX:{

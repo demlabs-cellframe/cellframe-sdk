@@ -132,11 +132,12 @@ typedef struct dap_chain_ledger_tx_bound {
     } in;
     union {
         dap_chain_tx_out_t *tx_prev_out;
-        dap_chain_256_tx_out_t *tx_prev_out_256; // 256
         dap_chain_tx_out_ext_t *tx_prev_out_ext;
-        dap_chain_256_tx_out_ext_t *tx_prev_out_ext_256; // 256
         dap_chain_tx_out_cond_t *tx_prev_out_cond;
-        dap_chain_256_tx_out_cond_t *tx_prev_out_cond_256; // 256
+        // 256
+        dap_chain_256_tx_out_t *tx_prev_out_256;
+        dap_chain_256_tx_out_ext_t *tx_prev_out_ext_256;
+        dap_chain_256_tx_out_cond_t *tx_prev_out_cond_256;
     } out;
     dap_chain_ledger_tx_item_t *item_out;
 } dap_chain_ledger_tx_bound_t;
@@ -2616,7 +2617,7 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
 // #else
 //     uint128_t l_ret = {};
 // #endif
-    uint128_t l_ret = zero_128;
+    uint128_t l_ret = uint128_0;
 
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
     char *l_addr = dap_chain_addr_to_str(a_addr);
@@ -2646,7 +2647,7 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
 // #else
 //     uint128_t balance = {0};
 // #endif
-    uint128_t balance = zero_128;
+    uint128_t balance = uint128_0;
 
     if(!a_addr || !dap_chain_addr_check_sum(a_addr))
         return balance;

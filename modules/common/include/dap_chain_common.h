@@ -264,7 +264,7 @@ DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from)
 //     uint128_t l_ret = {{ .0, a_from}};
 //     return l_ret;
 // #endif
-    uint128_t l_ret = zero_128;
+    uint128_t l_ret = uint128_0;
     ADD_64_INTO_128(a_from, &l_ret );
     return l_ret;
 }
@@ -275,8 +275,8 @@ uint128_t dap_chain_uint128_from_uint256(uint256_t a_from);
 // 256
 DAP_STATIC_INLINE uint256_t dap_chain_uint256_from(uint64_t a_from)
 {
-    uint128_t l_temp_128 = zero_128;
-    uint256_t l_ret_256 = zero_256;
+    uint128_t l_temp_128 = uint128_0;
+    uint256_t l_ret_256 = uint256_0;
     ADD_64_INTO_128(a_from, &l_temp_128);
     ADD_128_INTO_256(l_temp_128, &l_ret_256);
     return l_ret_256;

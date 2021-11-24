@@ -623,6 +623,10 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
                 dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
                 l_ret=dap_chain_ledger_token_emission_load(a_ledger, l_token_emission, l_datum->header.data_size);
             } break;
+            case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: { // 256
+                dap_chain_datum_256_token_emission_t *l_token_emission = (dap_chain_datum_256_token_emission_t*) l_datum->data;
+                l_ret=dap_chain_ledger_token_emission_load(a_ledger, l_token_emission, l_datum->header.data_size);
+            } break;
             case DAP_CHAIN_DATUM_TX: {
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
                 // Check tx correcntess

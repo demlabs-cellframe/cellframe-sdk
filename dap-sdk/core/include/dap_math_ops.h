@@ -74,22 +74,44 @@ const  uint128_t two_power_64={ .hi = 1, .lo = 0};
 const  uint128_t lo_64={ .hi = 0, .lo = 0xffffffffffffffff};
 const  uint128_t hi_64={ .hi = 0xffffffffffffffff, .lo = 0};
 // const  uint128_t zero_128={.hi=0,.lo=0};
-#define zero_128 ((uint128_t){.hi=0,.lo=0})
+// #define zero_128 ((uint128_t){.hi=0,.lo=0})
+
+#define uint128_0 ((uint128_t){.hi=0,.lo=0})
+#define uint128_1 ((uint128_t){.hi=0,.lo=1})
 
 // const uint64_t lo_32=0xffffffff;
 // const uint64_t hi_32=0xffffffff00000000;
 // const uint64_t ones_64=0xffffffffffffffff;
 
 #else // DAP_GLOBAL_IS_INT128
-#define zero_128 ((uint128_t)0)
+
+// #define zero_128 ((uint128_t)0)
+#define uint128_0 ((uint128_t)0)
+#define uint128_1 ((uint128_t)1)
+
 #endif // DAP_GLOBAL_IS_INT128
 
-//const uint256_t zero_256={.hi=zero_128,.lo=zero_128};
-#define zero_256 ((uint256_t){.hi=zero_128,.lo=zero_128})
+// const uint256_t zero_256={.hi=zero_128,.lo=zero_128};
+// #define zero_256 ((uint256_t){.hi=zero_128,.lo=zero_128})
+#define uint256_0 ((uint256_t){.hi=uint128_0,.lo=uint128_0})
+#define uint256_1 ((uint256_t){.hi=uint128_0,.lo=uint128_1})
+#define uint512_0 ((uint512_t){.hi=uint256_0,.lo=uint256_0})
 #define lo_32 ((uint64_t)0xffffffff)
 #define hi_32 ((uint64_t)0xffffffff00000000)
 #define ones_64 ((uint64_t)0xffffffffffffffff)
 
+
+static inline uint128_t GET_128(uint64_t n) {
+#ifdef DAP_GLOBAL_IS_INT128
+    return (uint128_t) n;
+#else
+    return (uint128_t){.hi=0,.lo=n};
+#endif
+}
+
+static inline uint256_t GET_256(uint64_t n) {
+    return (uint256_t){.hi=uint128_0,.lo=GET_128(n)};
+}
 
 static inline bool EQUAL_128(uint128_t a_128_bit, uint128_t b_128_bit){
 #ifdef DAP_GLOBAL_IS_INT128
@@ -116,13 +138,11 @@ static inline uint128_t AND_128(uint128_t a_128_bit,uint128_t b_128_bit){
 
 #ifdef DAP_GLOBAL_IS_INT128
     return a_128_bit&b_128_bit;
-    
 #else    
-    uint128_t output={ .hi = 0, .lo = 0};
+    uint128_t output=uint128_0;
     output.hi= a_128_bit.hi & b_128_bit.hi;  
     output.lo= a_128_bit.lo & b_128_bit.lo;
     return output;
-
 #endif
 }
 
@@ -131,69 +151,46 @@ static inline uint128_t OR_128(uint128_t a_128_bit,uint128_t b_128_bit){
 #ifdef DAP_GLOBAL_IS_INT128
     return a_128_bit|b_128_bit;
 
-#else    
-    uint128_t output={ .hi = 0, .lo = 0};
+#else
+    uint128_t output=uint128_0;
     output.hi= a_128_bit.hi | b_128_bit.hi;  
     output.lo= a_128_bit.lo | b_128_bit.lo;
     return output;
-
 #endif
 }
 
 static inline uint256_t AND_256(uint256_t a_256_bit,uint256_t b_256_bit){
-
-#ifdef DAP_GLOBAL_IS_INT128
-    uint256_t output = {};
-    output.hi= a_256_bit.hi & b_256_bit.hi;  
-    output.lo= a_256_bit.lo & b_256_bit.lo;
+    uint256_t output = uint256_0;
+    output.hi = AND_128(a_256_bit.hi, b_256_bit.hi);  
+    output.lo = AND_128(a_256_bit.lo, b_256_bit.lo);
     return output;
-
-#else 
-    uint256_t output={ .hi = zero_128, .lo = zero_128};
-    output.hi= AND_128(a_256_bit.hi, b_256_bit.hi);  
-    output.lo= AND_128(a_256_bit.lo, b_256_bit.lo);
-    return output;
-
-#endif
 }
 
 static inline uint256_t OR_256(uint256_t a_256_bit,uint256_t b_256_bit){
-
-#ifdef DAP_GLOBAL_IS_INT128
-    uint256_t output= {};
-    output.hi= a_256_bit.hi | b_256_bit.hi;  
-    output.lo= a_256_bit.lo | b_256_bit.lo;
+    uint256_t output = uint256_0;
+    output.hi = OR_128(a_256_bit.hi, b_256_bit.hi); 
+    output.lo = OR_128(a_256_bit.lo, b_256_bit.lo); 
     return output;
-
-#else 
-    uint256_t output={ .hi = zero_128, .lo = zero_128};
-    output.hi= OR_128(a_256_bit.hi, b_256_bit.hi); 
-    output.lo= OR_128(a_256_bit.lo, b_256_bit.lo); 
-    return output;
-
-#endif
 }
 
 static inline void LEFT_SHIFT_128(uint128_t a_128_bit,uint128_t* b_128_bit,int n){
     assert (n <= 128);
 
 #ifdef DAP_GLOBAL_IS_INT128
-    *b_128_bit=a_128_bit<<n;
+    *b_128_bit= a_128_bit << n;
 
 #else 
-    if (n >= 64) // shifting 64-bit integer by more than 63 bits is not defined
-    {   
+    if (n >= 64) { // shifting 64-bit integer by more than 63 bits is not defined   
         a_128_bit.hi=a_128_bit.lo;
         a_128_bit.lo=0;
         LEFT_SHIFT_128(a_128_bit,b_128_bit,n-64);
     }
-    if (n == 0)
-    {
+    if (n == 0) {
        b_128_bit->hi=a_128_bit.hi;
        b_128_bit->lo=a_128_bit.lo;
     } 
-    else
-    {   uint64_t shift_temp;
+    else {
+        uint64_t shift_temp;
         shift_temp=a_128_bit.lo<<n;
         b_128_bit->lo=shift_temp;
         b_128_bit->hi=(a_128_bit.hi<<n)|(a_128_bit.lo>>(64-n));
@@ -207,9 +204,7 @@ static inline void RIGHT_SHIFT_128(uint128_t a_128_bit,uint128_t* b_128_bit,int 
 
 #ifdef DAP_GLOBAL_IS_INT128
     (*b_128_bit) = a_128_bit >> n;
-
 #else 
-    
     if (n >= 64) // shifting 64-bit integer by more than 63 bits is not defined
     {   
         a_128_bit.lo=a_128_bit.hi;
@@ -235,94 +230,48 @@ static inline void LEFT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int n
  
     assert (n <= 256);
 
-#ifdef DAP_GLOBAL_IS_INT128
-
-    if (n >= 128) 
-    {   
+    if (n >= 128) { // shifting 64-bit integer by more than 63 bits is not defined 
         a_256_bit.hi=a_256_bit.lo;
-        a_256_bit.lo=0;
+        a_256_bit.lo=uint128_0;
         LEFT_SHIFT_256(a_256_bit,b_256_bit,n-128);
     }
-    if (n == 0)
-    {
+    if (n == 0) {
        b_256_bit->hi=a_256_bit.hi;
        b_256_bit->lo=a_256_bit.lo;
     } 
-    else
-    {   uint128_t shift_temp;
-        shift_temp=a_256_bit.lo<<n;
-        b_256_bit->lo=shift_temp;
-        b_256_bit->hi=(a_256_bit.hi<<n)|(a_256_bit.lo>>(128-n));
-    }
-
-#else 
-    if (n >= 128) // shifting 64-bit integer by more than 63 bits is not defined
-    {   
-        a_256_bit.hi=a_256_bit.lo;
-        a_256_bit.lo=zero_128;
-        LEFT_SHIFT_256(a_256_bit,b_256_bit,n-128);
-    }
-    if (n == 0)
-    {
-       b_256_bit->hi=a_256_bit.hi;
-       b_256_bit->lo=a_256_bit.lo;
-    } 
-    if (n<128)
-    {   uint128_t shift_temp={.hi=0, .lo=0};
+    if (n<128) {
+        uint128_t shift_temp=uint128_0;
         LEFT_SHIFT_128(a_256_bit.lo,&shift_temp,n);
         b_256_bit->lo=shift_temp;   
-        uint128_t shift_temp_or_left={.hi=0, .lo=0};
-        uint128_t shift_temp_or_right={.hi=0, .lo=0};
+        uint128_t shift_temp_or_left=uint128_0;
+        uint128_t shift_temp_or_right=uint128_0;
         LEFT_SHIFT_128(a_256_bit.hi,&shift_temp_or_left,n);
         RIGHT_SHIFT_128(a_256_bit.lo,&shift_temp_or_right,128-n);
         b_256_bit->hi=OR_128(shift_temp_or_left,shift_temp_or_right);
     }
-#endif
 }
 
 static inline void RIGHT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int n){
     assert (n <= 256);
-
-#ifdef DAP_GLOBAL_IS_INT128
-    if (n >= 128) {   
+    if (n >= 128) { // shifting 64-bit integer by more than 63 bits is not defined   
         a_256_bit.lo=a_256_bit.hi;
-        a_256_bit.hi=0;
+        a_256_bit.hi=uint128_0;
         RIGHT_SHIFT_256(a_256_bit,b_256_bit,n-128);
     }
     if (n == 0) {
        b_256_bit->hi=a_256_bit.hi;
        b_256_bit->lo=a_256_bit.lo;
     } 
-    else {
-        uint64_t shift_temp;
-        shift_temp=a_256_bit.hi>>n;
-        b_256_bit->hi=shift_temp;
-        b_256_bit->lo=(a_256_bit.lo>>n)|(a_256_bit.hi<<(128-n));
-    }
-
-#else 
-    if (n >= 128) // shifting 64-bit integer by more than 63 bits is not defined
-    {   
-        a_256_bit.lo=a_256_bit.hi;
-        a_256_bit.hi=zero_128;
-        RIGHT_SHIFT_256(a_256_bit,b_256_bit,n-128);
-    }
-    if (n == 0)
-    {
-       b_256_bit->hi=a_256_bit.hi;
-       b_256_bit->lo=a_256_bit.lo;
-    } 
-    if (n<128)
-    {   uint128_t shift_temp={.hi=0, .lo=0};
+    if (n<128) {
+        uint128_t shift_temp=uint128_0;
         RIGHT_SHIFT_128(a_256_bit.hi,&shift_temp,n);
         b_256_bit->hi=shift_temp;   
-        uint128_t shift_temp_or_left={.hi=0, .lo=0};
-        uint128_t shift_temp_or_right={.hi=0, .lo=0};
+        uint128_t shift_temp_or_left=uint128_0;
+        uint128_t shift_temp_or_right=uint128_0;
         RIGHT_SHIFT_128(a_256_bit.lo,&shift_temp_or_left,n);
         LEFT_SHIFT_128(a_256_bit.hi,&shift_temp_or_right,128-n);
         b_256_bit->lo=OR_128(shift_temp_or_left,shift_temp_or_right);
     }
-#endif
 }
 
 static inline void INCR_128(uint128_t *a_128_bit){
@@ -364,7 +313,7 @@ static inline void INCR_256(uint256_t* a_256_bit){
 
 #else 
     INCR_128(&a_256_bit->lo);
-    if(EQUAL_128(a_256_bit->lo, zero_128))
+    if(EQUAL_128(a_256_bit->lo, uint128_0))
     {
         INCR_128(&a_256_bit->hi);
     }  
@@ -462,32 +411,12 @@ static inline int SUBTRACT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uin
 }
 
 
-// static inline int SUBTRACT_256_256(uint256_t a_256_bit, uint256_t b_256_bit,uint256_t* c_256_bit){
-//     int carry=0;
-//     carry=SUBTRACT_128_128(a_256_bit.lo, b_256_bit.lo, &c_256_bit->lo);
-//     uint64_t carry_64=carry;
-//     uint128_t carry_128={.hi=0,.lo=carry_64};
-//     uint128_t intermediate_val={.hi=0,.lo=0};
-//     int dummy_overflow=0;
-//     dummy_overflow=SUM_128_128(b_256_bit.hi,carry_128,&intermediate_val);
-//     carry=SUBTRACT_128_128(a_256_bit.hi, intermediate_val,&c_256_bit->hi );
-//     return carry;
-// }
-
-
 //
 //Mixed precision: add a uint128_t into a uint256_t
 static inline int ADD_128_INTO_256(uint128_t a_128_bit,uint256_t* c_256_bit) {
     int overflow_flag=0;
-
-#ifdef DAP_GLOBAL_IS_INT128
-    uint128_t overflow_128=0;
-    uint128_t temp=0;
-#else
-    uint128_t overflow_128={.hi=0,.lo=0};
-    uint128_t temp={.hi=0,.lo=0};
-#endif
-
+    uint128_t overflow_128 = uint128_0;
+    uint128_t temp = uint128_0;
     temp=c_256_bit->lo;
     overflow_flag=SUM_128_128(a_128_bit,temp,&c_256_bit->lo);
 
@@ -542,8 +471,7 @@ static inline int SUBTRACT_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint2
     underflow_flag=carry;
     return underflow_flag;
 
-#else    
-//(u64 rd[4], const u64 ad[4], const u64 bd[4])
+#else
     uint64_t t, r, borrow;
 
     t = a_256_bit.lo.lo;
@@ -579,8 +507,8 @@ static inline int SUBTRACT_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint2
 //Mixed precision: add a uint256_t into a uint512_t
 static inline int ADD_256_INTO_512(uint256_t a_256_bit,uint512_t* c_512_bit) {
     int overflow_flag=0;
-    uint256_t overflow_256={.hi=zero_128,.lo=zero_128};
-    uint256_t temp={.hi=zero_128,.lo=zero_128};
+    uint256_t overflow_256=uint256_0;
+    uint256_t temp=uint256_0;
     temp=c_512_bit->lo;
     overflow_flag=SUM_256_256(a_256_bit,temp,&c_512_bit->lo);
 #ifdef DAP_GLOBAL_IS_INT128
@@ -685,10 +613,10 @@ static inline int MULT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uint128
     overflow_flag=(a_128_bit>((uint128_t)-1)/b_128_bit);
 #else
     int equal_flag=0;
-    uint256_t full_product_256={.hi=zero_128, .lo=zero_128};
+    uint256_t full_product_256={.hi=uint128_0, .lo=uint128_0};
     MULT_128_256(a_128_bit,b_128_bit,&full_product_256);
     *c_128_bit=full_product_256.lo;
-    equal_flag=EQUAL_128(full_product_256.hi,zero_128);
+    equal_flag=EQUAL_128(full_product_256.hi,uint128_0);
     if (!equal_flag) {
         overflow_flag=1;
     }
@@ -770,12 +698,12 @@ static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_
     MULT_128_256(a_256_bit.lo,b_256_bit.lo, &c_512_bit->lo);
 
     //cross product of .hi and .lo terms
-    uint256_t cross_product_first_term={ .hi = zero_128, .lo = zero_128};
-    uint256_t cross_product_second_term={ .hi = zero_128, .lo = zero_128};
-    uint256_t cross_product={ .hi = zero_128, .lo = zero_128};
-    uint256_t cross_product_shift_128={ .hi = zero_128, .lo = zero_128};
-    uint256_t c_512_bit_lo_copy={ .hi = zero_128, .lo = zero_128};
-    uint256_t c_512_bit_hi_copy={ .hi = zero_128, .lo = zero_128};
+    uint256_t cross_product_first_term=uint256_0;
+    uint256_t cross_product_second_term=uint256_0;
+    uint256_t cross_product=uint256_0;
+    uint256_t cross_product_shift_128=uint256_0;
+    uint256_t c_512_bit_lo_copy=uint256_0;
+    uint256_t c_512_bit_hi_copy=uint256_0;
     int overflow=0;
 
     MULT_128_256(a_256_bit.hi,b_256_bit.lo,&cross_product_first_term);
@@ -787,8 +715,8 @@ static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_
     c_512_bit_lo_copy=c_512_bit->lo; 
     dummy_overflow=SUM_256_256(c_512_bit_lo_copy,cross_product_shift_128,&c_512_bit->lo);    
  
-    cross_product_shift_128.hi = zero_128; 
-    cross_product_shift_128.lo = zero_128;
+    cross_product_shift_128.hi = uint128_0; 
+    cross_product_shift_128.lo = uint128_0;
     RIGHT_SHIFT_256(cross_product,&cross_product_shift_128,128);
     c_512_bit_hi_copy=c_512_bit->hi;    
     dummy_overflow=SUM_256_256(c_512_bit_hi_copy,cross_product_shift_128,&c_512_bit->hi);
@@ -797,10 +725,10 @@ static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_
 static inline int MULT_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t* accum_256_bit){
     int overflow=0; 
     int equal_flag=0;
-    uint512_t full_product_512={.hi=zero_256,.lo=zero_256,};
+    uint512_t full_product_512={.hi=uint256_0,.lo=uint256_0,};
     MULT_256_512(a_256_bit,b_256_bit,&full_product_512);
     *accum_256_bit=full_product_512.lo;
-    equal_flag=EQUAL_256(full_product_512.hi,zero_256);
+    equal_flag=EQUAL_256(full_product_512.hi,uint256_0);
     if (!equal_flag)
     {
         overflow=1;
@@ -883,17 +811,24 @@ static inline int MULT_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t
 // }
 
 //#ifndef DAP_GLOBAL_IS_INT128
-
-static inline int compare128(uint128_t N1, uint128_t N2)
+// > ret 1
+// == ret 0
+// < ret -1
+static inline int compare128(uint128_t a, uint128_t b)
 {
 #ifdef DAP_GLOBAL_IS_INT128
-    return ( N1 > N2 ? 1 : 0 ) - ( N1 < N2 ? 1 : 0 );
+    return ( a > b ? 1 : 0 ) - ( a < b ? 1 : 0 );
 #else
-    return    (((N1.hi > N2.hi) || ((N1.hi == N2.hi) && (N1.lo > N2.lo))) ? 1 : 0) 
-         -    (((N1.hi < N2.hi) || ((N1.hi == N2.hi) && (N1.lo < N2.lo))) ? 1 : 0);
+    return    (((a.hi > b.hi) || ((a.hi == b.hi) && (a.lo > b.lo))) ? 1 : 0) 
+         -    (((a.hi < b.hi) || ((a.hi == b.hi) && (a.lo < b.lo))) ? 1 : 0);
 #endif
 }
 
+static inline int compare256(uint256_t a, uint256_t b)
+{
+    return    (( compare128(a.hi, b.hi) == 1 || (compare128(a.hi, b.hi) == 0 && compare128(a.lo, b.lo) == 1)) ? 1 : 0) 
+         -    (( compare128(a.hi, b.hi) == -1 || (compare128(a.hi, b.hi) == 0 && compare128(a.lo, b.lo) == -1)) ? 1 : 0);
+}
 
 static inline int nlz64(uint64_t N)
 {
@@ -928,7 +863,6 @@ static inline int nlz64(uint64_t N)
     return C;
 }
 
-//static inline size_t nlz128(uint128_t N)
 static inline int nlz128(uint128_t N)
 {
 #ifdef DAP_GLOBAL_IS_INT128
@@ -938,69 +872,124 @@ static inline int nlz128(uint128_t N)
 #endif
 }
 
-// void shiftleft128(uint128_t N, unsigned S, uint128_t* A)
-// {
-//     uint64_t M1, M2;
-//     S &= 127;
+static inline int nlz256(uint256_t N)
+{
+    return EQUAL_128(N.hi, uint128_0) ? nlz128(N.lo) + 128 : nlz128(N.hi);
+}
 
-//     M1 = ((((S + 127) | S) & 64) >> 6) - 1llu;
-//     M2 = (S >> 6) - 1llu;
-//     S &= 63;
-//     A->hi = (N.lo << S) & (~M2);
-//     A->lo = (N.lo << S) & M2;
-//     A->hi |= ((N.hi << S) | ((N.lo >> (64 - S)) & M1)) & M2;
-// }
 
-// void shiftright128(uint128_t N, unsigned S, uint128_t* A)
-// {
-//     uint64_t M1, M2;
-//     S &= 127;
+#ifndef DAP_GLOBAL_IS_INT128
+static inline int fls128(uint128_t n) {
+    if ( n.hi != 0 ) {
+        return 127 - nlz64(n.hi);
+    }
+    return 63 - nlz64(n.lo);
+}
 
-//     M1 = ((((S + 127) | S) & 64) >> 6) - 1llu;
-//     M2 = (S >> 6) - 1llu;
-//     S &= 63;
-//     A->lo = (N.hi >> S) & (~M2);
-//     A->hi = (N.hi >> S) & M2;
-//     A->lo |= ((N.lo >> S) | ((N.hi << (64 - S)) & M1)) & M2;
-// } 
+static inline void divmod_impl_128(uint128_t a_dividend, uint128_t a_divisor, uint128_t *a_quotient, uint128_t *a_remainder)
+{
+    assert( compare128(a_divisor, uint128_0) ); // a_divisor != 0
+    if ( compare128(a_divisor, a_dividend) == 1 ) { // a_divisor > a_dividend
+        *a_quotient = uint128_0;
+        *a_remainder = a_dividend;
+        return;
+    }
+    if ( compare128(a_divisor, a_dividend) == 0 ) { // a_divisor == a_dividend
+        *a_quotient = uint128_1;
+        *a_remainder = uint128_0;
+        return;
+    }
 
-// void sub128(uint128_t* Ans, uint128_t N, uint128_t M)
-// {
-//     Ans->lo = N.lo - M.lo;
-//     uint64_t C = (((Ans->lo & M.lo) & 1) + (M.lo >> 1) + (Ans->lo >> 1)) >> 63;
-//     Ans->hi = N.hi - (M.hi + C);
-// }
-// void bindivmod128(uint128_t M, uint128_t N, uint128_t* Q, uint128_t* R)
-// {
-//     Q->hi = Q->lo = 0;
-//     size_t Shift = nlz128(N) - nlz128(M);
-//     shiftleft128(N, Shift, &N);
+    uint128_t l_denominator = a_divisor;
+    uint128_t l_quotient = uint128_0;    
+    int l_shift = fls128(a_dividend) - fls128(l_denominator);
 
-//     do
-//     {
-//         shiftleft128(*Q, 1, Q);
-//         if(compare128(M, N) >= 0)
-//         {
-//             sub128(&M, N, M);
-//             Q->lo |= 1;
-//         }
+    LEFT_SHIFT_128(l_denominator, &l_denominator, l_shift);
 
-//         shiftright128(N, 1, &N);
-//     }while(Shift-- != 0);
+    for (int i = 0; i <= l_shift; ++i) {
+        LEFT_SHIFT_128(l_quotient, &l_quotient, 1);
 
-//     R->hi = M.hi;
-//     R->lo = M.lo;
-// }
+        if( compare128(a_dividend, l_denominator) >= 0 ) {
+            SUBTRACT_128_128(a_dividend, l_denominator, &a_dividend);
+            l_quotient = OR_128(l_quotient, uint128_1);  //l_quotient.lo |= 1;
+        }
+        RIGHT_SHIFT_128(l_denominator, &l_denominator, 1);
+    }
+    *a_quotient = l_quotient;
+    *a_remainder = a_dividend;
+}
+#endif
 
-//#ifdef DAP_GLOBAL_IS_INT128
-//#else
+
+static inline int fls256(uint256_t n) {
+    if ( compare128(n.hi, uint128_0) != 0 ) {
+        return 255 - nlz128(n.hi);
+    }
+    return 127 - nlz128(n.lo);
+}
+
+static inline void divmod_impl_256(uint256_t a_dividend, uint256_t a_divisor, uint256_t *a_quotient, uint256_t *a_remainder)
+{
+    assert( compare256(a_divisor, uint256_0) ); // a_divisor != 0
+    if ( compare256(a_divisor, a_dividend) == 1 ) { // a_divisor > a_dividend
+        *a_quotient = uint256_0;
+        *a_remainder = a_dividend;
+        return;
+    }
+    if ( compare256(a_divisor, a_dividend) == 0 ) { // a_divisor == a_dividend
+        *a_quotient = uint256_1;
+        *a_remainder = uint256_0;
+        return;
+    }
+
+    uint256_t l_denominator = a_divisor;
+    uint256_t l_quotient = uint256_0;    
+    // int l_shift = nlz256(a_dividend) - nlz256(l_denominator);
+    int l_shift = fls256(a_dividend) - fls256(l_denominator);
+    LEFT_SHIFT_256(l_denominator, &l_denominator, l_shift);
+
+    for (int i = 0; i <= l_shift; ++i) {
+        LEFT_SHIFT_256(l_quotient, &l_quotient, 1);
+
+        if( compare256(a_dividend, l_denominator) >= 0 ) {
+            SUBTRACT_256_256(a_dividend, l_denominator, &a_dividend);
+            l_quotient = OR_256(l_quotient, uint256_1); 
+        }
+        RIGHT_SHIFT_256(l_denominator, &l_denominator, 1);
+    }
+    *a_quotient = l_quotient;
+    *a_remainder = a_dividend;
+}
+
+
+static inline void DIV_128(uint128_t a_128_bit, uint128_t b_128_bit, uint128_t* c_128_bit){
+    uint128_t l_ret = uint128_0;
+#ifdef DAP_GLOBAL_IS_INT128
+    l_ret = a_128_bit / b_128_bit;
+#else
+    uint128_t l_remainder = uint128_0;
+    divmod_impl_128(a_128_bit, b_128_bit, &l_ret, &l_remainder);
+#endif
+    *c_128_bit = l_ret;
+}
+
+static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* c_256_bit){
+    uint256_t l_ret = uint256_0;
+    uint256_t l_remainder = uint256_0;
+    divmod_impl_256(a_256_bit, b_256_bit, &l_ret, &l_remainder);
+    *c_256_bit = l_ret;
+}
+
+
+//
+// dap_uint128_substract, dap_uint128_add, dap_uint128_check_equal - temporarily, for compatibility
 static inline uint128_t dap_uint128_substract(uint128_t a, uint128_t b)
 {
     // if (a < b) {
     //     return 0;
     // }
     // return a - b;
-    uint128_t c = zero_128;
+    uint128_t c = uint128_0;
     SUBTRACT_128_128(a, b, &c);
     return c;
 }
@@ -1018,7 +1007,7 @@ static inline uint128_t dap_uint128_add(uint128_t a, uint128_t b)
     //     return 0;
     // }
     // return l_ret;
-    uint128_t c = zero_128;
+    uint128_t c = uint128_0;
     SUM_128_128( a, b, &c);
     return c;
 }
@@ -1034,4 +1023,3 @@ static inline bool dap_uint128_check_equal(uint128_t a, uint128_t b)
     //return a == b;
     return EQUAL_128(a, b);
 }
-//#endif
