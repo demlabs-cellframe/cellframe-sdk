@@ -27,6 +27,7 @@
 #include "dap_enc_base58.h"
 #include "dap_cert.h"
 #include "dap_chain.h"
+#include "dap_chain_pvt.h"
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 #include "dap_chain_cs_blocks.h"
@@ -340,3 +341,13 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_b
     return l_signs_verified_count >= l_poa_pvt->auth_certs_count_verify ? 0 : -1;
 }
 
+dap_cert_t **dap_chain_cs_block_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count)
+{
+    dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(a_chain);
+    if (strcmp(l_chain_pvt->cs_name, "block_poa"))
+        return NULL;
+    dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(DAP_CHAIN_CS_BLOCK_POA(DAP_CHAIN_CS_BLOCKS(a_chain)));
+    if (a_auth_certs_count)
+        *a_auth_certs_count = l_poa_pvt->auth_certs_count;
+    return l_poa_pvt->auth_certs;
+}

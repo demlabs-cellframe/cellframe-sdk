@@ -27,15 +27,16 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
 
-#define DAP_CHAIN_NET_SRV_STAKE_ID 0x3
+#define DAP_CHAIN_NET_SRV_STAKE_ID 0x13
 
 typedef struct dap_chain_net_srv_stake_item {
+    bool is_active;
     dap_chain_net_t *net;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     uint64_t value;
-    dap_chain_addr_t addr_from;
-    dap_chain_addr_t addr_to;
+    dap_chain_addr_t addr_hldr;
     dap_chain_addr_t addr_fee;
+    dap_chain_addr_t signing_addr;
     long double fee_value;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
@@ -43,8 +44,8 @@ typedef struct dap_chain_net_srv_stake_item {
 } dap_chain_net_srv_stake_item_t;
 
 typedef struct dap_srv_stake_order_ext {
-    dap_chain_addr_t addr_from;
-    dap_chain_addr_t addr_to;
+    dap_chain_addr_t addr_hldr;
+    dap_chain_addr_t signing_addr;
     long double fee_value;
 } dap_srv_stake_order_ext_t;
 
@@ -55,6 +56,7 @@ typedef struct dap_chain_net_srv_stake {
 
 int dap_chain_net_srv_stake_init();
 void dap_chain_net_srv_stake_deinit();
-bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx);
-bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_tx_t *a_tx);
+bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool dap_chain_net_srv_stake_updater(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_t *a_datum);
 bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
