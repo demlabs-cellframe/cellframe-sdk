@@ -101,8 +101,10 @@ void dap_chain_net_srv_xchange_deinit()
     DAP_DELETE(s_srv_xchange);
 }
 
-bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx)
+bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
+    if (a_owner)
+        return true;
     /* Check the condition for verification success
      * a_cond.srv_xchange.rate >= a_tx.out.rate
      */

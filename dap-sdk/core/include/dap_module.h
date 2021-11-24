@@ -35,7 +35,7 @@ typedef struct dap_module {
 #define DAP_MODULE_ARGS_MAX  10
 typedef struct dap_module_args {
     const char * name;
-    const char * args[DAP_MODULE_ARGS_MAX]; // ARGS could me not more than DAP_MODULE_ARGS_MAX define
+    const char * args[DAP_MODULE_ARGS_MAX]; // ARGS could be not more than DAP_MODULE_ARGS_MAX define
 } dap_module_args_t;
 
 int dap_module_add(const char * a_name, unsigned int a_version, const char * a_dependensies,
