@@ -3177,10 +3177,10 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         return -43;
     }
 
-    // Wallet address that recieves the emission
+    // Token emission
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission", &l_emission_hash_str);
 
-    // Wallet address that recieves the emission
+    // Emission certs
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
 
     // Wallet address that recieves the emission
@@ -3189,7 +3189,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // Token ticker
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-token", &l_ticker);
 
-    // Token emission
+    // Emission value
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission_value", &str_tmp)) {
         l_emission_value = strtoull(str_tmp, NULL, 10);
     }
@@ -3293,10 +3293,13 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
                 sizeof(l_emission->data.type_auth.signs_count);
 
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
+        l_emission->hdr.version = 1;
         strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
         l_emission->hdr.value = l_emission_value;
         l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
         memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
+        time_t l_time = time(NULL);
+        memcpy(&l_emission->hdr.nonce, &l_time, sizeof(time_t));
         // Then add signs
         size_t l_offset = 0;
         for(size_t i = 0; i < l_certs_size; i++) {
@@ -3333,15 +3336,15 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         if(dap_chain_global_db_gr_set(dap_strdup(l_emission_hash_str_new), (uint8_t *) l_datum_emission, l_datum_emission_size
                 , l_gdb_group_mempool_emission)) {
             if(!dap_strcmp(l_hash_out_type,"hex"))
-                str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_emission_hash_str_new);
+                str_reply_tmp = dap_strdup_printf("Datum emission %s is placed in datum pool", l_emission_hash_str_new);
             else
-                str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_emission_hash_str_base58);
+                str_reply_tmp = dap_strdup_printf("Datum emission %s is placed in datum pool", l_emission_hash_str_base58);
         }
         else {
             if(!dap_strcmp(l_hash_out_type,"hex"))
-                dap_chain_node_cli_set_reply_text(a_str_reply, "datum emission %s is not placed in datum pool ", l_emission_hash_str_new);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum emission %s is not placed in datum pool", l_emission_hash_str_new);
             else
-                dap_chain_node_cli_set_reply_text(a_str_reply, "datum emission %s is not placed in datum pool ", l_emission_hash_str_base58);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum emission %s is not placed in datum pool", l_emission_hash_str_base58);
             DAP_DEL_Z(l_emission_hash_str_new);
             l_emission_hash_str = NULL;
             DAP_DEL_Z(l_emission_hash_str_base58);

@@ -54,7 +54,7 @@ int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_chain_hash_fast_t
             *(a_hash->raw + l_offset / 2 - 1) = l_byte;
         }
         return  0;
-    }else  // Wromg string len
+    }else  // Wrong string len
         return -1;
 }
 

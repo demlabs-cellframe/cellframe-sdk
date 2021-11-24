@@ -201,3 +201,57 @@ err:
     return NULL;
 
 }
+
+size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
+{
+    size_t l_ret = 0;
+    dap_chain_datum_token_emission_t *l_emission = (dap_chain_datum_token_emission_t *)a_emission_serial;
+    if (l_emission->hdr.version == 0) {
+        l_ret = sizeof(struct dap_chain_emission_header_v0);
+    } else {
+        l_ret = sizeof(l_emission->hdr);
+    }
+    switch (l_emission->hdr.type) {
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH: {
+        uint16_t l_sign_count = *(uint16_t *)(a_emission_serial + l_ret);
+        l_ret += sizeof(l_emission->data.type_auth);
+        for (uint16_t i = 0; i < l_sign_count; i++) {
+            dap_sign_t *l_sign = (dap_sign_t *)(a_emission_serial + l_ret);
+            l_ret += dap_sign_get_size(l_sign);
+        }
+    } break;
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
+        l_ret += sizeof(l_emission->data.type_algo);
+        break;
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
+        l_ret += sizeof(l_emission->data.type_atom_owner);
+        break;
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT:
+        l_ret += sizeof(l_emission->data.type_presale);
+        break;
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
+    default:
+        break;
+    }
+    return l_ret;
+}
+
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(uint8_t *a_emission_serial, size_t *a_emission_size)
+{
+    assert(a_emission_serial);
+    assert(a_emission_size);
+    dap_chain_datum_token_emission_t *l_emission;
+    if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 0) {
+        size_t l_add_size = DAP_CHAIN_DATUM_NONCE_SIZE + sizeof(uint256_t) - sizeof(uint64_t);
+        l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, *a_emission_size + l_add_size);
+        size_t l_old_hdr_size = sizeof(struct dap_chain_emission_header_v0);
+        l_emission->hdr.version = 1;
+        memcpy(l_emission, a_emission_serial, l_old_hdr_size);
+        memcpy(l_emission + l_old_hdr_size + l_add_size,
+               a_emission_serial + l_old_hdr_size,
+               *a_emission_size - l_old_hdr_size);
+        *a_emission_size += l_add_size;
+    } else
+        l_emission = DAP_DUP_SIZE(a_emission_serial, *a_emission_size);
+    return l_emission;
+}

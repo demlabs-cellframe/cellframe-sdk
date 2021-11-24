@@ -252,44 +252,26 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             return -41;
         }
 
-        /*dap_chain_hash_fast_t l_pkey_hash;
-        if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
-            log_it(L_WARNING, "Block's sign has no any key");
-            return -5;
-        }
-        dap_chain_addr_t l_addr = {};
-        dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_blocks->chain->net_id);
-
         if (l_sig_pos == 0) {
+            dap_chain_addr_t l_addr = {};
+            dap_chain_hash_fast_t l_pkey_hash;
+            dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_blocks->chain->net_id);
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
-            for (unsigned i = 0; i < l_datums_count; i++) {
-                if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
-                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datums[i]->data;
-                    if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
-                        log_it(L_WARNING,"Not passed stake validator with datum %u of block %p on chain %s", i, a_block, a_blocks->chain->name);
-                        return -6;
-                    }
+            if (!l_datums || !l_datums_count) {
+                log_it(L_WARNING, "No datums in block %p on chain %s", a_block, a_blocks->chain->name);
+                return -7;
+            }
+            for (size_t i = 0; i < l_datums_count; i++) {
+                if (!dap_chain_net_srv_stake_validator(&l_addr, l_datums[i])) {
+                    log_it(L_WARNING, "Not passed stake validator datum %zu with block %p on chain %s", i, a_block, a_blocks->chain->name);
+                    DAP_DELETE(l_datums);
+                    return -6;
                 }
             }
+            DAP_DELETE(l_datums);
         }
-
-        bool l_is_enough_balance = false;
-        for (size_t i = 0; i < l_pos_pvt->tokens_hold_size; i++) {
-            uint128_t l_balance = dap_chain_ledger_calc_balance(a_blocks->chain->ledger, &l_addr, l_pos_pvt->tokens_hold[i]);
-            uint64_t l_value = dap_chain_uint128_to(l_balance);
-            if (l_value >= l_pos_pvt->tokens_hold_value[i]) {
-                l_verified_num++;
-                l_is_enough_balance = true;
-                break;
-            }
-        }
-        if (!l_is_enough_balance) {
-            char *l_addr_str = dap_chain_addr_to_str(&l_addr);
-            log_it(L_WARNING, "Verify of block is false, because balance is not enough for addr=%s", l_addr_str);
-            DAP_DELETE(l_addr_str);
-            return -1;
-        }*/ // TODO comlete stake validator for all datums in the block
     }
 
     // Check number
