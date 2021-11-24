@@ -194,12 +194,13 @@ static int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, con
 }
 
 /**
- * @brief dap_sign_create
- * @param a_key
- * @param a_data
- * @param a_data_size
- * @param a_output_wish_size
- * @return
+ * @brief 
+ * 
+ * @param a_key 
+ * @param a_data 
+ * @param a_data_size 
+ * @param a_output_wish_size 
+ * @return dap_sign_t* 
  */
 dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
         const size_t a_data_size, size_t a_output_wish_size)

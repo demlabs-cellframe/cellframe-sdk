@@ -96,6 +96,14 @@ static inline bool dap_hash_fast_compare(dap_hash_fast_t *a_hash1, dap_hash_fast
     return false;
 }
 
+/**
+ * @brief 
+ * compare hash with blank hash
+ * @param a_hash 
+ * @return true 
+ * @return false 
+ */
+
 static inline bool dap_hash_fast_is_blank( dap_hash_fast_t *a_hash )
 {
     static dap_hash_fast_t l_blank_hash = { 0};
