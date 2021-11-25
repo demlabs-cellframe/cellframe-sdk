@@ -14,7 +14,7 @@ android {
 }
 
 unix: !android : ! darwin {
-    QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
+    QMAKE_CXXFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
     QMAKE_LFLAGS_DEBUG += -pg
     DEFINES += _GNU_SOURCE
     LIBS += -lrt -ljson-c -lmagic
@@ -28,7 +28,7 @@ contains(DAP_FEATURES, ssl){
 }
 
 darwin {
-    QMAKE_CFLAGS_DEBUG += -Wall -g3 -ggdb -fno-strict-aliasing
+    QMAKE_CXXFLAGS_DEBUG += -Wall -g3 -ggdb -fno-strict-aliasing
     DEFINES += _GNU_SOURCE
     include(src/darwin/darwin.pri)
     DEFINES += DAP_OS_DARWIN DAP_OS_BSD
@@ -37,7 +37,6 @@ darwin {
     QMAKE_LIBDIR += /usr/local/lib
     QMAKE_CFLAGS += -Wno-deprecated-copy -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
     QMAKE_CXXFLAGS += -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
-
     QMAKE_CFLAGS_DEBUG += -gdwarf-2
     QMAKE_CXXFLAGS_DEBUG += -gdwarf-2
 }
@@ -48,6 +47,7 @@ win32 {
     include($$PWD/../../3rdparty/wepoll/wepoll.pri)
     DEFINES += DAP_OS_WINDOWS
     QMAKE_CFLAGS_DEBUG += -Wall -ggdb -g3
+    QMAKE_CXXFLAGS_DEBUG += -Wall -ggdb -g3
 }
 
 # 3rd party
