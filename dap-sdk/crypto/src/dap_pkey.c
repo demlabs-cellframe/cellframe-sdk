@@ -30,9 +30,10 @@
 
 
 /**
- * @brief dap_pkey_from_enc_key
- * @param a_key
- * @return
+ * @brief 
+ * convert encryption key to public key
+ * @param a_key dap_enc_key_t encryption key
+ * @return dap_pkey_t* 
  */
 dap_pkey_t* dap_pkey_from_enc_key(dap_enc_key_t *a_key)
 {
@@ -51,9 +52,10 @@ dap_pkey_t* dap_pkey_from_enc_key(dap_enc_key_t *a_key)
 
 /**
  * @brief dap_pkey_from_enc_key_output
- * @param a_key
- * @param a_output
- * @return
+ * convert encryption key to public key and placed it in output buffer
+ * @param a_key dap_enc_key_t encryption key object
+ * @param a_output output data
+ * @return result
  */
 int dap_pkey_from_enc_key_output(dap_enc_key_t *a_key, void * a_output)
 {
