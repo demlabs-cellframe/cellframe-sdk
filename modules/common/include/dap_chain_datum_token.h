@@ -253,5 +253,5 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  siz
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size);
 dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
-dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(uint8_t *a_emission_serial, size_t *a_emission_size);
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size);
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
