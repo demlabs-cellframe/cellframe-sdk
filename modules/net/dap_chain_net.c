@@ -256,7 +256,12 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 
 static dap_global_db_obj_callback_notify_t s_srv_callback_notify = NULL;
 
-
+/**
+ * @brief get certificate hash from chain config [acl_accept_ca_gdb] param
+ * 
+ * @param a_net dap_chain_net_t chain object
+ * @return char* 
+ */
 char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
 {
     if (a_net) {
@@ -274,9 +279,10 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
 }
 
 /**
- * @brief s_net_state_to_str
- * @param l_state
- * @return
+ * @brief convert dap_chain_net_state_t net state object to string
+ * 
+ * @param l_state dap_chain_net_state_t
+ * @return const char* 
  */
 inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
 {
@@ -284,9 +290,11 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
 }
 
 /**
- * @brief dap_chain_net_state_go_to
- * @param a_net
- * @param a_new_state
+ * @brief set current network state to F_DAP_CHAIN_NET_GO_SYNC
+ * 
+ * @param a_net dap_chain_net_t network object
+ * @param a_new_state dap_chain_net_state_t new network state
+ * @return int 
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
@@ -309,12 +317,26 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     return 0;
 }
 
-
+/**
+ * @brief set s_srv_callback_notify
+ * 
+ * @param a_callback dap_global_db_obj_callback_notify_t callback function
+ */
 void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a_callback)
 {
     s_srv_callback_notify = a_callback;
 }
 
+/**
+ * @brief if current network in ONLINE state send to all connected node
+ * executes, when you add data to gdb chain (class=gdb in chain config)
+ * @param a_arg arguments. Can be network object (dap_chain_net_t)
+ * @param a_op_code object type (f.e. l_net->type from dap_store_obj)
+ * @param a_group group, for example "chain-gdb.home21-network.chain-F"
+ * @param a_key key hex value, f.e. 0x12EFA084271BAA5EEE93B988E73444B76B4DF5F63DADA4B300B051E29C2F93
+ * @param a_value buffer with data
+ * @param a_value_len buffer size
+ */
 void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_group,
                                       const char *a_key, const void *a_value, const size_t a_value_len)
 {
@@ -359,14 +381,14 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
 }
 
 /**
- * @brief s_gbd_history_callback_notify
- * @param a_arg
- * @param a_op_code
- * @param a_prefix
- * @param a_group
- * @param a_key
- * @param a_value
- * @param a_value_len
+ * @brief added like callback in dap_chain_global_db_add_sync_group
+ * 
+ * @param a_arg arguments. Can be network object (dap_chain_net_t)
+ * @param a_op_code object type (f.e. l_net->type from dap_store_obj)
+ * @param a_group group, for example "chain-gdb.home21-network.chain-F"
+ * @param a_key key hex value, f.e. 0x12EFA084271BAA5EEE93B988E73444B76B4DF5F63DADA4B300B051E29C2F93
+ * @param a_value buffer with data
+ * @param a_value_len buffer size
  */
 static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, const char * a_group,
                                                      const char * a_key, const void * a_value, const size_t a_value_len)
@@ -2885,6 +2907,14 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
     }
 }
 
+/**
+ * @brief check certificate access list, written in chain config
+ * 
+ * @param a_net - network object
+ * @param a_pkey_hash - certificate hash
+ * @return true 
+ * @return false 
+ */
 static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pkey_hash)
 {
     const char l_path[] = "network/";
@@ -2945,6 +2975,12 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
     return l_authorized;
 }
 
+/**
+ * @brief s_acl_callback function. Usually called from enc_http_proc
+ * set acl (l_enc_key_ks->acl_list) from acl_accept_ca_list, acl_accept_ca_gdb chain config parameters in [auth] section
+ * @param a_pkey_hash dap_chain_hash_fast_t hash object
+ * @return uint8_t* 
+ */
 static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
 {
     uint16_t l_net_count;
