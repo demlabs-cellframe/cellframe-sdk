@@ -1065,6 +1065,9 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  */
 int dap_chain_net_init()
 {
+    dap_stream_ch_chain_init();
+    dap_stream_ch_chain_net_init();
+
     dap_chain_node_client_init();
     dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
         "net list [chains -n <chain net name>]"
