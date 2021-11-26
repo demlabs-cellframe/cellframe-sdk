@@ -163,7 +163,7 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                         dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(
                                                                        ((dap_chain_256_tx_out_t*)item)->header.value)
                                                                    ),
-                                        ((dap_chain_256_tx_out_t*)item)->header.value,
+                                        dap_chain_uint256_to(((dap_chain_256_tx_out_t*)item)->header.value),
                                         dap_chain_addr_to_str(&((dap_chain_256_tx_out_t*)item)->addr));
             break;
         case TX_ITEM_TYPE_TOKEN:
@@ -261,7 +261,8 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                              ((dap_chain_datum_256_tx_receipt_t*)item)->receipt_info.value_datoshi
                                          )
                                      ),
-                                     ((dap_chain_datum_256_tx_receipt_t*)item)->receipt_info.value_datoshi);
+                                     dap_chain_uint256_to(((dap_chain_datum_256_tx_receipt_t*)item)->receipt_info.value_datoshi)
+                );
             if (((dap_chain_datum_256_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
                 memcpy(l_provider, ((dap_chain_datum_256_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
@@ -379,8 +380,9 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                      dap_chain_balance_to_coins(
                                          dap_chain_uint128_from_uint256(((dap_chain_256_tx_out_cond_t*)item)->header.value)
                                      ),
-                                     ((dap_chain_256_tx_out_cond_t*)item)->header.value,
-                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_256_tx_out_cond_t*)item)->header.subtype));
+                                     dap_chain_uint256_to(((dap_chain_256_tx_out_cond_t*)item)->header.value),
+                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_256_tx_out_cond_t*)item)->header.subtype)
+            );
             switch (((dap_chain_256_tx_out_cond_t*)item)->header.subtype) {
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
                 l_hash_str_tmp = dap_chain_hash_fast_to_str_new(&((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
@@ -394,18 +396,20 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                          dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(
                                                 ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi)
                                                                     ),
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi);
+                                         dap_chain_uint256_to(((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi)
+                );
                 DAP_FREE(l_hash_str_tmp);
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:
                 dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t addr: %s\n"
                                                     "\t\t\t value: %Lf",
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.srv_uid.uint64,
-                                         dap_chain_addr_to_str(
+                                        ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.srv_uid.uint64,
+                                        dap_chain_addr_to_str(
                                              &((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr
-                                             ),
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.fee_value);
+                                        ),
+                                        ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.fee_value
+                );
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
                 dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
@@ -420,7 +424,8 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                  ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.value
                                                  )
                                              ),
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.value);
+                                         dap_chain_uint256_to(((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.value)
+                );
                 break;
             }
             break;
@@ -1212,7 +1217,6 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
 static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger, const char *a_filter_token_name, const char *a_filtr_addr_base58, const char *a_hash_out_type, long a_datum_start, long a_datum_end, long *a_total_datums, dap_chain_tx_hash_processed_ht_t *a_tx_hash_processed)
 {
     dap_string_t *l_str_out = dap_string_new(NULL);
-
     bool l_tx_hash_found = false;
     // list all transactions
     dap_tx_data_t *l_tx_data_hash = NULL;
@@ -1232,7 +1236,6 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
         return NULL ;
     }
     for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
-
         dap_chain_datum_t *l_datum = l_datums[l_datum_n];
         if(!l_datum) { // || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
             // go to next atom
@@ -1378,6 +1381,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
 
         // emission
         case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: {
+
             // datum out of page
             if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
                  l_token_num++;
@@ -1396,7 +1400,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 uint256_t emission_value = uint256_0;
                 DIV_256(l_token_em->hdr.value, GET_256(DATOSHI_LD), &emission_value);
 
-                dap_string_append_printf(l_str_out, "emission: %.0Lf(%"DAP_UINT64_FORMAT_U") %s, type: %s, version: %d\n",
+                dap_string_append_printf(l_str_out, "emission 256: %.0Lf(%"DAP_UINT64_FORMAT_U") %s, type: %s, version: %d\n",
                         dap_chain_uint128_from_uint256(emission_value),
                         dap_chain_uint128_from_uint256(l_token_em->hdr.value),
                         l_token_em->hdr.ticker,
@@ -1694,6 +1698,20 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
             l_tx_num++;*/
         }
             break;
+
+            // transaction
+        case DAP_CHAIN_DATUM_256_TX:{
+
+            // datum out of page
+            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
+                l_tx_num++;
+                break;
+            }
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
+            s_dap_chain_datum_tx_out_data(l_tx, a_ledger, l_str_out, a_hash_out_type, true, &a_tx_hash_processed, &l_tx_num);
+        }
+            break;
+
         default:
             dap_string_append_printf(l_str_out, "unknown datum type=%d\n", l_datum->header.type_id);
             break;
@@ -1763,7 +1781,6 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
-
     int l_cmd = CMD_NONE;
     if (dap_chain_node_cli_find_option_val(a_argv, 1, 2, "list", NULL)){
         l_cmd = CMD_LIST;
@@ -1772,6 +1789,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "info", NULL))
             l_cmd = CMD_TX_INFO;
     }
+
     // command tx_history
     if(l_cmd == CMD_TX_HISTORY) {
         bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
@@ -1798,6 +1816,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 return -3;
             }
         }
+
         //Select chain emission
         if(!l_chain_str) { // chain may be null -> then all chain use
             //dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter '-chain'");
@@ -1824,6 +1843,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 //        dap_chain_hash_fast_to_str(&l_tx_hash, hash_str,99);
 //        int gsdgsd=523;
         }
+
         dap_chain_addr_t *l_addr = NULL;
         // if need addr
         if(l_wallet_name || l_addr_base58) {
@@ -1857,7 +1877,9 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         // all chain
         else
             l_chain_cur = dap_chain_enum(&l_chain_tmp);
+
         while(l_chain_cur) {
+
             // only selected net
             if(l_net->pub.id.uint64 == l_chain_cur->net_id.uint64) {
                 // separator between chains
@@ -1867,12 +1889,14 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 char *l_str_out = NULL;
                 dap_string_append_printf(l_str_ret, "chain: %s\n", l_chain_cur->name);
                 dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
+
                 if(l_is_all) {
                     // without filters
                     l_str_out = dap_db_history_filter(l_chain_cur, l_ledger, NULL, NULL, l_hash_out_type, -1, 0, NULL, l_list_tx_hash_processd);
                     dap_string_append_printf(l_str_ret, "all history:\n%s\n", l_str_out ? l_str_out : " empty");
                 }
                 else {
+
                     l_str_out = l_tx_hash_str ?
                                                 dap_db_history_tx(&l_tx_hash, l_chain_cur, l_hash_out_type) :
                                                 dap_db_history_addr(l_addr, l_chain_cur, l_hash_out_type);
@@ -1897,6 +1921,8 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_enum_unlock();
             l_chain_cur = dap_chain_enum(&l_chain_tmp);
         }
+
+
         DAP_DELETE(l_addr);
         _dap_chain_tx_hash_processed_ht_free(l_list_tx_hash_processd);
         // all chain
@@ -1907,6 +1933,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         return 0;
     }
     else if(l_cmd == CMD_LIST){
+
         enum {SUBCMD_NONE, SUBCMD_LIST_COIN};
         int l_sub_cmd = SUBCMD_NONE;
         if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "coins", NULL ))
@@ -1932,6 +1959,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         dap_string_free(l_str_ret, true);
         return 0;
     } else if (l_cmd == CMD_TX_INFO){
+
         //GET hash
         dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
         //get net

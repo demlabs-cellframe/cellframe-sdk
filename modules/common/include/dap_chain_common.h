@@ -201,6 +201,10 @@ typedef enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_SIG = 0x30,
     TX_ITEM_TYPE_TOKEN = 0x40,
     TX_ITEM_TYPE_TOKEN_EXT = 0x41,
+
+    TX_ITEM_TYPE_256_TOKEN = 0x42,
+    TX_ITEM_TYPE_256_TOKEN_EXT = 0x43,
+
     TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
 
     TX_ITEM_TYPE_OUT_COND = 0x60, /// @brief  Transaction: conditon outputs

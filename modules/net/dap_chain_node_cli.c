@@ -1135,7 +1135,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     if ( l_listen_unix_socket_path && l_listen_unix_socket_permissions ) {
         if ( l_listen_unix_socket_permissions_str ) {
             uint16_t l_perms;
-            dap_sscanf(l_listen_unix_socket_permissions_str,"%hu", &l_perms);
+            dap_sscanf(l_listen_unix_socket_permissions_str,"%ho", &l_perms);
             l_listen_unix_socket_permissions = l_perms;
         }
         log_it( L_INFO, "Console interace on path %s (%04o) ", l_listen_unix_socket_path, l_listen_unix_socket_permissions );

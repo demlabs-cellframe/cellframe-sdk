@@ -172,6 +172,9 @@ size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
     case TX_ITEM_TYPE_TOKEN: // token item
         size = dap_chain_tx_token_get_size((const dap_chain_tx_token_t*) a_item);
         break;
+    case TX_ITEM_TYPE_256_TOKEN: // token item
+        size = dap_chain_tx_token_get_size((const dap_chain_tx_token_t*) a_item);
+        break;
     default:
         return 0;
     }
@@ -189,6 +192,17 @@ dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(dap_chain_hash_fast_t
         return NULL;
     dap_chain_tx_token_t *l_item = DAP_NEW_Z(dap_chain_tx_token_t);
     l_item->header.type = TX_ITEM_TYPE_TOKEN;
+    memcpy (& l_item->header.token_emission_hash, a_datum_token_hash, sizeof ( *a_datum_token_hash ) );
+    strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
+    return l_item;
+}
+// 256
+dap_chain_tx_token_t* dap_chain_datum_tx_item_256_token_create(dap_chain_hash_fast_t * a_datum_token_hash,const char * a_ticker)
+{
+    if(!a_ticker)
+        return NULL;
+    dap_chain_tx_token_t *l_item = DAP_NEW_Z(dap_chain_tx_token_t);
+    l_item->header.type = TX_ITEM_TYPE_256_TOKEN;
     memcpy (& l_item->header.token_emission_hash, a_datum_token_hash, sizeof ( *a_datum_token_hash ) );
     strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
     return l_item;
