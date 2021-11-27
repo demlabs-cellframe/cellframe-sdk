@@ -3149,7 +3149,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_hash_fast_t l_emission_hash={0};
     
     dap_chain_datum_token_emission_t * l_emission = NULL;
-    dap_chain_datum_256_token_emission_t * l_emission_256 = NULL; // 256
+    //dap_chain_datum_256_token_emission_t * l_emission_256 = NULL; // 256
     
     char * l_emission_hash_str_base58 = NULL;
 
@@ -3170,6 +3170,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
+
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
@@ -3297,76 +3298,55 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         size_t l_emission_size = sizeof(l_emission->hdr) +
                 sizeof(l_emission->data.type_auth.signs_count);
 
-        size_t l_emission_256_size = sizeof(l_emission_256->hdr) +
-                sizeof(l_emission_256->data.type_auth.signs_count);
+        // size_t l_emission_256_size = sizeof(l_emission_256->hdr) +
+        //         sizeof(l_emission_256->data.type_auth.signs_count);
 
         size_t l_offset = 0;
-        if ( !l_type_256 ) {
-            l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
+        l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
+        if ( !l_type_256 )
             l_emission->hdr.value = l_emission_value;
+        else // 256
+            l_emission->hdr.value_256 = GET_256(l_emission_value);
             
-            strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
-            l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
-            memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
+        strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
+        l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
+        memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
 
-            for(size_t i = 0; i < l_certs_size; i++) {
-                dap_sign_t * l_sign = dap_cert_sign(l_certs[i], &l_emission->hdr,
-                        sizeof(l_emission->hdr), 0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
-                l_emission_size += l_sign_size;
-                l_emission = DAP_REALLOC(l_emission, l_emission_size);
-                memcpy(l_emission->data.type_auth.signs + l_offset, l_sign, l_sign_size);
-                l_offset += l_sign_size;
-                DAP_DELETE(l_sign);
-            }
-        } else { // 256
-            l_emission_256 = DAP_NEW_Z_SIZE(dap_chain_datum_256_token_emission_t, l_emission_256_size);
-            l_emission_256->hdr.value = GET_256(l_emission_value);
-            
-            strncpy(l_emission_256->hdr.ticker, l_ticker, sizeof(l_emission_256->hdr.ticker) - 1);
-            l_emission_256->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
-            memcpy(&l_emission_256->hdr.address, l_addr, sizeof(l_emission_256->hdr.address));
-
-            for(size_t i = 0; i < l_certs_size; i++) {
-                dap_sign_t * l_sign = dap_cert_sign(l_certs[i], &l_emission_256->hdr,
-                        sizeof(l_emission_256->hdr), 0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
-                l_emission_256_size += l_sign_size;
-                l_emission_256 = DAP_REALLOC(l_emission_256, l_emission_256_size);
-                memcpy(l_emission_256->data.type_auth.signs + l_offset, l_sign, l_sign_size);
-                l_offset += l_sign_size;
-                DAP_DELETE(l_sign);
-            }
+        for(size_t i = 0; i < l_certs_size; i++) {
+            dap_sign_t * l_sign = dap_cert_sign(l_certs[i], &l_emission->hdr,
+                    sizeof(l_emission->hdr), 0);
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            l_emission_size += l_sign_size;
+            l_emission = DAP_REALLOC(l_emission, l_emission_size);
+            memcpy(l_emission->data.type_auth.signs + l_offset, l_sign, l_sign_size);
+            l_offset += l_sign_size;
+            DAP_DELETE(l_sign);
         }
 
         dap_chain_datum_t * l_datum_emission;
 
         // Produce datum
-        if ( !l_type_256 ) {
+        if ( !l_type_256 )
             l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,
                     l_emission,
                     l_emission_size);
-        } else { // 256
+        else // 256
             l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_256_TOKEN_EMISSION,
-                    l_emission_256,
-                    l_emission_256_size);
-        }
+                    l_emission,
+                    l_emission_size);
 
         size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
         // Calc token's hash
         //dap_chain_hash_fast_t l_emission_hash;
-        if ( !l_type_256 ) {
-            dap_hash_fast(l_emission, l_emission_size, &l_emission_hash);
-        } else { // 256
-            dap_hash_fast(l_emission_256, l_emission_256_size, &l_emission_hash);
-        }
+        dap_hash_fast(l_emission, l_emission_size, &l_emission_hash);
+
         l_emission_hash_str = l_emission_hash_str_new = dap_chain_hash_fast_to_str_new(&l_emission_hash);
         l_emission_hash_str_base58 = dap_enc_base58_encode_hash_to_str(&l_emission_hash);
 
         // Delete token emission
         DAP_DEL_Z(l_emission);
-        DAP_DEL_Z(l_emission_256); // 256
+        //DAP_DEL_Z(l_emission_256); // 256
 
 //    // Calc datum's hash
 //    dap_chain_hash_fast_t l_datum_emission_hash;
