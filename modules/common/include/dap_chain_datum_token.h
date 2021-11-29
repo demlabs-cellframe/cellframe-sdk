@@ -201,6 +201,7 @@ typedef struct dap_chain_datum_token_emission{
     struct  {
         uint8_t version;
         uint8_t type; // Emission Type
+        bool type_value_256;
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         dap_chain_addr_t address; // Emission holder's address
         union {

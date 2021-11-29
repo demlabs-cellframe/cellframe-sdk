@@ -166,11 +166,10 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t Value: %s (%s)\n"
                                                 "\t\t Address: %s\n",
                                         dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(
-                                                                       ((dap_chain_256_tx_out_t*)item)->header.value)
+                                                                       ((dap_chain_tx_out_t*)item)->header.value_256)
                                                                    ),
-                                        //dap_utoa128((char[130]){},dap_chain_uint128_from_uint256(((dap_chain_256_tx_out_t*)item)->header.value), 10),
-                                        dap_chain_u256tostr(((dap_chain_256_tx_out_t*)item)->header.value),
-                                        dap_chain_addr_to_str(&((dap_chain_256_tx_out_t*)item)->addr));
+                                        dap_chain_u256tostr(((dap_chain_tx_out_t*)item)->header.value_256),
+                                        dap_chain_addr_to_str(&((dap_chain_tx_out_t*)item)->addr));
             break;
         }
         case TX_ITEM_TYPE_256_TOKEN:
@@ -211,28 +210,55 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                 "\t sig_size: %u\n", ((dap_chain_tx_sig_t*)item)->header.sig_size);
             dap_sign_get_information(l_sign_tmp, a_str_out);
             break;
+        case TX_ITEM_TYPE_256_RECEIPT:
         case TX_ITEM_TYPE_RECEIPT:
-            dap_string_append_printf(a_str_out, "\t Receipt:\n"
-                                                "\t\t size: %u\n"
-                                                "\t\t ext size:%u\n"
-                                                "\t\t Info:"
-                                                "\t\t\t   units: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                "\t\t\t   uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                "\t\t\t   units type: %s \n"
-                                                "\t\t\t   value: %s (%"DAP_UINT64_FORMAT_U")\n",
-                                     ((dap_chain_datum_tx_receipt_t*)item)->size,
-                                     ((dap_chain_datum_tx_receipt_t*)item)->exts_size,
-                                     ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,
-                                     ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64,
-                                     serv_unit_enum_to_str(
-                                         &((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm
-                                         ),
-                                     dap_chain_balance_to_coins(
-                                         dap_chain_uint128_from(
-                                             ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi
-                                         )
-                                     ),
-                                     ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
+            if ( l_type == TX_ITEM_TYPE_256_RECEIPT) // u256_t value_datoshi
+                dap_string_append_printf(a_str_out, "\t Receipt:\n"
+                                                    "\t\t size: %u\n"
+                                                    "\t\t ext size:%u\n"
+                                                    "\t\t Info:"
+                                                    "\t\t\t   units: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                                                    "\t\t\t   uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                                                    "\t\t\t   units type: %s \n"
+                                                    "\t\t\t   value: %s (%"DAP_UINT64_FORMAT_U")\n",
+                            ((dap_chain_datum_tx_receipt_t*)item)->size,
+                            ((dap_chain_datum_tx_receipt_t*)item)->exts_size,
+                            ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,
+                            ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64,
+                            serv_unit_enum_to_str(
+                                 &((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm
+                                 ),
+                             dap_chain_balance_to_coins(
+                                 dap_chain_uint128_from_uint256(
+                                     ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi_256
+                                 )
+                             ),
+                             dap_chain_u256tostr(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi_256)
+                        );
+            else // u64_t value_datoshi
+                dap_string_append_printf(a_str_out, "\t Receipt:\n"
+                                                    "\t\t size: %u\n"
+                                                    "\t\t ext size:%u\n"
+                                                    "\t\t Info:"
+                                                    "\t\t\t   units: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                                                    "\t\t\t   uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                                                    "\t\t\t   units type: %s \n"
+                                                    "\t\t\t   value: %s (%"DAP_UINT64_FORMAT_U")\n",
+                            ((dap_chain_datum_tx_receipt_t*)item)->size,
+                            ((dap_chain_datum_tx_receipt_t*)item)->exts_size,
+                            ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,
+                            ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64,
+                            serv_unit_enum_to_str(
+                                 &((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm
+                                 ),
+                            dap_chain_balance_to_coins(
+                                dap_chain_uint128_from(
+                                    ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi
+                                )
+                            ),
+                            ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi
+                        );
+
             if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
                 memcpy(l_provider, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
@@ -248,49 +274,6 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             } else if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t)) {
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
                 memcpy(l_provider, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
-                dap_string_append_printf(a_str_out, "Exts:\n"
-                                                    "   Provider:\n");
-                dap_sign_get_information(l_provider, a_str_out);
-            }
-            break;
-        case TX_ITEM_TYPE_256_RECEIPT: // 256
-            dap_string_append_printf(a_str_out, "\t Receipt 256_t:\n"
-                                                "\t\t size: %u\n"
-                                                "\t\t ext size:%u\n"
-                                                "\t\t Info:"
-                                                "\t\t\t   units: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                "\t\t\t   uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                "\t\t\t   units type: %s \n"
-                                                "\t\t\t   value: %s (%s)\n",
-                                     ((dap_chain_datum_256_tx_receipt_t*)item)->size,
-                                     ((dap_chain_datum_256_tx_receipt_t*)item)->exts_size,
-                                     ((dap_chain_datum_256_tx_receipt_t*)item)->receipt_info.units,
-                                     ((dap_chain_datum_256_tx_receipt_t*)item)->receipt_info.srv_uid.uint64,
-                                     serv_unit_enum_to_str(
-                                         &((dap_chain_datum_256_tx_receipt_t*)item)->receipt_info.units_type.enm
-                                         ),
-                                     dap_chain_balance_to_coins(
-                                         dap_chain_uint128_from_uint256(
-                                             ((dap_chain_datum_256_tx_receipt_t*)item)->receipt_info.value_datoshi
-                                         )
-                                     ),
-                                     dap_chain_u256tostr(((dap_chain_datum_256_tx_receipt_t*)item)->receipt_info.value_datoshi)
-                );
-            if (((dap_chain_datum_256_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
-                dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
-                memcpy(l_provider, ((dap_chain_datum_256_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
-                dap_sign_t *l_client = DAP_NEW_Z(dap_sign_t);
-                memcpy(l_client,
-                       ((dap_chain_datum_256_tx_receipt_t*)item)->exts_n_signs + sizeof(dap_sign_t),
-                       sizeof(dap_sign_t));
-                dap_string_append_printf(a_str_out, "Exts:\n"
-                                                    "   Provider:\n");
-                dap_sign_get_information(l_provider, a_str_out);
-                dap_string_append_printf(a_str_out, "   Client:\n");
-                dap_sign_get_information(l_client, a_str_out);
-            } else if (((dap_chain_datum_256_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t)) {
-                dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
-                memcpy(l_provider, ((dap_chain_datum_256_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
                 dap_string_append_printf(a_str_out, "Exts:\n"
                                                     "   Provider:\n");
                 dap_sign_get_information(l_provider, a_str_out);
@@ -389,27 +372,27 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t\t value: %s (%s)\n"
                                                 "\t\t\t subtype: %s\n"
                                                 "\t\t SubType:\n",
-                                     dap_ctime_r((time_t*)((dap_chain_256_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
+                                     dap_ctime_r((time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
                                      dap_chain_balance_to_coins(
-                                         dap_chain_uint128_from_uint256(((dap_chain_256_tx_out_cond_t*)item)->header.value)
+                                         dap_chain_uint128_from_uint256(((dap_chain_tx_out_cond_t*)item)->header.value_256)
                                      ),
-                                     dap_chain_u256tostr(((dap_chain_256_tx_out_cond_t*)item)->header.value),
-                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_256_tx_out_cond_t*)item)->header.subtype)
+                                     dap_chain_u256tostr(((dap_chain_tx_out_cond_t*)item)->header.value_256),
+                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype)
             );
-            switch (((dap_chain_256_tx_out_cond_t*)item)->header.subtype) {
+            switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
-                l_hash_str_tmp = dap_chain_hash_fast_to_str_new(&((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
+                l_hash_str_tmp = dap_chain_hash_fast_to_str_new(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
                 dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
                                                     "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t pkey: %s\n"
                                                     "\t\t\t max price: %s (%s) \n",
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.srv_uid.uint64,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.srv_uid.uint64,
                                          l_hash_str_tmp,
                                          dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(
-                                                ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi)
+                                                ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi_256)
                                                                     ),
-                                         dap_chain_u256tostr(((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi)
+                                         dap_chain_u256tostr(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi_256)
                 );
                 DAP_FREE(l_hash_str_tmp);
                 break;
@@ -417,11 +400,11 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                 dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t addr: %s\n"
                                                     "\t\t\t value: %Lf",
-                                        ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.srv_uid.uint64,
+                                        ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.srv_uid.uint64,
                                         dap_chain_addr_to_str(
-                                             &((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr
+                                             &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr
                                         ),
-                                        ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.fee_value
+                                        ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_value
                 );
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
@@ -429,15 +412,15 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                     "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t token: %s\n"
                                                     "\t\t\t value: %s (%s)\n",
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.srv_uid.uint64,
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.net_id.uint64,
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.token,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.srv_uid.uint64,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.net_id.uint64,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.token,
                                          dap_chain_balance_to_coins(
                                              dap_chain_uint128_from_uint256(
-                                                 ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.value
+                                                 ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.value_256
                                                  )
                                              ),
-                                         dap_chain_u256tostr(((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.value)
+                                         dap_chain_u256tostr(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.value_256)
                 );
                 break;
             }
@@ -460,12 +443,12 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t Addr: %s\n"
                                                 "\t\t Token: %s\n"
                                                 "\t\t Value: %s (%s)\n",
-                                     dap_chain_addr_to_str(&((dap_chain_256_tx_out_ext_t*)item)->addr),
-                                     ((dap_chain_256_tx_out_ext_t*)item)->token,
+                                     dap_chain_addr_to_str(&((dap_chain_tx_out_ext_t*)item)->addr),
+                                     ((dap_chain_tx_out_ext_t*)item)->token,
                                      dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(
-                                                                    ((dap_chain_256_tx_out_ext_t*)item)->header.value)
+                                                                    ((dap_chain_tx_out_ext_t*)item)->header.value_256)
                                                                 ),
-                                     dap_chain_u256tostr(((dap_chain_256_tx_out_ext_t*)item)->header.value)
+                                     dap_chain_u256tostr(((dap_chain_tx_out_ext_t*)item)->header.value_256)
                                 );
             break;
         default:
@@ -568,7 +551,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
         dap_list_t *l_list_tmp = l_list_out_items;
         while(l_list_tmp) {
 
-            const dap_chain_256_tx_out_t *l_tx_out_256  = (const dap_chain_256_tx_out_t*) l_list_tmp->data;
+            // const dap_chain_256_tx_out_t *l_tx_out_256  = (const dap_chain_256_tx_out_t*) l_list_tmp->data;
             const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
 
             // save OUT item l_tx_out - only for first OUT item
@@ -579,10 +562,10 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                 dap_chain_hash_fast_t l_tx_hash;
                 dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
                 memcpy(&l_tx_data->tx_hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
-                if ( l_type_256 ) // 256
-                    memcpy(&l_tx_data->addr, &l_tx_out->addr, sizeof(dap_chain_addr_t));
-                else
-                    memcpy(&l_tx_data->addr, &l_tx_out_256->addr, sizeof(dap_chain_addr_t));
+                // if ( l_type_256 ) // 256
+                //     memcpy(&l_tx_data->addr, &l_tx_out->addr, sizeof(dap_chain_addr_t));
+                // else
+                memcpy(&l_tx_data->addr, &l_tx_out->addr, sizeof(dap_chain_addr_t));
                 
                 dap_chain_hash_fast_to_str(&l_tx_data->tx_hash, l_tx_data->tx_hash_str,
                         sizeof(l_tx_data->tx_hash_str));
@@ -658,7 +641,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
             l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT, NULL);
         l_list_tmp = l_list_out_items;
         while(l_list_tmp) {
-            const dap_chain_256_tx_out_t *l_tx_out_256 = (const dap_chain_256_tx_out_t*) l_list_tmp->data;
+            // const dap_chain_256_tx_out_t *l_tx_out_256 = (const dap_chain_256_tx_out_t*) l_list_tmp->data;
             const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t*) l_list_tmp->data;
             //dap_tx_data_t *l_tx_data_prev = NULL;
 
@@ -666,13 +649,12 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
             if(l_tx_data)
                 l_token_str = l_tx_data->token_ticker;
             char *l_dst_to_str =
-                    (l_tx_out) ? dap_chain_addr_to_str(&l_tx_out->addr) :
-                        (l_tx_out_256) ? dap_chain_addr_to_str(&l_tx_out->addr) : NULL;
+                    (l_tx_out) ? dap_chain_addr_to_str(&l_tx_out->addr) : NULL;
 
-            if(l_tx_out || l_tx_out_256) {
+            if(l_tx_out) {
                 if ( l_type_256 ) // 256
                     dap_string_append_printf(l_str_out, " OUT 256_t item %s %s to %s\n",
-                        dap_chain_u256tostr(l_tx_out_256->header.value),
+                        dap_chain_u256tostr(l_tx_out->header.value_256),
                         dap_strlen(l_token_str) > 0 ? l_token_str : "?",
                         l_dst_to_str ? l_dst_to_str : "?"
                     );
@@ -718,19 +700,19 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                 dap_chain_datum_tx_t *l_tx_prev =
                         l_datum_prev ? (dap_chain_datum_tx_t*) l_datum_prev->data : NULL;
 
-                if ( l_type_256 ) {
+                if ( l_type_256 ) { // 256
                     // find OUT items in prev datum
                     dap_list_t *l_list_out_prev_items = dap_chain_datum_tx_items_get(l_tx_prev,
                             TX_ITEM_TYPE_256_OUT, NULL);
                     // find OUT item for IN item;
                     dap_list_t *l_list_out_prev_item = dap_list_nth(l_list_out_prev_items,
                             l_tx_in->header.tx_out_prev_idx);
-                    dap_chain_256_tx_out_t *l_tx_prev_out =
-                            l_list_out_prev_item ? (dap_chain_256_tx_out_t*)l_list_out_prev_item->data :
+                    dap_chain_tx_out_t *l_tx_prev_out =
+                            l_list_out_prev_item ? (dap_chain_tx_out_t*)l_list_out_prev_item->data :
                                                    NULL;
                     // print value from prev out item
                     dap_string_append_printf(l_str_out, "  prev OUT 256_t item value=%s",
-                            l_tx_prev_out ? dap_chain_u256tostr(l_tx_prev_out->header.value) : "0");
+                            l_tx_prev_out ? dap_chain_u256tostr(l_tx_prev_out->header.value_256) : "0");
                 } else {
                     dap_list_t *l_list_out_prev_items = dap_chain_datum_tx_items_get(l_tx_prev,
                             TX_ITEM_TYPE_OUT, NULL);
@@ -1404,7 +1386,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                      break;
                 }
 
-                if ( l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ) { // 256
+                if ( l_token_em->hdr.type_value_256 ) { // 256
                 dap_string_append_printf(l_str_out, "emission 256: %.0Lf(%s) %s, type: %s, version: %d\n",
                         dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token_em->hdr.value_256)),
                         dap_chain_u256tostr(l_token_em->hdr.value_256),
@@ -1432,7 +1414,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     dap_string_append_printf(l_str_out, "  codename: %s\n", l_token_em->data.type_algo.codename);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
-                    if ( l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ) { // 256
+                    if ( l_token_em->hdr.type_value_256 ) { // 256
                         dap_string_append_printf(l_str_out, " value_start: %s(%s), codename: %s\n",
                             dap_chain_datoshi_to_coins(dap_chain_uint128_from_uint256(l_token_em->data.type_atom_owner.value_start_256)),
                             dap_chain_u256tostr(l_token_em->data.type_atom_owner.value_start_256),

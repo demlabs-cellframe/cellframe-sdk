@@ -323,8 +323,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         }break;
         case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: // 256
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_token_emission, l_datum->header.data_size))
+            dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) l_datum->data;
+            l_token_em->hdr.type_value_256 = l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
+                                                true : false;
+            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_token_em, l_datum->header.data_size))
                 return ATOM_REJECT;
         }break;
         case DAP_CHAIN_DATUM_256_TX: // 256

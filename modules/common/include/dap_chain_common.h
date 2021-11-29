@@ -222,16 +222,19 @@ typedef struct dap_chain_receipt{
     dap_chain_net_srv_uid_t srv_uid; // Service UID
     dap_chain_net_srv_price_unit_uid_t units_type;
     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    uint64_t value_datoshi; // Receipt value
+    union {
+        uint64_t value_datoshi; // Receipt value
+        uint256_t value_datoshi_256;
+    };
 } dap_chain_receipt_info_t;
 
 // 256
-typedef struct dap_chain_256_receipt{
-    dap_chain_net_srv_uid_t srv_uid; // Service UID
-    dap_chain_net_srv_price_unit_uid_t units_type;
-    uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    uint256_t value_datoshi; // Receipt value
-} dap_chain_256_receipt_info_t;
+// typedef struct dap_chain_256_receipt{
+//     dap_chain_net_srv_uid_t srv_uid; // Service UID
+//     dap_chain_net_srv_price_unit_uid_t units_type;
+//     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+//     uint256_t value_datoshi; // Receipt value
+// } dap_chain_256_receipt_info_t;
 
 #ifdef __cplusplus
 extern "C" {

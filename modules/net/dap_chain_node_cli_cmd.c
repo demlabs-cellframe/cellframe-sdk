@@ -3307,10 +3307,13 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
         size_t l_offset = 0;
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
-        if ( !l_type_256 )
+        if ( !l_type_256 ) {
+            l_emission->hdr.type_value_256 = false;
             l_emission->hdr.value = dap_chain_uint256_to(l_emission_value);
-        else // 256
+        } else { // 256
+            l_emission->hdr.type_value_256 = true;
             l_emission->hdr.value_256 = l_emission_value;
+        }
             
         strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
         l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
@@ -3385,7 +3388,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     dap_chain_tx_token_t *l_tx_token;
     dap_chain_tx_out_t *l_out;
-    dap_chain_256_tx_out_t *l_out_256;
+    //dap_chain_256_tx_out_t *l_out_256;
     
     // create items
     if ( !l_type_256 ) {
@@ -3393,7 +3396,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         l_out = dap_chain_datum_tx_item_out_create(l_addr, dap_chain_uint256_to(l_emission_value));
     } else { // 256
         l_tx_token = dap_chain_datum_tx_item_256_token_create(&l_emission_hash, l_ticker);
-        l_out_256 = dap_chain_datum_tx_item_256_out_create(l_addr, l_emission_value);
+        l_out = dap_chain_datum_tx_item_256_out_create(l_addr, l_emission_value);
     }
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
 
@@ -3401,11 +3404,11 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
 
-    if ( !l_type_256 ) {
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
-    } else { //256
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_256);
-    }
+    //if ( !l_type_256 ) {
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
+    // } else { //256
+    //     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_256);
+    // }
 
     // Base tx don't need signature items but let it be
     if (l_certs){
