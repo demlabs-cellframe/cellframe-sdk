@@ -3186,13 +3186,13 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         return -43;
     }
 
-    // Wallet address that recieves the emission
+    // Token emission
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission", &l_emission_hash_str);
 
     // 256
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-256", &l_type_256);
 
-    // Wallet address that recieves the emission
+    // Emission certs
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
 
     // Wallet address that recieves the emission
@@ -3201,7 +3201,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // Token ticker
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-token", &l_ticker);
 
-    // Token emission
+    // Emission value
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission_value", &str_tmp)) {
         // l_emission_value = strtoull(str_tmp, NULL, 10);
         l_emission_value = GET_256_FROM_128(dap_strtou128(str_tmp, NULL, 10)); 
@@ -3305,8 +3305,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         // size_t l_emission_256_size = sizeof(l_emission_256->hdr) +
         //         sizeof(l_emission_256->data.type_auth.signs_count);
 
-        size_t l_offset = 0;
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
+
         if ( !l_type_256 ) {
             l_emission->hdr.type_value_256 = false;
             l_emission->hdr.value = dap_chain_uint256_to(l_emission_value);
@@ -3314,10 +3314,17 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
             l_emission->hdr.type_value_256 = true;
             l_emission->hdr.value_256 = l_emission_value;
         }
-            
+
+        l_emission->hdr.version = 1;
+
         strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
         l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
         memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
+
+        time_t l_time = time(NULL);
+        memcpy(&l_emission->hdr.nonce, &l_time, sizeof(time_t));
+        // Then add signs
+        size_t l_offset = 0;
 
         for(size_t i = 0; i < l_certs_size; i++) {
             dap_sign_t * l_sign = dap_cert_sign(l_certs[i], &l_emission->hdr,
@@ -3364,15 +3371,15 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         if(dap_chain_global_db_gr_set(dap_strdup(l_emission_hash_str_new), (uint8_t *) l_datum_emission, l_datum_emission_size
                 , l_gdb_group_mempool_emission)) {
             if(!dap_strcmp(l_hash_out_type,"hex"))
-                str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_emission_hash_str_new);
+                str_reply_tmp = dap_strdup_printf("Datum emission %s is placed in datum pool", l_emission_hash_str_new);
             else
-                str_reply_tmp = dap_strdup_printf("datum emission %s is placed in datum pool ", l_emission_hash_str_base58);
+                str_reply_tmp = dap_strdup_printf("Datum emission %s is placed in datum pool", l_emission_hash_str_base58);
         }
         else {
             if(!dap_strcmp(l_hash_out_type,"hex"))
-                dap_chain_node_cli_set_reply_text(a_str_reply, "datum emission %s is not placed in datum pool ", l_emission_hash_str_new);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum emission %s is not placed in datum pool", l_emission_hash_str_new);
             else
-                dap_chain_node_cli_set_reply_text(a_str_reply, "datum emission %s is not placed in datum pool ", l_emission_hash_str_base58);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum emission %s is not placed in datum pool", l_emission_hash_str_base58);
             DAP_DEL_Z(l_emission_hash_str_new);
             l_emission_hash_str = NULL;
             DAP_DEL_Z(l_emission_hash_str_base58);
@@ -3736,6 +3743,102 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
     if( l_datum == NULL){
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "Can't produce datum from certificate \"%s\"", l_ca_name );
+        return -7;
+    }
+
+    // Finaly add datum to mempool
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum,l_chain);
+    if (l_hash_str) {
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Datum %s was successfully placed to mempool", l_hash_str);
+        DAP_DELETE(l_hash_str);
+        return 0;
+    } else {
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't place certificate \"%s\" to mempool", l_ca_name);
+        DAP_DELETE( l_datum );
+        return -8;
+    }
+}
+
+/**
+ * @brief com_chain_ca_copy
+ * @details copy public CA into the mempool
+ * @param a_argc
+ * @param a_argv
+ * @param a_arg_func
+ * @param a_str_reply
+ * @return
+ */
+int com_chain_ca_copy( int a_argc,  char ** a_argv, char ** a_str_reply)
+{
+    return com_mempool_add_ca(a_argc, a_argv, a_str_reply);
+}
+
+
+/**
+ * @brief com_chain_ca_pub
+ * @details place public CA into the mempool
+ * @param a_argc
+ * @param a_argv
+ * @param a_arg_func
+ * @param a_str_reply
+ * @return
+ */
+int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply)
+{
+    int arg_index = 1;
+    // Read params
+    const char * l_ca_name = NULL;
+    dap_chain_net_t * l_net = NULL;
+    dap_chain_t * l_chain = NULL;
+
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+
+    dap_cert_t * l_cert = dap_cert_find_by_name( l_ca_name );
+    if( l_cert == NULL ){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't find \"%s\" certificate", l_ca_name );
+        return -4;
+    }
+
+
+    if( l_cert->enc_key == NULL ){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Corrupted certificate \"%s\" without keys certificate", l_ca_name );
+        return -5;
+    }
+
+    // Create empty new cert
+    dap_cert_t * l_cert_new = dap_cert_new(l_ca_name);
+    l_cert_new->enc_key = dap_enc_key_new( l_cert->enc_key->type);
+
+    // Copy only public key
+    l_cert_new->enc_key->pub_key_data = DAP_NEW_Z_SIZE(uint8_t,
+                                                      l_cert_new->enc_key->pub_key_data_size =
+                                                      l_cert->enc_key->pub_key_data_size );
+    memcpy(l_cert_new->enc_key->pub_key_data, l_cert->enc_key->pub_key_data,l_cert->enc_key->pub_key_data_size);
+
+    // Serialize certificate into memory
+    uint32_t l_cert_serialized_size = 0;
+    byte_t * l_cert_serialized = dap_cert_mem_save( l_cert_new, &l_cert_serialized_size );
+    if( l_cert_serialized == NULL){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't serialize in memory certificate" );
+        return -7;
+    }
+    if( l_cert_serialized == NULL){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't serialize in memory certificate");
+        return -7;
+    }
+    // Now all the chechs passed, forming datum for mempool
+    dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
+    DAP_DELETE( l_cert_serialized);
+    if( l_datum == NULL){
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                "Can't produce datum from certificate");
         return -7;
     }
 

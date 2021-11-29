@@ -234,7 +234,6 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     }
     if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
         uint16_t l_verified_num = 0;
-        dap_chain_addr_t l_addr = { 0 };
 
         for ( size_t l_sig_pos=0; l_sig_pos < a_dag_event->header.signs_count; l_sig_pos++ ){
             dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event, a_dag_event_size,l_sig_pos);
@@ -258,28 +257,15 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 return -41;
             }
 
-            if (!l_dag_event_size_without_sign){
-                log_it(L_WARNING,"Event has nothing except sign, nothing to verify so I pass it (who knows why we have it?)");
-                return 0;
-            }
-
-            dap_chain_hash_fast_t l_pkey_hash;
-            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
-                log_it(L_WARNING, "Event's sign has no any key");
-                return -5;
-            }
-            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
-
-
-
             if (l_sig_pos == 0) {
-                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event,a_dag_event_size);
-                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-                    if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
-                        log_it(L_WARNING,"Not passed stake validator with event %p on chain %s", a_dag_event, a_dag->chain->name);
-                        return -6;
-                    }
+                dap_chain_addr_t l_addr = {};
+                dap_chain_hash_fast_t l_pkey_hash;
+                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
+                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event, a_dag_event_size);
+                if (!dap_chain_net_srv_stake_validator(&l_addr, l_datum)) {
+                    log_it(L_WARNING, "Not passed stake validator with event %p on chain %s", a_dag_event, a_dag->chain->name);
+                    return -6;
                 }
             }
             /*
@@ -299,24 +285,24 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             if(l_is_emit)
                 return 0;*/
 
-            bool l_is_enough_balance = false;
-            for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
-                uint256_t l_balance = dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] );
-                uint64_t l_value = dap_chain_uint256_to(l_balance);
-                if (l_value >= l_pos_pvt->tokens_hold_value[i]) {
-                    l_verified_num++;
-                    l_is_enough_balance = true;
-                    break;
-                }
-            }
-            if (! l_is_enough_balance ){
-                char *l_addr_str = dap_chain_addr_to_str(&l_addr);
-                log_it(L_WARNING, "Verify of event is false, because bal is not enough for addr=%s", l_addr_str);
-                DAP_DELETE(l_addr_str);
-                return -1;
-            }
-        }
+            // bool l_is_enough_balance = false;
+            // for (size_t i =0; i <l_pos_pvt->tokens_hold_size; i++){
+            //     uint256_t l_balance = dap_chain_ledger_calc_balance ( a_dag->chain->ledger , &l_addr, l_pos_pvt->tokens_hold[i] );
+            //     uint64_t l_value = dap_chain_uint256_to(l_balance);
+            //     if (l_value >= l_pos_pvt->tokens_hold_value[i]) {
+            //         l_verified_num++;
+            //         l_is_enough_balance = true;
+            //         break;
+            //     }
+            // }
+            // if (! l_is_enough_balance ){
+            //     char *l_addr_str = dap_chain_addr_to_str(&l_addr);
+            //     log_it(L_WARNING, "Verify of event is false, because bal is not enough for addr=%s", l_addr_str);
+            //     DAP_DELETE(l_addr_str);
+            //     return -1;
+            //}
 
+        }
         // Check number
         if ( l_verified_num >= l_pos_pvt->confirmations_minimum ){
             // Passed all checks

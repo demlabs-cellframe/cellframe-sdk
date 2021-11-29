@@ -351,7 +351,6 @@ static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_times
     return false;
 }
 
-
 /**
  * @brief Deletes info about the deleted object from the database
  * @param a_key an object key string, looked like "0x8FAFBD00B..."
@@ -378,7 +377,6 @@ static bool global_db_gr_del_del(char *a_key, const char *a_group)
         return true;
     return false;
 }
-
 
 /**
  * @brief Gets time stamp of the deleted object by a_group and a_key arguments.
@@ -419,7 +417,6 @@ bool dap_chain_global_db_del(char *a_key)
 {
     return dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL);
 }
-
 
 /**
  * @brief Gets a last item from a database by a_group.
@@ -555,7 +552,6 @@ void dap_global_db_obj_track_history(void* a_store_data)
         }
     }
 }
-
 
 /**
  * @brief Adds a value to a database.

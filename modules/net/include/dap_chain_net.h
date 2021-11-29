@@ -67,7 +67,7 @@ static const char * g_net_state_str[]={
 typedef struct dap_chain_net{
     struct {
         dap_chain_net_id_t id;
-        dap_chain_cell_id_t cell_id; // Cell where the node is connected to. {{0}} if not celled(sharder) blockchain
+        dap_chain_cell_id_t cell_id; // Cell where the node is connected to. {{0}} if not celled(sharded) blockchain
         char * name;
         char * gdb_groups_prefix;
         char * gdb_nodes_aliases;
@@ -181,3 +181,4 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net, struct dap_chain_node_info *a_link_info);
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( dap_chain_net_t * a_net,struct dap_chain_node_info *a_link_info,
                                                                                const char * a_channels);
+int dap_cert_chain_file_save(dap_chain_datum_t * l_datum, char * net_name);

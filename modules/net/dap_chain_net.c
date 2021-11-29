@@ -99,7 +99,6 @@
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_node_dns_client.h"
-
 #include "dap_module.h"
 
 #include <stdio.h>
@@ -2893,11 +2892,14 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:{
                                             dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE\n");
                                         }break;
+                                        default:{
+                                            dap_string_append_printf(a_str_out,"\tsubtype: UNKNOWN\n");
+                                        }break;
                                     }
                                     dap_string_append_printf(a_str_out,"\tparams_size : %u\n", l_out->params_size );
                                 } break;
-                                case TX_ITEM_TYPE_RECEIPT:{} break;
-                                default:{}
+                                case TX_ITEM_TYPE_RECEIPT:
+                                default: break;
                             }
                             n++;
                         }
@@ -2990,4 +2992,27 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
         return l_ret;
     }
     return NULL;
+}
+
+/**
+ * @brief dap_cert_chain_file_save
+ * @param datum
+ */
+int dap_cert_chain_file_save(dap_chain_datum_t * datum, char * net_name)
+{
+    const char * s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
+
+    dap_cert_t * cert = dap_cert_mem_load(datum->data, datum->header.data_size);
+    const char * cert_name = cert->name;
+
+    size_t cert_path_length = strlen(net_name)+strlen(cert_name)+9+strlen(s_system_chain_ca_dir);
+    char *cert_path = DAP_NEW_Z_SIZE(char,cert_path_length);
+
+    snprintf(cert_path,cert_path_length,"%s/%s/%s.dcert",s_system_chain_ca_dir,net_name,cert_name);
+
+//  if ( access( l_cert_path, F_OK ) != -1 ) {
+//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
+//      return -1;
+//  } else
+    return dap_cert_file_save(cert, cert_path);
 }

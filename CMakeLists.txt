@@ -2,10 +2,18 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.0)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "3.0-7")
+set(CELLFRAME_SDK_NATIVE_VERSION "3.1-0")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 set(DAPSDK_MODULES "")
 message("Cellframe modules: ${CELLFRAME_MODULES}")
+
+if (CELLFRAME_MODULES MATCHES "modules-dynamic")
+    add_definitions("-DDAP_MODULES_DYNAMIC")
+endif()
+
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+     add_definitions("-DDAP_SRV_STAKE_USED")
+endif()
 
 if (CELLFRAME_MODULES MATCHES "core")
     SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto")
@@ -105,6 +113,30 @@ if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag_pos)
 endif()
 
+# Blocks based consensus(es)
+if (CELLFRAME_MODULES MATCHES "cs-block-" )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_dag)
+endif()
+
+# PoA consensus for blocks
+if (CELLFRAME_MODULES MATCHES "cs-block-poa")
+    message("[+] Module 'cs-block-poa'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_block_poa)
+endif()
+
+# PoS consensus for blocks
+if (CELLFRAME_MODULES MATCHES "cs-block-pos")
+    message("[+] Module 'cs-block-pos'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_block_pos)
+endif()
+
+# PoW consensus for blocks
+if (CELLFRAME_MODULES MATCHES "cs-block-pow")
+    message("[+] Module 'cs-block-pow'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_cs_block_pos)
+endif()
+
+
 # No-consensus
 if (CELLFRAME_MODULES MATCHES "cs-none")
     message("[+] Module 'cs-none'")
@@ -114,45 +146,43 @@ endif()
 # Enable service Application
 if (CELLFRAME_MODULES MATCHES "srv-app")
     message("[+] Module 'srv-app'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_app )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_app)
 endif()
 
 # Enable service Application DB
 if (CELLFRAME_MODULES MATCHES "srv-app-db")
     message("[+] Module 'srv-app-db'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_app_db )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_app_db)
 endif()
 
 # Enable service datum process
 if (CELLFRAME_MODULES MATCHES "srv-datum")
     message("[+] Module 'srv-datum'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_datum )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_datum)
 endif()
 
 # Enable service VPN
 if (CELLFRAME_MODULES MATCHES "srv-vpn")
     message("[+] Module 'srv-vpn'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_vpn)
 endif()
 
 # Enable service eXchange
 if (CELLFRAME_MODULES MATCHES "srv-xchange")
     message("[+] Module 'srv-xchange'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange )
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange)
 endif()
 
 # Enable service of delegated stake
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     message("[+] Module 'srv-stake'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake )
-    add_definitions("-DDAP_SRV_STAKE_USED")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
 endif()
 
 # Enable service for dynamic modules
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     message("[+] Module 'dap_modules_dynamic_cdb'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb )
-    add_definitions("-DDAP_MODULES_DYNAMIC")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb)
 endif()
 
 if (WIN32)

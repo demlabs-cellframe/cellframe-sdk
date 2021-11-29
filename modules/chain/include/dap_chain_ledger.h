@@ -42,7 +42,7 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
-typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx);
+typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 
 // Checks the emission of the token, usualy on zero chain
 #define DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION    0x0001
@@ -127,17 +127,14 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 /**
  * Add token emission datum
  */
-int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger,
-        const dap_chain_datum_token_emission_t *a_token_emission, size_t a_token_emission_size);
 
-int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger,
-        const dap_chain_datum_token_emission_t *a_token_emission, size_t a_token_emission_size);
+int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
+int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 
 // Check if it addable
-int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger,
-        const dap_chain_datum_token_emission_t *a_token_emission, size_t a_token_emission_size);
+int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 
-dap_chain_datum_token_emission_t * dap_chain_ledger_token_emission_find(dap_ledger_t *a_ledger,
+dap_chain_datum_token_emission_t *dap_chain_ledger_token_emission_find(dap_ledger_t *a_ledger,
         const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash);
 
 const char* dap_chain_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,dap_chain_hash_fast_t *a_tx_hash);
