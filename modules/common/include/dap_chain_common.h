@@ -229,7 +229,7 @@ typedef struct dap_chain_receipt{
 typedef struct dap_chain_256_receipt{
     dap_chain_net_srv_uid_t srv_uid; // Service UID
     dap_chain_net_srv_price_unit_uid_t units_type;
-    uint256_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+    uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
     uint256_t value_datoshi; // Receipt value
 } dap_chain_256_receipt_info_t;
 
@@ -289,6 +289,9 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from(uint64_t a_from)
 uint64_t dap_chain_uint128_to(uint128_t a_from);
 // 256
 uint64_t dap_chain_uint256_to(uint256_t a_from);
+
+char *dap_chain_u256tostr(uint256_t v);
+
 
 char *dap_chain_balance_print(uint128_t a_balance);
 char *dap_chain_balance_to_coins(uint128_t a_balance);

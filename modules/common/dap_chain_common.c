@@ -312,6 +312,13 @@ uint64_t dap_chain_uint256_to(uint256_t a_from)
     return dap_chain_uint128_to(a_from.lo);
 }
 
+// for tests
+char *dap_chain_u256tostr(uint256_t v_256)
+{
+    char *dest = malloc(130 * sizeof(char));
+    return strcpy(dest, dap_utoa128((char[130]){}, dap_chain_uint128_from_uint256(v_256), 10));
+}
+
 
 char *dap_chain_balance_print(uint128_t a_balance)
 {

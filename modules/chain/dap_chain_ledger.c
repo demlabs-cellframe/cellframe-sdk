@@ -158,8 +158,8 @@ typedef struct dap_chain_ledger_tx_bound {
 typedef struct dap_ledger_wallet_balance {
     char *key;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint128_t balance;
-    //uint256_t balance;
+    //uint128_t balance;
+    uint256_t balance;
     UT_hash_handle hh;
 } dap_ledger_wallet_balance_t;
 
@@ -1092,7 +1092,8 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         if (l_ptr++) {
             strcpy(l_balance_item->token_ticker, l_ptr);
         }
-        l_balance_item->balance = *(uint128_t *)l_objs[i].value;
+        //l_balance_item->balance = *(uint128_t *)l_objs[i].value;
+        l_balance_item->balance = *(uint256_t *)l_objs[i].value;
         HASH_ADD_KEYPTR(hh, l_ledger_pvt->balance_accounts, l_balance_item->key,
                         strlen(l_balance_item->key), l_balance_item);
     }
@@ -1351,31 +1352,6 @@ dap_chain_datum_token_emission_t * dap_chain_ledger_token_emission_find(dap_ledg
     }
     return l_token_emission;
 }
-
-// 256
-// dap_chain_datum_256_token_emission_t * dap_chain_ledger_token_emission_256_find(dap_ledger_t *a_ledger,
-//         const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash)
-// {
-//     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
-//     dap_chain_datum_256_token_emission_t * l_token_emission = NULL;
-//     dap_chain_ledger_token_item_t * l_token_item = NULL;
-//     pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
-//     HASH_FIND_STR(l_ledger_priv->tokens, a_token_ticker, l_token_item);
-//     pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
-
-//     if(l_token_item) {
-//         dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
-//         pthread_rwlock_rdlock(&l_token_item->token_emissions_rwlock);
-//         HASH_FIND(hh, l_token_item->token_emissions, a_token_emission_hash, sizeof(*a_token_emission_hash),
-//                 l_token_emission_item);
-//         pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
-//         if( l_token_emission_item) {
-//             l_token_emission = l_token_emission_item->datum_256_token_emission;
-//         }
-//     }
-//     return l_token_emission;
-// }
-
 
 /**
  * @brief dap_chain_ledger_set_local_cell_id
@@ -1705,16 +1681,13 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 if (l_tx_token) { // TX_ITEM_TYPE_TOKEN
                     l_token = l_tx_token->header.ticker;
                     l_emission_hash = &l_tx_token->header.token_emission_hash;
-                
                 } else if (l_tx_token_256) { // TX_ITEM_TYPE_256_TOKEN
                     l_token = l_tx_token_256->header.ticker;
                     l_emission_hash = &l_tx_token_256->header.token_emission_hash;
-                
                 } else {
                     l_err_num = -4;
                     break;
                 }
-
             }
             DAP_DELETE(bound_item);
             continue;
@@ -1803,21 +1776,23 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 // hash of public key in 'out' item of previous transaction
 
                 uint8_t *l_prev_out_addr_key = NULL;
-                if ( l_type == TX_ITEM_TYPE_256_OUT ) // 256
-                    l_prev_out_addr_key = bound_item->out.tx_prev_out_256->addr.data.key;
-                
-                else if ( l_type == TX_ITEM_TYPE_OUT )
-                    l_prev_out_addr_key = bound_item->out.tx_prev_out->addr.data.key;
-                
-                else if ( l_type == TX_ITEM_TYPE_256_OUT_EXT ) // 256
-                    l_prev_out_addr_key = bound_item->out.tx_prev_out_ext_256->addr.data.key;
 
-                else 
-                    l_prev_out_addr_key = bound_item->out.tx_prev_out_ext->addr.data.key;
+                switch (l_type) {
+                    case TX_ITEM_TYPE_256_OUT:
+                        l_prev_out_addr_key = bound_item->out.tx_prev_out_256->addr.data.key; break;
+                    case TX_ITEM_TYPE_OUT:
+                        l_prev_out_addr_key = bound_item->out.tx_prev_out->addr.data.key; break;
+                    case TX_ITEM_TYPE_256_OUT_EXT:
+                        l_prev_out_addr_key = bound_item->out.tx_prev_out_ext_256->addr.data.key; break;
+                    case TX_ITEM_TYPE_OUT_EXT:
+                        l_prev_out_addr_key = bound_item->out.tx_prev_out_ext->addr.data.key; break;
+                    default:
+                        log_it(L_DEBUG, "Unknown item type %d", l_type);
+                    break;
+                }
                 // uint8_t *l_prev_out_addr_key = (l_type == TX_ITEM_TYPE_OUT || l_type == TX_ITEM_TYPE_256_OUT) ?
                 //                                 bound_item->out.tx_prev_out->addr.data.key :
                 //                                 bound_item->out.tx_prev_out_ext->addr.data.key;
-
 
                 // 4. compare public key hashes in the signature of the current transaction and in the 'out' item of the previous transaction
                 if(memcmp(&l_hash_pkey, l_prev_out_addr_key, sizeof(dap_chain_hash_fast_t))) {
@@ -1826,19 +1801,24 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 }
             }
 
-            if ( l_type == TX_ITEM_TYPE_256_OUT ) // 256
-                l_value_256 = bound_item->out.tx_prev_out_256->header.value;
-            
-            else if ( l_type == TX_ITEM_TYPE_OUT )
-                l_value = bound_item->out.tx_prev_out->header.value;
-            
-            else if ( l_type == TX_ITEM_TYPE_256_OUT_EXT ) { // 256
-                l_value_256 = bound_item->out.tx_prev_out_ext_256->header.value;
-                l_token = bound_item->out.tx_prev_out_ext_256->token;
-            } else {
-                l_value = bound_item->out.tx_prev_out_ext->header.value;
-                l_token = bound_item->out.tx_prev_out_ext->token;
+            switch (l_type) {
+                case TX_ITEM_TYPE_256_OUT:
+                    l_value_256 = bound_item->out.tx_prev_out_256->header.value; break;
+                case TX_ITEM_TYPE_OUT:
+                    l_value = bound_item->out.tx_prev_out->header.value; break;
+                case TX_ITEM_TYPE_256_OUT_EXT:
+                    l_value_256 = bound_item->out.tx_prev_out_ext_256->header.value;
+                    l_token = bound_item->out.tx_prev_out_ext_256->token;
+                break;
+                case TX_ITEM_TYPE_OUT_EXT:
+                    l_value = bound_item->out.tx_prev_out_ext->header.value;
+                    l_token = bound_item->out.tx_prev_out_ext->token;
+                break;
+                default:
+                    log_it(L_DEBUG, "Unknown item type %d", l_type);
+                    break;
             }
+
             // if (l_type == TX_ITEM_TYPE_OUT || l_type == TX_ITEM_TYPE_256_OUT) {
             //     l_value = bound_item->out.tx_prev_out->header.value;
             // } else {
@@ -2209,8 +2189,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             HASH_FIND_STR(l_values_from_cur_tx_256, l_value_cur_256->token_ticker, l_res_256);
             if (!l_res_256 || !EQUAL_256(l_res_256->sum,l_value_cur_256->sum) ) {
                 if(s_debug_more)
-                    log_it(L_ERROR, "Sum of values in out items of current tx 256 (%"DAP_UINT64_FORMAT_U") is not equal outs from previous tx (%"DAP_UINT64_FORMAT_U") for token %s",
-                       dap_chain_uint256_to( ( l_res_256 ? l_res_256->sum : uint256_0) ), dap_chain_uint256_to(l_value_cur_256->sum), l_value_cur_256->token_ticker);
+                    log_it(L_ERROR, "Sum of values in out items of current tx 256 (%s) is not equal outs from previous tx (%s) for token %s",
+                       dap_chain_u256tostr( ( l_res_256 ? l_res_256->sum : uint256_0) ), dap_chain_u256tostr(l_value_cur_256->sum), l_value_cur_256->token_ticker);
                 l_err_flag_256 = true;
                 break;
             }
@@ -2281,9 +2261,10 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
 static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_balance)
 {
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_BALANCES_STR);
-    uint128_t *l_balance_value = DAP_NEW_Z(uint128_t);
+    // uint128_t *l_balance_value = DAP_NEW_Z(uint128_t);
+    uint256_t *l_balance_value = DAP_NEW_Z(uint256_t);
     *l_balance_value = a_balance->balance;
-    if (!dap_chain_global_db_gr_set(dap_strdup(a_balance->key), l_balance_value, sizeof(uint128_t), l_gdb_group)) {
+    if (!dap_chain_global_db_gr_set(dap_strdup(a_balance->key), l_balance_value, sizeof(uint256_t/*uint128_t*/), l_gdb_group)) {
         if(s_debug_more)
             log_it(L_WARNING, "Ledger cache mismatch");
         DAP_DELETE(l_balance_value);
@@ -2387,6 +2368,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         ret = l_ret_check;
         goto FIN;
     }
+
     if(s_debug_more)
         log_it ( L_DEBUG, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
 
@@ -2399,6 +2381,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     // find all bound pairs 'in' and 'out'
     dap_list_t *l_list_tmp = l_list_bound_items;
     char *l_ticker_trl = NULL, *l_ticker_old_trl = NULL;
+
     // Update balance: deducts
     while(l_list_tmp) {
         dap_chain_ledger_tx_bound_t *bound_item = l_list_tmp->data;
@@ -2425,6 +2408,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         }
         l_ticker_old_trl = dap_stpcpy(l_token_ticker_old, l_token_ticker);
         int l_tx_prev_out_used_idx;
+
         if (l_type == TX_ITEM_TYPE_IN) {
             dap_chain_tx_in_t *l_tx_in = bound_item->in.tx_cur_in;
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
@@ -2432,16 +2416,17 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             //dap_chain_tx_item_type_t l_out_type = *(uint8_t *)l_item_out;
 
             dap_chain_addr_t *l_addr = NULL;
-            uint256_t l_value_256 = uint256_0;
+            uint256_t l_value = uint256_0;
 
-            if ( l_out_type == TX_ITEM_TYPE_256_OUT ) // 256
-                l_addr = &bound_item->out.tx_prev_out_256->addr;
-            else if ( l_out_type == TX_ITEM_TYPE_OUT )
-                l_addr = &bound_item->out.tx_prev_out->addr;
-            else if ( l_out_type == TX_ITEM_TYPE_256_OUT_EXT ) // 256
-                l_addr = &bound_item->out.tx_prev_out_ext_256->addr;
-            else // TX_ITEM_TYPE_OUT_EXT
-                l_addr = &bound_item->out.tx_prev_out_ext->addr;
+            switch (l_out_type) {
+                case TX_ITEM_TYPE_256_OUT: l_addr = &bound_item->out.tx_prev_out_256->addr; break;
+                case TX_ITEM_TYPE_OUT: l_addr = &bound_item->out.tx_prev_out->addr; break;
+                case TX_ITEM_TYPE_256_OUT_EXT: l_addr = &bound_item->out.tx_prev_out_ext_256->addr; break;
+                case TX_ITEM_TYPE_OUT_EXT: l_addr = &bound_item->out.tx_prev_out_ext->addr; break;
+                default:
+                    log_it(L_DEBUG, "Unknown item type %d", l_type);
+                    break;
+            }
 
             // dap_chain_addr_t *l_addr = (l_out_type == TX_ITEM_TYPE_OUT) ?
             //                             &bound_item->out.tx_prev_out->addr :
@@ -2453,26 +2438,27 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
             pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
             if (wallet_balance) {
-
                 // uint64_t l_value = (l_out_type == TX_ITEM_TYPE_OUT) ?
                 //                     bound_item->out.tx_prev_out->header.value :
                 //                     bound_item->out.tx_prev_out_ext->header.value;
-
-                if ( l_out_type == TX_ITEM_TYPE_256_OUT ) // 256
-                    l_value_256 = bound_item->out.tx_prev_out_256->header.value;
-                else if ( l_out_type == TX_ITEM_TYPE_OUT )
-                    l_value_256 = GET_256(bound_item->out.tx_prev_out->header.value);
-                else if ( l_out_type == TX_ITEM_TYPE_256_OUT_EXT ) // 256
-                    l_value_256 = bound_item->out.tx_prev_out_ext_256->header.value;
-                else // TX_ITEM_TYPE_OUT_EXT
-                    l_value_256 = GET_256(bound_item->out.tx_prev_out_ext->header.value);
+                switch (l_out_type) {
+                    case TX_ITEM_TYPE_256_OUT: l_value = bound_item->out.tx_prev_out_256->header.value; break;
+                    case TX_ITEM_TYPE_OUT: l_value = GET_256_FROM_64(bound_item->out.tx_prev_out->header.value); break;
+                    case TX_ITEM_TYPE_256_OUT_EXT: l_value = bound_item->out.tx_prev_out_ext_256->header.value; break;
+                    case TX_ITEM_TYPE_OUT_EXT: l_value = GET_256_FROM_64(bound_item->out.tx_prev_out_ext->header.value); break;
+                    default:
+                        log_it(L_DEBUG, "Unknown item type %d", l_type);
+                    break;
+                }
 
                 if(s_debug_more)
-                    log_it(L_DEBUG,"SPEND %"DAP_UINT64_FORMAT_U" from addr: %s", dap_chain_uint256_to(l_value_256), l_wallet_balance_key);
+                    log_it(L_DEBUG,"SPEND %s from addr: %s", dap_chain_u256tostr(l_value), l_wallet_balance_key);
                 
                 //uint128_t l_sub = dap_chain_uint128_from(l_value);
-                uint128_t l_sub = dap_chain_uint128_from_uint256(l_value_256);
-                wallet_balance->balance = dap_uint128_substract(wallet_balance->balance, l_sub);
+                //uint128_t l_sub = dap_chain_uint128_from_uint256(l_value_256);
+                //wallet_balance->balance = dap_uint128_substract(wallet_balance->balance, l_sub);
+                SUBTRACT_256_256(wallet_balance->balance, l_value, &wallet_balance->balance);
+
                 // Update the cache
                 s_balance_cache_update(a_ledger, wallet_balance);
             } else {
@@ -2481,14 +2467,17 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             }
             DAP_DELETE(l_addr_str);
             DAP_DELETE(l_wallet_balance_key);
+
             /// Mark 'out' item in cache because it used
             l_tx_prev_out_used_idx = l_tx_in->header.tx_out_prev_idx;
         } else { // TX_ITEM_TYPE_IN_COND
+
             // all balance deducts performed with previous conditional transaction
             dap_chain_tx_in_cond_t *l_tx_in_cond = bound_item->in.tx_cur_in_cond;
             /// Mark 'out' item in cache because it used
             l_tx_prev_out_used_idx = l_tx_in_cond->header.tx_out_prev_idx;
         }
+
         // add a used output
         memcpy(&(l_prev_item_out->cache_data.tx_hash_spent_fast[l_tx_prev_out_used_idx]), l_tx_hash, sizeof(dap_chain_hash_fast_t));
         l_prev_item_out->cache_data.n_outs_used++;
@@ -2521,9 +2510,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 goto FIN;
             }
         }
+
         // go to next previous transaction
         l_list_tmp = dap_list_next(l_list_tmp);
     }
+
     if (l_list_bound_items)
         dap_list_free_full(l_list_bound_items, free);
 
@@ -2547,36 +2538,37 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         if (l_type == TX_ITEM_TYPE_OUT_COND || l_type == TX_ITEM_TYPE_256_OUT_COND) {
             continue;   // balance raise will be with next conditional transaction
         }
+
         dap_chain_tx_out_t *l_out_item = NULL;
         dap_chain_256_tx_out_t *l_out_item_256 = NULL;
         dap_chain_tx_out_ext_t *l_out_item_ext = NULL;
         dap_chain_256_tx_out_ext_t *l_out_item_ext_256 = NULL;
-        
-        if ( l_type == TX_ITEM_TYPE_256_OUT ) // 256
-            l_out_item_256 = l_tx_out->data;
-        else if (l_type == TX_ITEM_TYPE_OUT)
-            l_out_item = l_tx_out->data;
-        else if ( l_type == TX_ITEM_TYPE_256_OUT_EXT ) // 256
-            l_out_item_ext_256 = l_tx_out->data;
-        else
-            l_out_item_ext = l_tx_out->data;
+
+        switch (l_type) {
+            case TX_ITEM_TYPE_256_OUT: l_out_item_256 = l_tx_out->data; break;
+            case TX_ITEM_TYPE_OUT: l_out_item = l_tx_out->data; break;
+            case TX_ITEM_TYPE_256_OUT_EXT: l_out_item_ext_256 = l_tx_out->data; break;
+            case TX_ITEM_TYPE_OUT_EXT: l_out_item_ext = l_tx_out->data; break;
+            default:
+                log_it(L_DEBUG, "Unknown item type %d", l_type);
+                break;
+        }
 
         if ( (l_out_item||l_out_item_256) && l_ticker_trl) {
-
             // dap_chain_addr_t *l_addr = (l_type == TX_ITEM_TYPE_OUT) ?
             //                             &l_out_item->addr :
             //                             &l_out_item_ext->addr;
 
             dap_chain_addr_t *l_addr;
-            if ( l_type == TX_ITEM_TYPE_256_OUT ) // 256
-                l_addr = &l_out_item_256->addr;
-            else if ( l_type == TX_ITEM_TYPE_OUT )
-                l_addr = &l_out_item->addr;
-            else if ( l_type == TX_ITEM_TYPE_256_OUT_EXT )
-                l_addr = &l_out_item_ext_256->addr;
-            else
-                l_addr = &l_out_item_ext->addr;
-
+            switch (l_type) {
+                case TX_ITEM_TYPE_256_OUT: l_addr = &l_out_item_256->addr; break;
+                case TX_ITEM_TYPE_OUT: l_addr = &l_out_item->addr; break;
+                case TX_ITEM_TYPE_256_OUT_EXT: l_addr = &l_out_item_ext_256->addr; break;
+                case TX_ITEM_TYPE_OUT_EXT: l_addr = &l_out_item_ext->addr; break;
+                default:
+                    log_it(L_DEBUG, "Unknown item type %d", l_type);
+                    break;
+            }
 
             char *l_addr_str = dap_chain_addr_to_str(l_addr);
 
@@ -2590,27 +2582,30 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_token_ticker, (char*)NULL);
 
             uint64_t l_value = 0;
-            if ( l_type == TX_ITEM_TYPE_256_OUT ) // 256
-                l_value = dap_chain_uint256_to(l_out_item_256->header.value);
-            else if ( l_type == TX_ITEM_TYPE_OUT ) 
-                l_value = l_out_item->header.value;
-            else if ( l_type == TX_ITEM_TYPE_256_OUT_EXT ) // 256
-                l_value = dap_chain_uint256_to(l_out_item_ext_256->header.value);
-            else
-                l_value = l_out_item_ext->header.value;
+            uint256_t l_value_256 = uint256_0;
+            switch (l_type) {
+                case TX_ITEM_TYPE_256_OUT: l_value_256 = l_out_item_256->header.value; break;
+                case TX_ITEM_TYPE_OUT: l_value_256 = GET_256_FROM_64(l_out_item->header.value); break;
+                case TX_ITEM_TYPE_256_OUT_EXT: l_value_256 = l_out_item_ext_256->header.value; break;
+                case TX_ITEM_TYPE_OUT_EXT: l_value_256 = GET_256_FROM_64(l_out_item_ext->header.value); break;
+                default:
+                    log_it(L_DEBUG, "Unknown item type %d", l_type);
+                    break;
+            }
 
             // l_value = (l_type == TX_ITEM_TYPE_OUT || l_type == TX_ITEM_TYPE_256_OUT) ? l_out_item->header.value : l_out_item_ext->header.value;
-
             if(s_debug_more)
-                log_it (L_DEBUG,"GOT %"DAP_UINT64_FORMAT_U" to addr: %s", l_value, l_wallet_balance_key);
+                log_it (L_DEBUG,"GOT %"DAP_UINT64_FORMAT_U" to addr: %s", dap_chain_uint256_to(l_value_256), l_wallet_balance_key);
             pthread_rwlock_rdlock(&l_ledger_priv->balance_accounts_rwlock);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
             pthread_rwlock_unlock(&l_ledger_priv->balance_accounts_rwlock);
             if (wallet_balance) {
                 if(s_debug_more)
                     log_it(L_DEBUG, "Balance item is present in cache");
-                uint128_t l_add = dap_chain_uint128_from(l_value);
-                wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
+                // uint128_t l_add = dap_chain_uint128_from(l_value);
+                // uint128_t l_add = dap_chain_uint128_from_uint256(l_value);
+                // wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
+                SUM_256_256(wallet_balance->balance, l_value_256, &wallet_balance->balance);
                 DAP_DELETE (l_wallet_balance_key);
                 // Update the cache
                 s_balance_cache_update(a_ledger, wallet_balance);
@@ -2618,8 +2613,12 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
                 wallet_balance->key = l_wallet_balance_key;
                 strcpy(wallet_balance->token_ticker, l_token_ticker);
-                uint128_t l_add = dap_chain_uint128_from(l_value);
-                wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
+                //uint128_t l_add = dap_chain_uint128_from(l_value);
+                
+                // uint128_t l_add = dap_chain_uint128_from_uint256(l_value);
+                // wallet_balance->balance = dap_uint128_add(wallet_balance->balance, l_add);
+                SUM_256_256(wallet_balance->balance, l_value_256, &wallet_balance->balance);
+                
                 if(s_debug_more)
                     log_it(L_DEBUG,"!!! Create new balance item: %s %s", l_addr_str, l_token_ticker);
                 pthread_rwlock_wrlock(&l_ledger_priv->balance_accounts_rwlock);
@@ -2665,9 +2664,13 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             //if ( l_tokens_count>0 ){
                 //dap_chain_tx_token_t * l_token = (dap_chain_tx_token_t*) l_tokens_list->data;
             dap_chain_tx_token_t *l_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);
+            // 256
+            dap_chain_tx_token_t *l_token_256 = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_256_TOKEN, NULL);
             l_ticker_trl = l_token
                     ? dap_stpcpy(l_token_ticker, l_token->header.ticker)
-                    : NULL;
+                    : ( l_token_256 // 256
+                            ? dap_stpcpy(l_token_ticker, l_token_256->header.ticker) 
+                            : NULL );
                 //dap_list_free(l_tokens_list);
             //}
         }
@@ -2906,7 +2909,7 @@ bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain
  * Calculate balance of addr
  *
  */
-uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+uint256_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
                                         const char *a_token_ticker)
 {
 // #ifdef DAP_GLOBAL_IS_INT128
@@ -2914,7 +2917,8 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
 // #else
 //     uint128_t l_ret = {};
 // #endif
-    uint128_t l_ret = uint128_0;
+    //uint128_t l_ret = uint128_0;
+    uint256_t l_ret = uint256_0;
 
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
     char *l_addr = dap_chain_addr_to_str(a_addr);
@@ -2924,8 +2928,8 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
     pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
     if (l_balance_item) {
         if(s_debug_more)
-            log_it (L_INFO,"Found address in cache with balance %"DAP_UINT64_FORMAT_U"",
-                            dap_chain_uint128_to(l_balance_item->balance));
+            log_it (L_INFO,"Found address in cache with balance %s",
+                            dap_chain_u256tostr(l_balance_item->balance));
         l_ret = l_balance_item->balance;
     } else {
         if (s_debug_more)
@@ -2936,7 +2940,7 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
     return l_ret;
 }
 
-uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
                                              const char *a_token_ticker)
 {
 // #ifdef DAP_GLOBAL_IS_INT128
@@ -2944,7 +2948,8 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
 // #else
 //     uint128_t balance = {0};
 // #endif
-    uint128_t balance = uint128_0;
+    //uint128_t balance = uint128_0;
+    uint256_t balance = uint256_0;
 
     if(!a_addr || !dap_chain_addr_check_sum(a_addr))
         return balance;
@@ -2974,7 +2979,8 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
             if(s_debug_more)
                 log_it(L_ERROR, "Too many 'out' items=%d in transaction (max=%d)", l_out_item_count, MAX_OUT_ITEMS);
             if (l_out_item_count >= MAX_OUT_ITEMS){
-                uint128_t l_ret;
+                // uint128_t l_ret;
+                uint256_t l_ret = uint256_0;
                 memset(&l_ret,0,sizeof(l_ret));
                 return l_ret;
             }
@@ -2995,9 +3001,24 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
                         // if 'out' item not used & transaction is valid
                         if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
                                 dap_chain_datum_tx_verify_sign(l_cur_tx)) {
-
-                            uint128_t l_add = dap_chain_uint128_from(l_tx_out->header.value);
-                            balance = dap_uint128_add(balance, l_add);
+                            // uint128_t l_add = dap_chain_uint128_from(l_tx_out->header.value);
+                            // balance = dap_uint128_add(balance, l_add);
+                            uint256_t l_add = dap_chain_uint256_from(l_tx_out->header.value);
+                            SUM_256_256(balance, l_add, &balance);
+                        }
+                    }
+                }
+            }
+            if (l_type == TX_ITEM_TYPE_256_OUT) { // 256
+                const dap_chain_256_tx_out_t *l_tx_out = (const dap_chain_256_tx_out_t*) l_list_tmp->data;
+                // Check for token name
+                if (!strcmp(a_token_ticker, l_iter_current->cache_data.token_tiker))
+                {   // if transaction has the out item with requested addr
+                    if (!memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
+                        // if 'out' item not used & transaction is valid
+                        if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
+                                dap_chain_datum_tx_verify_sign(l_cur_tx)) {
+                            SUM_256_256(balance, l_tx_out->header.value, &balance);
                         }
                     }
                 }
@@ -3011,8 +3032,22 @@ uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
                         // if 'out' item not used & transaction is valid
                         if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
                                 dap_chain_datum_tx_verify_sign(l_cur_tx)) {
-                            uint128_t l_add = dap_chain_uint128_from(l_tx_out->header.value);
-                            balance = dap_uint128_add(balance, l_add);
+                            uint256_t l_add = dap_chain_uint256_from(l_tx_out->header.value);
+                            SUM_256_256(balance, l_add, &balance);
+                        }
+                    }
+                }
+            }
+            if (l_type == TX_ITEM_TYPE_256_OUT_EXT) { // 256
+                const dap_chain_256_tx_out_ext_t *l_tx_out = (const dap_chain_256_tx_out_ext_t*) l_list_tmp->data;
+                // Check for token name
+                if (!strcmp(a_token_ticker, l_tx_out->token))
+                {   // if transaction has the out item with requested addr
+                    if (!memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
+                        // if 'out' item not used & transaction is valid
+                        if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
+                                dap_chain_datum_tx_verify_sign(l_cur_tx)) {
+                            SUM_256_256(balance, l_tx_out->header.value, &balance);
                         }
                     }
                 }

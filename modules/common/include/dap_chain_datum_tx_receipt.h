@@ -64,7 +64,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
 // 256
 dap_chain_datum_256_tx_receipt_t * dap_chain_datum_256_tx_receipt_create( dap_chain_net_srv_uid_t srv_uid,
                                                                   dap_chain_net_srv_price_unit_uid_t units_type,
-                                                                    uint256_t units, uint256_t value_datoshi, const void * a_ext, size_t a_ext_size);
+                                                                    uint64_t units, uint256_t value_datoshi, const void * a_ext, size_t a_ext_size);
 
 size_t dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t ** a_receipt, size_t a_receipt_size, dap_enc_key_t *a_key );
 

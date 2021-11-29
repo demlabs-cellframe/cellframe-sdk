@@ -1800,9 +1800,10 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
                 dap_string_append_printf(l_string_ret, "balance: 0");
             for(size_t i = 0; i < l_addr_tokens_size; i++) {
                 if(l_addr_tokens[i]) {
-                    uint128_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
-                    char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
-                    char *l_balance_datoshi = dap_chain_balance_print(l_balance);
+                    // uint128_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
+                    uint256_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
+                    char *l_balance_coins = dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_balance));
+                    char *l_balance_datoshi = dap_chain_balance_print(dap_chain_uint128_from_uint256(l_balance));
                     dap_string_append_printf(l_string_ret, "\t%s (%s) %s\n", l_balance_coins,
                             l_balance_datoshi, l_addr_tokens[i]);
                     if(i < l_addr_tokens_size - 1)
@@ -3136,7 +3137,9 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     int arg_index = 1;
     const char *str_tmp = NULL;
     char *str_reply_tmp = NULL;
-    uint64_t l_emission_value = 0;
+    // uint64_t l_emission_value = 0;
+    uint256_t l_emission_value = uint256_0;
+
 
     const char * l_ticker = NULL;
 
@@ -3200,10 +3203,11 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     // Token emission
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission_value", &str_tmp)) {
-        l_emission_value = strtoull(str_tmp, NULL, 10);
+        // l_emission_value = strtoull(str_tmp, NULL, 10);
+        l_emission_value = GET_256_FROM_128(dap_strtou128(str_tmp, NULL, 10)); 
     }
 
-    if(!l_emission_value) {
+    if( EQUAL_256(l_emission_value, uint256_0) ) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-emission_value'");
         return -1;
     }
@@ -3304,9 +3308,9 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         size_t l_offset = 0;
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
         if ( !l_type_256 )
-            l_emission->hdr.value = l_emission_value;
+            l_emission->hdr.value = dap_chain_uint256_to(l_emission_value);
         else // 256
-            l_emission->hdr.value_256 = GET_256(l_emission_value);
+            l_emission->hdr.value_256 = l_emission_value;
             
         strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
         l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
@@ -3386,10 +3390,10 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // create items
     if ( !l_type_256 ) {
         l_tx_token = dap_chain_datum_tx_item_token_create(&l_emission_hash, l_ticker);
-        l_out = dap_chain_datum_tx_item_out_create(l_addr, l_emission_value);
+        l_out = dap_chain_datum_tx_item_out_create(l_addr, dap_chain_uint256_to(l_emission_value));
     } else { // 256
         l_tx_token = dap_chain_datum_tx_item_256_token_create(&l_emission_hash, l_ticker);
-        l_out_256 = dap_chain_datum_tx_item_256_out_create(l_addr, GET_256(l_emission_value) );
+        l_out_256 = dap_chain_datum_tx_item_256_out_create(l_addr, l_emission_value);
     }
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
 
@@ -3774,6 +3778,10 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
 
     uint64_t value = 0;
     uint64_t value_fee = 0;
+
+    // uint256_t value = uint256_0;
+    // uint256_t value_fee = uint256_0;
+
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from_wallet", &l_from_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to_addr", &addr_base58_to);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-token", &l_token_ticker);

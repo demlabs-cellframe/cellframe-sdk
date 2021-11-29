@@ -240,6 +240,8 @@ int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_enc_ke
 int dap_chain_datum_256_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
         uint256_t a_value, uint256_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size)
 {
+    // dap_chain_256_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_256_out_cond_create_srv_pay(
+    //             a_key, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size );
     dap_chain_256_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_256_out_cond_create_srv_pay(
                 a_key, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size );
     if(l_tx_out) {

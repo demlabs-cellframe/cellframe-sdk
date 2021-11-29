@@ -101,7 +101,7 @@ const  uint128_t hi_64={ .hi = 0xffffffffffffffff, .lo = 0};
 #define ones_64 ((uint64_t)0xffffffffffffffff)
 
 
-static inline uint128_t GET_128(uint64_t n) {
+static inline uint128_t GET_128_FROM_64(uint64_t n) {
 #ifdef DAP_GLOBAL_IS_INT128
     return (uint128_t) n;
 #else
@@ -109,9 +109,14 @@ static inline uint128_t GET_128(uint64_t n) {
 #endif
 }
 
-static inline uint256_t GET_256(uint64_t n) {
-    return (uint256_t){.hi=uint128_0,.lo=GET_128(n)};
+static inline uint256_t GET_256_FROM_64(uint64_t n) {
+    return (uint256_t){.hi=uint128_0,.lo=GET_128_FROM_64(n)};
 }
+
+static inline uint256_t GET_256_FROM_128(uint128_t n) {
+    return (uint256_t){.hi=uint128_0,.lo=n};
+}
+
 
 static inline bool EQUAL_128(uint128_t a_128_bit, uint128_t b_128_bit){
 #ifdef DAP_GLOBAL_IS_INT128
