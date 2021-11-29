@@ -49,17 +49,15 @@ typedef union int128 {
 
 typedef int128_t _dap_int128_t;
 
-typedef struct uint256_t {
+typedef struct uint256 {
     uint128_t hi;
     uint128_t lo;
+} uint256_t;
 
-    } uint256_t;
-
-typedef struct uint512_t {
+typedef struct uint512 {
     uint256_t hi;
     uint256_t lo;
-
-    } uint512_t;
+} uint512_t;
 
 #endif //defined(__GNUC__) || defined (__clang__)
 
@@ -125,7 +123,12 @@ static inline bool EQUAL_128(uint128_t a_128_bit, uint128_t b_128_bit){
     return a_128_bit.lo==b_128_bit.lo && a_128_bit.hi==b_128_bit.hi;
 #endif
 }
-    
+
+
+static inline bool IS_ZERO_128(uint128_t a_128_bit){
+    return EQUAL_128(a_128_bit, uint128_0);
+}
+
 static inline bool EQUAL_256(uint256_t a_256_bit, uint256_t b_256_bit){
 
 #ifdef DAP_GLOBAL_IS_INT128
@@ -138,6 +141,12 @@ static inline bool EQUAL_256(uint256_t a_256_bit, uint256_t b_256_bit){
            a_256_bit.hi.hi==b_256_bit.hi.hi;
 #endif
 }
+
+static inline bool IS_ZERO_256(uint256_t a_256_bit){
+
+    return a_256_bit.lo == (uint128_t)0;
+}
+
 
 static inline uint128_t AND_128(uint128_t a_128_bit,uint128_t b_128_bit){
 
