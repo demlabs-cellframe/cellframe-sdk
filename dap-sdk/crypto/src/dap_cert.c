@@ -82,11 +82,13 @@ int dap_cert_init()
 }
 
 /**
- * @brief dap_cert_parse_str_list
- * @param a_certs_str
- * @param a_certs
- * @param a_certs_size_t
- * @return summary size for signatures of all certs in list
+ * @brief 
+ * parse list of certificate from config file (if it is presented)
+ * in current implementation this function is used when node certificate (node-addr.dcert) is not generated 
+ * @param a_certs_str const char * string with certificate name (node-addr)
+ * @param a_certs dap_cert_t *** array with certificates
+ * @param a_certs_size size of certificate
+ * @return size_t 
  */
 size_t dap_cert_parse_str_list(const char * a_certs_str, dap_cert_t *** a_certs, size_t * a_certs_size)
 {
@@ -134,10 +136,11 @@ size_t dap_cert_parse_str_list(const char * a_certs_str, dap_cert_t *** a_certs,
 
 
 /**
- * @brief dap_cert_sign_output_size
- * @param a_cert
- * @param a_size_wished
- * @return
+ * @brief 
+ * simply call dap_sign_create_output_unserialized_calc_size( a_cert->enc_key,a_size_wished)
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_size_wished wished data size (don't used in current implementation)
+ * @return size_t 
  */
 size_t dap_cert_sign_output_size(dap_cert_t * a_cert, size_t a_size_wished)
 {
@@ -160,12 +163,13 @@ size_t dap_cert_sign_output_size(dap_cert_t * a_cert, size_t a_size_wished)
 }*/
 
 /**
- * @brief dap_cert_sign
- * @param a_cert
- * @param a_data
- * @param a_data_size
- * @param a_output_size_wished
- * @return
+ * @brief 
+ * sign data by encryption key from certificate
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_data data for signing
+ * @param a_data_size data size
+ * @param a_output_size_wished wished data size (don't used in current implementation)
+ * @return dap_sign_t* 
  */
 dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data
                                        , size_t a_data_size, size_t a_output_size_wished )
@@ -176,10 +180,11 @@ dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data
 }
 
 /**
- * @brief dap_cert_add_cert_sign
- * @param a_cert
- * @param a_cert_signer
- * @return
+ * @brief 
+ * sign certificate with another certificate (a_cert->signs)
+ * @param a_cert dap_cert_t certificate object
+ * @param a_cert_signer dap_cert_t certificate object, which signs a_cert
+ * @return int 
  */
 int dap_cert_add_cert_sign(dap_cert_t * a_cert, dap_cert_t * a_cert_signer)
 {
@@ -196,10 +201,13 @@ int dap_cert_add_cert_sign(dap_cert_t * a_cert, dap_cert_t * a_cert_signer)
 
 
 /**
- * @brief dap_cert_generate_mem
- * @param a_cert_name
- * @param a_key_type
- * @return
+ * @brief generate certificate in memory with specified seed
+ * 
+ * @param a_cert_name const char * name of certificate
+ * @param a_key_type dap_enc_key_type_t key type
+ * @param a_seed const void* seed for certificate generation
+ * @param a_seed_size size_t size of seed
+ * @return dap_cert_t* 
  */
 dap_cert_t * dap_cert_generate_mem_with_seed(const char * a_cert_name, dap_enc_key_type_t a_key_type,
         const void* a_seed, size_t a_seed_size)
@@ -222,10 +230,11 @@ dap_cert_t * dap_cert_generate_mem_with_seed(const char * a_cert_name, dap_enc_k
 }
 
 /**
- * @brief dap_cert_generate_mem
- * @param a_cert_name
- * @param a_key_type
- * @return
+ * @brief generate certificate in memory
+ * 
+ * @param a_cert_name const char * certificate name
+ * @param a_key_type encryption key type
+ * @return dap_cert_t* 
  */
 dap_cert_t * dap_cert_generate_mem(const char * a_cert_name, dap_enc_key_type_t a_key_type)
 {
@@ -233,11 +242,12 @@ dap_cert_t * dap_cert_generate_mem(const char * a_cert_name, dap_enc_key_type_t 
 }
 
 /**
- * @brief dap_cert_generate
- * @param a_cert_name
- * @param a_file_path
- * @param a_key_type
- * @return
+ * @brief generate certificate and save it to file
+ * 
+ * @param a_cert_name const char * certificate name
+ * @param a_file_path const char * path to certificate file
+ * @param a_key_type dap_enc_key_type_t key_type
+ * @return dap_cert_t* 
  */
 dap_cert_t * dap_cert_generate(const char * a_cert_name
                                            , const char * a_file_path,dap_enc_key_type_t a_key_type )
@@ -259,7 +269,8 @@ dap_cert_t * dap_cert_generate(const char * a_cert_name
 
 /**
  * @brief dap_cert_delete_by_name
- * @param a_cert_name
+ * delete certificate object, finding by name
+ * @param a_cert_name const char * certificate name
  */
 void dap_cert_delete_by_name(const char * a_cert_name)
 {
@@ -271,8 +282,9 @@ void dap_cert_delete_by_name(const char * a_cert_name)
 }
 
 /**
- * @brief dap_cert_find_by_name
- * @param a_cert_name
+ * @brief
+ * find certificate by name in path, which is configured ca_folders parameter in chain config 
+ * @param a_cert_name const char *
  * @return
  */
 dap_cert_t * dap_cert_find_by_name(const char * a_cert_name)
@@ -313,7 +325,8 @@ dap_list_t *dap_cert_get_all_mem()
 
 /**
  * @brief dap_cert_new
- * @param a_name
+ * create certificate object with specified name
+ * @param a_name const char *
  * @return
  */
 dap_cert_t * dap_cert_new(const char * a_name)
@@ -332,7 +345,8 @@ dap_cert_t * dap_cert_new(const char * a_name)
 
 /**
  * @brief s_cert_delete
- * @param a_cert
+ * delete certificate object
+ * @param a_cert dap_cert_t *
  */
 void dap_cert_delete(dap_cert_t * a_cert)
 {
@@ -354,9 +368,10 @@ void dap_cert_delete(dap_cert_t * a_cert)
 
 /**
  * @brief dap_cert_add_file
- * @param a_cert_name
- * @param a_folder_path
- * @return
+ * load certificate file from folder (specified in chain config)
+ * @param a_cert_name const char * certificate name
+ * @param a_folder_path const char * certificate path
+ * @return dap_cert_t
  */
 dap_cert_t * dap_cert_add_file(const char * a_cert_name,const char *a_folder_path)
 {
@@ -378,9 +393,11 @@ dap_cert_t * dap_cert_add_file(const char * a_cert_name,const char *a_folder_pat
 }
 
 /**
- * @brief dap_cert_save_to_folder
- * @param a_cert
- * @param a_file_dir_path
+ * @brief save certitificate to folder
+ * 
+ * @param a_cert dap_cert_t * certiticate object
+ * @param a_file_dir_path const char * path to directory with certificate
+ * @return int 
  */
 int dap_cert_save_to_folder(dap_cert_t * a_cert, const char *a_file_dir_path)
 {
@@ -396,8 +413,10 @@ int dap_cert_save_to_folder(dap_cert_t * a_cert, const char *a_file_dir_path)
 
 /**
  * @brief dap_cert_to_pkey
- * @param a_cert
- * @return
+ * get public key from certificate 
+ *  dap_pkey_from_enc_key( a_cert->enc_key )
+ * @param a_cert dap_cert_t certificate object
+ * @return dap_pkey_t
  */
 dap_pkey_t * dap_cert_to_pkey(dap_cert_t * a_cert)
 {
@@ -408,10 +427,11 @@ dap_pkey_t * dap_cert_to_pkey(dap_cert_t * a_cert)
 }
 
 /**
- * @brief dap_cert_compare_with_sign
- * @param a_cert
- * @param a_sign
- * @return
+ * @brief 
+ * compare certificate encryption key with key, which was used for event or block signing
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_sign dap_sign_t * dap_sign_t object (signed block or event)
+ * @return int 
  */
 int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
 {
@@ -434,8 +454,8 @@ int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
 
 
 /**
- * @brief dap_cert_count_cert_sign
- * @param a_cert
+ * @brief Certificates signatures chain size
+ * @param a_cert dap_cert_t certificate object
  * @return
  */
 size_t dap_cert_count_cert_sign(dap_cert_t * a_cert)
@@ -448,8 +468,8 @@ size_t dap_cert_count_cert_sign(dap_cert_t * a_cert)
 
 
 /**
- * @brief dap_cert_dump
- * @param a_cert
+ * @brief show certificate information
+ * @param a_cert dap_cert_t certificate object
  */
 void dap_cert_dump(dap_cert_t * a_cert)
 {
@@ -491,8 +511,10 @@ void dap_cert_dump(dap_cert_t * a_cert)
 }
 
 /**
- * @brief dap_cert_get_folder
- * @param a_folder_path
+ * @brief get certificate folder path
+ * usage example: dap_cert_get_folder(0) 
+ * @param a_n_folder_path 
+ * @return const char* 
  */
 const char* dap_cert_get_folder(int a_n_folder_path)
 {
@@ -511,8 +533,9 @@ const char* dap_cert_get_folder(int a_n_folder_path)
 
 
 /**
- * @brief dap_cert_add_folder
- * @param a_folder_path
+ * @brief load certificates from specified folder
+ * 
+ * @param a_folder_path const char *
  */
 void dap_cert_add_folder(const char *a_folder_path)
 {
@@ -551,6 +574,15 @@ void dap_cert_add_folder(const char *a_folder_path)
         log_it(L_WARNING, "Can't add folder %s to cert manager",a_folder_path);
 }
 
+/**
+ * @brief 
+ * 
+ * @param a_key const char *
+ * @param a_type dap_cert_metadata_type_t
+ * @param a_value void *
+ * @param a_value_size size_t
+ * @return dap_cert_metadata_t* 
+ */
 dap_cert_metadata_t *dap_cert_new_meta(const char *a_key, dap_cert_metadata_type_t a_type, void *a_value, size_t a_value_size)
 {
     if (!a_key || a_type > DAP_CERT_META_CUSTOM || (!a_value && a_value_size)) {
@@ -568,12 +600,13 @@ dap_cert_metadata_t *dap_cert_new_meta(const char *a_key, dap_cert_metadata_type
 }
 
 /**
- * @brief dap_cert_add_meta Add metadata to certificate
- * @param a_cert
- * @param a_key
- * @param a_type
- * @param a_value
- * @param a_value_size
+ * @brief Add metadata to certificate
+ * action for command "cellframe-node cert add_metadata <cert name> <key:type:length:value>"
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_key const char * key
+ * @param a_type dap_cert_metadata_type_t type
+ * @param a_value void * value
+ * @param a_value_size size_t length
  */
 void dap_cert_add_meta(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_type_t a_type, void *a_value, size_t a_value_size)
 {
@@ -588,6 +621,15 @@ void dap_cert_add_meta(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_
     }
 }
 
+/**
+ * @brief Add metadata to certificate with additional value modification
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_key const char * key
+ * @param a_type dap_cert_metadata_type_t type
+ * @param a_value void * value
+ * @param a_value_size size_t length
+ */
 void dap_cert_add_meta_scalar(dap_cert_t *a_cert, const char *a_key, dap_cert_metadata_type_t a_type, uint64_t a_value, size_t a_value_size)
 {
     void *l_value;
@@ -627,15 +669,24 @@ void dap_cert_add_meta_scalar(dap_cert_t *a_cert, const char *a_key, dap_cert_me
 }
 
 /**
- * @brief dap_cert_get_meta
- * @param a_cert
- * @param a_field
+ * @brief get specified metadata from certificate
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_field const char * field, which will be gotten from metadata
+ * @return dap_cert_metadata_t* 
  */
 dap_cert_metadata_t *dap_cert_get_meta(dap_cert_t *a_cert, const char *a_field)
 {
     return dap_binary_tree_search(a_cert->metadata, a_field);
 }
 
+/**
+ * @brief get specified metadata from certificate in string (DAP_CERT_META_STRING) format
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_field const char * field, which will be gotten from metadata
+ * @return char* 
+ */
 char *dap_cert_get_meta_string(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
@@ -649,6 +700,14 @@ char *dap_cert_get_meta_string(dap_cert_t *a_cert, const char *a_field)
     return strndup((char *)&l_meta->value[0], l_meta->length);
 }
 
+/**
+ * @brief get metadata from certificate with boolean (DAP_CERT_META_BOOL) type
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_field const char * field, which will be gotten from metadata
+ * @return true 
+ * @return false 
+ */
 bool dap_cert_get_meta_bool(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
@@ -665,6 +724,13 @@ bool dap_cert_get_meta_bool(dap_cert_t *a_cert, const char *a_field)
     return *(bool *)&l_meta->value[0];
 }
 
+/**
+ * @brief get metadata from certificate with int (DAP_CERT_META_INT) type
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_field const char * field, which will be gotten from metadata
+ * @return int 
+ */
 int dap_cert_get_meta_int(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
@@ -681,6 +747,13 @@ int dap_cert_get_meta_int(dap_cert_t *a_cert, const char *a_field)
     return *(int *)&l_meta->value[0];
 }
 
+/**
+ * @brief get metadata from certificate with datetime (DAP_CERT_META_DATETIME) type
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_field const char * field, which will be gotten from metadata
+ * @return time_t 
+ */
 time_t dap_cert_get_meta_time(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
@@ -697,6 +770,13 @@ time_t dap_cert_get_meta_time(dap_cert_t *a_cert, const char *a_field)
     return *(time_t *)&l_meta->value[0];
 }
 
+/**
+ * @brief get metadata from certificate with datetime (DAP_CERT_META_DATETIME_PERIOD) type
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_field const char * field, which will be gotten from metadata
+ * @return time_t 
+ */
 time_t dap_cert_get_meta_period(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
@@ -713,6 +793,13 @@ time_t dap_cert_get_meta_period(dap_cert_t *a_cert, const char *a_field)
     return *(time_t *)&l_meta->value[0];
 }
 
+/**
+ * @brief get metadata from certificate with dap_sign_t (DAP_CERT_META_SIGN) type
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_field const char * field, which will be gotten from metadata
+ * @return dap_sign_t* 
+ */
 dap_sign_t *dap_cert_get_meta_sign(dap_cert_t *a_cert, const char *a_field)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
@@ -730,6 +817,14 @@ dap_sign_t *dap_cert_get_meta_sign(dap_cert_t *a_cert, const char *a_field)
     return l_ret;
 }
 
+/**
+ * @brief get metadata from certificate with custom (DAP_CERT_META_CUSTOM) type
+ * 
+ * @param a_cert dap_cert_t * certificate object
+ * @param a_field const char * field, which will be gotten from metadata
+ * @param a_meta_size_out size_t size of recieved data
+ * @return void* 
+ */
 void *dap_cert_get_meta_custom(dap_cert_t *a_cert, const char *a_field, size_t *a_meta_size_out)
 {
     dap_cert_metadata_t *l_meta = dap_cert_get_meta(a_cert, a_field);
@@ -748,6 +843,7 @@ void *dap_cert_get_meta_custom(dap_cert_t *a_cert, const char *a_field, size_t *
 
 /**
  * @brief dap_cert_deinit
+ * empty function
  */
 void dap_cert_deinit()
 {

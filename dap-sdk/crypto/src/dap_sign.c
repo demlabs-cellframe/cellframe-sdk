@@ -38,7 +38,13 @@
 //static dap_sign_t * s_sign_null = NULL;
 static bliss_signature_t s_sign_bliss_null = {0};
 
-// calc signature size
+/**
+ * @brief get signature size (different for specific crypto algorithm)
+ * 
+ * @param a_key dap_enc_key_t * encryption key object
+ * @param a_output_wish_size size_t output size
+ * @return size_t 
+ */
 size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size_t a_output_wish_size )
 {
     (void)a_output_wish_size;
@@ -60,8 +66,8 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
 
 
 /**
- * @brief dap_sign_type_from_key_type
- * @param a_key_type
+ * @brief get sign type (dap_sign_type_t) type from key type (dap_enc_key_type_t)
+ * @param a_key_type dap_enc_key_type_t key type
  * @return
  */
 dap_sign_type_t dap_sign_type_from_key_type( dap_enc_key_type_t a_key_type)
@@ -79,9 +85,9 @@ dap_sign_type_t dap_sign_type_from_key_type( dap_enc_key_type_t a_key_type)
 }
 
 /**
- * @brief dap_sign_type_to_key_type
- * @param a_chain_sign_type
- * @return
+ * @brief convert chain sign type (dap_sign_type_t) to encryption key type (dap_enc_key_type_t)
+ * @param a_chain_sign_type dap_enc_key_type_t signature type
+ * @return dap_enc_key_type_t
  */
 dap_enc_key_type_t  dap_sign_type_to_key_type(dap_sign_type_t  a_chain_sign_type)
 {
@@ -97,9 +103,10 @@ dap_enc_key_type_t  dap_sign_type_to_key_type(dap_sign_type_t  a_chain_sign_type
 
 
 /**
- * @brief dap_sign_type_to_str
- * @param a_chain_sign_type
- * @return
+ * @brief convert sign type (dap_sign_type_t) to string format
+ * [sig_bliss,sig_tesla,sig_picnic,sig_dil,sig_multi2,sig_multi]
+ * @param a_chain_sign_type sign type dap_sign_type_t
+ * @return const char* 
  */
 const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type)
 {
@@ -116,9 +123,10 @@ const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type)
 }
 
 /**
- * @brief dap_pkey_type_from_sign
- * @param a_pkey_type
- * @return
+ * @brief convert public key type (dap_pkey_type_t) to dap_sign_type_t type
+ * 
+ * @param a_pkey_type dap_pkey_type_t key type
+ * @return dap_sign_type_t 
  */
 dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type)
 {
@@ -136,9 +144,10 @@ dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type)
 
 
 /**
- * @brief dap_sign_type_from_str
- * @param a_type_str
- * @return
+ * @brief convert string to dap_sign_type_t type
+ * 
+ * @param a_type_str const char * algorithm type [sig_bliss,sig_tesla,sig_picnic,sig_dil,sig_multi2,sig_multi]
+ * @return dap_sign_type_t 
  */
 dap_sign_type_t dap_sign_type_from_str(const char * a_type_str)
 {
@@ -162,12 +171,14 @@ dap_sign_type_t dap_sign_type_from_str(const char * a_type_str)
 }
 
 /**
- * @brief dap_sign_create_output
- * @param a_key
- * @param a_data
- * @param a_data_size
- * @param a_output [in/out]
- * @return
+ * @brief encrypt data
+ * call a_key->enc_na or dap_enc_sig_bliss_get_sign
+ * @param a_key dap_enc_key_t key object
+ * @param a_data const void * data
+ * @param a_data_size const size_t size of data
+ * @param a_output void * output buffer
+ * @param a_output_size size_t size of output buffer
+ * @return int 
  */
 static int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size,
         void * a_output, size_t *a_output_size)
@@ -194,12 +205,13 @@ static int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, con
 }
 
 /**
- * @brief dap_sign_create
- * @param a_key
- * @param a_data
- * @param a_data_size
- * @param a_output_wish_size
- * @return
+ * @brief sign data with specified key
+ * 
+ * @param a_key dap_enc_key_t key object
+ * @param a_data const void * buffer with data
+ * @param a_data_size const size_t buffer size
+ * @param a_output_wish_size size_t output buffer size
+ * @return dap_sign_t* 
  */
 dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
         const size_t a_data_size, size_t a_output_wish_size)
@@ -243,14 +255,16 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
     }
     return NULL;
 }
+
 /**
- * @brief dap_sign_pack
- * @param a_key
- * @param a_sign_ser
- * @param a_sign_ser_size
- * @param a_pkey
- * @param a_pub_key_size
- * @return dap_sign_t*
+ * @brief create signed object header (dap_sign_t) from variables
+ * 
+ * @param a_key dap_enc_key_t key object
+ * @param a_sign_ser signed data buffer
+ * @param a_sign_ser_size buffer size
+ * @param a_pkey public key
+ * @param a_pub_key_size pulic key size
+ * @return dap_sign_t* 
  */
 dap_sign_t * dap_sign_pack(dap_enc_key_t *a_key, const void * a_sign_ser, const size_t a_sign_ser_size, const void * a_pkey, const size_t a_pub_key_size)
 {
@@ -266,10 +280,11 @@ dap_sign_t * dap_sign_pack(dap_enc_key_t *a_key, const void * a_sign_ser, const 
 }
 
 /**
- * @brief dap_sign_get_sign
- * @param a_sign
- * @param a_sign_out
- * @return
+ * @brief 
+ * get a_sign->pkey_n_sign + a_sign->header.sign_pkey_size
+ * @param a_sign dap_sign_t object (header + raw signature data)
+ * @param a_sign_out  a_sign->header.sign_size
+ * @return uint8_t* 
  */
 uint8_t* dap_sign_get_sign(dap_sign_t *a_sign, size_t *a_sign_out)
 {
@@ -281,10 +296,11 @@ uint8_t* dap_sign_get_sign(dap_sign_t *a_sign, size_t *a_sign_out)
 }
 
 /**
- * @brief dap_sign_get_pkey
- * @param a_sign
- * @param a_pub_key_out
- * @return
+ * @brief get a_sign->pkey_n_sign and a_sign->header.sign_pkey_size (optionally)
+ * 
+ * @param a_sign dap_sign_t sign object
+ * @param a_pub_key_out [option] output pointer to a_sign->header.sign_pkey_size
+ * @return uint8_t* 
  */
 uint8_t* dap_sign_get_pkey(dap_sign_t *a_sign, size_t *a_pub_key_out)
 {
@@ -296,10 +312,12 @@ uint8_t* dap_sign_get_pkey(dap_sign_t *a_sign, size_t *a_pub_key_out)
 }
 
 /**
- * @brief dap_sign_get_pkey_hash
- * @param a_sign
- * @param a_sign_hash
- * @return
+ * @brief get SHA3 hash of buffer (a_sign), storing in output buffer a_sign_hash
+ * 
+ * @param a_sign input buffer
+ * @param a_sign_hash output buffer
+ * @return true 
+ * @return false 
  */
 bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_hash)
 {
@@ -314,7 +332,14 @@ bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_h
     return dap_hash_fast( a_sign->pkey_n_sign,a_sign->header.sign_pkey_size,a_sign_hash );
 }
 
-
+/**
+ * @brief verify, if a_sign->header.sign_pkey_size and a_sign->header.sign_size bigger, then a_max_key_size
+ * 
+ * @param a_sign signed data object 
+ * @param a_max_key_size max size of key
+ * @return true 
+ * @return false 
+ */
 bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_key_size)
 {
     if (a_sign->header.sign_pkey_size > a_max_key_size)
@@ -325,9 +350,10 @@ bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_key_size)
 }
 
 /**
- * @brief dap_sign_to_enc_key
- * @param a_chain_sign
- * @return
+ * @brief get deserealized pub key from dap_sign_t 
+ * 
+ * @param a_chain_sign dap_sign_t object
+ * @return dap_enc_key_t* 
  */
 dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign)
 {
@@ -343,10 +369,10 @@ dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign)
 }
 
 /**
- * @brief dap_sign_verify
- * @param a_chain_sign
- * @param a_data
- * @param a_data_size
+ * @brief dap_sign_verify data signature
+ * @param a_chain_sign dap_sign_t a_chain_sign object
+ * @param a_data const void * buffer with data
+ * @param a_data_size const size_t  buffer size
  * @return 1 valid signature, 0 invalid signature, -1 unsupported sign type
  */
 int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size)
@@ -403,8 +429,12 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
     return l_ret;
 }
 
+
 /**
- * Get size of struct dap_sign_t
+ * @brief Get size of struct dap_sign_t
+ * 
+ * @param a_chain_sign dap_sign_t object
+ * @return size_t 
  */
 size_t dap_sign_get_size(dap_sign_t * a_chain_sign)
 {
