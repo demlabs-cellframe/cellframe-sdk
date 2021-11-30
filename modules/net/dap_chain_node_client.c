@@ -666,7 +666,7 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
 
-    //dap_client_set_auth_cert(a_node_client->client, dap_cert_find_by_name("auth")); // TODO provide the certificate choice
+    dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name); // TODO provide the certificate choice
 
     int hostlen = 128;
     char host[hostlen];
