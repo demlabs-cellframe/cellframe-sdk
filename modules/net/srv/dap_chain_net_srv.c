@@ -60,6 +60,7 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
+#include "dap_stream_ch_chain_net_srv.h"
 #ifdef DAP_MODULES_DYNAMIC
 #include "dap_modules_dynamic_cdb.h"
 #endif
@@ -90,9 +91,9 @@ static void s_load_all(void);
  * @brief dap_chain_net_srv_init
  * @return
  */
-int dap_chain_net_srv_init(dap_config_t * a_cfg)
-{
-    UNUSED(a_cfg);
+int dap_chain_net_srv_init()
+{    
+    dap_stream_ch_chain_net_srv_init();
     m_uid = NULL;
     m_uid_count = 0;
     if( dap_chain_net_srv_order_init() != 0 )
