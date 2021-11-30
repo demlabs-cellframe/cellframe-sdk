@@ -992,7 +992,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
-    if (l_objs_count == 0) {
+    if (l_objs_count == 0 || l_ledger_pvt->last_ticker.key == NULL) {
         l_ledger_pvt->last_ticker.found = true;
     }
 
@@ -1022,7 +1022,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
-    if (l_objs_count == 0) {
+    if (l_objs_count == 0 || l_ledger_pvt->last_emit.hash == NULL) {
         l_ledger_pvt->last_emit.found = true;
     }
 
@@ -1037,12 +1037,12 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         memcpy(&l_tx_item->cache_data, l_objs[i].value, sizeof(l_tx_item->cache_data));
         HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
         if (i == l_objs_count - 1) {
-            PVT(a_ledger)->last_tx.hash = &l_tx_item->tx_hash_fast;
+            l_ledger_pvt->last_tx.hash = &l_tx_item->tx_hash_fast;
         }
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
-    if (l_objs_count == 0) {
+    if (l_objs_count == 0 || l_ledger_pvt->last_tx.hash == NULL) {
         l_ledger_pvt->last_tx.found = true;
     }
 
@@ -1056,12 +1056,12 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         memcpy(l_tx_item->tx, l_objs[i].value, l_objs[i].value_len);
         HASH_ADD(hh, l_ledger_pvt->treshold_txs, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
         if (i == l_objs_count - 1) {
-            PVT(a_ledger)->last_thres_tx.hash = &l_tx_item->tx_hash_fast;
+            l_ledger_pvt->last_thres_tx.hash = &l_tx_item->tx_hash_fast;
         }
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
-    if (l_objs_count == 0) {
+    if (l_objs_count == 0 || l_ledger_pvt->last_thres_tx.hash == NULL) {
         l_ledger_pvt->last_thres_tx.found = true;
     }
 
