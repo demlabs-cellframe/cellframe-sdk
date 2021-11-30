@@ -1800,9 +1800,10 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
                 dap_string_append_printf(l_string_ret, "balance: 0");
             for(size_t i = 0; i < l_addr_tokens_size; i++) {
                 if(l_addr_tokens[i]) {
-                    uint128_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
-                    char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
-                    char *l_balance_datoshi = dap_chain_balance_print(l_balance);
+                    // uint128_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
+                    uint256_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_addr_tokens[i]);
+                    char *l_balance_coins = dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_balance));
+                    char *l_balance_datoshi = dap_chain_balance_print(dap_chain_uint128_from_uint256(l_balance));
                     dap_string_append_printf(l_string_ret, "\t%s (%s) %s\n", l_balance_coins,
                             l_balance_datoshi, l_addr_tokens[i]);
                     if(i < l_addr_tokens_size - 1)
@@ -3136,16 +3137,23 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     int arg_index = 1;
     const char *str_tmp = NULL;
     char *str_reply_tmp = NULL;
-    uint64_t l_emission_value = 0;
+    // uint64_t l_emission_value = 0;
+    uint256_t l_emission_value = uint256_0;
+
 
     const char * l_ticker = NULL;
 
     const char * l_addr_str = NULL;
 
     const char * l_emission_hash_str = NULL;
+    const char * l_type_256 = NULL;
+
     char * l_emission_hash_str_new = NULL;
     dap_chain_hash_fast_t l_emission_hash={0};
+    
     dap_chain_datum_token_emission_t * l_emission = NULL;
+    //dap_chain_datum_256_token_emission_t * l_emission_256 = NULL; // 256
+    
     char * l_emission_hash_str_base58 = NULL;
 
     const char * l_certs_str = NULL;
@@ -3165,6 +3173,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
+
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
@@ -3180,6 +3189,9 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // Token emission
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission", &l_emission_hash_str);
 
+    // 256
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-256", &l_type_256);
+
     // Emission certs
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
 
@@ -3191,10 +3203,11 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     // Emission value
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission_value", &str_tmp)) {
-        l_emission_value = strtoull(str_tmp, NULL, 10);
+        // l_emission_value = strtoull(str_tmp, NULL, 10);
+        l_emission_value = GET_256_FROM_128(dap_strtou128(str_tmp, NULL, 10)); 
     }
 
-    if(!l_emission_value) {
+    if( EQUAL_256(l_emission_value, uint256_0) ) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-emission_value'");
         return -1;
     }
@@ -3213,7 +3226,6 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-certs' or '-emission' ");
         return -4;
     }
-
 
     if (l_emission_hash_str){// Load emission
         l_emission_hash_str_base58 = dap_enc_base58_encode_hash_to_str(&l_emission_hash);
@@ -3246,8 +3258,6 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
             }
         }
     }
-
-
 
     dap_chain_addr_t * l_addr = dap_chain_addr_from_str(l_addr_str);
 
@@ -3292,16 +3302,30 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         size_t l_emission_size = sizeof(l_emission->hdr) +
                 sizeof(l_emission->data.type_auth.signs_count);
 
+        // size_t l_emission_256_size = sizeof(l_emission_256->hdr) +
+        //         sizeof(l_emission_256->data.type_auth.signs_count);
+
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
+
+        if ( !l_type_256 ) {
+            l_emission->hdr.type_value_256 = false;
+            l_emission->hdr.value = dap_chain_uint256_to(l_emission_value);
+        } else { // 256
+            l_emission->hdr.type_value_256 = true;
+            l_emission->hdr.value_256 = l_emission_value;
+        }
+
         l_emission->hdr.version = 1;
+
         strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
-        l_emission->hdr.value = l_emission_value;
         l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
         memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
+
         time_t l_time = time(NULL);
         memcpy(&l_emission->hdr.nonce, &l_time, sizeof(time_t));
         // Then add signs
         size_t l_offset = 0;
+
         for(size_t i = 0; i < l_certs_size; i++) {
             dap_sign_t * l_sign = dap_cert_sign(l_certs[i], &l_emission->hdr,
                     sizeof(l_emission->hdr), 0);
@@ -3313,20 +3337,31 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
             DAP_DELETE(l_sign);
         }
 
+        dap_chain_datum_t * l_datum_emission;
+
         // Produce datum
-        dap_chain_datum_t * l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,
-                l_emission,
-                l_emission_size);
+        if ( !l_type_256 )
+            l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,
+                    l_emission,
+                    l_emission_size);
+        else // 256
+            l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_256_TOKEN_EMISSION,
+                    l_emission,
+                    l_emission_size);
+
         size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
         // Calc token's hash
         //dap_chain_hash_fast_t l_emission_hash;
         dap_hash_fast(l_emission, l_emission_size, &l_emission_hash);
+
         l_emission_hash_str = l_emission_hash_str_new = dap_chain_hash_fast_to_str_new(&l_emission_hash);
         l_emission_hash_str_base58 = dap_enc_base58_encode_hash_to_str(&l_emission_hash);
 
         // Delete token emission
         DAP_DEL_Z(l_emission);
+        //DAP_DEL_Z(l_emission_256); // 256
+
 //    // Calc datum's hash
 //    dap_chain_hash_fast_t l_datum_emission_hash;
 //    dap_hash_fast(l_datum_emission, l_datum_emission_size, (uint8_t*) &l_datum_emission_hash);
@@ -3358,15 +3393,29 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
+    dap_chain_tx_token_t *l_tx_token;
+    dap_chain_tx_out_t *l_out;
+    //dap_chain_256_tx_out_t *l_out_256;
+    
     // create items
-    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(&l_emission_hash, l_ticker);
+    if ( !l_type_256 ) {
+        l_tx_token = dap_chain_datum_tx_item_token_create(&l_emission_hash, l_ticker);
+        l_out = dap_chain_datum_tx_item_out_create(l_addr, dap_chain_uint256_to(l_emission_value));
+    } else { // 256
+        l_tx_token = dap_chain_datum_tx_item_256_token_create(&l_emission_hash, l_ticker);
+        l_out = dap_chain_datum_tx_item_256_out_create(l_addr, l_emission_value);
+    }
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
-    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(l_addr, l_emission_value);
 
     // pack items to transaction
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
+
+    //if ( !l_type_256 ) {
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
+    // } else { //256
+    //     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_256);
+    // }
 
     // Base tx don't need signature items but let it be
     if (l_certs){
@@ -3386,16 +3435,22 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     DAP_DEL_Z(l_tx_token);
     DAP_DEL_Z(l_in);
-    DAP_DEL_Z(l_out);
+    // DAP_DEL_Z(l_out);
+    // DAP_DEL_Z(l_out_256);
 
     DAP_DEL_Z(l_emission_hash_str_new);
     l_emission_hash_str = NULL;
     DAP_DEL_Z(l_emission_hash_str_base58);
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_chain_datum_t * l_datum_tx;
 
     // Pack transaction into the datum
-    dap_chain_datum_t * l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    if ( !l_type_256 ) {
+        l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    } else {
+        l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_256_TX, l_tx, l_tx_size);
+    }
     size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
 
     // use l_tx hash for compatible with utho hash
@@ -3829,6 +3884,10 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
 
     uint64_t value = 0;
     uint64_t value_fee = 0;
+
+    // uint256_t value = uint256_0;
+    // uint256_t value_fee = uint256_0;
+
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from_wallet", &l_from_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to_addr", &addr_base58_to);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-token", &l_token_ticker);
