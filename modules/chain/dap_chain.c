@@ -251,8 +251,14 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "emission")) {
         return CHAIN_TYPE_EMISSION;
     }
+    if(!dap_strcmp(a_type_str, "emission_256")) {
+        return CHAIN_TYPE_256_EMISSION;
+    }
     if(!dap_strcmp(a_type_str, "transaction")) {
         return CHAIN_TYPE_TX;
+    }
+    if(!dap_strcmp(a_type_str, "transaction_256")) {
+        return CHAIN_TYPE_256_TX;
     }
     if(!dap_strcmp(a_type_str, "ca")) {
         return CHAIN_TYPE_CA;
@@ -274,8 +280,14 @@ static uint16_t s_datum_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "emission")) {
         return DAP_CHAIN_DATUM_TOKEN_EMISSION;
     }
+    if(!dap_strcmp(a_type_str, "emission_256")) {
+        return DAP_CHAIN_DATUM_256_TOKEN_EMISSION;
+    }
     if(!dap_strcmp(a_type_str, "transaction")) {
         return DAP_CHAIN_DATUM_TX;
+    }
+    if(!dap_strcmp(a_type_str, "transaction_256")) {
+        return DAP_CHAIN_DATUM_256_TX;
     }
     return DAP_CHAIN_DATUM_CUSTOM;
 }
@@ -293,8 +305,12 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
         return DAP_CHAIN_DATUM_TOKEN_DECL;
     case CHAIN_TYPE_EMISSION:
         return DAP_CHAIN_DATUM_TOKEN_EMISSION;
+    case CHAIN_TYPE_256_EMISSION:
+        return DAP_CHAIN_DATUM_256_TOKEN_EMISSION;
     case CHAIN_TYPE_TX:
         return DAP_CHAIN_DATUM_TX;
+    case CHAIN_TYPE_256_TX:
+        return DAP_CHAIN_DATUM_256_TX;
     default:
         return DAP_CHAIN_DATUM_CUSTOM;
     }

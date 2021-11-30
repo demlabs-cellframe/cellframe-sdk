@@ -719,7 +719,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%)");
                 return -12;
             }
-            uint64_t l_balance = dap_chain_uint128_to(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_str));
+            uint64_t l_balance = dap_chain_uint256_to(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_str));
             if (l_balance < l_value) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Insufficient coins for token %s in wallet '%s'", l_token_str, l_wallet_str);
                 return -13;
@@ -892,7 +892,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Specified wallet not found");
                     return -18;
                 }
-                uint64_t l_balance = dap_chain_uint128_to(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_stake->token));
+                uint64_t l_balance = dap_chain_uint256_to(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_stake->token));
                 if (l_balance < l_stake->value) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Insufficient coins for token %s in wallet '%s'", l_token_str, l_wallet_str);
                     return -11;
