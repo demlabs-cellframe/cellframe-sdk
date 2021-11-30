@@ -89,7 +89,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t 
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                   //    Verify new event in dag
 static size_t s_chain_callback_atom_get_static_hdr_size(void);                               //    Get dag event header size
 
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain );
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id);
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t *  ,
                                                                      dap_chain_atom_ptr_t , size_t);
 
@@ -203,13 +203,6 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
 
-    // Datum operations callbacks
-/*
-    a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
-    a_chain->callback_datum_iter_delete = s_chain_callback_datum_iter_delete; // Datum iterator delete
-    a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
-    a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
-*/
     // Others
     a_chain->_inheritor = l_dag;
 
@@ -988,10 +981,11 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
  * @param a_chain
  * @return
  */
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain )
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_atom_iter->chain = a_chain;
+    l_atom_iter->cell_id = a_cell_id;
     pthread_rwlock_rdlock(&a_chain->atoms_rwlock);
 #ifdef WIN32
     log_it(L_DEBUG, "! Create caller id %lu", GetThreadId(GetCurrentThread()));
@@ -1036,7 +1030,14 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     assert(l_dag);
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);
     assert(l_dag_pvt);
-    a_atom_iter->cur_item = l_dag_pvt->events;
+    a_atom_iter->cur_item = NULL;
+    dap_chain_cs_dag_event_item_t *l_item_tmp, *l_item_cur;
+    HASH_ITER(hh, l_dag_pvt->events, l_item_cur, l_item_tmp) {
+        if (l_item_cur->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
+            a_atom_iter->cur_item = l_item_cur;
+            break;
+        }
+    }
     if ( a_atom_iter->cur_item ){
         a_atom_iter->cur = ((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->event;
         a_atom_iter->cur_size = ((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->event_size;
@@ -1184,21 +1185,20 @@ static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chai
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t * a_atom_size )
 {
-    if (a_atom_iter->cur ){
-        //dap_chain_cs_dag_pvt_t* l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_atom_iter->chain));
-        dap_chain_cs_dag_event_item_t * l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
-        a_atom_iter->cur_item = l_event_item->hh.next;
-        l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
-        // if l_event_item=NULL then items are over
-        a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
-        a_atom_iter->cur_size = a_atom_iter->cur ? l_event_item->event_size : 0;
-        a_atom_iter->cur_hash = l_event_item ? &l_event_item->hash : NULL;
-        if(a_atom_size)
-            *a_atom_size = a_atom_iter->cur_size;
-        return a_atom_iter->cur;
-    }else
-        return NULL;
-
+    dap_chain_cs_dag_event_item_t * l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
+    while (l_event_item) {
+        l_event_item = (dap_chain_cs_dag_event_item_t *)l_event_item->hh.next;
+        if (l_event_item && l_event_item->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64)
+            break;
+    }
+    // if l_event_item=NULL then items are over
+    a_atom_iter->cur_item = l_event_item;
+    a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
+    a_atom_iter->cur_size = a_atom_iter->cur ? l_event_item->event_size : 0;
+    a_atom_iter->cur_hash = l_event_item ? &l_event_item->hash : NULL;
+    if(a_atom_size)
+        *a_atom_size = a_atom_iter->cur_size;
+    return a_atom_iter->cur;
 }
 
 /**

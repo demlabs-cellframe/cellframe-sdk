@@ -456,7 +456,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             size_t l_block_size = 0;
             dap_chain_hash_fast_t l_block_hash={0};
             dap_enc_base58_hex_to_hash( l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
-            l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hash, &l_block_size);
+            dap_chain_cell_t *l_cell = l_chain->cells;
+            do {
+                l_block = (dap_chain_block_t *)dap_chain_get_atom_by_hash(l_chain, &l_block_hash, &l_block_size, l_cell->id);
+                if (l_block)
+                    break;
+                l_cell = l_cell->hh.next;
+            } while (l_cell);
             if ( l_block){
                 dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
                 if ( l_block_cache ){
