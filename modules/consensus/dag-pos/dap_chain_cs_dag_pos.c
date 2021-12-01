@@ -146,18 +146,19 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_pos_t * l_pos = DAP_CHAIN_CS_DAG_POS( l_dag );
 
-    const char * l_events_sign_wallet = NULL;
-    if ( ( l_events_sign_wallet = dap_config_get_item_str(a_chain_net_cfg,"dag-pos","events-sign-wallet") ) != NULL ) {
-
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_events_sign_wallet, dap_chain_wallet_get_path(g_config));
-        if (!l_wallet) {
-            log_it(L_ERROR,"Can't load events sign wallet, name \"%s\" is wrong", l_events_sign_wallet);
+    const char * l_sign_cert_str = NULL;
+    if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "dag-pos", "sign-cert")) != NULL) {
+        dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
+        if (l_sign_cert == NULL) {
+            log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
+        } else if (l_sign_cert->enc_key->priv_key_data) {
+            PVT(l_pos)->events_sign_key = l_sign_cert->enc_key;
+            log_it(L_NOTICE, "Loaded \"%s\" certificate to sign PoS events", l_sign_cert_str);
         } else {
-            PVT(l_pos)->events_sign_key = dap_chain_wallet_get_key(l_wallet, 0);
-            log_it(L_NOTICE,"Loaded \"%s\" wallet to sign pos event", l_events_sign_wallet);
+            log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
         }
     } else {
-        log_it(L_WARNING, "Events sign wallet is empty for %s chain, can't sing any events for it", a_chain->name);
+        log_it(L_ERROR, "No sign certificate provided, can't sign any events");
     }
     return 0;
 }

@@ -146,7 +146,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(l_blocks);
 
     const char * l_sign_cert_str = NULL;
-    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-pos","sign-cert") ) != NULL ) {
+    if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-pos","sign-cert")) != NULL) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
