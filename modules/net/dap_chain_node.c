@@ -51,32 +51,31 @@
 /**
  * Generate node address by shard id
  */
-dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_t * a_net,dap_chain_cell_id_t *shard_id)
+dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_id_t a_net_id)
 {
-    if(!shard_id)
-        return NULL;
-    dap_chain_node_addr_t *a_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-    dap_chain_hash_fast_t a_hash;
-    dap_hash_fast(shard_id, sizeof(dap_chain_cell_id_t), &a_hash);
+    dap_chain_node_addr_t *l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+    dap_chain_hash_fast_t l_hash;
+    dap_hash_fast(&a_net_id, sizeof(dap_chain_net_id_t), &l_hash);
     // first 4 bytes is last 4 bytes of shard id hash
-    memcpy(a_addr->raw, a_hash.raw + sizeof(a_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
+    memcpy(l_addr->raw, l_hash.raw + sizeof(l_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
     // last 4 bytes is random
-    randombytes(a_addr->raw + sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
+    randombytes(l_addr->raw + sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
     // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
-    a_addr->uint64 = le64toh(a_addr->uint64); // a_addr->raw the same a_addr->uint64
-    return a_addr;
+    l_addr->uint64 = le64toh(l_addr->uint64); // l_addr->raw the same l_addr->uint64
+    return l_addr;
 }
 
 /**
  * Check the validity of the node address by cell id
  */
-bool dap_chain_node_check_addr(dap_chain_net_t * a_net,dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id)
+bool dap_chain_node_check_addr(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_addr)
 {
-    bool ret = false;
-    if(!addr || !shard_id)
-        ret= false;
-
-    return ret;
+    if (!a_addr || !a_net)
+        return false;
+    dap_chain_hash_fast_t l_hash;
+    dap_hash_fast(&a_net->pub.id, sizeof(dap_chain_net_id_t), &l_hash);
+    // first 4 bytes is last 4 bytes of shard id hash
+    return !memcmp(a_addr->raw, l_hash.raw + sizeof(l_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
 }
 
 /**
@@ -225,7 +224,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     return node_info;
 }*/
 
-bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a_role, dap_chain_datum_t *a_datum)
+int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a_role, dap_chain_datum_t *a_datum)
 {
     bool l_need_process = false;
     for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
@@ -235,21 +234,18 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t 
         }
     }
     if (!l_need_process)
-        return false;
+        return -1;
     if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
         dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_IN, NULL);
         // Is not it a base transaction?
         if (l_tx_in && !dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
             if (a_role.enums == NODE_ROLE_ROOT) {
-                return false;
+                return -1;
             }
         }
     }
-    if (a_chain->callback_add_datums(a_chain, &a_datum, 1) != 1) {
-        return false;
-    }
-    return true;
+    return (int)a_chain->callback_add_datums(a_chain, &a_datum, 1);
 }
 
 static bool s_mempool_auto = false;
@@ -291,12 +287,13 @@ bool dap_chain_node_mempool_autoproc_init()
                 dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
                 if (l_objs_size) {
                     for (size_t i = 0; i < l_objs_size; i++) {
-                        // Delete processed objects
-                        dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
                         if (!l_objs[i].value_len)
                             continue;
                         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-                        dap_chain_node_mempool_process(l_chain, l_role, l_datum);
+                        if (dap_chain_node_mempool_process(l_chain, l_role, l_datum) > 0) {
+                            // Delete processed objects
+                            dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
+                        }
                     }
                     dap_chain_global_db_objs_delete(l_objs, l_objs_size);
                 }
@@ -333,7 +330,7 @@ void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, c
         if (!strcmp(a_group, l_gdb_group_str)) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
             dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-            if (dap_chain_node_mempool_process(l_chain, l_role, l_datum)) {
+            if (dap_chain_node_mempool_process(l_chain, l_role, l_datum) > 0) {
                 dap_chain_global_db_gr_del(dap_strdup(a_key), l_gdb_group_str);
             }
         }

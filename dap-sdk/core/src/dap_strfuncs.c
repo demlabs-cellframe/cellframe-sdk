@@ -312,7 +312,7 @@ char* dap_strdup_vprintf(const char *a_format, va_list a_args)
  * @return char* a newly-allocated string holding the result
  */
 
-char* dap_strdup_printf(const char *a_format, ...)
+DAP_PRINTF_ATTR(1,2) char* dap_strdup_printf(const char *a_format, ...)
 {
     char *l_buffer;
     va_list l_args;
