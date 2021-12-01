@@ -1,0 +1,27 @@
+var searchData=
+[
+  ['s_5fansi_5fseq_5fcolor_896',['s_ansi_seq_color',['../dap__common_8c.html#a1644ca13c1b5eeee92642858919c7a88',1,'dap_common.c']]],
+  ['s_5fansi_5fseq_5fcolor_5flen_897',['s_ansi_seq_color_len',['../dap__common_8c.html#a7566ff31a85b6757af565f97b51fc66d',1,'dap_common.c']]],
+  ['s_5fappname_898',['s_appname',['../dap__common_8c.html#a2494493fc79f0a0692ba9f92703d2a31',1,'dap_common.c']]],
+  ['s_5fascii_5ftable_5fdata_899',['s_ascii_table_data',['../dap__common_8h.html#ac440358a8e4f62029d9d2751a4c82d66',1,'dap_common.h']]],
+  ['s_5fconfigs_5fpath_900',['s_configs_path',['../group__DAP-config.html#ga7c0eff5c1bfbfbf9b3cbee498178606a',1,'dap_config.c']]],
+  ['s_5fdap_5flog_5flevel_901',['s_dap_log_level',['../dap__common_8c.html#a6dc020876c49645a708eb81f048896c6',1,'dap_common.c']]],
+  ['s_5flast_5ferror_902',['s_last_error',['../dap__common_8c.html#a841ba069ed0302001d1dc3ef00835349',1,'dap_common.c']]],
+  ['s_5flog_5fbuffer_903',['s_log_buffer',['../dap__common_8c.html#a23e562a9644937850caa7b2c8e7522cd',1,'dap_common.c']]],
+  ['s_5flog_5fcond_904',['s_log_cond',['../dap__common_8c.html#acb0bf7d44bdf6cac53f335fbb0400796',1,'dap_common.c']]],
+  ['s_5flog_5fcount_905',['s_log_count',['../dap__common_8c.html#a60a8a8decc7af31c2b3d5e8c281a7943',1,'dap_common.c']]],
+  ['s_5flog_5fdir_5fpath_906',['s_log_dir_path',['../dap__common_8c.html#a4a297fb5525aa653f1f60772301df5b6',1,'dap_common.c']]],
+  ['s_5flog_5ffile_907',['s_log_file',['../dap__common_8c.html#a50021147b626e80a4756b326379832e9',1,'dap_common.c']]],
+  ['s_5flog_5ffile_5fpath_908',['s_log_file_path',['../dap__common_8c.html#a9893fdcef8c368d916bc9e03ca16f6b3',1,'dap_common.c']]],
+  ['s_5flog_5flevel_5ftag_909',['s_log_level_tag',['../dap__common_8c.html#a569055f65bf0a06d8b7889148cd1c3e4',1,'dap_common.c']]],
+  ['s_5flog_5fmutex_910',['s_log_mutex',['../dap__common_8c.html#a6ec8306ac5b15dfcbaa5a93f7a42c3f2',1,'dap_common.c']]],
+  ['s_5flog_5ftag_5ffmt_5fstr_911',['s_log_tag_fmt_str',['../dap__common_8c.html#af221160d731c27e503eaa4daab9184a0',1,'dap_common.c']]],
+  ['s_5flog_5fterm_5fsignal_912',['s_log_term_signal',['../dap__common_8c.html#a77f173bf86e5541e6e64b4cc67bdbe3c',1,'dap_common.c']]],
+  ['s_5flog_5fthread_913',['s_log_thread',['../dap__common_8c.html#aeb58980a3d2b428b5647eb708b6e1087',1,'dap_common.c']]],
+  ['s_5ftimers_914',['s_timers',['../dap__common_8c.html#a81680f863846d7620559431c8651cb6f',1,'dap_common.c']]],
+  ['s_5ftimers_5fcount_915',['s_timers_count',['../dap__common_8c.html#a14059d06f24a066c25bc048871a48e9a',1,'dap_common.c']]],
+  ['s_5ftimers_5flock_916',['s_timers_lock',['../dap__common_8c.html#aad5bdc0a0bc5ea63af9441694a86b5a5',1,'dap_common.c']]],
+  ['size_917',['size',['../structdap__tsd.html#afef1ede6e6aefa26c63022c9208b6d82',1,'dap_tsd']]],
+  ['str_918',['str',['../structlog__str__t.html#aafc5db8f8ffdb8dc458b0349f1032603',1,'log_str_t::str()'],['../structdap__log__history__str__s.html#ae4975cdd2e3a6c5f0a6b4e376dcebcd5',1,'dap_log_history_str_s::str()'],['../struct__dap__string.html#a86cf6aef63f4fd56a0aa53a47618e02c',1,'_dap_string::str()']]],
+  ['string_919',['string',['../structSTRUCT.html#ad66ee9fcdea35a15809d736529084cd1',1,'STRUCT']]]
+];

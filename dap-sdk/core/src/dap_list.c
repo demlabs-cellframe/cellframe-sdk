@@ -11,15 +11,37 @@
 #define LOG_TAG "dap_list"
 
 /**
- * dap_list_alloc:
- * Returns: a pointer to the newly-allocated DapList element
- **/
+ * @defgroup DAP-list Linked list
+ * @ingroup  DAP-Core
+ * @brief List data structure
+ *
+ * Types and functions related to List.
+ */
+
+
+/**
+ * @addtogroup DAP-list
+ * @{
+ */
+
+
+
+/**
+ * @brief Allocates space in memory for a new node of a list.
+ * @details Memory is allocated using malloc()
+ * @return a pointer to the new node.
+ */
 dap_list_t *dap_list_alloc_no_z(void)
 {
     dap_list_t *list = DAP_NEW(dap_list_t);
     return list;
 }
 
+/**
+ * @brief Allocates space in memory for a new node of a list.
+ * @details Memory is allocated using calloc()
+ * @return a pointer to the new node.
+ */
 dap_list_t *dap_list_alloc(void)
 {
     dap_list_t *list = DAP_NEW_Z(dap_list_t);
@@ -27,11 +49,10 @@ dap_list_t *dap_list_alloc(void)
 }
 
 /**
- * dap_list_free:
- * Frees all of the memory used by a DapList.
- * The freed elements are returned to the slice allocator.
- * If list elements contain dynamically-allocated memory, you should
+ * @brief Deallocates the space used for all nodes in a list.
+ * @note If nodes contain dynamically-allocated memory, you should
  * either use dap_list_free_full() or free them manually first.
+ * @param list a pointer to the head node of the list.
  */
 void dap_list_free(dap_list_t *list)
 {
@@ -44,10 +65,9 @@ void dap_list_free(dap_list_t *list)
 }
 
 /**
- * dap_list_free_1:
- *
- * Frees one DapList element.
- * It is usually used after dap_list_remove_link().
+ * @brief Deallocates the space used for one node of a list.
+ * @details It is usually used after dap_list_remove_link().
+ * @param list a pointer to the node.
  */
 void dap_list_free1(dap_list_t *list)
 {
@@ -55,12 +75,10 @@ void dap_list_free1(dap_list_t *list)
 }
 
 /**
- * dap_list_free_full:
- * @list: a pointer to a DapList
- * @free_func: the function to be called to free each element's data
- *
- * Convenience method, which frees all the memory used by a DapList,
- * and calls @free_func on every element's data.
+ * @brief Applies a_free_func on all data of nodes
+ * and  deallocates the space used for all nodes in a list.
+ * @param list a pointer to the head node of the list;
+ * @param free_func a pointer to the function.
  */
 void dap_list_free_full(dap_list_t *a_list, dap_callback_destroyed_t a_free_func)
 {
@@ -73,23 +91,20 @@ void dap_list_free_full(dap_list_t *a_list, dap_callback_destroyed_t a_free_func
 }
 
 /**
- * dap_list_append:
- * @list: a pointer to a DapList
- * @data: the data for the new element
- *
- * Adds a new element on to the end of the list.
- *
- * Note that the return value is the new start of the list,
- * if @list was empty; make sure you store the new value.
- *
- * dap_list_append() has to traverse the entire list to find the end,
+ * @brief Adds a new node to the end of a list.
+ * @param list a pointer to the head node of the list or #NULL;
+ * @param data the data of the new node.
+ * @returns a pointer to the head node of the list.
+ * @note the returned value is the new start of the list,
+ * if the list is equal to #NULL, make sure you store the new value.
+ * @details dap_list_append() has to traverse the entire list to find the end,
  * which is inefficient when adding multiple elements. A common idiom
  * to avoid the inefficiency is to use dap_list_prepend() and reverse
  * the list with dap_list_reverse() when all elements have been added.
- *
- * |[<!-- language="C" -->
+ * Example of using the function:
+ * @code{.c}
  * // Notice that these are initialized to the empty list.
- * DapList *string_list = NULL, *number_list = NULL;
+ * dap_list_t *string_list = NULL, *number_list = NULL;
  *
  * // This is a list of strings.
  * string_list = dap_list_append (string_list, "first");
@@ -98,9 +113,7 @@ void dap_list_free_full(dap_list_t *a_list, dap_callback_destroyed_t a_free_func
  * // This is a list of integers.
  * number_list = dap_list_append (number_list, INT_TO_POINTER (27));
  * number_list = dap_list_append (number_list, INT_TO_POINTER (14));
- * ]|
- *
- * Returns: either @list or the new start of the DapList if @list was %NULL
+ * @endcode
  */
 dap_list_t * dap_list_append(dap_list_t *list, void* data)
 {
@@ -130,28 +143,29 @@ dap_list_t * dap_list_append(dap_list_t *list, void* data)
 }
 
 /**
- * dap_list_prepend:
- * @list: a pointer to a DapList, this must point to the top of the list
- * @data: the data for the new element
- *
+ * @brief Adds a new element to the end of the list.
+ * @param list: a pointer to a list structure
+ * @param data: the data for the new element
+ * 
+ * @note list must point to the top of the list
  * Prepends a new element on to the start of the list.
  *
  * Note that the return value is the new start of the list,
  * which will have changed, so make sure you store the new value. 
  *
- * |[<!-- language="C" -->
+ * @code
  * // Notice that it is initialized to the empty list.
- * DapList *list = NULL;
+ * dap_list_t *list = NULL;
  *
  * list = dap_list_prepend (list, "last");
  * list = dap_list_prepend (list, "first");
- * ]|
  *
  * Do not use this function to prepend a new element to a different
  * element than the start of the list. Use dap_list_insert_before() instead.
+ * @endcode
  *
- * Returns: a pointer to the newly prepended element, which is the new 
- *     start of the DapList
+ * @return: a pointer to the newly prepended element, which is the new 
+ *     start of the list.
  */
 dap_list_t *dap_list_prepend(dap_list_t *list, void* data)
 {
@@ -175,16 +189,13 @@ dap_list_t *dap_list_prepend(dap_list_t *list, void* data)
 }
 
 /**
- * dap_list_insert:
- * @list: a pointer to a DapList, this must point to the top of the list
- * @data: the data for the new element
+ * @brief Inserts a new element into the list at the given position.
+ * @param list a pointer to the first element of the list
+ * @param data the data for the new element
  * @position: the position to insert the element. If this is 
  *     negative, or is larger than the number of elements in the 
- *     list, the new element is added on to the end of the list.
- * 
- * Inserts a new element into the list at the given position.
- *
- * Returns: the (possibly changed) start of the DapList
+ *     list, the new element is added to the end of the list.
+ * @returns the (possibly changed) start of the list
  */
 dap_list_t *dap_list_insert(dap_list_t *list, void* data, int position)
 {
@@ -211,15 +222,13 @@ dap_list_t *dap_list_insert(dap_list_t *list, void* data, int position)
 }
 
 /**
- * dap_list_insert_before:
- * @list: a pointer to a DapList, this must point to the top of the list
- * @sibling: the list element before which the new element 
+ * @brief Inserts a new element into the list before the given position.
+ * 
+ * @param list a pointer to the first element of the list
+ * @param sibling the list element before which the new element 
  *     is inserted or %NULL to insert at the end of the list
- * @data: the data for the new element
- *
- * Inserts a new element into the list before the given position.
- *
- * Returns: the (possibly changed) start of the DapList
+ * @param data the data for the new element
+ * @returns: the (possibly changed) start of the list
  */
 dap_list_t *dap_list_insert_before(dap_list_t *list, dap_list_t *sibling, void* data)
 {
@@ -268,23 +277,22 @@ dap_list_t *dap_list_insert_before(dap_list_t *list, dap_list_t *sibling, void* 
 }
 
 /**
- * dap_list_concat:
- * @list1: a DapList, this must point to the top of the list
- * @list2: the DapList to add to the end of the first DapList,
- *     this must point  to the top of the list
+ * @brief Adds the second list onto the end of the first list.
  *
- * Adds the second DapList onto the end of the first DapList.
- * Note that the elements of the second DapList are not copied.
+ * @param list1 a pointer to the first element of the first list
+ * @param list2 a pointer to the first element of the second list
+ *
+ * @note The elements of the second list are not copied.
  * They are used directly.
  *
- * This function is for example used to move an element in the list.
+ * @example This function is for example used to move an element in the list.
  * The following example moves an element to the top of the list:
- * |[<!-- language="C" -->
+ * @code
  * list = dap_list_remove_link (list, llink);
  * list = dap_list_concat (llink, list);
- * ]|
+ * @endcode
  *
- * Returns: the start of the new DapList, which equals @list1 if not %NULL
+ * @return a pointer to the start of the new list, which equals @list1 if not %NULL
  */
 dap_list_t *dap_list_concat(dap_list_t *list1, dap_list_t *list2)
 {
@@ -333,15 +341,12 @@ static inline dap_list_t * _dap_list_remove_link(dap_list_t *list, dap_list_t *l
 }
 
 /**
- * dap_list_remove:
- * @list: a DapList, this must point to the top of the list
- * @data: the data of the element to remove
- *
- * Removes an element from a DapList.
- * If two elements contain the same data, only the first is removed.
- * If none of the elements contain the data, the DapList is unchanged.
- *
- * Returns: the (possibly changed) start of the DapList
+ * @brief Removes an element from a list
+ * @details If two elements contain the same data, only the first is removed.
+ * If none of the elements contain the data, the list is unchanged.
+ * @param list a pointer to the first element of the list
+ * @param data the data of the element to remove
+ * @returns: the (possibly changed) start of the ist
  */
 dap_list_t *dap_list_remove(dap_list_t *list, const void * data)
 {
@@ -365,16 +370,14 @@ dap_list_t *dap_list_remove(dap_list_t *list, const void * data)
 }
 
 /**
- * dap_list_remove_all:
- * @list: a DapList, this must point to the top of the list
- * @data: data to remove
+ * @brief Removes all list elements by data.
+ * 
+ * @param list a pointer to the first element of the list
+ * @param data data of elements to be removed
  *
- * Removes all list nodes with data equal to @data.
- * Returns the new head of the list. Contrast with
- * dap_list_remove() which removes only the first node
+ * @returns the (possibly changed) start of the list 
+ * @details Contrast with dap_list_remove() which removes only the first node
  * matching the given data.
- *
- * Returns: the (possibly changed) start of the DapList
  */
 dap_list_t *dap_list_remove_all(dap_list_t *list, const void * data)
 {
@@ -405,13 +408,13 @@ dap_list_t *dap_list_remove_all(dap_list_t *list, const void * data)
 }
 
 /**
- * dap_list_remove_link:
- * @list: a DapList, this must point to the top of the list
+ * @brief Removes an element from a list, without freeing the element.
+ * @details The removed element's prev and next links are set to %NULL, so 
+ * that it becomes a self-contained list with one element.
+ * @list: a pointer to the top of the list
  * @llink: an element in the DapList
  *
  * Removes an element from a DapList, without freeing the element.
- * The removed element's prev and next links are set to %NULL, so 
- * that it becomes a self-contained list with one element.
  *
  * This function is for example used to move an element in the list
  * (see the example for dap_list_concat()) or to remove an element in
@@ -659,14 +662,11 @@ dap_list_t *dap_list_find_custom(dap_list_t *list, const void * data, dap_callba
 }
 
 /**
- * dap_list_position:
- * @list: a DapList, this must point to the top of the list
+ * @brief Gets the position of the given element in the list.
+ * @param list a pointer to the DapList, this must point to the top of the list
  * @llink: an element in the DapList
  *
- * Gets the position of the given element 
- * in the DapList (starting from 0).
- *
- * Returns: the position of the element in the DapList,
+ * @returns: the position of the element in the list
  *     or -1 if the element is not found
  */
 int dap_list_position(dap_list_t *list, dap_list_t *llink)
@@ -713,13 +713,11 @@ int dap_list_index(dap_list_t *list, const void * data)
 }
 
 /**
- * dap_list_last:
- * @list: any DapList element
- *
- * Gets the last element in a DapList.
- *
- * Returns: the last element in the DapList,
- *     or %NULL if the DapList has no elements
+ * @brief Gets the last element in a list.
+ * 
+ * If #list is equals a null pointer, returns a null pointer.
+ * @param list a pointer to the element of the list
+ * @return a pointer to the last element in the list, if successful; otherwise, a null pointer.
  */
 dap_list_t * dap_list_last(dap_list_t *list)
 {
@@ -733,13 +731,10 @@ dap_list_t * dap_list_last(dap_list_t *list)
 }
 
 /**
- * dap_list_first:
- * @list: any DapList element
- *
- * Gets the first element in a DapList.
- *
- * Returns: the first element in the DapList,
- *     or %NULL if the DapList has no elements
+ * @brief Gets the first element in a list.
+ * 
+ * @param list a pointer to the element of the list.
+ * @return a pointer to the first element.
  */
 dap_list_t *dap_list_first(dap_list_t *list)
 {
@@ -753,14 +748,10 @@ dap_list_t *dap_list_first(dap_list_t *list)
 }
 
 /**
- * dap_list_length:
- * @list: a DapList, this must point to the top of the list
+ * @brief Gets the length of a list.
  *
- * Gets the number of elements in a DapList.
- *
- * This function iterates over the whole list to count its elements.
- *
- * Returns: the number of elements in the DapList
+ * @param list a pointer to the first element of the list
+ * @return: the number of elements in the list.
  */
 unsigned int dap_list_length(dap_list_t *list)
 {
@@ -777,10 +768,12 @@ unsigned int dap_list_length(dap_list_t *list)
 }
 
 /**
- * dap_list_foreach:
- * @list: a DapList, this must point to the top of the list
- * @func: the function to call with each element's data
- * @user_data: user data to pass to the function
+ * @brief Calls a function for each elements in a list.
+ *
+ * @details the function is called with two argument: a data of the elements and user data.
+ * @param list a pointer to the first element of the list,
+ * @param func a pointer to the function,
+ * @user_data: a pointer to user data.
  *
  * Calls a function for each element of a DapList.
  */
@@ -794,6 +787,15 @@ void dap_list_foreach(dap_list_t *list, dap_callback_t func, void* user_data)
     }
 }
 
+/**
+ * @brief 
+ * 
+ * @param list 
+ * @param data 
+ * @param func 
+ * @param user_data 
+ * @return dap_list_t* 
+ */
 static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap_callback_compare_data_t func, void* user_data)
 {
     dap_list_t *tmp_list = list;
@@ -843,15 +845,15 @@ static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap
 }
 
 /**
- * dap_list_insert_sorted:
- * @list: a pointer to a DapList, this must point to the top of the
+ * @brief Inserts a new element into the list, using the given comparison
+ * @param list a pointer to the  DapList, this must point to the top of the
  *     already sorted list
  * @data: the data for the new element
  * @func: the function to compare elements in the list. It should
  *     return a number > 0 if the first parameter comes after the
  *     second parameter in the sort order.
  *
- * Inserts a new element into the list, using the given comparison
+ * @brief Inserts a new element into the list, using the given comparison
  * function to determine its position.
  *
  * If you are adding many new elements to a list, and the number of
@@ -859,7 +861,7 @@ static dap_list_t* dap_list_insert_sorted_real(dap_list_t *list, void* data, dap
  * dap_list_prepend() to add the new items and sort the list afterwards
  * with dap_list_sort().
  *
- * Returns: the (possibly changed) start of the DapList
+ * @returns: the (possibly changed) start of the DapList
  */
 dap_list_t *dap_list_insert_sorted(dap_list_t *list, void* data, dap_callback_compare_data_t func)
 {
@@ -1011,3 +1013,5 @@ dap_list_t *dap_list_sort_with_data(dap_list_t *list, dap_callback_compare_data_
 {
     return dap_list_sort_real(list, compare_func, user_data);
 }
+
+/** @} */

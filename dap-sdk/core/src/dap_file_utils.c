@@ -50,10 +50,20 @@
 #define LOG_TAG "file_utils"
 
 /**
- * Check the directory path for unsupported symbols
+ * @defgroup DAP-file-utils File utilites
+ * @ingroup  DAP-Core
+ * @brief Utilites for working with files.
+ * @details
+ * File coside dap_valid_ascii_symbols() and other fuction.
+ * @{
+ */
+
+
+/**
+ * @brief Checks a string for unsupported symbols.
  *
- * @string
- * @return true, if the directory path contains only ASCII symbols
+ * @param a_string a pointer to a string containing the path to the directory.
+ * @return true, if the directory path contains only ASCII symbols or false if not.
  */
 bool dap_valid_ascii_symbols(const char *a_string)
 {
@@ -67,10 +77,10 @@ bool dap_valid_ascii_symbols(const char *a_string)
 }
 
 /**
- * Check the file for exists
+ * @brief Checks the file for exists.
  *
- * @a_file_path filename pathname
- * @return true, if file exists
+ * @param a_file_path a pointer to the sting containing the filename pathname.
+ * @return true, if file exists or false if not.
  */
 bool dap_file_test(const char * a_file_path)
 {
@@ -91,9 +101,9 @@ bool dap_file_test(const char * a_file_path)
 }
 
 /**
- * Check the directory for exists
+ * @brief Checks the directory for exists.
  *
- * @dir_path directory pathname
+ * @param a_dir_path a ponter to the string containin the directory pathname
  * @return true, if the file is a directory
  */
 bool dap_dir_test(const char * a_dir_path)
@@ -116,12 +126,11 @@ bool dap_dir_test(const char * a_dir_path)
 
 
 /**
- * @brief dap_mkdir_with_parents Create a new directory with intermediate sub-directories
+ * @brief Creates a new directory with intermediate sub-directories.
  * 
- * @param a_dir_path new directory pathname
- * @return int 0, if the directory was created or already exist, else -1
+ * @param a_dir_path a ponter to the string containing the directory pathname.
+ * @return 0 if the directory was created or already exist, else -1.
  */
-
 int dap_mkdir_with_parents(const char *a_dir_path)
 {
     // validation of a pointer
@@ -178,18 +187,15 @@ int dap_mkdir_with_parents(const char *a_dir_path)
 }
 
 /**
- * dap_path_get_basename:
- * @a_file_name: the name of the file
- *
- * Gets the last component of the filename.
- *
- * If @a_file_name ends with a directory separator it gets the component
+ * @brief Gets the last component of the filename.
+ * 
+ * If a_file_name ends with a directory separator it gets the component
  * before the last slash. If @a_file_name consists only of directory
  * separators (and on Windows, possibly a drive letter), a single
  * separator is returned. If @a_file_name is empty, it gets ".".
- *
- * Returns: a newly allocated string containing the last
- *    component of the filename
+ * @param a_file_name a pointer to the string containing the name of the file.
+ * @returns a newly allocated string containing the last 
+ *    component of the filename.
  */
 char* dap_path_get_basename(const char *a_file_name)
 {
@@ -237,12 +243,9 @@ char* dap_path_get_basename(const char *a_file_name)
 }
 
 /**
- * dap_path_is_absolute:
- * @a_file_name: a file name
- *
- * Returns true if the given @a_file_name is an absolute file name.
- * Note that this is a somewhat vague concept on Windows.
- *
+ * @brief Checks if the given file name is anabsolute file name.
+ * 
+ * @details
  * On POSIX systems, an absolute file name is well-defined. It always
  * starts from the single root directory. For example "/usr/local".
  *
@@ -253,8 +256,8 @@ char* dap_path_get_basename(const char *a_file_name)
  * for example "C:\Windows". The first case also includes UNC paths
  * such as "\\myserver\docs\foo". In all cases, either slashes or
  * backslashes are accepted.
- *
- * Returns: true if @a_file_name is absolute
+ * @param a_file_name a pointer to the string containing the file name.
+ * @returns true if file name is absolute or false if is not.
  */
 bool dap_path_is_absolute(const char *a_file_name)
 {
@@ -414,9 +417,6 @@ dap_list_name_directories_t *dap_get_subs(const char *a_path_dir){
 #endif
     return list;
 }
-
-
-
 
 /**
  * dap_path_get_ext:

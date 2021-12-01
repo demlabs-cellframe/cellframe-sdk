@@ -25,7 +25,7 @@ This file is part of DAP SDK the open source project
 #define LOG_TAG "dap_meta"
 
 /**
- * @brief dap_meta_create
+ * @brief 
  * @param a_name
  * @param a_data
  * @param a_data_size

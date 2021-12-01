@@ -24,6 +24,17 @@
 */
 //#define _XOPEN_SOURCE 700
 
+
+/**
+ * @defgroup DAP-Core Dap core public API
+ * @brief The low-level public API of the DAP library
+ * 
+ * @{
+ */
+
+/** @} */
+
+
 #pragma once
 #define __STDC_WANT_LIB_EXT1__ 1
 #include <string.h>

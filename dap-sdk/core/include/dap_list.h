@@ -10,24 +10,29 @@
 extern "C" {
 #endif
 
-
+/**
+ * @addtogroup DAP-list
+ * @{
+ */
 typedef void (*dap_callback_destroyed_t)(void* data);
 typedef void (*dap_callback_t)(void* data, void* user_data);
 typedef void* (*dap_callback_copy_t)(const void * src, void* data);
 typedef int (*dap_callback_compare_t)(const void * a, const void * b);
 typedef int (*dap_callback_compare_data_t)(const void * a, const void * b, void* user_data);
 
+/** A type of list*/
 typedef struct _dap_list dap_list_t;
 
+/**  
+ * A structure representing a node of a doubly linked list.
+*/
 struct _dap_list
 {
-    void* data;
-    dap_list_t *next;
-    dap_list_t *prev;
+    void* data;         /**< A pointer to data stored at this node. */
+    dap_list_t *next;   /**< A pointer to the next list node. */
+    dap_list_t *prev;   /**< A pointer to the previous list node. */
 };
 
-/* Doubly linked lists
- */
 dap_list_t* dap_list_alloc(void);
 void dap_list_free(dap_list_t *list);
 void dap_list_free1(dap_list_t *list);
@@ -67,6 +72,9 @@ void* dap_list_nth_data(dap_list_t *list, unsigned int n);
 
 #endif /* __DAP_LIST_H__ */
 
+/**
+ * @}
+ */
 
 #ifdef __cplusplus
 }

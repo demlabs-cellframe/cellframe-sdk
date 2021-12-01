@@ -24,8 +24,8 @@ This file is part of DAP SDK the open source project
 #define LOG_TAG "dap_tsd"
 
 /**
- * @brief dap_tsd_create
- * @param a_type
+ * @brief Creates a test
+ * @param a_type 
  * @param a_data
  * @param a_data_size
  * @return

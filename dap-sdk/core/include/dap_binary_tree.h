@@ -34,16 +34,22 @@
 extern "C" {
 #endif
 
+
+
+
+
+/** A type of a node key */ 
 typedef const char *dap_binary_tree_key_t;
 #define KEY_LS(a, b) (strcmp(a, b) < 0)
 #define KEY_GT(a, b) (strcmp(a, b) > 0)
 #define KEY_EQ(a, b) (strcmp(a, b) == 0)
 
+/** A type of structure representing an element of a binary tree.*/
 typedef struct dap_binary_tree {
-    dap_binary_tree_key_t key;
-    void *data;
-    struct dap_binary_tree *left;
-    struct dap_binary_tree *right;
+    dap_binary_tree_key_t key;      /** A key of the node */
+    void *data;                     /** Data of the node */
+    struct dap_binary_tree *left;   /** A left child */
+    struct dap_binary_tree *right;  /** A right child */
 } dap_binary_tree_t;
 
 dap_list_t *dap_binary_tree_inorder_list(dap_binary_tree_t *a_tree_root);

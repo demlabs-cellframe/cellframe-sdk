@@ -10,6 +10,15 @@
 
 #define LOG_TAG "dap_config"
 
+
+/**
+ * @defgroup DAP-config Configuration
+ * @ingroup  DAP-Core
+ * @brief Configuration structure and functions 
+ * and functions for working with this structure.
+ * @{
+ */
+
 /** A current configuration. */
 dap_config_t * g_config = NULL;
 
@@ -50,7 +59,6 @@ static char s_configs_path[MAX_CONFIG_PATH] = "/opt/dap/etc";
 
 /**
  * @brief Initializes a configuration module.
- * 
  * 
  * @note You should call this function before calling any other functions in this module.
  * @param a_configs_path a path to a directory containing a configuration file
@@ -94,11 +102,12 @@ void dap_config_deinit()
 }
 
 /**
- * @brief Parses a string and return array length
- * @param str a string 
- * @details internal function parse string and return array length.
- * By default returns 1
- * @return 
+ * @brief Parses a string and returns the length of the required array.
+ * @details This function is used in dap_config_open() to count the number of
+ * 
+ * By default returns 1.
+ * @param str a pointer to the string.
+ * @return the length of array.
  */
 static uint16_t get_array_length(const char* str) {
     uint16_t array_length = 1; // by default if not find ','
@@ -109,10 +118,11 @@ static uint16_t get_array_length(const char* str) {
     }
     return array_length;
 }
+
 /**
  * @brief Reads a configuration settings from a configuration file.
  * 
- * @param[in] a_name the configuration file name
+ * @param a_name the configuration file name
  * @return a pointer to a configuration structure.
  */
 dap_config_t * dap_config_open(const char * a_name)

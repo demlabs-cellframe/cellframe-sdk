@@ -25,7 +25,14 @@
 #include "dap_binary_tree.h"
 
 
-
+/**
+ * @brief Constructs a list structure from a tree structure.
+ * 
+ * The order of construction: a left child, a node, a right child.
+ * 
+ * @param a_list a pointer to the list structure
+ * @param a_elm a pointer to the tree structure
+ */
 static void s_list_construct(dap_list_t *a_list, dap_binary_tree_t *a_elm)
 {
     if (a_elm != NULL) {
@@ -35,6 +42,12 @@ static void s_list_construct(dap_list_t *a_list, dap_binary_tree_t *a_elm)
     }
 }
 
+/**
+ * @brief Constructs a list structure from a tree structure.
+ * 
+ * @param a_tree_root a pointer to the root node of the tree.
+ * @return a pointer to the list structure if successfull, otherwise a null pointer.
+ */
 dap_list_t *dap_binary_tree_inorder_list(dap_binary_tree_t *a_tree_root) {
     if (!a_tree_root) {
         return NULL;
@@ -46,7 +59,13 @@ dap_list_t *dap_binary_tree_inorder_list(dap_binary_tree_t *a_tree_root) {
     dap_list_free1(l_tmp);
     return l_list;
 }
-
+/**
+ * @brief Searches a node by a key.
+ * 
+ * @param a_elm a pointer to the node
+ * @param a_key the key
+ * @return a pointer to the searched node.
+ */
 static dap_binary_tree_t *s_tree_search(dap_binary_tree_t *a_elm, dap_binary_tree_key_t a_key)
 {
     if (a_elm == NULL || KEY_EQ(a_key, a_elm->key))
@@ -58,6 +77,13 @@ static dap_binary_tree_t *s_tree_search(dap_binary_tree_t *a_elm, dap_binary_tre
     }
 }
 
+/**
+ * @brief Searches a node by a key in the tree.
+ * 
+ * @param a_tree_root a pointer to the root node of the tree
+ * @param a_key the key
+ * @return a pointer to data, if node is exist; otherwise a null pointer.
+ */
 void *dap_binary_tree_search(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key)
 {
     dap_binary_tree_t *l_res = s_tree_search(a_tree_root, a_key);
@@ -67,6 +93,12 @@ void *dap_binary_tree_search(dap_binary_tree_t *a_tree_root, dap_binary_tree_key
     return NULL;
 }
 
+/**
+ * @brief Gets a pointer to the maximum node among children of a node
+ * 
+ * @param a_elm a pointer to the node
+ * @return a pointer to the maximum node.
+ */
 static dap_binary_tree_t *s_tree_minimum(dap_binary_tree_t *a_elm)
 {
   if (a_elm->left == NULL)
@@ -74,6 +106,12 @@ static dap_binary_tree_t *s_tree_minimum(dap_binary_tree_t *a_elm)
   return s_tree_minimum(a_elm->left);
 }
 
+/**
+ * @brief Gets data of the minimum node of a tree.
+ * 
+ * @param a_tree_root a pointer to the root node of the tree 
+ * @return a pointer to data of maximum node; otherwise, a null pointer.
+ */
 void *dap_binary_tree_minimum(dap_binary_tree_t *a_tree_root)
 {
     dap_binary_tree_t *l_res = s_tree_minimum(a_tree_root);
@@ -83,6 +121,12 @@ void *dap_binary_tree_minimum(dap_binary_tree_t *a_tree_root)
     return NULL;
 }
 
+/**
+ * @brief Gets a pointer to the maximum node among children of a node
+ * 
+ * @param a_elm a pointer to the node
+ * @return a pointer to the maximum node.
+ */
 static dap_binary_tree_t *s_tree_maximum(dap_binary_tree_t *a_elm)
 {
   if (a_elm->right == NULL)
@@ -90,6 +134,12 @@ static dap_binary_tree_t *s_tree_maximum(dap_binary_tree_t *a_elm)
   return s_tree_maximum(a_elm->right);
 }
 
+/**
+ * @brief Gets data of the maximum node of a tree.
+ * 
+ * @param a_tree_root a pointer to the root node of the tree 
+ * @return a pointer to data of maximum node; otherwise, a null pointer.
+ */
 void *dap_binary_tree_maximum(dap_binary_tree_t *a_tree_root)
 {
     dap_binary_tree_t *l_res = s_tree_maximum(a_tree_root);
@@ -99,6 +149,14 @@ void *dap_binary_tree_maximum(dap_binary_tree_t *a_tree_root)
     return NULL;
 }
 
+/**
+ * @brief Inserts a node into a tree.
+ * 
+ * @param a_elm a pointer to a node of the tree
+ * @param a_key a key of the node
+ * @param a_data data of the node
+ * @return a pointer to the inserted node tree.
+ */
 static dap_binary_tree_t *s_tree_insert(dap_binary_tree_t *a_elm, dap_binary_tree_key_t a_key, void *a_data)
 {
     if (a_elm == NULL) {
@@ -118,11 +176,26 @@ static dap_binary_tree_t *s_tree_insert(dap_binary_tree_t *a_elm, dap_binary_tre
     return a_elm;
 }
 
+/**
+ * @brief Inserts a node into a tree.
+ * 
+ * @param a_tree_root a pointer to the root node of the tree
+ * @param a_key a key of the node to be inserted
+ * @param a_data data of the node to be inserted
+ * @return a pointer to the inserted node of tree.
+ */
 dap_binary_tree_t *dap_binary_tree_insert(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key, void *a_data)
 {
     return s_tree_insert(a_tree_root, a_key, a_data);
 }
 
+/**
+ * @brief Deletes a node by a key.
+ * 
+ * @param a_elm a pointer to the node
+ * @param a_key  the key
+ * @return a pointer to a node instead of a deleted node or a null pointer.
+ */
 static dap_binary_tree_t *s_tree_delete(dap_binary_tree_t *a_elm, dap_binary_tree_key_t a_key)
 {
     if (a_elm == NULL) {
@@ -156,17 +229,22 @@ static dap_binary_tree_t *s_tree_delete(dap_binary_tree_t *a_elm, dap_binary_tre
 }
 
 /**
- * @brief dap_binary_tree_delete - remove element with key from a tree
- * @param a_tree_root - root of a tree
- * @param a_key - a key value
- * @return !!a new tree root
+ * @brief Deletes node element with key from a tree
+ * @param a_tree_root a pointer to a root node of the tree
+ * @param a_key the key
+ * @return a new tree root
  */
 dap_binary_tree_t *dap_binary_tree_delete(dap_binary_tree_t *a_tree_root, dap_binary_tree_key_t a_key)
 {
     return s_tree_delete(a_tree_root, a_key);
 }
 
-
+/**
+ * @brief Counts a number of node and its children nodes.
+ * 
+ * @param a_elm a pointer to the node.
+ * @param a_count a pointer to a counter.
+ */
 void s_tree_count(dap_binary_tree_t *a_elm, size_t *a_count)
 {
     if (a_elm != NULL) {
@@ -176,6 +254,12 @@ void s_tree_count(dap_binary_tree_t *a_elm, size_t *a_count)
     }
 }
 
+/**
+ * @brief counts a number of nodes in a tree
+ * 
+ * @param a_tree_root a pointer to the root node of the tree.
+ * @return the number of nodes.
+ */
 size_t dap_binary_tree_count(dap_binary_tree_t *a_tree_root)
 {
     size_t l_ret = 0;
@@ -183,6 +267,12 @@ size_t dap_binary_tree_count(dap_binary_tree_t *a_tree_root)
     return l_ret;
 }
 
+/**
+ * @brief Deallocates space in memory from a node of a tree and its children.
+ * 
+ * @param a_elm a pointer to the node.
+ * @return a null pointer. 
+ */
 dap_binary_tree_t *s_tree_clear(dap_binary_tree_t *a_elm)
 {
     if (!a_elm) {
@@ -199,6 +289,11 @@ dap_binary_tree_t *s_tree_clear(dap_binary_tree_t *a_elm)
     return NULL;
 }
 
+/**
+ * @brief Deallocates space in memory from a tree.
+ * 
+ * @param a_tree_root a pointer to a root node of the tree
+ */
 void dap_binary_tree_clear(dap_binary_tree_t *a_tree_root)
 {
     s_tree_clear(a_tree_root);
