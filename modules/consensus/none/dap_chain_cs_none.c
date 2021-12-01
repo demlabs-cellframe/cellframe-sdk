@@ -96,7 +96,11 @@ static size_t s_chain_callback_datums_pool_proc_with_group(dap_chain_t * a_chain
 
 
 /**
- * Stub for consensus
+ * @brief stub for consensus
+ * 
+ * @param a_chain chain object
+ * @param a_chain_cfg chain config object
+ * @return int 
  */
 static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
@@ -556,11 +560,11 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts(dap_chain_atom
 }
 
 /**
- * @brief return null in current implementation
+ * @brief get new datum object from atom
  * 
- * @param a_atom 
- * @param a_atom_size 
- * @param a_datums_count 
+ * @param a_atom atom object
+ * @param a_atom_size atom size
+ * @param a_datums_count count of datums
  * @return dap_chain_datum_t** 
  */
 static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t *a_datums_count)
