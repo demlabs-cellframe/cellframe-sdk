@@ -35,6 +35,12 @@ const char *c_dap_chain_datum_token_emission_type_str[]={
     [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO] = "ALGO",
     [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER] = "OWNER",
     [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT] = "SMART_CONTRACT",
+// 256 types
+    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED] = "UNDEFINED",
+    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH] = "AUTH",
+    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO] = "ALGO",
+    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER] = "OWNER",
+    [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT] = "SMART_CONTRACT",
 };
 
 const char *c_dap_chain_datum_token_flag_str[] = {
@@ -212,26 +218,31 @@ size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
         l_ret = sizeof(l_emission->hdr);
     }
     switch (l_emission->hdr.type) {
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH: {
-        uint16_t l_sign_count = *(uint16_t *)(a_emission_serial + l_ret);
-        l_ret += sizeof(l_emission->data.type_auth);
-        for (uint16_t i = 0; i < l_sign_count; i++) {
-            dap_sign_t *l_sign = (dap_sign_t *)(a_emission_serial + l_ret);
-            l_ret += dap_sign_get_size(l_sign);
-        }
-    } break;
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
-        l_ret += sizeof(l_emission->data.type_algo);
-        break;
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
-        l_ret += sizeof(l_emission->data.type_atom_owner);
-        break;
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT:
-        l_ret += sizeof(l_emission->data.type_presale);
-        break;
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
-    default:
-        break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH:
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH: {
+            uint16_t l_sign_count = *(uint16_t *)(a_emission_serial + l_ret);
+            l_ret += sizeof(l_emission->data.type_auth);
+            for (uint16_t i = 0; i < l_sign_count; i++) {
+                dap_sign_t *l_sign = (dap_sign_t *)(a_emission_serial + l_ret);
+                l_ret += dap_sign_get_size(l_sign);
+            }
+        } break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO:
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
+            l_ret += sizeof(l_emission->data.type_algo);
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER: // 256
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
+            l_ret += sizeof(l_emission->data.type_atom_owner);
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT: // 256
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT:
+            l_ret += sizeof(l_emission->data.type_presale);
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED: // 256
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
+        default:
+            break;
     }
     return l_ret;
 }
@@ -253,7 +264,24 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
                l_emission_size - l_old_hdr_size);
         l_emission_size += l_add_size;
         (*a_emission_size) = l_emission_size;
-    } else
+    } else {
         l_emission = DAP_DUP_SIZE(a_emission_serial, (*a_emission_size));
+    }
     return l_emission;
 }
+
+// 256 TYPE
+bool dap_chain_datum_token_emission_is_type_256(uint8_t a_em_type) {
+    switch(a_em_type) {
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT:
+            return false;
+        default:
+            return true;
+    }
+}
+
+

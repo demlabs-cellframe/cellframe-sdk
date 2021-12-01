@@ -3308,17 +3308,19 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size);
 
         if ( !l_type_256 ) {
-            l_emission->hdr.type_value_256 = false;
+            l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
+            //l_emission->hdr.type_value_256 = false;
             l_emission->hdr.value = dap_chain_uint256_to(l_emission_value);
         } else { // 256
-            l_emission->hdr.type_value_256 = true;
+            l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH;
+            //l_emission->hdr.type_value_256 = true;
             l_emission->hdr.value_256 = l_emission_value;
         }
 
         l_emission->hdr.version = 1;
 
         strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
-        l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
+        // l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
         memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
 
         time_t l_time = time(NULL);

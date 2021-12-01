@@ -210,7 +210,6 @@ typedef struct dap_chain_datum_token_emission{
     struct  {
         uint8_t version;
         uint8_t type; // Emission Type
-        bool type_value_256;
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         dap_chain_addr_t address; // Emission holder's address
         union {
@@ -248,14 +247,21 @@ typedef struct dap_chain_datum_token_emission{
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO              0x02
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER        0x03
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT    0x04
+// 256
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED         0x05
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH              0x06
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO              0x07
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER        0x08
+#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT    0x09
 extern const char *c_dap_chain_datum_token_emission_type_str[];
 
 /// TDS op funcs
-///
-
 dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size);
 dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size);
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
+
+// 256 TYPE
+bool dap_chain_datum_token_emission_is_type_256(uint8_t a_em_type);

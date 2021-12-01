@@ -2555,10 +2555,10 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
 
         case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: // 256
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) a_datum->data;
-            l_token_em->hdr.type_value_256 = a_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
-                                                true : false;
-            return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, l_token_em, a_datum->header.data_size );
+            // dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) a_datum->data;
+            // l_token_em->hdr.type_value_256 = a_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
+            //                                     true : false;
+            return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, (dap_chain_datum_token_emission_t*) a_datum->data, a_datum->header.data_size );
         }
         default: return 0;
     }
@@ -2795,27 +2795,40 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str, sizeof (l_tx_prev_hash_str)-1);
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
-                                case TX_ITEM_TYPE_256_OUT: // 256
-                                case TX_ITEM_TYPE_OUT:{
-                                    dap_chain_tx_out_t * l_out = l_cur->data;
-                                    if ( l_item_type == TX_ITEM_TYPE_256_OUT ) // u256_t value
-                                        dap_string_append_printf(a_str_out,"\tvalue: %s\n", dap_chain_u256tostr(l_out->header.value_256) );
-                                    else // u64_t value
-                                        dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out->header.value );
-                                    char * l_addr_str = dap_chain_addr_to_str(&l_out->addr);
+                                case TX_ITEM_TYPE_256_OUT: { // 256
+                                    dap_string_append_printf(a_str_out,"\tvalue: %s\n", 
+                                                dap_chain_u256tostr(((dap_chain_256_tx_out_t *)l_cur->data)->header.value)
+                                            );
+                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_256_tx_out_t *)l_cur->data)->addr );
                                     dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
                                     DAP_DELETE(l_addr_str);
                                 } break;
-                                case TX_ITEM_TYPE_256_OUT_EXT: // 256
-                                case TX_ITEM_TYPE_OUT_EXT:{
-                                    dap_chain_tx_out_ext_t * l_out_ext = l_cur->data;
-                                    if ( l_item_type == TX_ITEM_TYPE_256_OUT_EXT ) // u256_t value
-                                        dap_string_append_printf(a_str_out,"\tvalue: %s\n", dap_chain_u256tostr(l_out_ext->header.value_256) );
-                                    else
-                                        dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out_ext->header.value );
-                                    char * l_addr_str = dap_chain_addr_to_str(&l_out_ext->addr);
+                                case TX_ITEM_TYPE_OUT:{
+                                    dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n",
+                                                ((dap_chain_tx_out_t *)l_cur->data)->header.value
+                                            );
+                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_tx_out_t *)l_cur->data)->addr );
                                     dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
-                                    dap_string_append_printf(a_str_out,"\ttoken : %s\n", l_out_ext->token );
+                                    DAP_DELETE(l_addr_str);
+                                } break;
+                                case TX_ITEM_TYPE_256_OUT_EXT: { // 256
+                                    // dap_chain_256_tx_out_ext_t * l_out_ext = l_cur->data;
+                                    dap_string_append_printf(a_str_out,"\tvalue: %s\n",
+                                                dap_chain_u256tostr(((dap_chain_256_tx_out_ext_t *)l_cur->data)->header.value)
+                                            );
+                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_256_tx_out_ext_t *)l_cur->data)->addr );
+                                    dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
+                                    dap_string_append_printf(a_str_out,"\ttoken : %s\n", ((dap_chain_256_tx_out_ext_t *)l_cur->data)->token );
+                                    DAP_DELETE(l_addr_str);
+                                } break;
+                                case TX_ITEM_TYPE_OUT_EXT:{
+                                    // dap_chain_tx_out_ext_t * l_out_ext = l_cur->data;
+                                    dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n",
+                                                ((dap_chain_tx_out_ext_t *)l_cur->data)->header.value
+                                            );
+                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_tx_out_ext_t *)l_cur->data)->addr );
+                                    dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
+                                    dap_string_append_printf(a_str_out,"\ttoken : %s\n", ((dap_chain_tx_out_ext_t *)l_cur->data)->token );
                                     DAP_DELETE(l_addr_str);
                                 } break;
                                 case TX_ITEM_TYPE_SIG:{
@@ -2860,13 +2873,9 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                     dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str,sizeof (l_tx_prev_hash_str)-1);
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
-                                case TX_ITEM_TYPE_256_OUT_COND: // 256
-                                case TX_ITEM_TYPE_OUT_COND:{
-                                    dap_chain_tx_out_cond_t * l_out = l_cur->data;
-                                    if ( l_item_type == TX_ITEM_TYPE_256_OUT_COND ) // u256_t value
-                                        dap_string_append_printf(a_str_out,"\tvalue: %s\n", dap_chain_u256tostr(l_out->header.value_256) );
-                                    else
-                                        dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out->header.value );
+                                case TX_ITEM_TYPE_256_OUT_COND: { // 256
+                                    dap_chain_256_tx_out_cond_t * l_out = l_cur->data;
+                                    dap_string_append_printf(a_str_out,"\tvalue: %s\n", dap_chain_u256tostr(l_out->header.value) );
                                     switch ( l_out->header.subtype){
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
                                             dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY\n");
@@ -2880,11 +2889,45 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                                 case SERV_UNIT_B : dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_B\n"); break;
                                                 default: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_UNKNOWN\n"); break;
                                             }
-                                            if ( l_item_type == TX_ITEM_TYPE_256_OUT_COND ) // u256_t value
-                                                dap_string_append_printf(a_str_out,"\tunit_price_max: %s\n", dap_chain_u256tostr(l_out->subtype.srv_pay.unit_price_max_datoshi_256));
-                                            else
-                                                dap_string_append_printf(a_str_out,"\tunit_price_max: %"DAP_UINT64_FORMAT_U"\n", l_out->subtype.srv_pay.unit_price_max_datoshi);
-                                            
+                                            dap_string_append_printf(a_str_out,"\tunit_price_max: %s\n",
+                                                    dap_chain_u256tostr(l_out->subtype.srv_pay.unit_price_max_datoshi)
+                                                );
+                                            char l_pkey_hash_str[70]={[0]='\0'};
+                                            dap_chain_hash_fast_to_str(&l_out->subtype.srv_pay.pkey_hash, l_pkey_hash_str, sizeof (l_pkey_hash_str)-1);
+                                            dap_string_append_printf(a_str_out,"\tpkey_hash: %s\n", l_pkey_hash_str );
+                                        }break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:{
+                                            dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE\n");
+                                        }break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:{
+                                            dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE\n");
+                                        }break;
+                                        default:{
+                                            dap_string_append_printf(a_str_out,"\tsubtype: UNKNOWN\n");
+                                        }break;
+                                    }
+                                    dap_string_append_printf(a_str_out,"\tparams_size : %u\n", l_out->params_size );
+                                } break;
+                                case TX_ITEM_TYPE_OUT_COND:{
+                                    dap_chain_tx_out_cond_t * l_out = l_cur->data;
+                                    dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out->header.value );
+                                    switch ( l_out->header.subtype){
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
+                                            dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY\n");
+                                            dap_string_append_printf(a_str_out,"\tsrv_uid: 0x%016"DAP_UINT64_FORMAT_x"\n", l_out->subtype.srv_pay.srv_uid.uint64 );
+                                            switch (l_out->subtype.srv_pay.unit.enm) {
+                                                case SERV_UNIT_UNDEFINED: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_UNDEFINED\n"); break;
+                                                case SERV_UNIT_MB: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_MB\n"); break;
+                                                case SERV_UNIT_SEC: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_SEC\n"); break;
+                                                case SERV_UNIT_DAY: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_DAY\n"); break;
+                                                case SERV_UNIT_KB: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_KB\n"); break;
+                                                case SERV_UNIT_B : dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_B\n"); break;
+                                                default: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_UNKNOWN\n"); break;
+                                            }
+                                            dap_string_append_printf(a_str_out,"\tunit_price_max: %"DAP_UINT64_FORMAT_U"\n",
+                                                        l_out->subtype.srv_pay.unit_price_max_datoshi
+                                                    );
+
                                             char l_pkey_hash_str[70]={[0]='\0'};
                                             dap_chain_hash_fast_to_str(&l_out->subtype.srv_pay.pkey_hash, l_pkey_hash_str, sizeof (l_pkey_hash_str)-1);
                                             dap_string_append_printf(a_str_out,"\tpkey_hash: %s\n", l_pkey_hash_str );
