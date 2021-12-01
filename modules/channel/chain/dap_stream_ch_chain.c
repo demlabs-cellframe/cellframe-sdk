@@ -288,7 +288,7 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
     dap_chain_t * l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
     assert(l_chain);
     //pthread_rwlock_rdlock(&l_chain->atoms_rwlock);
-    l_sync_request->chain.request_atom_iter = l_chain->callback_atom_iter_create(l_chain);
+    l_sync_request->chain.request_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_sync_request->request_hdr.cell_id);
     size_t l_first_size = 0;
     dap_chain_atom_ptr_t l_iter = l_chain->callback_atom_iter_get_first(l_sync_request->chain.request_atom_iter, &l_first_size);
     if (l_iter && l_first_size) {
@@ -478,7 +478,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     uint64_t l_atom_copy_size = l_pkt_item->pkt_data_size;
     dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
     size_t l_atom_size = 0;
-    if (dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size)) {
+    if (dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size, l_sync_request->request_hdr.cell_id)) {
         if (s_debug_more){
             char l_atom_hash_str[72] = {'\0'};
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
@@ -1035,7 +1035,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if(s_debug_more)
                     log_it(L_INFO, "Out: UPDATE_CHAINS_START pkt: net %s chain %s cell 0x%016"DAP_UINT64_FORMAT_X, l_chain->name,
                                         l_chain->net_name, l_chain_pkt->hdr.cell_id.uint64);
-                l_ch_chain->request_atom_iter = l_chain->callback_atom_iter_create(l_chain);
+                l_ch_chain->request_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id);
                 l_chain->callback_atom_iter_get_first(l_ch_chain->request_atom_iter, NULL);
                 memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_stream_ch_chain_pkt_hdr_t));
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START,
@@ -1276,7 +1276,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_stream_ch_chain_sync_request_t l_request={};
                 dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if( l_chain){
-                    dap_chain_get_atom_last_hash(l_chain,& l_request.hash_from); // Move away from i/o reactor to callback processor
+                    dap_chain_get_atom_last_hash(l_chain,& l_request.hash_from, l_chain_pkt->hdr.cell_id); // Move away from i/o reactor to callback processor
                     if( dap_log_level_get()<= L_INFO){
                         char l_hash_from_str[70]={[0]='\0'};
                         dap_chain_hash_fast_to_str(&l_request.hash_from,l_hash_from_str,sizeof (l_hash_from_str)-1);

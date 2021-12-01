@@ -233,7 +233,7 @@ static bool s_timer_update_states_callback(void *a_arg)
                         dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                         dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ,
-                                                             l_net->pub.id.uint64, 0, l_net->pub.cell_id.uint64,
+                                                             l_net->pub.id.uint64, 0, 0,
                                                              &l_sync_gdb, sizeof(l_sync_gdb));
                     }
                     return true;
@@ -271,6 +271,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             for(size_t i = 0; i < l_channels_count; i++) {
                 if(dap_chain_node_client_set_callbacks(a_client, l_client_internal->active_channels[i]) == -1) {
                     log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
+                    return;
                 }
             }
         }
@@ -666,7 +667,7 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
 
-    //dap_client_set_auth_cert(a_node_client->client, dap_cert_find_by_name("auth")); // TODO provide the certificate choice
+    dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name); // TODO provide the certificate choice
 
     int hostlen = 128;
     char host[hostlen];

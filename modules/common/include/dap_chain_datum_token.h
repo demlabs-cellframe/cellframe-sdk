@@ -210,11 +210,12 @@ typedef struct dap_chain_datum_token_emission{
     struct  {
         uint8_t version;
         uint8_t type; // Emission Type
+        bool type_value_256;
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         dap_chain_addr_t address; // Emission holder's address
         union {
             uint64_t value;
-            uint256_t value256;
+            uint256_t value_256;
         };
         uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
     } DAP_ALIGN_PACKED hdr;
@@ -225,7 +226,10 @@ typedef struct dap_chain_datum_token_emission{
             uint64_t lock_time;
         } DAP_ALIGN_PACKED type_presale;
         struct {
-            uint64_t value_start;// Default value. Static if nothing else is defined
+            union {
+                uint64_t value_start;// Default value. Static if nothing else is defined
+                uint256_t value_start_256;
+            };
             char value_change_algo_codename[32];
         } DAP_ALIGN_PACKED type_atom_owner;
         struct {
@@ -253,5 +257,5 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  siz
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size);
 dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
-dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(uint8_t *a_emission_serial, size_t *a_emission_size);
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size);
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
