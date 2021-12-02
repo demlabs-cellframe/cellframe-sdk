@@ -120,8 +120,8 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
         dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n Items:\n", l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str);
     } else {
         char buf[50];
-        dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n TS Created: %s Token ticker: %s\n Items:\n",
-                                 l_list_tx_any ? "(emit)" : "", l_tx_hash_user_str, dap_ctime_r(&l_ts_create, buf),
+        dap_string_append_printf(a_str_out, "transaction:%s hash: %s\n TS Created: %s Token ticker: %s\n Items:\n",
+                                 l_list_tx_any ? " (emit)" : "", l_tx_hash_user_str, dap_ctime_r(&l_ts_create, buf),
                                  dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_hash));
     }
     DAP_DELETE(l_tx_hash_user_str);
@@ -266,7 +266,7 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t\t value: %s (%"DAP_UINT64_FORMAT_U")\n"
                                                 "\t\t\t subtype: %s\n"
                                                 "\t\t SubType:\n",
-                                     dap_ctime_r((time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
+                                     dap_ctime_r((time_t *)&((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
                                      dap_chain_balance_to_coins(
                                          dap_chain_uint128_from(((dap_chain_tx_out_cond_t*)item)->header.value)
                                      ),

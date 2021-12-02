@@ -257,6 +257,53 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static dap_global_db_obj_callback_notify_t s_srv_callback_notify = NULL;
 
 /**
+ * @brief
+ * init network settings from cellrame-node.cfg file
+ * register net* commands in cellframe-node-cli interface
+ * @return
+ */
+int dap_chain_net_init()
+{
+    dap_chain_node_client_init();
+    dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
+        "net list [chains -n <chain net name>]"
+            "\tList all networks or list all chains in selected network"
+        "net -net <chain net name> [-mode update|all] go < online | offline >\n"
+            "\tFind and establish links and stay online. \n"
+            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
+        "net -net <chain net name> get status\n"
+            "\tLook at current status\n"
+        "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
+            "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
+        "net -net <chain net name> [-mode update|all] sync < all | gdb | chains >\n"
+            "\tSyncronyze gdb, chains or everything\n"
+            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
+        "net -net <chain net name> link < list | add | del | info | establish >\n"
+            "\tList, add, del, dump or establish links\n"
+        "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
+            "\tAdd certificate to list of authority cetificates in GDB group\n"
+        "net -net <chain net name> ca list\n"
+            "\tPrint list of authority cetificates from GDB group\n"
+        "net -net <chain net name> ca del -hash <cert hash> [-H hex|base58(default)]\n"
+            "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
+        "net -net <chain net name> ledger reload\n"
+            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"                                        );
+    s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
+
+    // maximum number of connections to other nodes
+    s_max_links_count = dap_config_get_item_int32_default(g_config, "general", "max_links", s_max_links_count);
+    // required number of connections to other nodes
+    s_required_links_count = dap_config_get_item_int32_default(g_config, "general", "require_links", s_required_links_count);
+    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
+
+    dap_chain_net_load_all();
+
+    dap_enc_http_set_acl_callback(dap_chain_net_set_acl);
+    log_it(L_NOTICE,"Chain networks initialized");
+    return 0;
+}
+
+/**
  * @brief get certificate hash from chain config [acl_accept_ca_gdb] param
  * 
  * @param a_net dap_chain_net_t chain object
@@ -1009,6 +1056,8 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
                                     const char * a_node_role)
 {
+    if (!a_id || !a_name || !a_node_role)
+        return NULL;
     dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
 
@@ -1079,53 +1128,6 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
     DAP_DELETE( PVT(a_net) );
 }
 
-
-/**
- * @brief
- * init network settings from cellrame-node.cfg file
- * register net* commands in cellframe-node-cli interface
- * @return
- */
-int dap_chain_net_init()
-{
-    dap_chain_node_client_init();
-    dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
-        "net list [chains -n <chain net name>]"
-            "\tList all networks or list all chains in selected network"
-        "net -net <chain net name> [-mode update|all] go < online | offline >\n"
-            "\tFind and establish links and stay online. \n"
-            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> get status\n"
-            "\tLook at current status\n"
-        "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
-            "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
-        "net -net <chain net name> [-mode update|all] sync < all | gdb | chains >\n"
-            "\tSyncronyze gdb, chains or everything\n"
-            "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> link < list | add | del | info | establish >\n"
-            "\tList, add, del, dump or establish links\n"
-        "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
-            "\tAdd certificate to list of authority cetificates in GDB group\n"
-        "net -net <chain net name> ca list\n"
-            "\tPrint list of authority cetificates from GDB group\n"
-        "net -net <chain net name> ca del -hash <cert hash> [-H hex|base58(default)]\n"
-            "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
-        "net -net <chain net name> ledger reload\n"
-            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"                                        );
-    s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-
-    // maximum number of connections to other nodes
-    s_max_links_count = dap_config_get_item_int32_default(g_config, "general", "max_links", s_max_links_count);
-    // required number of connections to other nodes
-    s_required_links_count = dap_config_get_item_int32_default(g_config, "general", "require_links", s_required_links_count);
-    s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
-
-    dap_chain_net_load_all();
-
-    dap_enc_http_set_acl_callback(dap_chain_net_set_acl);
-    log_it(L_NOTICE,"Chain networks initialized");
-    return 0;
-}
 
 /**
  * @brief 
@@ -1224,14 +1226,13 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
     // command 'list'
     const char * l_list_cmd = NULL;
 
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "list", &l_list_cmd) != 0 ) {
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "list", &l_list_cmd) != 0 ) {
         dap_string_t *l_string_ret = dap_string_new("");
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;
             dap_chain_net_t* l_net = NULL;
             dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "--net", &l_net_str);
-            dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-n", &l_net_str);
+
             l_net = dap_chain_net_by_name(l_net_str);
 
             if (l_net){
@@ -1259,12 +1260,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             }
 
         }else{
-            dap_string_append(l_string_ret,"Networks:\n ");
+            dap_string_append(l_string_ret,"Networks:\n");
             // show list of nets
             dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
             int l_net_i = 0;
             HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
-                dap_string_append_printf(l_string_ret, "%s\n", l_net_item->name);
+                dap_string_append_printf(l_string_ret, "\t%s\n", l_net_item->name);
                 l_net_i++;
             }
             dap_string_append(l_string_ret, "\n");
@@ -1632,11 +1633,11 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
-        dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
         if(!l_net) {
             log_it(L_ERROR,"Can't create l_net");
             return -1;
         }
+        dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
         l_net_pvt->load_mode = true;
         l_net_pvt->acl_idx = a_acl_idx;
         l_net->pub.gdb_groups_prefix = dap_strdup (

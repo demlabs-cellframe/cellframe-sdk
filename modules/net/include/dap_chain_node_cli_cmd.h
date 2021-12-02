@@ -117,7 +117,7 @@ int com_tx_cond_create(int argc, char ** argv, char **str_reply);
  *
  * Verifing transaction
  */
-int com_tx_verify(int argc, char ** argv, char **str_reply);
+int com_tx_verify(int a_argc, char ** a_argv, char **a_str_reply);
 
 /**
  * tx_history command

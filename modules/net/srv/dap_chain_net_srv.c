@@ -110,13 +110,13 @@ int dap_chain_net_srv_init(dap_config_t * a_cfg)
         "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-
+#ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
             "net_srv -net <chain net name> order static [save | delete]\n"
             "\tStatic nodelist create/delete\n"
             "net_srv -net <chain net name> order recheck\n"
             "\tCheck the availability of orders\n"
-
+#endif
         );
 
     s_load_all();
@@ -583,7 +583,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             }
         }
 #endif
-        else {
+        else if (l_order_str) {
+            dap_string_append_printf(l_string_ret, "Unrecognized subcommand '%s'", l_order_str);
+            ret = -14;
+        } else {
             dap_string_append_printf(l_string_ret, "Command 'net_srv' requires subcommand 'order'");
             ret = -3;
         }
