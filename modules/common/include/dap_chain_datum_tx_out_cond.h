@@ -29,12 +29,13 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
-typedef enum dap_chain_tx_out_cond_subtype {
+enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY = 0x01,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE = 0x02,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE = 0x13,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE = 0xFA       // Virtual type for stake update verificator
-} dap_chain_tx_out_cond_subtype_t;
+};
+typedef byte_t dap_chain_tx_out_cond_subtype_t;
 
 DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_out_cond_subtype_t a_subtype){
     switch (a_subtype) {
@@ -53,9 +54,9 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
 typedef struct dap_chain_tx_out_cond {
     struct {
         /// Transaction item type
-        dap_chain_tx_item_type_t item_type :8;
+        dap_chain_tx_item_type_t item_type;
         /// Condition subtype
-        dap_chain_tx_out_cond_subtype_t subtype : 8;
+        dap_chain_tx_out_cond_subtype_t subtype;
         /// Number of Datoshis ( DAP/10^9 ) to be reserver for service
         uint64_t value;
         /// When time expires this output could be used only by transaction owner

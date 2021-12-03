@@ -11,7 +11,7 @@
 
 #define LOG_TAG "dap_chain_global_db_remote"
 
-// default time of node address expired in hours
+// Default time of a node address expired in hours
 #define NODE_TIME_EXPIRED_DEFAULT 720
 
 /**
