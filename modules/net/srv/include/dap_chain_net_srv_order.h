@@ -34,7 +34,7 @@ typedef struct dap_chain_net_srv_order
     uint16_t version;
     dap_chain_net_srv_uid_t srv_uid; // Service UID
     byte_t padding; // some padding
-    dap_chain_net_srv_order_direction_t direction:8; // Order direction - SELL or PURCHASE
+    dap_chain_net_srv_order_direction_t direction; // Order direction - SELL or PURCHASE
     dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
     dap_chain_hash_fast_t tx_cond_hash; // Hash index of conditioned transaction attached with order
     dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT

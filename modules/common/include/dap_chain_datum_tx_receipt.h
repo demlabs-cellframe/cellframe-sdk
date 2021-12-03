@@ -32,7 +32,7 @@
  * @brief Transaction item out_cond
  */
 typedef struct dap_chain_datum_tx_receipt {
-    uint8_t type; //dap_chain_tx_item_type_t type :8; // Transaction item type
+    dap_chain_tx_item_type_t type; // Transaction item type
     dap_chain_receipt_info_t receipt_info; // Receipt itself
     uint16_t size;
     uint16_t exts_size;

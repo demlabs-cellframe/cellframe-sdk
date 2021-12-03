@@ -305,7 +305,8 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
  * @param a_tfd
  * @param a_callback
  */
-void dap_timerfd_delete(dap_timerfd_t *l_timerfd)
+void dap_timerfd_delete(dap_timerfd_t *a_timerfd)
 {
-    dap_events_socket_remove_and_delete_mt(l_timerfd->events_socket->worker, l_timerfd->esocket_uuid);
+    if (a_timerfd->events_socket->worker)
+        dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->worker, a_timerfd->esocket_uuid);
 }
