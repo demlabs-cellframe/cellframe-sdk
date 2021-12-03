@@ -34,7 +34,7 @@
 
 typedef struct dap_chain_tx_in{
     struct {
-        dap_chain_tx_item_type_t type:8; /// @param    type            @brief Transaction item type
+        dap_chain_tx_item_type_t type; /// @param    type            @brief Transaction item type
         dap_chain_hash_fast_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
         uint32_t tx_out_prev_idx; ///      @param   tx_prev_idx     @brief Previous tx_out index. 0 for generation TX
 //        dap_sign_type_t sig_type; /// Signature type
