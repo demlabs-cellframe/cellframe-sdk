@@ -96,7 +96,11 @@ static size_t s_chain_callback_datums_pool_proc_with_group(dap_chain_t * a_chain
 
 
 /**
- * Stub for consensus
+ * @brief stub for consensus
+ * 
+ * @param a_chain chain object
+ * @param a_chain_cfg chain config object
+ * @return int 
  */
 static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
@@ -436,10 +440,6 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
     return l_iter;
 }
 
-/**
- * @brief s_chain_callback_atom_iter_delete 
- * @param a_atom_iter
- */
 
 /**
  * @brief Delete dag event iterator
@@ -477,10 +477,10 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
 }
 
 /**
- * @brief 
+ * @brief Get the first dag event from database
  * 
- * @param a_atom_iter 
- * @param a_atom_size 
+ * @param a_atom_iter ap_chain_atom_iter_t object 
+ * @param a_atom_size a_atom_size atom size
  * @return dap_chain_atom_ptr_t 
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size)
@@ -510,10 +510,13 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     return l_datum;
 }
 
+
 /**
- * @brief s_chain_callback_atom_iter_get_next Get the next dag event
- * @param a_atom_iter
- * @return
+ * @brief Get the next dag event from database
+ * 
+ * @param a_atom_iter dap_chain_atom_iter_t
+ * @param a_atom_size size_t a_atom_size
+ * @return dap_chain_atom_ptr_t 
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_iter_t *a_atom_iter, size_t *a_atom_size)
 {
@@ -543,10 +546,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_i
 }
 
 /**
- * @brief s_chain_callback_atom_iter_get_links
- * @param a_atom_iter
- * @param a_links_size_ptr
- * @return
+ * @brief return null in current implementation
+ * 
+ * @param a_atom_iter 
+ * @param a_links_size_ptr 
+ * @param a_links_sizes_ptr 
+ * @return dap_chain_atom_ptr_t* 
  */
 static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links(dap_chain_atom_iter_t * a_atom_iter,
         size_t * a_links_size_ptr, size_t **a_links_sizes_ptr)
@@ -558,10 +563,12 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links(dap_chain_atom
 }
 
 /**
- * @brief s_chain_callback_atom_iter_get_lasts
- * @param a_atom_iter
- * @param a_lasts_size_ptr
- * @return
+ * @brief return null in current implementation
+ * 
+ * @param a_atom_iter 
+ * @param a_lasts_size_ptr 
+ * @param a_links_sizes_ptr 
+ * @return dap_chain_atom_ptr_t* 
  */
 static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts(dap_chain_atom_iter_t * a_atom_iter,
         size_t * a_lasts_size_ptr,  size_t **a_links_sizes_ptr)
@@ -572,6 +579,14 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts(dap_chain_atom
     return NULL;
 }
 
+/**
+ * @brief get new datum object from atom
+ * 
+ * @param a_atom atom object
+ * @param a_atom_size atom size
+ * @param a_datums_count count of datums
+ * @return dap_chain_datum_t** 
+ */
 static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t *a_datums_count)
 {
     UNUSED(a_atom_size);

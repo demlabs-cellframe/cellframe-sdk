@@ -2505,7 +2505,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 
     switch(l_type){
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
-            dap_list_t *l_tsd_list = dap_list_alloc();
+            dap_list_t *l_tsd_list = NULL;
             size_t l_tsd_total_size = 0;
             l_arg_index++;
             while (l_arg_index<a_argc-1){
@@ -3865,15 +3865,48 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
  * @param str_reply 
  * @return int 
  */
-int com_tx_verify(int argc, char ** argv, char **str_reply)
+int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
 {
-    if(argc > 1) {
-        if(str_reply)
-            dap_chain_node_cli_set_reply_text(str_reply, "command \"%s\" not recognized", argv[1]);
+    const char * l_tx_hash_str = NULL;
+    dap_chain_net_t * l_net = NULL;
+    dap_chain_t * l_chain = NULL;
+    int l_arg_index = 1;
+
+    dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &l_tx_hash_str);
+    if(!l_tx_hash_str) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "tx_verify requires parameter '-tx'");
+        return -1;
     }
-    else if(str_reply)
-        dap_chain_node_cli_set_reply_text(str_reply, "command not defined, enter \"help <cmd name>\"");
-    return -1;
+    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+    if (!l_net || !l_chain) {
+        return -2;
+    } else if (a_str_reply && *a_str_reply) {
+        DAP_DELETE(*a_str_reply);
+        *a_str_reply = NULL;
+    }
+    dap_hash_fast_t l_tx_hash;
+    char *l_hex_str_from58 = NULL;
+    if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
+        l_hex_str_from58 = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str);
+        if (!l_hex_str_from58) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid tx hash format, need hex or base58");
+            return -3;
+        }
+    }
+    size_t l_tx_size = 0;
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
+    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)
+            dap_chain_global_db_gr_get(l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_tx_size, l_gdb_group);
+    if (!l_tx) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Specified tx not found");
+        return -3;
+    }
+    if (dap_chain_ledger_tx_add_check(l_net->pub.ledger, l_tx)) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Specified tx verify fail!");
+        return -4;
+    }
+    dap_chain_node_cli_set_reply_text(a_str_reply, "Specified tx verified successfully");
+    return 0;
 }
 
 
@@ -3903,7 +3936,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
