@@ -413,6 +413,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_iter->chain = a_chain;
+    l_iter->cur_hash = DAP_NEW(dap_chain_hash_fast_t);
     return l_iter;
 }
 
@@ -487,11 +488,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     if (!a_atom_iter)
         return NULL;
     dap_chain_datum_t * l_datum = NULL;
-    a_atom_iter->cur_item = PVT ( DAP_CHAIN_GDB(a_atom_iter->chain) )->hash_items;
+    dap_chain_gdb_datum_hash_item_t *l_item = PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->hash_items;
+    a_atom_iter->cur_item = l_item;
     if (a_atom_iter->cur_item ){
-        dap_chain_gdb_datum_hash_item_t * l_item = PVT ( DAP_CHAIN_GDB(a_atom_iter->chain) )->hash_items;
         size_t l_datum_size =0;
-        l_datum= (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_item->key,&l_datum_size,PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums );
+        l_datum= (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_item->key, &l_datum_size,
+                                                                 PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums );
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE( a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
@@ -499,8 +501,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
         dap_chain_hash_fast_from_str(l_item->key, a_atom_iter->cur_hash);
         if (a_atom_size)
             *a_atom_size = l_datum_size;
-    } else if (a_atom_size)
-        *a_atom_size = 0;
+    } else {
+        DAP_DEL_Z(a_atom_iter->cur);
+        a_atom_iter->cur_size = 0;
+        if (a_atom_size)
+            *a_atom_size = 0;
+    }
     return l_datum;
 }
 
@@ -518,18 +524,21 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_i
     a_atom_iter->cur_item = l_item;
     if (a_atom_iter->cur_item ){
         size_t l_datum_size =0;
-        l_datum= (dap_chain_datum_t*) dap_chain_global_db_gr_get(
-                                l_item->key,
-                                &l_datum_size, PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums );
+        l_datum = (dap_chain_datum_t *)dap_chain_global_db_gr_get(l_item->key, &l_datum_size,
+                                                                  PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums);
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
-            DAP_DELETE( a_atom_iter->cur);
+            DAP_DELETE(a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
         a_atom_iter->cur_size = l_datum_size;
         dap_chain_hash_fast_from_str(l_item->key, a_atom_iter->cur_hash);
         if (a_atom_size)
             *a_atom_size = l_datum_size;
-    }else
-        *a_atom_size = 0;
+    } else {
+        DAP_DEL_Z(a_atom_iter->cur);
+        a_atom_iter->cur_size = 0;
+        if (a_atom_size)
+            *a_atom_size = 0;
+    }
     return l_datum;
 }
 
