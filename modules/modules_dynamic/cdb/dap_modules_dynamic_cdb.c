@@ -75,6 +75,10 @@ int dap_modules_dynamic_load_cdb(dap_http_t * a_server)
 {
     int (*dap_chain_net_srv_vpn_cdb_init)(dap_http_t *);
     dap_chain_net_srv_vpn_cdb_init = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_init");
+    if (!dap_chain_net_srv_vpn_cdb_init) {
+        log_it(L_ERROR,"dap_modules_dynamic: can't load dap_chain_net_srv_vpn_cdb_init");
+        return -2;
+    }
     int l_init_res = dap_chain_net_srv_vpn_cdb_init(a_server);
     if (l_init_res) {
         log_it(L_ERROR,"dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init returns %d", l_init_res);

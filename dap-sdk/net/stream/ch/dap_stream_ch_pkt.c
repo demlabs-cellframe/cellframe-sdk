@@ -209,7 +209,6 @@ size_t dap_stream_ch_pkt_write_inter(dap_events_socket_t * a_queue , dap_stream_
     return a_data_size;
 }
 
-
 /**
  * @brief dap_stream_ch_pkt_write
  * @param a_ch

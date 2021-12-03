@@ -72,7 +72,7 @@ typedef struct dap_worker
     int poll_fd;
     struct pollfd * poll;
     dap_events_socket_t ** poll_esocket;
-    size_t poll_count;
+    atomic_uint poll_count;
     size_t poll_count_max;
     bool poll_compress; // Some of fd's became NULL so arrays need to be reassigned
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)

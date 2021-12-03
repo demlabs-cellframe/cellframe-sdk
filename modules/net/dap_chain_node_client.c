@@ -271,6 +271,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             for(size_t i = 0; i < l_channels_count; i++) {
                 if(dap_chain_node_client_set_callbacks(a_client, l_client_internal->active_channels[i]) == -1) {
                     log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
+                    return;
                 }
             }
         }
@@ -648,7 +649,6 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
         return l_node_client;
     return NULL;
 }
-
 
 /**
  * @brief dap_chain_node_client_connect_internal

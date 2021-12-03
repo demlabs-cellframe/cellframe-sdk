@@ -84,7 +84,6 @@ bool s_debug_cli = false;
 
 static dap_chain_node_cmd_item_t * s_commands = NULL;
 
-
 /**
  * @brief int s_poll
  * Wait for data
@@ -488,11 +487,6 @@ char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_s
 
     return NULL;
 }
-
-
-/**
-
- */
 
 /**
  * @brief thread_pipe_client_func
@@ -1077,6 +1071,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "Add pubic certificate into the mempool to prepare its way to chains",
             "mempool_add_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
 
+    dap_chain_node_cli_cmd_item_create ("chain_ca_pub", com_chain_ca_pub,
+                                        "Add pubic certificate into the mempool to prepare its way to chains",
+            "chain_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+
+    dap_chain_node_cli_cmd_item_create ("chain_ca_copy", com_chain_ca_copy,
+                                        "Copy pubic certificate into the mempool to prepare its way to chains",
+            "chain_ca -net <net name> [-chain <chain name>] -ca_name <Public certificate name>\n");
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",

@@ -80,7 +80,6 @@ int dap_cert_file_save(dap_cert_t * a_cert, const char * a_cert_file_path)
  * @param a_left_idx size_t left tree node
  * @param a_right_idx size_t right tree node
  */
-
 void s_balance_the_tree(dap_cert_file_aux_t *a_reorder, size_t a_left_idx, size_t a_right_idx)
 {
     if (a_left_idx == a_right_idx) {

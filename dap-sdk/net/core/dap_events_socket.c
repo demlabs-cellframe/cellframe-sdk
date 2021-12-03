@@ -1545,7 +1545,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
                 if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
                     l_poll->events |= POLLOUT;
             }else{
-                log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %zu", a_esocket->poll_index,
+                log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
                        a_esocket->worker->poll_count);
             }
         }
@@ -1911,14 +1911,13 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         a_worker->poll[a_es->poll_index].fd = -1;
         a_worker->poll_compress = true;
     }else{
-        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %zu", a_es->poll_index, a_worker->poll_count);
+        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->poll_count);
     }
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
 #endif
     a_es->worker = NULL;
 }
-
 
 /**
  * @brief dap_events_socket_remove_and_delete
@@ -2114,11 +2113,11 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_uuid_t 
 }
 
 /**
- * @brief dap_events_socket_write_unsafe
- * @param a_es
- * @param a_data
- * @param a_data_size
- * @return
+ * @brief dap_events_socket_write Write data to the client
+ * @param a_es Esocket instance
+ * @param a_data Pointer to data
+ * @param a_data_size Size of data to write
+ * @return Number of bytes that were placed into the buffer
  */
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_data, size_t a_data_size)
 {

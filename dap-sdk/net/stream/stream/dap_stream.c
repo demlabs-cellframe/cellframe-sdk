@@ -39,6 +39,7 @@
 #include "dap_timerfd.h"
 #include "dap_events.h"
 
+#include "dap_events.h"
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
 #include "dap_stream_ch.h"
@@ -593,7 +594,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
     bool found_sig=false;
     dap_stream_pkt_t * pkt=NULL;
 
-    if (!a_stream->esocket)
+    if (!a_stream || !a_stream->esocket)
         return 0;
 
     char *l_buf_in = (char*)a_stream->esocket->buf_in ;

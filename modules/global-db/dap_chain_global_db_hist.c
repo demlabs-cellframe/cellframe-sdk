@@ -335,7 +335,7 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
  * @param a_db_log_list a pointer to the log list
  * @return Returns a pointer to the object.
  */
-dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
+dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 {
     if(!a_db_log_list)
         return NULL;
@@ -364,9 +364,7 @@ dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
     }
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
     return l_list ? (dap_db_log_list_obj_t *)l_list->data : NULL;
-    //return l_list;
 }
-
 
 /**
  * @brief Deallocates memory of a list item

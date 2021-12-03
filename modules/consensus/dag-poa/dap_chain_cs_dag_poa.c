@@ -36,6 +36,7 @@
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
+#include "dap_chain_pvt.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -267,12 +268,14 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
                 dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
-                if ( (l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) != NULL ) {
-                    log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
-                } else{
-                    log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
-                    return -1;
+                if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
+                    dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu.pub",l_poa_pvt->auth_certs_prefix, i);
+                    if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
+                        log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
+                        return -1;
+                    }
                 }
+                log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
             }
         }
     }
@@ -402,24 +405,6 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 if (dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j], l_sign) == 0)
                     l_verified++;
             }
-            if (i == 0) {
-                dap_chain_hash_fast_t l_pkey_hash;
-                if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
-                    log_it(L_WARNING, "Event's sign has no any key");
-                    return -5;
-                }
-                dap_chain_addr_t l_addr = {};
-                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
-                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event, a_dag_event_size);
-                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-                    if (!dap_chain_net_srv_stake_validator(&l_addr, l_tx)) {
-                        log_it(L_WARNING,"Not passed stake validator event %p", a_dag_event);
-                        return -6;
-                    }
-                }
-            }
-
         }
         return l_verified >= l_poa_pvt->auth_certs_count_verify ? 0 : -1;
     }else if (a_dag_event->header.hash_count == 0){
@@ -437,3 +422,13 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     }
 }
 
+dap_cert_t **dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count)
+{
+    dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(a_chain);
+    if (strcmp(l_chain_pvt->cs_name, "dag_poa"))
+        return NULL;
+    dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(DAP_CHAIN_CS_DAG(a_chain)));
+    if (a_auth_certs_count)
+        *a_auth_certs_count = l_poa_pvt->auth_certs_count;
+    return l_poa_pvt->auth_certs;
+}

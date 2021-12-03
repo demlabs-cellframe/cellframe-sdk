@@ -902,7 +902,6 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
 {
     dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *) a_obj;
     assert(l_client_pvt);
-
     //int l_ref = dap_client_pvt_get_ref(a_client_internal);
     if(l_client_pvt->is_encrypted) {
         size_t l_response_dec_size_max = a_response_size ? a_response_size * 2 + 16 : 0;

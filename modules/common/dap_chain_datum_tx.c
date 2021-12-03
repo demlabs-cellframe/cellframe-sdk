@@ -237,7 +237,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
                 log_it(L_WARNING,"Incorrect signature's header, possible corrupted data");
                 return -4;
             }
-            if(dap_sign_verify(l_sign, tx->tx_items, tx_items_pos) != 1) {
+            if (!dap_sign_verify_size(l_sign, tx_items_size) || dap_sign_verify(l_sign, tx->tx_items, tx_items_pos) != 1) {
                 // invalid signature
                 ret = 0;
                 tx_items_pos += l_item_tx_size;

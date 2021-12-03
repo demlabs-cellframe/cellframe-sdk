@@ -38,3 +38,4 @@ typedef struct dap_chain_cs_block_poa
 
 int dap_chain_cs_block_poa_init(void);
 void dap_chain_cs_block_poa_deinit(void);
+dap_cert_t **dap_chain_cs_block_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count);

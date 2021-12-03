@@ -304,8 +304,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         }
         break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            dap_chain_datum_token_emission_t *l_token_emission = (dap_chain_datum_token_emission_t*) l_datum->data;
-            return dap_chain_ledger_token_emission_load(a_ledger, l_token_emission, l_datum->header.data_size);
+            return dap_chain_ledger_token_emission_load(a_ledger, l_datum->data, l_datum->header.data_size);
         }
         break;
         case DAP_CHAIN_DATUM_TX: {
@@ -325,6 +324,11 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             if (l_err != EDEADLK) {
                 pthread_rwlock_unlock(l_events_rwlock);
             }
+        }
+        break;
+        case DAP_CHAIN_DATUM_CA: {
+            dap_cert_chain_file_save(l_datum, a_dag->chain->net_name);
+            return DAP_CHAIN_DATUM_CA;
         }
         break;
         default:
@@ -393,7 +397,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     case ATOM_ACCEPT:
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
         if(s_debug_more)
-            log_it(L_DEBUG, "Verified atom %p: code %d", a_atom, ret);
+            log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
+                                                           (ret == ATOM_REJECT ? "rejected" : "thresholded"));
         break;
     case ATOM_PASS:
         if(s_debug_more) {
@@ -433,6 +438,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             if(s_debug_more)
                 log_it(L_DEBUG, "... tresholded");
             ret = ATOM_MOVE_TO_THRESHOLD;
+            break;
+        case DAP_CHAIN_DATUM_CA:
+            ret = ATOM_ACCEPT;
+            if(s_debug_more)
+                log_it(L_DEBUG, "... DATUM_CA");
             break;
         default:
             if (s_debug_more) {
@@ -904,13 +914,11 @@ dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t
             HASH_DEL(PVT(a_dag)->events_treshold,l_event_item);
 
             if(ret == DAP_THRESHOLD_OK){
-
                 if(s_debug_more) {
                     char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
                     log_it(L_DEBUG, "Processing event (threshold): %s...", l_event_hash_str);
                     DAP_DELETE(l_event_hash_str);
-                }
-                int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
+                }                int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
                 HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (l_event_item->hash), l_event_item);
                 s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
                 if(! l_add_res){

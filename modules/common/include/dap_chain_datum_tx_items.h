@@ -129,7 +129,8 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
  * return item, NULL Error
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint64_t a_value, long double a_fee_value,
-                                                                           dap_chain_addr_t *a_fee_addr, const void *a_params, uint32_t a_params_size);
+                                                                           dap_chain_addr_t *a_fee_addr, dap_chain_addr_t *a_hldr_addr,
+                                                                           const void *a_params, uint32_t a_params_size);
 /**
  * Create item dap_chain_tx_sig_t
  *

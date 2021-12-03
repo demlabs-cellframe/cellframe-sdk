@@ -310,18 +310,16 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
     return l_ret_value;
 }
 
-
 /**
  * @brief Gets an object value from database by a_key for the "local.general" group.
  * @param a_key an object key string
- * @param a_data_out a length of value that were gotten
+ * @param a_data_len_out a length of value that was gotten
  * @return If successful, returns a pointer to the object value, otherwise NULL.
  */
-uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out)
+uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
 {
-    return dap_chain_global_db_gr_get(a_key, a_data_out, GROUP_LOCAL_GENERAL);
+    return dap_chain_global_db_gr_get(a_key, a_data_len_out, GROUP_LOCAL_GENERAL);
 }
-
 
 /**
  * @brief Adds info about the deleted entry to the database.
@@ -353,7 +351,6 @@ static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_times
     return false;
 }
 
-
 /**
  * @brief Deletes info about the deleted object from the database
  * @param a_key an object key string, looked like "0x8FAFBD00B..."
@@ -380,7 +377,6 @@ static bool global_db_gr_del_del(char *a_key, const char *a_group)
         return true;
     return false;
 }
-
 
 /**
  * @brief Gets time stamp of the deleted object by a_group and a_key arguments.
@@ -421,7 +417,6 @@ bool dap_chain_global_db_del(char *a_key)
 {
     return dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL);
 }
-
 
 /**
  * @brief Gets a last item from a database by a_group.
@@ -557,7 +552,6 @@ void dap_global_db_obj_track_history(void* a_store_data)
         }
     }
 }
-
 
 /**
  * @brief Adds a value to a database.

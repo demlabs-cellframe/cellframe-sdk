@@ -32,7 +32,8 @@
 enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY = 0x01,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE = 0x02,
-    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE = 0x03
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE = 0x13,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE = 0xFA       // Virtual type for stake update verificator
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
 
@@ -86,6 +87,8 @@ typedef struct dap_chain_tx_out_cond {
         struct {
             // Service uid that only could be used for this outout
             dap_chain_net_srv_uid_t srv_uid;
+            // Stake holder address
+            dap_chain_addr_t hldr_addr;
             // Fee address
             dap_chain_addr_t fee_addr;
             // Fee value in percent
