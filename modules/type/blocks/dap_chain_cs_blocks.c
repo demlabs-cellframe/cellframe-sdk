@@ -618,6 +618,7 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
     for(size_t i=0; i<a_block_cache->datum_count; i++){
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
         switch (l_datum->header.type_id) {
+            case DAP_CHAIN_DATUM_256_TOKEN_DECL:
             case DAP_CHAIN_DATUM_TOKEN_DECL: {
                 dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
                 l_ret=dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);

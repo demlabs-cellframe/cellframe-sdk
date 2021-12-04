@@ -83,8 +83,15 @@ typedef struct dap_chain_ledger_token_item {
     uint16_t type;
     dap_chain_datum_token_t * datum_token;
 
-    uint64_t total_supply;
-    uint64_t current_supply;
+    //union {
+    //    uint64_t total_supply;
+        uint256_t total_supply; // 256
+    //};
+    // union {
+    //    uint64_t current_supply;
+        uint256_t current_supply;
+    //};
+
     pthread_rwlock_t token_emissions_rwlock;
     dap_chain_ledger_token_emission_item_t * token_emissions;
 
@@ -388,40 +395,64 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     DAP_DELETE(l_gdb_group);
     l_token_item->type = a_token->type;
     switch(a_token->type){
-    case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: {
-        l_token_item->total_supply = a_token->header_private.total_supply;\
-        l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(a_token,a_token_size,
-                                                                                   &l_token_item->auth_signs_total,
-                                                                                   &l_token_item->auth_signs_valid );
-        if(l_token_item->auth_signs_total){
-            l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,sizeof (dap_chain_hash_fast_t)* l_token_item->auth_signs_total);
-            for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
-                dap_sign_get_pkey_hash(l_token_item->auth_signs[k],&l_token_item->auth_signs_pkey_hash[k]);
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_256_SIMPLE: {// 256
+            l_token_item->total_supply = a_token->header_private.total_supply_256;
+            l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(a_token,a_token_size,
+                                                                                       &l_token_item->auth_signs_total,
+                                                                                       &l_token_item->auth_signs_valid );
+            if(l_token_item->auth_signs_total){
+                l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,sizeof (dap_chain_hash_fast_t)* l_token_item->auth_signs_total);
+                for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
+                    dap_sign_get_pkey_hash(l_token_item->auth_signs[k],&l_token_item->auth_signs_pkey_hash[k]);
+                }
+                if(s_debug_more)
+                    log_it(L_NOTICE, "Simple token %s added (total_supply = %s total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_TYPE_256_SIMPLE )",
+                       a_token->ticker, dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(a_token->header_private.total_supply_256)),
+                       a_token->header_private.signs_valid, a_token->header_private.signs_total);
             }
-            if(s_debug_more)
-                log_it(L_NOTICE, "Simple token %s added (total_supply = %.1Lf total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_PRIVATE )",
-                   a_token->ticker, dap_chain_datoshi_to_coins(a_token->header_private.total_supply),
-                   a_token->header_private.signs_valid, a_token->header_private.signs_total);
+            break;
         }
-        break;
-    }
-
-    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL: {
-        if(s_debug_more)
-            log_it( L_NOTICE, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_PRIVATE_DECL ", a_token->ticker);
-        s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
-        break;
-    }
-    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: {
-        if(s_debug_more)
-            log_it( L_WARNING, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_PRIVATE_UPDATE. Not processed, wait for software update", a_token->ticker);
-                // TODO: Check authorithy
-                //s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
-        break;
-    }
-    default:
-        if(s_debug_more)
-            log_it(L_WARNING,"Unknown token declaration type 0x%04X", a_token->type );
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: {
+            l_token_item->total_supply = GET_256_FROM_64(a_token->header_private.total_supply);
+            l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(a_token,a_token_size,
+                                                                                       &l_token_item->auth_signs_total,
+                                                                                       &l_token_item->auth_signs_valid );
+            if(l_token_item->auth_signs_total){
+                l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,sizeof (dap_chain_hash_fast_t)* l_token_item->auth_signs_total);
+                for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
+                    dap_sign_get_pkey_hash(l_token_item->auth_signs[k],&l_token_item->auth_signs_pkey_hash[k]);
+                }
+                if(s_debug_more)
+                    log_it(L_NOTICE, "Simple token %s added (total_supply = %.1Lf total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE )",
+                       a_token->ticker, dap_chain_datoshi_to_coins(a_token->header_private.total_supply),
+                       a_token->header_private.signs_valid, a_token->header_private.signs_total);
+            }
+            break;
+        }
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_DECL: // 256
+            if(s_debug_more)
+                log_it( L_NOTICE, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_DECL ", a_token->ticker);
+            s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL: {
+            if(s_debug_more)
+                log_it( L_NOTICE, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ", a_token->ticker);
+            s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
+            break;
+        }
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_UPDATE: // 256
+            if(s_debug_more)
+                log_it( L_WARNING, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_UPDATE. Not processed, wait for software update", a_token->ticker);
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+            if(s_debug_more)
+                log_it( L_WARNING, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE. Not processed, wait for software update", a_token->ticker);
+                    // TODO: Check authorithy
+                    //s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
+            break;
+        default:
+            if(s_debug_more)
+                log_it(L_WARNING,"Unknown token declaration type 0x%04X", a_token->type );
     }
         // Proc emissions tresholds
     s_treshold_emissions_proc( a_ledger);
@@ -470,7 +501,10 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
 
             // set total supply
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:{
-                a_token_item->total_supply = dap_tsd_get_scalar(l_tsd,uint64_t);
+                a_token_item->total_supply = dap_chain_datum_token_is_type_256(a_token->type) 
+                            ? GET_256_FROM_128(dap_tsd_get_scalar(l_tsd,uint64_t)) 
+                            : dap_tsd_get_scalar(l_tsd,uint256_t); // 256
+                // a_token_item->total_supply = GET_256_FROM_128(dap_tsd_get_scalar(l_tsd,uint64_t));
             }break;
 
             // Set total signs count value to set to be valid
@@ -895,23 +929,27 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
         const char *l_type_str;
         switch (l_token_item->type) {
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
-            l_type_str = "SIMPLE"; break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-            l_type_str = "PRIVATE_DECL"; break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-            l_type_str = "PRIVATE_UPDATE"; break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:
-            l_type_str = "PUBLIC";
-        default:
-            l_type_str = "UNKNOWN"; break;
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_256_SIMPLE: // 256
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
+                l_type_str = "SIMPLE"; break;
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_DECL: // 256 
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+                l_type_str = "PRIVATE_DECL"; break;
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_UPDATE: // 256
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+                l_type_str = "PRIVATE_UPDATE"; break;
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PUBLIC: // 256
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:
+                l_type_str = "PUBLIC";
+            default:
+                l_type_str = "UNKNOWN"; break;
         }
         char *l_item_str = dap_strdup_printf("Token name '%s', type %s, flags %hu\n"
-                                             "\tSupply (current/total) %"DAP_UINT64_FORMAT_U"/%"DAP_UINT64_FORMAT_U"\n"
+                                             "\tSupply (current/total) %s/%s \n"
                                              "\tAuth signs (valid/total) %zu/%zu\n"
                                              "\tTotal emissions %u\n",
                                              &l_token_item->ticker, l_type_str, l_token_item->flags,
-                                             l_token_item->current_supply, l_token_item->total_supply,
+                                             dap_chain_u256tostr(l_token_item->current_supply), dap_chain_u256tostr(l_token_item->total_supply),
                                              l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                              HASH_COUNT(l_token_item->token_emissions));
         l_ret_list = dap_list_append(l_ret_list, l_item_str);
@@ -997,7 +1035,9 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         memcpy(l_token_item->datum_token, l_objs[i].value, l_objs[i].value_len);
         pthread_rwlock_init(&l_token_item->token_emissions_rwlock, NULL);
         if (l_token_item->datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE) {
-            l_token_item->total_supply = l_token_item->datum_token->header_private.total_supply;
+            l_token_item->total_supply = GET_256_FROM_64(l_token_item->datum_token->header_private.total_supply);
+        }  else if (l_token_item->datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_256_SIMPLE) {
+            l_token_item->total_supply = l_token_item->datum_token->header_private.total_supply_256;
         }
         HASH_ADD_STR(l_ledger_pvt->tokens, ticker, l_token_item);
         if (i == l_objs_count - 1) {
@@ -1157,7 +1197,8 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                                        : &l_ledger_priv->treshold_emissions_rwlock);
     if(l_token_emission_item ) {
         if(s_debug_more)
-            if ( dap_chain_datum_token_emission_is_type_256(l_token_emission_item->datum_token_emission->hdr.type) )
+            // if ( dap_chain_datum_token_emission_is_type_256(l_token_emission_item->datum_token_emission->hdr.type) )
+            if ( l_token_emission_item->datum_token_emission->hdr.version == 1 )
                 log_it(L_ERROR, "Can't add token emission datum of %s %s ( %s ): already present in cache",
                     dap_chain_u256tostr(l_token_emission_item->datum_token_emission->hdr.value_256), c_token_ticker, l_hash_str);
             else
@@ -1173,7 +1214,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
         size_t l_emission_size = a_token_emission_size;
         dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
         switch (l_emission->hdr.type){
-            case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH:
+            // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH:
             case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
                 dap_chain_ledger_token_item_t *l_token_item=NULL;
                 pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1212,7 +1253,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
 
                         if (l_aproves < l_aproves_valid ){
                             if(s_debug_more)
-                                if ( dap_chain_datum_token_emission_is_type_256(l_emission->hdr.type) ) // 256
+                                if ( l_emission->hdr.version == 1 ) // 256
                                    log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %u valid aproves when %u need",
                                        dap_chain_u256tostr(l_emission->hdr.value_256), a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid );
                                 else
@@ -1296,11 +1337,12 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             DAP_DELETE(l_gdb_group);
             char * l_token_emission_address_str = dap_chain_addr_to_str(&(l_token_emission_item->datum_token_emission->hdr.address) );
             if(s_debug_more)
-                if ( dap_chain_datum_token_emission_is_type_256(l_token_emission_item->datum_token_emission->hdr.type) ) // 256
-                    log_it(L_NOTICE, "Added token emission datum to %s: type=%s value=%.1Lf token=%s to_addr=%s ",
+                // if ( dap_chain_datum_token_emission_is_type_256(l_token_emission_item->datum_token_emission->hdr.type) ) // 256
+                if ( l_token_emission_item->datum_token_emission->hdr.version == 1 )
+                    log_it(L_NOTICE, "Added token emission datum to %s: type=%s value=%s token=%s to_addr=%s ",
                                l_token_item?"emissions cache":"emissions treshold",
                                c_dap_chain_datum_token_emission_type_str[ l_token_emission_item->datum_token_emission->hdr.type ] ,
-                               dap_chain_datoshi_to_coins(
+                               dap_chain_balance_to_coins(
                                     dap_chain_uint128_from_uint256(l_token_emission_item->datum_token_emission->hdr.value_256)
                                 ), c_token_ticker,
                                l_token_emission_address_str);
@@ -1320,7 +1362,8 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
     } else {
         if (l_token_item) {
             if(s_debug_more)
-                if ( dap_chain_datum_token_emission_is_type_256(((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.type) ) // 256
+                // if ( dap_chain_datum_token_emission_is_type_256(((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.type) ) // 256
+                if ( ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.version == 1 ) // 256
                     log_it(L_ERROR, "Duplicate token emission datum of %s %s ( %s )",
                             dap_chain_u256tostr(((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value_256), c_token_ticker, l_hash_str);
                 else

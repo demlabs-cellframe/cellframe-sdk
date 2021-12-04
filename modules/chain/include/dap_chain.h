@@ -87,16 +87,17 @@ typedef size_t (*dap_chain_callback_add_datums_with_group_t)(dap_chain_t * , dap
 
 typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size); //change in chain happened
 
-typedef  enum dap_chain_type
+typedef enum dap_chain_type
 {
     CHAIN_TYPE_FIRST,
     CHAIN_TYPE_TOKEN,
     CHAIN_TYPE_EMISSION,
-    CHAIN_TYPE_256_EMISSION, // 256
     CHAIN_TYPE_TX,
-    CHAIN_TYPE_256_TX, // 256
     CHAIN_TYPE_CA,
     CHAIN_TYPE_LAST
+    // CHAIN_TYPE_256_TOKEN, // 256
+    // CHAIN_TYPE_256_EMISSION, // 256
+    // CHAIN_TYPE_256_TX, // 256
 } dap_chain_type_t;
 
 typedef struct dap_chain{

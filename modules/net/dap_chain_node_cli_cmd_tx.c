@@ -1177,7 +1177,7 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
         dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
         for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
             dap_chain_datum_t *l_datum = l_datums[l_datum_n];
-            if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
+            if (!l_datum || (l_datum->header.type_id != DAP_CHAIN_DATUM_256_TOKEN_DECL && l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL) )
                 continue;
             char l_time_str[70];
             // get time of create datum
@@ -1194,42 +1194,66 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                     l_out_hash_str = dap_enc_base58_encode_hash_to_str(&l_datum_hash);
                 dap_string_append(l_str_out, l_out_hash_str);
                 dap_string_append(l_str_out, "\n");
-                dap_string_append_printf(l_str_out, "token %s, created: %s\n", l_token->ticker, l_time_str);
+                dap_string_append_printf(l_str_out, "token %s %s, created: %s\n",
+                            l_token->ticker, 
+                            dap_chain_datum_token_is_type_256(l_token->type) ? " 256_t " : "",
+                            l_time_str
+                        );
                 switch (l_token->type) {
-                // Simple private token decl
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
-                    dap_string_append_printf(l_str_out, "  total_supply: %.0Lf(%"DAP_UINT64_FORMAT_U"), signs: valid/total %02d/%02d \n",
-                            dap_chain_datoshi_to_coins(l_token->header_private.total_supply),
-                            l_token->header_private.total_supply,
-                            l_token->header_private.signs_valid, l_token->header_private.signs_total);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
-                            l_token->header_private_decl.tsd_total_size,
-                            l_token->header_private_decl.flags);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
-                            l_token->header_private_update.tsd_total_size,
-                            l_token->header_private_update.padding);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
-                    char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
-                    char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
-                    dap_string_append_printf(l_str_out,
-                            " total_supply: %.0Lf(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
-                            dap_chain_datoshi_to_coins(l_token->header_public.total_supply),
-                            dap_chain_balance_print(l_token->header_public.total_supply),
-                            l_token->header_public.flags,
-                            dap_chain_balance_print(l_token->header_public.premine_supply),
-                            l_addr ? l_addr : "-");
-                    DAP_DELETE(l_addr);
-                    DAP_DELETE(l_balance);
-                }
-                    break;
-                default:
-                    dap_string_append_printf(l_str_out, "unknown token type: 0x%x\n", l_token->type);
-                    break;
+                    // Simple private token decl
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_256_SIMPLE: // 256
+                       dap_string_append_printf(l_str_out, "  total_supply: %s(%s), signs: valid/total %02d/%02d \n",
+                                dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token->header_private.total_supply_256)),
+                                dap_chain_u256tostr(l_token->header_private.total_supply_256),
+                                l_token->header_private.signs_valid, l_token->header_private.signs_total);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
+                        dap_string_append_printf(l_str_out, "  total_supply: %.0Lf(%"DAP_UINT64_FORMAT_U"), signs: valid/total %02d/%02d \n",
+                                dap_chain_datoshi_to_coins(l_token->header_private.total_supply),
+                                l_token->header_private.total_supply,
+                                l_token->header_private.signs_valid, l_token->header_private.signs_total);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_DECL: // 256
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+                        dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
+                                l_token->header_private_decl.tsd_total_size,
+                                l_token->header_private_decl.flags);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_UPDATE: // 256
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+                        dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
+                                l_token->header_private_update.tsd_total_size,
+                                l_token->header_private_update.padding);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PUBLIC: { // 256
+                        char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
+                        char * l_balance = dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token->header_public.total_supply_256));
+                        dap_string_append_printf(l_str_out,
+                                " total_supply: %s(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
+                                dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token->header_public.total_supply_256)),
+                                dap_chain_u256tostr(l_token->header_public.total_supply_256),
+                                l_token->header_public.flags,
+                                dap_chain_u256tostr(l_token->header_public.premine_supply_256),
+                                l_addr ? l_addr : "-");
+                        DAP_DELETE(l_addr);
+                        DAP_DELETE(l_balance);
+                    }break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
+                        char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
+                        char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
+                        dap_string_append_printf(l_str_out,
+                                " total_supply: %.0Lf(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
+                                dap_chain_datoshi_to_coins(l_token->header_public.total_supply),
+                                dap_chain_balance_print(l_token->header_public.total_supply),
+                                l_token->header_public.flags,
+                                dap_chain_balance_print(l_token->header_public.premine_supply),
+                                l_addr ? l_addr : "-");
+                        DAP_DELETE(l_addr);
+                        DAP_DELETE(l_balance);
+                    }break;
+                    default:
+                        dap_string_append_printf(l_str_out, "unknown token type: 0x%x\n", l_token->type);
+                        break;
                 }
                 dap_string_append_printf(l_str_out, "\n");
                 (*a_token_num)++;
@@ -1307,9 +1331,12 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
         // get time of create datum
         if(dap_time_to_str_rfc822(l_time_str, 71, l_datum->header.ts_create) < 1)
             l_time_str[0] = '\0';
+
+
         switch (l_datum->header.type_id) {
 
         // token
+        case DAP_CHAIN_DATUM_256_TOKEN_DECL: // 256
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
             // no token necessary for addr
             if(a_filtr_addr_base58) {
@@ -1323,43 +1350,72 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 l_token_num++;
                 break;
             }
+
             if(!a_filter_token_name || !dap_strcmp(l_token->ticker, a_filter_token_name)) {
                 dap_string_append_printf(l_str_out, "token %s, created: %s\n", l_token->ticker, l_time_str);
                 switch (l_token->type) {
                 // Simple private token decl
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
-                    dap_string_append_printf(l_str_out, "  total_supply: %.0Lf(%"DAP_UINT64_FORMAT_U"), signs: valid/total %02d/%02d \n",
-                            dap_chain_datoshi_to_coins(l_token->header_private.total_supply),
-                            l_token->header_private.total_supply,
-                            l_token->header_private.signs_valid, l_token->header_private.signs_total);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
-                            l_token->header_private_decl.tsd_total_size,
-                            l_token->header_private_decl.flags);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
-                            l_token->header_private_update.tsd_total_size,
-                            l_token->header_private_update.padding);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
-                    char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
-                    char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
-                    dap_string_append_printf(l_str_out,
-                            " total_supply: %.0Lf(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
-                            dap_chain_datoshi_to_coins(l_token->header_public.total_supply),
-                            dap_chain_balance_print(l_token->header_public.total_supply),
-                            l_token->header_public.flags,
-                            dap_chain_balance_print(l_token->header_public.premine_supply),
-                            l_addr ? l_addr : "-");
-                    DAP_DELETE(l_addr);
-                    DAP_DELETE(l_balance);
-                }
-                    break;
-                default:
-                    dap_string_append_printf(l_str_out, "unknown token type: 0x%x\n", l_token->type);
-                    break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_256_SIMPLE: // 256
+                        dap_string_append_printf(l_str_out, "  256_t total_supply: %s(%s), signs: valid/total %02d/%02d \n",
+                                dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token->header_private.total_supply_256)),
+                                dap_chain_u256tostr(l_token->header_private.total_supply_256),
+                                l_token->header_private.signs_valid, l_token->header_private.signs_total);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
+                        dap_string_append_printf(l_str_out, "  total_supply: %.0Lf(%"DAP_UINT64_FORMAT_U"), signs: valid/total %02d/%02d \n",
+                                dap_chain_datoshi_to_coins(l_token->header_private.total_supply),
+                                l_token->header_private.total_supply,
+                                l_token->header_private.signs_valid, l_token->header_private.signs_total);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_DECL: // 256
+                        dap_string_append_printf(l_str_out, "256_t  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
+                                l_token->header_private_decl.tsd_total_size,
+                                l_token->header_private_decl.flags);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+                        dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
+                                l_token->header_private_decl.tsd_total_size,
+                                l_token->header_private_decl.flags);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_UPDATE: // 256
+                        dap_string_append_printf(l_str_out, "256_t  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
+                                l_token->header_private_update.tsd_total_size,
+                                l_token->header_private_update.padding);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+                        dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
+                                l_token->header_private_update.tsd_total_size,
+                                l_token->header_private_update.padding);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_256_PUBLIC: { // 256
+                        char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
+                        char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
+                        dap_string_append_printf(l_str_out,
+                                " total_supply: %s(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
+                                dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token->header_public.total_supply_256)),
+                                dap_chain_u256tostr(l_token->header_public.total_supply_256),
+                                l_token->header_public.flags,
+                                dap_chain_u256tostr(l_token->header_public.premine_supply_256),
+                                l_addr ? l_addr : "-");
+                        DAP_DELETE(l_addr);
+                        DAP_DELETE(l_balance);
+                    } break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
+                        char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
+                        char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
+                        dap_string_append_printf(l_str_out,
+                                " total_supply: %.0Lf(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
+                                dap_chain_datoshi_to_coins(l_token->header_public.total_supply),
+                                dap_chain_balance_print(l_token->header_public.total_supply),
+                                l_token->header_public.flags,
+                                dap_chain_balance_print(l_token->header_public.premine_supply),
+                                l_addr ? l_addr : "-");
+                        DAP_DELETE(l_addr);
+                        DAP_DELETE(l_balance);
+                    } break;
+                    default:
+                        dap_string_append_printf(l_str_out, "unknown token type: 0x%x\n", l_token->type);
+                        break;
 
                 }
                 dap_string_append_printf(l_str_out, "\n");
@@ -1369,7 +1425,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
             break;
 
         // emission
-        case DAP_CHAIN_DATUM_256_TOKEN_EMISSION:
+        case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: // 256
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             // datum out of page
             if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
@@ -1385,8 +1441,9 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                      break;
                 }
 
-                if ( dap_chain_datum_token_emission_is_type_256(l_token_em->hdr.type) ) { // 256
-                dap_string_append_printf(l_str_out, "emission 256: %.0Lf(%s) %s, type: %s, version: %d\n",
+                // if ( dap_chain_datum_token_emission_is_type_256(l_token_em->hdr.type) ) { // 256
+                if ( l_token_em->hdr.version == 1 ) { // 256
+                    dap_string_append_printf(l_str_out, "emission 256: %s(%s) %s, type: %s, version: %d\n",
                         dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token_em->hdr.value_256)),
                         dap_chain_u256tostr(l_token_em->hdr.value_256),
                         l_token_em->hdr.ticker,
@@ -1404,22 +1461,23 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
 
                 DAP_DELETE(l_token_emission_address_str);
                 switch (l_token_em->hdr.type) {
-                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED:
+                    // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED: // 256
                     case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
                         break;
-                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH: // 256
+                    // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH: // 256
                     case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:
                         dap_string_append_printf(l_str_out, "  signs_count: %d\n", l_token_em->data.type_auth.signs_count);
                         break;
-                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO: // 256
+                    // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO: // 256
                     case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
                         dap_string_append_printf(l_str_out, "  codename: %s\n", l_token_em->data.type_algo.codename);
                         break;
-                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER: // 256
+                    // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER: // 256
                     case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
-                        if ( dap_chain_datum_token_emission_is_type_256(l_token_em->hdr.type) ) { // 256
+                        // if ( dap_chain_datum_token_emission_is_type_256(l_token_em->hdr.type) ) { // 256
+                        if ( l_token_em->hdr.version == 1 ) { // 256
                             dap_string_append_printf(l_str_out, " value_start: %s(%s), codename: %s\n",
-                                dap_chain_datoshi_to_coins(dap_chain_uint128_from_uint256(l_token_em->data.type_atom_owner.value_start_256)),
+                                dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token_em->data.type_atom_owner.value_start_256)),
                                 dap_chain_u256tostr(l_token_em->data.type_atom_owner.value_start_256),
                                 l_token_em->data.type_atom_owner.value_change_algo_codename
                             );
@@ -1431,7 +1489,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                             );
                         }
                     break;
-                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT:
+                    // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT:
                     case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT: {
                         char *l_addr = dap_chain_addr_to_str(&l_token_em->data.type_presale.addr);
                         // get time of create datum
@@ -1451,7 +1509,6 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
 
         // transaction
         case DAP_CHAIN_DATUM_TX:{
-
             // datum out of page
             if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
                 l_tx_num++;
@@ -1465,8 +1522,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
             break;
 
             // transaction
-        case DAP_CHAIN_DATUM_256_TX:{
-
+        case DAP_CHAIN_DATUM_256_TX:{ // 256
             // datum out of page
             if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
                 l_tx_num++;

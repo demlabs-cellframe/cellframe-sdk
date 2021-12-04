@@ -38,7 +38,10 @@ typedef struct dap_chain_datum_token{
     union {
         // Simple private token declaration. Useful for 100% premined emission without any plays with token and owners after that
         struct {
-            uint64_t total_supply; // Could be zero if unlimited
+            union {
+                uint64_t total_supply; // Could be zero if unlimited
+                uint256_t total_supply_256;
+            };
             uint16_t signs_valid; // Emission auth signs
             uint16_t signs_total; // Emission auth signs
         } DAP_ALIGN_PACKED header_private;
@@ -54,8 +57,14 @@ typedef struct dap_chain_datum_token{
         } DAP_ALIGN_PACKED header_private_update;
         // Public token declaration
         struct {
-            uint128_t total_supply;
-            uint128_t premine_supply;
+            union {
+                uint128_t total_supply;
+                uint256_t total_supply_256;
+            };
+            union {
+                uint128_t premine_supply;
+                uint256_t premine_supply_256;
+            };
             dap_chain_addr_t premine_address;
             uint32_t flags;
         } DAP_ALIGN_PACKED header_public;
@@ -65,13 +74,23 @@ typedef struct dap_chain_datum_token{
 
 // Token declaration type
 // Simple private token decl
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE        0x0001
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE           0x0001
 // Extended declaration of privatetoken with in-time control
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL   0x0002
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL     0x0002
 // Token update
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE 0x0003
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE   0x0003
 // Open token with now ownership
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC          0x0004
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC           0x0004
+
+// 256
+// Simple private token decl
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_256_SIMPLE           0x0005
+// Extended declaration of privatetoken with in-time control
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_DECL     0x0006
+// Token update
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_256_PRIVATE_UPDATE   0x0007
+// Open token with now ownership
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_256_PUBLIC           0x0008
 
 
 // Macros for token flags
@@ -248,11 +267,11 @@ typedef struct dap_chain_datum_token_emission{
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER        0x03
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT    0x04
 // 256
-#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED         0x05
-#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH              0x06
-#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO              0x07
-#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER        0x08
-#define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT    0x09
+// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED         0x05
+// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH              0x06
+// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO              0x07
+// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER        0x08
+// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT    0x09
 extern const char *c_dap_chain_datum_token_emission_type_str[];
 
 /// TDS op funcs
@@ -264,4 +283,4 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
 
 // 256 TYPE
-bool dap_chain_datum_token_emission_is_type_256(uint8_t a_em_type);
+bool dap_chain_datum_token_is_type_256(uint8_t a_type);

@@ -298,6 +298,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
     pthread_rwlock_t * l_events_rwlock = &PVT(a_dag)->events_rwlock;
     switch (l_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_256_TOKEN_DECL:
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
             return dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);

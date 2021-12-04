@@ -59,7 +59,9 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
         case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
         case TX_ITEM_TYPE_TOKEN: return "TX_ITEM_TYPE_TOKEN";
+        case TX_ITEM_TYPE_256_TOKEN: return "TX_ITEM_TYPE_256_TOKEN"; // 256
         case TX_ITEM_TYPE_TOKEN_EXT: return "TX_ITEM_TYPE_TOKEN_EXT";
+        case TX_ITEM_TYPE_256_TOKEN_EXT: return "TX_ITEM_TYPE_256_TOKEN_EXT"; // 256
         case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
         case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND";
         case TX_ITEM_TYPE_256_OUT_COND: return "TX_ITEM_TYPE_256_OUT_COND"; // 256
