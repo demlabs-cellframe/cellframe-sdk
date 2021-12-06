@@ -22,10 +22,10 @@
 */
 #include <stddef.h>
 #include "string.h"
+#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_hash.h"
-#include "dap_chain_net.h"
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 
