@@ -3357,6 +3357,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
+    l_tx->header.ts_created = time(NULL);
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     // create items
     dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(&l_emission_hash, l_ticker);
@@ -3368,7 +3369,6 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
 
-    // Base tx don't need signature items but let it be
     if (l_certs){
         // Sign all that we have with certs
         for(size_t i = 0; i < l_certs_size; i++) {

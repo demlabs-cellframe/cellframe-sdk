@@ -37,11 +37,12 @@
 
 
 //Service direction
-typedef enum dap_chain_net_srv_order_direction{
+enum dap_chain_net_srv_order_direction{
     SERV_DIR_BUY = 1,
     SERV_DIR_SELL = 2,
     SERV_DIR_UNDEFINED = 0
-} dap_chain_net_srv_order_direction_t;
+};
+typedef byte_t dap_chain_net_srv_order_direction_t;
 
 
 typedef struct dap_chain_net_srv_abstract
