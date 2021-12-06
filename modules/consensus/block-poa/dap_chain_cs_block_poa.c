@@ -22,6 +22,7 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
@@ -32,7 +33,6 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs_block_poa.h"
-#include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_global_db.h"
