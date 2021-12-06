@@ -225,7 +225,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
         PVT(l_poa)->prev_callback_created(a_chain,a_chain_net_cfg);
 
     const char * l_sign_cert_str = NULL;
-    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","sign-cert") ) != NULL ) {
+    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","blocks-sign-cert") ) != NULL ) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
@@ -280,7 +280,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     dap_chain_cs_block_poa_t *l_poa = DAP_CHAIN_CS_BLOCK_POA(a_blocks);
     dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     if (!l_poa_pvt->sign_key) {
-        log_it(L_WARNING, "Can't sign block with sign-cert in [block-poa] section");
+        log_it(L_WARNING, "Can't sign block with blocks-sign-cert in [block-poa] section");
         return 0;
     }
     if (!a_block_ptr || !(*a_block_ptr) || !a_block_size) {
