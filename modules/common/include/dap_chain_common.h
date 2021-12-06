@@ -189,7 +189,7 @@ typedef union {
     serv_unit_enum_t enm;
 } dap_chain_net_srv_price_unit_uid_t;
 
-typedef enum dap_chain_tx_item_type {
+enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
     TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction: outputs
     TX_ITEM_TYPE_OUT_EXT = 0x11,
@@ -203,7 +203,8 @@ typedef enum dap_chain_tx_item_type {
 
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff
-} dap_chain_tx_item_type_t;
+};
+typedef byte_t dap_chain_tx_item_type_t;
 
 
 typedef struct dap_chain_receipt{
