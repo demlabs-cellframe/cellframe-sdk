@@ -13,6 +13,6 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_DHT_SRC} ${DAP_CHAIN_DHT_HDR})
 
 target_link_libraries(${PROJECT_NAME}  ${DAP_CHAIN_DHT_LIBS})
 
-target_include_directories(dap_chain_dht INTERFACE .)
+target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
