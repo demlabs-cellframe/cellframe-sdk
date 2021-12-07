@@ -284,6 +284,44 @@ void dap_dns_server_stop() {
     DAP_DELETE(s_dns_server);
 }
 
-
-
-
+/**
+ * @brief dap_dns_resolve_hostname
+ * @param str
+ * @return
+ */
+dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
+{
+    log_it(L_DEBUG, "DNS parser retrieve hostname %s", str);
+    dap_chain_net_t *l_net = dap_chain_net_by_name(str);
+    if (l_net == NULL) {
+        uint16_t l_nets_count;
+        dap_chain_net_t **l_nets = dap_chain_net_list(&l_nets_count);
+        if (!l_nets_count) {
+            log_it(L_WARNING, "No chain network present");
+            return NULL;
+        }
+        l_net = l_nets[rand() % l_nets_count];
+    }
+    // get nodes list from global_db
+    dap_global_db_obj_t *l_objs = NULL;
+    size_t l_nodes_count = 0;
+    // read all node
+    l_objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes, &l_nodes_count);
+    if (!l_nodes_count || !l_objs)
+        return NULL;
+    dap_chain_node_info_t *l_node_candidate;
+    for (int i = 0; i < 5; i++) {
+        // 5 tryes for non empty address & port
+        size_t l_node_num = rand() % l_nodes_count;
+        l_node_candidate = (dap_chain_node_info_t *)l_objs[l_node_num].value;
+        if (l_node_candidate->hdr.ext_addr_v4.s_addr && l_node_candidate->hdr.ext_port)
+            break;
+    }
+    if (!l_node_candidate->hdr.ext_addr_v4.s_addr || !l_node_candidate->hdr.ext_port)
+        return NULL;
+    dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+    memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
+    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+    log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(l_node_info->hdr.ext_addr_v4));
+    return l_node_info;
+}

@@ -77,28 +77,25 @@ int dap_datum_mempool_init(void)
  * @param a_datum
  * @return
  */
-int dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain )
+char *dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain )
 {
     if( a_datum == NULL){
         log_it(L_ERROR, "NULL datum trying to add in mempool");
-        return -1;
+        return NULL;
     }
-    int ret =0;
-
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(a_datum->data , a_datum->header.data_size, &l_key_hash);
-
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
     if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (byte_t *) a_datum, dap_chain_datum_size(a_datum)
             ,l_gdb_group)) {
         log_it(L_NOTICE, "Datum with data's hash %s was placed in mempool", l_key_str);
-    }else{
+    } else {
         log_it(L_WARNING, "Can't place data's hash %s was placed in mempool", l_key_str);
+        DAP_DELETE(l_key_str);
     }
     DAP_DELETE(l_gdb_group);
-    DAP_DELETE(l_key_str);
-    return ret;
+    return l_key_str;
 }
 
 /**
@@ -167,7 +164,9 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     dap_hash_fast_t * l_ret = DAP_NEW_Z(dap_hash_fast_t);
     dap_hash_fast(l_tx, l_tx_size, l_ret);
     DAP_DELETE(l_tx);
-    if(dap_chain_mempool_datum_add (l_datum, a_chain) == 0){
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, a_chain);
+    if (l_hash_str) {
+        DAP_DELETE(l_hash_str);
         return l_ret;
     }else{
         DAP_DELETE( l_datum );

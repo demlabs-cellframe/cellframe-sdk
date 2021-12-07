@@ -30,7 +30,8 @@
 #include "dap_config.h"
 #include "uthash.h"
 
-typedef int cmdfunc_t(int argc, char ** argv, void *arg_func, char **str_reply);
+typedef int cmdfunc_ex_t(int argc, char ** argv, void *arg_func, char **str_reply);
+typedef int cmdfunc_t(int argc, char ** argv, char **str_reply);
 
 typedef void cmd_item_func_override_log_cmd_call(const char*);
 
@@ -41,7 +42,10 @@ typedef struct dap_chain_node_cmd_item_func_overrides{
 
 typedef struct dap_chain_node_cmd_item{
     char name[32]; /* User printable name of the function. */
-    cmdfunc_t *func; /* Function to call to do the job. */
+    union {
+        cmdfunc_t *func; /* Function to call to do the job. */
+        cmdfunc_ex_t *func_ex; /* Function with additional arg to call to do the job. */
+    };
     void *arg_func; /* additional argument of function*/
     char *doc; /* Documentation for this function.  */
     char *doc_ex; /* Full documentation for this function.  */
@@ -59,7 +63,11 @@ long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout);
  */
 dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_get_first();
 dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name);
-void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex);
+void dap_chain_node_cli_cmd_item_create_ex(const char * a_name, cmdfunc_ex_t *a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex);
+DAP_STATIC_INLINE void dap_chain_node_cli_cmd_item_create(const char * a_name, cmdfunc_t *a_func, const char *a_doc, const char *a_doc_ex)
+{
+    dap_chain_node_cli_cmd_item_create_ex(a_name, (cmdfunc_ex_t *)(void *)a_func, NULL, a_doc, a_doc_ex);
+}
 void dap_chain_node_cli_cmd_item_apply_overrides(const char * a_name, const dap_chain_node_cmd_item_func_overrides_t * a_overrides);
 
 void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...);

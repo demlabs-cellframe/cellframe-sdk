@@ -35,7 +35,7 @@
   */
 typedef struct dap_chain_tx_out_ext{
     struct {
-        dap_chain_tx_item_type_t type : 8; // Transaction item type - should be TX_ITEM_TYPE_OUT_EXT
+        dap_chain_tx_item_type_t type;     // Transaction item type - should be TX_ITEM_TYPE_OUT_EXT
         uint64_t value;                    // Number of Datoshis ( DAP/10^9 ) to be transfered
     } header;                              // Only header's hash is used for verification
     dap_chain_addr_t addr;                 // Address to transfer to

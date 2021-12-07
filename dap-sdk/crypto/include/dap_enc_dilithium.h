@@ -29,7 +29,7 @@ size_t dap_enc_dilithium_calc_signature_unserialized_size(void);
 
 static inline size_t dap_enc_dilithium_calc_signagture_size(dilithium_signature_t* a_sign)
 {
-    return sizeof(size_t) + sizeof(dilithium_kind_t) + a_sign->sig_len + sizeof(unsigned long long);
+    return sizeof(uint64_t) * 2 + sizeof(uint32_t) + a_sign->sig_len;
 }
 
 uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t *a_sign_out);

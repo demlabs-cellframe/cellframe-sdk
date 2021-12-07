@@ -43,9 +43,8 @@
  * @param a_hashes_count
  * @return
  */
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum
-                                                ,dap_enc_key_t * a_key ,
-                                                dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t * a_event_size)
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum,
+                                                      dap_enc_key_t * a_key, dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t * a_event_size)
 {
     assert(a_event_size);
     size_t l_hashes_size = sizeof(*a_hashes)*a_hashes_count;
@@ -59,26 +58,24 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
     l_event_new->header.cell_id.uint64 = a_cell_id.uint64;
     l_event_new->header.chain_id.uint64 = a_chain_id.uint64;
     l_event_new->header.hash_count = a_hashes_count;
-    *a_event_size = sizeof (l_event_new->header);
 
     if ( l_hashes_size ){
         memcpy(l_event_new->hashes_n_datum_n_signs, a_hashes, l_hashes_size );
-        *a_event_size += l_hashes_size;
     }
 
     memcpy(l_event_new->hashes_n_datum_n_signs+l_hashes_size, a_datum,l_datum_size );
-    *a_event_size += l_datum_size;
 
     if ( a_key ){
-        dap_sign_t * l_sign = dap_sign_create(a_key,l_event_new,
-                                                          l_hashes_size+  sizeof(l_event_new->header)
-                                                          + l_datum_size ,0);
+        dap_sign_t * l_sign = dap_sign_create(a_key, l_event_new, l_event_size, 0);
         if ( l_sign ){
             size_t l_sign_size = dap_sign_get_size(l_sign);
-            l_event_new = (dap_chain_cs_dag_event_t* )DAP_REALLOC(l_event_new,l_event_size+l_sign_size );
+            l_event_new = (dap_chain_cs_dag_event_t *)DAP_REALLOC(l_event_new, l_event_size + l_sign_size );
             memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
             l_event_size += l_sign_size;
-            *a_event_size = l_event_size;
+            if (a_event_size)
+                *a_event_size = l_event_size;
+            l_event_new = (dap_chain_cs_dag_event_t* )DAP_REALLOC(l_event_new, l_event_size);
+            memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
             l_event_new->header.signs_count++;
             log_it(L_INFO,"Created event size %zd, signed with sign size %zd", l_event_size, l_sign_size);
             DAP_DELETE(l_sign);

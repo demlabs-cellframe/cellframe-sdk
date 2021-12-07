@@ -11,13 +11,13 @@
 
 #define LOG_TAG "dap_chain_global_db_remote"
 
-// default time of node address expired in hours
+// Default time of a node address expired in hours
 #define NODE_TIME_EXPIRED_DEFAULT 720
 
 /**
- * @brief Sets current node adress
+ * @brief Sets a current node adress.
  * @param a_address a current node adress
- * @param a_net_name a net name
+ * @param a_net_name a net name string
  * @return True if success, otherwise false
  */
 static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name, time_t a_expire_time)
@@ -39,7 +39,11 @@ static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name
 }
 
 /**
- * Set addr for current node and no expire time
+ * @brief Sets an adress of a current node and no expire time.
+ * 
+ * @param a_address an adress of a current node
+ * @param a_net_name a net name string
+ * @return Returns true if siccessful, otherwise false
  */
 bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name )
 {
@@ -47,7 +51,11 @@ bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name )
 }
 
 /**
- * Set addr for current node and expire time
+ * @brief Sets an adress of a current node and expire time.
+ * 
+ * @param a_address an adress of a current node
+ * @param a_net_name a net name string
+ * @return Returns true if siccessful, otherwise false
  */
 bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
 {
@@ -55,10 +63,11 @@ bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
     return dap_db_set_cur_node_addr_common(a_address,a_net_name,l_cur_time);
 }
 
-
-
 /**
- * Get addr for current node
+ * @brief Gets an adress of current node by a net name.
+ * 
+ * @param a_net_name a net name string
+ * @return Returns an adress if successful, otherwise 0.
  */
 uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 {
@@ -105,7 +114,12 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 }
 
 /**
- * Set last id for remote node
+ * @brief Sets last id of a remote node.
+ * 
+ * @param a_node_addr a node adress
+ * @param a_id id
+ * @param a_group a group name string
+ * @return Returns true if successful, otherwise false.
  */
 bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group)
 {
@@ -119,7 +133,11 @@ bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_grou
 }
 
 /**
- * Get last id for remote node
+ * @brief Gets last id of a remote node.
+ * 
+ * @param a_node_addr a node adress
+ * @param a_group a group name string
+ * @return Returns id if successful, otherwise 0.
  */
 uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 {
@@ -138,7 +156,13 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 }
 
 /**
- * Set last hash for chain for remote node
+ * @brief Sets the last hash of a remote node.
+ * 
+ * @param a_node_addr a node adress
+ * @param a_chain a pointer to the chain stucture
+ * @param a_hash a 
+ * @return true 
+ * @return false 
  */
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
@@ -147,7 +171,11 @@ bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap
 }
 
 /**
- * Get last hash for chain for remote node
+ * @brief Gets the last hash of a remote node.
+ * 
+ * @param a_node_addr a node adress
+ * @param a_chain a pointer to a chain structure
+ * @return Returns a hash if successful.
  */
 dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain)
 {
@@ -159,6 +187,12 @@ dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_cha
     return (dap_chain_hash_fast_t *)l_hash;
 }
 
+/**
+ * @brief Gets a size of an object.
+ * 
+ * @param store_obj a pointer to the object
+ * @return Returns the size.
+ */
 static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 {
     size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(time_t)
@@ -168,10 +202,10 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 }
 
 /**
- * serialization
- * @param a_old_pkt an object for multiplexation
- * @param a_new_pkt an object for multiplexation
- * @return NULL in case of an error
+ * @brief Multiples data into a_old_pkt structure from a_new_pkt structure.
+ * @param a_old_pkt a pointer to the old object
+ * @param a_new_pkt a pointer to the new object 
+ * @return Returns a pointer to the multiple object
  */
 dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt)
 {
@@ -188,6 +222,13 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, d
     return a_old_pkt;
 }
 
+/**
+ * @brief Changes id in a packed structure.
+ * 
+ * @param a_pkt a pointer to the packed structure
+ * @param a_id id
+ * @return (none)
+ */
 void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
 {
     uint16_t l_gr_len;
@@ -197,9 +238,9 @@ void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
 }
 
 /**
- * serialization
- * @param a_store_obj an object for serialization
- * @return NULL in case of an error
+ * @brief Serializes an object into a packed structure.
+ * @param a_store_obj a pointer to the object to be serialized
+ * @return Returns a pointer to the packed sructure if successful, otherwise NULL.
  */
 dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj)
 {
@@ -235,12 +276,13 @@ dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj)
     assert(l_offset == l_data_size_out);
     return l_pkt;
 }
-/**
- * deserialization
- * @param store_obj_count[out] count of the output structures store_obj
- * @return NULL in case of an error*
- */
 
+/**
+ * @brief Deserializes some objects from a packed structure into an array of objects.
+ * @param pkt a pointer to the serialized packed structure
+ * @param store_obj_count[out] a number of deserialized objects in the array
+ * @return Returns a pointer to the first object in the array, if successful; otherwise NULL.
+ */
 dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, size_t *store_obj_count)
 {
     if(!pkt || pkt->data_size < 1)

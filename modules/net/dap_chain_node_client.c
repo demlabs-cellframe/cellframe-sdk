@@ -508,6 +508,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
  */
 static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_request, dap_chain_node_client_t * a_node_client)
 {
+    UNUSED(a_node_client);
     int l_ret = 0;
     if(!a_request)
         return -1;
@@ -531,7 +532,7 @@ static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_reque
     char *l_group = NULL;
     dap_chain_net_t * l_net = dap_chain_net_by_id(a_request->net_id);
     if(l_net) {
-        l_group = dap_strdup_printf("%s.orders-test-stat", l_net->pub.gdb_groups_prefix);
+        l_group = dap_strdup_printf("local.%s.orders-test-stat", l_net->pub.gdb_groups_prefix);
     }
     if(l_group) {
         dap_store_obj_t *l_obj = dap_chain_global_db_get_last(l_group);

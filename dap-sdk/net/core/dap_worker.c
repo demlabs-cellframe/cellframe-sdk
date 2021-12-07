@@ -436,23 +436,24 @@ void *dap_worker_thread(void *arg)
                         if ( l_cur->callbacks.accept_callback){
                             struct sockaddr l_remote_addr;
                             socklen_t l_remote_addr_size= sizeof (l_remote_addr);
-                            int l_remote_socket= accept(l_cur->socket ,&l_remote_addr,&l_remote_addr_size);
+                            SOCKET l_remote_socket = accept(l_cur->socket ,&l_remote_addr,&l_remote_addr_size);
 #ifdef DAP_OS_WINDOWS
                             /*u_long l_mode = 1;
                             ioctlsocket((SOCKET)l_remote_socket, (long)FIONBIO, &l_mode); */
                             // no need, since l_cur->socket is already NBIO
-
-                            int l_errno = WSAGetLastError();
-                            if (l_errno == WSAEWOULDBLOCK)
-                                continue;
-                            else {
-                                log_it(L_WARNING,"Can't accept on socket %zu, WSA errno: %d",l_cur->socket, l_errno);
-                                break;
+                            if (l_remote_socket == INVALID_SOCKET) {
+                                int l_errno = WSAGetLastError();
+                                if (l_errno == WSAEWOULDBLOCK)
+                                    continue;
+                                else {
+                                    log_it(L_WARNING,"Can't accept on socket %"DAP_FORMAT_SOCKET", WSA errno: %d", l_cur->socket, l_errno);
+                                    break;
+                                }
                             }
 #else
                             fcntl( l_remote_socket, F_SETFL, O_NONBLOCK);
                             int l_errno = errno;
-                            if ( l_remote_socket == -1 ){
+                            if ( l_remote_socket == INVALID_SOCKET ){
                                 if( l_errno == EAGAIN || l_errno == EWOULDBLOCK){// Everything is good, we'll receive ACCEPT on next poll
                                     continue;
                                 }else{
