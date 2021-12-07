@@ -67,6 +67,7 @@ static const char * g_net_state_str[]={
 typedef struct dap_chain_net{
     struct {
         dap_chain_net_id_t id;
+        dap_chain_cell_id_t cell_id; // Cell where the node is connected to. {{0}} if not celled(sharded) blockchain
         char * name;
         char * gdb_groups_prefix;
         char * gdb_nodes_aliases;

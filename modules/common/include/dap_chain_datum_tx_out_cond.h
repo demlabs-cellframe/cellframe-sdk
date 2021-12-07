@@ -58,10 +58,7 @@ typedef struct dap_chain_tx_out_cond {
         /// Condition subtype
         dap_chain_tx_out_cond_subtype_t subtype;
         /// Number of Datoshis ( DAP/10^9 ) to be reserver for service
-        union {
-            uint64_t value;
-            uint256_t value_256;
-        };
+        uint64_t value;
         /// When time expires this output could be used only by transaction owner
         dap_chain_time_t ts_expires;
     } header;
@@ -75,10 +72,7 @@ typedef struct dap_chain_tx_out_cond {
             /// Price unit thats used to check price max
             dap_chain_net_srv_price_unit_uid_t unit;
             /// Maximum price per unit
-            union {
-                uint64_t unit_price_max_datoshi;
-                uint256_t unit_price_max_datoshi_256;
-            };
+            uint64_t unit_price_max_datoshi;
         } srv_pay;
         struct {
             // Service uid that only could be used for this outout
@@ -88,10 +82,7 @@ typedef struct dap_chain_tx_out_cond {
             // Chain network to change to
             dap_chain_net_id_t net_id;
             // Total amount of datoshi to change to
-            union {
-                uint64_t value;
-                uint256_t value_256;
-            };
+            uint64_t value;
         } srv_xchange;
         struct {
             // Service uid that only could be used for this outout

@@ -8,22 +8,6 @@ add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 #set(BUILD_CRYPTO_TESTS ON)
 
 set(DAPSDK_MODULES "")
-
-if(NOT DEFINED ${CELLFRAME_MODULES})
-    include (cmake/OS_Detection.cmake)
-    if (WIN32)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(BSD)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(DARWIN)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(ANDROID)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(LINUX)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange modules-dynamic srv-vpn")
-    endif()
-endif()
-
 message("Cellframe modules: ${CELLFRAME_MODULES}")
 
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")

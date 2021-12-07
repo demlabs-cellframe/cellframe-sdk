@@ -33,7 +33,6 @@
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_hash.h"
-#include "dap_chain_cell.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_driver.h"
@@ -71,7 +70,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Verify new event in gdb
 static size_t s_chain_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
 
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id);
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain);
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t * a_chain,
         dap_chain_atom_ptr_t a, size_t a_atom_size);
 
@@ -177,11 +176,12 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_gdb_priv->chain = a_chain;
 
     if(!l_gdb_priv->celled){
-        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016"DAP_UINT64_FORMAT_X,l_net->pub.name,
+        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016llX",l_net->pub.name,
                                                   a_chain->id.uint64);
     }else {
-        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016"DAP_UINT64_FORMAT_X".cell-%016"DAP_UINT64_FORMAT_X,l_net->pub.name,
-                                                  a_chain->id.uint64, a_chain->cells->id.uint64);
+        // here is not work because dap_chain_net_load() not yet fully performed
+        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016llX.cell-%016llX",l_net->pub.name,
+                                                  a_chain->id.uint64, l_net->pub.cell_id.uint64);
     }
 
     // Add group prefix that will be tracking all changes
@@ -349,15 +349,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             if (dap_chain_ledger_token_load(a_chain->ledger,l_token, l_datum->header.data_size))
                 return ATOM_REJECT;
         }break;
-        case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: // 256
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) l_datum->data;
-            l_token_em->hdr.type_value_256 = l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
-                                                true : false;
-            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_token_em, l_datum->header.data_size))
+            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_datum->data, l_datum->header.data_size))
                 return ATOM_REJECT;
         }break;
-        case DAP_CHAIN_DATUM_256_TX: // 256
         case DAP_CHAIN_DATUM_TX:{
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
             // No trashhold herr, don't save bad transactions to base
@@ -421,7 +416,7 @@ static size_t s_chain_callback_atom_get_static_hdr_size()
  * @param a_chain dap_chain_t a_chain
  * @return dap_chain_atom_iter_t* 
  */
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain)
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_iter->chain = a_chain;

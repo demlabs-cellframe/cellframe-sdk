@@ -354,13 +354,14 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size)
 {
     dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POA(a_dag), NULL);
+    dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     if ( PVT(l_poa)->events_sign_cert == NULL){
         log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");
         return  NULL;
     }
     if ( s_seed_mode || (a_hashes && a_hashes_count) ){
-        dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new( a_dag->chain->id, a_dag->chain->cells->id, a_datum,
+        dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new( a_dag->chain->id, l_net->pub.cell_id, a_datum,
                                                          PVT(l_poa)->events_sign_cert->enc_key, a_hashes, a_hashes_count,a_event_size);
         return l_event;
     }else

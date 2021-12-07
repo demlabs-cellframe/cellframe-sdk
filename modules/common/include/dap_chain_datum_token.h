@@ -210,12 +210,11 @@ typedef struct dap_chain_datum_token_emission{
     struct  {
         uint8_t version;
         uint8_t type; // Emission Type
-        bool type_value_256;
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         dap_chain_addr_t address; // Emission holder's address
         union {
             uint64_t value;
-            uint256_t value_256;
+            uint256_t value256;
         };
         uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
     } DAP_ALIGN_PACKED hdr;
@@ -226,10 +225,7 @@ typedef struct dap_chain_datum_token_emission{
             uint64_t lock_time;
         } DAP_ALIGN_PACKED type_presale;
         struct {
-            union {
-                uint64_t value_start;// Default value. Static if nothing else is defined
-                uint256_t value_start_256;
-            };
+            uint64_t value_start;// Default value. Static if nothing else is defined
             char value_change_algo_codename[32];
         } DAP_ALIGN_PACKED type_atom_owner;
         struct {
