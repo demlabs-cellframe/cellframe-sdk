@@ -209,9 +209,9 @@ void dap_chain_delete(dap_chain_t * a_chain)
  * @param a_atom_size
  * @return
  */
-dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size)
+dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size, dap_chain_cell_id_t a_cell_id)
 {
-    dap_chain_atom_iter_t * l_iter = a_chain->callback_atom_iter_create(a_chain);
+    dap_chain_atom_iter_t * l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id);
     dap_chain_atom_ptr_t l_ret = a_chain->callback_atom_find_by_hash(l_iter, a_atom_hash, a_atom_size);
     a_chain->callback_atom_iter_delete(l_iter);
     return l_ret;
@@ -580,10 +580,10 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
  * @param a_atom_hash
  * @return
  */
-bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_atom_hash)
+bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_atom_hash, dap_chain_cell_id_t a_cell_id)
 {
     bool l_ret = false;
-    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
+    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id);
     dap_chain_atom_ptr_t * l_lasts_atom;
     size_t l_lasts_atom_count=0;
     size_t* l_lasts_atom_size =NULL;
