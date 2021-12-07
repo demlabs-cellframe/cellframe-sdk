@@ -22,7 +22,7 @@ set(DAPSDK_MODULES "core crypto network-core network-client network-server")
 
 #add_subdirectory(cellframe-sdk/dap-sdk)
 #enable_testing()
-add_subdirectory(test)
+#add_subdirectory(test)
 
 
 if ( NOT ( TARGET dap_core ) )
