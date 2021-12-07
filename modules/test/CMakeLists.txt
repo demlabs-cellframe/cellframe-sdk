@@ -6,4 +6,4 @@ project(dap_test)
 
 add_library(${PROJECT_NAME} STATIC dap_test.h dap_test.c dap_test_generator.h dap_test_generator.c)
 
-target_include_directories(dap_test INTERFACE .)
+target_include_directories(${PROJECT_NAME} INTERFACE .)

@@ -58,6 +58,6 @@ size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet);
 dap_pkey_t * dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet,uint32_t a_key_idx);
 dap_enc_key_t * dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t a_key_idx);
 
-uint128_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id, const char *a_token_ticker);
+uint256_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id, const char *a_token_ticker);
 
 int dap_chain_wallet_save_file( dap_chain_wallet_t * a_wallet);

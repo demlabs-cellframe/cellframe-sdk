@@ -39,3 +39,4 @@ typedef struct dap_chain_tx_out{
     } header; /// Only header's hash is used for verification
     dap_chain_addr_t addr; ////
 } DAP_ALIGN_PACKED dap_chain_tx_out_t;
+
