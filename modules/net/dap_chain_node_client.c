@@ -452,8 +452,10 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 dap_chain_node_addr_t * l_node_addr = dap_chain_net_get_cur_addr(l_net);
                 log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
                 l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-                dap_chain_net_set_state(l_net, dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE
-                                                                                      ? NET_STATE_ONLINE : NET_STATE_OFFLINE);
+                if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
+                    dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
+                else
+                    dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
 #ifndef _WIN32
                 pthread_cond_broadcast(&l_node_client->wait_cond);
 #else

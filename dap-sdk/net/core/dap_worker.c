@@ -654,7 +654,7 @@ void *dap_worker_thread(void *arg)
                             l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
                                                 l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
 #ifdef DAP_OS_WINDOWS
-							dap_events_socket_set_writable_unsafe(l_cur,false);
+                            //dap_events_socket_set_writable_unsafe(l_cur,false); // enabling this will break windows server replies
 							l_errno = WSAGetLastError();
 #else
 							l_errno = errno;

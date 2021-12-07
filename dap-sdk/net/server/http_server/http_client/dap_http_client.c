@@ -645,7 +645,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
         }
         if ( a_http_client->out_content_type[0] ) {
             dap_http_header_add(&a_http_client->out_headers,"Content-Type",a_http_client->out_content_type);
-            log_it(L_DEBUG,"output: Content-Type = '%s'",a_http_client->out_content_type);
+            log_it(L_DEBUG,"Output: Content-Type = '%s'",a_http_client->out_content_type);
         }
         if ( a_http_client->out_content_length ) {
             dap_snprintf(buf,sizeof(buf),"%zu",a_http_client->out_content_length);
