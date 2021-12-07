@@ -1,5 +1,5 @@
 project(dap_chain_btc_rpc C)
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 
 add_definitions ("-D_GNU_SOURCE")
 add_definitions("-Dfpic")

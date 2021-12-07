@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project (dap_chain_crypto)
   
 file(GLOB DAP_CHAIN_CRYPTO_SRCS *.c)
