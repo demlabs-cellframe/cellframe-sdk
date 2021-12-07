@@ -2493,7 +2493,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
     l_arg_index=dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-type", &l_type_str);
 
     if (!l_type_str || !strcmp(l_type_str, "private")) {
-        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE;
+        l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE; // 256
     } else {
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_update can't accept type \"%s\"", l_type_str);
         return -22;
@@ -2556,19 +2556,15 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
                         return -10;
                     }
                 } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
-                    // uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
-                    // uint256_t l_param_value = GET_256_FROM_128(dap_chain_balance_scan(l_arg_param)); // 256
-                    // dap_tsd_t * l_tsd = dap_tsd_create_scalar(
-                    //                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_tsd_t * l_tsd;
-                    if ( dap_chain_datum_token_is_old(l_type) ) {
-                        uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
+                    if ( dap_chain_datum_token_is_old(l_type) ) { // 128
+                        uint128_t l_param_value = dap_chain_balance_scan(l_arg_param); 
                         l_tsd = dap_tsd_create_scalar(
                                                 DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     } else {  // 256
-                        uint256_t l_param_value = GET_256_FROM_128(dap_chain_balance_scan(l_arg_param)); // 256
+                        uint256_t l_param_value = GET_256_FROM_128(dap_chain_balance_scan(l_arg_param)); 
                         l_tsd = dap_tsd_create_scalar(
-                                                DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
+                                                DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256, l_param_value);
                     }
                     dap_list_append( l_tsd_list, l_tsd);
                     l_tsd_total_size+= dap_tsd_size( l_tsd);
@@ -2658,7 +2654,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 
             // Create new datum token
             l_datum_token_update = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)+l_tsd_total_size ) ;
-            l_datum_token_update->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE;
+            l_datum_token_update->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE; // 256
             dap_snprintf(l_datum_token_update->ticker, sizeof(l_datum_token_update->ticker), "%s", l_ticker);
             l_datum_token_update->header_private_update.tsd_total_size = l_tsd_total_size;
 
@@ -2880,14 +2876,15 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                          l_str_flags++;
                      }
                 } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
-                    // uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
                     dap_tsd_t * l_tsd;
                     if ( l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ) { // 256
                         uint256_t l_param_value = GET_256_FROM_128(dap_chain_balance_scan(l_arg_param));
-                        l_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
-                    } else {
+                        l_tsd = dap_tsd_create_scalar(
+                                        DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256, l_param_value);
+                    } else { // 128
                         uint128_t l_param_value = dap_chain_balance_scan(l_arg_param);
-                        l_tsd = dap_tsd_create_scalar(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
+                        l_tsd = dap_tsd_create_scalar(
+                                        DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     }
                     dap_list_append( l_tsd_list, l_tsd);
                     l_tsd_total_size+= dap_tsd_size( l_tsd);
@@ -2980,11 +2977,16 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     continue;
                 }
                 switch (l_tsd->type){
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: {
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256: { // 256
                         char *l_balance;
-                        l_balance = l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL 
-                                        ? dap_chain_u256tostr(dap_tsd_get_scalar(l_tsd, uint256_t))
-                                        : dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint128_t));
+                        l_balance = dap_chain_u256tostr(dap_tsd_get_scalar(l_tsd, uint256_t));
+                        log_it(L_DEBUG,"== TOTAL_SUPPLY: %s", l_balance);
+                        DAP_DELETE(l_balance);
+                    }
+                    break;
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 128
+                        char *l_balance;
+                        l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint128_t));
                         log_it(L_DEBUG,"== TOTAL_SUPPLY: %s", l_balance);
                         DAP_DELETE(l_balance);
                     }
@@ -3423,15 +3425,23 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         if(dap_chain_global_db_gr_set(dap_strdup(l_emission_hash_str_new), (uint8_t *) l_datum_emission, l_datum_emission_size
                 , l_gdb_group_mempool_emission)) {
             if(!dap_strcmp(l_hash_out_type,"hex"))
-                str_reply_tmp = dap_strdup_printf("Datum emission %s is placed in datum pool", l_emission_hash_str_new);
+                str_reply_tmp = dap_strdup_printf("Datum%s emission %s is placed in datum pool",
+                            (l_datum_emission->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ? " 256_t" : ""),
+                            l_emission_hash_str_new);
             else
-                str_reply_tmp = dap_strdup_printf("Datum emission %s is placed in datum pool", l_emission_hash_str_base58);
+                str_reply_tmp = dap_strdup_printf("Datum%s emission %s is placed in datum pool",
+                            (l_datum_emission->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ? " 256_t" : ""),
+                            l_emission_hash_str_base58);
         }
         else {
             if(!dap_strcmp(l_hash_out_type,"hex"))
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum emission %s is not placed in datum pool", l_emission_hash_str_new);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum%s emission %s is not placed in datum pool",
+                            (l_datum_emission->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ? " 256_t" : ""),
+                            l_emission_hash_str_new);
             else
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum emission %s is not placed in datum pool", l_emission_hash_str_base58);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum%s emission %s is not placed in datum pool", 
+                            (l_datum_emission->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ? " 256_t" : ""),
+                            l_emission_hash_str_base58);
             DAP_DEL_Z(l_emission_hash_str_new);
             l_emission_hash_str = NULL;
             DAP_DEL_Z(l_emission_hash_str_base58);
@@ -3518,16 +3528,28 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     if(dap_chain_global_db_gr_set(dap_strdup(l_tx_hash_str), l_datum_tx, l_datum_tx_size
             , l_gdb_group_mempool_base_tx)) {
         if(!dap_strcmp(l_hash_out_type,"hex"))
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp, l_tx_hash_str);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum%s tx %s is placed in datum pool ",
+                            str_reply_tmp,
+                            (l_datum_tx->header.type_id == DAP_CHAIN_DATUM_256_TX ? " 256_t" : ""),
+                            l_tx_hash_str);
         else
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum tx %s is placed in datum pool ", str_reply_tmp, l_tx_hash_str_base58);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum%s tx %s is placed in datum pool ",
+                            str_reply_tmp,
+                            (l_datum_tx->header.type_id == DAP_CHAIN_DATUM_256_TX ? " 256_t" : ""),
+                            l_tx_hash_str_base58);
         DAP_DEL_Z(l_tx_hash_str);
         DAP_DEL_Z(l_tx_hash_str_base58);
     } else {
         if(!dap_strcmp(l_hash_out_type,"hex"))
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum tx %s is not placed in datum pool ", str_reply_tmp, l_emission_hash_str);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum%s tx %s is not placed in datum pool ",
+                            str_reply_tmp,
+                            (l_datum_tx->header.type_id == DAP_CHAIN_DATUM_256_TX ? " 256_t" : ""),
+                            l_emission_hash_str);
         else
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum tx %s is not placed in datum pool ", str_reply_tmp, l_tx_hash_str_base58);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum%s tx %s is not placed in datum pool ",
+                            str_reply_tmp,
+                            (l_datum_tx->header.type_id == DAP_CHAIN_DATUM_256_TX ? " 256_t" : ""),
+                            l_tx_hash_str_base58);
         DAP_DEL_Z(l_tx_hash_str);
         DAP_DEL_Z(l_tx_hash_str_base58);
 

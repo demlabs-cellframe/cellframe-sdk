@@ -500,11 +500,12 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
             }break;
 
             // set total supply
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:{
-                a_token_item->total_supply = dap_chain_datum_token_is_old(a_token->type) 
-                            ? GET_256_FROM_128(dap_tsd_get_scalar(l_tsd,uint64_t)) 
-                            : dap_tsd_get_scalar(l_tsd,uint256_t); // 256
-                // a_token_item->total_supply = GET_256_FROM_128(dap_tsd_get_scalar(l_tsd,uint64_t));
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256:{ // 256
+                a_token_item->total_supply = dap_tsd_get_scalar(l_tsd,uint256_t); 
+            }break;
+
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:{ // 128
+                a_token_item->total_supply = GET_256_FROM_128(dap_tsd_get_scalar(l_tsd,uint128_t));
             }break;
 
             // Set total signs count value to set to be valid

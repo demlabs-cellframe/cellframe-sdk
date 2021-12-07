@@ -196,7 +196,8 @@ static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS         0x0002
 
 // Total supply limits
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY        0x0003
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY        0x0003 // 128
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256    0x0026 // 256
 
 // Set total signs count value to set to be valid
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID   0x0004
