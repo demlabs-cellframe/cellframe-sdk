@@ -518,7 +518,7 @@ size_t dap_chain_global_db_driver_count(const char *a_group, uint64_t id)
  * @param a_group_mask the group mask string
  * @return If successful, returns the list of group names, otherwise NULL.
  */
-dap_list_t* dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_mask)
+dap_list_t *dap_chain_global_db_driver_get_groups_by_mask(const char *a_group_mask)
 {
     dap_list_t *l_list = NULL;
     if(s_drv_callback.get_groups_by_mask)
