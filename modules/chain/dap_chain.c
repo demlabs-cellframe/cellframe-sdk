@@ -248,18 +248,21 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "token")) {
         return CHAIN_TYPE_TOKEN;
     }
+    // if(!dap_strcmp(a_type_str, "token_256")) {
+    //     return CHAIN_TYPE_256_TOKEN;
+    // }
     if(!dap_strcmp(a_type_str, "emission")) {
         return CHAIN_TYPE_EMISSION;
     }
-    if(!dap_strcmp(a_type_str, "emission_256")) {
-        return CHAIN_TYPE_256_EMISSION;
-    }
+    // if(!dap_strcmp(a_type_str, "emission_256")) {
+    //     return CHAIN_TYPE_256_EMISSION;
+    // }
     if(!dap_strcmp(a_type_str, "transaction")) {
         return CHAIN_TYPE_TX;
     }
-    if(!dap_strcmp(a_type_str, "transaction_256")) {
-        return CHAIN_TYPE_256_TX;
-    }
+    // if(!dap_strcmp(a_type_str, "transaction_256")) {
+    //     return CHAIN_TYPE_256_TX;
+    // }
     if(!dap_strcmp(a_type_str, "ca")) {
         return CHAIN_TYPE_CA;
     }
@@ -274,19 +277,22 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
  */
 static uint16_t s_datum_type_from_str(const char *a_type_str)
 {
+    // if(!dap_strcmp(a_type_str, "token")) { // old
+    //     return DAP_CHAIN_DATUM_TOKEN_DECL;
+    // }
     if(!dap_strcmp(a_type_str, "token")) {
-        return DAP_CHAIN_DATUM_TOKEN_DECL;
+        return DAP_CHAIN_DATUM_256_TOKEN_DECL;
     }
+    // if(!dap_strcmp(a_type_str, "emission")) {
+    //     return DAP_CHAIN_DATUM_TOKEN_EMISSION;
+    // }
     if(!dap_strcmp(a_type_str, "emission")) {
-        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
-    }
-    if(!dap_strcmp(a_type_str, "emission_256")) {
         return DAP_CHAIN_DATUM_256_TOKEN_EMISSION;
     }
+    // if(!dap_strcmp(a_type_str, "transaction")) {
+    //     return DAP_CHAIN_DATUM_TX;
+    // }
     if(!dap_strcmp(a_type_str, "transaction")) {
-        return DAP_CHAIN_DATUM_TX;
-    }
-    if(!dap_strcmp(a_type_str, "transaction_256")) {
         return DAP_CHAIN_DATUM_256_TX;
     }
     return DAP_CHAIN_DATUM_CUSTOM;
@@ -301,15 +307,17 @@ static uint16_t s_datum_type_from_str(const char *a_type_str)
 static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
 {
     switch (a_type) {
-    case CHAIN_TYPE_TOKEN:
-        return DAP_CHAIN_DATUM_TOKEN_DECL;
+    case CHAIN_TYPE_TOKEN: 
+    //    return DAP_CHAIN_DATUM_TOKEN_DECL;
+    // case CHAIN_TYPE_256_TOKEN: 
+        return DAP_CHAIN_DATUM_256_TOKEN_DECL;
     case CHAIN_TYPE_EMISSION:
-        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
-    case CHAIN_TYPE_256_EMISSION:
+    //    return DAP_CHAIN_DATUM_TOKEN_EMISSION;
+    // case CHAIN_TYPE_256_EMISSION: // 256
         return DAP_CHAIN_DATUM_256_TOKEN_EMISSION;
     case CHAIN_TYPE_TX:
-        return DAP_CHAIN_DATUM_TX;
-    case CHAIN_TYPE_256_TX:
+    //    return DAP_CHAIN_DATUM_TX;
+    // case CHAIN_TYPE_256_TX: // 256
         return DAP_CHAIN_DATUM_256_TX;
     default:
         return DAP_CHAIN_DATUM_CUSTOM;

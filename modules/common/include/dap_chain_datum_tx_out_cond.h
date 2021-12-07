@@ -57,10 +57,7 @@ typedef struct dap_chain_tx_out_cond {
         /// Condition subtype
         dap_chain_tx_out_cond_subtype_t subtype : 8;
         /// Number of Datoshis ( DAP/10^9 ) to be reserver for service
-        union {
-            uint64_t value;
-            uint256_t value_256;
-        };
+        uint64_t value;
         /// When time expires this output could be used only by transaction owner
         dap_chain_time_t ts_expires;
     } header;
@@ -74,10 +71,7 @@ typedef struct dap_chain_tx_out_cond {
             /// Price unit thats used to check price max
             dap_chain_net_srv_price_unit_uid_t unit;
             /// Maximum price per unit
-            union {
-                uint64_t unit_price_max_datoshi;
-                uint256_t unit_price_max_datoshi_256;
-            };
+            uint64_t unit_price_max_datoshi;
         } srv_pay;
         struct {
             // Service uid that only could be used for this outout
@@ -87,10 +81,7 @@ typedef struct dap_chain_tx_out_cond {
             // Chain network to change to
             dap_chain_net_id_t net_id;
             // Total amount of datoshi to change to
-            union {
-                uint64_t value;
-                uint256_t value_256;
-            };
+            uint64_t value;
         } srv_xchange;
         struct {
             // Service uid that only could be used for this outout
@@ -106,3 +97,60 @@ typedef struct dap_chain_tx_out_cond {
     uint32_t params_size; // Condition parameters size
     uint8_t params[]; // condition parameters, pkey, hash or smth like this
 } DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
+
+
+/**
+ * @struct dap_chain_tx_out
+ * @brief Transaction item out_cond
+ */
+typedef struct dap_chain_256_tx_out_cond {
+    struct {
+        /// Transaction item type
+        dap_chain_tx_item_type_t item_type :8;
+        /// Condition subtype
+        dap_chain_tx_out_cond_subtype_t subtype : 8;
+        /// Number of Datoshis ( DAP/10^9 ) to be reserver for service
+        uint256_t value;
+        /// When time expires this output could be used only by transaction owner
+        dap_chain_time_t ts_expires;
+    } header;
+    union {
+        /// Structure with specific for service pay condition subtype
+        struct {
+            /// Public key hash that could use this conditioned outout
+            dap_chain_hash_fast_t pkey_hash;
+            /// Service uid that only could be used for this outout
+            dap_chain_net_srv_uid_t srv_uid;
+            /// Price unit thats used to check price max
+            dap_chain_net_srv_price_unit_uid_t unit;
+            /// Maximum price per unit
+            uint256_t unit_price_max_datoshi;
+        } srv_pay;
+        struct {
+            // Service uid that only could be used for this outout
+            dap_chain_net_srv_uid_t srv_uid;
+            // Token ticker to change to
+            char token[DAP_CHAIN_TICKER_SIZE_MAX];
+            // Chain network to change to
+            dap_chain_net_id_t net_id;
+            // Total amount of datoshi to change to
+            uint256_t value;
+        } srv_xchange;
+        struct {
+            // Service uid that only could be used for this outout
+            dap_chain_net_srv_uid_t srv_uid;
+            // Stake holder address
+            dap_chain_addr_t hldr_addr;
+            // Fee address
+            dap_chain_addr_t fee_addr;
+            // Fee value in percent
+            long double fee_value;
+        } srv_stake;
+    } subtype;
+    uint32_t params_size; // Condition parameters size
+    uint8_t params[]; // condition parameters, pkey, hash or smth like this
+} DAP_ALIGN_PACKED dap_chain_256_tx_out_cond_t;
+
+
+
+

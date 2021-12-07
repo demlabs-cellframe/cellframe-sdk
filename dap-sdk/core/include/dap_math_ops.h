@@ -143,8 +143,7 @@ static inline bool EQUAL_256(uint256_t a_256_bit, uint256_t b_256_bit){
 }
 
 static inline bool IS_ZERO_256(uint256_t a_256_bit){
-
-    return a_256_bit.lo == (uint128_t)0;
+    return EQUAL_256(a_256_bit, uint256_0);//a_256_bit.lo == (uint128_t)0;
 }
 
 

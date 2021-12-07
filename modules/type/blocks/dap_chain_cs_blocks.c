@@ -624,16 +624,17 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
     for(size_t i=0; i<a_block_cache->datum_count; i++){
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
         switch (l_datum->header.type_id) {
+            case DAP_CHAIN_DATUM_256_TOKEN_DECL:
             case DAP_CHAIN_DATUM_TOKEN_DECL: {
                 dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
                 l_ret=dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
             } break;
             case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: // 256
             case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-                dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) l_datum->data;
-                l_token_em->hdr.type_value_256 = l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
-                                                true : false;
-                l_ret=dap_chain_ledger_token_emission_load(a_ledger, l_token_em, l_datum->header.data_size);
+                // dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) l_datum->data;
+                // l_token_em->hdr.type_value_256 = l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
+                //                                true : false;
+                l_ret=dap_chain_ledger_token_emission_load(a_ledger, (dap_chain_datum_token_emission_t*) l_datum->data, l_datum->header.data_size);
             } break;
             case DAP_CHAIN_DATUM_TX: {
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
