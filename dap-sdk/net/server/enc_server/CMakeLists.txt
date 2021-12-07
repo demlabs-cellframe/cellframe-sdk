@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project(dap_enc_server C)
   
 file(GLOB DAP_ENC_SERVER_SRCS FILES *.c)

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project (dap_app_cli)
 
 file(GLOB DAP_APP_CLI_SRCS *.c)

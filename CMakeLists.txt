@@ -1,11 +1,11 @@
 project(cellframe-sdk C)
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "3.0-8")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
-#set(BUILD_CRYPTO_TESTS ON)
+set(BUILD_CRYPTO_TESTS ON)
 
 if(NOT DEFINED ${CELLFRAME_MODULES})
     include (cmake/OS_Detection.cmake)
