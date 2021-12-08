@@ -829,7 +829,6 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     assert(l_net_pvt);
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) {
         l_net_pvt->state = NET_STATE_OFFLINE;
-        return true;
     }
 
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);

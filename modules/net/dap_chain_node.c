@@ -240,7 +240,7 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
         dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_IN, NULL);
         // Is not it a base transaction?
-        if (l_tx_in && !dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
+        if (l_tx_in && dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
             if (a_role.enums == NODE_ROLE_ROOT) {
                 return -1;
             }

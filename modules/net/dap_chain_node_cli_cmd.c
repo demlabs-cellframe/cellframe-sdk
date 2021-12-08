@@ -4016,12 +4016,12 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
 
     char *l_str_ret = NULL;
     if(l_tx_hash_str) {
-        l_str_ret = dap_strdup_printf("history for tx hash %s:\n%s", l_tx_hash_str,
+        l_str_ret = dap_strdup_printf("History for tx hash %s:\n%s", l_tx_hash_str,
                 l_str_out ? l_str_out : " empty");
     }
     else if(l_addr) {
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        l_str_ret = dap_strdup_printf("history for addr %s:\n%s", l_addr_str,
+        l_str_ret = dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
                 l_str_out ? l_str_out : " empty");
         DAP_DELETE(l_addr_str);
     }
