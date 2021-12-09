@@ -1467,6 +1467,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     log_it (L_WARNING, "Lost %zd bytes, buffer overflow", l_vpn_pkt->header.op_data.data_size - l_ret);
                     l_srv_session->stats.bytes_sent_lost += (l_vpn_pkt->header.op_data.data_size - l_ret);
                     l_srv_session->stats.packets_sent_lost++;
+                }
             } break;
 
             // for server only

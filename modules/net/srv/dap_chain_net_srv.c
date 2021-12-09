@@ -539,10 +539,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             dap_chain_net_srv_vpn_cdb_server_list_check_orders = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
             int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders ? dap_chain_net_srv_vpn_cdb_server_list_check_orders(l_net) : -5;
             if (l_init_res >= 0) {
-                dap_string_append_printf(l_string_ret, "Orders recheck stated\n");
+                dap_string_append_printf(l_string_ret, "Orders recheck started\n");
                 ret = 0;
             } else {
-                dap_string_append_printf(l_string_ret, "Orders recheck not stated, code %d\n", l_init_res);
+                dap_string_append_printf(l_string_ret, "Orders recheck not started, code %d\n", l_init_res);
                 ret = -10;
             }
 
