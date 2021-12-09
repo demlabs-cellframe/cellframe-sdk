@@ -251,10 +251,10 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a
 
 
 /**
- * @brief 
+ * @brief
  * get automatic mempool processing, when network config contains mempool_auto_types for specific datums
- * @return true 
- * @return false 
+ * @return true
+ * @return false
  */
 bool dap_chain_node_mempool_autoproc_init()
 {

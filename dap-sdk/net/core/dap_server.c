@@ -292,7 +292,6 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
         l_callbacks.error_callback = a_callbacks->error_callback;
     }
 
-// if we have poll exclusive
 #ifdef DAP_EVENTS_CAPS_EPOLL
     for(size_t l_worker_id = 0; l_worker_id < dap_events_worker_get_count() ; l_worker_id++){
         dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
@@ -305,6 +304,7 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
             // Prepare for multi thread listening
             l_es->ev_base_flags = EPOLLIN;
 #ifdef EPOLLEXCLUSIVE
+            // if we have poll exclusive
             l_es->ev_base_flags |= EPOLLET | EPOLLEXCLUSIVE;
 #endif
             l_es->_inheritor = a_server;

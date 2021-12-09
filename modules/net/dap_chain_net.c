@@ -269,17 +269,17 @@ int dap_chain_net_init()
     dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
         "net list [chains -n <chain net name>]"
             "\tList all networks or list all chains in selected network"
-        "net -net <chain net name> [-mode update|all] go < online | offline >\n"
+        "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
         "net -net <chain net name> get status\n"
             "\tLook at current status\n"
         "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
-        "net -net <chain net name> [-mode update|all] sync < all | gdb | chains >\n"
+        "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
             "\tSyncronyze gdb, chains or everything\n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> link < list | add | del | info | establish >\n"
+        "net -net <chain net name> link {list | add | del | info | establish}\n"
             "\tList, add, del, dump or establish links\n"
         "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
             "\tAdd certificate to list of authority cetificates in GDB group\n"
@@ -288,7 +288,7 @@ int dap_chain_net_init()
         "net -net <chain net name> ca del -hash <cert hash> [-H hex|base58(default)]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
         "net -net <chain net name> ledger reload\n"
-            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"                                        );
+            "\tPurge the cache of chain net ledger and recalculate it from chain file\n");
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
 
     // maximum number of connections to other nodes
@@ -354,7 +354,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     pthread_mutex_lock( &PVT(a_net)->state_mutex_cond); // Preventing call of state_go_to before wait cond will be armed
     // set flag for sync
     PVT(a_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
-    PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;
+    //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
 #ifndef _WIN32
     pthread_cond_signal( &PVT(a_net)->state_proc_cond );
 #else
@@ -363,6 +363,11 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     pthread_mutex_unlock( &PVT(a_net)->state_mutex_cond);
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc, a_net);
     return 0;
+}
+
+dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
+{
+    return PVT(a_net)->state_target;
 }
 
 /**
@@ -825,7 +830,6 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     assert(l_net_pvt);
     if (l_net_pvt->state_target == NET_STATE_OFFLINE) {
         l_net_pvt->state = NET_STATE_OFFLINE;
-        return true;
     }
 
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
@@ -1237,7 +1241,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             l_net = dap_chain_net_by_name(l_net_str);
 
             if (l_net){
-                dap_string_append(l_string_ret,"Chains:\n ");
+                dap_string_append(l_string_ret,"Chains:\n");
                 dap_chain_t * l_chain = l_net->pub.chains;
                 while (l_chain) {
                     dap_string_append_printf(l_string_ret, "\t%s:\n", l_chain->name );
@@ -1246,7 +1250,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             }else{
                 dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
                 int l_net_i = 0;
-                dap_string_append(l_string_ret,"Networks:\n ");
+                dap_string_append(l_string_ret,"Networks:\n");
                 HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
                     l_net = l_net_item->chain_net;
                     dap_string_append_printf(l_string_ret, "\t%s:\n", l_net_item->name);
@@ -1380,7 +1384,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             else if(strcmp(l_go_str, "sync") == 0) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" resynchronizing",
                                                   l_net->pub.name);
-                dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_GDB);
+                dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
             }
 
         } else if ( l_get_str){
@@ -1459,6 +1463,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "SYNC_CHAINS state requested to state machine. Current state: %s\n",
                                                   c_net_states[ PVT(l_net)->state] );
+                // TODO set PVT flag to exclude GDB sync
                 dap_chain_net_sync_chains(l_net);
 
             } else {
