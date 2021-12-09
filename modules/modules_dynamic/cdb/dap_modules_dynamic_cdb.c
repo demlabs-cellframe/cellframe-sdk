@@ -33,6 +33,7 @@
 
 static const char * s_default_path_modules = "var/modules";
 static void *s_cdb_handle = NULL;
+static bool s_cdb_was_init = false;
 
 void dap_modules_dynamic_close_cdb()
 {
@@ -40,10 +41,13 @@ void dap_modules_dynamic_close_cdb()
         dlclose(s_cdb_handle);
         s_cdb_handle = NULL;
     }
+    s_cdb_was_init = false;
 }
 
 void *dap_modules_dynamic_get_cdb_func(const char *a_func_name)
 {
+    if (!s_cdb_was_init)
+        return NULL;
     char l_lib_path[MAX_PATH] = {'\0'};
     void *l_ref_func = NULL;
     //  find func from dynamic library
@@ -84,5 +88,6 @@ int dap_modules_dynamic_load_cdb(dap_http_t * a_server)
         log_it(L_ERROR,"dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init returns %d", l_init_res);
         return -3;
     }
+    s_cdb_was_init = true;
     return 0;
 }

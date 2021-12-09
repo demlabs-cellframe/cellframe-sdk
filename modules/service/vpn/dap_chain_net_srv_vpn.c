@@ -204,7 +204,6 @@ static int s_tun_attach_queue(int fd);
 
 
 static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * a_ch_vpn_info, const void * a_data, size_t a_data_size);
-static size_t s_stream_session_esocket_send(dap_chain_net_srv_stream_session_t * l_srv_session, dap_events_socket_t * l_es, const void * a_data, size_t a_data_size );
 static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, ch_vpn_pkt_t * l_pkt_out);
 
 
@@ -1460,7 +1459,15 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun =  l_es ? l_es->_inheritor : NULL;
                 //ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
-                s_stream_session_esocket_send(l_srv_session, l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
+                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size + sizeof(l_vpn_pkt->header));
+                if (l_ret == l_vpn_pkt->header.op_data.data_size) {
+                    l_srv_session->stats.packets_sent++;
+                    l_srv_session->stats.bytes_sent += l_ret;
+                } else if (l_ret > 0) {
+                    log_it (L_WARNING, "Lost %zd bytes, buffer overflow", l_vpn_pkt->header.op_data.data_size - l_ret);
+                    l_srv_session->stats.bytes_sent_lost += (l_vpn_pkt->header.op_data.data_size - l_ret);
+                    l_srv_session->stats.packets_sent_lost++;
+                }
             } break;
 
             // for server only
@@ -1468,67 +1475,24 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_chain_net_srv_vpn_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
                 // Unsafely send it
-                size_t l_ret = s_stream_session_esocket_send(l_srv_session, l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
-                if( l_ret)
+                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size + sizeof(l_vpn_pkt->header));
+                if(l_ret > 0) {
                     s_update_limits (a_ch, l_srv_session, l_usage,l_ret );
+                    if (l_ret == l_vpn_pkt->header.op_data.data_size) {
+                        l_srv_session->stats.packets_sent++;
+                        l_srv_session->stats.bytes_sent += l_ret;
+                    } else {
+                        log_it (L_WARNING, "Lost %zd bytes, buffer overflow", l_vpn_pkt->header.op_data.data_size - l_ret);
+                        l_srv_session->stats.bytes_sent_lost += (l_vpn_pkt->header.op_data.data_size - l_ret);
+                        l_srv_session->stats.packets_sent_lost++;
+                    }
+                }
+
             } break;
             default:
                 log_it(L_WARNING, "Can't process SF type 0x%02x", l_vpn_pkt->header.op_code);
         }
     }
-}
-
-/**
- * @brief s_stream_session_esocket_send
- * @param l_srv_session
- * @param l_es
- * @param a_data
- * @param a_data_size
- */
-static size_t s_stream_session_esocket_send(dap_chain_net_srv_stream_session_t * l_srv_session, dap_events_socket_t * l_es, const void * a_data, size_t a_data_size )
-{
-    // Lets first try to send it directly with write() call
-    ssize_t l_direct_wrote;
-    size_t l_ret = 0;
-    if (l_es->type == DESCRIPTOR_TYPE_FILE )
-        l_direct_wrote =  write(l_es->fd, a_data, a_data_size);
-    else
-        l_direct_wrote =  send(l_es->fd, a_data, a_data_size, MSG_DONTWAIT | MSG_NOSIGNAL);
-    int l_errno = errno;
-
-    size_t l_data_left_to_send=0;
-    if (l_direct_wrote > 0){
-        l_ret += l_direct_wrote;
-        if((size_t) l_direct_wrote < a_data_size){ // If we sent not all - lets put tail in buffer
-           l_data_left_to_send = a_data_size-l_direct_wrote;
-        }else{
-            l_srv_session->stats.packets_sent++;
-            l_srv_session->stats.bytes_sent+= l_direct_wrote;
-        }
-    }else{
-        l_data_left_to_send = a_data_size;
-        l_direct_wrote=0;
-        if(l_errno != EAGAIN && l_errno != EWOULDBLOCK){
-            char l_errbuf[128];
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it(L_WARNING,"Error with data sent: \"%s\" code %d",l_errbuf, l_errno);
-        }
-    }
-
-    if(l_data_left_to_send){
-        //if ( dap_events_socket_write_unsafe( l_es, a_data +l_direct_wrote,l_data_left_to_send
-        //                                     ) < l_data_left_to_send ){
-            //log_it(L_WARNING,"Loosing data, probably buffers are overfilling, lost %zd bytes", l_data_left_to_send);
-            log_it(L_WARNING,"Loosing data, lost %zd bytes", l_data_left_to_send);
-            l_srv_session->stats.bytes_sent_lost += l_data_left_to_send;
-            l_srv_session->stats.packets_sent_lost++;
-        /*}else{
-            l_ret += l_data_left_to_send;
-            l_srv_session->stats.packets_sent++;
-            l_srv_session->stats.bytes_sent+= l_direct_wrote;
-        }*/
-    }
-    return l_ret;
 }
 
 /**
