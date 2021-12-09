@@ -354,11 +354,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     pthread_mutex_lock( &PVT(a_net)->state_mutex_cond); // Preventing call of state_go_to before wait cond will be armed
     // set flag for sync
     PVT(a_net)->flags |= F_DAP_CHAIN_NET_GO_SYNC;
-<<<<<<< HEAD
-    PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;
-=======
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
->>>>>>> hotfix-5268
 #ifndef _WIN32
     pthread_cond_signal( &PVT(a_net)->state_proc_cond );
 #else
@@ -369,14 +365,11 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     return 0;
 }
 
-<<<<<<< HEAD
-=======
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state_target;
 }
 
->>>>>>> hotfix-5268
 /**
  * @brief set s_srv_callback_notify
  * 
