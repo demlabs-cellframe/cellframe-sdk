@@ -450,17 +450,19 @@ int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store
         for(size_t i = 0; i < a_store_count; i++) {
             dap_store_obj_t *l_store_obj_cur = a_store_obj + i;
             assert(l_store_obj_cur);
+            char *l_cur_key = dap_strdup(l_store_obj_cur->key);
             int l_ret_tmp = s_drv_callback.apply_store_obj(l_store_obj_cur);
             if(l_ret_tmp == 1) {
-                log_it(L_INFO, "item is missing (may be already deleted) %s/%s\n", l_store_obj_cur->group, l_store_obj_cur->key);
+                log_it(L_INFO, "Item is missing (may be already deleted) %s/%s\n", l_store_obj_cur->group, l_cur_key);
                 l_ret = 1;
-                break;
             }
             if(l_ret_tmp < 0) {
-                log_it(L_ERROR, "Can't write item %s/%s (code %d)\n", l_store_obj_cur->group, l_store_obj_cur->key, l_ret_tmp);
+                log_it(L_ERROR, "Can't write item %s/%s (code %d)\n", l_store_obj_cur->group, l_cur_key, l_ret_tmp);
                 l_ret -= 1;
-                break;
             }
+            DAP_DELETE(l_cur_key);
+            if (l_ret)
+                break;
         }
 
     if(a_store_count > 1 && s_drv_callback.transaction_end)
