@@ -330,13 +330,9 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
  */
 static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_timestamp)
 {
-    dap_store_obj_t store_data;
-    memset(&store_data, 0, sizeof(dap_store_obj_t));
+    dap_store_obj_t store_data = {};
     store_data.type = 'a';
     store_data.key = a_key;
-    // no data
-    store_data.value = NULL;
-    store_data.value_len = 0;
     // group = parent group + '.del'
     store_data.group = dap_strdup_printf("%s.del", a_group);
     store_data.timestamp = a_timestamp;
@@ -621,7 +617,7 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
     unlock();
     if(l_res >= 0) {
         // add to Del group
-        global_db_gr_del_add(dap_strdup(a_key), store_data.group, store_data.timestamp);
+        global_db_gr_del_add(dap_strdup(a_key), store_data.group, time(NULL));
     }
     // do not add to history if l_res=1 (already deleted)
     if (!l_res) {
