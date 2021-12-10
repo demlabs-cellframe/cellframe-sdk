@@ -1178,7 +1178,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                                         if (!dap_sign_verify_size(l_sign, l_emission_size)) {
                                             break;
                                         }
-                                        if (dap_sign_verify(l_sign, &l_emission->hdr, sizeof(l_emission))) {
+                                        if (dap_sign_verify(l_sign, &l_emission->hdr, sizeof(l_emission)) == 1) {
                                             l_aproves++;
                                             break;
                                         }
@@ -1193,13 +1193,13 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                             if(s_debug_more)
                                 log_it(L_WARNING, "Emission of %"DAP_UINT64_FORMAT_U" datoshi of %s:%s is wrong: only %u valid aproves when %u need",
                                    l_emission->hdr.value, a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid );
-                            ret = -1;
+                            ret = -3;
                         }
                     }
                 }else{
                     if(s_debug_more)
                         log_it(L_WARNING,"Can't find token declaration %s:%s thats pointed in token emission datum", a_ledger->net_name, l_emission->hdr.ticker);
-                    ret = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
+                    ret = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN;
                 }
             }break;
             default:{}

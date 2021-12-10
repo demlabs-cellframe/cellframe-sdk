@@ -225,7 +225,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     return node_info;
 }*/
 
-int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a_role, dap_chain_datum_t *a_datum)
+int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum)
 {
     bool l_need_process = false;
     for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
@@ -236,16 +236,7 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a
     }
     if (!l_need_process)
         return -1;
-    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
-        dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_IN, NULL);
-        // Is not it a base transaction?
-        if (l_tx_in && !dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
-            if (a_role.enums == NODE_ROLE_ROOT) {
-                return -1;
-            }
-        }
-    }
+    // Auth signs for emissions already verified by this callback
     return (int)a_chain->callback_add_datums(a_chain, &a_datum, 1);
 }
 
@@ -292,7 +283,7 @@ bool dap_chain_node_mempool_autoproc_init()
                         if (!l_objs[i].value_len)
                             continue;
                         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-                        if (dap_chain_node_mempool_process(l_chain, l_role, l_datum) >= 0) {
+                        if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
                             // Delete processed objects
                             dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
                         }
@@ -332,8 +323,7 @@ void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, c
         char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool(l_chain);
         if (!strcmp(a_group, l_gdb_group_str)) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
-            dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-            if (dap_chain_node_mempool_process(l_chain, l_role, l_datum) >= 0) {
+            if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
                 dap_chain_global_db_gr_del(dap_strdup(a_key), l_gdb_group_str);
             }
         }

@@ -202,7 +202,6 @@ void *dap_worker_thread(void *arg)
 
         time_t l_cur_time = time( NULL);
         for(size_t n = 0; n < l_sockets_max; n++) {
-
             bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
@@ -280,8 +279,8 @@ void *dap_worker_thread(void *arg)
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif
-            if(!l_cur) {
-                log_it(L_ERROR, "dap_events_socket NULL");
+            if(!l_cur || (l_cur->worker && l_cur->worker != l_worker)) {
+                log_it(L_WARNING, "dap_events_socket was destroyed earlier");
                 continue;
             }
             if(s_debug_reactor) {
