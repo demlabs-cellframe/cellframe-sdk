@@ -161,10 +161,10 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
 
 
 /**
- * @brief dap_client_pvt_delete
+ * @brief dap_client_pvt_delete_unsafe
  * @param a_client_pvt
  */
-void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt)
+void dap_client_pvt_delete_unsafe(dap_client_pvt_t * a_client_pvt)
 {
     assert(a_client_pvt);
 

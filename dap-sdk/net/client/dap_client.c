@@ -194,7 +194,7 @@ void dap_client_set_auth_cert_unsafe(dap_client_t * a_client, dap_cert_t *a_cert
 void dap_client_delete_unsafe(dap_client_t * a_client)
 {
     if ( DAP_CLIENT_PVT(a_client)->refs_count ==0 ){
-        dap_client_pvt_delete( DAP_CLIENT_PVT(a_client) );
+        dap_client_pvt_delete_unsafe( DAP_CLIENT_PVT(a_client) );
         pthread_mutex_destroy(&a_client->mutex);
         DAP_DEL_Z(a_client)
     } else
@@ -240,7 +240,7 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
     if (!l_client || l_client->_internal != l_client_pvt) {
         log_it(L_WARNING,"Client is NULL or corrupted, why? Refs %u", l_client_pvt->refs_count);
         if ( l_client_pvt->refs_count ==0 ){
-            dap_client_pvt_delete( l_client_pvt );
+            dap_client_pvt_delete_unsafe(l_client_pvt);
         } else
             l_client_pvt->is_to_delete = true;
         return;
