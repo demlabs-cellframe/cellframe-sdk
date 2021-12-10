@@ -29,7 +29,7 @@
 #include <dlfcn.h>
 #endif
 
-#define LOG_TAG "dap_http"
+#define LOG_TAG "dap_modules_dynamic"
 
 static const char * s_default_path_modules = "var/modules";
 static void *s_cdb_handle = NULL;
