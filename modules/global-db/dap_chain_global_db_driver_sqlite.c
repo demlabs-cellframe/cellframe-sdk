@@ -191,14 +191,14 @@ sqlite3* dap_db_driver_sqlite_open(const char *a_filename_utf8, int a_flags, cha
 {
     sqlite3 *l_db = NULL;
 
-    int l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_NOMUTEX, NULL);
+    int l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_FULLMUTEX, NULL);
     // if unable to open the database file
     if(l_rc == SQLITE_CANTOPEN) {
         log_it(L_WARNING,"No database on path %s, creating one from scratch", a_filename_utf8);
         if(l_db)
             sqlite3_close(l_db);
         // try to create database
-        l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_NOMUTEX| SQLITE_OPEN_CREATE, NULL);
+        l_rc = sqlite3_open_v2(a_filename_utf8, &l_db, a_flags | SQLITE_OPEN_FULLMUTEX| SQLITE_OPEN_CREATE, NULL);
     }
 
     if(l_rc != SQLITE_OK) {
@@ -608,16 +608,11 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
     if(a_store_obj->type == 'a') {
         if(!a_store_obj->key)
             return -1;
-        //dap_chain_hash_fast_t l_hash;
-        //dap_hash_fast(a_store_obj->value, a_store_obj->value_len, &l_hash);
-
-        char *l_blob_hash = "";//dap_db_driver_get_string_from_blob((uint8_t*) &l_hash, sizeof(dap_chain_hash_fast_t));
         char *l_blob_value = dap_db_driver_get_string_from_blob(a_store_obj->value, (int)a_store_obj->value_len);
         DAP_DEL_Z(a_store_obj->value);
         //add one record
-        l_query = sqlite3_mprintf("insert into '%s' values(NULL, '%s', x'%s', '%lld', x'%s')",
-                                   l_table_name, a_store_obj->key, l_blob_hash, a_store_obj->timestamp, l_blob_value);
-        //dap_db_driver_sqlite_free(l_blob_hash);
+        l_query = sqlite3_mprintf("insert into '%s' values(NULL, '%s', x'', '%lld', x'%s')",
+                                   l_table_name, a_store_obj->key, a_store_obj->timestamp, l_blob_value);
         dap_db_driver_sqlite_free(l_blob_value);
     }
     else if (a_store_obj->type == 'd') {
