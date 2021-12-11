@@ -755,7 +755,7 @@ void *dap_worker_thread(void *arg)
                         break;
                         case DESCRIPTOR_TYPE_PIPE:
                         case DESCRIPTOR_TYPE_FILE:
-                            l_bytes_sent = write(l_cur->socket, (char *) (l_cur->buf_out), l_cur->buf_out_size );
+                            l_bytes_sent = write(l_cur->fd, (char *) (l_cur->buf_out), l_cur->buf_out_size );
                             l_errno = errno;
                         break;
                         default:

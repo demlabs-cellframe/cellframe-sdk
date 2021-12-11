@@ -76,7 +76,7 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
         if(memcmp(sig_start,c_dap_stream_sig,sizeof(c_dap_stream_sig))==0){
             ret = (dap_stream_pkt_t *)sig_start;
             if (length_left < sizeof(dap_stream_ch_pkt_hdr_t)) {
-                log_it(L_ERROR, "Too small packet size %zu", length_left);
+                //log_it(L_ERROR, "Too small packet size %zu", length_left); // it's not an error, just random case
                 ret = NULL;
                 break;
             }
