@@ -522,6 +522,7 @@ static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, 
     dap_events_socket_t * l_es = dap_events_socket_wrap_no_add(a_worker->events ,
                                           a_tun_fd, &l_s_callbacks);
     l_es->type = DESCRIPTOR_TYPE_FILE;
+    l_es->no_close = true;
     dap_events_socket_assign_on_worker_mt(l_es, a_worker);
 
     return l_es;
@@ -1459,7 +1460,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_chain_net_srv_vpn_tun_socket_t *l_tun =  l_es ? l_es->_inheritor : NULL;
                 //ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
-                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size + sizeof(l_vpn_pkt->header));
+                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
                 if (l_ret == l_vpn_pkt->header.op_data.data_size) {
                     l_srv_session->stats.packets_sent++;
                     l_srv_session->stats.bytes_sent += l_ret;
@@ -1475,17 +1476,26 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_chain_net_srv_vpn_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
                 // Unsafely send it
-                size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size + sizeof(l_vpn_pkt->header));
-                if(l_ret > 0) {
-                    s_update_limits (a_ch, l_srv_session, l_usage,l_ret );
-                    if (l_ret == l_vpn_pkt->header.op_data.data_size) {
+                size_t l_size_to_send = l_vpn_pkt->header.op_data.data_size;
+                int l_ret = write(l_tun->es->fd, l_vpn_pkt->data, l_size_to_send); //dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt, l_size_to_send);
+                if (l_ret > 0) {
+                    s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
+                    if (l_ret == l_size_to_send) {
                         l_srv_session->stats.packets_sent++;
                         l_srv_session->stats.bytes_sent += l_ret;
                     } else {
-                        log_it (L_WARNING, "Lost %zd bytes, buffer overflow", l_vpn_pkt->header.op_data.data_size - l_ret);
-                        l_srv_session->stats.bytes_sent_lost += (l_vpn_pkt->header.op_data.data_size - l_ret);
+                        log_it (L_WARNING, "Lost %zd bytes, buffer overflow", l_size_to_send - l_ret);
+                        l_srv_session->stats.bytes_sent_lost += (l_size_to_send - l_ret);
                         l_srv_session->stats.packets_sent_lost++;
                     }
+                } else {
+                    int l_errno = errno;
+                    if (l_errno != EAGAIN && l_errno != EWOULDBLOCK) {
+                        char l_errbuf[128];
+                        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                        log_it(L_WARNING,"Error with data sent: \"%s\" code %d",l_errbuf, l_errno);
+                    }
+
                 }
 
             } break;
@@ -1544,9 +1554,11 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg)
 {
     (void) arg;
-    s_tun_sockets[a_es->worker->id] = NULL;
-    dap_events_socket_remove_and_delete_unsafe(s_tun_sockets_queue_msg[a_es->worker->id],false);
-    log_it(L_NOTICE,"Destroyed TUN event socket");
+    if (a_es->worker) {
+        s_tun_sockets[a_es->worker->id] = NULL;
+        dap_events_socket_remove_and_delete_unsafe(s_tun_sockets_queue_msg[a_es->worker->id],false);
+        log_it(L_NOTICE,"Destroyed TUN event socket");
+    }
 }
 
 /**
