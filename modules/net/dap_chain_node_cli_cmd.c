@@ -4016,12 +4016,12 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
 
     char *l_str_ret = NULL;
     if(l_tx_hash_str) {
-        l_str_ret = dap_strdup_printf("history for tx hash %s:\n%s", l_tx_hash_str,
+        l_str_ret = dap_strdup_printf("History for tx hash %s:\n%s", l_tx_hash_str,
                 l_str_out ? l_str_out : " empty");
     }
     else if(l_addr) {
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        l_str_ret = dap_strdup_printf("history for addr %s:\n%s", l_addr_str,
+        l_str_ret = dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
                 l_str_out ? l_str_out : " empty");
         DAP_DELETE(l_addr_str);
     }
@@ -4171,54 +4171,35 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
         return -1;
     }
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-
-    // NB! [TEMPFIX] Temporarily backward-compatible until migration to new databases locations (after updates)
-    const char *l_db_driver = dap_config_get_item_str(g_config, "resources", "dap_global_db_driver");
-    char l_db_concat[80];
-    dap_sprintf(l_db_concat, "%s/gdb-%s", l_db_path, l_db_driver);
-
-    struct dirent *d;
-    DIR *dir = opendir(l_db_concat);
+    DIR *dir = opendir(l_db_path);
     if (!dir) {
-        // External "if" to check out old or new path.
-        log_it(L_WARNING, "Probably db directory is in old path. Checking out.");
-        dir = opendir(l_db_path);
-        if (!dir) {
-            log_it(L_ERROR, "Can't open db directory");
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open db directory");
-            return -1;
-        }
+        log_it(L_ERROR, "Can't open db directory");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open db directory");
+        return -1;
     }
     char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
     dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
-    /*FILE *l_json_file = fopen(l_path, "a");
-    if (!l_json_file) {
-        log_it(L_ERROR, "Can't open file %s", l_path);
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open specified file");
-        return -1;
-    }*/
+
     struct json_object *l_json = json_object_new_array();
-    for (d = readdir(dir); d; d = readdir(dir)) {
-        if (!dap_strcmp(d->d_name, ".") || !dap_strcmp(d->d_name, "..")) {
-            continue;
-        }
+    dap_list_t *l_groups_list = dap_chain_global_db_driver_get_groups_by_mask("*");
+    for (dap_list_t *l_list = l_groups_list; l_list; l_list = dap_list_next(l_list)) {
         size_t l_data_size = 0;
-        pdap_store_obj_t l_data = dap_chain_global_db_obj_gr_get(NULL, &l_data_size, d->d_name);
-        log_it(L_INFO, "Exporting group %s, number of records: %zu", d->d_name, l_data_size);
+        char *l_group_name = (char *)l_list->data;
+        pdap_store_obj_t l_data = dap_chain_global_db_obj_gr_get(NULL, &l_data_size, l_group_name);
+        log_it(L_INFO, "Exporting group %s, number of records: %zu", l_group_name, l_data_size);
         if (!l_data_size) {
             continue;
         }
 
         struct json_object *l_json_group = json_object_new_array();
         struct json_object *l_json_group_inner = json_object_new_object();
-        json_object_object_add(l_json_group_inner, "group", json_object_new_string(d->d_name));
+        json_object_object_add(l_json_group_inner, "group", json_object_new_string(l_group_name));
 
         for (size_t i = 0; i < l_data_size; ++i) {
             size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len) + 1;
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
-            //size_t l_enc_size = dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
-
+            dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
             struct json_object *jobj = json_object_new_object();
             json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_data[i].id));
             json_object_object_add(jobj, "key",     json_object_new_string(l_data[i].key));
@@ -4233,6 +4214,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
         json_object_array_add(l_json, l_json_group_inner);
         dap_store_obj_free(l_data, l_data_size);
     }
+    dap_list_free_full(l_groups_list, free);
     if (json_object_to_file(l_path, l_json) == -1) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );
@@ -4307,9 +4289,9 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
             l_group_store[j].timestamp = json_object_get_int64(l_ts);
             l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
             l_group_store[j].type   = 'a';
-            //const char *l_value_str = json_object_get_string(l_value);
+            const char *l_value_str = json_object_get_string(l_value);
             char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
-            //size_t l_dec_size = dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
+            dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
             l_group_store[j].value  = (uint8_t*)l_val;
         }
         if (dap_chain_global_db_driver_appy(l_group_store, l_records_count)) {
