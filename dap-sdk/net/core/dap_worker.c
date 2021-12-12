@@ -355,7 +355,8 @@ void *dap_worker_thread(void *arg)
                 dap_events_socket_set_readable_unsafe(l_cur, false);
                 dap_events_socket_set_writable_unsafe(l_cur, false);
                 l_cur->buf_out_size = 0;
-                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                if (!l_cur->no_close)
+                    l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                 if(l_cur->callbacks.error_callback)
                     l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
             }
@@ -526,7 +527,8 @@ void *dap_worker_thread(void *arg)
                             log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
 #endif
                             dap_events_socket_set_readable_unsafe(l_cur, false);
-                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            if (!l_cur->no_close)
+                                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
 #ifndef DAP_NET_CLIENT_NO_SSL
@@ -535,7 +537,8 @@ void *dap_worker_thread(void *arg)
                             wolfSSL_ERR_error_string(l_errno, l_err_str);
                             log_it(L_ERROR, "Some error occured in SSL read(): %s (code %d)", l_err_str, l_errno);
                             dap_events_socket_set_readable_unsafe(l_cur, false);
-                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            if (!l_cur->no_close)
+                                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
 #endif
@@ -751,7 +754,7 @@ void *dap_worker_thread(void *arg)
                         break;
                         case DESCRIPTOR_TYPE_PIPE:
                         case DESCRIPTOR_TYPE_FILE:
-                            l_bytes_sent = write(l_cur->socket, (char *) (l_cur->buf_out), l_cur->buf_out_size );
+                            l_bytes_sent = write(l_cur->fd, (char *) (l_cur->buf_out), l_cur->buf_out_size );
                             l_errno = errno;
                         break;
                         default:
@@ -768,7 +771,8 @@ void *dap_worker_thread(void *arg)
                         { // If we have non-blocking socket
                             log_it(L_ERROR, "Some error occured in send(): %s (code %d)", strerror(l_errno), l_errno);
 #endif
-                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            if (!l_cur->no_close)
+                                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
 #ifndef DAP_NET_CLIENT_NO_SSL
@@ -776,7 +780,8 @@ void *dap_worker_thread(void *arg)
                             char l_err_str[80];
                             wolfSSL_ERR_error_string(l_errno, l_err_str);
                             log_it(L_ERROR, "Some error occured in SSL write(): %s (code %d)", l_err_str, l_errno);
-                            l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            if (!l_cur->no_close)
+                                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                             l_cur->buf_out_size = 0;
                         }
 #endif
@@ -800,7 +805,7 @@ void *dap_worker_thread(void *arg)
                 dap_events_socket_set_writable_unsafe(l_cur,true);
             }
 
-            if ((l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !l_cur->no_close)
+            if (l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)
             {
                 if (l_cur->buf_out_size == 0) {
                     if(s_debug_reactor)
