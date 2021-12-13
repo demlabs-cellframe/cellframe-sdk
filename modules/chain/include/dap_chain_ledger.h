@@ -161,7 +161,12 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
 /**
  * Delete all transactions from the cache
  */
-void dap_chain_ledger_purge(dap_ledger_t *a_ledger);
+void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
+
+/**
+ * End of load mode with no chackes for incoming datums
+ */
+void dap_chain_ledger_load_end(dap_ledger_t *a_ledger);
 
 /**
  * Return number transactions from the cache
