@@ -1575,7 +1575,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 ret = -5;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
-            dap_chain_ledger_purge(l_net->pub.ledger);
+            dap_chain_ledger_purge(l_net->pub.ledger, false);
             dap_chain_t *l_chain;
             DL_FOREACH(l_net->pub.chains, l_chain) {
                 if (l_chain->callback_purge) {
@@ -2122,6 +2122,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             l_target_state = NET_STATE_OFFLINE;
         }
         l_net_pvt->load_mode = false;
+        dap_chain_ledger_load_end(l_net->pub.ledger);
 
         if (l_target_state != l_net_pvt->state_target)
             dap_chain_net_state_go_to(l_net, l_target_state);
