@@ -523,7 +523,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         // Verify for correctness
         dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
         int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-        if (l_verify_datum != 0){
+        if (l_verify_datum != 0 &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
             log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
                                      l_verify_datum);
             continue;
