@@ -37,7 +37,8 @@ static void test_signing_verifying2(void)
     dap_assert_PIF(siglen > 0, "Signing message");
 
 //Extract aList//CRUTCH
-    uint8_t *sigdata = (uint8_t*)*(int*)(sig + 4);
+//    uint8_t *sigdata = (uint8_t*)*(int*)(sig + 4);
+    uint8_t *sigdata = (uint8_t*) ((ringct20_signature_t*) sig)->sig_data;
 //    for(int i = 0; i < 16; ++i)
 //        printf("%.2x ", sigdata[i]);
 //    printf(" = sig_extract\n"); fflush(stdout);
