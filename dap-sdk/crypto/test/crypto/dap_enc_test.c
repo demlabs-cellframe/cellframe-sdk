@@ -468,7 +468,7 @@ void dap_enc_tests_run() {
     dap_print_module_name("dap_enc_sig serealize->deserealize BLISS");
     test_serealize_deserealize_pub_priv(DAP_ENC_KEY_TYPE_SIG_BLISS);
     dap_print_module_name("dap_enc_sig serealize->deserealize PICNIC");
-    test_serealize_deserealize_pub_priv(DAP_ENC_KEY_TYPE_SIG_PICNIC);
+    test_serealize_deserealize_pub_priv(DAP_ENC_KEY_TYPE_SIG_PICNIC); //sometimes fail
     dap_print_module_name("dap_enc_sig serealize->deserealize TESLA");
     test_serealize_deserealize_pub_priv(DAP_ENC_KEY_TYPE_SIG_TESLA);
     dap_print_module_name("dap_enc_sig serealize->deserealize DILITHIUM");
