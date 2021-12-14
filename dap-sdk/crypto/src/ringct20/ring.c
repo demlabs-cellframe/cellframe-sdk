@@ -345,6 +345,18 @@ int LRCT_Verify(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_rin
 	result = LRCT_SigVer(c1, t, A, H, mLen, h, L, iwsLen, bSignMess, sigMsgLen);
 	return result;
 }
+
+int LRCT_SigLink(poly_ringct20 *c1, poly_ringct20* c2,
+                 poly_ringct20** t1, poly_ringct20** t2,
+                 poly_ringct20* h1, poly_ringct20* h2,
+                 poly_ringct20 *H, int mlen,
+                 unsigned char* bSignMess1, unsigned char* bSignMess2,
+                 size_t sigMsgLen1, size_t sigMsgLen2,
+                 poly_ringct20 *L, int iwsLen) {
+
+
+    return 0;
+}
 /////multiple
 void MIMO_LRCT_Setup(poly_ringct20 *A, poly_ringct20 *H, int mLen)
 {
