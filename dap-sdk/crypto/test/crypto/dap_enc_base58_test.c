@@ -7,9 +7,12 @@
 #include "dap_enc_base58.h"
 #include "dap_enc_base58_test.h"
 
+size_t source_size;
+
 static void test_encode_decode_base58(void)
 {
-    static size_t source_size = 0;
+//    static size_t source_size = 0;
+//    source_size = 0;
     int step = 1 + random_uint32_t( 20);
     source_size += (size_t) step;
 
@@ -30,7 +33,7 @@ static void test_encode_decode_base58(void)
 
 void dap_enc_base58_tests_run() {
     dap_print_module_name("dap_enc_base58");
-
+    source_size = 0;
     benchmark_mgs_time("Encode and decode DAP_ENC_STANDARD_B58 100 times",
             benchmark_test_time(test_encode_decode_base58, 100));
 
