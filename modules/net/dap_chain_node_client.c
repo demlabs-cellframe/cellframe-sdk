@@ -405,11 +405,12 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             dap_chain_id_t  l_chain_id = {};
             dap_chain_cell_id_t l_cell_id = {};
             if (a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB) {
-                if(s_stream_ch_chain_debug_more)
-                    log_it(L_INFO,"In: Link %s."NODE_ADDR_FP_STR" synced GDB. Going to update chains", l_net->pub.name, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr ));
-                // TODO check if target net state == NET_STATE_SYNC_GDB to not synchronize chains, if it
-                l_node_client->cur_chain = l_net->pub.chains;
-                l_node_client->cur_cell = l_node_client->cur_chain ? l_node_client->cur_chain->cells : NULL;
+                if (dap_chain_net_get_target_state(l_net) != NET_STATE_SYNC_GDB) {
+                    if(s_stream_ch_chain_debug_more)
+                        log_it(L_INFO,"In: Link %s."NODE_ADDR_FP_STR" synced GDB. Going to update chains", l_net->pub.name, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr ));
+                    l_node_client->cur_chain = l_net->pub.chains;
+                    l_node_client->cur_cell = l_node_client->cur_chain ? l_node_client->cur_chain->cells : NULL;
+                }
             } else {
                 // Check if we over with it before
                 if ( ! l_node_client->cur_cell ){
@@ -452,7 +453,10 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 dap_chain_node_addr_t * l_node_addr = dap_chain_net_get_cur_addr(l_net);
                 log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
                 l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-                dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
+                if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
+                    dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
+                else
+                    dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
 #ifndef _WIN32
                 pthread_cond_broadcast(&l_node_client->wait_cond);
 #else
@@ -737,6 +741,17 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         char l_node_addr_str[INET_ADDRSTRLEN] = {};
         inet_ntop(AF_INET, &a_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_client->info->hdr.ext_port);
+        dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_client->stream_worker, a_client->ch_chain_uuid);
+        if (l_ch) {
+            dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+            l_ch_chain->callback_notify_packet_in = NULL;
+            l_ch_chain->callback_notify_packet_out = NULL;
+        }
+        l_ch = dap_stream_ch_find_by_uuid_unsafe(a_client->stream_worker, a_client->ch_chain_net_uuid);
+        if (l_ch) {
+            dap_stream_ch_chain_net_t *l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(l_ch);
+            l_ch_chain_net->notify_callback = NULL;
+        }
         // clean client
         dap_client_pvt_t *l_client_pvt = dap_client_pvt_find(a_client->client->pvt_uuid);
         if (l_client_pvt) {

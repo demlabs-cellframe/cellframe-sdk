@@ -310,8 +310,8 @@ dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
     if (!l_nodes_count || !l_objs)
         return NULL;
     dap_chain_node_info_t *l_node_candidate;
-    for (int i = 0; i < 5; i++) {
-        // 5 tryes for non empty address & port
+    for (int i = 0; i < 50; i++) {
+        // 50 tryes for non empty address & port
         size_t l_node_num = rand() % l_nodes_count;
         l_node_candidate = (dap_chain_node_info_t *)l_objs[l_node_num].value;
         if (l_node_candidate->hdr.ext_addr_v4.s_addr && l_node_candidate->hdr.ext_port)

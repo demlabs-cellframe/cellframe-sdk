@@ -57,6 +57,8 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -111
 // Error code for no emission for a transaction (candidate to threshold)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -112
+// Error code for no token for an emission (candidate to threshold)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN     -113
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
@@ -159,7 +161,12 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
 /**
  * Delete all transactions from the cache
  */
-void dap_chain_ledger_purge(dap_ledger_t *a_ledger);
+void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
+
+/**
+ * End of load mode with no chackes for incoming datums
+ */
+void dap_chain_ledger_load_end(dap_ledger_t *a_ledger);
 
 /**
  * Return number transactions from the cache
