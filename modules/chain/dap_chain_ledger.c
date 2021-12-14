@@ -1190,9 +1190,8 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                         size_t l_sign_size = dap_sign_get_size(l_sign);
                         l_offset += l_sign_size;
                         l_sign = (dap_sign_t *)((byte_t *)l_emission + l_offset);
-                    } else {
+                    } else
                         break;
-                    }
                 }
 
                 if (l_aproves < l_aproves_valid ){

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project (dap_chain_net_srv_xchange)
   
 file(GLOB DAP_SRV_XCHANGE_SRCS *.c)

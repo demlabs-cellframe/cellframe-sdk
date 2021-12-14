@@ -1,3 +1,5 @@
+include_guard(GLOBAL)
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     set(OS_TYPE_DESKTOP ON)
     set(LINUX ON)
