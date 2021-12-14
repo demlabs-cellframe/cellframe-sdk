@@ -1721,7 +1721,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             case NODE_ROLE_ROOT_MASTER:
             case NODE_ROLE_ROOT:
             case NODE_ROLE_ARCHIVE:
-                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
             case NODE_ROLE_MASTER:
                 l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
             case NODE_ROLE_CELL_MASTER:

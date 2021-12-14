@@ -3300,10 +3300,11 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
         time_t l_time = time(NULL);
         memcpy(&l_emission->hdr.nonce, &l_time, sizeof(time_t));
+        l_emission->data.type_auth.signs_count = l_certs_size;
         // Then add signs
         size_t l_offset = 0;
         for(size_t i = 0; i < l_certs_size; i++) {
-            dap_sign_t * l_sign = dap_cert_sign(l_certs[i], &l_emission->hdr,
+            dap_sign_t *l_sign = dap_cert_sign(l_certs[i], &l_emission->hdr,
                     sizeof(l_emission->hdr), 0);
             size_t l_sign_size = dap_sign_get_size(l_sign);
             l_emission_size += l_sign_size;
