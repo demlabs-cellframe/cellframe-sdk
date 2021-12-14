@@ -1,6 +1,5 @@
 # Prerequisites
 build/*
-cmake-build-*/
 build_stretch/*
 test/build
 *.txt.user
