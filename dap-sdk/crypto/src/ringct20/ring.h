@@ -32,6 +32,14 @@ void LRCT_Spend(IW *iwOA, poly_ringct20 *ckOA, poly_ringct20 *c1, poly_ringct20 
 int LRCT_Verify(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h, poly_ringct20* A, poly_ringct20 *H, int mLen,
     unsigned char* bSignMess, size_t sigMsgLen, poly_ringct20 *L, int iwsLen);
 
+int LRCT_SigLink(poly_ringct20 *c1, poly_ringct20* c2,
+                 poly_ringct20** t1, poly_ringct20** t2,
+                 poly_ringct20* h1, poly_ringct20* h2,
+                 poly_ringct20* A, poly_ringct20 *H, int mlen,
+                 unsigned char* bSignMess1, unsigned char* bSignMess2,
+                 size_t sigMsgLen1, size_t sigMsgLen2,
+                 poly_ringct20 *L, int iwsLen);
+
 //
 /*
 MIMO SCheme

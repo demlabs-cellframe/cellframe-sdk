@@ -200,7 +200,6 @@ void LRCT_Spent_Test()
     }
 }
 
-
 void LRCT_Mul_Test()
 {
     poly_ringct20 A[2], H[2], H2[2];
@@ -223,6 +222,7 @@ void LRCT_Mul_Test()
 
 
 }
+
 void LRCT_MatrixMulVect_Test()
 {
     poly_ringct20 A[2], H[2];
@@ -233,6 +233,7 @@ void LRCT_MatrixMulVect_Test()
 
 
 }
+
 void LRCT_Lift_Test()
 {
     poly_ringct20 A[2], H[2], LA[3], H2[3];
@@ -253,6 +254,7 @@ void LRCT_Lift_Test()
         dap_assert_PIF(poly_equal(LA + i, H2 + i) == 1, "Poly equality");
     }
 }
+
 void LRCT_KDF_Test()
 {
 
@@ -278,7 +280,7 @@ void LRCT_Com_Test()
 //    printf("cn:\n");
 //    poly_print(&(iw.cn));
 }
-//ntt 变换测试
+
 void LRCT_Fun_Test()
 {
     uint8_t seed[NEWHOPE_RINGCT20_SYMBYTES] = { 0 };
@@ -299,7 +301,7 @@ void LRCT_Fun_Test()
 //    poly_print(&a);
 
 }
-//移位测试
+
 void LRCT_Shift_Test()
 {
     poly_ringct20 r, a;
@@ -315,6 +317,7 @@ void LRCT_Shift_Test()
     poly_serial(&a);
 //    poly_print(&a);
 }
+
 void LRCT_ComHom_Test()
 {
     unsigned char message[2] = { 0xF0, 0x0F };
@@ -399,6 +402,80 @@ void LRCT_ComHom_Test()
     dap_assert_PIF(poly_equal(&a, &r) == 1, "poly equality");
     free(CKi);
     free(comList);
+}
+
+void LRCT_SigLink_Test() {
+    poly_ringct20 A[2], H[2];
+    poly_ringct20 S[2];
+    poly_ringct20 L[2];
+    poly_ringct20 h1;
+    poly_ringct20 h2;
+    poly_ringct20 h3;
+    poly_ringct20 u[3];
+    poly_ringct20 c1;
+    poly_ringct20 c2;
+    poly_ringct20 c3;
+    poly_ringct20* t1[2];
+    poly_ringct20* t2[2];
+    poly_ringct20* t3[2];
+    unsigned char msg[2] = { 0x01, 0x02 };
+    unsigned char msg2[2] = { 0x02, 0x03 };
+    unsigned char msg3[2] = { 0x04, 0x05 };
+    int msgLen = 2;
+    unsigned char bt[NEWHOPE_RINGCT20_POLYBYTES] = { 0 };
+    size_t mLen = 2;
+    size_t i = 0;
+    size_t k = 0;
+    int result = 0;
+    int w = 2;
+    int pai = 1;
+
+    t1[0] = (poly_ringct20 *)malloc((3) * sizeof(poly_ringct20));
+    t1[1] = (poly_ringct20 *)malloc((3) * sizeof(poly_ringct20));
+    t2[0] = (poly_ringct20 *)malloc((3) * sizeof(poly_ringct20));
+    t2[1] = (poly_ringct20 *)malloc((3) * sizeof(poly_ringct20));
+    t3[0] = (poly_ringct20 *)malloc((3) * sizeof(poly_ringct20));
+    t3[1] = (poly_ringct20 *)malloc((3) * sizeof(poly_ringct20));
+
+    for (i = 0; i < 2; i++)
+    {
+        for (k = 0; k < 3; k++)
+        {
+            poly_init(t1[i] + k);
+            poly_init(t2[i] + k);
+            poly_init(t3[i] + k);
+        }
+
+    }
+    LRCT_Setup(A, H, 2);
+    LRCT_SampleKey(S, 2);
+    LRCT_KeyGen(L, A, S, 2);
+    LRCT_SampleKey(S+1, 2);
+    LRCT_KeyGen(L+1, A, S+1, 2);
+
+    for (k = 0; k < 3; k++)
+    {
+        randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES);
+        poly_frombytes(u + k, bt);
+        poly_serial(u + k);
+        ///poly_print(u+k);
+    }
+//    printf("====================================\n");
+    LRCT_SigGen(&c1, t1, &h1, A, H,S+1, u, mLen, L, w,pai, msg, msgLen);
+    LRCT_SigGen(&c2, t2, &h2, A, H, S+1, u, mLen, L, w, pai, msg2, msgLen);
+    LRCT_SigGen(&c3, t3, &h3, A, H, S, u, mLen, L, w, pai-1, msg3, msgLen);
+    result = LRCT_SigLink(&c1, &c2, t1, t2, &h1, &h2, A, H, mLen, msg, msg2, msgLen, msgLen, L, w);
+    dap_assert_PIF(result == 1, "Sign Link");
+    result = LRCT_SigLink(&c1, &c3, t1, t3, &h1, &h3, A, H, mLen, msg, msg3, msgLen, msgLen, L, w);
+    dap_assert_PIF(result == 0, "Sign Link");
+//    printf("c1\n");
+//    poly_print(&c1);
+//    printf("=================\n");
+
+    free(t1[0]);
+    free(t1[1]);
+    free(t2[0]);
+    free(t2[1]);
 }
 
 
