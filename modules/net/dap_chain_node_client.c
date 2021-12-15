@@ -170,13 +170,18 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         } else if (l_node_client->keep_connection) {
             dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
             memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
-            dap_timerfd_start_on_worker(l_node_client->stream_worker? l_node_client->stream_worker->worker: dap_events_worker_get_auto(),s_timer_update_states*1000,s_timer_update_states_callback, l_uuid);
+            dap_timerfd_start_on_worker(l_node_client->stream_worker
+                                             ? l_node_client->stream_worker->worker
+                                             : dap_events_worker_get_auto(),
+                                        s_timer_update_states*1000,
+                                        s_timer_update_states_callback,
+                                        l_uuid);
         }
         return;
     }
     // TODO make different error codes
     if(l_node_client->callbacks.error)
-        l_node_client->callbacks.error(l_node_client, EINVAL,l_node_client->callbacks_arg );
+        l_node_client->callbacks.error(l_node_client, EINVAL, l_node_client->callbacks_arg);
 }
 
 /**

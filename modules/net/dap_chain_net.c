@@ -560,25 +560,21 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_c
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-    if ( l_net_pvt->state_target ==NET_STATE_ONLINE ){
+    if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         if(s_debug_more)
             log_it(L_NOTICE, "%s."NODE_ADDR_FP_STR" disconnected, reconnecting back...",
-               l_net->pub.name,
-               NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr) );
+                                l_net->pub.name,
+                                NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr) );
         a_node_client->is_reconnecting = true;
+
         dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
-    }else if (l_net_pvt->state_target == NET_STATE_OFFLINE){
+    } else {
         if(l_net_pvt->links_connected_count) {
             s_node_link_callback_delete(a_node_client,a_arg);
             l_net_pvt->links_connected_count--;
         } else
             log_it(L_CRITICAL,"Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
         log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
-
-    }else{
-        log_it(L_CRITICAL,"Link "NODE_ADDR_FP_STR" disconnected, but wrong target state %s: could be only NET_STATE_ONLINE or NET_STATE_OFFLINE "
-               ,NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr)
-               , c_net_states[l_net_pvt->state_target]  );
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
