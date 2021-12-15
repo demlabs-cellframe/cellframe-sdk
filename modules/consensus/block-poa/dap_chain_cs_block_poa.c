@@ -333,6 +333,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_b
                 break;
             }
         }
+        //TODO verify sign itself
         l_offset += l_sign_size;
         l_sign = (dap_sign_t *)(a_block->meta_n_datum_n_sign + l_offset);
     }

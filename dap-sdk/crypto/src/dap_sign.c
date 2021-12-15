@@ -410,7 +410,7 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
         case DAP_ENC_KEY_TYPE_SIG_TESLA:
         case DAP_ENC_KEY_TYPE_SIG_PICNIC:
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-            if(l_key->dec_na(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) > 0)
+            if(l_key->dec_na(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) < 0)
                 l_ret = 0;
             else
                 l_ret = 1;
