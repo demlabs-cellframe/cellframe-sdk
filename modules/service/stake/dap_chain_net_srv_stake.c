@@ -538,7 +538,7 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     }
     dap_srv_stake_order_ext_t *l_ext = (dap_srv_stake_order_ext_t *)a_order->ext;
     dap_sign_t *l_sign = (dap_sign_t *)(&a_order->ext[a_order->ext_size]);
-    if (!dap_sign_verify(l_sign, a_order, dap_chain_net_srv_order_get_size(a_order))) {
+    if (dap_sign_verify(l_sign, a_order, dap_chain_net_srv_order_get_size(a_order)) != 1) {
         log_it(L_WARNING, "Order sign is invalid");
         return NULL;
     }

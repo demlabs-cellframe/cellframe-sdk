@@ -370,7 +370,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     l_token_item->type = a_token->type;
     switch(a_token->type){
     case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: {
-        l_token_item->total_supply = a_token->header_private.total_supply;\
+        l_token_item->total_supply = a_token->header_private.total_supply;
         l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(a_token,a_token_size,
                                                                                    &l_token_item->auth_signs_total,
                                                                                    &l_token_item->auth_signs_valid );
@@ -405,7 +405,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
             log_it(L_WARNING,"Unknown token declaration type 0x%04X", a_token->type );
     }
         // Proc emissions tresholds
-    s_treshold_emissions_proc( a_ledger);
+    //s_treshold_emissions_proc( a_ledger); //TODO process thresholds only for no-consensus chains
 
     return  0;
 }
@@ -979,6 +979,16 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         pthread_rwlock_init(&l_token_item->token_emissions_rwlock, NULL);
         if (l_token_item->datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE) {
             l_token_item->total_supply = l_token_item->datum_token->header_private.total_supply;
+            l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(l_token_item->datum_token, l_objs[i].value_len,
+                                                                                       &l_token_item->auth_signs_total,
+                                                                                       &l_token_item->auth_signs_valid );
+            if (l_token_item->auth_signs_total) {
+                l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
+                                                                    sizeof(dap_chain_hash_fast_t) * l_token_item->auth_signs_total);
+                for (uint16_t k=0; k < l_token_item->auth_signs_total; k++) {
+                    dap_sign_get_pkey_hash(l_token_item->auth_signs[k], &l_token_item->auth_signs_pkey_hash[k]);
+                }
+            }
         }
         HASH_ADD_STR(l_ledger_pvt->tokens, ticker, l_token_item);
         if (i == l_objs_count - 1) {
@@ -1112,7 +1122,7 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
 
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size)
 {
-    int ret = 0;
+    int l_ret = 0;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
 
     const char * c_token_ticker = ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.ticker;
@@ -1139,70 +1149,67 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
         if(s_debug_more)
             log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s ): already present in cache",
                 l_token_emission_item->datum_token_emission->hdr.value, c_token_ticker, l_hash_str);
-        ret = -1;
+        l_ret = -1;
     }else if ( (! l_token_item) && ( l_threshold_emissions_count >= s_treshold_emissions_max)) {
         if(s_debug_more)
             log_it(L_WARNING,"Treshold for emissions is overfulled (%zu max)",
                s_treshold_emissions_max);
-        ret = -2;
-    }else{ // Chech emission correctness
-        size_t l_emission_size = a_token_emission_size;
-        dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
-        switch (l_emission->hdr.type){
-            case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
-                dap_chain_ledger_token_item_t *l_token_item=NULL;
-                pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
-                HASH_FIND_STR(PVT(a_ledger)->tokens, l_emission->hdr.ticker, l_token_item);
-                pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-                if (l_token_item){
-                    assert(l_token_item->datum_token);
-                    dap_sign_t * l_sign =(dap_sign_t*) l_emission->data.type_auth.signs;
-                    size_t l_offset= (byte_t*)l_emission - (byte_t*) l_sign;
-                    uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
-
-                    for (uint16_t i=0; i <l_emission->data.type_auth.signs_count && l_offset < l_emission_size; i++){
-                        size_t l_sign_size = dap_sign_get_size(l_sign);
-                        l_sign = (dap_sign_t*) ((byte_t*) l_sign + l_sign_size);
-                        if (UINT16_MAX-l_offset> l_sign_size ){
-                            dap_chain_hash_fast_t l_sign_pkey_hash;
-                            dap_sign_get_pkey_hash(l_sign,&l_sign_pkey_hash);
-                            // Find pkey in auth hashes
-                            for(uint16_t k=0; k< l_token_item->auth_signs_total; k++  ){
-                                if ( dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k])) {
-                                    // Verify if its token emission header signed
-                                    if (!dap_sign_verify_size(l_sign, l_emission_size)) {
-                                        break;
-                                    }
-                                    if (dap_sign_verify(l_sign, &l_emission->hdr, sizeof(l_emission)) == 1) {
-                                        l_aproves++;
-                                        break;
-                                    }
-                                }
-                            }
-                            l_offset+=l_sign_size;
-                        }else
-                            l_offset = UINT16_MAX;
-                    }
-
-                    if (l_aproves < l_aproves_valid ){
-                        if(s_debug_more)
-                            log_it(L_WARNING, "Emission of %"DAP_UINT64_FORMAT_U" datoshi of %s:%s is wrong: only %u valid aproves when %u need",
-                               l_emission->hdr.value, a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid );
-                        ret = -3;
-                    }
-                }else{
-                    if(s_debug_more)
-                        log_it(L_WARNING,"Can't find token declaration %s:%s thats pointed in token emission datum", a_ledger->net_name, l_emission->hdr.ticker);
-                    ret = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN;
-                }
-            }break;
-            default:{}
-        }
-        DAP_DELETE(l_emission);
+        l_ret = -2;
     }
     DAP_DELETE(l_hash_str);
+    if (l_ret || !PVT(a_ledger)->check_token_emission)
+        return l_ret;
+    // Check emission correctness
+    size_t l_emission_size = a_token_emission_size;
+    dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
+    switch (l_emission->hdr.type){
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
+            dap_chain_ledger_token_item_t *l_token_item=NULL;
+            pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+            HASH_FIND_STR(PVT(a_ledger)->tokens, l_emission->hdr.ticker, l_token_item);
+            pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+            if (l_token_item){
+                assert(l_token_item->datum_token);
+                dap_sign_t *l_sign = (dap_sign_t *)l_emission->data.type_auth.signs;
+                size_t l_offset = (byte_t *)l_sign - (byte_t *)l_emission;
+                uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
+                for (uint16_t i = 0; i < l_emission->data.type_auth.signs_count && l_offset < l_emission_size; i++) {
+                    if (dap_sign_verify_size(l_sign, l_emission_size - l_offset)) {
+                        dap_chain_hash_fast_t l_sign_pkey_hash;
+                        dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                        // Find pkey in auth hashes
+                        for (uint16_t k=0; k< l_token_item->auth_signs_total; k++) {
+                            if (dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k])) {
+                                // Verify if its token emission header signed
+                                if (dap_sign_verify(l_sign, &l_emission->hdr, sizeof(l_emission->hdr)) == 1) {
+                                    l_aproves++;
+                                    break;
+                                }
+                            }
+                        }
+                        size_t l_sign_size = dap_sign_get_size(l_sign);
+                        l_offset += l_sign_size;
+                        l_sign = (dap_sign_t *)((byte_t *)l_emission + l_offset);
+                    } else
+                        break;
+                }
 
-    return ret;
+                if (l_aproves < l_aproves_valid ){
+                    if(s_debug_more)
+                        log_it(L_WARNING, "Emission of %"DAP_UINT64_FORMAT_U" datoshi of %s:%s is wrong: only %u valid aproves when %u need",
+                           l_emission->hdr.value, a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid );
+                    l_ret = -3;
+                }
+            }else{
+                if(s_debug_more)
+                    log_it(L_WARNING,"Can't find token declaration %s:%s thats pointed in token emission datum", a_ledger->net_name, l_emission->hdr.ticker);
+                l_ret = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN;
+            }
+        }break;
+        default:{}
+    }
+    DAP_DELETE(l_emission);
+    return l_ret;
 }
 
 /**
