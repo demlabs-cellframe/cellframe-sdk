@@ -12,7 +12,7 @@
 #include "dap_chain_global_db_hist.h"
 #include "uthash.h"
 
-//#define GDB_SYNC_ALWAYS_FROM_ZERO
+#define GDB_SYNC_ALWAYS_FROM_ZERO
 
 // for dap_db_history()
 typedef struct dap_tx_data{

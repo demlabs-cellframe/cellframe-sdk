@@ -225,7 +225,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     return node_info;
 }*/
 
-bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a_role, dap_chain_datum_t *a_datum)
+int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a_role, dap_chain_datum_t *a_datum)
 {
     bool l_need_process = false;
     for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
@@ -235,35 +235,31 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t 
         }
     }
     if (!l_need_process)
-        return false;
+        return -1;
     if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
         dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_IN, NULL);
         // Is not it a base transaction?
         if (l_tx_in && !dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
             if (a_role.enums == NODE_ROLE_ROOT) {
-                return false;
+                return -1;
             }
         }
     }
-    if (a_chain->callback_add_datums(a_chain, &a_datum, 1) != 1) {
-        return false;
-    }
-    return true;
+    return (int)a_chain->callback_add_datums(a_chain, &a_datum, 1);
 }
 
-static bool s_mempool_auto = false;
 
 /**
- * @brief 
+ * @brief
  * get automatic mempool processing, when network config contains mempool_auto_types for specific datums
- * @return true 
- * @return false 
+ * @return true
+ * @return false
  */
 bool dap_chain_node_mempool_autoproc_init()
 {
     uint16_t l_net_count;
-    bool l_mempool_auto_default = false;
+    bool l_mempool_auto_default = false, l_ret = false;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
@@ -276,10 +272,12 @@ bool dap_chain_node_mempool_autoproc_init()
                 l_mempool_auto_default = true;
                 break;
             default:
+                l_mempool_auto_default = false;
                 break;
         }
-        s_mempool_auto = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", l_mempool_auto_default);
-        if (s_mempool_auto) {
+        l_net_list[i]->pub.mempool_autoproc = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", l_mempool_auto_default);
+        if (l_net_list[i]->pub.mempool_autoproc) {
+            l_ret = true;
             dap_chain_t *l_chain;
             DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
                 if (!l_chain) {
@@ -291,12 +289,13 @@ bool dap_chain_node_mempool_autoproc_init()
                 dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
                 if (l_objs_size) {
                     for (size_t i = 0; i < l_objs_size; i++) {
-                        // Delete processed objects
-                        dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
                         if (!l_objs[i].value_len)
                             continue;
                         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-                        dap_chain_node_mempool_process(l_chain, l_role, l_datum);
+                        if (dap_chain_node_mempool_process(l_chain, l_role, l_datum) >= 0) {
+                            // Delete processed objects
+                            dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
+                        }
                     }
                     dap_chain_global_db_objs_delete(l_objs, l_objs_size);
                 }
@@ -305,7 +304,7 @@ bool dap_chain_node_mempool_autoproc_init()
         }
     }
     DAP_DELETE(l_net_list);
-    return s_mempool_auto;
+    return l_ret;
 }
 
 /**
@@ -313,17 +312,18 @@ bool dap_chain_node_mempool_autoproc_init()
  */
 void dap_chain_node_mempool_autoproc_deinit()
 {
-    s_mempool_auto = false;
 }
 
 void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, const char *a_group,
                                              const char *a_key, const void *a_value, const size_t a_value_len)
 {
     UNUSED(a_value_len);
-    if (!a_arg || !a_value || !s_mempool_auto || a_op_code != 'a') {
+    if (!a_arg || !a_value || a_op_code != 'a') {
         return;
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    if (!l_net->pub.mempool_autoproc)
+        return;
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (!l_chain) {
@@ -333,7 +333,7 @@ void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, c
         if (!strcmp(a_group, l_gdb_group_str)) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
             dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-            if (dap_chain_node_mempool_process(l_chain, l_role, l_datum)) {
+            if (dap_chain_node_mempool_process(l_chain, l_role, l_datum) >= 0) {
                 dap_chain_global_db_gr_del(dap_strdup(a_key), l_gdb_group_str);
             }
         }
