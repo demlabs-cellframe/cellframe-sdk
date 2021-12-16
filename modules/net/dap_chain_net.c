@@ -532,16 +532,13 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     }
 
     a_node_client->resync_gdb = l_net_pvt->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO;
-    if (!a_node_client->is_reconnecting) {
-        if ( s_debug_more )
-        log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
-               NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-        l_net_pvt->links = dap_list_append(l_net_pvt->links, a_node_client);
-        l_net_pvt->links_connected_count++;
-        s_net_links_notify(l_net);
-    }
-
+    if ( s_debug_more )
+    log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
+           NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
+    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+    l_net_pvt->links_connected_count++;
+    a_node_client->is_connected = true;
+    s_net_links_notify(l_net);
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
         dap_proc_queue_add_callback_inter(a_node_client->stream_worker->worker->proc_queue_input,s_net_states_proc,l_net );
@@ -560,21 +557,18 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_c
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-    if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
-        if(s_debug_more)
-            log_it(L_NOTICE, "%s."NODE_ADDR_FP_STR" disconnected, reconnecting back...",
-                                l_net->pub.name,
-                                NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr) );
-        a_node_client->is_reconnecting = true;
-
-        dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
-    } else {
-        if(l_net_pvt->links_connected_count) {
-            s_node_link_callback_delete(a_node_client,a_arg);
+    if (a_node_client->is_connected) {
+        a_node_client->is_connected = false;
+        log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected.%s",l_net->pub.name,
+               NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
+               l_net_pvt->state_target == NET_STATE_OFFLINE ? "" : " Reconnecting back...");
+        if (l_net_pvt->links_connected_count)
             l_net_pvt->links_connected_count--;
-        } else
-            log_it(L_CRITICAL,"Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
-        log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+        else
+            log_it(L_ERROR, "Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
+    }
+    if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
+        a_node_client->keep_connection = true;
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
@@ -981,16 +975,18 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             log_it(L_INFO, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             for (dap_list_t *l_tmp = l_net_pvt->links_info; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = (dap_chain_node_info_t *)l_tmp->data;
-                (void) dap_chain_net_client_create_n_connect(l_net,l_link_info);
+                dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, l_link_info);
+                l_client->keep_connection = false;
+                l_net_pvt->links = dap_list_append(l_net_pvt->links, l_client);
+                if (dap_list_length(l_net_pvt->links) == s_required_links_count)
+                    break;
             }
         } break;
+
         case NET_STATE_LINKS_ESTABLISHED:{
             log_it(L_INFO,"%s.state: NET_STATE_LINKS_ESTABLISHED", l_net->pub.name);
-            for (dap_list_t *l_tmp = l_net_pvt->links ; l_tmp; l_tmp = dap_list_next(l_tmp)) {
-                //dap_chain_node_client_t *l_link = (dap_chain_node_client_t *)l_tmp->data;
-                //
-            }
         }break;
+
         case NET_STATE_SYNC_GDB :{
             log_it(L_INFO,"%s.state: NET_STATE_SYNC_GDB", l_net->pub.name);
         }break;
@@ -999,11 +995,11 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             log_it(L_INFO,"%s.state: NET_STATE_SYNC_CHAINS", l_net->pub.name);
         }break;
 
-
         case NET_STATE_ONLINE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_ONLINE", l_net->pub.name);
         }
         break;
+
         default: log_it (L_DEBUG, "Unprocessed state");
     }
     s_net_states_notify(l_net);
@@ -1187,8 +1183,8 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
     char* l_sync_current_link_text_block = NULL;
     if (PVT(a_net)->state != NET_STATE_OFFLINE)
         l_sync_current_link_text_block = dap_strdup_printf(", active links %u from %u",
-                                                           dap_list_length(PVT(a_net)->links),
-                                                           dap_list_length(PVT(a_net)->links_info));
+                                                           PVT(a_net)->links_connected_count,
+                                                           dap_list_length(PVT(a_net)->links));
     dap_chain_node_cli_set_reply_text(a_str_reply,
                                       "Network \"%s\" has state %s (target state %s)%s%s",
                                       a_net->pub.name, c_net_states[PVT(a_net)->state],

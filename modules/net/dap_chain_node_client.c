@@ -154,7 +154,6 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
     // check for last attempt
     bool l_is_last_attempt = a_arg ? true : false;
     if (l_is_last_attempt) {
-        dap_chain_node_client_state_t l_prev_state = l_node_client->state;
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
 #ifndef _WIN32
@@ -165,15 +164,15 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         l_node_client->esocket_uuid = 0;
 
-        if (l_prev_state >= NODE_CLIENT_STATE_ESTABLISHED && l_node_client->callbacks.disconnected) {
+        if (l_node_client->callbacks.disconnected) {
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
-        } else if (l_node_client->keep_connection) {
-            dap_events_socket_uuid_t *l_uuid = DAP_NEW(dap_events_socket_uuid_t);
-            memcpy(l_uuid, &l_node_client->uuid, sizeof(dap_events_socket_uuid_t));
+        }
+        if (l_node_client->keep_connection) {
+            dap_events_socket_uuid_t *l_uuid = DAP_DUP(&l_node_client->uuid);
             dap_timerfd_start_on_worker(l_node_client->stream_worker
                                              ? l_node_client->stream_worker->worker
                                              : dap_events_worker_get_auto(),
-                                        s_timer_update_states*1000,
+                                        s_timer_update_states * 1000,
                                         s_timer_update_states_callback,
                                         l_uuid);
         }
@@ -251,7 +250,8 @@ static bool s_timer_update_states_callback(void *a_arg)
     l_me->state = NODE_CLIENT_STATE_DISCONNECTED;
     if (l_me->keep_connection) {
         log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
-        dap_chain_node_client_connect_internal(l_me, "CN"); // isn't always CN here?
+        l_me->state = NODE_CLIENT_STATE_CONNECTING ;
+        dap_client_go_stage(l_me->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     }
     DAP_DELETE(l_uuid);
     return false;
@@ -671,7 +671,6 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
 {
     a_node_client->client = dap_client_new(a_node_client->events, s_stage_status_callback,
             s_stage_status_error_callback);
-    a_node_client->keep_connection = true;
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
@@ -696,8 +695,6 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
     }
     dap_client_set_uplink_unsafe(a_node_client->client, strdup(host), a_node_client->info->hdr.ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING ;
-    // ref pvt client
-    //dap_client_pvt_ref(DAP_CLIENT_PVT(a_node_client->client));
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     return true;
