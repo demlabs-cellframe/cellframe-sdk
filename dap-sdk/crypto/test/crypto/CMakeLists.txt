@@ -4,7 +4,11 @@ project(crypto-test)
 # init CellFrame SDK
 add_definitions("-DDAP_VERSION=\"${CPACK_PACKAGE_VERSION_MAJOR}-${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}\"")
 set(SUBMODULES_NO_BUILD ON)
-include (cellframe-sdk/cmake/OS_Detection.cmake)
+if (WIN32)
+    include (../../../../../cellframe-sdk/cmake/OS_Detection.cmake)
+else()
+    include (cellframe-sdk/cmake/OS_Detection.cmake)
+endif()
 set(DAPSDK_MODULES "core crypto network-core network-client network-server")
 
 # There is no need, as it was added in cellframe-sdk/CMakeLists.txt
