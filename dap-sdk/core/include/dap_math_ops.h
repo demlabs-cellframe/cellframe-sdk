@@ -882,4 +882,8 @@ void bindivmod128(uint128_t M, uint128_t N, uint128_t* Q, uint128_t* R)
     R->hi = M.hi;
     R->lo = M.lo;
 }
+#else
+uint128_t dap_uint128_substract(uint128_t a, uint128_t b);
+uint128_t dap_uint128_add(uint128_t a, uint128_t b);
+bool dap_uint128_check_equal(uint128_t a, uint128_t b);
 #endif
