@@ -290,10 +290,10 @@ uint64_t dap_chain_uint128_to(uint128_t a_from)
     }
     return (uint64_t)a_from;
 #else
-    if (a_from.u64[0]) {
+    if (a_from.hi) {
         log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
     }
-    return a_from.u64[1];
+    return a_from.lo;
 #endif
 }
 
@@ -308,21 +308,22 @@ char *dap_chain_balance_print(uint128_t a_balance)
         l_value /= 10;
     } while (l_value);
 #else
+    uint32_t l_tmp[4] = {l_value.u32.a, l_value.u32.b, l_value.u32.c, l_value.u32.d};
     uint64_t t, q;
     do {
         q = 0;
         // Byte order is 1, 0, 3, 2 for little endian
         for (int i = 1; i <= 3; ) {
-            t = q << 32 | l_value.u32[i];
+            t = q << 32 | l_tmp[i];
             q = t % 10;
-            l_value.u32[i] = t / 10;
+            l_tmp[i] = t / 10;
             if (i == 2) i = 4; // end of cycle
             if (i == 3) i = 2;
             if (i == 0) i = 3;
             if (i == 1) i = 0;
         }
         l_buf[l_pos++] = q + '0';
-    } while (l_value.u32[2]);
+    } while (l_tmp[2]);
 #endif
     int l_strlen = strlen(l_buf) - 1;
     for (int i = 0; i < (l_strlen + 1) / 2; i++) {
@@ -426,30 +427,30 @@ uint128_t dap_chain_balance_scan(char *a_balance)
             return l_nul;
 #else
         uint128_t l_tmp;
-        l_tmp.u64[0] = 0;
-        l_tmp.u64[1] = c_pow10[i].u32[2] * l_digit;
+        l_tmp.hi = 0;
+        l_tmp.lo = c_pow10[i].u32[2] * l_digit;
         l_ret = dap_uint128_add(l_ret, l_tmp);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
         uint64_t l_mul = c_pow10[i].u32[3] * l_digit;
-        l_tmp.u64[1] = l_mul << 32;
-        l_tmp.u64[0] = l_mul >> 32;
+        l_tmp.lo = l_mul << 32;
+        l_tmp.hi = l_mul >> 32;
         l_ret = dap_uint128_add(l_ret, l_tmp);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
-        l_tmp.u64[1] = 0;
-        l_tmp.u64[0] = c_pow10[i].u32[0] * l_digit;
+        l_tmp.lo = 0;
+        l_tmp.hi = c_pow10[i].u32[0] * l_digit;
         l_ret = dap_uint128_add(l_ret, l_tmp);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
         l_mul = c_pow10[i].u32[1] * l_digit;
         if (l_mul >> 32) {
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
         }
-        l_tmp.u64[0] = l_mul << 32;
+        l_tmp.hi = l_mul << 32;
         l_ret = dap_uint128_add(l_ret, l_tmp);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
 #endif
     }

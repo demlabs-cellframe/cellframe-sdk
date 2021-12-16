@@ -23,17 +23,21 @@ typedef __int128 int128_t;
 typedef unsigned __int128 uint128_t;
 #endif
 
-
 #else // __SIZEOF_INT128__ == 16
 
 typedef union uint128 {
     struct{
-         uint64_t hi;
          uint64_t lo;
-    }  DAP_ALIGN_PACKED;
-    uint64_t u64[2];
-    uint32_t u32[4];
+         uint64_t hi;
+    } DAP_ALIGN_PACKED;
+    struct{
+        uint32_t c;
+        uint32_t d;
+        uint32_t a;
+        uint32_t b;
+    } DAP_ALIGN_PACKED u32;
 } uint128_t;
+
 
 typedef union int128 {
     int64_t i64[2];
@@ -878,39 +882,8 @@ void bindivmod128(uint128_t M, uint128_t N, uint128_t* Q, uint128_t* R)
     R->hi = M.hi;
     R->lo = M.lo;
 }
-
 #else
-static inline uint128_t dap_uint128_substract(uint128_t a, uint128_t b)
-{
-    if (a < b) {
-        return 0;
-    }
-    return a - b;
-}
-
-/**
- * @brief dap_chain_balance_add
- * @param a
- * @param b
- * @return
- */
-static inline uint128_t dap_uint128_add(uint128_t a, uint128_t b)
-{
-    uint128_t l_ret = a + b;
-    if (l_ret < a || l_ret < b) {
-        return 0;
-    }
-    return l_ret;
-}
-
-/**
- * @brief dap_uint128_check_equal
- * @param a
- * @param b
- * @return
- */
-static inline bool dap_uint128_check_equal(uint128_t a, uint128_t b)
-{
-    return a == b;
-}
+uint128_t dap_uint128_substract(uint128_t a, uint128_t b);
+uint128_t dap_uint128_add(uint128_t a, uint128_t b);
+bool dap_uint128_check_equal(uint128_t a, uint128_t b);
 #endif

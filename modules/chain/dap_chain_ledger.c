@@ -2669,8 +2669,8 @@ uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
     pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
     if (l_balance_item) {
         if(s_debug_more)
-            log_it (L_INFO,"Found address in cache with balance %"DAP_UINT64_FORMAT_U"",
-                            dap_chain_uint128_to(l_balance_item->balance));
+            log_it (L_INFO,"Found address in cache with balance %s",
+                            dap_chain_balance_print(l_balance_item->balance));
         l_ret = l_balance_item->balance;
     } else {
         if (s_debug_more)

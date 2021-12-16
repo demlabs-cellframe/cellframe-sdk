@@ -79,7 +79,7 @@
 #define DAP_ENC_KS_KEY_ID_SIZE 33
 #endif
 
-static int s_max_attempts = 5;
+static int s_max_attempts = 3;
 static int s_timeout = 20;
 static bool s_debug_more = false;
 static time_t s_client_timeout_read_after_connect_seconds = 5;
@@ -124,10 +124,11 @@ static bool s_stream_timer_timeout_check(void * a_arg);
  */
 int dap_client_pvt_init()
 {
-    s_max_attempts = dap_config_get_item_int32_default(g_config,"dap_client","max_tries",5);
-    s_timeout = dap_config_get_item_int32_default(g_config,"dap_client","timeout",10);
-    s_debug_more = dap_config_get_item_bool_default(g_config,"dap_client","debug_more",false);
-    s_client_timeout_read_after_connect_seconds = (time_t) dap_config_get_item_uint32_default(g_config,"dap_client","timeout_read_after_connect",5);
+    s_max_attempts = dap_config_get_item_int32_default(g_config, "dap_client", "max_tries", s_max_attempts);
+    s_timeout = dap_config_get_item_int32_default(g_config, "dap_client", "timeout", s_timeout);
+    s_debug_more = dap_config_get_item_bool_default(g_config, "dap_client", "debug_more", false);
+    s_client_timeout_read_after_connect_seconds = (time_t) dap_config_get_item_uint32_default(g_config,
+                                                  "dap_client","timeout_read_after_connect", s_client_timeout_read_after_connect_seconds);
 
     return 0;
 }
