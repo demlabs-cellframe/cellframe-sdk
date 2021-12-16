@@ -805,8 +805,9 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
                     char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
                     dap_string_append_printf(l_str_out,
-                            " total_supply: %.0Lf(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
-                            l_token->header_public.total_supply / DATOSHI_LD,
+                            " total_supply: %s(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
+                            // l_token->header_public.total_supply / DATOSHI_LD,
+                            dap_chain_balance_to_coins(l_token->header_public.total_supply),
                             dap_chain_balance_print(l_token->header_public.total_supply),
                             l_token->header_public.flags,
                             dap_chain_balance_print(l_token->header_public.premine_supply),
@@ -936,8 +937,9 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
                     char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
                     dap_string_append_printf(l_str_out,
-                            " total_supply: %.0Lf(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
-                            l_token->header_public.total_supply / DATOSHI_LD,
+                            " total_supply: %s(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
+                            //l_token->header_public.total_supply / DATOSHI_LD,
+                            dap_chain_balance_to_coins(l_token->header_public.total_supply),
                             dap_chain_balance_print(l_token->header_public.total_supply),
                             l_token->header_public.flags,
                             dap_chain_balance_print(l_token->header_public.premine_supply),

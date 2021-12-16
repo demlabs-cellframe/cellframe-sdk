@@ -39,14 +39,14 @@ uint128_t dap_uint128_substract(uint128_t a, uint128_t b)
     return a - b;
 #else
     uint128_t l_ret = {};
-    if (a.u64[0] < b.u64[0] || (a.u64[0] == b.u64[0] && a.u64[1] < b.u64[1])) {
+    if (a.hi < b.hi || (a.hi == b.hi && a.lo < b.lo)) {
         log_it(L_WARNING, "Substract result overflow");
         return l_ret;
     }
-    l_ret.u64[0] = a.u64[0] - b.u64[0];
-    l_ret.u64[1] = a.u64[1] - b.u64[1];
-    if (a.u64[1] < b.u64[1])
-        l_ret.u64[0]--;
+    l_ret.hi = a.hi - b.hi;
+    l_ret.lo = a.lo - b.lo;
+    if (a.lo < b.lo)
+        l_ret.hi--;
     return l_ret;
 #endif
 }
@@ -67,11 +67,11 @@ uint128_t dap_uint128_add(uint128_t a, uint128_t b)
     }
 #else
     uint128_t l_ret = {};
-    l_ret.u64[0] = a.u64[0] + b.u64[0];
-    l_ret.u64[1] = a.u64[1] + b.u64[1];
-    if (l_ret.u64[1] < a.u64[1] || l_ret.u64[1] < b.u64[1])
-        l_ret.u64[0]++;
-    if (l_ret.u64[0] < a.u64[0] || l_ret.u64[0] < b.u64[0]) {
+    l_ret.hi = a.hi + b.hi;
+    l_ret.lo = a.lo + b.lo;
+    if (l_ret.lo < a.lo || l_ret.lo < b.lo)
+        l_ret.hi++;
+    if (l_ret.hi < a.hi || l_ret.hi < b.hi) {
         log_it(L_WARNING, "Sum result overflow");
         uint128_t l_nul = {};
         return l_nul;
@@ -91,7 +91,7 @@ bool dap_uint128_check_equal(uint128_t a, uint128_t b)
 #ifdef DAP_GLOBAL_IS_INT128
     return a == b;
 #else
-    return a.u64[0]==b.u64[0] && a.u64[1]==b.u64[1];
+    return a.hi==b.hi && a.lo==b.lo;
 #endif
 
 }
