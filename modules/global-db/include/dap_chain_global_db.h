@@ -62,8 +62,8 @@ void dap_global_db_obj_track_history(void* a_store_data);
  */
 void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group);
 dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
-uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_out, const char *a_group);
-uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_out);
+uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
+uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
 
 /**
  * Set one entry to base

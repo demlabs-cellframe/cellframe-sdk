@@ -195,6 +195,15 @@ static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE       0x0024
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR        0x0025
 
+#define DAP_CHAIN_DATUM_NONCE_SIZE                                    64
+
+struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
+    uint8_t version;
+    uint8_t type; // Emission Type
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    dap_chain_addr_t address; // Emission holder's address
+    uint64_t value;
+};
 
 // Token emission
 typedef struct dap_chain_datum_token_emission{
@@ -203,7 +212,11 @@ typedef struct dap_chain_datum_token_emission{
         uint8_t type; // Emission Type
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         dap_chain_addr_t address; // Emission holder's address
-        uint64_t value;
+        union {
+            uint64_t value;
+            uint256_t value256;
+        };
+        uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
     } DAP_ALIGN_PACKED hdr;
     union {
         struct {
@@ -240,3 +253,5 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  siz
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size);
 dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size);
+size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);

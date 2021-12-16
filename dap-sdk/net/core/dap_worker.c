@@ -202,7 +202,6 @@ void *dap_worker_thread(void *arg)
 
         time_t l_cur_time = time( NULL);
         for(size_t n = 0; n < l_sockets_max; n++) {
-
             bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
@@ -225,8 +224,8 @@ void *dap_worker_thread(void *arg)
                 continue;
             l_flag_hup =  l_cur_flags& POLLHUP;
             l_flag_rdhup = l_cur_flags & POLLRDHUP;
-            l_flag_write = (l_cur_flags & POLLOUT) || (l_cur_flags &POLLRDNORM)|| (l_cur_flags &POLLRDBAND ) ;
-            l_flag_read = l_cur_flags & POLLIN || (l_cur_flags &POLLWRNORM)|| (l_cur_flags &POLLWRBAND );
+            l_flag_write = (l_cur_flags & POLLOUT) || (l_cur_flags &POLLWRNORM)|| (l_cur_flags &POLLWRBAND ) ;
+            l_flag_read = l_cur_flags & POLLIN || (l_cur_flags &POLLRDNORM)|| (l_cur_flags &POLLRDBAND );
             l_flag_error = l_cur_flags & POLLERR;
             l_flag_nval = l_cur_flags & POLLNVAL;
             l_flag_pri = l_cur_flags & POLLPRI;
@@ -1187,7 +1186,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (  a_worker->poll_count == a_worker->poll_count_max ){ // realloc
         a_worker->poll_count_max *= 2;
-        log_it(L_WARNING, "Too many descriptors (%zu), resizing array twice to %zu", a_worker->poll_count, a_worker->poll_count_max);
+        log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %zu", a_worker->poll_count, a_worker->poll_count_max);
         a_worker->poll =DAP_REALLOC(a_worker->poll, a_worker->poll_count_max * sizeof(*a_worker->poll));
         a_worker->poll_esocket =DAP_REALLOC(a_worker->poll_esocket, a_worker->poll_count_max * sizeof(*a_worker->poll_esocket));
     }

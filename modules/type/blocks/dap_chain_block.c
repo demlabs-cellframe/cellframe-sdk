@@ -22,10 +22,10 @@
 */
 #include <stddef.h>
 #include "string.h"
+#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_hash.h"
-
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 
@@ -58,7 +58,7 @@ void dap_chain_block_deinit()
  * @param a_prev_block
  * @return
  */
-dap_chain_block_t * dap_chain_block_new(dap_chain_hash_fast_t * a_prev_block )
+dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size_t *a_block_size)
 {
     dap_chain_block_t * l_block = DAP_NEW_Z_SIZE (dap_chain_block_t,sizeof(l_block->hdr));
     if( l_block == NULL){
@@ -68,16 +68,18 @@ dap_chain_block_t * dap_chain_block_new(dap_chain_hash_fast_t * a_prev_block )
         l_block->hdr.signature = DAP_CHAIN_BLOCK_SIGNATURE;
         l_block->hdr.version = 1;
         l_block->hdr.ts_created = time(NULL);
-        size_t l_block_size = sizeof (l_block->hdr);
+        size_t l_block_size = sizeof(l_block->hdr);
         if( a_prev_block ){
-            l_block_size = dap_chain_block_meta_add(&l_block, l_block_size, DAP_CHAIN_BLOCK_META_PREV,a_prev_block,sizeof (*a_prev_block) );
+            l_block_size = dap_chain_block_meta_add(&l_block, l_block_size, DAP_CHAIN_BLOCK_META_PREV,
+                                                    a_prev_block, sizeof(*a_prev_block));
         }else{
+            l_block_size = dap_chain_block_meta_add(&l_block, l_block_size, DAP_CHAIN_BLOCK_META_GENESIS, NULL, 0);
             log_it(L_INFO, "Genesis block produced");
         }
+        if (a_block_size)
+            *a_block_size = l_block_size;
         return l_block;
     }
-
-
 }
 
 /**
@@ -89,7 +91,7 @@ dap_chain_block_t * dap_chain_block_new(dap_chain_hash_fast_t * a_prev_block )
 size_t s_block_get_datum_offset (dap_chain_block_t * a_block, size_t a_block_size)
 {
     if( a_block_size < sizeof(a_block->hdr) ){
-        log_it(L_ERROR,"Meta add: Corrupted block size %zd thats smaller then block header size %zd ", a_block_size, sizeof (a_block->hdr));
+        log_it(L_ERROR, "Can't get datum offset: corrupted block size %zu / header size %zu", a_block_size, sizeof (a_block->hdr));
     }
     size_t l_offset = 0;
     dap_chain_block_meta_t * l_meta=NULL;
@@ -136,28 +138,22 @@ size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block
         return 0;
     }
 
-    size_t l_offset = s_block_get_datum_offset(l_block,a_block_size);
-    size_t l_datum_n_sign_copy_size = (a_block_size-sizeof (l_block->hdr)) - l_offset;
-    if (l_datum_n_sign_copy_size){
-        byte_t * l_meta_end =  l_block->meta_n_datum_n_sign +l_offset;
-        byte_t * l_datum_n_sign_copy = DAP_NEW_SIZE(byte_t, l_datum_n_sign_copy_size);
-        memcpy(l_datum_n_sign_copy, l_meta_end,l_datum_n_sign_copy_size);
-        *a_block_ptr = l_block = DAP_REALLOC(l_block,a_block_size +sizeof (l_meta->hdr) +a_data_size );
-        l_meta= (dap_chain_block_meta_t*) (l_block->meta_n_datum_n_sign +l_offset); // Update data end in reallocated block
-        l_meta->hdr.data_size = a_data_size;
-        l_meta->hdr.type = a_meta_type;
-        l_offset += a_data_size;
-        l_offset += sizeof(l_meta->hdr);
-        if (a_data_size)
-            memcpy(l_meta->data, a_data, a_data_size);
-        l_meta_end=  l_block->meta_n_datum_n_sign +l_offset; // Update meta end
-        memcpy(l_meta_end, l_datum_n_sign_copy, l_datum_n_sign_copy_size);
-        l_offset += l_datum_n_sign_copy_size;
-        l_block->hdr.meta_n_datum_n_signs_size = l_offset;
-        l_block->hdr.meta_count++;
-        DAP_DELETE(l_datum_n_sign_copy);
+    size_t l_add_size = sizeof(l_meta->hdr) + a_data_size;
+    *a_block_ptr = l_block = DAP_REALLOC(l_block, a_block_size + l_add_size);
+    size_t l_offset = s_block_get_datum_offset(l_block, a_block_size);
+    size_t l_datum_n_sign_copy_size = a_block_size - sizeof(l_block->hdr) - l_offset;
+    if (l_datum_n_sign_copy_size) {
+        byte_t *l_meta_end = l_block->meta_n_datum_n_sign + l_offset;
+        memmove(l_meta_end + l_add_size, l_meta_end, l_datum_n_sign_copy_size);
     }
-    return l_offset+sizeof (l_block->hdr);
+    l_meta = (dap_chain_block_meta_t *)(l_block->meta_n_datum_n_sign + l_offset); // Update data end in reallocated block
+    l_meta->hdr.data_size = a_data_size;
+    l_meta->hdr.type = a_meta_type;
+    if (a_data_size)
+        memcpy(l_meta->data, a_data, a_data_size);
+    l_block->hdr.meta_n_datum_n_signs_size = l_offset + l_datum_n_sign_copy_size;
+    l_block->hdr.meta_count++;
+    return a_block_size + l_add_size;
 }
 
 /**
@@ -199,14 +195,14 @@ size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_bloc
         log_it(L_ERROR,"Offset %zd is bigger than block size %zd (without header)", l_offset, (a_block_size-sizeof (l_block->hdr)));
         return a_block_size;
     }
-    if (UINT32_MAX - l_block->hdr.meta_n_datum_n_signs_size < a_datum_size &&  l_block->hdr.datum_count<UINT16_MAX  ){
+    if (a_datum_size + l_block->hdr.meta_n_datum_n_signs_size < UINT32_MAX && l_block->hdr.datum_count < UINT16_MAX) {
         // If were signs - they would be deleted after because signed should be all the block filled
-        *a_block_ptr = l_block = DAP_REALLOC(l_block,l_offset +a_datum_size);
-        memcpy(l_block->meta_n_datum_n_sign + l_offset, a_datum,a_datum_size);
+        *a_block_ptr = l_block = DAP_REALLOC(l_block, sizeof(l_block->hdr) + l_offset + a_datum_size);
+        memcpy(l_block->meta_n_datum_n_sign + l_offset, a_datum, a_datum_size);
         l_offset += a_datum_size;
         l_block->hdr.datum_count++;
         l_block->hdr.meta_n_datum_n_signs_size = l_offset;
-        return l_offset+sizeof (l_block->hdr);
+        return l_offset + sizeof(l_block->hdr);
     }else{
         //log_it(L_ERROR,"");
         return a_block_size;
@@ -279,12 +275,12 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
  * @param a_block_size
  * @return
  */
-static size_t s_block_get_sign_offset(dap_chain_block_t * a_block, size_t a_block_size)
+size_t dap_chain_block_get_sign_offset(dap_chain_block_t *a_block, size_t a_block_size)
 {
     assert(a_block);
     assert(a_block_size);
-    if(a_block_size>=sizeof (a_block->hdr)){
-        log_it(L_ERROR, "Corrupted block, block size %zd is lesser than block header size %zd", a_block_size,sizeof (a_block->hdr));
+    if (a_block_size <= sizeof(a_block->hdr)) {
+        log_it(L_ERROR, "Get sign: corrupted block, block size %zd is lesser than block header size %zd", a_block_size,sizeof (a_block->hdr));
         return 0;
     }
 
@@ -309,7 +305,7 @@ static size_t s_block_get_sign_offset(dap_chain_block_t * a_block, size_t a_bloc
         l_datum =(dap_chain_datum_t *) (a_block->meta_n_datum_n_sign + l_offset);
     }
     if (l_offset> (a_block_size-sizeof (a_block->hdr))){
-        log_it(L_ERROR,"Offset %zd with block header %zd is bigger than block size %zd ", l_offset,sizeof (a_block->hdr),a_block_size);
+        log_it(L_ERROR,"Offset %zd with block header %zu is bigger than block size %zu", l_offset,sizeof (a_block->hdr),a_block_size);
         return a_block_size;
     }
 
@@ -323,17 +319,19 @@ static size_t s_block_get_sign_offset(dap_chain_block_t * a_block, size_t a_bloc
  * @param a_cert
  * @return
  */
-size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_cert_t * a_cert )
+size_t dap_chain_block_sign_add(dap_chain_block_t **a_block_ptr, size_t a_block_size, dap_enc_key_t *a_key)
 {
     assert(a_block_ptr);
-    dap_chain_block_t * l_block = *a_block_ptr;
-    size_t l_offset = s_block_get_sign_offset(l_block,a_block_size);
-    dap_sign_t * l_block_sign = dap_cert_sign(a_cert,l_block,l_offset+sizeof (l_block->hdr),0);
+    dap_chain_block_t *l_block = *a_block_ptr;
+    size_t l_offset = dap_chain_block_get_sign_offset(l_block, a_block_size);
+    dap_sign_t *l_block_sign = dap_sign_create(a_key, l_block, l_offset + sizeof(l_block->hdr), 0);
     size_t l_block_sign_size = dap_sign_get_size(l_block_sign);
+    if (!l_block_sign_size)
+        return 0;
     *a_block_ptr = l_block = DAP_REALLOC(l_block, l_block_sign_size + a_block_size);
-    memcpy(  ((byte_t *)l_block) +a_block_size,l_block_sign, l_block_sign_size  );
+    memcpy(((byte_t *)l_block) + a_block_size, l_block_sign, l_block_sign_size);
     DAP_DELETE(l_block_sign);
-    return a_block_size+l_block_sign_size;
+    return a_block_size + l_block_sign_size;
 }
 
 /**
@@ -346,25 +344,47 @@ size_t dap_chain_block_sign_add( dap_chain_block_t ** a_block_ptr, size_t a_bloc
 dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block, size_t a_block_size, uint16_t a_sign_num )
 {
     assert(a_block);
-    size_t l_offset = s_block_get_sign_offset(a_block,a_block_size);
-    uint16_t l_sign_cur=0;
-    dap_sign_t * l_sign = (dap_sign_t*) a_block->meta_n_datum_n_sign+l_offset;
-    while( l_sign_cur <a_sign_num){
+    size_t l_offset = dap_chain_block_get_sign_offset(a_block, a_block_size);
+    uint16_t l_sign_cur = 0;
+    dap_sign_t *l_sign = (dap_sign_t *)(a_block->meta_n_datum_n_sign + l_offset);
+    while (l_sign_cur < a_sign_num) {
 
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        if (!l_sign){
+        if (!l_sign_size){
             log_it(L_ERROR, "Empty sign #%u",  l_sign_cur );
             return NULL;
         }
         if (l_sign_size >  a_block_size- l_offset - sizeof (a_block->hdr) ){
-            log_it(L_ERROR, "Corrupted sign #%u size %zd",  l_sign_cur, l_sign_size );
+            log_it(L_ERROR, "Corrupted sign #%u size %zu",  l_sign_cur, l_sign_size );
             return NULL;
         }
         l_offset += l_sign_size;
         l_sign_cur++;
         l_sign = (dap_sign_t*) a_block->meta_n_datum_n_sign+l_offset;
     }
-    return  l_sign_cur == a_sign_num? l_sign : NULL;
+    return l_sign_cur == a_sign_num ? l_sign : NULL;
+}
+
+size_t dap_chain_block_get_signs_count(dap_chain_block_t * a_block, size_t a_block_size)
+{
+    assert(a_block);
+    assert(a_block_size);
+    uint16_t l_sign_count = 0;
+    size_t l_offset = dap_chain_block_get_sign_offset(a_block,a_block_size);
+    for ( ; l_offset < a_block_size; l_sign_count++) {
+        dap_sign_t *l_sign = (dap_sign_t *)a_block->meta_n_datum_n_sign + l_offset;
+        size_t l_sign_size = dap_sign_get_size(l_sign);
+        if (!l_sign_size){
+            log_it(L_WARNING, "Empty sign #%hu", l_sign_count);
+            return l_sign_count;
+        }
+        if (l_sign_size > a_block_size - l_offset - sizeof(a_block->hdr)) {
+            log_it(L_ERROR, "Corrupted sign #%hu size %zu", l_sign_count, l_sign_size);
+            return l_sign_count;
+        }
+        l_offset += l_sign_size;
+    }
+    return l_sign_count;
 }
 
 /**
@@ -379,11 +399,11 @@ dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size
     assert(a_block);
     assert(a_block_size);
     if( a_block_size<sizeof (a_block->hdr)){
-        log_it(L_ERROR,"Corrupted block size %zd lesser than block header size %zd", a_block_size, sizeof (a_block->hdr));
+        log_it(L_ERROR, "Get datums: corrupted block size %zd lesser than block header size %zd", a_block_size, sizeof (a_block->hdr));
         return NULL;
     }
-    assert(a_datums_count);
-    *a_datums_count = a_block->hdr.datum_count;
+    if (a_datums_count)
+        *a_datums_count = 0;
     if (a_block->hdr.datum_count == 0)
         return NULL;
     size_t l_offset = s_block_get_datum_offset(a_block,a_block_size);
@@ -405,11 +425,11 @@ dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size
             return l_ret;
         }
         l_ret[n] = l_datum;
-        (*a_datums_count)++;
+        if (a_datums_count)
+            (*a_datums_count)++;
         // Update current datum pointer and offset
         l_offset += l_datum_size;
         l_datum =(dap_chain_datum_t *) (a_block->meta_n_datum_n_sign + l_offset);
-
     }
     if (l_offset> (a_block_size-sizeof (a_block->hdr))){
         log_it(L_ERROR,"Offset %zd is bigger than block size %zd (without header)", l_offset, (a_block_size-sizeof (a_block->hdr)));
@@ -428,10 +448,11 @@ dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size
 dap_chain_block_meta_t** dap_chain_block_get_meta(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_meta_count )
 {
     if( a_block_size < sizeof(a_block->hdr) ){
-        log_it(L_ERROR,"Meta add: Corrupted block size %zu thats smaller then block header size %zu ", a_block_size, sizeof (a_block->hdr));
+        log_it(L_ERROR,"Get meta: corrupted block size %zu thats smaller then block header size %zu", a_block_size, sizeof (a_block->hdr));
     }
-    *a_meta_count = a_block->hdr.meta_count;
-    if (a_block->hdr.meta_count ==0) // no meta - nothing to return
+    if (a_meta_count)
+        *a_meta_count = 0;
+    if (a_block->hdr.meta_count == 0) // no meta - nothing to return
         return NULL;
     size_t l_offset = 0;
     dap_chain_block_meta_t * l_meta=NULL;
@@ -443,11 +464,13 @@ dap_chain_block_meta_t** dap_chain_block_get_meta(dap_chain_block_t * a_block, s
         size_t l_meta_data_size = l_meta->hdr.data_size;
         if (l_meta_data_size + sizeof (l_meta->hdr) + l_offset <= (a_block_size-sizeof (a_block->hdr)) ){
             l_ret[i] = l_meta;
-            (*a_meta_count)++;
-            l_offset += sizeof (l_meta->hdr);
-            l_offset += l_meta_data_size;
-        }else
-            l_offset = (a_block_size-sizeof (a_block->hdr));
+            if (a_meta_count)
+                (*a_meta_count)++;
+            l_offset += sizeof(l_meta->hdr) + l_meta_data_size;
+        }else {
+            log_it(L_WARNING, "Get meta: corrupted block, can read only %zu from %hu metas", i, a_block->hdr.meta_count);
+            return l_ret;
+        }
     }
     return l_ret;
 }
@@ -465,6 +488,7 @@ dap_chain_block_meta_t** dap_chain_block_get_meta(dap_chain_block_t * a_block, s
 void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_meta_count,
                                     dap_chain_hash_fast_t * a_block_prev_hash,
                                     dap_chain_hash_fast_t * a_block_anchor_hash,
+                                    dap_chain_hash_fast_t *a_merkle,
                                     dap_chain_hash_fast_t ** a_block_links,
                                     size_t *a_block_links_count,
                                     bool * a_is_genesis,
@@ -472,12 +496,15 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                                     uint64_t *a_nonce2
                                   )
 {
+    if (!a_meta || !a_meta_count)
+        return;
     // Check for meta that could be faced only once
     bool l_was_prev = false;
     bool l_was_genesis = false;
     bool l_was_anchor = false;
     bool l_was_nonce = false;
     bool l_was_nonce2 = false;
+    bool l_was_merkle = false;
     // Init links parsing
     size_t l_links_count_max = 5;
     if (a_block_links_count)
@@ -563,7 +590,20 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                     if (l_meta->hdr.data_size == sizeof (*a_nonce2 ) )
                         memcpy(a_nonce2, l_meta->data, l_meta->hdr.data_size);
                     else
-                        log_it(L_WARNING, "NONCE2 meta #%zd has wrong size %hu when expecting %zu",i, l_meta->hdr.data_size, sizeof (*a_nonce2));
+                        log_it(L_WARNING, "NONCE2 meta #%zu has wrong size %hu when expecting %zu",i, l_meta->hdr.data_size, sizeof (*a_nonce2));
+                }
+            break;
+            case DAP_CHAIN_BLOCK_META_MERKLE:
+                if(l_was_merkle){
+                    log_it(L_WARNING, "Merckle root could be only one in the block, meta #%zu is ignored ", i);
+                    break;
+                }
+                l_was_merkle = true;
+                if (a_merkle) {
+                    if (l_meta->hdr.data_size == sizeof(*a_merkle))
+                        memcpy(a_merkle, l_meta->data, l_meta->hdr.data_size);
+                    else
+                        log_it(L_WARNING, "Merkle root meta #%zu has wrong size %hu when expecting %zu", i, l_meta->hdr.data_size, sizeof (*a_nonce2));
                 }
             break;
             default: { log_it(L_WARNING, "Unknown meta #%zu type 0x%02hx (size %hu), possible corrupted block or you need to upgrade your software",

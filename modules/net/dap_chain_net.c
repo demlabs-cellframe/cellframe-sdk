@@ -99,7 +99,6 @@
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_node_dns_client.h"
-
 #include "dap_module.h"
 
 #include <stdio.h>
@@ -266,6 +265,8 @@ static dap_global_db_obj_callback_notify_t s_srv_callback_notify = NULL;
  */
 int dap_chain_net_init()
 {
+    dap_stream_ch_chain_init();
+    dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
         "net list [chains -n <chain net name>]"
@@ -289,7 +290,7 @@ int dap_chain_net_init()
         "net -net <chain net name> ca del -hash <cert hash> [-H hex|base58(default)]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
         "net -net <chain net name> ledger reload\n"
-            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"                                        );
+            "\tPurge the cache of chain net ledger and recalculate it from chain file\n");
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
 
     // maximum number of connections to other nodes
@@ -1600,7 +1601,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 ret = -5;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
-            dap_chain_ledger_purge(l_net->pub.ledger);
+            dap_chain_ledger_purge(l_net->pub.ledger, false);
             dap_chain_t *l_chain;
             DL_FOREACH(l_net->pub.chains, l_chain) {
                 if (l_chain->callback_purge) {
@@ -1746,7 +1747,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             case NODE_ROLE_ROOT_MASTER:
             case NODE_ROLE_ROOT:
             case NODE_ROLE_ARCHIVE:
-                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
             case NODE_ROLE_MASTER:
                 l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
             case NODE_ROLE_CELL_MASTER:
@@ -2147,6 +2147,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             l_target_state = NET_STATE_OFFLINE;
         }
         l_net_pvt->load_mode = false;
+        dap_chain_ledger_load_end(l_net->pub.ledger);
 
         if (l_target_state != l_net_pvt->state_target)
             dap_chain_net_state_go_to(l_net, l_target_state);
@@ -2601,13 +2602,17 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
         case DAP_CHAIN_DATUM_TOKEN_DECL: return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger,
                                                                    (dap_chain_datum_token_t*) a_datum->data );
         case DAP_CHAIN_DATUM_TOKEN_EMISSION : return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger,
-                                                                   (dap_chain_datum_token_emission_t*) a_datum->data, a_datum->header.data_size );
+                                                                    a_datum->data, a_datum->header.data_size );
         default: return 0;
     }
 }
 
 /**
  * @brief dap_chain_net_dump_datum
+ * process datum verification process. Can be:
+ * if DAP_CHAIN_DATUM_TX, called dap_chain_ledger_tx_add_check
+ * if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_chain_ledger_token_decl_add_check
+ * if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_chain_ledger_token_emission_add_check
  * @param a_str_out
  * @param a_datum
  */
@@ -2915,11 +2920,14 @@ void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_da
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:{
                                             dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE\n");
                                         }break;
+                                        default:{
+                                            dap_string_append_printf(a_str_out,"\tsubtype: UNKNOWN\n");
+                                        }break;
                                     }
                                     dap_string_append_printf(a_str_out,"\tparams_size : %u\n", l_out->params_size );
                                 } break;
-                                case TX_ITEM_TYPE_RECEIPT:{} break;
-                                default:{}
+                                case TX_ITEM_TYPE_RECEIPT:
+                                default: break;
                             }
                             n++;
                         }
@@ -3026,4 +3034,27 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
         return l_ret;
     }
     return NULL;
+}
+
+/**
+ * @brief dap_cert_chain_file_save
+ * @param datum
+ */
+int dap_cert_chain_file_save(dap_chain_datum_t * datum, char * net_name)
+{
+    const char * s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
+
+    dap_cert_t * cert = dap_cert_mem_load(datum->data, datum->header.data_size);
+    const char * cert_name = cert->name;
+
+    size_t cert_path_length = strlen(net_name)+strlen(cert_name)+9+strlen(s_system_chain_ca_dir);
+    char *cert_path = DAP_NEW_Z_SIZE(char,cert_path_length);
+
+    snprintf(cert_path,cert_path_length,"%s/%s/%s.dcert",s_system_chain_ca_dir,net_name,cert_name);
+
+//  if ( access( l_cert_path, F_OK ) != -1 ) {
+//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
+//      return -1;
+//  } else
+    return dap_cert_file_save(cert, cert_path);
 }

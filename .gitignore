@@ -1,5 +1,6 @@
 # Prerequisites
 build/*
+cmake-build-*/
 build_stretch/*
 test/build
 *.txt.user
@@ -68,3 +69,8 @@ cmake_install.cmake
 
 # Editor's temp files
 *~
+.idea/
+
+# OS files
+.DS_Store
+

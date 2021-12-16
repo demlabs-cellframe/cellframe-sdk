@@ -281,7 +281,6 @@ static int wait_data(pthread_mutex_t *a_mutex, pthread_cond_t *a_cond, int l_tim
 }
 
 #ifdef USE_WRITE_BUFFER
-/
 /**
  * @brief Checks if a buffer is not empty.
  * @return Returns true if the buffer is not empty, false if it is empty.

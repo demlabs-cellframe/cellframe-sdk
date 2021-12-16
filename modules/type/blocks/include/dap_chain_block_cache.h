@@ -27,6 +27,8 @@
 #include "dap_hash.h"
 #include "uthash.h"
 
+typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
+
 typedef struct dap_chain_block_cache_tx_index
 {
     dap_chain_hash_fast_t tx_hash;
@@ -55,6 +57,7 @@ typedef struct dap_chain_block_cache{
     // Extracted metadata
     dap_chain_hash_fast_t prev_hash;
     dap_chain_hash_fast_t anchor_hash;
+    dap_chain_hash_fast_t merkle_root;
     dap_chain_hash_fast_t* links_hash;
     size_t links_hash_count;
 
@@ -83,10 +86,9 @@ typedef struct dap_chain_block_cache{
 int dap_chain_block_cache_init();
 void dap_chain_block_cache_deinit();
 
-dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_hash_fast_t a_block_hash);
-dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_block_t * a_block, size_t a_block_size);
+dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t * a_block, size_t a_block_size);
 dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_block);
-void dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache);
+int dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache);
 dap_chain_datum_tx_t* dap_chain_block_cache_get_tx_by_hash (dap_chain_block_cache_t * a_block_cache, dap_chain_hash_fast_t * a_tx_hash);
 

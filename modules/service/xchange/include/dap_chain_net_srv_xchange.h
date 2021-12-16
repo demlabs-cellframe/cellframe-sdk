@@ -71,4 +71,4 @@ typedef struct dap_chain_net_srv_xchange {
 
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
-bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx);
+bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);

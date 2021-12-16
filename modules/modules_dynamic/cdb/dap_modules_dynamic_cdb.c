@@ -29,7 +29,7 @@
 #include <dlfcn.h>
 #endif
 
-#define LOG_TAG "dap_http"
+#define LOG_TAG "dap_modules_dynamic"
 
 static const char * s_default_path_modules = "var/modules";
 static void *s_cdb_handle = NULL;
@@ -91,5 +91,6 @@ int dap_modules_dynamic_load_cdb(dap_http_t * a_server)
         log_it(L_ERROR, "dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init returns %d", l_init_res);
         return -3;
     }
+    s_cdb_was_init = true;
     return 0;
 }

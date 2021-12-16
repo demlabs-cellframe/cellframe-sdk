@@ -141,7 +141,7 @@ bool dap_cdb_get_cond_obj_iter_callback(void *arg, const char *key, int ksize, c
     return true;
 }
 
-//** A callback function designed for countng items*/
+//** A callback function designed for counting items*/
 bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, const char *val, int vsize, uint32_t expire, uint64_t oid) {
     UNUSED(ksize);
     UNUSED(val);
@@ -515,7 +515,6 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
     return l_arg.o;
 }
 
-
 /**
  * @brief Reads count of items in CDB by a_group and a_id.
  * @param a_group the group name
@@ -563,7 +562,6 @@ dap_list_t* dap_db_driver_cdb_get_groups_by_mask(const char *a_group_mask)
     pthread_rwlock_unlock(&cdb_rwlock);
     return l_ret_list;
 }
-
 
 /**
  * @brief Adds or deletes item in CDB depending on a_store_obj->type.
