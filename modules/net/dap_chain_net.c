@@ -145,6 +145,8 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_addr_t * node_addr;
     dap_chain_node_info_t * node_info;  // Current node's info
 
+    //Active synchronizing link
+    dap_chain_node_client_t *active_link;
     // Established links
     dap_list_t *links;                  // Links list
     size_t links_connected_count;
@@ -976,7 +978,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             for (dap_list_t *l_tmp = l_net_pvt->links_info; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = (dap_chain_node_info_t *)l_tmp->data;
                 dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, l_link_info);
-                l_client->keep_connection = false;
+                l_client->keep_connection = true;
                 l_net_pvt->links = dap_list_append(l_net_pvt->links, l_client);
                 if (dap_list_length(l_net_pvt->links) == s_required_links_count)
                     break;
@@ -1006,6 +1008,38 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 
     return ! l_repeat_after_exit;
+}
+
+bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
+{
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    pthread_rwlock_rdlock(&l_net_pvt->rwlock);
+    bool l_found = false;
+    if (l_net_pvt->active_link) {
+        for (dap_list_t *l_links = l_net_pvt->links; l_links; l_links = dap_list_next(l_links)) {
+            if (l_links->data == l_net_pvt->active_link) {
+                dap_chain_node_client_t *l_client = (dap_chain_node_client_t *)l_links->data;
+                if (l_client->state >= NODE_CLIENT_STATE_ESTABLISHED &&
+                        l_client->state < NODE_CLIENT_STATE_SYNCED) {
+                    l_found = true;
+                    break;
+                }
+            }
+        }
+    }
+    if (!l_found) {
+        l_net_pvt->active_link = a_client;
+    }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    return !l_found;
+}
+
+void dap_chain_net_sync_unlock(dap_chain_net_t *a_net)
+{
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    pthread_rwlock_rdlock(&l_net_pvt->rwlock);
+    l_net_pvt->active_link = NULL;
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
 /**
  * @brief dap_chain_net_client_create_n_connect

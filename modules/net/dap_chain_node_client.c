@@ -232,7 +232,7 @@ static bool s_timer_update_states_callback(void *a_arg)
                     dap_chain_net_t * l_net = l_node_client->net;
                     assert(l_net);
                     // If we do nothing - init sync process
-                    if (l_ch_chain->state == CHAIN_STATE_IDLE ||l_ch_chain->state == CHAIN_STATE_SYNC_ALL ){
+                    if (l_ch_chain->state == CHAIN_STATE_IDLE && dap_chain_net_sync_trylock(l_net, l_me)) {
                         log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
                         dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -456,6 +456,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             }else{ // If no - over with sync process
                 dap_chain_node_addr_t * l_node_addr = dap_chain_net_get_cur_addr(l_net);
                 log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
+                dap_chain_net_sync_unlock(l_net);
                 l_node_client->state = NODE_CLIENT_STATE_SYNCED;
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
                     dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
