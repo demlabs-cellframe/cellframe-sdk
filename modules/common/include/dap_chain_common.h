@@ -271,6 +271,13 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from(uint64_t a_from)
     return l_ret_256;
 }
 
+DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
+{
+    uint256_t l_ret_256 = uint256_0;
+    ADD_128_INTO_256(a_from, &l_ret_256);
+    return l_ret_256;
+}
+
 uint64_t dap_chain_uint128_to(uint128_t a_from);
 // 256
 uint64_t dap_chain_uint256_to(uint256_t a_from);

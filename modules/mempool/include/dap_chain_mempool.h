@@ -48,7 +48,7 @@ dap_hash_fast_t*  dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint64_t a_value, uint64_t a_value_fee);
+        uint256_t a_value, uint256_t a_value_fee);
 
 // Make transfer transaction & insert to cache
 dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,

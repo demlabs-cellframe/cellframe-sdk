@@ -107,7 +107,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint64_t a_value, uint64_t a_value_fee)
+        uint256_t a_value, uint256_t a_value_fee)
 {
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
@@ -116,8 +116,9 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
         return NULL;
 
     // find the transactions from which to take away coins
-    uint64_t l_value_transfer = 0; // how many coins to transfer
-    uint64_t l_value_need = a_value + a_value_fee;
+    uint256_t l_value_transfer = 0; // how many coins to transfer
+    uint256_t l_value_need;
+    SUM_256_256(a_value, a_value_fee, &l_value_need);
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
@@ -134,18 +135,19 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     }
     // add 'out' items
     {
-        uint64_t l_value_pack = 0; // how much datoshi add to 'out' items
+        uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
         if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_value) == 1) {
-            l_value_pack += a_value;
+            SUM_256_256(l_value_pack, a_value, &l_value_pack);
             // transaction fee
             if(a_addr_fee) {
                 if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_fee, a_value_fee) == 1)
-                    l_value_pack += a_value_fee;
+                    SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
             }
         }
         // coin back
-        uint64_t l_value_back = l_value_transfer - l_value_pack;
-        if(l_value_back) {
+        uint256_t l_value_back;
+        SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+        if(!IS_ZERO_256(l_value_back)) {
             if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;

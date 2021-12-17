@@ -143,7 +143,7 @@ typedef uint8_t byte_t;
   #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
 #endif
 
-#define DAP_DEL_Z(a)          if(a) { DAP_DELETE(a); a=NULL;}
+#define DAP_DEL_Z(a)            if (a) { DAP_DELETE(a); (a) = NULL; }
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {

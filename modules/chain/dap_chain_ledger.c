@@ -935,7 +935,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                                              "\tAuth signs (valid/total) %zu/%zu\n"
                                              "\tTotal emissions %u\n",
                                              &l_token_item->ticker, l_type_str, l_token_item->flags,
-                                             dap_chain_u256tostr(l_token_item->current_supply), dap_chain_u256tostr(l_token_item->total_supply),
+                                             dap_chain_balance_print(l_token_item->current_supply), dap_chain_balance_print(l_token_item->total_supply),
                                              l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                              HASH_COUNT(l_token_item->token_emissions));
         l_ret_list = dap_list_append(l_ret_list, l_item_str);
@@ -1205,7 +1205,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
         if(s_debug_more) {
             if ( l_token_emission_item->datum_token_emission->hdr.version == 1 ) //&& l_token_emission_item->datum_token_emission->hdr.type_256 )
                 log_it(L_ERROR, "Can't add token emission datum of %s %s ( %s ): already present in cache",
-                    dap_chain_u256tostr(l_token_emission_item->datum_token_emission->hdr.value_256), c_token_ticker, l_hash_str);
+                    dap_chain_balance_print(l_token_emission_item->datum_token_emission->hdr.value_256), c_token_ticker, l_hash_str);
             else
                 log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s ): already present in cache",
                     l_token_emission_item->datum_token_emission->hdr.value, c_token_ticker, l_hash_str);
@@ -1258,7 +1258,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                     if(s_debug_more)
                             if ( l_emission->hdr.version == 1 ) // && l_emission->hdr.type_256 ) // 256
                                log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %u valid aproves when %u need",
-                                   dap_chain_u256tostr(l_emission->hdr.value_256), a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid );
+                                   dap_chain_balance_print(l_emission->hdr.value_256), a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid );
                             else
                                 log_it(L_WARNING, "Emission of %"DAP_UINT64_FORMAT_U" datoshi of %s:%s is wrong: only %u valid aproves when %u need",
                                    l_emission->hdr.value, a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid );
@@ -1363,7 +1363,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             if(s_debug_more) {
                 if ( ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.version == 1 ) // && ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.type_256 ) // 256
                     log_it(L_ERROR, "Duplicate token emission datum of %s %s ( %s )",
-                            dap_chain_u256tostr(((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value_256), c_token_ticker, l_hash_str);
+                            dap_chain_balance_print(((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value_256), c_token_ticker, l_hash_str);
                 else
                     log_it(L_ERROR, "Duplicate token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s )",
                             ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value, c_token_ticker, l_hash_str);
@@ -2898,7 +2898,7 @@ uint256_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
     if (l_balance_item) {
         if(s_debug_more)
             log_it (L_INFO,"Found address in cache with balance %s",
-                            dap_chain_u256tostr(l_balance_item->balance));
+                            dap_chain_balance_print(l_balance_item->balance));
         l_ret = l_balance_item->balance;
     } else {
         if (s_debug_more)
@@ -3262,12 +3262,12 @@ uint64_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, da
  * @return
  */
 dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                                       uint64_t a_value_need, uint64_t *a_value_transfer)
+                                                       uint256_t a_value_need, uint256_t *a_value_transfer)
 {
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     dap_chain_hash_fast_t l_tx_cur_hash = { 0 };
-    uint64_t l_value_transfer = 0;
-    while(l_value_transfer < a_value_need)
+    uint256_t l_value_transfer = {};
+    while(compare256(l_value_transfer, a_value_need) == -1)
     {
         // Get the transaction in the cache by the addr in out item
         dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from,

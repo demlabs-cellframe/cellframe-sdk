@@ -3113,7 +3113,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     }
     int l_ret = 0;
     bool l_placed = dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool);
-    dap_chain_node_cli_set_reply_text(a_str_reply, "datum 256_t %s with token %s is%s placed in datum pool",
+    dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
                                       dap_strcmp(l_hash_out_type, "hex") ? l_key_str_base58 : l_key_str,
                                       l_ticker, l_placed ? "" : " not");
     if (!l_placed) {
@@ -3143,7 +3143,6 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     const char * l_addr_str = NULL;
 
     const char * l_emission_hash_str = NULL;
-    char * l_emission_hash_str_new = NULL;
     dap_chain_hash_fast_t l_emission_hash={0};
     dap_chain_datum_token_emission_t * l_emission = NULL;
     char * l_emission_hash_str_base58 = NULL;
@@ -3279,7 +3278,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     }
     // Create emission datum
     // then create datum in memory
-    if(!l_emission){
+    if (!l_emission) {
         char * l_gdb_group_mempool_emission;
         if(l_chain_emission) {
             l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
@@ -3313,50 +3312,35 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         }
 
         // Produce datum
-        dap_chain_datum_t * l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,
+        dap_chain_datum_t *l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,
                 l_emission,
                 l_emission_size);
         size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
-        // Calc emission's hash
-        dap_hash_fast(l_emission, l_emission_size, &l_emission_hash);
-        l_emission_hash_str = l_emission_hash_str_new = dap_chain_hash_fast_to_str_new(&l_emission_hash);
+        // Calc datum emission's hash
+        dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_emission_hash);
+        l_emission_hash_str = dap_chain_hash_fast_to_str_new(&l_emission_hash);
         l_emission_hash_str_base58 = dap_enc_base58_encode_hash_to_str(&l_emission_hash);
 
         // Delete token emission
         DAP_DEL_Z(l_emission);
 
-        // Add to mempool emission token
-        bool l_placed = dap_chain_global_db_gr_set(dap_strdup(l_emission_hash_str_new),
+        // Add token emission datum to mempool
+        bool l_placed = dap_chain_global_db_gr_set(dap_strdup(l_emission_hash_str),
                                                    (uint8_t *)l_datum_emission,
                                                    l_datum_emission_size,
                                                    l_gdb_group_mempool_emission);
-        str_reply_tmp = dap_strdup_printf("Datum 256_t emission %s is%s placed in datum pool",
-                    (l_datum_emission->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ? " 256_t" : ""),
-                    l_emission_hash_str_new);
-            else
-                str_reply_tmp = dap_strdup_printf("Datum%s emission %s is placed in datum pool",
-                            (l_datum_emission->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ? " 256_t" : ""),
-                            l_emission_hash_str_base58);
-        }
-        else {
-            if(!dap_strcmp(l_hash_out_type,"hex"))
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum%s emission %s is not placed in datum pool",
-                            (l_datum_emission->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ? " 256_t" : ""),
-                            l_emission_hash_str_new);
-            else
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum%s emission %s is not placed in datum pool", 
-                            (l_datum_emission->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ? " 256_t" : ""),
-                            l_emission_hash_str_base58);
-            DAP_DEL_Z(l_emission_hash_str_new);
-            l_emission_hash_str = NULL;
-            DAP_DEL_Z(l_emission_hash_str_base58);
+        str_reply_tmp = dap_strdup_printf("Datum %s with 256bit emission is%s placed in datum pool",
+                                          dap_strcmp(l_hash_out_type, "hex") ? l_emission_hash_str_base58 : l_emission_hash_str,
+                                          l_placed ? "" : " not");
+        DAP_DELETE((char *)l_emission_hash_str);
+        DAP_DEL_Z(l_emission_hash_str_base58);
+        if (!l_placed) {
             DAP_DEL_Z(l_datum_emission);
             return -1;
         }
         l_datum_emission = NULL;
-        l_emission = NULL;
-    }
+    } // TODO possible update emission if it found, or remove -emission parameter
 
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
@@ -3391,18 +3375,12 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     DAP_DEL_Z(l_in);
     DAP_DEL_Z(l_out);
 
-    DAP_DEL_Z(l_emission_hash_str_new);
-    l_emission_hash_str = NULL;
-    DAP_DEL_Z(l_emission_hash_str_base58);
-
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
 
     // Pack transaction into the datum
     dap_chain_datum_t * l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
 
-    // use l_tx hash for compatible with utho hash
-    //dap_hash_fast(l_tx, l_tx_size, &l_key_hash); //dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_key_hash);
     // calc datum hash
     dap_chain_hash_fast_t l_datum_tx_hash;
     dap_hash_fast(l_datum_tx, l_datum_tx_size,  &l_datum_tx_hash);
@@ -3411,38 +3389,21 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     DAP_DEL_Z(l_tx);
 
     // Add to mempool tx token
-    if(dap_chain_global_db_gr_set(dap_strdup(l_tx_hash_str), l_datum_tx, l_datum_tx_size
-            , l_gdb_group_mempool_base_tx)) {
-        if(!dap_strcmp(l_hash_out_type,"hex"))
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum%s tx %s is placed in datum pool ",
-                            str_reply_tmp,
-                            (l_datum_tx->header.type_id == DAP_CHAIN_DATUM_256_TX ? " 256_t" : ""),
-                            l_tx_hash_str);
-        else
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum%s tx %s is placed in datum pool ",
-                            str_reply_tmp,
-                            (l_datum_tx->header.type_id == DAP_CHAIN_DATUM_256_TX ? " 256_t" : ""),
-                            l_tx_hash_str_base58);
-        DAP_DEL_Z(l_tx_hash_str);
-        DAP_DEL_Z(l_tx_hash_str_base58);
-    } else {
-        if(!dap_strcmp(l_hash_out_type,"hex"))
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum%s tx %s is not placed in datum pool ",
-                            str_reply_tmp,
-                            (l_datum_tx->header.type_id == DAP_CHAIN_DATUM_256_TX ? " 256_t" : ""),
-                            l_emission_hash_str);
-        else
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s\ndatum%s tx %s is not placed in datum pool ",
-                            str_reply_tmp,
-                            (l_datum_tx->header.type_id == DAP_CHAIN_DATUM_256_TX ? " 256_t" : ""),
-                            l_tx_hash_str_base58);
-        DAP_DEL_Z(l_tx_hash_str);
-        DAP_DEL_Z(l_tx_hash_str_base58);
-
-        return -2;
-    }
+    bool l_placed = dap_chain_global_db_gr_set(dap_strdup(l_tx_hash_str), l_datum_tx,
+                                               l_datum_tx_size, l_gdb_group_mempool_base_tx);
+    dap_chain_node_cli_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is%s placed in datum pool ",
+                                      str_reply_tmp,
+                                      dap_strcmp(l_hash_out_type, "hex") ? l_tx_hash_str_base58 : l_tx_hash_str,
+                                      l_placed ? "" : " not");
+    DAP_DEL_Z(l_tx_hash_str);
+    DAP_DEL_Z(l_tx_hash_str_base58);
     DAP_DELETE(str_reply_tmp);
     DAP_DELETE(l_addr);
+    if (!l_placed) {
+        DAP_DELETE(l_datum_tx);
+        return -2;
+    }
+
     return 0;
 }
 
