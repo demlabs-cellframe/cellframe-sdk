@@ -70,7 +70,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Verify new event in gdb
 static size_t s_chain_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
 
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain);
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id);
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t * a_chain,
         dap_chain_atom_ptr_t a, size_t a_atom_size);
 
@@ -346,8 +346,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (l_datum->header.type_id) {
         case DAP_CHAIN_DATUM_256_TOKEN_DECL: // 256
         case DAP_CHAIN_DATUM_TOKEN_DECL:{
-            dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-            if (dap_chain_ledger_token_load(a_chain->ledger,l_token, l_datum->header.data_size))
+            if (dap_chain_ledger_token_load(a_chain->ledger, l_datum->data, l_datum->header.data_size))
                 return ATOM_REJECT;
         }break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
@@ -417,21 +416,21 @@ static size_t s_chain_callback_atom_get_static_hdr_size()
  * @param a_chain dap_chain_t a_chain
  * @return dap_chain_atom_iter_t* 
  */
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain)
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_iter->chain = a_chain;
-    l_iter->cur_hash = DAP_NEW(dap_chain_hash_fast_t);
+    l_iter->cell_id = a_cell_id;
     return l_iter;
 }
 
 /**
  * @brief create atom object (dap_chain_atom_iter_t)
- * 
+ *
  * @param a_chain chain object
  * @param a_atom pointer to atom
  * @param a_atom_size size of atom
- * @return dap_chain_atom_iter_t* 
+ * @return dap_chain_atom_iter_t*
  */
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t * a_chain,
         dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
@@ -461,11 +460,11 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
 
 /**
  * @brief get dap_chain_atom_ptr_t object form database by hash
- * @details Searchs by datum data hash, not for datum's hash itself 
- * @param a_atom_iter dap_chain_atom_iter_t atom object 
+ * @details Searchs by datum data hash, not for datum's hash itself
+ * @param a_atom_iter dap_chain_atom_iter_t atom object
  * @param a_atom_hash dap_chain_hash_fast_t atom hash
  * @param a_atom_size size of atom object
- * @return dap_chain_atom_ptr_t 
+ * @return dap_chain_atom_ptr_t
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
         dap_chain_hash_fast_t * a_atom_hash, size_t *a_atom_size)
@@ -482,10 +481,10 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
 
 /**
  * @brief Get the first dag event from database
- * 
- * @param a_atom_iter ap_chain_atom_iter_t object 
+ *
+ * @param a_atom_iter ap_chain_atom_iter_t object
  * @param a_atom_size a_atom_size atom size
- * @return dap_chain_atom_ptr_t 
+ * @return dap_chain_atom_ptr_t
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size)
 {
@@ -517,10 +516,10 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
 
 /**
  * @brief Get the next dag event from database
- * 
+ *
  * @param a_atom_iter dap_chain_atom_iter_t
  * @param a_atom_size size_t a_atom_size
- * @return dap_chain_atom_ptr_t 
+ * @return dap_chain_atom_ptr_t
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_iter_t *a_atom_iter, size_t *a_atom_size)
 {

@@ -264,10 +264,9 @@ typedef struct dap_chain_datum_token_emission{
         dap_chain_addr_t address; // Emission holder's address
         union {
             uint64_t value;
-            uint256_t value256;
+            uint256_t value_256;
         };
         uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
-        // bool type_256; // emission 256
     } DAP_ALIGN_PACKED hdr;
     union {
         struct {

@@ -122,9 +122,9 @@ int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_t
  *
  */
 
-int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
-int dap_chain_ledger_token_load(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
-int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token);
+int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
+int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
+int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, byte_t *a_token);
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 /**
  * Add token emission datum
@@ -184,10 +184,10 @@ bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain
  * Calculate balance of addr
  *
  */
-uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+uint256_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
         const char *a_token_ticker);
 
-uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
             const char *a_token_ticker);
 
 /**

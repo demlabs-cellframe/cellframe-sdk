@@ -295,7 +295,7 @@ void dap_chain_ledger_load_end(dap_ledger_t *a_ledger)
  * @param a_token
  * @return
  */
-int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,  dap_chain_datum_token_t *a_token)
+int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, byte_t *a_token)
 {
     if ( !a_ledger){
         if(s_debug_more)
@@ -305,7 +305,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,  dap_chain_da
 
     dap_chain_ledger_token_item_t * l_token_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
-    HASH_FIND_STR(PVT(a_ledger)->tokens,a_token->ticker,l_token_item);
+    HASH_FIND_STR(PVT(a_ledger)->tokens, a_token->ticker, l_token_item);
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     if ( l_token_item != NULL ){
         log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
@@ -341,7 +341,7 @@ int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_t
  * @param a_token_size
  * @return
  */
-int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t *a_token, size_t a_token_size)
+int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
 {
     if ( !a_ledger){
         if(s_debug_more)
@@ -897,7 +897,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
     return 0;
 }
 
-int dap_chain_ledger_token_load(dap_ledger_t *a_ledger,  dap_chain_datum_token_t *a_token, size_t a_token_size)
+int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
 {
     if (PVT(a_ledger)->last_ticker.found) {
         return dap_chain_ledger_token_add(a_ledger, a_token, a_token_size);

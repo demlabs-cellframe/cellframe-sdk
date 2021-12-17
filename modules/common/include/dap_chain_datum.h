@@ -37,7 +37,6 @@
 
 /// Transaction header section
 #define DAP_CHAIN_DATUM_TX                  0x0100
-#define DAP_CHAIN_DATUM_256_TX              0x0101 // 256
 
 /// Transaction request section
 #define DAP_CHAIN_DATUM_TX_REQUEST          0x0300
@@ -61,7 +60,6 @@
 #define DAP_CHAIN_DATUM_TOKEN_DECL           0xf000
 #define DAP_CHAIN_DATUM_256_TOKEN_DECL       0xf001 // 256
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
-#define DAP_CHAIN_DATUM_256_TOKEN_EMISSION   0xf101 // 256
 #define DAP_CHAIN_DATUM_TOKEN_DISMISSAL      0xf200
 
 #define DAP_CHAIN_DATUM_CUSTOM               0xffff

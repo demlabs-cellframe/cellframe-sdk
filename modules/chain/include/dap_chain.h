@@ -47,10 +47,12 @@ typedef struct dap_chain_atom_iter{
     dap_chain_t * chain;
     dap_chain_atom_ptr_t cur;
     dap_chain_hash_fast_t *cur_hash;
+    dap_chain_cell_id_t cell_id;
     size_t cur_size;
     void * cur_item;
     void * _inheritor;
 } dap_chain_atom_iter_t;
+
 
 typedef enum dap_chain_atom_verify_res{
     ATOM_ACCEPT=0,
@@ -70,7 +72,7 @@ typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chai
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 
-typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_t)(dap_chain_t * );
+typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_t)(dap_chain_t *, dap_chain_cell_id_t);
 typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_from_t)(dap_chain_t * ,dap_chain_atom_ptr_t, size_t);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_first_t)(dap_chain_atom_iter_t * , size_t*);
 typedef dap_chain_datum_t** (*dap_chain_callback_atom_get_datum_t)(dap_chain_atom_ptr_t, size_t, size_t * );
@@ -95,9 +97,6 @@ typedef enum dap_chain_type
     CHAIN_TYPE_TX,
     CHAIN_TYPE_CA,
     CHAIN_TYPE_LAST
-    // CHAIN_TYPE_256_TOKEN, // 256
-    // CHAIN_TYPE_256_EMISSION, // 256
-    // CHAIN_TYPE_256_TX, // 256
 } dap_chain_type_t;
 
 typedef struct dap_chain{

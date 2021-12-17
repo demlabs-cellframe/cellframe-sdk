@@ -117,7 +117,8 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size
         memcpy(l_token_old, a_token_serial, (*a_token_size));
         size_t l_token_size = (*a_token_size) - sizeof(*l_token_old) + sizeof(dap_chain_datum_token_t);
         dap_chain_datum_token_t * l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
-        strncpy(l_token->ticker, l_token_old->ticker, sizeof(l_token_old->ticker) );
+        memcpy(l_token->ticker, l_token_old->ticker, sizeof(l_token_old->ticker));
+        l_token->ticker[sizeof(l_token_old->ticker) - 1] = '\0';
         size_t l_token_tsd_size = (*a_token_size) - sizeof(*l_token_old);
         memcpy(l_token->data_n_tsd, l_token_old->data_n_tsd, l_token_tsd_size);
 

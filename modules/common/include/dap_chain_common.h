@@ -202,16 +202,12 @@ typedef enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_TOKEN = 0x40,
     TX_ITEM_TYPE_TOKEN_EXT = 0x41,
 
-    TX_ITEM_TYPE_256_TOKEN = 0x42,
-    TX_ITEM_TYPE_256_TOKEN_EXT = 0x43,
-
     TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
 
     TX_ITEM_TYPE_OUT_COND = 0x60, /// @brief  Transaction: conditon outputs
     TX_ITEM_TYPE_256_OUT_COND = 0x61, // 256
 
     TX_ITEM_TYPE_RECEIPT = 0x70,
-    TX_ITEM_TYPE_256_RECEIPT = 0x71,
 
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff
@@ -227,14 +223,6 @@ typedef struct dap_chain_receipt{
         uint256_t value_datoshi_256;
     };
 } dap_chain_receipt_info_t;
-
-// 256
-// typedef struct dap_chain_256_receipt{
-//     dap_chain_net_srv_uid_t srv_uid; // Service UID
-//     dap_chain_net_srv_price_unit_uid_t units_type;
-//     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-//     uint256_t value_datoshi; // Receipt value
-// } dap_chain_256_receipt_info_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -265,12 +253,6 @@ DAP_STATIC_INLINE uint64_t dap_chain_coins_to_datoshi(long double a_count)
 
 DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from)
 {
-// #ifdef DAP_GLOBAL_IS_INT128
-//     return (uint128_t)a_from;
-// #else
-//     uint128_t l_ret = {{ .0, a_from}};
-//     return l_ret;
-// #endif
     uint128_t l_ret = uint128_0;
     ADD_64_INTO_128(a_from, &l_ret );
     return l_ret;
@@ -293,13 +275,10 @@ uint64_t dap_chain_uint128_to(uint128_t a_from);
 // 256
 uint64_t dap_chain_uint256_to(uint256_t a_from);
 
-char *dap_chain_u256tostr(uint256_t v);
-
-
-char *dap_chain_balance_print(uint128_t a_balance);
-char *dap_chain_balance_to_coins(uint128_t a_balance);
-uint128_t dap_chain_balance_scan(char *a_balance);
-uint128_t dap_chain_coins_to_balance(char *a_coins);
+char *dap_chain_balance_print(uint256_t a_balance);
+char *dap_chain_balance_to_coins(uint256_t a_balance);
+uint256_t dap_chain_balance_scan(char *a_balance);
+uint256_t dap_chain_coins_to_balance(char *a_coins);
 
 /**
  * @brief dap_chain_hash_to_str

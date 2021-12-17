@@ -51,40 +51,21 @@ typedef int128_t _dap_int128_t;
 typedef struct uint256_t {
     uint128_t hi;
     uint128_t lo;
-
-    } uint256_t;
+} uint256_t;
 
 typedef struct uint512_t {
     uint256_t hi;
     uint256_t lo;
-
-    } uint512_t;
+} uint512_t;
 
 #endif //defined(__GNUC__) || defined (__clang__)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifndef DAP_GLOBAL_IS_INT128
-
-// uint128_t dap_uint128_substract(uint128_t a, uint128_t b);
-// uint128_t dap_uint128_add(uint128_t a, uint128_t b);
-// bool dap_uint128_check_equal(uint128_t a, uint128_t b);
-const  uint128_t two_power_64={ .hi = 1, .lo = 0};
-const  uint128_t lo_64={ .hi = 0, .lo = 0xffffffffffffffff};
-const  uint128_t hi_64={ .hi = 0xffffffffffffffff, .lo = 0};
-// const  uint128_t zero_128={.hi=0,.lo=0};
-// #define zero_128 ((uint128_t){.hi=0,.lo=0})
-
 #define uint128_0 ((uint128_t){.hi=0,.lo=0})
 #define uint128_1 ((uint128_t){.hi=0,.lo=1})
-
-// const uint64_t lo_32=0xffffffff;
-// const uint64_t hi_32=0xffffffff00000000;
-// const uint64_t ones_64=0xffffffffffffffff;
-
 #else // DAP_GLOBAL_IS_INT128
-
-// #define zero_128 ((uint128_t)0)
 #define uint128_0 0ULL
 #define uint128_1 1ULL
 
@@ -92,7 +73,7 @@ const  uint128_t hi_64={ .hi = 0xffffffffffffffff, .lo = 0};
 
 // const uint256_t zero_256={.hi=zero_128,.lo=zero_128};
 // #define zero_256 ((uint256_t){.hi=zero_128,.lo=zero_128})
-#define uint256_0 {.hi=uint128_0,.lo=uint128_0}
+#define uint256_0 ((uint256_t){.hi=uint128_0,.lo=uint128_0})
 #define uint256_1 ((uint256_t){.hi=uint128_0,.lo=uint128_1})
 #define uint512_0 ((uint512_t){.hi=uint256_0,.lo=uint256_0})
 #define lo_32 ((uint64_t)0xffffffff)

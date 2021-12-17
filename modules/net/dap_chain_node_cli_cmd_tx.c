@@ -34,6 +34,7 @@
 #include "dap_list.h"
 #include "dap_hash.h"
 
+#include "dap_chain_cell.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
@@ -165,7 +166,6 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                         dap_chain_addr_to_str(&((dap_chain_256_tx_out_t*)item)->addr));
             break;
         }
-        case TX_ITEM_TYPE_256_TOKEN:
         case TX_ITEM_TYPE_TOKEN:
             l_hash_str_tmp = dap_chain_hash_fast_to_str_new(&((dap_chain_tx_token_t*)item)->header.token_emission_hash);
             dap_string_append_printf(a_str_out, "\t TOKEN:\n"
@@ -424,25 +424,6 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     dap_string_append_printf(a_str_out, "\n");
 }
 
-/*static char* dap_db_new_history_timestamp()
-{
-    static pthread_mutex_t s_mutex = PTHREAD_MUTEX_INITIALIZER;
-    // get unique key
-    pthread_mutex_lock(&s_mutex);
-    static time_t s_last_time = 0;
-    static uint64_t s_suffix = 0;
-    time_t l_cur_time = time(NULL);
-    if(s_last_time == l_cur_time)
-        s_suffix++;
-    else {
-        s_suffix = 0;
-        s_last_time = l_cur_time;
-    }
-    char *l_str = dap_strdup_printf("%lld_%lld", (uint64_t) l_cur_time, s_suffix);
-    pthread_mutex_unlock(&s_mutex);
-    return l_str;
-}*/
-
 // for dap_db_history_tx & dap_db_history_addr()
 static dap_chain_datum_t* get_prev_tx(dap_tx_data_t *a_tx_data)
 {
@@ -495,16 +476,10 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
 
             // find Token items - present in emit transaction
-            // dap_list_t *l_list_tx_token = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_TOKEN, NULL);
-
             dap_list_t *l_list_tx_token;
-            if ( l_type_256 ) // 256
-                l_list_tx_token =  dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_256_TOKEN, NULL);
-            else
-                l_list_tx_token = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_TOKEN, NULL);
+            l_list_tx_token = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_TOKEN, NULL);
 
             // find OUT items
-            // dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT, NULL);
 
             dap_list_t *l_list_out_items;
             if ( l_type_256 ) // 256
@@ -1202,21 +1177,12 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                                 break;
                             // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER: // 256
                             case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
-                                if ( l_token_em->hdr.version == 1 ) { // && l_token_em->hdr.type_256 ) { // 256
-                                    dap_string_append_printf(l_str_out, " value_start: %s(%s), codename: %s\n",
-                                        dap_chain_balance_to_coins(dap_chain_uint128_from_uint256(l_token_em->data.type_atom_owner.value_start_256)),
-                                        dap_chain_u256tostr(l_token_em->data.type_atom_owner.value_start_256),
-                                        l_token_em->data.type_atom_owner.value_change_algo_codename
-                                    );
-                                } else {
-                                    dap_string_append_printf(l_str_out, " value_start: %.0Lf(%"DAP_UINT64_FORMAT_U"), codename: %s\n",
-                                        dap_chain_datoshi_to_coins(l_token_em->data.type_atom_owner.value_start),
-                                        l_token_em->data.type_atom_owner.value_start,
-                                        l_token_em->data.type_atom_owner.value_change_algo_codename
-                                    );
-                                }
+                                dap_string_append_printf(l_str_out, " value_start: %.0Lf(%"DAP_UINT64_FORMAT_U"), codename: %s\n",
+                                    dap_chain_datoshi_to_coins(l_token_em->data.type_atom_owner.value_start),
+                                    l_token_em->data.type_atom_owner.value_start,
+                                    l_token_em->data.type_atom_owner.value_change_algo_codename
+                                );
                             break;
-                            // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT:
                             case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT: {
                                 char *l_addr = dap_chain_addr_to_str(&l_token_em->data.type_presale.addr);
                                 // get time of create datum

@@ -89,7 +89,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t 
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                   //    Verify new event in dag
 static size_t s_chain_callback_atom_get_static_hdr_size(void);                               //    Get dag event header size
 
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain );
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id);
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t *  ,
                                                                      dap_chain_atom_ptr_t , size_t);
 
@@ -305,14 +305,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         }
         break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-<<<<<<< HEAD
-            // dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) l_datum->data;
-            // l_token_em->hdr.type_value_256 = l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
-            //                                     true : false;
-            return dap_chain_ledger_token_emission_load(a_ledger, (dap_chain_datum_token_emission_t*) l_datum->data, l_datum->header.data_size);
-=======
             return dap_chain_ledger_token_emission_load(a_ledger, l_datum->data, l_datum->header.data_size);
->>>>>>> bugfix-5311
         }
         break;
         case DAP_CHAIN_DATUM_TX: {
@@ -994,16 +987,18 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
  * @param a_chain
  * @return
  */
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain )
+static dap_chain_atom_iter_t *s_chain_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_atom_iter->chain = a_chain;
+    l_atom_iter->cell_id = a_cell_id;
     pthread_rwlock_rdlock(&a_chain->atoms_rwlock);
 #ifdef WIN32
     log_it(L_DEBUG, "! Create caller id %lu", GetThreadId(GetCurrentThread()));
 #endif
     return l_atom_iter;
 }
+
 
 /**
  * @brief s_chain_callback_atom_get_datum Get the datum from event
@@ -1042,7 +1037,14 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     assert(l_dag);
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);
     assert(l_dag_pvt);
-    a_atom_iter->cur_item = l_dag_pvt->events;
+    a_atom_iter->cur_item = NULL;
+    dap_chain_cs_dag_event_item_t *l_item_tmp, *l_item_cur;
+    HASH_ITER(hh, l_dag_pvt->events, l_item_cur, l_item_tmp) {
+        if (l_item_cur->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
+            a_atom_iter->cur_item = l_item_cur;
+            break;
+        }
+    }
     if ( a_atom_iter->cur_item ){
         a_atom_iter->cur = ((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->event;
         a_atom_iter->cur_size = ((dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item)->event_size;
@@ -1057,6 +1059,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
         *a_ret_size = a_atom_iter->cur_size;
     return a_atom_iter->cur;
 }
+
 
 /**
  * @brief s_chain_callback_atom_iter_get_lasts
@@ -1190,22 +1193,22 @@ static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chai
  */
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t * a_atom_size )
 {
-    if (a_atom_iter->cur ){
-        //dap_chain_cs_dag_pvt_t* l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_atom_iter->chain));
-        dap_chain_cs_dag_event_item_t * l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
-        a_atom_iter->cur_item = l_event_item->hh.next;
-        l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
-        // if l_event_item=NULL then items are over
-        a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
-        a_atom_iter->cur_size = a_atom_iter->cur ? l_event_item->event_size : 0;
-        a_atom_iter->cur_hash = l_event_item ? &l_event_item->hash : NULL;
-        if(a_atom_size)
-            *a_atom_size = a_atom_iter->cur_size;
-        return a_atom_iter->cur;
-    }else
-        return NULL;
-
+    dap_chain_cs_dag_event_item_t * l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
+    while (l_event_item) {
+        l_event_item = (dap_chain_cs_dag_event_item_t *)l_event_item->hh.next;
+        if (l_event_item && l_event_item->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64)
+            break;
+    }
+    // if l_event_item=NULL then items are over
+    a_atom_iter->cur_item = l_event_item;
+    a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
+    a_atom_iter->cur_size = a_atom_iter->cur ? l_event_item->event_size : 0;
+    a_atom_iter->cur_hash = l_event_item ? &l_event_item->hash : NULL;
+    if(a_atom_size)
+        *a_atom_size = a_atom_iter->cur_size;
+    return a_atom_iter->cur;
 }
+
 
 /**
  * @brief s_chain_callback_atom_iter_delete Delete dag event iterator
