@@ -3255,7 +3255,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // Emission value
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission_value", &str_tmp)) {
         // l_emission_value = strtoull(str_tmp, NULL, 10);
-        l_emission_value = GET_256_FROM_128(dap_strtou128(str_tmp, NULL, 10)); 
+        l_emission_value = GET_256_FROM_128(dap_chain_balance_scan(str_tmp)); 
     }
 
     if( EQUAL_256(l_emission_value, uint256_0) ) {
