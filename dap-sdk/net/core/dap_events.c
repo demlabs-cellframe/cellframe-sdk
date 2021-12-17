@@ -298,7 +298,7 @@ void dap_events_delete( dap_events_t *a_events )
 void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
 {
     (void) a_events;
-    int l_sock = a_socket->socket;
+//    int l_sock = a_socket->socket;
 //    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
 //        log_it(L_DEBUG,"Remove timer %d", l_sock);
 

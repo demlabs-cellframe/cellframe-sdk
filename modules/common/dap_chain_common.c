@@ -282,15 +282,6 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     return -1;
 }
 
-// 256
-uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
-{
-    if ( !( EQUAL_128(a_from.hi, uint128_0) ) ) {
-        log_it(L_ERROR, "Can't convert to uint128_t. It's too big.");
-    }
-    return a_from.lo;
-}
-
 uint64_t dap_chain_uint128_to(uint128_t a_from)
 {
 #ifdef DAP_GLOBAL_IS_INT128
@@ -299,26 +290,12 @@ uint64_t dap_chain_uint128_to(uint128_t a_from)
     }
     return (uint64_t)a_from;
 #else
-    if (a_from.u64[0]) {
+    if (a_from.hi) {
         log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
     }
-    return a_from.u64[1];
+    return a_from.lo;
 #endif
 }
-
-// 256
-uint64_t dap_chain_uint256_to(uint256_t a_from)
-{
-    return dap_chain_uint128_to(a_from.lo);
-}
-
-// for tests
-char *dap_chain_u256tostr(uint256_t v_256)
-{
-    char *dest = malloc(130 * sizeof(char));
-    return strcpy(dest, dap_utoa128((char[130]){}, dap_chain_uint128_from_uint256(v_256), 10));
-}
-
 
 char *dap_chain_balance_print(uint128_t a_balance)
 {
@@ -331,21 +308,22 @@ char *dap_chain_balance_print(uint128_t a_balance)
         l_value /= 10;
     } while (l_value);
 #else
+    uint32_t l_tmp[4] = {l_value.u32.a, l_value.u32.b, l_value.u32.c, l_value.u32.d};
     uint64_t t, q;
     do {
         q = 0;
         // Byte order is 1, 0, 3, 2 for little endian
         for (int i = 1; i <= 3; ) {
-            t = q << 32 | l_value.u32[i];
+            t = q << 32 | l_tmp[i];
             q = t % 10;
-            l_value.u32[i] = t / 10;
+            l_tmp[i] = t / 10;
             if (i == 2) i = 4; // end of cycle
             if (i == 3) i = 2;
             if (i == 0) i = 3;
             if (i == 1) i = 0;
         }
         l_buf[l_pos++] = q + '0';
-    } while (l_value.u32[2]);
+    } while (l_tmp[2]);
 #endif
     int l_strlen = strlen(l_buf) - 1;
     for (int i = 0; i < (l_strlen + 1) / 2; i++) {
@@ -444,40 +422,35 @@ uint128_t dap_chain_balance_scan(char *a_balance)
             return l_nul;
         }
         l_tmp = (l_tmp << 64) + c_pow10[i].u64[1] * l_digit;
-        // l_ret = dap_uint128_add(l_ret, l_tmp);
-        SUM_128_128(l_ret, l_tmp, &l_ret);
+        l_ret = dap_uint128_add(l_ret, l_tmp);
         if (l_ret == l_nul)
             return l_nul;
 #else
         uint128_t l_tmp;
-        l_tmp.u64[0] = 0;
-        l_tmp.u64[1] = c_pow10[i].u32[2] * l_digit;
-        // l_ret = dap_uint128_add(l_ret, l_tmp);
-        SUM_128_128(l_ret, l_tmp, &l_ret);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        l_tmp.hi = 0;
+        l_tmp.lo = c_pow10[i].u32[2] * l_digit;
+        l_ret = dap_uint128_add(l_ret, l_tmp);
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
         uint64_t l_mul = c_pow10[i].u32[3] * l_digit;
-        l_tmp.u64[1] = l_mul << 32;
-        l_tmp.u64[0] = l_mul >> 32;
-        // l_ret = dap_uint128_add(l_ret, l_tmp);
-        SUM_128_128(l_ret, l_tmp, &l_ret);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        l_tmp.lo = l_mul << 32;
+        l_tmp.hi = l_mul >> 32;
+        l_ret = dap_uint128_add(l_ret, l_tmp);
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
-        l_tmp.u64[1] = 0;
-        l_tmp.u64[0] = c_pow10[i].u32[0] * l_digit;
-        //l_ret = dap_uint128_add(l_ret, l_tmp);
-        SUM_128_128(l_ret, l_tmp, &l_ret);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        l_tmp.lo = 0;
+        l_tmp.hi = c_pow10[i].u32[0] * l_digit;
+        l_ret = dap_uint128_add(l_ret, l_tmp);
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
         l_mul = c_pow10[i].u32[1] * l_digit;
         if (l_mul >> 32) {
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
         }
-        l_tmp.u64[0] = l_mul << 32;
-        //l_ret = dap_uint128_add(l_ret, l_tmp);
-        SUM_128_128(l_ret, l_tmp, &l_ret);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        l_tmp.hi = l_mul << 32;
+        l_ret = dap_uint128_add(l_ret, l_tmp);
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
 #endif
     }

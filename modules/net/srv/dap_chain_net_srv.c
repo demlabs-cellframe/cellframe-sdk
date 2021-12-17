@@ -111,13 +111,13 @@ int dap_chain_net_srv_init()
         "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-
+#ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
             "net_srv -net <chain net name> order static [save | delete]\n"
             "\tStatic nodelist create/delete\n"
             "net_srv -net <chain net name> order recheck\n"
             "\tCheck the availability of orders\n"
-
+#endif
         );
 
     s_load_all();
@@ -536,11 +536,16 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
         }
 #ifdef DAP_MODULES_DYNAMIC
         else if( dap_strcmp( l_order_str, "recheck" ) == 0 ){
-            //int dap_chain_net_srv_vpn_cdb_server_list_check_orders(dap_chain_net_t *a_net);
             int (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(dap_chain_net_t *a_net);
             dap_chain_net_srv_vpn_cdb_server_list_check_orders = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
             int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders ? dap_chain_net_srv_vpn_cdb_server_list_check_orders(l_net) : -5;
-            ret = (l_init_res > 0) ? 0 : -10;
+            if (l_init_res >= 0) {
+                dap_string_append_printf(l_string_ret, "Orders recheck started\n");
+                ret = 0;
+            } else {
+                dap_string_append_printf(l_string_ret, "Orders recheck not started, code %d\n", l_init_res);
+                ret = -10;
+            }
 
         }else if( dap_strcmp( l_order_str, "static" ) == 0 ){
             // find the subcommand directly after the 'order' command
@@ -584,7 +589,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             }
         }
 #endif
-        else {
+        else if (l_order_str) {
+            dap_string_append_printf(l_string_ret, "Unrecognized subcommand '%s'", l_order_str);
+            ret = -14;
+        } else {
             dap_string_append_printf(l_string_ret, "Command 'net_srv' requires subcommand 'order'");
             ret = -3;
         }

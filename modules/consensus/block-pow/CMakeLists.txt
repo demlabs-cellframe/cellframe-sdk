@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project (dap_chain_cs_block_pow)
   
 file(GLOB DAP_CHAIN_BLOCK_CS_POW_SRCS *.c)

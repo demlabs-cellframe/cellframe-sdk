@@ -151,10 +151,6 @@ size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
         break;
     case TX_ITEM_TYPE_RECEIPT: // Receipt
         size = dap_chain_datum_tx_receipt_get_size((const dap_chain_datum_tx_receipt_t*) a_item);
-        break; 
-    case TX_ITEM_TYPE_256_RECEIPT: // 256
-        size = dap_chain_datum_tx_receipt_get_size((const dap_chain_datum_tx_receipt_t*) a_item);
-        break; 
     case TX_ITEM_TYPE_IN_COND: // Transaction inputs with condition
         size = dap_chain_tx_in_cond_get_size((const dap_chain_tx_in_cond_t*) a_item);
         break;
@@ -171,9 +167,6 @@ size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
         size = dap_chain_tx_sig_get_size((const dap_chain_tx_sig_t*) a_item);
         break;
     case TX_ITEM_TYPE_TOKEN: // token item
-        size = dap_chain_tx_token_get_size((const dap_chain_tx_token_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_256_TOKEN: // token item
         size = dap_chain_tx_token_get_size((const dap_chain_tx_token_t*) a_item);
         break;
     default:
@@ -193,17 +186,6 @@ dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(dap_chain_hash_fast_t
         return NULL;
     dap_chain_tx_token_t *l_item = DAP_NEW_Z(dap_chain_tx_token_t);
     l_item->header.type = TX_ITEM_TYPE_TOKEN;
-    memcpy (& l_item->header.token_emission_hash, a_datum_token_hash, sizeof ( *a_datum_token_hash ) );
-    strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
-    return l_item;
-}
-// 256
-dap_chain_tx_token_t* dap_chain_datum_tx_item_256_token_create(dap_chain_hash_fast_t * a_datum_token_hash,const char * a_ticker)
-{
-    if(!a_ticker)
-        return NULL;
-    dap_chain_tx_token_t *l_item = DAP_NEW_Z(dap_chain_tx_token_t);
-    l_item->header.type = TX_ITEM_TYPE_256_TOKEN;
     memcpy (& l_item->header.token_emission_hash, a_datum_token_hash, sizeof ( *a_datum_token_hash ) );
     strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
     return l_item;
@@ -261,7 +243,6 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
     return l_item;
 }
 
-//256
 dap_chain_256_tx_out_t* dap_chain_datum_tx_item_256_out_create(const dap_chain_addr_t *a_addr, uint256_t a_value)
 {
     if(!a_addr)
@@ -297,7 +278,6 @@ dap_chain_256_tx_out_ext_t* dap_chain_datum_tx_item_256_out_ext_create(const dap
     strcpy(l_item->token, a_token);
     return l_item;
 }
-
 
 /**
  * Create item dap_chain_tx_out_cond_t
@@ -356,7 +336,6 @@ dap_chain_256_tx_out_cond_t* dap_chain_datum_tx_item_256_out_cond_create_srv_pay
     memcpy(l_item->params, a_params, a_params_size);
     return l_item;
 }
-
 
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_net_id,
@@ -441,7 +420,6 @@ dap_chain_256_tx_out_cond_t *dap_chain_datum_tx_item_256_out_cond_create_srv_sta
     return l_item;
 }
 
-
 /**
  * Create item dap_chain_tx_sig_t
  *
@@ -505,11 +483,7 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
             if (a_type == TX_ITEM_TYPE_ANY || a_type == l_type ||
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT) ||
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_COND) ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_EXT) ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_256_OUT) ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_256_OUT_COND) ||
-                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_256_OUT_EXT)
-                ) {
+                    (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_EXT)) {
                 if(a_item_idx_start)
                     *a_item_idx_start = l_item_idx;
                 if(a_item_out_size)
@@ -586,5 +560,4 @@ dap_chain_256_tx_out_cond_t *dap_chain_datum_256_tx_out_cond_get(dap_chain_datum
     }
     return l_res;
 }
-
 

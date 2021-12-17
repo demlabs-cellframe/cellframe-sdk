@@ -51,31 +51,32 @@
 /**
  * Generate node address by shard id
  */
-dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_id_t a_net_id)
+dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_t * a_net,dap_chain_cell_id_t *shard_id)
 {
-    dap_chain_node_addr_t *l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-    dap_chain_hash_fast_t l_hash;
-    dap_hash_fast(&a_net_id, sizeof(dap_chain_net_id_t), &l_hash);
+    if(!shard_id)
+        return NULL;
+    dap_chain_node_addr_t *a_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+    dap_chain_hash_fast_t a_hash;
+    dap_hash_fast(shard_id, sizeof(dap_chain_cell_id_t), &a_hash);
     // first 4 bytes is last 4 bytes of shard id hash
-    memcpy(l_addr->raw, l_hash.raw + sizeof(l_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
+    memcpy(a_addr->raw, a_hash.raw + sizeof(a_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
     // last 4 bytes is random
-    randombytes(l_addr->raw + sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
+    randombytes(a_addr->raw + sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
     // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
-    l_addr->uint64 = le64toh(l_addr->uint64); // l_addr->raw the same l_addr->uint64
-    return l_addr;
+    a_addr->uint64 = le64toh(a_addr->uint64); // a_addr->raw the same a_addr->uint64
+    return a_addr;
 }
 
 /**
  * Check the validity of the node address by cell id
  */
-bool dap_chain_node_check_addr(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_addr)
+bool dap_chain_node_check_addr(dap_chain_net_t * a_net,dap_chain_node_addr_t *addr, dap_chain_cell_id_t *shard_id)
 {
-    if (!a_addr || !a_net)
-        return false;
-    dap_chain_hash_fast_t l_hash;
-    dap_hash_fast(&a_net->pub.id, sizeof(dap_chain_net_id_t), &l_hash);
-    // first 4 bytes is last 4 bytes of shard id hash
-    return !memcmp(a_addr->raw, l_hash.raw + sizeof(l_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
+    bool ret = false;
+    if(!addr || !shard_id)
+        ret= false;
+
+    return ret;
 }
 
 /**
@@ -224,7 +225,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     return node_info;
 }*/
 
-int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a_role, dap_chain_datum_t *a_datum)
+int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum)
 {
     bool l_need_process = false;
     for (uint16_t j = 0; j < a_chain->autoproc_datum_types_count; j++) {
@@ -235,31 +236,21 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_node_role_t a
     }
     if (!l_need_process)
         return -1;
-    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
-        dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_IN, NULL);
-        // Is not it a base transaction?
-        if (l_tx_in && !dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) {
-            if (a_role.enums == NODE_ROLE_ROOT) {
-                return -1;
-            }
-        }
-    }
+    // Auth signs for emissions already verified by this callback
     return (int)a_chain->callback_add_datums(a_chain, &a_datum, 1);
 }
 
-static bool s_mempool_auto = false;
 
 /**
- * @brief 
+ * @brief
  * get automatic mempool processing, when network config contains mempool_auto_types for specific datums
- * @return true 
- * @return false 
+ * @return true
+ * @return false
  */
 bool dap_chain_node_mempool_autoproc_init()
 {
     uint16_t l_net_count;
-    bool l_mempool_auto_default = false;
+    bool l_mempool_auto_default = false, l_ret = false;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
@@ -272,10 +263,12 @@ bool dap_chain_node_mempool_autoproc_init()
                 l_mempool_auto_default = true;
                 break;
             default:
+                l_mempool_auto_default = false;
                 break;
         }
-        s_mempool_auto = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", l_mempool_auto_default);
-        if (s_mempool_auto) {
+        l_net_list[i]->pub.mempool_autoproc = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", l_mempool_auto_default);
+        if (l_net_list[i]->pub.mempool_autoproc) {
+            l_ret = true;
             dap_chain_t *l_chain;
             DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
                 if (!l_chain) {
@@ -290,7 +283,7 @@ bool dap_chain_node_mempool_autoproc_init()
                         if (!l_objs[i].value_len)
                             continue;
                         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-                        if (dap_chain_node_mempool_process(l_chain, l_role, l_datum) > 0) {
+                        if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
                             // Delete processed objects
                             dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
                         }
@@ -302,7 +295,7 @@ bool dap_chain_node_mempool_autoproc_init()
         }
     }
     DAP_DELETE(l_net_list);
-    return s_mempool_auto;
+    return l_ret;
 }
 
 /**
@@ -310,17 +303,18 @@ bool dap_chain_node_mempool_autoproc_init()
  */
 void dap_chain_node_mempool_autoproc_deinit()
 {
-    s_mempool_auto = false;
 }
 
 void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, const char *a_group,
                                              const char *a_key, const void *a_value, const size_t a_value_len)
 {
     UNUSED(a_value_len);
-    if (!a_arg || !a_value || !s_mempool_auto || a_op_code != 'a') {
+    if (!a_arg || !a_value || a_op_code != 'a') {
         return;
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    if (!l_net->pub.mempool_autoproc)
+        return;
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (!l_chain) {
@@ -329,8 +323,7 @@ void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, c
         char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool(l_chain);
         if (!strcmp(a_group, l_gdb_group_str)) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
-            dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-            if (dap_chain_node_mempool_process(l_chain, l_role, l_datum) > 0) {
+            if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
                 dap_chain_global_db_gr_del(dap_strdup(a_key), l_gdb_group_str);
             }
         }

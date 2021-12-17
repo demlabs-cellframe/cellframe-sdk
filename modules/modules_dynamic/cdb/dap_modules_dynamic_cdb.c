@@ -29,10 +29,11 @@
 #include <dlfcn.h>
 #endif
 
-#define LOG_TAG "dap_http"
+#define LOG_TAG "dap_modules_dynamic"
 
 static const char * s_default_path_modules = "var/modules";
 static void *s_cdb_handle = NULL;
+static bool s_cdb_was_init = false;
 
 void dap_modules_dynamic_close_cdb()
 {
@@ -40,10 +41,13 @@ void dap_modules_dynamic_close_cdb()
         dlclose(s_cdb_handle);
         s_cdb_handle = NULL;
     }
+    s_cdb_was_init = false;
 }
 
 void *dap_modules_dynamic_get_cdb_func(const char *a_func_name)
 {
+    if (!s_cdb_was_init)
+        return NULL;
     char l_lib_path[MAX_PATH] = {'\0'};
     void *l_ref_func = NULL;
     //  find func from dynamic library
@@ -73,16 +77,20 @@ void *dap_modules_dynamic_get_cdb_func(const char *a_func_name)
 
 int dap_modules_dynamic_load_cdb(dap_http_t * a_server)
 {
+    s_cdb_was_init = true;
     int (*dap_chain_net_srv_vpn_cdb_init)(dap_http_t *);
     dap_chain_net_srv_vpn_cdb_init = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_init");
     if (!dap_chain_net_srv_vpn_cdb_init) {
-        log_it(L_ERROR,"dap_modules_dynamic: can't load dap_chain_net_srv_vpn_cdb_init");
+        s_cdb_was_init = false;
+        log_it(L_ERROR, "dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init not found");
         return -2;
     }
     int l_init_res = dap_chain_net_srv_vpn_cdb_init(a_server);
     if (l_init_res) {
-        log_it(L_ERROR,"dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init returns %d", l_init_res);
+        s_cdb_was_init = false;
+        log_it(L_ERROR, "dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init returns %d", l_init_res);
         return -3;
     }
+    s_cdb_was_init = true;
     return 0;
 }

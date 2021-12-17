@@ -33,7 +33,6 @@
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_hash.h"
-#include "dap_chain_cell.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_driver.h"
@@ -71,7 +70,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t, size_t); //    Verify new event in gdb
 static size_t s_chain_callback_atom_get_static_hdr_size(void); //    Get gdb event header size
 
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id);
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain);
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t * a_chain,
         dap_chain_atom_ptr_t a, size_t a_atom_size);
 
@@ -177,11 +176,12 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_gdb_priv->chain = a_chain;
 
     if(!l_gdb_priv->celled){
-        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016"DAP_UINT64_FORMAT_X,l_net->pub.name,
+        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016llX",l_net->pub.name,
                                                   a_chain->id.uint64);
     }else {
-        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016"DAP_UINT64_FORMAT_X".cell-%016"DAP_UINT64_FORMAT_X,l_net->pub.name,
-                                                  a_chain->id.uint64, a_chain->cells->id.uint64);
+        // here is not work because dap_chain_net_load() not yet fully performed
+        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016llX.cell-%016llX",l_net->pub.name,
+                                                  a_chain->id.uint64, l_net->pub.cell_id.uint64);
     }
 
     // Add group prefix that will be tracking all changes
@@ -268,6 +268,7 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
     return 1;
 }*/
 
+
 /**
  * @brief Load ledger from mempool
  * 
@@ -349,15 +350,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             if (dap_chain_ledger_token_load(a_chain->ledger,l_token, l_datum->header.data_size))
                 return ATOM_REJECT;
         }break;
-        case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: // 256
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            // dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) l_datum->data;
-            // l_token_em->hdr.type_value_256 = l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
-            //                                     true : false;
-            if (dap_chain_ledger_token_emission_load(a_chain->ledger, (dap_chain_datum_token_emission_t*) l_datum->data, l_datum->header.data_size))
+            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_datum->data, l_datum->header.data_size))
                 return ATOM_REJECT;
         }break;
-        case DAP_CHAIN_DATUM_256_TX: // 256
         case DAP_CHAIN_DATUM_TX:{
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
             // No trashhold herr, don't save bad transactions to base
@@ -384,6 +380,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     DL_APPEND(l_gdb_priv->hash_items, l_hash_item);
     return ATOM_ACCEPT;
 }
+
 
 /**
  * @brief Verify atomic element (currently simply return ATOM_ACCEPT)
@@ -413,17 +410,18 @@ static size_t s_chain_callback_atom_get_static_hdr_size()
     return sizeof(l_datum_null->header);
 }
 
+
 /**
  * @brief Create atomic element iterator
  * 
  * @param a_chain dap_chain_t a_chain
  * @return dap_chain_atom_iter_t* 
  */
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
+static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain)
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_iter->chain = a_chain;
-    l_iter->cell_id = a_cell_id;
+    l_iter->cur_hash = DAP_NEW(dap_chain_hash_fast_t);
     return l_iter;
 }
 
@@ -442,8 +440,10 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
     l_iter->chain = a_chain;
     l_iter->cur = a_atom;
     l_iter->cur_size = a_atom_size;
+    dap_hash_fast(a_atom, a_atom_size, l_iter->cur_hash);
     return l_iter;
 }
+
 
 /**
  * @brief Delete dag event iterator
@@ -452,8 +452,12 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
  */
 static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
+    if (a_atom_iter->cur_item)
+        DAP_DELETE(a_atom_iter->cur_item);
+    DAP_DELETE(a_atom_iter->cur_hash);
     DAP_DELETE(a_atom_iter);
 }
+
 
 /**
  * @brief get dap_chain_atom_ptr_t object form database by hash
@@ -488,20 +492,28 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     if (!a_atom_iter)
         return NULL;
     dap_chain_datum_t * l_datum = NULL;
-    a_atom_iter->cur_item = PVT ( DAP_CHAIN_GDB(a_atom_iter->chain) )->hash_items;
+    dap_chain_gdb_datum_hash_item_t *l_item = PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->hash_items;
+    a_atom_iter->cur_item = l_item;
     if (a_atom_iter->cur_item ){
-        dap_chain_gdb_datum_hash_item_t * l_item = PVT ( DAP_CHAIN_GDB(a_atom_iter->chain) )->hash_items;
         size_t l_datum_size =0;
-        l_datum= (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_item->key,&l_datum_size,PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums );
+        l_datum= (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_item->key, &l_datum_size,
+                                                                 PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums );
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE( a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
+        a_atom_iter->cur_size = l_datum_size;
+        dap_chain_hash_fast_from_str(l_item->key, a_atom_iter->cur_hash);
         if (a_atom_size)
             *a_atom_size = l_datum_size;
-    } else if (a_atom_size)
-        *a_atom_size = 0;
+    } else {
+        DAP_DEL_Z(a_atom_iter->cur);
+        a_atom_iter->cur_size = 0;
+        if (a_atom_size)
+            *a_atom_size = 0;
+    }
     return l_datum;
 }
+
 
 /**
  * @brief Get the next dag event from database
@@ -510,22 +522,30 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
  * @param a_atom_size size_t a_atom_size
  * @return dap_chain_atom_ptr_t 
  */
-static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size)
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_iter_t *a_atom_iter, size_t *a_atom_size)
 {
     dap_chain_datum_t * l_datum = NULL;
-    a_atom_iter->cur_item = a_atom_iter->cur_item?
-                ((dap_chain_gdb_datum_hash_item_t*) a_atom_iter->cur_item)->next : NULL;
+    dap_chain_gdb_datum_hash_item_t *l_item = (dap_chain_gdb_datum_hash_item_t*)a_atom_iter->cur_item;
+    if (l_item)
+        l_item = l_item->next;
+    a_atom_iter->cur_item = l_item;
     if (a_atom_iter->cur_item ){
         size_t l_datum_size =0;
-        l_datum= (dap_chain_datum_t*) dap_chain_global_db_gr_get(
-                                ((dap_chain_gdb_datum_hash_item_t*) a_atom_iter->cur_item)->key,
-                                &l_datum_size, PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums );
+        l_datum = (dap_chain_datum_t *)dap_chain_global_db_gr_get(l_item->key, &l_datum_size,
+                                                                  PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums);
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
-            DAP_DELETE( a_atom_iter->cur);
+            DAP_DELETE(a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
-        *a_atom_size = l_datum_size;
-    }else
-        *a_atom_size = 0;
+        a_atom_iter->cur_size = l_datum_size;
+        dap_chain_hash_fast_from_str(l_item->key, a_atom_iter->cur_hash);
+        if (a_atom_size)
+            *a_atom_size = l_datum_size;
+    } else {
+        DAP_DEL_Z(a_atom_iter->cur);
+        a_atom_iter->cur_size = 0;
+        if (a_atom_size)
+            *a_atom_size = 0;
+    }
     return l_datum;
 }
 

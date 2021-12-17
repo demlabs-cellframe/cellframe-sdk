@@ -22,6 +22,7 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
@@ -32,7 +33,6 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs_block_poa.h"
-#include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_global_db.h"
@@ -190,13 +190,15 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t));
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
-                dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%lu",l_poa_pvt->auth_certs_prefix, i);
-                if ( (l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) != NULL ) {
-                    log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
-                } else{
-                    log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
-                    return -1;
+                dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
+                if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
+                    dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu.pub",l_poa_pvt->auth_certs_prefix, i);
+                    if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
+                        log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
+                        return -1;
+                    }
                 }
+                log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
             }
         }
     }
@@ -223,7 +225,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
         PVT(l_poa)->prev_callback_created(a_chain,a_chain_net_cfg);
 
     const char * l_sign_cert_str = NULL;
-    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","sign-cert") ) != NULL ) {
+    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-poa","blocks-sign-cert") ) != NULL ) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
@@ -278,7 +280,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     dap_chain_cs_block_poa_t *l_poa = DAP_CHAIN_CS_BLOCK_POA(a_blocks);
     dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     if (!l_poa_pvt->sign_key) {
-        log_it(L_WARNING, "Can't sign block with sign-cert in [block-poa] section");
+        log_it(L_WARNING, "Can't sign block with blocks-sign-cert in [block-poa] section");
         return 0;
     }
     if (!a_block_ptr || !(*a_block_ptr) || !a_block_size) {
@@ -331,6 +333,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_b
                 break;
             }
         }
+        //TODO verify sign itself
         l_offset += l_sign_size;
         l_sign = (dap_sign_t *)(a_block->meta_n_datum_n_sign + l_offset);
     }

@@ -209,9 +209,9 @@ void dap_chain_delete(dap_chain_t * a_chain)
  * @param a_atom_size
  * @return
  */
-dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size, dap_chain_cell_id_t a_cell_id)
+dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size)
 {
-    dap_chain_atom_iter_t * l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id);
+    dap_chain_atom_iter_t * l_iter = a_chain->callback_atom_iter_create(a_chain);
     dap_chain_atom_ptr_t l_ret = a_chain->callback_atom_find_by_hash(l_iter, a_atom_hash, a_atom_size);
     a_chain->callback_atom_iter_delete(l_iter);
     return l_ret;
@@ -248,21 +248,12 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "token")) {
         return CHAIN_TYPE_TOKEN;
     }
-    // if(!dap_strcmp(a_type_str, "token_256")) {
-    //     return CHAIN_TYPE_256_TOKEN;
-    // }
     if(!dap_strcmp(a_type_str, "emission")) {
         return CHAIN_TYPE_EMISSION;
     }
-    // if(!dap_strcmp(a_type_str, "emission_256")) {
-    //     return CHAIN_TYPE_256_EMISSION;
-    // }
     if(!dap_strcmp(a_type_str, "transaction")) {
         return CHAIN_TYPE_TX;
     }
-    // if(!dap_strcmp(a_type_str, "transaction_256")) {
-    //     return CHAIN_TYPE_256_TX;
-    // }
     if(!dap_strcmp(a_type_str, "ca")) {
         return CHAIN_TYPE_CA;
     }
@@ -277,23 +268,17 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
  */
 static uint16_t s_datum_type_from_str(const char *a_type_str)
 {
-    // if(!dap_strcmp(a_type_str, "token")) { // old
-    //     return DAP_CHAIN_DATUM_TOKEN_DECL;
-    // }
     if(!dap_strcmp(a_type_str, "token")) {
         return DAP_CHAIN_DATUM_256_TOKEN_DECL;
     }
-    // if(!dap_strcmp(a_type_str, "emission")) {
-    //     return DAP_CHAIN_DATUM_TOKEN_EMISSION;
-    // }
     if(!dap_strcmp(a_type_str, "emission")) {
         return DAP_CHAIN_DATUM_256_TOKEN_EMISSION;
     }
-    // if(!dap_strcmp(a_type_str, "transaction")) {
-    //     return DAP_CHAIN_DATUM_TX;
-    // }
     if(!dap_strcmp(a_type_str, "transaction")) {
         return DAP_CHAIN_DATUM_256_TX;
+    }
+    if(!dap_strcmp(a_type_str, "ca")) {
+        return DAP_CHAIN_DATUM_CA;
     }
     return DAP_CHAIN_DATUM_CUSTOM;
 }
@@ -308,17 +293,13 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
 {
     switch (a_type) {
     case CHAIN_TYPE_TOKEN: 
-    //    return DAP_CHAIN_DATUM_TOKEN_DECL;
-    // case CHAIN_TYPE_256_TOKEN: 
-        return DAP_CHAIN_DATUM_256_TOKEN_DECL;
+        return DAP_CHAIN_DATUM_TOKEN_DECL;
     case CHAIN_TYPE_EMISSION:
-    //    return DAP_CHAIN_DATUM_TOKEN_EMISSION;
-    // case CHAIN_TYPE_256_EMISSION: // 256
-        return DAP_CHAIN_DATUM_256_TOKEN_EMISSION;
+        return DAP_CHAIN_DATUM_TOKEN_EMISSION;
     case CHAIN_TYPE_TX:
-    //    return DAP_CHAIN_DATUM_TX;
-    // case CHAIN_TYPE_256_TX: // 256
-        return DAP_CHAIN_DATUM_256_TX;
+        return DAP_CHAIN_DATUM_TX;
+    case CHAIN_TYPE_CA:
+        return DAP_CHAIN_DATUM_CA;
     default:
         return DAP_CHAIN_DATUM_CUSTOM;
     }
@@ -580,10 +561,10 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
  * @param a_atom_hash
  * @return
  */
-bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_atom_hash, dap_chain_cell_id_t a_cell_id)
+bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_atom_hash)
 {
     bool l_ret = false;
-    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id);
+    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
     dap_chain_atom_ptr_t * l_lasts_atom;
     size_t l_lasts_atom_count=0;
     size_t* l_lasts_atom_size =NULL;

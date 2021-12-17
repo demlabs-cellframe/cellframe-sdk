@@ -31,9 +31,9 @@
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
 /// End section, means all the rest of the block is empty
-#define DAP_CHAIN_DATUM_BLOCK_END                 0x0000
+#define DAP_CHAIN_DATUM_BLOCK_END           0x0000
 /// Section with additional roots, for example transaction roots
-#define DAP_CHAIN_DATUM_BLOCK_ROOTS 0x0001
+#define DAP_CHAIN_DATUM_BLOCK_ROOTS         0x0001
 
 /// Transaction header section
 #define DAP_CHAIN_DATUM_TX                  0x0100
@@ -70,8 +70,6 @@
     switch (t) {                            \
         case DAP_CHAIN_DATUM_TX:            \
             s = "DATUM_TX"; break;          \
-        case DAP_CHAIN_DATUM_256_TX:            \
-            s = "DATUM_256_TX"; break;          \
         case DAP_CHAIN_DATUM_TX_REQUEST:    \
             s = "DATUM_WASM_CODE"; break;   \
         case DAP_CHAIN_DATUM_WASM_CODE:     \
@@ -92,8 +90,6 @@
             s = "DATUM_256_TOKEN_DECL"; break;  \
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
             s = "DATUM_TOKEN_EMISSION"; break;\
-        case DAP_CHAIN_DATUM_256_TOKEN_EMISSION:\
-            s = "DATUM_256_TOKEN_EMISSION"; break;\
         default:                            \
             s = "DATUM_UNKNOWN"; break;     \
 }

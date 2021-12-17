@@ -57,6 +57,8 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -111
 // Error code for no emission for a transaction (candidate to threshold)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -112
+// Error code for no token for an emission (candidate to threshold)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN     -113
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
@@ -127,7 +129,6 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 /**
  * Add token emission datum
  */
-
 int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 
@@ -160,7 +161,12 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
 /**
  * Delete all transactions from the cache
  */
-void dap_chain_ledger_purge(dap_ledger_t *a_ledger);
+void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
+
+/**
+ * End of load mode with no chackes for incoming datums
+ */
+void dap_chain_ledger_load_end(dap_ledger_t *a_ledger);
 
 /**
  * Return number transactions from the cache
@@ -178,10 +184,10 @@ bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain
  * Calculate balance of addr
  *
  */
-uint256_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+uint128_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
         const char *a_token_ticker);
 
-uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+uint128_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
             const char *a_token_ticker);
 
 /**
