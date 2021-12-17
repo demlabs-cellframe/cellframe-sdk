@@ -120,7 +120,7 @@ typedef struct tun_socket_msg{
     } type;
     dap_chain_net_srv_ch_vpn_t * ch_vpn;
     dap_events_socket_t * esocket;
-    uint128_t esocket_uuid;
+    dap_events_socket_uuid_t esocket_uuid;
     bool is_reassigned_once;
     union{
         struct{ // Esocket reassigment
@@ -474,7 +474,7 @@ static void s_tun_send_msg_ip_unassigned_all(dap_chain_net_srv_ch_vpn_t * a_ch_v
  */
 static void s_tun_send_msg_esocket_reasigned_inter(dap_chain_net_srv_vpn_tun_socket_t * a_tun_socket,
                                                    dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
-                                                   uint128_t a_esocket_uuid,    struct in_addr a_addr, uint32_t a_esocket_worker_id)
+                                                   dap_events_socket_uuid_t a_esocket_uuid, struct in_addr a_addr, uint32_t a_esocket_worker_id)
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
     l_msg->type = TUN_SOCKET_MSG_ESOCKET_REASSIGNED ;
@@ -500,7 +500,7 @@ static void s_tun_send_msg_esocket_reasigned_inter(dap_chain_net_srv_vpn_tun_soc
  * @param a_worker_id
  */
 static void s_tun_send_msg_esocket_reasigned_all_inter(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, dap_events_socket_t * a_esocket,
-                                                       uint128_t a_esocket_uuid, struct in_addr a_addr, uint32_t a_worker_id)
+                                                       dap_events_socket_uuid_t a_esocket_uuid, struct in_addr a_addr, uint32_t a_worker_id)
 {
     for( uint32_t i=0; i< s_tun_sockets_count; i++)
         s_tun_send_msg_esocket_reasigned_inter(s_tun_sockets[i] , a_ch_vpn, a_esocket, a_esocket_uuid, a_addr, a_worker_id);
