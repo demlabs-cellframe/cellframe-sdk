@@ -330,6 +330,9 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             return DAP_CHAIN_DATUM_CA;
         }
         break;
+	case DAP_CHAIN_DATUM_SIGNER: {
+		return DAP_CHAIN_DATUM_SIGNER;
+    	}
         default:
             return -1;
     }
@@ -443,6 +446,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             if(s_debug_more)
                 log_it(L_DEBUG, "... DATUM_CA");
             break;
+     	case DAP_CHAIN_DATUM_SIGNER:
+	    ret = ATOM_ACCEPT;
+	    break;
         default:
             if (s_debug_more) {
                 l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
@@ -574,12 +580,12 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                 }
             pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
         }
-
         if (l_hashes_linked || s_seed_mode ) {
             dap_chain_cs_dag_event_t * l_event = NULL;
             size_t l_event_size = 0;
-            if(l_dag->callback_cs_event_create)
+            if(l_dag->callback_cs_event_create) {
                 l_event = l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked,&l_event_size);
+	    }
             if ( l_event&&l_event_size){ // Event is created
                 if (l_dag->is_add_directy) {
                     l_cell = a_chain->cells;
