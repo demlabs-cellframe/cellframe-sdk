@@ -508,7 +508,10 @@ static inline void * dap_mempcpy(void * a_dest,const void * a_src,size_t n)
     return ((byte_t*) memcpy(a_dest,a_src,n))+n;
 }
 
-
+int dap_is_alpha_and_(char e);
+int dap_is_alpha(char e);
+int dap_is_digit(char e);
+char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit);
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);

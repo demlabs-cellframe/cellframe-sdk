@@ -93,6 +93,7 @@ char *dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_c
     } else {
         log_it(L_WARNING, "Can't place data's hash %s was placed in mempool", l_key_str);
         DAP_DELETE(l_key_str);
+	l_key_str = NULL;
     }
     DAP_DELETE(l_gdb_group);
     return l_key_str;
