@@ -58,7 +58,6 @@
 /// Token
 /// Simple token decl
 #define DAP_CHAIN_DATUM_TOKEN_DECL           0xf000
-#define DAP_CHAIN_DATUM_256_TOKEN_DECL       0xf001 // 256
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
 #define DAP_CHAIN_DATUM_TOKEN_DISMISSAL      0xf200
 
@@ -84,8 +83,6 @@
             s = "DATUM_CUSTOM"; break;      \
         case DAP_CHAIN_DATUM_TOKEN_DECL:    \
             s = "DATUM_TOKEN_DECL"; break;  \
-        case DAP_CHAIN_DATUM_256_TOKEN_DECL:    \
-            s = "DATUM_256_TOKEN_DECL"; break;  \
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
             s = "DATUM_TOKEN_EMISSION"; break;\
         default:                            \

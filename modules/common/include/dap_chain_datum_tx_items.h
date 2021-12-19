@@ -113,7 +113,7 @@ dap_chain_256_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_cha
  *
  * return item, NULL Error
  */
-dap_chain_256_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_enc_key_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_enc_key_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
                                                                              uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size);
@@ -122,7 +122,7 @@ dap_chain_256_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap
  *
  * return item, NULL Error
  */
-dap_chain_256_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid,
                                                                                  dap_chain_net_id_t a_net_id, const char *a_token, uint256_t a_value,
                                                                                  const void *a_params, uint32_t a_params_size);
 /**
@@ -130,7 +130,7 @@ dap_chain_256_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange
  *
  * return item, NULL Error
  */
-dap_chain_256_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, long double a_fee_value,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, long double a_fee_value,
                                                                                dap_chain_addr_t *a_fee_addr, dap_chain_addr_t *a_hldr_addr,
                                                                                const void *a_params, uint32_t a_params_size);
 /**
@@ -163,4 +163,3 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);
 // Get conditional out item with it's idx
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, int *a_out_num);
-dap_chain_256_tx_out_cond_t *dap_chain_datum_256_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, int *a_out_num);

@@ -273,9 +273,9 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t SubType:\n",
                                      dap_ctime_r((time_t *)&((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
                                      dap_chain_balance_to_coins(dap_chain_uint256_from(
-                                         ((dap_chain_tx_out_cond_t*)item)->header.value)),
-                                     ((dap_chain_tx_out_cond_t*)item)->header.value,
-                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype));
+                                         ((dap_chain_tx_out_cond_old_t*)item)->header.value)),
+                                     ((dap_chain_tx_out_cond_old_t*)item)->header.value,
+                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_old_t*)item)->header.subtype));
             switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
                 l_hash_str_tmp = dap_chain_hash_fast_to_str_new(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
@@ -283,35 +283,35 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                     "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t pkey: %s\n"
                                                     "\t\t\t max price: %s (%"DAP_UINT64_FORMAT_U") \n",
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.srv_uid.uint64,
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_pay.unit.uint32,
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_pay.srv_uid.uint64,
                                          l_hash_str_tmp,
                                          dap_chain_balance_to_coins(dap_chain_uint256_from(
-                                             ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi)),
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi);
+                                             ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_pay.unit_price_max_datoshi)),
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_pay.unit_price_max_datoshi);
                 DAP_FREE(l_hash_str_tmp);
                 break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:
                 dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t addr: %s\n"
                                                     "\t\t\t value: %Lf",
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.srv_uid.uint64,
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_stake.srv_uid.uint64,
                                          dap_chain_addr_to_str(
-                                             &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr
+                                             &((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_stake.fee_addr
                                              ),
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_value);
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_stake.fee_value);
                 break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
                 dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t token: %s\n"
                                                     "\t\t\t value: %s (%"DAP_UINT64_FORMAT_U")\n",
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.srv_uid.uint64,
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.net_id.uint64,
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.token,
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_xchange.srv_uid.uint64,
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_xchange.net_id.uint64,
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_xchange.token,
                                          dap_chain_balance_to_coins(dap_chain_uint256_from(
-                                             ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.value)),
-                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.value);
+                                             ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_xchange.value)),
+                                         ((dap_chain_tx_out_cond_old_t*)item)->subtype.srv_xchange.value);
                 break;
                 default: break;
             }
@@ -323,23 +323,23 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t\t value: %s (%s)\n"
                                                 "\t\t\t subtype: %s\n"
                                                 "\t\t SubType:\n",
-                                     dap_ctime_r((time_t*)((dap_chain_256_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
-                                     dap_chain_balance_to_coins(((dap_chain_256_tx_out_cond_t*)item)->header.value),
-                                     dap_chain_balance_print(((dap_chain_256_tx_out_cond_t*)item)->header.value),
-                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_256_tx_out_cond_t*)item)->header.subtype)
+                                     dap_ctime_r((time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
+                                     dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value),
+                                     dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value),
+                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype)
             );
-            switch (((dap_chain_256_tx_out_cond_t*)item)->header.subtype) {
+            switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
-                l_hash_str_tmp = dap_chain_hash_fast_to_str_new(&((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
+                l_hash_str_tmp = dap_chain_hash_fast_to_str_new(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash);
                 dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
                                                     "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t pkey: %s\n"
                                                     "\t\t\t max price: %s (%s) \n",
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.srv_uid.uint64,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.srv_uid.uint64,
                                          l_hash_str_tmp,
-                                         dap_chain_balance_to_coins(((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi),
-                                         dap_chain_balance_print(((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi)
+                                         dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi),
+                                         dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi)
                 );
                 DAP_FREE(l_hash_str_tmp);
                 break;
@@ -347,11 +347,11 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                 dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t addr: %s\n"
                                                     "\t\t\t value: %Lf",
-                                        ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.srv_uid.uint64,
+                                        ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.srv_uid.uint64,
                                         dap_chain_addr_to_str(
-                                             &((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr
+                                             &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr
                                         ),
-                                        ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_stake.fee_value
+                                        ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_value
                 );
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
@@ -359,11 +359,11 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                                     "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                     "\t\t\t token: %s\n"
                                                     "\t\t\t value: %s (%s)\n",
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.srv_uid.uint64,
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.net_id.uint64,
-                                         ((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.token,
-                                         dap_chain_balance_to_coins(((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.value),
-                                         dap_chain_balance_print(((dap_chain_256_tx_out_cond_t*)item)->subtype.srv_xchange.value)
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.srv_uid.uint64,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.net_id.uint64,
+                                         ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.token,
+                                         dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.value),
+                                         dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.value)
                 );
                 break;
             }
@@ -1021,7 +1021,6 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
             switch (l_datum->header.type_id) {
 
                 // token
-                case DAP_CHAIN_DATUM_256_TOKEN_DECL: // 256
                 case DAP_CHAIN_DATUM_TOKEN_DECL: {
                     // no token necessary for addr
                     if(a_filtr_addr_base58) {

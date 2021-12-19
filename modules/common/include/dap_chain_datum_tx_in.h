@@ -48,6 +48,5 @@ typedef struct list_used_item {
     dap_chain_hash_fast_t tx_hash_fast;
     uint32_t num_idx_out;
     uint8_t padding[4];
-    uint64_t value;
-//dap_chain_tx_out_t *tx_out;
+    uint256_t value;
 } list_used_item_t;

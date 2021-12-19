@@ -2599,9 +2599,8 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
     switch ( a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TX:
             return dap_chain_ledger_tx_add_check( a_net->pub.ledger, (dap_chain_datum_tx_t*)a_datum->data );
-        case DAP_CHAIN_DATUM_256_TOKEN_DECL: // 256
         case DAP_CHAIN_DATUM_TOKEN_DECL:
-            return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger, a_datum->data );
+            return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data);
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size );
         default: return 0;
@@ -2624,7 +2623,6 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
         return;
     }
     switch (a_datum->header.type_id){
-        case DAP_CHAIN_DATUM_256_TOKEN_DECL:
         case DAP_CHAIN_DATUM_TOKEN_DECL:{
             size_t l_token_size = a_datum->header.data_size;
             dap_chain_datum_token_t * l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
@@ -2934,7 +2932,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
                                 case TX_ITEM_TYPE_256_OUT_COND: { // 256
-                                    dap_chain_256_tx_out_cond_t * l_out = l_cur->data;
+                                    dap_chain_tx_out_cond_t * l_out = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\tvalue: %s\n", dap_chain_balance_print(l_out->header.value) );
                                     switch ( l_out->header.subtype){
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
@@ -2969,7 +2967,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     dap_string_append_printf(a_str_out,"\tparams_size : %u\n", l_out->params_size );
                                 } break;
                                 case TX_ITEM_TYPE_OUT_COND:{
-                                    dap_chain_tx_out_cond_t * l_out = l_cur->data;
+                                    dap_chain_tx_out_cond_old_t * l_out = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out->header.value );
                                     switch ( l_out->header.subtype){
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{

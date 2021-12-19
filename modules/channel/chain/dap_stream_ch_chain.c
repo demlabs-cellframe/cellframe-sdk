@@ -1277,7 +1277,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 dap_stream_ch_chain_sync_request_t l_request={};
                 dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if( l_chain){
-                    dap_chain_get_atom_last_hash(l_chain,& l_request.hash_from); // Move away from i/o reactor to callback processor
+                    dap_chain_get_atom_last_hash(l_chain,& l_request.hash_from, l_chain_pkt->hdr.cell_id); // Move away from i/o reactor to callback processor
                     if( dap_log_level_get()<= L_INFO){
                         char l_hash_from_str[70]={[0]='\0'};
                         dap_chain_hash_fast_to_str(&l_request.hash_from,l_hash_from_str,sizeof (l_hash_from_str)-1);

@@ -189,7 +189,7 @@ typedef union {
     serv_unit_enum_t enm;
 } dap_chain_net_srv_price_unit_uid_t;
 
-typedef enum dap_chain_tx_item_type {
+enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
 
     TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction: outputs
@@ -211,17 +211,15 @@ typedef enum dap_chain_tx_item_type {
 
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff
-} dap_chain_tx_item_type_t;
+};
+typedef uint32_t dap_chain_tx_item_type_t;
 
 
 typedef struct dap_chain_receipt{
     dap_chain_net_srv_uid_t srv_uid; // Service UID
     dap_chain_net_srv_price_unit_uid_t units_type;
     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    union {
-        uint64_t value_datoshi; // Receipt value
-        uint256_t value_datoshi_256;
-    };
+    uint64_t value_datoshi; // Receipt value
 } dap_chain_receipt_info_t;
 
 #ifdef __cplusplus
@@ -284,8 +282,8 @@ uint64_t dap_chain_uint256_to(uint256_t a_from);
 
 char *dap_chain_balance_print(uint256_t a_balance);
 char *dap_chain_balance_to_coins(uint256_t a_balance);
-uint256_t dap_chain_balance_scan(char *a_balance);
-uint256_t dap_chain_coins_to_balance(char *a_coins);
+uint256_t dap_chain_balance_scan(const char *a_balance);
+uint256_t dap_chain_coins_to_balance(const char *a_coins);
 
 /**
  * @brief dap_chain_hash_to_str

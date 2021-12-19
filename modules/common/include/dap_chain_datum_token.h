@@ -114,13 +114,13 @@ typedef struct dap_chain_datum_token{
 
 // 256
 // Simple private token decl
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE           0x0005
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE               0x0005
 // Extended declaration of privatetoken with in-time control
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL     0x0006
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL         0x0006
 // Token update
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE   0x0007
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE       0x0007
 // Open token with now ownership
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC           0x0008
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC               0x0008
 
 
 // Macros for token flags

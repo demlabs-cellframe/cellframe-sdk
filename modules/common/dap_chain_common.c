@@ -342,7 +342,7 @@ const union { uint64_t u64[2]; uint32_t u32[4]; } c_pow10[DATOSHI_POW + 1] = {
     { .u64 = {5421010862427522170ULL,    687399551400673280ULL} }          // 38
 };
 
-uint128_t dap_chain_balance_scan128(char *a_balance)
+uint128_t dap_chain_balance_scan128(const char *a_balance)
 {
     int l_strlen = strlen(a_balance);
 #ifdef DAP_GLOBAL_IS_INT128
@@ -403,13 +403,13 @@ uint128_t dap_chain_balance_scan128(char *a_balance)
     return l_ret;
 }
 
-uint256_t dap_chain_balance_scan(char *a_balance)
+uint256_t dap_chain_balance_scan(const char *a_balance)
 {
     return GET_256_FROM_128(dap_chain_balance_scan128(a_balance));
 }
 
 
-uint128_t dap_chain_coins_to_balance128(char *a_coins)
+uint128_t dap_chain_coins_to_balance128(const char *a_coins)
 {
 #ifdef DAP_GLOBAL_IS_INT128
     uint128_t l_ret = 0, l_nul = 0;
@@ -454,7 +454,7 @@ uint128_t dap_chain_coins_to_balance128(char *a_coins)
     return l_ret;
 }
 
-uint256_t dap_chain_coins_to_balance(char *a_coins)
+uint256_t dap_chain_coins_to_balance(const char *a_coins)
 {
     return GET_256_FROM_128(dap_chain_coins_to_balance128(a_coins));
 }

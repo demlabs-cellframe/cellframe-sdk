@@ -112,11 +112,11 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) ||
-            (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || !a_value)
+            (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || IS_ZERO_256(a_value))
         return NULL;
 
     // find the transactions from which to take away coins
-    uint256_t l_value_transfer = 0; // how many coins to transfer
+    uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need;
     SUM_256_256(a_value, a_value_fee, &l_value_need);
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
@@ -129,8 +129,8 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     // add 'in' items
     {
-        uint64_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
-        assert(l_value_to_items == l_value_transfer);
+        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+        assert(EQUAL_256(l_value_to_items, l_value_transfer));
         dap_list_free_full(l_list_used_out, free);
     }
     // add 'out' items
@@ -186,24 +186,27 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const dap_chain_addr_t* a_addr_fee,
         const char a_token_ticker[10],
-        uint64_t a_value, uint64_t a_value_fee,size_t a_tx_num)
+        uint256_t a_value, uint256_t a_value_fee,size_t a_tx_num)
 {
     // check valid param
     if(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) ||
-            (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || !a_value || !a_tx_num){
+            (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || IS_ZERO_256(a_value) || !a_tx_num){
         log_it(L_ERROR, "Wrong parameters in dap_chain_mempool_tx_create_massive() call");
         return -1;
 
     }
-    dap_global_db_obj_t * l_objs = DAP_NEW_Z_SIZE(dap_global_db_obj_t, (a_tx_num+1)*sizeof (dap_global_db_obj_t) );
+    dap_global_db_obj_t * l_objs = DAP_NEW_Z_SIZE(dap_global_db_obj_t, (a_tx_num + 1) * sizeof (dap_global_db_obj_t));
 
 
 
     // Search unused out:
-    uint64_t l_value_need =a_tx_num*( a_value + a_value_fee );
-    uint64_t l_value_transfer = 0; // how many coins to transfer
-    log_it(L_DEBUG,"Create %"DAP_UINT64_FORMAT_U" transactions, summary %Lf.7", a_tx_num,dap_chain_datoshi_to_coins(l_value_need) ) ;
+    uint256_t l_single_val = {};
+    SUM_256_256(a_value, a_value_fee, &l_single_val);
+    uint256_t l_value_need = {};
+    MULT_256_256(dap_chain_uint256_from(a_tx_num), l_single_val, &l_value_need);
+    uint256_t l_value_transfer = {}; // how many coins to transfer
+    log_it(L_DEBUG,"Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, dap_chain_balance_to_coins(l_value_need)) ;
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
@@ -218,52 +221,52 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
         // create empty transaction
         dap_chain_datum_tx_t *l_tx_new = dap_chain_datum_tx_create();
-        uint64_t l_value_back=0;
+        uint256_t l_value_back = {};
         // add 'in' items
         dap_list_t *l_list_tmp = l_list_used_out;
-        uint64_t l_value_to_items = 0; // how many coins to transfer
+        uint256_t l_value_to_items = {}; // how many coins to transfer
 
         // Add in and remove out used items
         while(l_list_tmp) {
-            list_used_item_t *item = l_list_tmp->data;
+            list_used_item_t *l_item = l_list_tmp->data;
             char l_in_hash_str[70];
 
-            dap_chain_hash_fast_to_str(&item->tx_hash_fast,l_in_hash_str,sizeof (l_in_hash_str) );
+            dap_chain_hash_fast_to_str(&l_item->tx_hash_fast,l_in_hash_str,sizeof (l_in_hash_str) );
 
-            if(dap_chain_datum_tx_add_in_item(&l_tx_new, &item->tx_hash_fast, (uint32_t) item->num_idx_out) == 1) {
-                l_value_to_items += item->value;
-                log_it(L_DEBUG,"Added input %s with %"DAP_UINT64_FORMAT_U" datoshi",l_in_hash_str, item->value);
+            if(dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, (uint32_t)l_item->num_idx_out) == 1) {
+                SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
+                log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, dap_chain_balance_print(l_item->value));
             }else{
-                log_it(L_WARNING,"Can't add input from %s with %"DAP_UINT64_FORMAT_U" datoshi",l_in_hash_str, item->value);
+                log_it(L_WARNING, "Can't add input from %s with %s datoshi", l_in_hash_str, dap_chain_balance_print(l_item->value));
             }
             l_list_used_out = l_list_tmp->next;
             DAP_DELETE(l_list_tmp->data);
             dap_list_free1(l_list_tmp);
             l_list_tmp = l_list_used_out;
-            if ( l_value_to_items >= l_value_transfer )
+            if (compare256(l_value_to_items, l_value_transfer) != -1)
                 break;
         }
-        if ( l_value_to_items <  (a_value + a_value_fee) ){
-            log_it(L_ERROR,"Not enought values on output %"DAP_UINT64_FORMAT_U" to produce enought ins %"DAP_UINT64_FORMAT_U" when need %"DAP_UINT64_FORMAT_U"",
-                   l_value_to_items, l_value_transfer,
-                   l_value_need);
+        if (compare256(l_value_to_items, l_single_val) == -1) {
+            log_it(L_ERROR, "Not enought values on output %s to produce enought ins %s when need %s",
+                   dap_chain_balance_print(l_value_to_items), dap_chain_balance_print(l_value_transfer),
+                   dap_chain_balance_print(l_value_need));
             DAP_DELETE(l_objs);
             return -5;
         }
 
         // add 'out' items
-        uint64_t l_value_pack = 0; // how much coin add to 'out' items
+        uint256_t l_value_pack = {}; // how much coin add to 'out' items
         if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_to, a_value) == 1) {
-            l_value_pack += a_value;
+            SUM_256_256(l_value_pack, a_value, &l_value_pack);
             // transaction fee
             if(a_addr_fee) {
                 if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_fee, a_value_fee) == 1)
-                    l_value_pack += a_value_fee;
+                    SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
             }
         }
         // coin back
-        l_value_back = l_value_transfer - l_value_pack;
-        if(l_value_back) {
+        SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+        if (!IS_ZERO_256(l_value_back)) {
             //log_it(L_DEBUG,"Change back %"DAP_UINT64_FORMAT_U"", l_value_back);
             if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx_new);
@@ -282,7 +285,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         dap_chain_hash_fast_t l_tx_new_hash;
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
         // If we have value back - update balance cache
-        if(l_value_back) {
+        if (!IS_ZERO_256(l_value_back)) {
             //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
             int l_item_count = 0;
             dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT,
@@ -312,7 +315,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             //log_it(L_DEBUG,"Checked all outputs");
             dap_list_free( l_list_out_items);
         }
-        l_value_transfer -= l_value_pack;
+        SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_transfer);
 
         // Now produce datum
         dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx_new, l_tx_size);
@@ -322,7 +325,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
         l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
         //continue;
-        l_objs[i].value = (uint8_t*) l_datum;
+        l_objs[i].value = (uint8_t *)l_datum;
         l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
@@ -364,10 +367,10 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
-    uint16_t pos=0;
+    uint16_t pos = 0;
     dap_chain_datum_tx_add_item(&l_tx, (byte_t*) l_receipt);
     pos++;
-    uint64_t l_value_send = l_receipt->receipt_info.value_datoshi;
+    uint256_t l_value_send = dap_chain_uint256_from(l_receipt->receipt_info.value_datoshi);
 
     // add 'in_cond' items
     dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_prev_hash);
@@ -377,10 +380,10 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
         dap_chain_datum_tx_t *l_tx_tmp;
         dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
         dap_chain_tx_out_cond_t *l_tmp_cond;
-        uint64_t l_value_cond = 0;
+        uint256_t l_value_cond = {};
         int l_tmp_cond_idx;
         // Find all transactions
-        while (l_value_cond < l_value_send) {
+        while (compare256(l_value_cond, l_value_send) == -1) {
             l_tx_tmp = dap_chain_ledger_tx_cache_find_out_cond(l_ledger, &l_tx_cur_hash, &l_tmp_cond, &l_tmp_cond_idx, NULL);
             if (!l_tx_tmp) {
                 break;
@@ -393,18 +396,18 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
                 continue;
             if (l_tmp_cond->subtype.srv_pay.unit.uint32 != l_out_cond->subtype.srv_pay.unit.uint32)
                 continue;
-            if (l_tmp_cond->subtype.srv_pay.unit_price_max_datoshi != l_out_cond->subtype.srv_pay.unit_price_max_datoshi)
+            if (!EQUAL_256(l_tmp_cond->subtype.srv_pay.unit_price_max_datoshi, l_out_cond->subtype.srv_pay.unit_price_max_datoshi))
                 continue;
             if (memcmp(&l_tmp_cond->subtype.srv_pay.pkey_hash, &l_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t)))
                 continue;
             l_value_cond = l_tmp_cond->header.value;
         }
-        if (l_value_cond < l_value_send) {
+        if (compare256(l_value_cond, l_value_send) == -1) {
             log_it(L_WARNING, "Requested conditional transaction is already used out");
             return NULL;
         }
     }
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, l_prev_cond_idx, pos-1) != 0 ){
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, l_prev_cond_idx, pos - 1) != 0 ){
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Cant add tx cond input");
         return NULL;
@@ -421,7 +424,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     size_t l_size = dap_chain_datum_item_tx_get_size((uint8_t *)l_out_cond);
     dap_chain_tx_out_cond_t *l_out_cond_new = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, l_size);
     memcpy(l_out_cond_new, l_out_cond, l_size);
-    l_out_cond_new->header.value -= l_value_send;
+    SUBTRACT_256_256(l_out_cond_new->header.value, l_value_send, &l_out_cond_new->header.value);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond_new);
     DAP_DELETE(l_out_cond_new);
 
@@ -468,19 +471,20 @@ static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t * a_net,
         dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
         const dap_chain_addr_t* a_addr_from,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint64_t a_value,uint64_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
-        dap_chain_net_srv_uid_t a_srv_uid, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
+        uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
+        dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size)
 {
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     // check valid param
     if(!a_net || ! l_ledger || !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             !dap_chain_addr_check_sum(a_addr_from) ||
-            !a_value)
+            IS_ZERO_256(a_value))
         return NULL;
 
     // find the transactions from which to take away coins
-    uint64_t l_value_transfer = 0; // how many coins to transfer
-    uint64_t l_value_need = a_value + a_value_fee;
+    uint256_t l_value_transfer = {}; // how many coins to transfer
+    uint256_t l_value_need = {};
+    SUM_256_256(a_value, a_value_fee, &l_value_need);
     // list of transaction with 'out' items
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
@@ -493,24 +497,25 @@ static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t * a_net,
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     // add 'in' items
     {
-        uint64_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
-        assert(l_value_to_items == l_value_transfer);
+        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+        assert(EQUAL_256(l_value_to_items, l_value_transfer));
         dap_list_free_full(l_list_used_out, free);
     }
     // add 'out_cond' and 'out' items
     {
-        uint64_t l_value_pack = 0; // how much coin add to 'out' items
+        uint256_t l_value_pack = {}; // how much coin add to 'out' items
         if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_key_cond, a_srv_uid, a_value, a_value_per_unit_max, a_unit, a_cond,
                 a_cond_size) == 1) {
-            l_value_pack += a_value;
+            SUM_256_256(l_value_pack, a_value, &l_value_pack);
             // transaction fee
-            if(a_value_fee) {
+            if (!IS_ZERO_256(a_value_fee)) {
                 // TODO add condition with fee for mempool-as-service
             }
         }
         // coin back
-        uint64_t l_value_back = l_value_transfer - l_value_pack;
-        if(l_value_back) {
+        uint256_t l_value_back = {};
+        SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+        if (!IS_ZERO_256(l_value_back)) {
             if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 log_it( L_ERROR, "Cant add coin back output");
@@ -555,8 +560,8 @@ dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
         dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
         const dap_chain_addr_t* a_addr_from,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint64_t a_value,uint64_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
-        dap_chain_net_srv_uid_t a_srv_uid, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
+        uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
+        dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size)
 {
 
     dap_chain_t *l_chain = NULL;
@@ -569,8 +574,8 @@ dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
             return NULL;
     // Make transfer transaction
     dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net,a_key_from, a_key_cond, a_addr_from,
-            a_token_ticker,a_value,a_value_per_unit_max, a_unit,
-            a_srv_uid, a_value_fee, a_cond, a_cond_size);
+                                                          a_token_ticker, a_value, a_value_per_unit_max, a_unit,
+                                                          a_srv_uid, a_value_fee, a_cond, a_cond_size);
 
     if(!l_datum)
         return NULL;
@@ -597,13 +602,13 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
         dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
         const dap_chain_addr_t* a_addr_from,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint64_t a_value,uint64_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
-        dap_chain_net_srv_uid_t a_srv_uid, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
+        uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
+        dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size)
 {
     // Make transfer transaction
-    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net,a_key_from, a_key_cond, a_addr_from,
-            a_token_ticker,a_value,a_value_per_unit_max, a_unit,
-            a_srv_uid, a_value_fee, a_cond, a_cond_size);
+    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net, a_key_from, a_key_cond, a_addr_from,
+                                                          a_token_ticker,a_value,a_value_per_unit_max, a_unit,
+                                                          a_srv_uid, a_value_fee, a_cond, a_cond_size);
 
     if(!l_datum)
         return NULL;

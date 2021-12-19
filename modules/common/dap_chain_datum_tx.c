@@ -104,14 +104,14 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
  *
  * return summary value from inserted items
  */
-uint64_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out)
+uint256_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out)
 {
     dap_list_t *l_list_tmp = a_list_used_out;
-    uint64_t l_value_to_items = 0; // how many datoshi to transfer
+    uint256_t l_value_to_items = {}; // how many datoshi to transfer
     while (l_list_tmp) {
-        list_used_item_t *item = l_list_tmp->data;
-        if (dap_chain_datum_tx_add_in_item(a_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
-            l_value_to_items += item->value;
+        list_used_item_t *l_item = l_list_tmp->data;
+        if (dap_chain_datum_tx_add_in_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out) == 1) {
+            SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
         }
         l_list_tmp = dap_list_next(l_list_tmp);
     }
@@ -182,7 +182,7 @@ int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_c
 int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
         uint256_t a_value, uint256_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size)
 {
-    dap_chain_256_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_pay(
+    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_pay(
                 a_key, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size );
     if(l_tx_out) {
         dap_chain_datum_tx_add_item(a_tx, (const uint8_t *) l_tx_out);
