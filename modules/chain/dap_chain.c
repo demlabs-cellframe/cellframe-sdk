@@ -263,6 +263,9 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "ca")) {
         return CHAIN_TYPE_CA;
     }
+    if(!dap_strcmp(a_type_str, "signer")) {
+	    return CHAIN_TYPE_SIGNER;
+    }
     return CHAIN_TYPE_LAST;
 }
 
@@ -285,6 +288,9 @@ static uint16_t s_datum_type_from_str(const char *a_type_str)
     }
     if(!dap_strcmp(a_type_str, "ca")) {
         return DAP_CHAIN_DATUM_CA;
+    }
+    if (!dap_strcmp(a_type_str, "signer")) {
+        return DAP_CHAIN_DATUM_SIGNER;
     }
     return DAP_CHAIN_DATUM_CUSTOM;
 }

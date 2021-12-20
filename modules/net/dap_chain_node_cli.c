@@ -928,7 +928,10 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "global_db flush \n\n"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
-
+    dap_chain_node_cli_cmd_item_create("mempool", com_signer, "Sign operations",
+               "mempool sign -net <net name> -chain <chain name> -file <filename> [-mime <(SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC) or (SIGNER_ALL_FLAGS)>]\n"
+               "mempool check -net <net name> ((-file <filename>) or (-hash <hash>)) [-mime <(SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC) or (SIGNER_ALL_FLAGS)>]\n"
+                                          );
     dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
             "node add  -net <net name> -addr {<node address> | -alias <node alias>} {-port <port>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
                     "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"

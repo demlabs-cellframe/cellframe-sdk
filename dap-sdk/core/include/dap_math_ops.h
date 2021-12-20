@@ -51,12 +51,12 @@ typedef int128_t _dap_int128_t;
 typedef struct uint256_t {
     uint128_t hi;
     uint128_t lo;
-} uint256_t;
+} DAP_ALIGN_PACKED uint256_t;
 
 typedef struct uint512_t {
     uint256_t hi;
     uint256_t lo;
-} uint512_t;
+} DAP_ALIGN_PACKED uint512_t;
 
 #endif //defined(__GNUC__) || defined (__clang__)
 
@@ -71,8 +71,6 @@ typedef struct uint512_t {
 
 #endif // DAP_GLOBAL_IS_INT128
 
-// const uint256_t zero_256={.hi=zero_128,.lo=zero_128};
-// #define zero_256 ((uint256_t){.hi=zero_128,.lo=zero_128})
 #define uint256_0 ((uint256_t){.hi=uint128_0,.lo=uint128_0})
 #define uint256_1 ((uint256_t){.hi=uint128_0,.lo=uint128_1})
 #define uint512_0 ((uint512_t){.hi=uint256_0,.lo=uint256_0})

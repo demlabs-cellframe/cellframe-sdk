@@ -334,7 +334,8 @@ static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
         return false;
     }
     // Processing will be made according to autoprocess policy
-    if (!dap_chain_mempool_datum_add(l_datum, l_chain)) {
+    char *l_ret = NULL;
+    if ((l_ret = dap_chain_mempool_datum_add(l_datum, l_chain)) == NULL) {
         DAP_DELETE(l_datum);
         return false;
     }

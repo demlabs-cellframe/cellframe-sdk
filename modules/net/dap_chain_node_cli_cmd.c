@@ -35,6 +35,8 @@
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <magic.h>
+#include <sys/stat.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -3190,10 +3192,10 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     // Emission value
     if(dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission_value", &str_tmp)) {
-        l_emission_value = dap_chain_balance_scan((char *)str_tmp);
+        l_emission_value = dap_chain_balance_scan(str_tmp);
     }
 
-    if (EQUAL_256(l_emission_value, uint256_0) ) {
+    if (IS_ZERO_256(l_emission_value)) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-emission_value'");
         return -1;
     }
@@ -4373,4 +4375,557 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
     }
     json_object_put(l_json);
     return 0;
+}
+
+/*
+ * block code signer
+ */
+/*
+ * enum for dap_chain_sign_file
+ */
+typedef enum {
+    SIGNER_ALL_FLAGS             = 0x1f,
+    SIGNER_FILENAME              = 1 << 0,   // flag - full filename
+    SIGNER_FILENAME_SHORT        = 1 << 1,   // flag - filename without extension
+    SIGNER_FILESIZE              = 1 << 2,   // flag - size of file
+    SIGNER_DATE                  = 1 << 3,   // flag - date
+    SIGNER_MIME_MAGIC            = 1 << 4,   // flag - mime magic
+    SIGNER_COUNT                 = 5         // count flags
+} dap_sign_signer_file_t;
+
+static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, const char *a_cert_name,
+                       dap_sign_t **a_signed, dap_chain_hash_fast_t *a_hash);
+static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply);
+static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply);
+static uint8_t *s_byte_to_hex(const char *a_line, size_t *a_size);
+static uint8_t s_get_num(uint8_t a_byte, int a_pp);
+struct opts {
+    char *name;
+    uint32_t cmd;
+};
+
+#define BUILD_BUG(condition) ((void)sizeof(char[1-2*!!(condition)]))
+
+int com_signer(int a_argc, char **a_argv, char **a_str_reply)
+{
+    enum {
+        CMD_NONE, CMD_SIGN, CMD_CHECK
+    };
+
+    int arg_index = 1;
+    int cmd_num = CMD_NONE;
+
+    struct opts l_opts[] = {
+    { "sign", CMD_SIGN },
+    { "check", CMD_CHECK }
+    };
+
+    size_t l_len_opts = sizeof(l_opts) / sizeof(struct opts);
+    for (int i = 0; i < l_len_opts; i++) {
+        if (dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), l_opts[i].name, NULL)) {
+            cmd_num = l_opts[i].cmd;
+            break;
+        }
+    }
+
+    if(cmd_num == CMD_NONE) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
+        return -1;
+    }
+    switch (cmd_num) {
+    case CMD_SIGN:
+        return s_signer_cmd(arg_index, a_argc, a_argv, a_str_reply);
+        break;
+    case CMD_CHECK:
+        return s_check_cmd(arg_index, a_argc, a_argv, a_str_reply);
+        break;
+    }
+
+    return -1;
+}
+
+static int s_get_key_from_file(const char *a_file, const char *a_mime, const char *a_cert_name, dap_sign_t **a_sign);
+
+static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply)
+{
+    int l_ret = 0;
+    enum {OPT_FILE, OPT_HASH, OPT_NET, OPT_MIME, OPT_CERT,
+          OPT_COUNT};
+    struct opts l_opts_check[] = {
+    { "-file", OPT_FILE },
+    { "-hash", OPT_HASH },
+    { "-net", OPT_NET },
+    { "-mime", OPT_MIME },
+    { "-cert", OPT_CERT }
+    };
+
+    BUILD_BUG((sizeof(l_opts_check)/sizeof(struct opts)) != OPT_COUNT);
+
+    char *l_str_opts_check[OPT_COUNT] = {0};
+    for (int i = 0; i < OPT_COUNT; i++) {
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, l_opts_check[i].name, (const char **) &l_str_opts_check[i]);
+    }
+
+    if (!l_str_opts_check[OPT_CERT]) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s need to be selected", l_opts_check[OPT_CERT].name);
+        return -1;
+    }
+    if (l_str_opts_check[OPT_HASH] && l_str_opts_check[OPT_FILE]) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "you can select is only one from (file or hash)");
+        return -1;
+    }
+
+    dap_chain_net_t *l_network = dap_chain_net_by_name(l_str_opts_check[OPT_NET]);
+    if (!l_network) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s network not found", l_str_opts_check[OPT_NET]);
+        return -1;
+    }
+
+
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_network, CHAIN_TYPE_SIGNER);
+    if (!l_chain) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Not found datum signer in network %s", l_str_opts_check[OPT_NET]);
+        return -1;
+    }
+
+    dap_sign_t *l_sign = NULL;
+    dap_chain_datum_t *l_datum = NULL;
+    dap_global_db_obj_t *l_objs = NULL;
+    char *l_gdb_group = NULL;
+
+    l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
+    if (!l_gdb_group) {
+        l_ret = -1;
+        goto end;
+    }
+
+    printf("....%p\n", l_chain->cells);
+
+    if (l_str_opts_check[OPT_HASH]) {
+#if 0
+        size_t l_size_store_datum = 0;
+        dap_store_obj_t *l_store_datum = dap_chain_global_db_obj_gr_get(l_str_opts_check[OPT_HASH], &l_size_store_datum, l_gdb_group);
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s datum by hash: %s",
+                                          l_size_store_datum ? "found" : "not found",
+                                          l_str_opts_check[OPT_HASH]);
+#endif
+
+    }
+
+    if (l_str_opts_check[OPT_FILE]) {
+        l_ret = s_get_key_from_file(l_str_opts_check[OPT_FILE], l_str_opts_check[OPT_MIME], l_str_opts_check[OPT_CERT], &l_sign);
+        if (!l_ret) {
+            l_ret = -1;
+            goto end;
+        }
+#if 0
+        dap_chain_hash_fast_t l_key_hash;
+        dap_hash_fast(l_sign->pkey_n_sign, l_sign->header.sign_size, &l_key_hash);
+        char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+        if (l_key_str) {
+            size_t l_size_store_datum = 0;
+            dap_store_obj_t *l_store_datum = dap_chain_global_db_obj_gr_get(l_key_str, &l_size_store_datum, l_gdb_group);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s datum by file: %s",
+                                              l_size_store_datum ? "found" : "not found",
+                                              l_str_opts_check[OPT_FILE]);
+            DAP_FREE(l_key_str);
+        }
+#endif
+#if 0
+        dap_chain_cell_id_t l_cell_id = {0};
+        dap_chain_atom_iter_t *l_iter = NULL;
+        for (uint64_t i = 0; i >= 0; i++) {
+            l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell_id);
+            if (l_iter) {
+                size_t l_size = 0;
+                dap_chain_datum_t *l_datum = l_chain->callback_atom_iter_get_next(l_iter, &l_size);
+                if (l_datum) {
+                    printf("l_size: %ld\n", l_size);
+                    for (size_t i = 0; i < l_size; i++) {
+
+                        dap_hash_fast_t l_hash;
+                        dap_chain_hash_fast_from_str(l_datum[i].data, &l_hash);
+                        char *l_key = dap_hash_fast_to_str_new(&l_hash);
+                        printf("key: %s\n", l_key);
+                    }
+
+
+                }
+            } else break;
+            l_cell_id.uint64++;
+        }
+#endif
+    }
+
+
+end:
+
+    if (l_gdb_group) DAP_FREE(l_gdb_group);
+
+
+    return 0;
+}
+
+static int s_get_key_from_file(const char *a_file, const char *a_mime, const char *a_cert_name, dap_sign_t **a_sign)
+{
+    char **l_items_mime = NULL;
+    int l_items_mime_count = 0;
+    uint32_t l_flags_mime = 0;
+
+
+
+    if (a_mime) {
+        l_items_mime = dap_parse_items(a_mime, ',', &l_items_mime_count, 0);
+    }
+
+    if (l_items_mime && l_items_mime_count > 0) {
+        struct opts l_opts_flags[] = {
+        { "SIGNER_ALL_FLAGS", SIGNER_ALL_FLAGS },
+        { "SIGNER_FILENAME", SIGNER_FILENAME },
+        { "SIGNER_FILENAME_SHORT", SIGNER_FILENAME_SHORT },
+        { "SIGNER_FILESIZE", SIGNER_FILESIZE },
+        { "SIGNER_DATE", SIGNER_DATE },
+        { "SIGNER_MIME_MAGIC", SIGNER_MIME_MAGIC }
+        };
+        int l_len_opts_flags = sizeof(l_opts_flags) / sizeof (struct opts);
+        for (int i = 0; i < l_len_opts_flags; i++) {
+            for (int isub = 0; isub < l_items_mime_count; isub++) {
+                if (!strncmp (l_opts_flags[i].name, l_items_mime[isub], strlen(l_items_mime[isub]) + 1)) {
+                    l_flags_mime |= l_opts_flags[i].cmd;
+                    break;
+                }
+            }
+
+        }
+
+        /* free l_items_mime */
+        for (int i = 0; i < l_items_mime_count; i++) {
+            if (l_items_mime[i]) DAP_FREE(l_items_mime[i]);
+        }
+        DAP_FREE(l_items_mime);
+        l_items_mime_count = 0;
+    }
+    if (l_flags_mime == 0) l_flags_mime = SIGNER_ALL_FLAGS;
+
+    dap_chain_hash_fast_t l_hash;
+
+
+    int l_ret = s_sign_file(a_file, l_flags_mime, a_cert_name, a_sign, &l_hash);
+
+    return l_ret;
+}
+
+static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply)
+{
+    enum {
+        OPT_FILE, OPT_MIME, OPT_NET, OPT_CHAIN, OPT_CERT,
+        OPT_COUNT
+    };
+    struct opts l_opts_signer[] = {
+    { "-file", OPT_FILE },
+    { "-mime", OPT_MIME },
+    { "-net", OPT_NET },
+    { "-chain", OPT_CHAIN },
+    { "-cert", OPT_CERT }
+    };
+
+    BUILD_BUG((sizeof(l_opts_signer)/sizeof(struct opts)) != OPT_COUNT);
+
+    a_arg_index++;
+
+    char *l_opts_sign[OPT_COUNT] = {0};
+    for (int i = 0; i < OPT_COUNT; i++) {
+        dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, l_opts_signer[i].name, (const char **) &l_opts_sign[i]);
+    }
+
+    if (!l_opts_sign[OPT_CERT]) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s need to be selected", l_opts_signer[OPT_CERT].name);
+        return -1;
+    }
+
+
+    dap_chain_net_t *l_network = dap_chain_net_by_name(l_opts_sign[OPT_NET]);
+    if (!l_network) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s network not found", l_opts_sign[OPT_NET]);
+        return -1;
+    }
+
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_network, l_opts_sign[OPT_CHAIN]);
+    if (!l_chain) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s chain not found", l_opts_sign[OPT_CHAIN]);
+        return -1;
+    }
+
+    int l_ret = 0;
+    dap_sign_t *l_sign = NULL;
+    dap_chain_datum_t *l_datum = NULL;
+    dap_global_db_obj_t *l_objs = NULL;
+
+    printf("#\n");
+    l_ret = s_get_key_from_file(l_opts_sign[OPT_FILE], l_opts_sign[OPT_MIME], l_opts_sign[OPT_CERT], &l_sign);
+    if (!l_ret) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s cert not found", l_opts_sign[OPT_CERT]);
+        l_ret = -1;
+        goto end;
+    }
+
+
+    printf("##\n");
+
+    l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SIGNER, l_sign->pkey_n_sign, l_sign->header.sign_size);
+    if (!l_datum) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "not created datum");
+        l_ret = -1;
+        goto end;
+    }
+
+    printf("###\n");
+
+#if 0
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain);
+    dap_chain_node_cli_set_reply_text(a_str_reply, "%s by certificate is signed %s", l_opts_sign[OPT_FILE],
+                                      l_hash_str ? "successfull": "not successfull");
+
+    if (l_hash_str) {
+        l_ret = 0;
+        DAP_FREE(l_hash_str);
+    }
+    printf("####\n");
+#endif
+    dap_chain_cell_id_t l_cell_id = {0};
+    dap_chain_cell_create_fill(l_chain, l_cell_id);
+    l_ret = l_chain->callback_add_datums(l_chain, &l_datum, 1);
+    printf("l_ret datum: %d\n", l_ret);
+
+end:
+
+    if (l_datum) DAP_FREE(l_datum);
+
+    return l_ret;
+}
+
+
+
+/*
+SIGNER_ALL_FLAGS             = 0 << 0,
+SIGNER_FILENAME              = 1 << 0,   // flag - full filename
+SIGNER_FILENAME_SHORT        = 1 << 1,   // flag - filename without extension
+SIGNER_FILESIZE              = 1 << 2,   // flag - size of file
+SIGNER_DATE                  = 1 << 3,   // flag - date
+SIGNER_MIME_MAGIC            = 1 << 4,   // flag - mime magic
+SIGNER_COUNT
+*/
+
+static char *s_strdup_by_index (const char *a_file, const int a_index);
+static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta);
+static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain, dap_list_t *a_meta_list, int a_index_meta, size_t *a_fullsize);
+
+/*
+ * dap_sign_file - sign a file with flags.
+ * flags - (SIGNER_FILENAME, SIGNER_FILENAME_SHORT, SIGNER_FILESIZE, SIGNER_DATE, SIGNER_MIME_MAGIC) or SIGNER_ALL_FLAGS
+ * example
+ * int ret = dap_sign_file ("void.png", SIGNER_ALL_FLAGS); it's sign file with all mime types.
+ * example
+ * int ret = dap_sign_file ("void.png", SIGNER_FILENAME | SIGNER_FILESIZE | SIGNER_DATE);
+ */
+/**
+ * @brief dap_chain_sign_file
+ * @param a_chain
+ * @param a_filename
+ * @param a_flags
+ * @return
+ */
+static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, const char *a_cert_name,
+                       dap_sign_t **a_signed, dap_chain_hash_fast_t *a_hash)
+{
+    uint32_t l_shift = 1;
+    int l_count_meta = 0;
+    int l_index_meta = 0;
+    char *l_buffer = NULL;
+
+    if (a_flags == SIGNER_ALL_FLAGS) {
+        l_count_meta = SIGNER_COUNT;
+        a_flags = SIGNER_FILENAME | SIGNER_FILENAME_SHORT | SIGNER_FILESIZE | SIGNER_DATE | SIGNER_MIME_MAGIC;
+    }
+
+    do {
+        if (a_flags <= 0) break;
+
+        for (int i = 0; i < SIGNER_COUNT; i++) {
+            if (l_shift | a_flags) l_count_meta++;
+            l_shift <<= 1;
+        }
+    } while (0);
+
+    size_t l_file_content_size;
+    if (!dap_file_get_contents(a_filename, &l_buffer, &l_file_content_size)) return 0;
+
+    l_shift = 1;
+    dap_list_t *l_std_list = NULL;
+
+
+    for (int i = 0; i < l_count_meta; i++) {
+        if (l_shift | a_flags) {
+            dap_tsd_t *l_item = s_alloc_metadata(a_filename, l_shift & a_flags);
+            if (l_item) {
+                l_std_list = dap_list_append(l_std_list, l_item);
+                l_index_meta++;
+            }
+        }
+        l_shift <<= 1;
+    }
+
+    int l_ret = 0;
+
+    dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_name);
+    if (!l_cert) {
+        DAP_FREE(l_buffer);
+        return 0;
+    }
+
+    if (!dap_hash_fast(l_buffer, l_file_content_size, a_hash)) {
+        DAP_FREE(l_buffer);
+        return 0;
+    }
+
+    size_t l_full_size_for_sign;
+    uint8_t *l_data = s_concat_hash_and_mimetypes (a_hash, l_std_list, l_index_meta, &l_full_size_for_sign);
+    if (!l_data) {
+        DAP_FREE(l_buffer);
+        return 0;
+    }
+    *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, 0);
+    if (*a_signed == NULL) {
+        DAP_FREE(l_buffer);
+        return 0;
+    }
+
+
+    DAP_FREE(l_buffer);
+    return 1;
+}
+
+static byte_t *s_concat_meta (dap_list_t *a_meta, int a_index_meta, size_t *a_fullsize)
+{
+    if (a_fullsize)
+        *a_fullsize = 0;
+
+    int l_len = 0;
+    int l_n;
+    int l_part = 256;
+    int l_power = 1;
+    byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
+    int l_total = l_part;
+    int l_counter = 0;
+    int l_part_power = l_part;
+    int l_index = 0;
+
+    for ( dap_list_t* l_iter = dap_list_first(a_meta); l_iter; l_iter = l_iter->next){
+        if (!l_iter->data) continue;
+        dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
+        size_t l_tsd_size = dap_tsd_size(l_tsd);
+        l_index = l_counter;
+        l_counter += l_tsd_size;
+        if (l_counter >= l_part_power) {
+            l_part_power = l_part * l_power++;
+            l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
+
+        }
+        memcpy (&l_buf[l_index], l_tsd->data, l_tsd_size);
+    }
+
+    if (a_fullsize)
+        *a_fullsize = l_counter;
+
+    return l_buf;
+}
+
+static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash, dap_list_t *a_meta_list, int a_index_meta, size_t *a_fullsize)
+{
+    if (!a_fullsize) return NULL;
+    byte_t *l_buf = s_concat_meta (a_meta_list, a_index_meta, a_fullsize);
+    if (!l_buf) return (uint8_t *) l_buf;
+
+    size_t l_len_meta_buf = *a_fullsize;
+    *a_fullsize += sizeof (a_chain_hash->raw) + 1;
+    uint8_t *l_fullbuf = DAP_CALLOC(*a_fullsize, 1);
+    uint8_t *l_s = l_fullbuf;
+
+    memcpy(l_s, a_chain_hash->raw, sizeof(a_chain_hash->raw));
+    l_s += sizeof (a_chain_hash->raw);
+    memcpy(l_s, l_buf, l_len_meta_buf);
+    DAP_FREE(l_buf);
+
+    return l_fullbuf;
+}
+
+
+static char *s_strdup_by_index (const char *a_file, const int a_index)
+{
+    char *l_buf = DAP_CALLOC(a_index + 1, 1);
+    strncpy (l_buf, a_file, a_index);
+    return l_buf;
+}
+
+static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
+{
+    switch (a_meta) {
+        case SIGNER_FILENAME:
+            return dap_tsd_create_string(SIGNER_FILENAME, a_file);
+            break;
+        case SIGNER_FILENAME_SHORT:
+            {
+                char *l_filename_short = NULL;
+                if (l_filename_short = strrchr(a_file, '.')) {
+                    int l_index_of_latest_point = l_filename_short - a_file;
+                    l_filename_short = s_strdup_by_index (a_file, l_index_of_latest_point);
+                    if (!l_filename_short) return NULL;
+                    dap_tsd_t *l_ret = dap_tsd_create_string(SIGNER_FILENAME_SHORT, l_filename_short);
+                    free (l_filename_short);
+                    return l_ret;
+                }
+            }
+            break;
+        case SIGNER_FILESIZE:
+            {
+                struct stat l_st;
+                stat (a_file, &l_st);
+                return dap_tsd_create_scalar(SIGNER_FILESIZE, l_st.st_size);
+            }
+            break;
+        case SIGNER_DATE:
+            {
+                struct stat l_st;
+                stat (a_file, &l_st);
+                char *l_ctime = ctime(&l_st.st_ctime);
+                char *l = NULL;
+                if (l = strchr(l_ctime, '\n')) *l = 0;
+                return dap_tsd_create_string(SIGNER_DATE, l_ctime);
+            }
+            break;
+        case SIGNER_MIME_MAGIC:
+            {
+                magic_t l_magic = magic_open(MAGIC_MIME);
+                if (l_magic == NULL) return NULL;
+                if (magic_load (l_magic, NULL)) {
+                    magic_close(l_magic);
+                    return NULL;
+                }
+                const char *l_str_magic_file = NULL;
+                dap_tsd_t *l_ret = NULL;
+                do {
+                        l_str_magic_file = magic_file (l_magic, a_file);
+                    if (!l_str_magic_file) break;
+                    l_ret = dap_tsd_create_string(SIGNER_MIME_MAGIC, l_str_magic_file);
+                } while (0);
+                magic_close (l_magic);
+                return l_ret;
+
+            }
+            break;
+        default:
+            return NULL;
+    }
+
+    return NULL;
 }

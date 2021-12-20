@@ -304,7 +304,6 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
 
     const char * l_events_sign_cert = NULL;
     if ( ( l_events_sign_cert = dap_config_get_item_str(a_chain_net_cfg,"dag-poa","events-sign-cert") ) != NULL ) {
-
         if ( ( PVT(l_poa)->events_sign_cert = dap_cert_find_by_name(l_events_sign_cert)) == NULL ){
             log_it(L_ERROR,"Can't load events sign certificate, name \"%s\" is wrong",l_events_sign_cert);
         }else

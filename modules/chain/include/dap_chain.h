@@ -96,6 +96,7 @@ typedef enum dap_chain_type
     CHAIN_TYPE_EMISSION,
     CHAIN_TYPE_TX,
     CHAIN_TYPE_CA,
+    CHAIN_TYPE_SIGNER,
     CHAIN_TYPE_LAST
 } dap_chain_type_t;
 
