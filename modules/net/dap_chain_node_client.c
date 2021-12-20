@@ -237,7 +237,7 @@ static bool s_timer_update_states_callback(void *a_arg)
                         dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                         dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ,
-                                                             l_net->pub.id.uint64, 0, l_net->pub.cell_id.uint64,
+                                                             l_net->pub.id.uint64, 0, 0,
                                                              &l_sync_gdb, sizeof(l_sync_gdb));
                     }
                     return true;

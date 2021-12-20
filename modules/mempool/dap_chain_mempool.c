@@ -370,7 +370,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     uint16_t pos = 0;
     dap_chain_datum_tx_add_item(&l_tx, (byte_t*) l_receipt);
     pos++;
-    uint256_t l_value_send = dap_chain_uint256_from(l_receipt->receipt_info.value_datoshi);
+    uint256_t l_value_send = l_receipt->receipt_info.value_datoshi;
 
     // add 'in_cond' items
     dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_prev_hash);

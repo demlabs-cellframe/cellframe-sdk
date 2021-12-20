@@ -42,7 +42,7 @@
  */
 dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_srv_uid_t a_srv_uid,
                                                                   dap_chain_net_srv_price_unit_uid_t a_units_type,
-                                                                    uint64_t a_units, uint64_t a_value_datoshi,
+                                                                    uint64_t a_units, uint256_t a_value_datoshi,
                                                                   const void * a_ext, size_t a_ext_size)
 {
     dap_chain_datum_tx_receipt_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_datum_tx_receipt_t, dap_chain_datum_tx_receipt_get_size_hdr() +a_ext_size );

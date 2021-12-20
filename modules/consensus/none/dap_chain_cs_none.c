@@ -33,6 +33,7 @@
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_hash.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_driver.h"
@@ -181,7 +182,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     }else {
         // here is not work because dap_chain_net_load() not yet fully performed
         l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016llX.cell-%016llX",l_net->pub.name,
-                                                  a_chain->id.uint64, l_net->pub.cell_id.uint64);
+                                                  a_chain->id.uint64, a_chain->cells->id.uint64);
     }
 
     // Add group prefix that will be tracking all changes

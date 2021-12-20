@@ -298,7 +298,6 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
     pthread_rwlock_t * l_events_rwlock = &PVT(a_dag)->events_rwlock;
     switch (l_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_256_TOKEN_DECL:
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
             return dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
@@ -489,6 +488,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t 
  */
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count)
 {
+
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     size_t l_datum_processed =0;
     size_t l_events_round_new_size = 0;
@@ -508,12 +508,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
     dap_chain_hash_fast_t * l_hashes = l_hashes_size ?DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
                                              sizeof(dap_chain_hash_fast_t) * l_hashes_size) : NULL;
     size_t l_hashes_linked = 0;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    dap_chain_cell_id_t l_cell_id = {
-        .uint64 = l_net ? l_net->pub.cell_id.uint64 : 0
-    };
-    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_cell_id);
-
+    dap_chain_cell_t *l_cell = NULL;
     for (size_t d = 0; d <a_datums_count ; d++){
         dap_chain_datum_t * l_datum = a_datums[d];
         if(l_datum == NULL){ // Was wrong datum thats not passed checks
@@ -588,19 +583,19 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         if (l_hashes_linked || s_seed_mode ) {
             dap_chain_cs_dag_event_t * l_event = NULL;
             size_t l_event_size = 0;
-            if(l_dag->callback_cs_event_create)
+            if(l_dag->callback_cs_event_create) {
                 l_event = l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked,&l_event_size);
-            if ( l_event&&l_event_size){ // Event is created
+            }
+            if (l_event&&l_event_size) { // Event is created
                 if (l_dag->is_add_directy) {
+                    l_cell = a_chain->cells;
                     if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
                         // add events to file
-                        if (!l_cell) {
-                            l_cell = dap_chain_cell_create_fill(a_chain, l_cell_id);
-                        }
                         if (dap_chain_cell_file_append(l_cell, l_event, l_event_size )  < 0) {
                             log_it(L_ERROR, "Can't add new event to the file '%s'", l_cell->file_storage_path);
                             continue;
                         }
+
                         // add all atoms from treshold
                         {
                             dap_chain_atom_ptr_t l_atom_treshold;
@@ -1358,24 +1353,16 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             }
             // write events to file and delete events from db
             if(l_list_to_del) {
-                dap_chain_cell_id_t l_cell_id = {
-                    .uint64 = l_net ? l_net->pub.cell_id.uint64 : 0
-                };
-                dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(l_chain, l_cell_id);
-                if (!l_cell)
-                    l_cell = dap_chain_cell_create_fill(l_chain, l_cell_id);
-                if(l_cell) {
-                    if(dap_chain_cell_file_update(l_cell) > 0) {
-                        // delete events from db
-                        dap_list_t *l_list_tmp = l_list_to_del;
-                        while(l_list_tmp) {
-                            char *l_key = strdup((char*) l_list_tmp->data);
-                            dap_chain_global_db_gr_del(l_key, l_dag->gdb_group_events_round_new);
-                            l_list_tmp = dap_list_next(l_list_tmp);
-                        }
+                if (dap_chain_cell_file_update(l_chain->cells) > 0) {
+                    // delete events from db
+                    dap_list_t *l_list_tmp = l_list_to_del;
+                    while(l_list_tmp) {
+                        char *l_key = strdup((char*) l_list_tmp->data);
+                        dap_chain_global_db_gr_del(l_key, l_dag->gdb_group_events_round_new);
+                        l_list_tmp = dap_list_next(l_list_tmp);
                     }
                 }
-                dap_chain_cell_close(l_cell);
+                dap_chain_cell_close(l_chain->cells);
                 dap_list_free(l_list_to_del);
             }
 

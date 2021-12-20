@@ -232,6 +232,21 @@ uint64_t dap_chain_uint128_to(uint128_t a_from)
 #endif
 }
 
+uint64_t dap_chain_uint256_to(uint256_t a_from)
+{
+#ifdef DAP_GLOBAL_IS_INT128
+    if (a_from.hi || a_from.lo > UINT64_MAX) {
+        log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
+    }
+    return (uint64_t)a_from.lo;
+#else
+    if (!IS_ZERO_128(a_from.hi) || a_from.lo.hi {
+        log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
+    }
+    return a_from.lo.lo;
+#endif
+}
+
 char *dap_chain_balance_print128(uint128_t a_balance)
 {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 3);
@@ -368,7 +383,7 @@ uint128_t dap_chain_balance_scan128(const char *a_balance)
             return l_nul;
         }
         l_tmp = (l_tmp << 64) + c_pow10[i].u64[1] * l_digit;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret == l_nul)
             return l_nul;
 #else
@@ -381,12 +396,12 @@ uint128_t dap_chain_balance_scan128(const char *a_balance)
         uint64_t l_mul = c_pow10[i].u32[3] * l_digit;
         l_tmp.lo = l_mul << 32;
         l_tmp.hi = l_mul >> 32;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
         l_tmp.lo = 0;
         l_tmp.hi = c_pow10[i].u32[0] * l_digit;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
         l_mul = c_pow10[i].u32[1] * l_digit;
@@ -395,7 +410,7 @@ uint128_t dap_chain_balance_scan128(const char *a_balance)
             return l_nul;
         }
         l_tmp.hi = l_mul << 32;
-        l_ret = dap_uint128_add(l_ret, l_tmp);
+        SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
 #endif

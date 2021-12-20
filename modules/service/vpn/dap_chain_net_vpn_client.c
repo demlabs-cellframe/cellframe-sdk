@@ -240,8 +240,9 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
         dap_chain_addr_t *l_addr_from = dap_chain_wallet_get_addr(l_wallet_from, a_net->pub.id);
         dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_SEC };
         dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+        uint256_t l_value = dap_chain_uint256_from(a_value_datoshi);
         l_tx_cond_hash = dap_chain_proc_tx_create_cond(a_net, l_key_from, l_client_key, l_addr_from,
-                a_token_ticker, a_value_datoshi, 0, l_price_unit, l_srv_uid, 0, l_pub_key_data, l_pub_key_data_size);
+                a_token_ticker, l_value, uint256_0, l_price_unit, l_srv_uid, uint256_0, l_pub_key_data, l_pub_key_data_size);
         //char *l_addr_from_str = dap_chain_addr_to_str(l_addr_from);
         DAP_DELETE(l_addr_from);
         if(!l_tx_cond_hash) {
@@ -356,7 +357,8 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
     dap_chain_net_srv_order_t * l_orders = NULL;
     size_t l_orders_num = 0;
     dap_chain_net_srv_uid_t l_srv_uid = { { 0 } };
-    uint64_t l_price_min = 0, l_price_max = 0;
+    uint256_t l_price_min = {};
+    uint256_t l_price_max = {};
     dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
     dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
     dap_string_t *l_string_ret = dap_string_new("");

@@ -975,46 +975,11 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
-
-//
-// dap_uint128_substract, dap_uint128_add, dap_uint128_check_equal - temporarily, for compatibility
-static inline uint128_t dap_uint128_substract(uint128_t a, uint128_t b)
+#define CONV_256_FLOAT 10000000000000ULL // 10^13, so max float number to mult is 1.000.000
+static inline uint256_t MULT_256_FLOAT(uint256_t a_val, long double a_mult)
 {
-    // if (a < b) {
-    //     return 0;
-    // }
-    // return a - b;
-    uint128_t c = uint128_0;
-    SUBTRACT_128_128(a, b, &c);
-    return c;
-}
-
-/**
- * @brief dap_chain_balance_add
- * @param a
- * @param b
- * @return
- */
-static inline uint128_t dap_uint128_add(uint128_t a, uint128_t b)
-{
-    // uint128_t l_ret = a + b;
-    // if (l_ret < a || l_ret < b) {
-    //     return 0;
-    // }
-    // return l_ret;
-    uint128_t c = uint128_0;
-    SUM_128_128( a, b, &c);
-    return c;
-}
-
-/**
- * @brief dap_uint128_check_equal
- * @param a
- * @param b
- * @return
- */
-static inline bool dap_uint128_check_equal(uint128_t a, uint128_t b)
-{
-    //return a == b;
-    return EQUAL_128(a, b);
+    uint256_t l_ret = GET_256_FROM_64((uint64_t)(a_mult * CONV_256_FLOAT));
+    MULT_256_256(l_ret, a_val, &l_ret);
+    DIV_256(l_ret, GET_256_FROM_64(CONV_256_FLOAT), &l_ret);
+    return l_ret;
 }

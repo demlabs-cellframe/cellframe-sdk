@@ -98,6 +98,7 @@ typedef struct dap_chain_datum_token{
             dap_chain_addr_t premine_address;
             uint32_t flags;
         } DAP_ALIGN_PACKED header_public;
+        byte_t free_space[256]; // For future changes
     };
     byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;

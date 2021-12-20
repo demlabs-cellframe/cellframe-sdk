@@ -194,8 +194,7 @@ enum dap_chain_tx_item_type {
 
     TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction: outputs
     TX_ITEM_TYPE_OUT_EXT = 0x11,
-    TX_ITEM_TYPE_256_OUT = 0x12, // 256
-    TX_ITEM_TYPE_256_OUT_EXT = 0x13, // 256
+    TX_ITEM_TYPE_OUT_256 = 0x12, // 256
 
     TX_ITEM_TYPE_PKEY = 0x20,
     TX_ITEM_TYPE_SIG = 0x30,
@@ -204,8 +203,8 @@ enum dap_chain_tx_item_type {
 
     TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
 
-    TX_ITEM_TYPE_OUT_COND = 0x60, /// @brief  Transaction: conditon outputs
-    TX_ITEM_TYPE_256_OUT_COND = 0x61, // 256
+    TX_ITEM_TYPE_OUT_COND = 0x60, // Obsolete
+    TX_ITEM_TYPE_OUT_256_COND = 0x61, /// @brief  Transaction: 256 bit conditon outputs
 
     TX_ITEM_TYPE_RECEIPT = 0x70,
 
@@ -219,7 +218,7 @@ typedef struct dap_chain_receipt{
     dap_chain_net_srv_uid_t srv_uid; // Service UID
     dap_chain_net_srv_price_unit_uid_t units_type;
     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    uint64_t value_datoshi; // Receipt value
+    uint256_t value_datoshi; // Receipt value
 } dap_chain_receipt_info_t;
 
 #ifdef __cplusplus
