@@ -247,6 +247,16 @@ uint64_t dap_chain_uint256_to(uint256_t a_from)
 #endif
 }
 
+// 256
+uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
+{
+    if ( !( EQUAL_128(a_from.hi, uint128_0) ) ) {
+        log_it(L_ERROR, "Can't convert to uint128_t. It's too big.");
+    }
+    return a_from.lo;
+}
+
+
 char *dap_chain_balance_print128(uint128_t a_balance)
 {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 3);
