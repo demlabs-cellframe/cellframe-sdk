@@ -114,7 +114,7 @@ typedef struct dap_chain_node_client {
 
     bool keep_connection;
 
-    bool is_reconnecting;
+    bool is_connected;
     // callbacks
     dap_chain_node_client_callbacks_t callbacks;
     void * callbacks_arg;
