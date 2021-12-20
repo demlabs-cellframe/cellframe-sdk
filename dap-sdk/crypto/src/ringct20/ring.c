@@ -5,13 +5,13 @@
 
 #define Keccak_HashInitialize_SHA3_KDF(hashInstance, out_bytes)        Keccak_HashInitialize(hashInstance, 1088,  512, out_bytes*8, 0x06)
 
+
 void LRCT_SampleKey(poly_ringct20 *r, int mLen)
 {
 	uint8_t seed[NEWHOPE_RINGCT20_SYMBYTES] = { 0 };
     int i;
 	for ( i = 0; i < mLen; i++)
 	{
-#ifndef NEW_SAMPLE_KEY
         randombytes(seed, NEWHOPE_RINGCT20_SYMBYTES);
 		for (size_t j = 0; j < NEWHOPE_RINGCT20_SYMBYTES; j++)
 		{
@@ -38,22 +38,6 @@ void LRCT_SampleKey(poly_ringct20 *r, int mLen)
 			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 6] = (seed[j] & 0x40)>>6;
 			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 7] = (seed[j] & 0x80)>>7;
 		}
-#else
-        uint8_t stm[NEWHOPE_RINGCT20_N*2];
-        randombytes(stm, NEWHOPE_RINGCT20_N*2);
-        const int gamma = 8;
-        for(int j = 0; j < NEWHOPE_RINGCT20_N; ++j)
-        {
-            uint16_t v = stm[2*j];
-            v<<= 8;
-            v ^= stm[2*j + 1];
-            v %= gamma;
-            v -= gamma/2;
-            if(v < 0)
-                v += NEWHOPE_RINGCT20_Q;
-            r[i].coeffs[j] = v;
-        }
-#endif
 	}
 
 }
@@ -130,6 +114,8 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h,
     //SHA256_Update(&ctx, msg, msgLen);//msg
     Keccak_HashUpdate(&ctx, msg, msgLen*8);
 
+    // u should be gaussian, we can generate it right here
+
 	LRCT_MatrixMulPoly(&tmp, A2qp, u, mLen + 1);
 	poly_tobytes(bpoly, &tmp);
     //SHA256_Update(&ctx, bpoly, NEWHOPE_RINGCT20_POLYBYTES);//A2qb*U
@@ -182,10 +168,12 @@ void LRCT_SigGen(poly_ringct20 *c1, poly_ringct20 **t, poly_ringct20 *h,
 		
 		for ( k = 0; k < mLen+1; k++)
 		{
-            randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES);
+            randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES); // t should be gaussian random
 			poly_frombytes(t[j] + k, bt);
 			poly_serial(t[j] + k);
 		}
+
+
 		LRCT_MatrixMulPoly(&tmp, tmp2q, t[j], mLen + 1);
 		poly_constmul(&tmp1, &c, NEWHOPE_RINGCT20_Q);
 		poly_add_ringct20(&tmp, &tmp, &tmp1);//(+ qC_i)% Q
@@ -330,7 +318,7 @@ void LRCT_Spend(IW *iwOA, poly_ringct20 *ckOA, poly_ringct20 *c1, poly_ringct20 
 		poly_add_ringct20(&tmp, &iws[i].a, &iws[i].cn);
 		poly_sub_ringct20(L + i, &tmp, &(iwOA->cn));
 	}
-	LRCT_SampleKey(u, mLen + 1);
+	LRCT_SampleKey(u, mLen + 1); // just random, could be inside SigGen
 	LRCT_MatrixAddMatrix(S, skPai, ckPai, mLen);
 	LRCT_MatrixSubMatrix(S, S, ckOA, mLen);
 	LRCT_SigGen(c1, t, h, A, H, S, u, mLen, L, iwsLen, PaiInd, bSignMess, sigMsgLen);

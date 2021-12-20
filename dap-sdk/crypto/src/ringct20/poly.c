@@ -337,7 +337,7 @@ void poly_mul_pointwise(poly_ringct20 *r, const poly_ringct20 *a, const poly_rin
 	uint16_t t;
 
 	for (i = 0; i < NEWHOPE_RINGCT20_N; i++) {
-        t = montgomery_reduce_32_16(3186 * b->coeffs[i]);         /* t is now in Montgomery domain */
+        t = montgomery_reduce_32_16(3186 * b->coeffs[i]);         /* t is now in Montgomery domain */ //3186 != 2^32^2 mod Q
         r->coeffs[i] = montgomery_reduce_32_16(a->coeffs[i] * t); /* r->coeffs[i] is back in normal domain */
 	}
 

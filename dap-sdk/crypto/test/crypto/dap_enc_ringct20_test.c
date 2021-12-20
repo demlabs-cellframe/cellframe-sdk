@@ -71,7 +71,9 @@ void LRCT_Setup_Test()
         randombytes(bt, NEWHOPE_RINGCT20_POLYBYTES);
         poly_frombytes(u + k, bt);
         poly_serial(u + k);
-        ///poly_print(u+k);
+//        printf("u[%d]\n", k);
+//        poly_print(u+k);
+//        printf("\n\n\n");
     }
 //    printf("====================================\n");
     LRCT_SigGen(&c1, t, &h, A, H,S, u, mLen, L, w,pai, msg, msgLen);
