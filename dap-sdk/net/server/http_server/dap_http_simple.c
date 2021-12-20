@@ -351,6 +351,13 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
     l_http_simple->reply_byte = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
 
+//    Made a temporary solution to handle simple CORS requests.
+//    This is necessary in order to be able to request information using JavaScript obtained from another source.
+    dap_http_header_t* l_header_origin = dap_http_header_find(a_http_client->in_headers, "Origin");
+    if (l_header_origin){
+        dap_http_out_header_add(a_http_client, "Access-Control-Allow-Origin", "*");
+    }
+
     if( a_http_client->in_content_length ) {
         // dbg if( a_http_client->in_content_length < 3){
         if( a_http_client->in_content_length > 0){
