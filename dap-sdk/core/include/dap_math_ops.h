@@ -33,12 +33,17 @@ typedef unsigned __int128 uint128_t;
 
 typedef union uint128 {
     struct{
-         uint64_t hi;
          uint64_t lo;
-    }  DAP_ALIGN_PACKED;
-    uint64_t u64[2];
-    uint32_t u32[4];
+         uint64_t hi;
+    } DAP_ALIGN_PACKED;
+    struct{
+        uint32_t c;
+        uint32_t d;
+        uint32_t a;
+        uint32_t b;
+    } DAP_ALIGN_PACKED u32;
 } uint128_t;
+
 
 typedef union int128 {
     int64_t i64[2];
@@ -52,12 +57,12 @@ typedef int128_t _dap_int128_t;
 typedef struct uint256 {
     uint128_t hi;
     uint128_t lo;
-} uint256_t;
+} DAP_ALIGN_PACKED uint256_t;
 
 typedef struct uint512 {
     uint256_t hi;
     uint256_t lo;
-} uint512_t;
+} DAP_ALIGN_PACKED uint512_t;
 
 #endif //defined(__GNUC__) || defined (__clang__)
 
@@ -68,9 +73,9 @@ typedef struct uint512 {
 // uint128_t dap_uint128_substract(uint128_t a, uint128_t b);
 // uint128_t dap_uint128_add(uint128_t a, uint128_t b);
 // bool dap_uint128_check_equal(uint128_t a, uint128_t b);
-const  uint128_t two_power_64={ .hi = 1, .lo = 0};
-const  uint128_t lo_64={ .hi = 0, .lo = 0xffffffffffffffff};
-const  uint128_t hi_64={ .hi = 0xffffffffffffffff, .lo = 0};
+// const  uint128_t two_power_64={ .hi = 1, .lo = 0};
+// const  uint128_t lo_64={ .hi = 0, .lo = 0xffffffffffffffff};
+// const  uint128_t hi_64={ .hi = 0xffffffffffffffff, .lo = 0};
 // const  uint128_t zero_128={.hi=0,.lo=0};
 // #define zero_128 ((uint128_t){.hi=0,.lo=0})
 

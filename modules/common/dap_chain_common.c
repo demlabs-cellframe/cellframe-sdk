@@ -299,10 +299,10 @@ uint64_t dap_chain_uint128_to(uint128_t a_from)
     }
     return (uint64_t)a_from;
 #else
-    if (a_from.u64[0]) {
+    if (a_from.hi) {
         log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
     }
-    return a_from.u64[1];
+    return a_from.lo;
 #endif
 }
 
@@ -315,8 +315,9 @@ uint64_t dap_chain_uint256_to(uint256_t a_from)
 // for tests
 char *dap_chain_u256tostr(uint256_t v_256)
 {
-    char *dest = malloc(130 * sizeof(char));
-    return strcpy(dest, dap_utoa128((char[130]){}, dap_chain_uint128_from_uint256(v_256), 10));
+    //char *dest = malloc(130 * sizeof(char));
+    //return strcpy(dest, dap_utoa128((char[130]){}, dap_chain_uint128_from_uint256(v_256), 10));
+    return dap_chain_balance_print(dap_chain_uint128_from_uint256(v_256));
 }
 
 
@@ -331,21 +332,22 @@ char *dap_chain_balance_print(uint128_t a_balance)
         l_value /= 10;
     } while (l_value);
 #else
+    uint32_t l_tmp[4] = {l_value.u32.a, l_value.u32.b, l_value.u32.c, l_value.u32.d};
     uint64_t t, q;
     do {
         q = 0;
         // Byte order is 1, 0, 3, 2 for little endian
         for (int i = 1; i <= 3; ) {
-            t = q << 32 | l_value.u32[i];
+            t = q << 32 | l_tmp[i];
             q = t % 10;
-            l_value.u32[i] = t / 10;
+            l_tmp[i] = t / 10;
             if (i == 2) i = 4; // end of cycle
             if (i == 3) i = 2;
             if (i == 0) i = 3;
             if (i == 1) i = 0;
         }
         l_buf[l_pos++] = q + '0';
-    } while (l_value.u32[2]);
+    } while (l_tmp[2]);
 #endif
     int l_strlen = strlen(l_buf) - 1;
     for (int i = 0; i < (l_strlen + 1) / 2; i++) {
@@ -376,7 +378,7 @@ char *dap_chain_balance_to_coins(uint128_t a_balance)
     return l_buf;
 }
 
-const union { uint64_t u64[2]; uint32_t u32[4]; } c_pow10[DATOSHI_POW + 1] = {
+const union { uint64_t u64[2]; uint32_t u32[4]; } DAP_ALIGN_PACKED c_pow10[DATOSHI_POW + 1] = {
     { .u64 = {0,                         1ULL} },                          // 0
     { .u64 = {0,                         10ULL} },                         // 1
     { .u64 = {0,                         100ULL} },                        // 2
@@ -421,11 +423,7 @@ const union { uint64_t u64[2]; uint32_t u32[4]; } c_pow10[DATOSHI_POW + 1] = {
 uint128_t dap_chain_balance_scan(char *a_balance)
 {
     int l_strlen = strlen(a_balance);
-#ifdef DAP_GLOBAL_IS_INT128
-    uint128_t l_ret = 0, l_nul = 0;
-#else
-    uint128_t l_ret = {}, l_nul = {};
-#endif
+    uint128_t l_ret = uint128_0, l_nul = uint128_0;
     if (l_strlen > DATOSHI_POW + 1)
         return l_nul;
     for (int i = 0; i < l_strlen ; i++) {
@@ -443,41 +441,36 @@ uint128_t dap_chain_balance_scan(char *a_balance)
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
         }
-        l_tmp = (l_tmp << 64) + c_pow10[i].u64[1] * l_digit;
-        // l_ret = dap_uint128_add(l_ret, l_tmp);
+        l_tmp = (l_tmp << 64) + (uint128_t)c_pow10[i].u64[1] * l_digit;
         SUM_128_128(l_ret, l_tmp, &l_ret);
         if (l_ret == l_nul)
             return l_nul;
 #else
         uint128_t l_tmp;
-        l_tmp.u64[0] = 0;
-        l_tmp.u64[1] = c_pow10[i].u32[2] * l_digit;
-        // l_ret = dap_uint128_add(l_ret, l_tmp);
+        l_tmp.hi = 0;
+        l_tmp.lo = (uint64_t)c_pow10[i].u32[2] * (uint64_t)l_digit;
         SUM_128_128(l_ret, l_tmp, &l_ret);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
-        uint64_t l_mul = c_pow10[i].u32[3] * l_digit;
-        l_tmp.u64[1] = l_mul << 32;
-        l_tmp.u64[0] = l_mul >> 32;
-        // l_ret = dap_uint128_add(l_ret, l_tmp);
+        uint64_t l_mul = (uint64_t)c_pow10[i].u32[3] * (uint64_t)l_digit;
+        l_tmp.lo = l_mul << 32;
+        l_tmp.hi = l_mul >> 32;
         SUM_128_128(l_ret, l_tmp, &l_ret);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
-        l_tmp.u64[1] = 0;
-        l_tmp.u64[0] = c_pow10[i].u32[0] * l_digit;
-        //l_ret = dap_uint128_add(l_ret, l_tmp);
+        l_tmp.lo = 0;
+        l_tmp.hi = (uint64_t)c_pow10[i].u32[0] * (uint64_t)l_digit;
         SUM_128_128(l_ret, l_tmp, &l_ret);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
-        l_mul = c_pow10[i].u32[1] * l_digit;
+        l_mul = (uint64_t)c_pow10[i].u32[1] * (uint64_t)l_digit;
         if (l_mul >> 32) {
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
         }
-        l_tmp.u64[0] = l_mul << 32;
-        //l_ret = dap_uint128_add(l_ret, l_tmp);
+        l_tmp.hi = l_mul << 32;
         SUM_128_128(l_ret, l_tmp, &l_ret);
-        if (l_ret.u64[0] == 0 && l_ret.u64[1] == 0)
+        if (l_ret.hi == 0 && l_ret.lo == 0)
             return l_nul;
 #endif
     }
@@ -486,11 +479,7 @@ uint128_t dap_chain_balance_scan(char *a_balance)
 
 uint128_t dap_chain_coins_to_balance(char *a_coins)
 {
-#ifdef DAP_GLOBAL_IS_INT128
-    uint128_t l_ret = 0, l_nul = 0;
-#else
-    uint128_t l_ret = {}, l_nul = {};
-#endif
+    uint128_t l_ret = uint128_0, l_nul = uint128_0;
     if (strlen(a_coins) > DATOSHI_POW + 2) {
         log_it(L_WARNING, "Incorrect balance format - too long");
         return l_nul;

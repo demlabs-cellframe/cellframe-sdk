@@ -3038,12 +3038,6 @@ bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain
 uint256_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
                                         const char *a_token_ticker)
 {
-// #ifdef DAP_GLOBAL_IS_INT128
-//     uint128_t l_ret = 0;
-// #else
-//     uint128_t l_ret = {};
-// #endif
-    //uint128_t l_ret = uint128_0;
     uint256_t l_ret = uint256_0;
 
     dap_ledger_wallet_balance_t *l_balance_item = NULL;// ,* l_balance_item_tmp = NULL;
@@ -3069,12 +3063,6 @@ uint256_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
 uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
                                              const char *a_token_ticker)
 {
-// #ifdef DAP_GLOBAL_IS_INT128
-//     uint128_t balance = 0;
-// #else
-//     uint128_t balance = {0};
-// #endif
-    //uint128_t balance = uint128_0;
     uint256_t balance = uint256_0;
 
     if(!a_addr || !dap_chain_addr_check_sum(a_addr))
