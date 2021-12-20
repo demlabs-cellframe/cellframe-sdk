@@ -4,11 +4,8 @@
 
 void dap_json_rpc_request_JSON_free(dap_json_rpc_request_JSON_t *l_request_JSON)
 {
-    json_object_put(l_request_JSON->obj_error);
     if (l_request_JSON->struct_error)
         dap_json_rpc_error_JSON_free(l_request_JSON->struct_error);
-    json_object_put(l_request_JSON->obj_id);
-    json_object_put(l_request_JSON->obj_result);
     DAP_FREE(l_request_JSON);
 }
 
