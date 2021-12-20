@@ -57,6 +57,8 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -111
 // Error code for no emission for a transaction (candidate to threshold)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -112
+// Error code for no token for an emission (candidate to threshold)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN     -113
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
@@ -120,14 +122,13 @@ int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_t
  *
  */
 
-int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
-int dap_chain_ledger_token_load(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token, size_t a_token_size);
-int dap_chain_ledger_token_decl_add_check(dap_ledger_t * a_ledger,dap_chain_datum_token_t *a_token);
+int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
+int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
+int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token);
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 /**
  * Add token emission datum
  */
-
 int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 
@@ -160,7 +161,12 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
 /**
  * Delete all transactions from the cache
  */
-void dap_chain_ledger_purge(dap_ledger_t *a_ledger);
+void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
+
+/**
+ * End of load mode with no chackes for incoming datums
+ */
+void dap_chain_ledger_load_end(dap_ledger_t *a_ledger);
 
 /**
  * Return number transactions from the cache
@@ -205,13 +211,13 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
                                                               dap_chain_tx_out_cond_t **a_out_cond, int *a_out_cond_idx, char *a_token_ticker);
 
 // Get the value from all transactions in the cache with out_cond item
-uint64_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr,
+uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr,
         dap_chain_tx_out_cond_t **tx_out_cond);
 
 // Get the list of 'out' items from previous transactions with summary value >= than a_value_need
 // Put this summary value to a_value_transfer
 dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
-                                                       uint64_t a_value_need, uint64_t *a_value_transfer);
+                                                       uint256_t a_value_need, uint256_t *a_value_transfer);
 int dap_chain_ledger_verificator_rwlock_init(void);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
 int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback);

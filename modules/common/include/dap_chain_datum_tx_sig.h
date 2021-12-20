@@ -35,8 +35,7 @@
   */
 typedef struct dap_chain_tx_sig{
     struct {
-        dap_chain_tx_item_type_t type:8; /// @param    type            @brief Transaction item type
-//        dap_sign_type_t sig_type; /// Signature type
+        dap_chain_tx_item_type_t type; /// @param    type            @brief Transaction item type
         uint32_t sig_size; /// Signature size
     } header; /// Only header's hash is used for verification
     uint8_t sig[]; /// @param sig @brief raw signature data

@@ -104,40 +104,19 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
  *
  * return summary value from inserted items
  */
-uint64_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out)
+uint256_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out)
 {
     dap_list_t *l_list_tmp = a_list_used_out;
-    uint64_t l_value_to_items = 0; // how many datoshi to transfer
+    uint256_t l_value_to_items = {}; // how many datoshi to transfer
     while (l_list_tmp) {
-        list_used_item_t *item = l_list_tmp->data;
-        if (dap_chain_datum_tx_add_in_item(a_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
-            l_value_to_items += item->value;
+        list_used_item_t *l_item = l_list_tmp->data;
+        if (dap_chain_datum_tx_add_in_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out) == 1) {
+            SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
         }
         l_list_tmp = dap_list_next(l_list_tmp);
     }
     return l_value_to_items;
 }
-
-// 256
-uint256_t dap_chain_datum_256_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out)
-{
-    dap_list_t *l_list_tmp = a_list_used_out;
-    uint256_t l_value_to_items = uint256_0; // how many datoshi to transfer
-    while (l_list_tmp) {
-        list_used_item_256_t *item = l_list_tmp->data;
-        if (dap_chain_datum_tx_add_in_item(a_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
-            //l_value_to_items += item->value;
-            int overflow_flag = SUM_256_256(l_value_to_items, item->value, &l_value_to_items);
-            if ( overflow_flag > 0 ) {
-                log_it(L_ERROR,"overflow sum 256 256");
-            }
-
-        }
-        l_list_tmp = dap_list_next(l_list_tmp);
-    }
-    return l_value_to_items;
-}
-
 
 
 /**
@@ -168,21 +147,9 @@ int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_h
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint64_t a_value)
+int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value)
 {
-    dap_chain_tx_out_t *l_tx_out = dap_chain_datum_tx_item_out_create(a_addr, a_value);
-    if(l_tx_out) {
-        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_out);
-        DAP_DELETE(l_tx_out);
-        return 1;
-    }
-    return -1;
-}
-
-// 256
-int dap_chain_datum_256_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value)
-{
-    dap_chain_256_tx_out_t *l_tx_out = dap_chain_datum_tx_item_256_out_create(a_addr, a_value);
+    dap_chain_256_tx_out_t *l_tx_out = dap_chain_datum_tx_item_out_create(a_addr, a_value);
     if(l_tx_out) {
         dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_out);
         DAP_DELETE(l_tx_out);
@@ -196,7 +163,7 @@ int dap_chain_datum_256_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_c
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint64_t a_value, const char *a_token)
+int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
     dap_chain_tx_out_ext_t *l_tx_out = dap_chain_datum_tx_item_out_ext_create(a_addr, a_value, a_token);
     if(l_tx_out) {
@@ -207,40 +174,15 @@ int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_c
     return -1;
 }
 
-// 256
-int dap_chain_datum_256_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
-{
-    dap_chain_256_tx_out_ext_t *l_tx_out = dap_chain_datum_tx_item_256_out_ext_create(a_addr, a_value, a_token);
-    if(l_tx_out) {
-        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_out);
-        DAP_DELETE(l_tx_out);
-        return 1;
-    }
-    return -1;
-}
 /**
  * Create 'out_cond' item and insert to transaction
  *
  * return 1 Ok, -1 Error
  */
 int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
-        uint64_t a_value, uint64_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size)
-{
-    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_pay(
-                a_key, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size );
-    if(l_tx_out) {
-        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *) l_tx_out);
-        DAP_DELETE(l_tx_out);
-        return 1;
-    }
-    return -1;
-}
-
-// 256
-int dap_chain_datum_256_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
         uint256_t a_value, uint256_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size)
 {
-    dap_chain_256_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_256_out_cond_create_srv_pay(
+    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_pay(
                 a_key, a_srv_uid,a_value, a_value_max_per_unit, a_unit, a_cond, a_cond_size );
     if(l_tx_out) {
         dap_chain_datum_tx_add_item(a_tx, (const uint8_t *) l_tx_out);

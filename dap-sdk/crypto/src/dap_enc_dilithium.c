@@ -88,7 +88,7 @@ size_t dap_enc_sig_dilithium_verify_sign(struct dap_enc_key * key, const void * 
     if( l_ret != 0)
         log_it(L_WARNING,"Wrong signature, can't open with code %d", l_ret);
 
-    return l_ret>0? l_ret : 0;
+    return l_ret < 0 ? l_ret : 0;
 }
 
 void dap_enc_sig_dilithium_key_delete(struct dap_enc_key * key)

@@ -39,7 +39,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define DAP_CHAIN_NET_NAME_MAX 32
 
 struct dap_chain_node_info;
-struct dap_chain_node_client;
+typedef struct dap_chain_node_client dap_chain_node_client_t;
 
 typedef  enum dap_chain_net_state{
     NET_STATE_OFFLINE = 0,
@@ -74,6 +74,7 @@ typedef struct dap_chain_net{
 
         // checks
         bool token_emission_signs_verify;
+        bool mempool_autoproc;
 
         dap_chain_t * chains; // double-linked list of chains
         dap_chain_t * default_chain;
@@ -89,14 +90,14 @@ void dap_chain_net_deinit(void);
 void dap_chain_net_load_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
+dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
 inline static int dap_chain_net_stop(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_OFFLINE); }
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
-inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
-inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }//NET_STATE_ONLINE
-
+inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
+inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
 dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
@@ -117,6 +118,8 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net);
 void dap_chain_net_set_flag_sync_from_zero(dap_chain_net_t * a_net, bool a_flag_sync_from_zero);
 bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net);
 
+bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client);
+void dap_chain_net_sync_unlock(dap_chain_net_t *a_net);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
@@ -172,7 +175,7 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
 bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
-void dap_chain_net_dump_datum(dap_string_t * a_str_out, dap_chain_datum_t * a_datum, const char *a_hash_out_type);
+void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
 void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a_callback);
 void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_group,
                                       const char *a_key, const void *a_value, const size_t a_value_len);

@@ -94,7 +94,7 @@ size_t dap_enc_sig_tesla_verify_sign(struct dap_enc_key * key, const void * msg,
 {
     if(signature_size < sizeof(tesla_signature_t)) {
         log_it(L_ERROR, "bad signature size");
-        return 0;
+        return -6;
     }
 
     return (tesla_crypto_sign_open((tesla_signature_t *) signature, (unsigned char *) msg, msg_size, key->pub_key_data));

@@ -59,43 +59,6 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
 }
 
 /**
- * @brief dap_chain_hash_fast_to_str
- * @param a_hash
- * @param a_str
- * @param a_str_max
- * @return
- */
-#if 0
-size_t dap_chain_hash_fast_to_str( dap_chain_hash_fast_t *a_hash, char *a_str, size_t a_str_max )
-{
-    const size_t c_hash_str_size = sizeof(*a_hash) * 2 + 1 /*trailing zero*/+ 2 /* heading 0x */;
-
-    if ( a_str_max < c_hash_str_size ) {
-      log_it( L_ERROR, "String for hash too small, need %u but have only %u", c_hash_str_size, a_str_max );
-    }
-
-//    size_t i;
-    // faster conversion to string
-
-    dap_snprintf( a_str, 3, "0x" );
-
-    size_t l_ret = dap_bin2hex(a_str + 2, a_hash->raw, sizeof(a_hash->raw));
-
-    //for(i = 0; i < sizeof(a_hash->raw); ++i)
-    //    dap_snprintf(a_str + i * 2 + 2, 3, "%02x", (a_hash->raw[i]));
-
-    a_str[c_hash_str_size - 1] = '\0';
-
-    if(!l_ret)
-        return 0;
-
-    return c_hash_str_size - 1; //strlen(a_str);
-}
-#endif
-
-
-
-/**
  * @brief dap_chain_addr_to_str
  * @param a_addr
  * @return
@@ -146,38 +109,10 @@ dap_chain_net_id_t dap_chain_net_id_from_str(const char * a_net_str)
     log_it(L_DEBUG, "net id: %s", a_net_str);
 
     a_net_str += 2;
-    /*size_t l_net_str_len = strlen( a_net_str);
-    if (l_net_str_len >2){
-        a_net_str+=2;
-        l_net_str_len-=2;
-        if (l_net_str_len == sizeof (l_ret)/2 ){
-            size_t l_pos =0;
-            char l_byte[3];
-            while(l_net_str_len){
-                // Copy two characters for bytes
-                memcpy(l_byte,a_net_str,2);
-                l_byte[2]='\0';
-                // Read byte chars
-                if ( sscanf(l_byte,"%02hhx",&l_ret.raw[l_pos] ) != 1)
-                    if( sscanf(l_byte,"%02hhX",&l_ret.raw[l_pos] ) ==1 )
-                        break;
-
-                // Update pos
-                l_pos++;
-                // Reduce in two steps to not to break if input will have bad input
-                l_net_str_len-=1;
-                if(l_net_str_len)
-                    l_net_str_len-=1;
-            }
-        }else
-            log_it(L_WARNING,"Wrong input string \"%s\" not recognized as network id", a_net_str);
-    } */
-
-    if (!(l_ret.uint64 = strtol(a_net_str, NULL, 0))) {
+    if (!(l_ret.uint64 = strtoll(a_net_str, NULL, 0))) {
         log_it(L_ERROR, "Wrong input string \"%s\" not recognized as network id", a_net_str);
         return l_ret;
     }
-    //dap_stpcpy(&l_ret.raw, a_net_str);
     return l_ret;
 }
 
@@ -282,15 +217,6 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
     return -1;
 }
 
-// 256
-uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
-{
-    if ( !( EQUAL_128(a_from.hi, uint128_0) ) ) {
-        log_it(L_ERROR, "Can't convert to uint128_t. It's too big.");
-    }
-    return a_from.lo;
-}
-
 uint64_t dap_chain_uint128_to(uint128_t a_from)
 {
 #ifdef DAP_GLOBAL_IS_INT128
@@ -306,22 +232,32 @@ uint64_t dap_chain_uint128_to(uint128_t a_from)
 #endif
 }
 
-// 256
 uint64_t dap_chain_uint256_to(uint256_t a_from)
 {
-    return dap_chain_uint128_to(a_from.lo);
+#ifdef DAP_GLOBAL_IS_INT128
+    if (a_from.hi || a_from.lo > UINT64_MAX) {
+        log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
+    }
+    return (uint64_t)a_from.lo;
+#else
+    if (!IS_ZERO_128(a_from.hi) || a_from.lo.hi {
+        log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
+    }
+    return a_from.lo.lo;
+#endif
 }
 
-// for tests
-char *dap_chain_u256tostr(uint256_t v_256)
+// 256
+uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
 {
-    //char *dest = malloc(130 * sizeof(char));
-    //return strcpy(dest, dap_utoa128((char[130]){}, dap_chain_uint128_from_uint256(v_256), 10));
-    return dap_chain_balance_print(dap_chain_uint128_from_uint256(v_256));
+    if ( !( EQUAL_128(a_from.hi, uint128_0) ) ) {
+        log_it(L_ERROR, "Can't convert to uint128_t. It's too big.");
+    }
+    return a_from.lo;
 }
 
 
-char *dap_chain_balance_print(uint128_t a_balance)
+char *dap_chain_balance_print128(uint128_t a_balance)
 {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 3);
     int l_pos = 0;
@@ -358,9 +294,15 @@ char *dap_chain_balance_print(uint128_t a_balance)
     return l_buf;
 }
 
-char *dap_chain_balance_to_coins(uint128_t a_balance)
+char *dap_chain_balance_print(uint256_t a_balance)
 {
-    char *l_buf = dap_chain_balance_print(a_balance);
+    return dap_chain_balance_print128(a_balance.lo);
+}
+
+
+char *dap_chain_balance_to_coins128(uint128_t a_balance)
+{
+    char *l_buf = dap_chain_balance_print128(a_balance);
     int l_strlen = strlen(l_buf);
     int l_pos;
     if (l_strlen > DATOSHI_DEGREE) {
@@ -376,6 +318,11 @@ char *dap_chain_balance_to_coins(uint128_t a_balance)
         l_buf[1] = '.';
     }
     return l_buf;
+}
+
+char *dap_chain_balance_to_coins(uint256_t a_balance)
+{
+    return dap_chain_balance_to_coins128(a_balance.lo);
 }
 
 const union { uint64_t u64[2]; uint32_t u32[4]; } DAP_ALIGN_PACKED c_pow10[DATOSHI_POW + 1] = {
@@ -420,7 +367,7 @@ const union { uint64_t u64[2]; uint32_t u32[4]; } DAP_ALIGN_PACKED c_pow10[DATOS
     { .u64 = {5421010862427522170ULL,    687399551400673280ULL} }          // 38
 };
 
-uint128_t dap_chain_balance_scan(char *a_balance)
+uint128_t dap_chain_balance_scan128(const char *a_balance)
 {
     int l_strlen = strlen(a_balance);
     uint128_t l_ret = uint128_0, l_nul = uint128_0;
@@ -477,7 +424,13 @@ uint128_t dap_chain_balance_scan(char *a_balance)
     return l_ret;
 }
 
-uint128_t dap_chain_coins_to_balance(char *a_coins)
+uint256_t dap_chain_balance_scan(const char *a_balance)
+{
+    return GET_256_FROM_128(dap_chain_balance_scan128(a_balance));
+}
+
+
+uint128_t dap_chain_coins_to_balance128(const char *a_coins)
 {
     uint128_t l_ret = uint128_0, l_nul = uint128_0;
     if (strlen(a_coins) > DATOSHI_POW + 2) {
@@ -513,8 +466,12 @@ uint128_t dap_chain_coins_to_balance(char *a_coins)
         l_buf[l_pos + i] = '0';
     }
     l_buf[l_pos + i] = '\0';
-    l_ret = dap_chain_balance_scan(l_buf);
+    l_ret = dap_chain_balance_scan128(l_buf);
     DAP_DELETE(l_buf);
     return l_ret;
 }
 
+uint256_t dap_chain_coins_to_balance(const char *a_coins)
+{
+    return GET_256_FROM_128(dap_chain_coins_to_balance128(a_coins));
+}

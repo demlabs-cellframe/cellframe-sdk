@@ -203,6 +203,13 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
 
+    // Datum operations callbacks
+/*
+    a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
+    a_chain->callback_datum_iter_delete = s_chain_callback_datum_iter_delete; // Datum iterator delete
+    a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
+    a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
+*/
     // Others
     a_chain->_inheritor = l_dag;
 
@@ -291,21 +298,15 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
     pthread_rwlock_t * l_events_rwlock = &PVT(a_dag)->events_rwlock;
     switch (l_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_256_TOKEN_DECL:
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
             dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
             return dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
         }
         break;
-        case DAP_CHAIN_DATUM_256_TOKEN_EMISSION: // 256
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            // dap_chain_datum_token_emission_t *l_token_em = (dap_chain_datum_token_emission_t*) l_datum->data;
-            // l_token_em->hdr.type_value_256 = l_datum->header.type_id == DAP_CHAIN_DATUM_256_TOKEN_EMISSION ?
-            //                                     true : false;
-            return dap_chain_ledger_token_emission_load(a_ledger, (dap_chain_datum_token_emission_t*) l_datum->data, l_datum->header.data_size);
+            return dap_chain_ledger_token_emission_load(a_ledger, l_datum->data, l_datum->header.data_size);
         }
         break;
-        case DAP_CHAIN_DATUM_256_TX: // 256
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
             // don't save bad transactions to base
@@ -493,6 +494,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t 
  */
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count)
 {
+
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     size_t l_datum_processed =0;
     size_t l_events_round_new_size = 0;
@@ -523,7 +525,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         // Verify for correctness
         dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
         int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-        if (l_verify_datum != 0){
+        if (l_verify_datum != 0 &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
             log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
                                      l_verify_datum);
             continue;
@@ -583,10 +588,9 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         if (l_hashes_linked || s_seed_mode ) {
             dap_chain_cs_dag_event_t * l_event = NULL;
             size_t l_event_size = 0;
-            if(l_dag->callback_cs_event_create) {
+            if(l_dag->callback_cs_event_create)
                 l_event = l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked,&l_event_size);
-	    }
-            if ( l_event&&l_event_size){ // Event is created
+            if (l_event&&l_event_size) { // Event is created
                 if (l_dag->is_add_directy) {
                     l_cell = a_chain->cells;
                     if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
@@ -595,6 +599,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                             log_it(L_ERROR, "Can't add new event to the file '%s'", l_cell->file_storage_path);
                             continue;
                         }
+
                         // add all atoms from treshold
                         {
                             dap_chain_atom_ptr_t l_atom_treshold;
@@ -604,7 +609,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                                 l_atom_treshold = s_chain_callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
                                 // add into file
                                 if(l_atom_treshold) {
-                                    int l_res = dap_chain_cell_file_append(a_chain->cells, l_atom_treshold, l_atom_treshold_size);
+                                    int l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
                                     if(l_res < 0) {
                                         log_it(L_ERROR, "Can't save event %p from treshold to the file '%s'",
                                                 l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
@@ -663,8 +668,9 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         }
     }
     DAP_DELETE(l_hashes);
-    if (l_cell)
+    if (l_cell) {
         dap_chain_cell_close(l_cell);
+    }
     dap_chain_global_db_objs_delete(l_events_round_new, l_events_round_new_size);
     return  l_datum_processed;
 }
@@ -980,7 +986,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
  * @param a_chain
  * @return
  */
-static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
+static dap_chain_atom_iter_t *s_chain_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_atom_iter->chain = a_chain;
@@ -991,6 +997,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_
 #endif
     return l_atom_iter;
 }
+
 
 /**
  * @brief s_chain_callback_atom_get_datum Get the datum from event
@@ -1051,6 +1058,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
         *a_ret_size = a_atom_iter->cur_size;
     return a_atom_iter->cur;
 }
+
 
 /**
  * @brief s_chain_callback_atom_iter_get_lasts
@@ -1199,6 +1207,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_
         *a_atom_size = a_atom_iter->cur_size;
     return a_atom_iter->cur;
 }
+
 
 /**
  * @brief s_chain_callback_atom_iter_delete Delete dag event iterator

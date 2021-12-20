@@ -33,7 +33,7 @@ typedef struct dap_chain_net_srv_stake_item {
     bool is_active;
     dap_chain_net_t *net;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint64_t value;
+    uint256_t value;
     dap_chain_addr_t addr_hldr;
     dap_chain_addr_t addr_fee;
     dap_chain_addr_t signing_addr;

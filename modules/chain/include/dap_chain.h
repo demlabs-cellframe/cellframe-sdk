@@ -53,6 +53,7 @@ typedef struct dap_chain_atom_iter{
     void * _inheritor;
 } dap_chain_atom_iter_t;
 
+
 typedef enum dap_chain_atom_verify_res{
     ATOM_ACCEPT=0,
     ATOM_PASS=1,
@@ -97,9 +98,6 @@ typedef enum dap_chain_type
     CHAIN_TYPE_CA,
     CHAIN_TYPE_SIGNER,
     CHAIN_TYPE_LAST
-    // CHAIN_TYPE_256_TOKEN, // 256
-    // CHAIN_TYPE_256_EMISSION, // 256
-    // CHAIN_TYPE_256_TX, // 256
 } dap_chain_type_t;
 
 typedef struct dap_chain{
@@ -187,5 +185,5 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger,const char * a_chai
 
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
-dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size, dap_chain_cell_id_t a_cell_id);
-bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_atom_hash, dap_chain_cell_id_t a_cell_id);
+dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
+bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_hash, dap_chain_cell_id_t a_cel_id);
