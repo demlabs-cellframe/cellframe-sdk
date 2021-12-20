@@ -1791,11 +1791,10 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
     //log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
     dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
 
-    //log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
-
     if( a_es->callbacks.delete_callback )
         a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
 
+    //log_it( L_DEBUG, "dap_events_socket wrapped around %d socket is removed", a_es->socket );
     dap_events_socket_delete_unsafe(a_es, preserve_inheritor);
 
 }

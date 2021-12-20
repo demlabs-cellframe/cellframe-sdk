@@ -146,7 +146,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(l_blocks);
 
     const char * l_sign_cert_str = NULL;
-    if ( ( l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-pos","sign-cert") ) != NULL ) {
+    if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg,"block-pos","blocks-sign-cert")) != NULL) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
@@ -188,7 +188,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(a_blocks);
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
     if (!l_pos_pvt->blocks_sign_key) {
-        log_it(L_WARNING, "Can't sign block with sign-cert in [block-pos] section");
+        log_it(L_WARNING, "Can't sign block with blocks-sign-cert in [block-pos] section");
         return 0;
     }
     if (!a_block_ptr || !(*a_block_ptr) || !a_block_size) {

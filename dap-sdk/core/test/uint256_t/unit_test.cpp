@@ -39,17 +39,17 @@ int main()
    
    int error_counter_sum_64_128=0;
     
-   uint128_t dap_test_128_shift=uint128_0; 
-   uint128_t dap_test_128_one=uint128_0;
-   uint128_t dap_test_128_two=uint128_0;
-   uint128_t dap_test_128_sub=uint128_0;
-   uint256_t dap_test_256_one=uint256_0;
-   uint256_t dap_test_256_two=uint256_0;
-   uint256_t dap_test_256_sum=uint256_0; 
-   uint256_t dap_test_256_sub=uint256_0; 
-   uint256_t dap_test_256_prod=uint256_0;
-   uint256_t dap_test_256_shift=uint256_0;
-   uint512_t dap_test_512_prod=uint512_0;
+   uint128_t dap_test_128_shift={.hi=0, .lo=0}; 
+   uint128_t dap_test_128_one={.hi=0, .lo=0};
+   uint128_t dap_test_128_two={.hi=0, .lo=0};
+   uint128_t dap_test_128_sub={.hi=0, .lo=0};
+   uint256_t dap_test_256_one={.hi=zero_128, .lo=zero_128};
+   uint256_t dap_test_256_two={.hi=zero_128, .lo=zero_128};
+   uint256_t dap_test_256_sum={.hi=zero_128, .lo=zero_128}; 
+   uint256_t dap_test_256_sub={.hi=zero_128, .lo=zero_128}; 
+   uint256_t dap_test_256_prod={.hi=zero_128, .lo=zero_128};
+   uint256_t dap_test_256_shift={.hi=zero_128, .lo=zero_128};
+   uint512_t dap_test_512_prod={.hi=zero_256, .lo=zero_256};
    int overflow_flag;
    int overflow_flag_prod;
    int borrow_flag_128;
@@ -308,8 +308,8 @@ if (division_enabled==1){
         prod_256_256_file << density_index << std::endl;}
 
         /////////////////////output of 256*256-->512//////////////////////
-        dap_test_512_prod.lo=uint256_0;
-        dap_test_512_prod.hi=uint256_0;
+        dap_test_512_prod.lo=zero_256;
+        dap_test_512_prod.hi=zero_256;
         uint256_t intermed_lo_prod;
         uint256_t intermed_hi_prod;
         MULT_128_256(dap_test_256_one.lo,dap_test_256_two.lo,&intermed_lo_prod);
@@ -442,8 +442,8 @@ if (division_enabled==1){
         dap_test_128_256_prod_one.hi=j;
         dap_test_128_256_prod_two.lo=max_64-(i+1);
         dap_test_128_256_prod_two.hi=max_64-2*(j+1);
-        dap_test_128_256_prod_prod.lo=uint128_0;
-        dap_test_128_256_prod_prod.hi=uint128_0;
+        dap_test_128_256_prod_prod.lo=zero_128;
+        dap_test_128_256_prod_prod.hi=zero_128;
         
         boost::multiprecision::uint256_t boost_test_128_256_prod;
         boost::multiprecision::uint128_t boost_test_128_256_one;

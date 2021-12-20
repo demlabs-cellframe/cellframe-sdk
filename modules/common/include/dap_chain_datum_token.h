@@ -98,6 +98,7 @@ typedef struct dap_chain_datum_token{
             dap_chain_addr_t premine_address;
             uint32_t flags;
         } DAP_ALIGN_PACKED header_public;
+        byte_t free_space[256]; // For future changes
     };
     byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
@@ -114,13 +115,13 @@ typedef struct dap_chain_datum_token{
 
 // 256
 // Simple private token decl
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE           0x0005
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE               0x0005
 // Extended declaration of privatetoken with in-time control
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL     0x0006
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL         0x0006
 // Token update
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE   0x0007
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE       0x0007
 // Open token with now ownership
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC           0x0008
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC               0x0008
 
 
 // Macros for token flags
@@ -267,7 +268,6 @@ typedef struct dap_chain_datum_token_emission{
             uint256_t value_256;
         };
         uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
-        // bool type_256; // emission 256
     } DAP_ALIGN_PACKED hdr;
     union {
         struct {
@@ -276,10 +276,7 @@ typedef struct dap_chain_datum_token_emission{
             uint64_t lock_time;
         } DAP_ALIGN_PACKED type_presale;
         struct {
-            union {
-                uint64_t value_start;// Default value. Static if nothing else is defined
-                uint256_t value_start_256;
-            };
+            uint64_t value_start;// Default value. Static if nothing else is defined
             char value_change_algo_codename[32];
         } DAP_ALIGN_PACKED type_atom_owner;
         struct {

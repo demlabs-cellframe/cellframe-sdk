@@ -111,13 +111,13 @@ int dap_chain_net_srv_init()
         "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-
+#ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
             "net_srv -net <chain net name> order static [save | delete]\n"
             "\tStatic nodelist create/delete\n"
             "net_srv -net <chain net name> order recheck\n"
             "\tCheck the availability of orders\n"
-
+#endif
         );
 
     s_load_all();
@@ -303,7 +303,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     if(l_ext) {
                         l_order->ext_size = strlen(l_ext) + 1;
                         l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
-                        strncpy((char *)l_order->ext, l_ext, l_order->ext_size);
+                        strncpy((char *)l_order->ext_n_sign, l_ext, l_order->ext_size);
                     }
                     else
                         dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
@@ -365,7 +365,8 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
             dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
             dap_chain_net_srv_uid_t l_srv_uid={{0}};
-            uint64_t l_price_min=0, l_price_max =0 ;
+            uint256_t l_price_min = {};
+            uint256_t l_price_max = {};
             dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
 
             if ( l_direction_str ){
@@ -379,10 +380,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
 
             if ( l_price_min_str )
-                l_price_min = (uint64_t) atoll ( l_price_min_str );
+                l_price_min = dap_chain_balance_scan(l_price_min_str);
 
             if ( l_price_max_str )
-                l_price_max = (uint64_t) atoll ( l_price_max_str );
+                l_price_max = dap_chain_balance_scan(l_price_max_str);
             if ( l_price_unit_str)
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
 
@@ -423,7 +424,8 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_net_srv_order_t * l_orders = NULL;
                 size_t l_orders_num =0;
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
-                uint64_t l_price_min=0, l_price_max =0 ;
+                uint256_t l_price_min = {};
+                uint256_t l_price_max = {};
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
 
@@ -475,7 +477,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_node_addr_t l_node_addr={0};
                 dap_chain_hash_fast_t l_tx_cond_hash={{0}};
                 dap_chain_time_t l_expires=0; // TS when the service expires
-                uint64_t l_price=0;
+                uint256_t l_price = {};
                 char l_price_token[DAP_CHAIN_TICKER_SIZE_MAX]={0};
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
@@ -503,7 +505,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 }
                 if (l_tx_cond_hash_str)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
-                l_price = (uint64_t) atoll ( l_price_str );
+                l_price = dap_chain_balance_scan(l_price_str);
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
@@ -536,11 +538,16 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
         }
 #ifdef DAP_MODULES_DYNAMIC
         else if( dap_strcmp( l_order_str, "recheck" ) == 0 ){
-            //int dap_chain_net_srv_vpn_cdb_server_list_check_orders(dap_chain_net_t *a_net);
             int (*dap_chain_net_srv_vpn_cdb_server_list_check_orders)(dap_chain_net_t *a_net);
             dap_chain_net_srv_vpn_cdb_server_list_check_orders = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_server_list_check_orders");
             int l_init_res = dap_chain_net_srv_vpn_cdb_server_list_check_orders ? dap_chain_net_srv_vpn_cdb_server_list_check_orders(l_net) : -5;
-            ret = (l_init_res > 0) ? 0 : -10;
+            if (l_init_res >= 0) {
+                dap_string_append_printf(l_string_ret, "Orders recheck started\n");
+                ret = 0;
+            } else {
+                dap_string_append_printf(l_string_ret, "Orders recheck not started, code %d\n", l_init_res);
+                ret = -10;
+            }
 
         }else if( dap_strcmp( l_order_str, "static" ) == 0 ){
             // find the subcommand directly after the 'order' command
@@ -584,7 +591,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             }
         }
 #endif
-        else {
+        else if (l_order_str) {
+            dap_string_append_printf(l_string_ret, "Unrecognized subcommand '%s'", l_order_str);
+            ret = -14;
+        } else {
             dap_string_append_printf(l_string_ret, "Command 'net_srv' requires subcommand 'order'");
             ret = -3;
         }
@@ -836,7 +846,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                 )
 {
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
-                    a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
+                    a_srv->uid, a_price->units_uid, a_price->units, dap_chain_uint256_from(a_price->value_datoshi), a_ext, a_ext_size);
     size_t l_receipt_size = l_receipt->size; // nested receipt plus 8 bits for type
 
     // Sign with our wallet

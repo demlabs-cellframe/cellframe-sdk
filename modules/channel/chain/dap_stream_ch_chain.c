@@ -308,6 +308,7 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
     return true;
 }
 
+
 /**
  * @brief s_sync_out_gdb_first_gdb_worker_callback
  * @param a_worker
@@ -478,7 +479,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     uint64_t l_atom_copy_size = l_pkt_item->pkt_data_size;
     dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
     size_t l_atom_size = 0;
-    if (dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size, l_sync_request->request_hdr.cell_id)) {
+    if (dap_chain_get_atom_by_hash(l_chain, &l_atom_hash, &l_atom_size)) {
         if (s_debug_more){
             char l_atom_hash_str[72] = {'\0'};
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );

@@ -143,7 +143,7 @@ typedef uint8_t byte_t;
   #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
 #endif
 
-#define DAP_DEL_Z(a)          if(a) { DAP_DELETE(a); a=NULL;}
+#define DAP_DEL_Z(a)            if (a) { DAP_DELETE(a); (a) = NULL; }
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {
@@ -450,6 +450,7 @@ char *dap_log_get_item(time_t a_start_time, int a_limit);
 #else /* __GNUC__ */
 #define DAP_PRINTF_ATTR(format_index, args_index)
 #endif /* __GNUC__ */
+
 
 DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
 #define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)

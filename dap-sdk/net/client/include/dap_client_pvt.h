@@ -116,7 +116,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
                                      dap_client_callback_int_t a_error_proc);
 
 void dap_client_pvt_new(dap_client_pvt_t * a_client_internal);
-void dap_client_pvt_delete(dap_client_pvt_t * a_client_pvt);
+void dap_client_pvt_delete_unsafe(dap_client_pvt_t * a_client_pvt);
 
 int dap_client_pvt_hh_add_unsafe(dap_client_pvt_t* a_client_pvt);
 int dap_client_pvt_hh_del_unsafe(dap_client_pvt_t *a_client_pvt);

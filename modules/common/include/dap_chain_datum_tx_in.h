@@ -34,7 +34,7 @@
 
 typedef struct dap_chain_tx_in{
     struct {
-        dap_chain_tx_item_type_t type:8; /// @param    type            @brief Transaction item type
+        dap_chain_tx_item_type_t type; /// @param    type            @brief Transaction item type
         dap_chain_hash_fast_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
         uint32_t tx_out_prev_idx; ///      @param   tx_prev_idx     @brief Previous tx_out index. 0 for generation TX
 //        dap_sign_type_t sig_type; /// Signature type
@@ -48,15 +48,5 @@ typedef struct list_used_item {
     dap_chain_hash_fast_t tx_hash_fast;
     uint32_t num_idx_out;
     uint8_t padding[4];
-    uint64_t value;
-//dap_chain_tx_out_t *tx_out;
-} list_used_item_t;
-
-// 256
-typedef struct list_used_item_256 {
-    dap_chain_hash_fast_t tx_hash_fast;
-    uint32_t num_idx_out;
-    uint8_t padding[4];
     uint256_t value;
-//dap_chain_tx_out_t *tx_out;
-} list_used_item_256_t;
+} list_used_item_t;
