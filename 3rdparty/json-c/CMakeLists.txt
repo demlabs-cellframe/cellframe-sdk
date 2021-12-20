@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project (json-c)
   
 file(GLOB JSON_C_SRCS FILES *.c)

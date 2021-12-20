@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project (dap_chain_net_srv_app_db)
   
 file(GLOB DAP_CHAIN_NET_SRV_APP_DB_SRCS *.c)

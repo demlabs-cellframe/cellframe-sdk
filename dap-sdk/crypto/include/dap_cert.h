@@ -45,7 +45,7 @@ typedef enum dap_cert_metadata_type {
 typedef struct dap_cert_metadata {
     const char *key;
     uint32_t length;
-    dap_cert_metadata_type_t type : 8;
+    dap_cert_metadata_type_t type;
     byte_t value[];
 } dap_cert_metadata_t;
 

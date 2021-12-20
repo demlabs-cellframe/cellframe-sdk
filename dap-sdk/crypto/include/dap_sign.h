@@ -32,7 +32,7 @@
 #include "dap_hash.h"
 #include "dap_string.h"
 
-typedef enum {
+enum dap_sign_type_enum {
     SIG_TYPE_NULL = 0x0000,
     SIG_TYPE_BLISS = 0x0001,
     SIG_TYPE_DEFO = 0x0002, /// @brief key image for anonymous transaction
@@ -41,10 +41,11 @@ typedef enum {
     SIG_TYPE_DILITHIUM = 0x0102, /// @brief
     SIG_TYPE_MULTI_CHAINED = 0x0f00, ///  @brief Has inside subset of different signatures and sign composed with all of them
     SIG_TYPE_MULTI_COMBINED = 0x0f01 ///  @brief Has inside subset of different public keys and sign composed with all of appropriate private keys
-} dap_sign_type_enum_t;
+};
+typedef uint32_t dap_sign_type_enum_t;
 
 typedef union dap_sign_type {
-    dap_sign_type_enum_t type: 32;
+    dap_sign_type_enum_t type;
     uint32_t raw;
 } DAP_ALIGN_PACKED dap_sign_type_t;
 

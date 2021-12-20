@@ -268,12 +268,14 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
                 dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
-                if ( (l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) != NULL ) {
-                    log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
-                } else{
-                    log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
-                    return -1;
+                if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
+                    dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu.pub",l_poa_pvt->auth_certs_prefix, i);
+                    if ((l_poa_pvt->auth_certs[i] = dap_cert_find_by_name( l_cert_name)) == NULL) {
+                        log_it(L_ERROR, "Can't find cert \"%s\"", l_cert_name);
+                        return -1;
+                    }
                 }
+                log_it(L_NOTICE, "Initialized auth cert \"%s\"", l_cert_name);
             }
         }
     }
@@ -351,6 +353,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size)
 {
     dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POA(a_dag), NULL);
+    dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     if ( PVT(l_poa)->events_sign_cert == NULL){
         log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");

@@ -37,9 +37,10 @@ enum dap_pkey_type_enum {
     PKEY_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different keys
 
 };
+typedef uint16_t dap_pkey_type_enum_t;
 
 typedef union dap_pkey_type{
-    enum dap_pkey_type_enum type: 16;
+    dap_pkey_type_enum_t type;
     uint16_t raw;
 } dap_pkey_type_t;
 

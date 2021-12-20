@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 if(TARGET dap_test)
     return() # The project has already been built.
 endif()

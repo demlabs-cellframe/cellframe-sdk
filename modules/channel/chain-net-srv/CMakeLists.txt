@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project (dap_stream_ch_chain_net_srv)
 
 file(GLOB DAP_STREAM_CH_CHAIN_NET_SRV_SRCS *.c)
