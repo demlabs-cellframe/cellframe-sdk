@@ -75,6 +75,8 @@ typedef struct dap_stream_ch_chain {
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;
 
+    dap_timerfd_t *activity_timer;
+
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
     void *callback_notify_arg;

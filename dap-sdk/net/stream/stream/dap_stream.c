@@ -819,13 +819,8 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
         memcpy(l_ret_pkt.sig, c_dap_stream_sig, sizeof(l_ret_pkt.sig));
         dap_events_socket_write_unsafe(a_stream->esocket, &l_ret_pkt, sizeof(l_ret_pkt));
         // Reset client keepalive timer
-        if (a_stream->keepalive_timer && a_stream->keepalive_timer->events_socket->worker) {
-            void *l_arg = a_stream->keepalive_timer->callback_arg;
-            dap_timerfd_delete(a_stream->keepalive_timer);
-            a_stream->keepalive_timer = dap_timerfd_start_on_worker(a_stream->stream_worker->worker,
-                                                                    STREAM_KEEPALIVE_TIMEOUT * 1000,
-                                                                    (dap_timerfd_callback_t)s_callback_keepalive,
-                                                                    l_arg);
+        if (a_stream->keepalive_timer) {
+            dap_timerfd_reset(a_stream->keepalive_timer);
         }
     } break;
     case STREAM_PKT_TYPE_ALIVE:

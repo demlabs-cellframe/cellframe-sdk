@@ -753,6 +753,27 @@ static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net
     dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, a_net_id, a_chain_id, a_cell_id, a_err_string);
 }
 
+static bool s_chain_timer_callback(void *a_arg)
+{
+    dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
+    if (l_ch_chain->state != CHAIN_STATE_IDLE) {
+        dap_stream_ch_chain_go_idle(l_ch_chain);
+    }
+    l_ch_chain->activity_timer = NULL;
+    return false;
+}
+
+static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
+{
+    if (a_ch_chain->state == CHAIN_STATE_IDLE)
+        return;
+    if (!a_ch_chain->activity_timer)
+        a_ch_chain->activity_timer = dap_timerfd_start_on_worker(a_ch_chain->ch->stream_worker->worker,
+                                                                 10000, s_chain_timer_callback, (void *)a_ch_chain);
+    else
+        dap_timerfd_reset(a_ch_chain->activity_timer);
+}
+
 /**
  * @brief s_stream_ch_packet_in
  * @param a_ch
@@ -776,6 +797,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                sizeof(l_chain_pkt->hdr));
 
     }
+    s_chain_timer_reset(l_ch_chain);
 
     size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size-sizeof (l_chain_pkt->hdr) ;
     uint16_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_chain_pkt->hdr.net_id );
@@ -1368,6 +1390,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     if (a_ch->stream->esocket->buf_out_size >= a_ch->stream->esocket->buf_out_size_max / 2)
         return;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+
+    s_chain_timer_reset(l_ch_chain);
 
     switch (l_ch_chain->state) {
         // Update list of global DB records to remote
