@@ -332,7 +332,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         }
         break;
 	case DAP_CHAIN_DATUM_SIGNER: {
-		return DAP_CHAIN_DATUM_SIGNER;
+		return 0;
     	}
         default:
             return -1;
