@@ -290,7 +290,9 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
             int found = 0;
             for (int i = 0; i < s_size_ban_list; i++) {
                 if (dap_fnmatch(s_ban_list[i], l_groups->data, FNM_NOESCAPE)) {
-                    l_groups = dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
+                    dap_list_t *l_tmp = l_groups->next;
+                    dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
+                    l_groups = l_tmp;
                     found = 1;
                     break;
                 }
