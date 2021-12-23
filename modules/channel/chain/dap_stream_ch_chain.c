@@ -114,7 +114,6 @@ static bool s_debug_more=false;
 static uint_fast16_t s_update_pack_size=100; // Number of hashes packed into the one packet
 static uint_fast16_t s_skip_in_reactor_count=50; // Number of hashes packed to skip in one reactor loop callback out packet
 static char **s_list_ban_groups = NULL;
-static dap_config_t *s_cfg = NULL;
 static uint16_t s_size_ban_groups = 0;
 
 /**
@@ -128,10 +127,7 @@ int dap_stream_ch_chain_init()
             s_stream_ch_packet_out);
     s_debug_more = dap_config_get_item_bool_default(g_config,"stream_ch_chain","debug_more",false);
     s_update_pack_size = dap_config_get_item_int16_default(g_config,"stream_ch_chain","update_pack_size",100);
-    s_cfg = dap_config_open("cellframe-node.cfg");
-    if (s_cfg) {
-        s_list_ban_groups = dap_config_get_array_str(s_cfg, "general", "ban_list_sync_groups", &s_size_ban_groups);
-    }
+    s_list_ban_groups = dap_config_get_array_str(g_config, "general", "ban_list_sync_groups", &s_size_ban_groups);
 
     return 0;
 }
