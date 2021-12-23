@@ -28,6 +28,10 @@ typedef struct dap_tx_data{
 
 #define LOG_TAG "dap_chain_global_db_hist"
 
+static dap_config_t *s_cfg = NULL;
+static char **s_ban_list = NULL;
+static size_t s_size_ban_list = 0;
+
 /**
  * @brief Packs members of a_rec structure into a single string.
  * 
@@ -272,6 +276,31 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
                                                     dap_chain_global_db_driver_get_groups_by_mask(l_cur_mask->data));
     }
     dap_list_free(l_groups_masks);
+
+    if (!s_cfg) {
+        s_cfg = dap_config_open("cellframe-node.cfg");
+        if (s_cfg) {
+            s_ban_list = dap_config_get_array_str(s_cfg, "general", "ban_list_sync_groups", &s_size_ban_list);
+        }
+    }
+
+    /* delete groups from ban list */
+    if (s_size_ban_list > 0) {
+        for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; ) {
+            int found = 0;
+            for (int i = 0; i < s_size_ban_list; i++) {
+                if (dap_fnmatch(s_ban_list[i], l_groups->data, FNM_NOESCAPE)) {
+                    l_groups = dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
+                    found = 1;
+                    break;
+                }
+            }
+            if (found) continue;
+            l_groups = dap_list_next(l_groups);
+        }
+    }
+
+
 
     for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups)) {
         dap_db_log_list_group_t *l_replace = DAP_NEW_Z(dap_db_log_list_group_t);
