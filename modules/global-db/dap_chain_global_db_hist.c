@@ -280,6 +280,7 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
 
     if (!l_try_read_ban_list) {
             s_ban_list = dap_config_get_array_str(g_config, "general", "ban_list_sync_groups", &s_size_ban_list);
+            l_try_read_ban_list = 1;
     }
 
     /* delete groups from ban list */
