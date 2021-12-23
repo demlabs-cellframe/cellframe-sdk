@@ -28,9 +28,8 @@ typedef struct dap_tx_data{
 
 #define LOG_TAG "dap_chain_global_db_hist"
 
-static dap_config_t *s_cfg = NULL;
 static char **s_ban_list = NULL;
-static size_t s_size_ban_list = 0;
+static uint16_t s_size_ban_list = 0;
 
 /**
  * @brief Packs members of a_rec structure into a single string.
@@ -277,11 +276,10 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
     }
     dap_list_free(l_groups_masks);
 
-    if (!s_cfg) {
-        s_cfg = dap_config_open("cellframe-node.cfg");
-        if (s_cfg) {
-            s_ban_list = dap_config_get_array_str(s_cfg, "general", "ban_list_sync_groups", &s_size_ban_list);
-        }
+    static int l_try_read_ban_list = 0;
+
+    if (!l_try_read_ban_list) {
+            s_ban_list = dap_config_get_array_str(g_config, "general", "ban_list_sync_groups", &s_size_ban_list);
     }
 
     /* delete groups from ban list */
