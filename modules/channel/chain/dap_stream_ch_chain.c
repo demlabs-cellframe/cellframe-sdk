@@ -1398,9 +1398,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         case CHAIN_STATE_UPDATE_GLOBAL_DB: {
             dap_stream_ch_chain_update_element_t l_data[s_update_pack_size];
             uint_fast16_t i;
+            dap_db_log_list_obj_t *l_obj = NULL;
             for (i = 0; i < s_update_pack_size; i++) {
-                dap_db_log_list_obj_t *l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
-                if (!l_obj)
+                l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
+                if (!l_obj || DAP_POINTER_TO_INT(l_obj) == 1)
                     break;
                 memcpy(&l_data[i].hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
                 l_data[i].size = l_obj->pkt->data_size;
@@ -1413,6 +1414,11 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 l_ch_chain->stats_request_gdb_processed += i;
                 if (s_debug_more)
                     log_it(L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB");
+            } else if (l_obj) {
+                // Sending dumb packet with nothing to inform remote thats we're just skiping GDBs, nothing freezed
+                dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
+                                                     l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
+                                                     l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
             } else {
                 l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(
                                                                                           l_ch_chain->request_hdr.net_id));
@@ -1435,8 +1441,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             size_t l_pkt_size = 0;
             for (uint_fast16_t l_skip_count = 0; l_skip_count < s_skip_in_reactor_count; ) {
                 l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
-                if (!l_obj)
+                if (!l_obj || DAP_POINTER_TO_INT(l_obj) == 1) {
+                    l_skip_count = s_skip_in_reactor_count;
                     break;
+                }
                 dap_stream_ch_chain_hash_item_t *l_hash_item = NULL;
                 unsigned l_hash_item_hashv = 0;
                 HASH_VALUE(&l_obj->hash, sizeof(dap_chain_hash_fast_t), l_hash_item_hashv);
@@ -1465,7 +1473,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             }
             if (l_pkt_size) {
                 // If request was from defined node_addr we update its state
-                if( s_debug_more)
+                if (s_debug_more)
                     log_it(L_INFO, "Send one global_db packet len=%zu (rest=%zu/%zu items)", l_pkt_size,
                                     dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
                                     dap_db_log_list_get_count(l_ch_chain->request_db_log));
@@ -1475,6 +1483,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 DAP_DELETE(l_pkt);
             } else if (l_obj) {
                 // Sending dumb packet with nothing to inform remote thats we're just skiping GDBs, nothing freezed
+                /* if (s_debug_more)
+                    log_it(L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
+                                    dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
+                                    dap_db_log_list_get_count(l_ch_chain->request_db_log)); */
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
                                                      l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                                      l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);

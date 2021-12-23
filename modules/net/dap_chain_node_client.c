@@ -163,18 +163,18 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 #endif
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         l_node_client->esocket_uuid = 0;
-
+        dap_chain_net_sync_unlock(l_node_client->net, l_node_client);
         if (l_node_client->callbacks.disconnected) {
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
         }
         if (l_node_client->keep_connection) {
             dap_events_socket_uuid_t *l_uuid = DAP_DUP(&l_node_client->uuid);
-            dap_timerfd_start_on_worker(l_node_client->stream_worker
-                                             ? l_node_client->stream_worker->worker
-                                             : dap_events_worker_get_auto(),
-                                        s_timer_update_states * 1000,
-                                        s_timer_update_states_callback,
-                                        l_uuid);
+            l_node_client->sync_timer = dap_timerfd_start_on_worker(l_node_client->stream_worker
+                                                                         ? l_node_client->stream_worker->worker
+                                                                         : dap_events_worker_get_auto(),
+                                                                    s_timer_update_states * 1000,
+                                                                    s_timer_update_states_callback,
+                                                                    l_uuid);
         }
         return;
     }
@@ -293,7 +293,10 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                 dap_events_socket_uuid_t *l_uuid = DAP_DUP(&l_node_client->uuid);
                 dap_worker_exec_callback_on(l_stream->esocket->worker, s_node_client_connected_synchro_start_callback, l_uuid);
                 dap_events_socket_uuid_t *l_uuid_timer = DAP_DUP(&l_node_client->uuid);
-                dap_timerfd_start_on_worker(l_stream->esocket->worker, s_timer_update_states * 1000, s_timer_update_states_callback, l_uuid_timer);
+                l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->worker,
+                                                                        s_timer_update_states * 1000,
+                                                                        s_timer_update_states_callback,
+                                                                        l_uuid_timer);
             }
         }
 #ifndef _WIN32
@@ -456,12 +459,13 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             }else{ // If no - over with sync process
                 dap_chain_node_addr_t * l_node_addr = dap_chain_net_get_cur_addr(l_net);
                 log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
-                dap_chain_net_sync_unlock(l_net);
+                dap_chain_net_sync_unlock(l_net, l_node_client);
                 l_node_client->state = NODE_CLIENT_STATE_SYNCED;
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
                     dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
                 else
                     dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
+                dap_timerfd_reset(l_node_client->sync_timer);
 #ifndef _WIN32
                 pthread_cond_broadcast(&l_node_client->wait_cond);
 #else

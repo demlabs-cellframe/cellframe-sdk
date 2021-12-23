@@ -113,8 +113,8 @@ typedef struct dap_chain_node_client {
     struct in6_addr remote_ipv6;
 
     bool keep_connection;
-
     bool is_connected;
+    dap_timerfd_t *sync_timer;
     // callbacks
     dap_chain_node_client_callbacks_t callbacks;
     void * callbacks_arg;

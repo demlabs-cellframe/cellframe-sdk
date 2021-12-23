@@ -847,6 +847,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 break;
             }
             // disable SYNC_GDB
+            l_net_pvt->active_link = NULL;
             l_net_pvt->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
             l_net_pvt->last_sync = 0;
         } break;
@@ -1020,7 +1021,8 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
             if (l_links->data == l_net_pvt->active_link) {
                 dap_chain_node_client_t *l_client = (dap_chain_node_client_t *)l_links->data;
                 if (l_client->state >= NODE_CLIENT_STATE_ESTABLISHED &&
-                        l_client->state < NODE_CLIENT_STATE_SYNCED) {
+                        l_client->state < NODE_CLIENT_STATE_SYNCED &&
+                        a_client != l_client) {
                     l_found = true;
                     break;
                 }
@@ -1034,11 +1036,14 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     return !l_found;
 }
 
-void dap_chain_net_sync_unlock(dap_chain_net_t *a_net)
+void dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
+    if (!a_net)
+        return;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_rdlock(&l_net_pvt->rwlock);
-    l_net_pvt->active_link = NULL;
+    if (!a_client || l_net_pvt->active_link == a_client)
+        l_net_pvt->active_link = NULL;
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
 /**
