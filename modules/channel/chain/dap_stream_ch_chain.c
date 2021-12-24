@@ -113,6 +113,9 @@ static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_a
 static bool s_debug_more=false;
 static uint_fast16_t s_update_pack_size=100; // Number of hashes packed into the one packet
 static uint_fast16_t s_skip_in_reactor_count=50; // Number of hashes packed to skip in one reactor loop callback out packet
+static uint16_t s_size_ban_groups = 0;
+static char **s_list_ban_groups = NULL;
+
 /**
  * @brief dap_stream_ch_chain_init
  * @return
@@ -124,6 +127,7 @@ int dap_stream_ch_chain_init()
             s_stream_ch_packet_out);
     s_debug_more = dap_config_get_item_bool_default(g_config,"stream_ch_chain","debug_more",false);
     s_update_pack_size = dap_config_get_item_int16_default(g_config,"stream_ch_chain","update_pack_size",100);
+    s_list_ban_groups = dap_config_get_array_str(g_config, "general", "ban_list_sync_groups", &s_size_ban_groups);
 
     return 0;
 }
@@ -652,6 +656,16 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
+            if (s_list_ban_groups) {
+                int l_ret = 0;
+                for (int i = 0; i < s_size_ban_groups; i++) {
+                    if (!dap_fnmatch(s_list_ban_groups[i], l_obj->group, FNM_NOESCAPE)) {
+                        l_ret = -1;
+                        break;
+                    }
+                }
+                if (l_ret == -1) continue;
+            }
             l_group_changed = strcmp(l_last_group, l_obj->group) || l_last_type != l_obj->type;
             // Send remote side notification about received obj
             if (l_sync_request->request.node_addr.uint64 &&
