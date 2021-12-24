@@ -53,6 +53,8 @@ typedef struct dap_timerfd {
 #elif defined(DAP_OS_LINUX)
     int tfd; //timer file descriptor
 #endif
+    dap_worker_t *worker;
+    dap_proc_thread_t *proc_thread;
     dap_events_socket_t *events_socket;
     dap_events_socket_uuid_t esocket_uuid;
     dap_timerfd_callback_t callback;
@@ -69,4 +71,4 @@ dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a
 dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg);
 dap_timerfd_t* dap_timerfd_start_on_proc_thread(dap_proc_thread_t * a_proc_thread, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg);
 void dap_timerfd_delete(dap_timerfd_t *l_timerfd);
-
+void dap_timerfd_reset(dap_timerfd_t *a_timerfd);

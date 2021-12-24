@@ -543,7 +543,7 @@ void *dap_worker_thread(void *arg)
                         }
 #endif
                     }
-                    else if (  (! l_flag_rdhup || !l_flag_error ) && (!(l_cur->flags& DAP_SOCK_CONNECTING )) ) {
+                    else if (!l_flag_rdhup && !l_flag_error && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
                         log_it(L_DEBUG, "EPOLLIN triggered but nothing to read");
                         //dap_events_socket_set_readable_unsafe(l_cur,false);
                     }
@@ -564,7 +564,7 @@ void *dap_worker_thread(void *arg)
                     break;
                     default:{}
                 }
-                if(s_debug_reactor)
+                //if(s_debug_reactor)
                     log_it(L_INFO,"RDHUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
             }
 
@@ -621,11 +621,12 @@ void *dap_worker_thread(void *arg)
             // Socket is ready to write and not going to close
             if(   ( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
                  (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
-                if(s_debug_reactor)
-                    log_it(L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
 
                 if(l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
+
+                if(s_debug_reactor)
+                    log_it(L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
 
                 if ( l_cur->worker ){ // esocket wasn't unassigned in callback, we need some other ops with it
                     if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
