@@ -48,6 +48,7 @@ typedef struct dap_chain_atom_iter{
     dap_chain_atom_ptr_t cur;
     dap_chain_hash_fast_t *cur_hash;
     dap_chain_cell_id_t cell_id;
+    bool with_treshold;
     size_t cur_size;
     void * cur_item;
     void * _inheritor;
@@ -72,7 +73,7 @@ typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_form_treshold_t)(dap_chai
 typedef dap_chain_atom_verify_res_t (*dap_chain_callback_atom_verify_t)(dap_chain_t *, dap_chain_atom_ptr_t , size_t);
 typedef size_t (*dap_chain_callback_atom_get_hdr_size_t)(void);
 
-typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_t)(dap_chain_t *, dap_chain_cell_id_t);
+typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_t)(dap_chain_t *, dap_chain_cell_id_t, bool);
 typedef dap_chain_atom_iter_t* (*dap_chain_callback_atom_iter_create_from_t)(dap_chain_t * ,dap_chain_atom_ptr_t, size_t);
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_first_t)(dap_chain_atom_iter_t * , size_t*);
 typedef dap_chain_datum_t** (*dap_chain_callback_atom_get_datum_t)(dap_chain_atom_ptr_t, size_t, size_t * );
