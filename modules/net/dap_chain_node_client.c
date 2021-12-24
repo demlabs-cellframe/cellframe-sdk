@@ -249,9 +249,12 @@ static bool s_timer_update_states_callback(void *a_arg)
     // if we not returned yet
     l_me->state = NODE_CLIENT_STATE_DISCONNECTED;
     if (l_me->keep_connection) {
-        log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
-        l_me->state = NODE_CLIENT_STATE_CONNECTING ;
-        dap_client_go_stage(l_me->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
+        if (dap_client_pvt_find(l_me->client->pvt_uuid)) {
+            log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
+            l_me->state = NODE_CLIENT_STATE_CONNECTING ;
+            dap_client_go_stage(l_me->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
+        } else
+            dap_chain_node_client_close(l_me);
     }
     DAP_DELETE(l_uuid);
     return false;
@@ -365,6 +368,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg)
 {
+    UNUSED(a_ch_chain);
+    UNUSED(a_pkt_data_size);
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
 
     switch (a_pkt_type) {
@@ -453,7 +458,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     log_it(L_INFO,"In: Link %s."NODE_ADDR_FP_STR" started to sync %s chain",l_net->pub.name,
                            NODE_ADDR_FP_ARGS(l_node_addr), l_node_client->cur_chain->name );
                 }
-                dap_stream_ch_chain_pkt_write_unsafe(a_ch_chain->ch,DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,
+                dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,
                                                      l_net->pub.id.uint64 ,
                                                      l_chain_id.uint64,l_cell_id.uint64,NULL,0);
             }else{ // If no - over with sync process
@@ -745,6 +750,8 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
     if (l_client_found) {
         HASH_DEL(s_clients,l_client_found);
         DAP_DELETE(l_client_found);
+        if (a_client->callbacks.delete)
+            a_client->callbacks.delete(a_client, a_client->net);
         char l_node_addr_str[INET_ADDRSTRLEN] = {};
         inet_ntop(AF_INET, &a_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_client->info->hdr.ext_port);
