@@ -127,7 +127,7 @@ int dap_stream_ch_chain_init()
             s_stream_ch_packet_out);
     s_debug_more = dap_config_get_item_bool_default(g_config,"stream_ch_chain","debug_more",false);
     s_update_pack_size = dap_config_get_item_int16_default(g_config,"stream_ch_chain","update_pack_size",100);
-    s_list_ban_groups = dap_config_get_array_str(g_config, "general", "ban_list_sync_groups", &s_size_ban_groups);
+    s_list_ban_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_groups);
 
     return 0;
 }
@@ -719,7 +719,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 }
             }
             // save data to global_db
-            if(!dap_chain_global_db_obj_save(dap_store_obj_copy(l_obj, 1), 1)) {
+            dap_store_obj_t *l_obj_copy = dap_store_obj_copy(l_obj, 1);
+            if(!dap_chain_global_db_obj_save(l_obj_copy, 1)) {
                 struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
                 dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
                                                   s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
@@ -727,6 +728,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 if (s_debug_more)
                     log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
             }
+            DAP_DELETE(l_obj_copy->group);
+            DAP_DELETE(l_obj_copy);
         }
         if(l_store_obj) {
             dap_store_obj_free(l_store_obj, l_data_obj_count);

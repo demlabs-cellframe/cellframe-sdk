@@ -278,7 +278,7 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
     static bool l_try_read_ban_list = false;
 
     if (!l_try_read_ban_list) {
-            s_ban_list = dap_config_get_array_str(g_config, "general", "ban_list_sync_groups", &s_size_ban_list);
+            s_ban_list = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_list);
             l_try_read_ban_list = true;
     }
 
@@ -287,9 +287,9 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
         for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; ) {
             bool l_found = false;
             for (int i = 0; i < s_size_ban_list; i++) {
-                if (dap_fnmatch(s_ban_list[i], l_groups->data, FNM_NOESCAPE)) {
+                if (!dap_fnmatch(s_ban_list[i], l_groups->data, FNM_NOESCAPE)) {
                     dap_list_t *l_tmp = l_groups->next;
-                    dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
+                    l_dap_db_log_list->groups = dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
                     l_groups = l_tmp;
                     l_found = true;
                     break;
