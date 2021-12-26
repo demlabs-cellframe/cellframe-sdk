@@ -628,12 +628,22 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
  */
 static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg)
 {
-    log_it(L_DEBUG,"Replace node client with new one");
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    if (!a_node_client->keep_connection) {
+        dap_notify_server_send_f_mt("{"
+                                "class:\"NetLinkDelete\","
+                                "net_id:0x%016" DAP_UINT64_FORMAT_X ","
+                                "cell_id:0x%016"DAP_UINT64_FORMAT_X","
+                                "address:\""NODE_ADDR_FP_STR"\""
+                                "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
+                                    NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+        return;
+    }
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     for ( dap_list_t * it = l_net_pvt->links; it; it=it->next ){
-        if (it->data == a_node_client) {
+        if (it->data == a_node_client) {         
+            log_it(L_DEBUG,"Replace node client with new one");
             it->data = dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
         }
     }
@@ -828,6 +838,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             dap_list_t *l_tmp = l_net_pvt->links;
             while (l_tmp) {
                 dap_list_t *l_next =l_tmp->next;
+                ((dap_chain_node_client_t *)l_tmp->data)->keep_connection = false;
                 dap_chain_node_client_close(l_tmp->data);
                 DAP_DELETE(l_tmp);
                 l_tmp = l_next;
