@@ -938,7 +938,7 @@ static void s_request_response(void * a_response, size_t a_response_size, void *
 static void s_enc_init_response(dap_client_t * a_client, void * a_response, size_t a_response_size)
 {
     dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(a_client->pvt_uuid);
-    if (!l_client_pvt) return;
+    if (!l_client_pvt || l_client_pvt->is_to_delete) return;
 
     if (!l_client_pvt->session_key_open){
         log_it(L_ERROR, "m_enc_init_response: session is NULL!");
@@ -1257,6 +1257,8 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     }
     l_client_pvt->stream = NULL;
     l_client_pvt->stream_es = NULL;
+    l_client_pvt->stage_status = STAGE_STATUS_ERROR;
+    l_client_pvt->stage = l_client_pvt->stage_target = STAGE_BEGIN;
 }
 
 /**
