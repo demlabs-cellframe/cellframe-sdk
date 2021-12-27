@@ -225,7 +225,7 @@ static bool s_timer_update_states_callback(void *a_arg)
         dap_client_t * l_client = dap_client_from_esocket(l_es);
         if (l_client ) {
             dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;
-            if (l_node_client && l_node_client->ch_chain) {
+            if (l_node_client && l_node_client->ch_chain && l_node_client->stream_worker && l_node_client->ch_chain_uuid) {
                 dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_node_client->stream_worker, l_node_client->ch_chain_uuid);
                 if (l_ch) {
                     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
@@ -756,16 +756,18 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
         char l_node_addr_str[INET_ADDRSTRLEN] = {};
         inet_ntop(AF_INET, &a_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_client->info->hdr.ext_port);
-        dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_client->stream_worker, a_client->ch_chain_uuid);
-        if (l_ch) {
-            dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-            l_ch_chain->callback_notify_packet_in = NULL;
-            l_ch_chain->callback_notify_packet_out = NULL;
-        }
-        l_ch = dap_stream_ch_find_by_uuid_unsafe(a_client->stream_worker, a_client->ch_chain_net_uuid);
-        if (l_ch) {
-            dap_stream_ch_chain_net_t *l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(l_ch);
-            l_ch_chain_net->notify_callback = NULL;
+        if (a_client->stream_worker) {
+            dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_client->stream_worker, a_client->ch_chain_uuid);
+            if (l_ch) {
+                dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+                l_ch_chain->callback_notify_packet_in = NULL;
+                l_ch_chain->callback_notify_packet_out = NULL;
+            }
+            l_ch = dap_stream_ch_find_by_uuid_unsafe(a_client->stream_worker, a_client->ch_chain_net_uuid);
+            if (l_ch) {
+                dap_stream_ch_chain_net_t *l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(l_ch);
+                l_ch_chain_net->notify_callback = NULL;
+            }
         }
         // clean client
         dap_client_pvt_t *l_client_pvt = dap_client_pvt_find(a_client->client->pvt_uuid);

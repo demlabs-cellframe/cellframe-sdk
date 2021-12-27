@@ -772,18 +772,25 @@ static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net
 
 static bool s_chain_timer_callback(void *a_arg)
 {
-    dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
+    dap_worker_t *l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t *)a_arg);
+    if (!l_ch) {
+        DAP_DELETE(a_arg);
+        return false;
+    }
+    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     if (!l_ch_chain->was_active) {
         if (l_ch_chain->state != CHAIN_STATE_IDLE) {
             dap_stream_ch_chain_go_idle(l_ch_chain);
         }
+        DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
     }
     l_ch_chain->was_active = false;
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
     if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS)
-        dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
+        dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
     if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB || l_ch_chain->state == CHAIN_STATE_UPDATE_GLOBAL_DB) {
@@ -791,7 +798,7 @@ static bool s_chain_timer_callback(void *a_arg)
             log_it(L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
                             dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
                             dap_db_log_list_get_count(l_ch_chain->request_db_log));
-        dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
+        dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
     }
@@ -802,10 +809,11 @@ static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
 {
     if (a_ch_chain->state == CHAIN_STATE_IDLE)
         return;
-    if (!a_ch_chain->activity_timer)
+    if (!a_ch_chain->activity_timer) {
+        dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
         a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
-                                                                 3000, s_chain_timer_callback, (void *)a_ch_chain);
-    else
+                                                                 3000, s_chain_timer_callback, (void *)l_uuid);
+    } else
         a_ch_chain->was_active = true;
 }
 
