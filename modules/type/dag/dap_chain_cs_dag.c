@@ -1205,11 +1205,51 @@ static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chai
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t * a_atom_size )
 {
     dap_chain_cs_dag_event_item_t * l_event_item = (dap_chain_cs_dag_event_item_t*) a_atom_iter->cur_item;
+#if 0
     while (l_event_item) {
         l_event_item = (dap_chain_cs_dag_event_item_t *)l_event_item->hh.next;
         if (l_event_item && l_event_item->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64)
             break;
     }
+#endif
+    if (l_event_item) {
+        dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
+        assert(l_dag);
+        dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);
+        assert(l_dag_pvt);
+        a_atom_iter->cur_item = NULL;
+        dap_chain_cs_dag_event_item_t *l_item_tmp, *l_item_cur;
+        int found = 0;
+        int skip = 1;
+        HASH_ITER(hh, l_dag_pvt->events, l_item_cur, l_item_tmp) {
+            if (l_item_cur == l_event_item) {
+                skip = 0;
+                continue;
+            }
+            if (skip) continue;
+            if (l_item_cur->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
+
+                a_atom_iter->cur_item = l_item_cur;
+                found = 1;
+                break;
+            }
+        }
+        skip = 1;
+        if (!found && a_atom_iter->with_treshold) {
+            HASH_ITER(hh, l_dag_pvt->events_treshold, l_item_cur, l_item_tmp) {
+                if (l_item_cur == l_event_item) {
+                    skip = 0;
+                    continue;
+                }
+                if (skip) continue;
+                if (l_item_cur->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
+                    a_atom_iter->cur_item = l_item_cur;
+                    break;
+                }
+            }
+        }
+    }
+
     // if l_event_item=NULL then items are over
     a_atom_iter->cur_item = l_event_item;
     a_atom_iter->cur = l_event_item ? l_event_item->event : NULL;
