@@ -213,7 +213,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         unsigned long l_read = fread(l_element, 1, l_el_size, l_f);
         if(l_read == l_el_size) {
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
-            if (l_res == ATOM_PASS && l_res == ATOM_REJECT) {
+            if (l_res == ATOM_PASS || l_res == ATOM_REJECT) {
                 DAP_DELETE(l_element);
             }
             ++q;

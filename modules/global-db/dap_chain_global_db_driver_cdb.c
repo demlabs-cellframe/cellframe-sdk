@@ -83,12 +83,12 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     a_obj->key = dap_strdup(key);
     a_obj->id = dap_hex_to_uint(val, sizeof(uint64_t));
     offset += sizeof(uint64_t);
-    a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(unsigned long));
-    offset += sizeof(unsigned long);
+    a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(uint64_t));
+    offset += sizeof(uint64_t);
     a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
     memcpy(a_obj->value, val + offset, a_obj->value_len);
     offset += a_obj->value_len;
-    a_obj->timestamp = (time_t)dap_hex_to_uint(val + offset, sizeof(time_t));
+    a_obj->timestamp = dap_hex_to_uint(val + offset, sizeof(uint64_t));
 }
 
 /** A callback function designed for finding a last item */
@@ -595,19 +595,18 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         cdb_record l_rec;
         l_rec.key = a_store_obj->key; //dap_strdup(a_store_obj->key);
         int offset = 0;
-        char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(unsigned long) + a_store_obj->value_len + sizeof(time_t));
+        char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(uint64_t) + a_store_obj->value_len + sizeof(uint64_t));
         dap_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
         offset += sizeof(uint64_t);
-        dap_uint_to_hex(l_val + offset, a_store_obj->value_len, sizeof(unsigned long));
-        offset += sizeof(unsigned long);
+        dap_uint_to_hex(l_val + offset, a_store_obj->value_len, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
         if(a_store_obj->value && a_store_obj->value_len){
             memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
             DAP_DELETE(a_store_obj->value);
         }
         offset += a_store_obj->value_len;
-        unsigned long l_time = (unsigned long)a_store_obj->timestamp;
-        dap_uint_to_hex(l_val + offset, l_time, sizeof(time_t));
-        offset += sizeof(time_t);
+        dap_uint_to_hex(l_val + offset, a_store_obj->timestamp, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
         l_rec.val = l_val;
         if (cdb_set2(l_cdb_i->cdb, l_rec.key, (int)strlen(l_rec.key), l_rec.val, offset, CDB_INSERTCACHE | CDB_OVERWRITE, 0) != CDB_SUCCESS) {
             log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));

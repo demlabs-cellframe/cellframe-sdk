@@ -198,8 +198,7 @@ dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store
         memcpy(l_store_obj_dst, l_store_obj_src, sizeof(dap_store_obj_t));
         l_store_obj_dst->group = dap_strdup(l_store_obj_src->group);
         l_store_obj_dst->key = dap_strdup(l_store_obj_src->key);
-        l_store_obj_dst->value = DAP_NEW_SIZE(uint8_t, l_store_obj_dst->value_len);
-        memcpy(l_store_obj_dst->value, l_store_obj_src->value, l_store_obj_dst->value_len);
+        l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
     }
     return l_store_obj;
 }
