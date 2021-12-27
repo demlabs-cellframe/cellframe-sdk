@@ -3066,7 +3066,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
                     uint8_t *l_pkey_ser = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pkey_size);
                     dap_chain_hash_fast_t l_cert_hash;
                     dap_hash_fast(l_pkey_ser, l_pkey_size, &l_cert_hash);
-                    if (!memcmp(l_pkey_ser, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
+                    if (!memcmp(&l_cert_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
                         l_authorized = true;
                         DAP_DELETE(l_pkey_ser);
                         break;
