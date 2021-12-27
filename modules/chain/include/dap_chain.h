@@ -49,6 +49,7 @@ typedef struct dap_chain_atom_iter{
     dap_chain_hash_fast_t *cur_hash;
     dap_chain_cell_id_t cell_id;
     bool with_treshold;
+    bool found_in_treshold;
     size_t cur_size;
     void * cur_item;
     void * _inheritor;
