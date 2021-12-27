@@ -4701,7 +4701,7 @@ SIGNER_COUNT
 
 static char *s_strdup_by_index (const char *a_file, const int a_index);
 static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta);
-static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain, dap_list_t *a_meta_list, int a_index_meta, size_t *a_fullsize);
+static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain, dap_list_t *a_meta_list, size_t *a_fullsize);
 
 /*
  * dap_sign_file - sign a file with flags.
@@ -4758,8 +4758,6 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
         l_shift <<= 1;
     }
 
-    int l_ret = 0;
-
     dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_name);
     if (!l_cert) {
         DAP_FREE(l_buffer);
@@ -4772,7 +4770,7 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
     }
 
     size_t l_full_size_for_sign;
-    uint8_t *l_data = s_concat_hash_and_mimetypes (a_hash, l_std_list, l_index_meta, &l_full_size_for_sign);
+    uint8_t *l_data = s_concat_hash_and_mimetypes(a_hash, l_std_list, &l_full_size_for_sign);
     if (!l_data) {
         DAP_FREE(l_buffer);
         return 0;
@@ -4788,18 +4786,15 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
     return 1;
 }
 
-static byte_t *s_concat_meta (dap_list_t *a_meta, int a_index_meta, size_t *a_fullsize)
+static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
 {
     if (a_fullsize)
         *a_fullsize = 0;
 
-    int l_len = 0;
-    int l_n;
     int l_part = 256;
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
-    int l_total = l_part;
-    int l_counter = 0;
+    size_t l_counter = 0;
     int l_part_power = l_part;
     int l_index = 0;
 
@@ -4807,13 +4802,13 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, int a_index_meta, size_t *a_fu
         if (!l_iter->data) continue;
         dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
         l_index = l_counter;
-        l_counter += strlen(l_tsd->data);
+        l_counter += strlen((char *)l_tsd->data);
         if (l_counter >= l_part_power) {
             l_part_power = l_part * l_power++;
             l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
 
         }
-        memcpy (&l_buf[l_index], l_tsd->data, strlen(l_tsd->data));
+        memcpy (&l_buf[l_index], l_tsd->data, strlen((char *)l_tsd->data));
     }
 
     if (a_fullsize)
@@ -4822,10 +4817,10 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, int a_index_meta, size_t *a_fu
     return l_buf;
 }
 
-static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash, dap_list_t *a_meta_list, int a_index_meta, size_t *a_fullsize)
+static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash, dap_list_t *a_meta_list, size_t *a_fullsize)
 {
     if (!a_fullsize) return NULL;
-    byte_t *l_buf = s_concat_meta (a_meta_list, a_index_meta, a_fullsize);
+    byte_t *l_buf = s_concat_meta (a_meta_list, a_fullsize);
     if (!l_buf) return (uint8_t *) l_buf;
 
     size_t l_len_meta_buf = *a_fullsize;
@@ -4858,7 +4853,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
         case SIGNER_FILENAME_SHORT:
             {
                 char *l_filename_short = NULL;
-                if (l_filename_short = strrchr(a_file, '.')) {
+                if ((l_filename_short = strrchr(a_file, '.')) != 0) {
                     int l_index_of_latest_point = l_filename_short - a_file;
                     l_filename_short = s_strdup_by_index (a_file, l_index_of_latest_point);
                     if (!l_filename_short) return NULL;
@@ -4883,7 +4878,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
                 stat (a_file, &l_st);
                 char *l_ctime = ctime(&l_st.st_ctime);
                 char *l = NULL;
-                if (l = strchr(l_ctime, '\n')) *l = 0;
+                if ((l = strchr(l_ctime, '\n')) != 0) *l = 0;
                 return dap_tsd_create_string(SIGNER_DATE, l_ctime);
             }
             break;

@@ -53,7 +53,7 @@
 #include "dap_timerfd.h"
 #include "dap_hash.h"
 #include "dap_uuid.h"
-//#include "dap_http_client_simple.h"
+#include "dap_client.h"
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"

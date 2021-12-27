@@ -159,50 +159,6 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
     dap_client_pvt_hh_add_unsafe(a_client_pvt);
 }
 
-
-
-/**
- * @brief dap_client_set_auth_cert
- * @param a_client
- * @param a_chain_net_name
- * @param a_option
- */
-void dap_client_set_auth_cert(dap_client_t *a_client, const char *a_chain_net_name)
-{
-    const char *l_auth_hash_str = NULL;
-
-    if(a_client == NULL || a_chain_net_name == NULL){
-        log_it(L_ERROR,"Chain-net is NULL for dap_client_set_auth_cert");
-        return;
-    }
-
-    char *l_path = dap_strdup_printf("network/%s", a_chain_net_name);
-    if (!l_path) {
-        log_it(L_ERROR, "Can't allocate memory: file: %s line: %d", __FILE__, __LINE__);
-        return;
-    }
-
-    dap_config_t *l_cfg = dap_config_open(l_path);
-    free(l_path);
-    if (!l_cfg) {
-        log_it(L_ERROR, "Can't allocate memory: file: %s line: %d", __FILE__, __LINE__);
-        return;
-    }
-
-    dap_cert_t *l_cert = dap_cert_find_by_name(dap_config_get_item_str(l_cfg, "general", "auth_cert"));
-    if (!l_cert) {
-        dap_config_close(l_cfg);
-        log_it(L_ERROR,"l_cert is NULL by dap_cert_find_by_name");
-        return;
-    }
-    dap_client_set_auth_cert_unsafe(a_client, l_cert);
-
-    //dap_cert_delete(l_cert);
-    dap_config_close(l_cfg);
-}
-
-
-
 /**
  * @brief dap_client_pvt_delete_unsafe
  * @param a_client_pvt
