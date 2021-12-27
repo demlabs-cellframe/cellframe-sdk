@@ -646,9 +646,9 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         read_bytes_to=0;
         if(a_stream->pkt_buf_in_data_size>=(a_stream->pkt_buf_in->hdr.size + sizeof(dap_stream_pkt_hdr_t)) ){ // If we have all the packet in packet buffer
             if(a_stream->pkt_buf_in_data_size > a_stream->pkt_buf_in->hdr.size + sizeof(dap_stream_pkt_hdr_t)){ // If we have little more data then we need for packet buffer
-                //log_it(L_WARNING,"Prefilled packet buffer has %u bytes more than we need, they're lost",a_stream->pkt_buf_in_data_size-a_stream->pkt_buf_in->hdr.size);
+                log_it(L_WARNING,"Prefilled packet buffer has %zu bytes more than we need, it's lost",a_stream->pkt_buf_in_data_size-a_stream->pkt_buf_in->hdr.size);
+                DAP_DEL_Z(a_stream->pkt_buf_in);
                 a_stream->pkt_buf_in_data_size = 0;
-                a_stream->pkt_buf_in = NULL;
             }
             else{
                 s_stream_proc_pkt_in(a_stream);
@@ -692,24 +692,24 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         found_sig=true;
 
         //dap_stream_pkt_t *temp_pkt = dap_stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
+        size_t l_pkt_size = pkt->hdr.size + sizeof(dap_stream_pkt_hdr_t);
         if(bytes_left_to_read >= sizeof (dap_stream_pkt_t)){
-            if(bytes_left_to_read  <(pkt->hdr.size+sizeof(dap_stream_pkt_t) )){ // Is all the packet in da buf?
+            if (bytes_left_to_read < l_pkt_size) { // Is all the packet in da buf?
                 read_bytes_to=bytes_left_to_read;
             }else{
-                read_bytes_to=pkt->hdr.size+sizeof(dap_stream_pkt_t);
+                read_bytes_to = l_pkt_size;
             }
         }
 
         //log_it(L_DEBUG, "Detected packet signature pkt->hdr.size=%u read_bytes_to=%u bytes_left_to_read=%u pkt_offset=%u"
         //      ,pkt->hdr.size, read_bytes_to, bytes_left_to_read,pkt_offset);
         if(read_bytes_to > HEADER_WITH_SIZE_FIELD){ // If we have size field, we can allocate memory
-            a_stream->pkt_buf_in_size_expected =( pkt->hdr.size+sizeof(dap_stream_pkt_hdr_t));
-            size_t pkt_buf_in_size_expected=a_stream->pkt_buf_in_size_expected;
-            a_stream->pkt_buf_in=(dap_stream_pkt_t *) malloc(pkt_buf_in_size_expected);
-            if(read_bytes_to>(pkt->hdr.size+sizeof(dap_stream_pkt_hdr_t) )){
+            a_stream->pkt_buf_in_size_expected = l_pkt_size;
+            a_stream->pkt_buf_in = DAP_NEW_SIZE(struct dap_stream_pkt, l_pkt_size);
+            if (read_bytes_to > l_pkt_size) {
                 //log_it(L_WARNING,"For some strange reasons we have read_bytes_to=%u is bigger than expected pkt length(%u bytes). Dropped %u bytes",
                 //       pkt->hdr.size+sizeof(stream_pkt_hdr_t),read_bytes_to- pkt->hdr.size+sizeof(stream_pkt_hdr_t));
-                read_bytes_to=(pkt->hdr.size+sizeof(dap_stream_pkt_hdr_t));
+                read_bytes_to = l_pkt_size;
             }
             if(read_bytes_to>bytes_left_to_read){
                 //log_it(L_WARNING,"For some strange reasons we have read_bytes_to=%u is bigger that's left in input buffer (%u bytes). Dropped %u bytes",
@@ -720,11 +720,11 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
             proc_data+=(read_bytes_to + pkt_offset);
             bytes_left_to_read-=read_bytes_to;
             a_stream->pkt_buf_in_data_size=(read_bytes_to);
-            if(a_stream->pkt_buf_in_data_size==(pkt->hdr.size + sizeof(dap_stream_pkt_hdr_t))){
+            if(a_stream->pkt_buf_in_data_size==l_pkt_size){
             //    log_it(INFO,"All the packet is present in da buffer (hdr.size=%u read_bytes_to=%u buf_in_size=%u)"
             //           ,sid->pkt_buf_in->hdr.size,read_bytes_to,sid->conn->buf_in_size);
                 s_stream_proc_pkt_in(a_stream);
-            }else if(a_stream->pkt_buf_in_data_size>pkt->hdr.size + sizeof(dap_stream_pkt_hdr_t)){
+            }else if(a_stream->pkt_buf_in_data_size>l_pkt_size){
                 //log_it(L_WARNING,"Input: packet buffer has %u bytes more than we need, they're lost",a_stream->pkt_buf_in_data_size-pkt->hdr.size);
             }else{
                 //log_it(L_DEBUG,"Input: Not all stream packet in input (hdr.size=%u read_bytes_to=%u)",a_stream->pkt_buf_in->hdr.size,read_bytes_to);
@@ -820,13 +820,8 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
         memcpy(l_ret_pkt.sig, c_dap_stream_sig, sizeof(l_ret_pkt.sig));
         dap_events_socket_write_unsafe(a_stream->esocket, &l_ret_pkt, sizeof(l_ret_pkt));
         // Reset client keepalive timer
-        if (a_stream->keepalive_timer && a_stream->keepalive_timer->events_socket->worker) {
-            void *l_arg = a_stream->keepalive_timer->callback_arg;
-            dap_timerfd_delete(a_stream->keepalive_timer);
-            a_stream->keepalive_timer = dap_timerfd_start_on_worker(a_stream->stream_worker->worker,
-                                                                    STREAM_KEEPALIVE_TIMEOUT * 1000,
-                                                                    (dap_timerfd_callback_t)s_callback_keepalive,
-                                                                    l_arg);
+        if (a_stream->keepalive_timer) {
+            dap_timerfd_reset(a_stream->keepalive_timer);
         }
     } break;
     case STREAM_PKT_TYPE_ALIVE:
