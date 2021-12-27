@@ -232,7 +232,7 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
     dap_client_stage_t l_stage_target = ((struct go_stage_arg*) a_arg)->stage_target;
     dap_client_callback_t l_stage_end_callback= ((struct go_stage_arg*) a_arg)->stage_end_callback;
     dap_client_pvt_t * l_client_pvt = ((struct go_stage_arg*) a_arg)->client_pvt;
-    dap_client_t * l_client = ((struct go_stage_arg*) a_arg)->client_pvt->client;
+    dap_client_t * l_client = l_client_pvt->client;
     bool l_flag_delete_after = ((struct go_stage_arg *) a_arg)->flag_delete_after ;// Delete after stage achievement
     DAP_DELETE(a_arg);
 
@@ -321,7 +321,10 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
     }
     dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(a_client->pvt_uuid);
 
-    assert(l_client_pvt);
+    if (NULL == l_client_pvt) {
+        log_it(L_ERROR, "dap_client_go_stage, client_pvt == NULL");
+        return;
+    }
 
     struct go_stage_arg *l_stage_arg = DAP_NEW_Z(struct go_stage_arg); if (! l_stage_arg) return;
     l_stage_arg->stage_end_callback = a_stage_end_callback;
