@@ -224,7 +224,7 @@ static bool s_timer_update_states_callback(void *a_arg)
         dap_client_t * l_client = dap_client_from_esocket(l_es);
         if (l_client ) {
             dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;
-            if (l_node_client && l_node_client->ch_chain) {
+            if (l_node_client && l_node_client->ch_chain && l_node_client->stream_worker && l_node_client->ch_chain_uuid) {
                 dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_node_client->stream_worker, l_node_client->ch_chain_uuid);
                 if (l_ch) {
                     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
