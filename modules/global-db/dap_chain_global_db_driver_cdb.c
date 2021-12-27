@@ -83,12 +83,12 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     a_obj->key = dap_strdup(key);
     a_obj->id = dap_hex_to_uint(val, sizeof(uint64_t));
     offset += sizeof(uint64_t);
-    a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(unsigned long));
-    offset += sizeof(unsigned long);
+    a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(uint64_t));
+    offset += sizeof(uint64_t);
     a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
     memcpy(a_obj->value, val + offset, a_obj->value_len);
     offset += a_obj->value_len;
-    a_obj->timestamp = (time_t)dap_hex_to_uint(val + offset, sizeof(time_t));
+    a_obj->timestamp = dap_hex_to_uint(val + offset, sizeof(uint64_t));
 }
 
 /** A callback function designed for finding a last item */
@@ -159,11 +159,11 @@ bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, cons
     return true;
 }
 
-/** 
+/**
  * @brief Initiates a CDB with main hash table size: 1000000,
  * record cache: 128Mb, index page cache: 1024Mb.
- * @param a_group a group name 
- * @param a_flags should be combination of CDB_CREAT / CDB_TRUNC / CDB_PAGEWARMUP 
+ * @param a_group a group name
+ * @param a_flags should be combination of CDB_CREAT / CDB_TRUNC / CDB_PAGEWARMUP
    CDB_PAGEWARMUP
  * @return A pointer to CDB, if success. NULL, if error.
  */
@@ -255,7 +255,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
         if (!S_ISDIR(buf.st_mode) || !res) {
             continue;
         }
-#elif defined (DAP_OS_BSD)        
+#elif defined (DAP_OS_BSD)
         struct stat buf;
         int res = stat(d->d_name, &buf);
         if (!S_ISDIR(buf.st_mode) || !res) {
@@ -290,7 +290,7 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
  * @brief Gets CDB by a_group.
  * @param a_group a group name
  * @return if CDB is found, a pointer to CDB, otherwise NULL.
- */ 
+ */
 pcdb_instance dap_cdb_get_db_by_group(const char *a_group) {
     pcdb_instance l_cdb_i = NULL;
     pthread_rwlock_rdlock(&cdb_rwlock);
@@ -355,7 +355,7 @@ int dap_db_driver_cdb_flush(void) {
  * @brief Read last store item from CDB.
  * @param a_group a group name
  * @return If successful, a pointer to item, otherwise NULL.
- */  
+ */
 dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {
     if (!a_group) {
         return NULL;
@@ -382,7 +382,7 @@ dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {
  * @param a_group the group name
  * @param a_key the key
  * @return true or false
- */  
+ */
 bool dap_db_driver_cdb_is_obj(const char *a_group, const char *a_key)
 {
     bool l_ret = false;
@@ -408,7 +408,7 @@ bool dap_db_driver_cdb_is_obj(const char *a_group, const char *a_key)
  * @param a_key the key or NULL
  * @param a_count_out IN. Count of read items. OUT Count of items was read
  * @return If successful, pointer to items; otherwise NULL.
- */  
+ */
 dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out) {
     if (!a_group) {
         return NULL;
@@ -468,7 +468,7 @@ dap_store_obj_t *dap_db_driver_cdb_read_store_obj(const char *a_group, const cha
  * @param a_count_out[in] a count of items
  * @param a_count[out] a count of items were got
  * @return If successful, pointer to items, otherwise NULL.
- */  
+ */
 dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out) {
     if (!a_group) {
         return NULL;
@@ -520,7 +520,7 @@ dap_store_obj_t* dap_db_driver_cdb_read_cond_store_obj(const char *a_group, uint
  * @param a_group the group name
  * @param a_id id
  * @return If successful, count of store items; otherwise 0.
- */  
+ */
 size_t dap_db_driver_cdb_read_count_store(const char *a_group, uint64_t a_id)
 {
     if (!a_group) {
@@ -595,19 +595,18 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         cdb_record l_rec;
         l_rec.key = a_store_obj->key; //dap_strdup(a_store_obj->key);
         int offset = 0;
-        char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(unsigned long) + a_store_obj->value_len + sizeof(time_t));
+        char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(uint64_t) + a_store_obj->value_len + sizeof(uint64_t));
         dap_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
         offset += sizeof(uint64_t);
-        dap_uint_to_hex(l_val + offset, a_store_obj->value_len, sizeof(unsigned long));
-        offset += sizeof(unsigned long);
+        dap_uint_to_hex(l_val + offset, a_store_obj->value_len, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
         if(a_store_obj->value && a_store_obj->value_len){
             memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
             DAP_DELETE(a_store_obj->value);
         }
         offset += a_store_obj->value_len;
-        unsigned long l_time = (unsigned long)a_store_obj->timestamp;
-        dap_uint_to_hex(l_val + offset, l_time, sizeof(time_t));
-        offset += sizeof(time_t);
+        dap_uint_to_hex(l_val + offset, a_store_obj->timestamp, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
         l_rec.val = l_val;
         if (cdb_set2(l_cdb_i->cdb, l_rec.key, (int)strlen(l_rec.key), l_rec.val, offset, CDB_INSERTCACHE | CDB_OVERWRITE, 0) != CDB_SUCCESS) {
             log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));

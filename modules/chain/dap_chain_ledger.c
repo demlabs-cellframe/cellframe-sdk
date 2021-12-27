@@ -1282,7 +1282,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
  */
 int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size)
 {
-    int ret = 0;
+    int l_ret = 0;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
 
     const char * c_token_ticker = ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.ticker;
@@ -1321,6 +1321,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             } else {
                 HASH_ADD(hh, l_ledger_priv->treshold_emissions, datum_token_emission_hash,
                          sizeof(l_token_emission_hash), l_token_emission_item);
+                l_ret = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN;
             }
             pthread_rwlock_unlock( l_token_item ? &l_token_item->token_emissions_rwlock
                                                 : &l_ledger_priv->treshold_emissions_rwlock);
@@ -1354,7 +1355,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             if(s_debug_more)
                 log_it(L_WARNING,"Treshold for emissions is overfulled (%zu max), dropping down new data, added nothing",
                    s_treshold_emissions_max);
-            ret = -2;
+            l_ret = -2;
         }
     } else {
         if (l_token_item) {
@@ -1367,10 +1368,10 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                             ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value, c_token_ticker, l_hash_str);
             }
         }
-        ret = -1;
+        l_ret = -1;
     }
     DAP_DELETE(l_hash_str);
-    return ret;
+    return l_ret;
 }
 
 int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size)
