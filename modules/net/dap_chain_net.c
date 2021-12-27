@@ -224,7 +224,8 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks={
     .connected=s_node_link_callback_connected,
     .disconnected=s_node_link_callback_disconnected,
     .stage=s_node_link_callback_stage,
-    .error=s_node_link_callback_error
+    .error=s_node_link_callback_error,
+    .delete=s_node_link_callback_delete
 };
 
 
@@ -629,29 +630,34 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
  */
 static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg)
 {
-    log_it(L_DEBUG,"Remove node client from list");
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    if (!a_node_client->keep_connection) {
+        dap_notify_server_send_f_mt("{"
+                                "class:\"NetLinkDelete\","
+                                "net_id:0x%016" DAP_UINT64_FORMAT_X ","
+                                "cell_id:0x%016"DAP_UINT64_FORMAT_X","
+                                "address:\""NODE_ADDR_FP_STR"\""
+                                "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
+                                    NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+        return;
+    }
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     for ( dap_list_t * it = l_net_pvt->links; it; it=it->next ){
-        dap_chain_node_client_t * l_client =(dap_chain_node_client_t *) it->data;
-        // Cut out current iterator if it equals with deleting handler
-        if (l_client == a_node_client){
-            if (it->prev)
-                it->prev->next = it->next;
-            if (it->next)
-                it->next->prev = it->prev;
+        if (it->data == a_node_client) {
+            log_it(L_DEBUG,"Replace node client with new one");
+            it->data = dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
     dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkDelete\","
+                            "class:\"NetLinkRestart\","
                             "net_id:0x%016" DAP_UINT64_FORMAT_X ","
                             "cell_id:0x%016"DAP_UINT64_FORMAT_X","
                             "address:\""NODE_ADDR_FP_STR"\""
-                        "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
+                            "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
-    dap_chain_node_client_close(a_node_client);
+    // Then a_alient wiil be destroyed in a right way
 }
 
 /**
@@ -834,6 +840,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             dap_list_t *l_tmp = l_net_pvt->links;
             while (l_tmp) {
                 dap_list_t *l_next =l_tmp->next;
+                ((dap_chain_node_client_t *)l_tmp->data)->keep_connection = false;
                 dap_chain_node_client_close(l_tmp->data);
                 DAP_DELETE(l_tmp);
                 l_tmp = l_next;
@@ -849,6 +856,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 break;
             }
             // disable SYNC_GDB
+            l_net_pvt->active_link = NULL;
             l_net_pvt->flags &= ~F_DAP_CHAIN_NET_GO_SYNC;
             l_net_pvt->last_sync = 0;
         } break;
@@ -1022,7 +1030,8 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
             if (l_links->data == l_net_pvt->active_link) {
                 dap_chain_node_client_t *l_client = (dap_chain_node_client_t *)l_links->data;
                 if (l_client->state >= NODE_CLIENT_STATE_ESTABLISHED &&
-                        l_client->state < NODE_CLIENT_STATE_SYNCED) {
+                        l_client->state < NODE_CLIENT_STATE_SYNCED &&
+                        a_client != l_client) {
                     l_found = true;
                     break;
                 }
@@ -1036,11 +1045,14 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     return !l_found;
 }
 
-void dap_chain_net_sync_unlock(dap_chain_net_t *a_net)
+void dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
+    if (!a_net)
+        return;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_rdlock(&l_net_pvt->rwlock);
-    l_net_pvt->active_link = NULL;
+    if (!a_client || l_net_pvt->active_link == a_client)
+        l_net_pvt->active_link = NULL;
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 }
 /**
