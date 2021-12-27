@@ -337,34 +337,19 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
  */
 dap_db_log_list_obj_t* dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 {
-    if(!a_db_log_list)
+    if (!a_db_log_list)
         return NULL;
-    dap_list_t *l_list;
-    bool l_is_process;
-    int l_count = 0;
-    while(1) {
-        pthread_mutex_lock(&a_db_log_list->list_mutex);
-        l_is_process = a_db_log_list->is_process;
-        // check next item
-        l_list = a_db_log_list->list_read;
-        if (l_list){
-            a_db_log_list->list_read = dap_list_next(a_db_log_list->list_read);
-            a_db_log_list->items_rest--;
-        }
-        pthread_mutex_unlock(&a_db_log_list->list_mutex);
-        // wait reading next item, no more 1 sec (50 ms * 100 times)
-        if(!l_list && l_is_process) {
-            dap_usleep(DAP_USEC_PER_SEC / 200);
-            l_count++;
-            if(l_count > 100)
-                break;
-        }
-        else
-            break;
+    pthread_mutex_lock(&a_db_log_list->list_mutex);
+    int l_is_process = a_db_log_list->is_process;
+    // check next item
+    dap_list_t *l_list = a_db_log_list->list_read;
+    if (l_list){
+        a_db_log_list->list_read = dap_list_next(a_db_log_list->list_read);
+        a_db_log_list->items_rest--;
     }
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
-    return l_list ? (dap_db_log_list_obj_t *)l_list->data : NULL;
-    //return l_list;
+    return l_list ? (dap_db_log_list_obj_t *)l_list->data : DAP_INT_TO_POINTER(l_is_process);
 }
 
 

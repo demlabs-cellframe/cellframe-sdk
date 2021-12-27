@@ -909,21 +909,23 @@ dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t
                     char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
                     log_it(L_DEBUG, "Processing event (threshold): %s...", l_event_hash_str);
                     DAP_DELETE(l_event_hash_str);
+
                 }
                 int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
-                HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (l_event_item->hash), l_event_item);
-                s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
-                if(! l_add_res){
-                    if(s_debug_more)
-                        log_it(L_INFO, "... moved from treshold to main chains");
-                    res = true;
-                    break;
-                }else{
-                    if(s_debug_more)
-                        log_it(L_WARNING, "... error adding");
-                    //todo: delete event
+                if (!l_add_res) {
+                    HASH_ADD(hh, PVT(a_dag)->events,hash,sizeof (l_event_item->hash), l_event_item);
+                    s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
+                    if(! l_add_res){
+                        if(s_debug_more)
+                            log_it(L_INFO, "... moved from treshold to main chains");
+                        res = true;
+                        break;
+                    }else{
+                        if(s_debug_more)
+                            log_it(L_WARNING, "... error adding");
+                            DAP_DELETE(l_event_item);
+                    }
                 }
-                //res = true;
             }else if(ret == DAP_THRESHOLD_CONFLICTING)
                 HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash,sizeof (l_event_item->hash),  l_event_item);
 
