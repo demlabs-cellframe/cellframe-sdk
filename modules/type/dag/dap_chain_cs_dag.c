@@ -1221,14 +1221,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_
         assert(l_dag_pvt);
         l_event_item = l_dag_pvt->events_treshold;
         while (l_event_item) {
-            l_event_item = (dap_chain_cs_dag_event_item_t *)l_event_item->hh.next;
-            if (l_event_item && l_event_item->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64)
+            if (l_event_item && l_event_item->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
+                a_atom_iter->found_in_treshold = 1;
                 break;
+            }
+            l_event_item = (dap_chain_cs_dag_event_item_t *)l_event_item->hh.next;
         }
-    }
-
-    if (!l_event_item && a_atom_iter->found_in_treshold) {
-        a_atom_iter->found_in_treshold = 0;
     }
 
 
