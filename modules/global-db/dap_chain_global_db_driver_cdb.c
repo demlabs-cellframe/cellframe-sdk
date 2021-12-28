@@ -585,13 +585,6 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         if(!a_store_obj->key) {
             return -2;
         }
-        /*if (dap_fnmatch("*.del", a_store_obj->group, 0)) {
-            char *l_del_group = dap_strdup_printf("%s.del", a_store_obj->group);
-            pcdb_instance l_cdb_d = dap_cdb_get_db_by_group(l_del_group);
-            if (l_cdb_d) {
-                l_cdb_i->id = max(l_cdb_d->id, l_cdb_i->id);
-            }
-        }*/
         cdb_record l_rec;
         l_rec.key = a_store_obj->key; //dap_strdup(a_store_obj->key);
         int offset = 0;
