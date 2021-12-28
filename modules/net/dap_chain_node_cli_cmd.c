@@ -4535,7 +4535,7 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
     size_t l_size = 0;
 
     HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
-        l_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id);
+        l_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id, 0);
         dap_chain_datum_t *l_datum = l_cell->chain->callback_atom_find_by_hash(l_iter, &l_hash_tmp, &l_size);
         if (l_datum) {
             dap_hash_fast_t l_hash;
