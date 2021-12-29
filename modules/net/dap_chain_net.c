@@ -836,9 +836,10 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
         // State OFFLINE where we don't do anything
         case NET_STATE_OFFLINE: {
             // delete all links
+            l_net_pvt->links_connected_count = 0;
             dap_list_t *l_tmp = l_net_pvt->links;
             while (l_tmp) {
-                dap_list_t *l_next =l_tmp->next;
+                dap_list_t *l_next = l_tmp->next;
                 ((dap_chain_node_client_t *)l_tmp->data)->keep_connection = false;
                 dap_chain_node_client_close(l_tmp->data);
                 DAP_DELETE(l_tmp);

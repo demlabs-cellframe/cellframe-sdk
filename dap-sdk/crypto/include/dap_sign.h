@@ -141,7 +141,7 @@ dap_multi_sign_t *dap_multi_sign_create(dap_multi_sign_params_t *a_params, const
 int dap_multi_sign_verify(dap_multi_sign_t *a_sign, const void *a_data, const size_t a_data_size);
 void dap_multi_sign_delete(dap_multi_sign_t *a_sign);
 
-void dap_sign_get_information(dap_sign_t* a_sign, dap_string_t *a_str_out);
+void dap_sign_get_information(dap_sign_t* a_sign, dap_string_t *a_str_out, const char *a_hash_out_type);
 
 #ifdef __cplusplus
 }
