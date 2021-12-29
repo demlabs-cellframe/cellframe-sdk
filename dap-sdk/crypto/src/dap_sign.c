@@ -28,6 +28,7 @@
 #include "dap_strfuncs.h"
 #include "dap_hash.h"
 #include "dap_sign.h"
+#include "dap_enc_base58.h"
 #include "dap_enc_bliss.h"
 #include "dap_enc_tesla.h"
 #include "dap_enc_picnic.h"
@@ -861,14 +862,21 @@ void dap_multi_sign_delete(dap_multi_sign_t *a_sign)
  * @param a_sign Signature can be NULL
  * @param a_str_out The output string pointer
  */
-void dap_sign_get_information(dap_sign_t* a_sign, dap_string_t *a_str_out){
+void dap_sign_get_information(dap_sign_t* a_sign, dap_string_t *a_str_out, const char *a_hash_out_type)
+{
     dap_string_append_printf(a_str_out, "Signature: \n");
     if (a_sign != NULL){
         dap_chain_hash_fast_t l_hash_pkey;
         dap_string_append_printf(a_str_out, "\tType: %s\n",
                                  dap_sign_type_to_str(a_sign->header.type));
         if(dap_sign_get_pkey_hash(a_sign, &l_hash_pkey)){
-            dap_string_append_printf(a_str_out, "\tPublic key hash: %s\n", dap_chain_hash_fast_to_str_new(&l_hash_pkey));
+            char *l_hash_str = NULL;
+            if (!dap_strcmp(a_hash_out_type, "hex"))
+                l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash_pkey);
+            else
+                l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hash_pkey);
+            dap_string_append_printf(a_str_out, "\tPublic key hash: %s\n", l_hash_str);
+            DAP_DELETE(l_hash_str);
         }
         dap_string_append_printf(a_str_out, "\tPublic key size: %u\n"
                                             "\tSignature size: %u\n",
