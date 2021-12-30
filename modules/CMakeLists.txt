@@ -47,6 +47,11 @@ if (CELLFRAME_MODULES MATCHES "cs-dag-poa")
     add_subdirectory(consensus/dag-poa)
 endif()
 
+# DAG PoA
+if (CELLFRAME_MODULES MATCHES "cs-dag-poc")
+    add_subdirectory(consensus/dag-poc)
+endif()
+
 # DAG PoS
 if (CELLFRAME_MODULES MATCHES "cs-dag-pos")
     add_subdirectory(consensus/dag-pos)
