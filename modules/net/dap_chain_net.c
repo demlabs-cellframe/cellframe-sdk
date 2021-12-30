@@ -255,6 +255,8 @@ static int s_cli_net(int argc, char ** argv, char **str_reply);
 static bool s_seed_mode = false;
 
 static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
+static uint8_t *dap_chain_net_set_acl_param(dap_chain_hash_fast_t *a_pkey_hash);
+
 
 static dap_global_db_obj_callback_notify_t s_srv_callback_notify = NULL;
 
@@ -303,6 +305,8 @@ int dap_chain_net_init()
     dap_chain_net_load_all();
 
     dap_enc_http_set_acl_callback(dap_chain_net_set_acl);
+	dap_enc_http_set_acl_params_callback(dap_chain_net_set_acl_param);
+
     log_it(L_NOTICE,"Chain networks initialized");
     return 0;
 }
@@ -3027,6 +3031,36 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
     }
     return l_authorized;
 }
+static bool s_net_check_acl_param ( dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pkey_hash)
+{
+       bool l_authorized = false;
+
+       const char *l_acl_hash = dap_config_get_item_str(g_config, "bugreports", "pkey_hash");
+       if (l_acl_hash) {
+               dap_chain_hash_fast_t l_pkey_hash;
+               dap_chain_hash_fast_from_str (l_acl_hash, &l_pkey_hash);
+               if (!memcmp(a_pkey_hash->raw, l_pkey_hash.raw, DAP_CHAIN_HASH_FAST_SIZE)) l_authorized = true;
+#if 0
+               dap_list_t *l_certs = dap_cert_get_all_mem();
+               for (dap_list_t *l_tmp = l_certs; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+                       dap_cert_t *l_cert = (dap_cert_t *)l_tmp->data;
+                       size_t l_pkey_size;
+                       uint8_t *l_pkey_ser = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pkey_size);
+                       dap_chain_hash_fast_t l_cert_hash;
+                       dap_hash_fast(l_pkey_ser, l_pkey_size, &l_cert_hash);
+                       char *l_hash = dap_chain_hash_fast_to_string_new (&l_cert_hash);
+                       if (!strncmp(l_hash, l_acl_hash, strlen (l_acl_hash) + 1)) {
+                               l_authorized = true;
+                               DAP_DELETE(l_pkey_ser);
+                               DAP_DELETE(l_hash);
+                               break;
+                       }
+                       DAP_DELETE(l_pkey_ser);
+               }
+#endif
+       }
+       return l_authorized;
+}
 
 /**
  * @brief s_acl_callback function. Usually called from enc_http_proc
@@ -3047,6 +3081,12 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
         return l_ret;
     }
     return NULL;
+}
+static uint8_t *dap_chain_net_set_acl_param(dap_chain_hash_fast_t *a_pkey_hash)
+{
+       uint8_t *l_ret = DAP_CALLOC(1, sizeof(uint8_t));
+       *l_ret = s_net_check_acl_param(NULL, a_pkey_hash);
+       return l_ret;
 }
 
 /**
