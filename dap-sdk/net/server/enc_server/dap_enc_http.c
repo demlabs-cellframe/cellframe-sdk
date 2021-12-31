@@ -53,7 +53,7 @@
 #define LOG_TAG "dap_enc_http"
 
 static dap_enc_acl_callback_t s_acl_callback = NULL;
-static dap_enc_acl_callback_t s_acl_params_callback = NULL;
+extern dap_enc_acl_callback_t s_acl_params_callback;
 
 
 int enc_http_init()
