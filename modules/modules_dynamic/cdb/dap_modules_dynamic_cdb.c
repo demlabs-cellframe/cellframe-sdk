@@ -24,6 +24,7 @@
 
 #include "dap_modules_dynamic_cdb.h"
 #include "dap_common.h"
+#include "dap_config.h"
 
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
