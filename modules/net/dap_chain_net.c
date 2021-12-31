@@ -117,7 +117,6 @@ static size_t s_max_links_count = 5;// by default 5
 static size_t s_required_links_count = 3;// by default 3
 static bool s_debug_more = false;
 
-void dap_enc_http_set_acl_params_callback(dap_enc_acl_callback_t a_callback);
 
 struct link_dns_request {
     uint32_t link_id;
@@ -307,7 +306,6 @@ int dap_chain_net_init()
     dap_chain_net_load_all();
 
     dap_enc_http_set_acl_callback(dap_chain_net_set_acl);
-	dap_enc_http_set_acl_params_callback(dap_chain_net_set_acl_param);
 
     log_it(L_NOTICE,"Chain networks initialized");
     return 0;
