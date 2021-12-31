@@ -683,7 +683,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             //check whether to apply the received data into the database
             bool l_apply = false;
             // timestamp for exist obj
-            time_t l_timestamp_cur = 0;
+            uint64_t l_timestamp_cur = 0;
             if (dap_chain_global_db_driver_is(l_obj->group, l_obj->key)) {
                 dap_store_obj_t *l_read_obj = dap_chain_global_db_driver_read(l_obj->group, l_obj->key, NULL);
                 if (l_read_obj) {
@@ -692,7 +692,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 }
             }
             // check the applied object newer that we have stored or erased
-            if (l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
+            if (l_obj->timestamp > (uint64_t)global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
                     l_obj->timestamp > l_timestamp_cur) {
                 l_apply = true;
             }
