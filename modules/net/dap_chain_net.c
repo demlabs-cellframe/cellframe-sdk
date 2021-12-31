@@ -117,6 +117,8 @@ static size_t s_max_links_count = 5;// by default 5
 static size_t s_required_links_count = 3;// by default 3
 static bool s_debug_more = false;
 
+void dap_enc_http_set_acl_params_callback(dap_enc_acl_callback_t a_callback);
+
 struct link_dns_request {
     uint32_t link_id;
     dap_chain_net_t * net;

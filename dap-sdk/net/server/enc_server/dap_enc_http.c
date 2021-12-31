@@ -86,10 +86,6 @@ void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback)
 {
     s_acl_callback = a_callback;
 }
-void dap_enc_http_set_acl_params_callback(dap_enc_acl_callback_t a_callback)
-{
-    s_acl_params_callback = a_callback;
-}
 
 /**
  * @brief enc_http_proc Enc http interface

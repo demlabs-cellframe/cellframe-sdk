@@ -73,7 +73,6 @@ size_t enc_http_reply(enc_http_delegate_t * dg, void * data, size_t data_size);
 size_t enc_http_reply_f(enc_http_delegate_t * dg, const char * data, ...);
 
 void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback);
-void dap_enc_http_set_acl_params_callback(dap_enc_acl_callback_t a_callback);
 
 enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simple);
 
