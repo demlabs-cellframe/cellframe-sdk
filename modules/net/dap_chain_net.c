@@ -117,6 +117,7 @@ static size_t s_max_links_count = 5;// by default 5
 static size_t s_required_links_count = 3;// by default 3
 static bool s_debug_more = false;
 
+
 struct link_dns_request {
     uint32_t link_id;
     dap_chain_net_t * net;
@@ -255,6 +256,8 @@ static int s_cli_net(int argc, char ** argv, char **str_reply);
 static bool s_seed_mode = false;
 
 static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
+uint8_t *dap_chain_net_set_acl_param(dap_chain_hash_fast_t *a_pkey_hash);
+
 
 static dap_global_db_obj_callback_notify_t s_srv_callback_notify = NULL;
 
@@ -303,6 +306,7 @@ int dap_chain_net_init()
     dap_chain_net_load_all();
 
     dap_enc_http_set_acl_callback(dap_chain_net_set_acl);
+
     log_it(L_NOTICE,"Chain networks initialized");
     return 0;
 }
