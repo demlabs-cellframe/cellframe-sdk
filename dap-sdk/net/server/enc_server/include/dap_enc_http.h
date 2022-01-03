@@ -82,4 +82,6 @@ void enc_http_delegate_delete(enc_http_delegate_t * dg);
 
 void enc_http_add_proc(struct dap_http * sh, const char * url);
 
+void dap_enc_http_set_acl_params_callback(dap_enc_acl_callback_t a_callback);
+
 #endif

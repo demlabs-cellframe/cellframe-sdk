@@ -2,7 +2,6 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.10)
 
 include (cmake/OS_Detection.cmake)
-
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "3.0-15")
 set(BUILD_CRYPTO_TESTS ON)
