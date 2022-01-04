@@ -59,15 +59,15 @@
 typedef uint8_t byte_t;
 
 // Stuffs an integer into a pointer type
-#define DAP_INT_TO_POINTER(i) ((void*) (long) (i))
+#define DAP_INT_TO_POINTER(i) ((void*) (ssize_t) (i))
 // Extracts an integer from a pointer
-#define DAP_POINTER_TO_INT(p) ((int)  (long) (p))
+#define DAP_POINTER_TO_INT(p) ((int)  (ssize_t) (p))
 // Stuffs an unsigned integer into a pointer type
-#define DAP_UINT_TO_POINTER(u) ((void*) (unsigned long) (u))
+#define DAP_UINT_TO_POINTER(u) ((void*) (size_t) (u))
 // Extracts an unsigned integer from a pointer
-#define DAP_POINTER_TO_UINT(p) ((unsigned int) (unsigned long) (p))
+#define DAP_POINTER_TO_UINT(p) ((unsigned int) (size_t) (p))
 // Stuffs a size_t into a pointer type
-#define DAP_SIZE_TO_POINTER(s) ((void*) (size_t) (s))
+#define DAP_SIZE_TO_POINTER(s) ((void*) (s))
 // Extracts a size_t from a pointer
 #define DAP_POINTER_TO_SIZE(p) ((size_t) (p))
 
