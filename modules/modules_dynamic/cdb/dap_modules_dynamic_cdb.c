@@ -24,6 +24,7 @@
 
 #include "dap_modules_dynamic_cdb.h"
 #include "dap_common.h"
+#include "dap_config.h"
 
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
@@ -78,14 +79,14 @@ void *dap_modules_dynamic_get_cdb_func(const char *a_func_name)
 int dap_modules_dynamic_load_cdb(dap_http_t * a_server)
 {
     s_cdb_was_init = true;
-    int (*dap_chain_net_srv_vpn_cdb_init)(dap_http_t *);
+    int (*dap_chain_net_srv_vpn_cdb_init)(dap_http_t *, dap_config_t *);
     dap_chain_net_srv_vpn_cdb_init = dap_modules_dynamic_get_cdb_func("dap_chain_net_srv_vpn_cdb_init");
     if (!dap_chain_net_srv_vpn_cdb_init) {
         s_cdb_was_init = false;
         log_it(L_ERROR, "dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init not found");
         return -2;
     }
-    int l_init_res = dap_chain_net_srv_vpn_cdb_init(a_server);
+    int l_init_res = dap_chain_net_srv_vpn_cdb_init(a_server, g_config);
     if (l_init_res) {
         s_cdb_was_init = false;
         log_it(L_ERROR, "dap_modules_dynamic: dap_chain_net_srv_vpn_cdb_init returns %d", l_init_res);

@@ -119,7 +119,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
         size_t i;
         for(i = 0; i < a_dap_store_count; i++) {
             // if it is marked, the data has not been saved
-            if(a_store_obj[i].timestamp == (time_t) -1)
+            if(a_store_obj[i].timestamp == (uint64_t) -1)
                 continue;
             l_keys[i] = a_store_obj[i].key;
         }
