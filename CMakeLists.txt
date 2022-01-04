@@ -1,9 +1,11 @@
 project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.10)
 
+include (cmake/OS_Detection.cmake)
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "3.0-14")
+set(CELLFRAME_SDK_NATIVE_VERSION "3.0-15")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
+set(DAPSDK_MODULES "")
 
 if(NOT DEFINED CELLFRAME_MODULES)
     set(BUILD_CRYPTO_TESTS ON)
@@ -20,8 +22,6 @@ if(NOT DEFINED CELLFRAME_MODULES)
         set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange modules-dynamic srv-vpn")
     endif()
 endif()
-
-set(DAPSDK_MODULES "")
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
 
@@ -58,10 +58,6 @@ if (BUILD_CRYPTO_TESTS)
 	SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
     endif()
     set(BUILD_TESTS ON)
-endif()
-
-if(BUILD_TESTS)
-    include(cmake/OS_Detection.cmake)
 endif()
 
 if( DARWIN)

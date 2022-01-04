@@ -36,6 +36,7 @@ typedef struct dap_enc_ks_key{
     time_t time_created;
     pthread_mutex_t mutex;
     uint8_t *acl_list;
+	uint8_t *acl_bugreport;
     UT_hash_handle hh; // makes this structure hashable with UTHASH library
 } dap_enc_ks_key_t;
 
