@@ -114,7 +114,9 @@ static bool s_debug_more=false;
 static uint_fast16_t s_update_pack_size=100; // Number of hashes packed into the one packet
 static uint_fast16_t s_skip_in_reactor_count=50; // Number of hashes packed to skip in one reactor loop callback out packet
 static char **s_list_ban_groups = NULL;
+static char **s_list_white_groups = NULL;
 static uint16_t s_size_ban_groups = 0;
+static uint16_t s_size_white_groups = 0;
 
 /**
  * @brief dap_stream_ch_chain_init
@@ -128,6 +130,7 @@ int dap_stream_ch_chain_init()
     s_debug_more = dap_config_get_item_bool_default(g_config,"stream_ch_chain","debug_more",false);
     s_update_pack_size = dap_config_get_item_int16_default(g_config,"stream_ch_chain","update_pack_size",100);
     s_list_ban_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_groups);
+	s_list_white_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_groups);
 
     return 0;
 }
@@ -661,7 +664,16 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
 
-            if (s_list_ban_groups) {
+            if (s_list_white_groups) {
+                int l_ret = -1;
+                for (int i = 0; i < s_size_white_groups; i++) {
+                    if (!dap_fnmatch(s_list_white_groups[i], l_obj->group, FNM_NOESCAPE)) {
+                        l_ret = 0;
+                        break;
+                    }
+                }
+                if (l_ret == -1) continue;
+            } else if (s_list_ban_groups) {
                 int l_ret = 0;
                 for (int i = 0; i < s_size_ban_groups; i++) {
                     if (!dap_fnmatch(s_list_ban_groups[i], l_obj->group, FNM_NOESCAPE)) {
