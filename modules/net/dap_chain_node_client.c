@@ -233,7 +233,8 @@ static bool s_timer_update_states_callback(void *a_arg)
                     dap_chain_net_t * l_net = l_node_client->net;
                     assert(l_net);
                     // If we do nothing - init sync process
-                    if (l_ch_chain->state == CHAIN_STATE_IDLE && dap_chain_net_sync_trylock(l_net, l_me)) {
+                    //if (l_ch_chain->state == CHAIN_STATE_IDLE && dap_chain_net_sync_trylock(l_net, l_me)) {
+                    if (l_ch_chain->state == CHAIN_STATE_IDLE) {
                         log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
                         dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                         l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
