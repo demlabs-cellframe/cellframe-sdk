@@ -77,6 +77,7 @@ static void s_pgsql_free_connection(PGconn *a_conn)
     for (int i = 0; i < DAP_PGSQL_POOL_COUNT; i++) {
         if (s_conn_pool[i].conn == a_conn) {
             s_conn_pool[i].busy = 0;
+			break;
         }
     }
     pthread_rwlock_unlock(&s_db_rwlock);
