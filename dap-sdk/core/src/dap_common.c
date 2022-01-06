@@ -156,8 +156,10 @@ static volatile int s_log_count = 0;
 static pthread_t s_log_thread = 0;
 static void  *s_log_thread_proc(void *arg);
 
+#define STR_LOG_BUF_MAX                       1000
+
 typedef struct log_str_t {
-    char str[1000];
+    char str[STR_LOG_BUF_MAX];
     unsigned int offset;
     struct log_str_t *prev, *next;
 } log_str_t;
@@ -371,9 +373,38 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
  */
 char *dap_log_get_item(time_t a_start_time, int a_limit)
 {
+#if 0
     UNUSED(a_start_time);
     UNUSED(a_limit);
-    return NULL; // TODO
+#endif
+
+	log_str_t *elem, *tmp;
+	elem = tmp = NULL;
+	char *l_buf = DAP_CALLOC(STR_LOG_BUF_MAX, a_limit);
+	char *s = l_buf;
+
+	struct tm *l_tm_st = localtime (&a_start_time);
+
+    DL_FOREACH_SAFE(s_log_buffer, elem, tmp) {
+		if (a_limit <= 0) break;
+		struct tm l_tm;
+		if (sscanf(tmp->str, "[%d/%d/%d-%d:%d:%d]", &l_tm.tm_mon, &l_tm.tm_mday, &l_tm.tm_year, &l_tm.tm_hour, &l_tm.tm_min, &l_tm.tm_sec) == 6) {
+			l_tm.tm_mon--;
+			if (l_tm_st->tm_year >= l_tm.tm_year &&
+				l_tm_st->tm_mon >= l_tm.tm_mon &&
+				l_tm_st->tm_mday >= l_tm.tm_mday &&
+				l_tm_st->tm_hour >= l_tm.tm_hour &&
+				l_tm_st->tm_min >= l_tm.tm_min &&
+				l_tm_st->tm_sec >= l_tm.tm_sec) {
+				a_limit--;
+				size_t l_len = strlen(tmp->str);
+				strncpy(s, tmp->str, l_len);
+				s += l_len;
+			}
+		}
+	}
+
+    return l_buf;
 }
 
 /**
