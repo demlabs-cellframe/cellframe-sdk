@@ -400,6 +400,7 @@ char *dap_log_get_item(time_t a_start_time, int a_limit)
 				size_t l_len = strlen(tmp->str);
 				strncpy(s, tmp->str, l_len);
 				s += l_len;
+				*s++ = '\n';
 			}
 		}
 	}
