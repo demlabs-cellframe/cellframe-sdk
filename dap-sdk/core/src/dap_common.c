@@ -406,7 +406,8 @@ char *dap_log_get_item(time_t a_start_time, int a_limit)
 	char *l_line = DAP_CALLOC(1, STR_LOG_BUF_MAX + 1);
 	char *s = l_buf;
 
-	char *l_log_file = dap_strdup_printf("%s/var/log/%s.log", g_sys_dir_path, dap_get_appname());
+	//char *l_log_file = dap_strdup_printf("%s/var/log/%s.log", g_sys_dir_path, dap_get_appname());
+	char *l_log_file = dap_strdup_printf("%s", s_log_file_path);
 	FILE *fp = fopen(l_log_file, "r");
 	if (!fp) {
 		DAP_FREE(l_buf);
