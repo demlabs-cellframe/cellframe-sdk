@@ -1426,7 +1426,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             dap_string_free(l_str_ret_tmp,false);
 
             // Spread new  mempool changes and  dag events in network - going to SYNC_ALL
-            dap_chain_net_sync_all(l_net);
+            // dap_chain_net_sync_all(l_net);
         }
     }else if ( l_event_cmd_str  ) {
         char *l_datum_hash_hex_str = NULL;
@@ -1521,7 +1521,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 DAP_DELETE(l_gdb_group_mempool);
                 DAP_DELETE(l_datum_hash_hex_str);
                 DAP_DELETE(l_datum_hash_base58_str);
-                dap_chain_net_sync_all(l_net);
+                // dap_chain_net_sync_all(l_net);
             }break;
             case SUBCMD_EVENT_CANCEL:{
                 char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
@@ -1578,7 +1578,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 DAP_DELETE(l_event_hash_hex_str);
                 DAP_DELETE(l_event_hash_base58_str);
                 // DAP_DELETE( l_gdb_group_events );
-                dap_chain_net_sync_gdb(l_net);
+                // dap_chain_net_sync_gdb(l_net);
             }break;
             case SUBCMD_EVENT_DUMP:{
                 dap_chain_cs_dag_event_t * l_event = NULL;

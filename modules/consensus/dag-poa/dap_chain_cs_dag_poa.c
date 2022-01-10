@@ -240,7 +240,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                         l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
                             }
                             ret = 0;
-                            dap_chain_net_sync_gdb(l_chain_net); // Propagate changes in pool
+                            // dap_chain_net_sync_gdb(l_chain_net); // Propagate changes in pool
 
                             if (l_event_is_ready) {
                                 dap_chain_cs_dag_poa_callback_timer_arg_t * l_callback_arg = DAP_NEW_Z(dap_chain_cs_dag_poa_callback_timer_arg_t);
@@ -248,7 +248,10 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                 l_callback_arg->l_event_hash_hex_str = dap_strdup(l_event_new_hash_hex_str);
                                 memcpy(&l_callback_arg->event_round_cfg, &l_event_round_cfg, sizeof(dap_chain_cs_dag_event_round_cfg_t));
                                 uint32_t l_timeout = l_event_round_cfg.confirmations_timeout;
-                                if ( l_timeout <= ((uint64_t)time(NULL) - l_event_round_cfg.ts_confirmations_minimum_completed) ) {
+                                // if ( l_timeout <= ((uint64_t)time(NULL) - l_event_round_cfg.ts_confirmations_minimum_completed) ) {
+                                //     s_callback_round_event_to_chain(l_callback_arg);
+                                // }
+                                if ( l_event_new->header.signs_count >= l_poa_pvt->auth_certs_count) {
                                     s_callback_round_event_to_chain(l_callback_arg);
                                 }
                                 else {
@@ -400,7 +403,7 @@ static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_
                 }
             }
             dap_chain_cell_close(l_cell);
-            dap_chain_net_sync_all(l_net);
+            // dap_chain_net_sync_all(l_net);
         }
     }
 
