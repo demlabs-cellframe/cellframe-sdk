@@ -146,8 +146,8 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_
         l_offset += l_sign_size;
     }
     DAP_DELETE(l_addr_str);
-    dap_chain_cs_dag_event_t * l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size+l_sign_size);
-    memcpy(l_event_new, a_event, l_event_size);
+
+    dap_chain_cs_dag_event_t * l_event_new = DAP_REALLOC(a_event, l_event_size+l_sign_size);
     memcpy(l_event_new->hashes_n_datum_n_signs+l_offset, l_sign, l_sign_size);
     *a_event_size_new = l_event_size+l_sign_size;
     l_event_new->header.signs_count++;
