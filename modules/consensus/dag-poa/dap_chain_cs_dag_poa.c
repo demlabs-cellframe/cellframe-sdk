@@ -211,7 +211,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
 
                     bool l_event_is_ready = false;
                     if ( l_event_new->header.signs_count >= l_event_round_cfg.confirmations_minimum ) {
-                        log_it(L_NOTICE,"Event %s minimum confirmations completed", l_event_new_hash_base58_str);
+                        log_it(L_NOTICE,"Event %s minimum confirmations completed", l_event_new_hash_hex_str);
                         int l_ret_event_verify;
                         l_dag->callback_cs_set_event_round_cfg(l_dag, &l_event_round_cfg);
                         if ( ( l_ret_event_verify = l_dag->callback_cs_verify(l_dag, l_event_new, l_event_size_new)) == 0 ) {

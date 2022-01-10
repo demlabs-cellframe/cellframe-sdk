@@ -149,6 +149,7 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_
     dap_chain_cs_dag_event_t * l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size+l_sign_size);
     memcpy(l_event_new, a_event, l_event_size);
     memcpy(l_event_new->hashes_n_datum_n_signs+l_offset, l_sign, l_sign_size);
+    *a_event_size_new = l_event_size+l_sign_size;
     l_event_new->header.signs_count++;
     return l_event_new;
 }

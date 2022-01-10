@@ -1612,7 +1612,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 }
                 DAP_DELETE(l_event_hash_hex_str);
                 DAP_DELETE(l_event_hash_base58_str);
-                DAP_DELETE( l_gdb_group_events );
+                // DAP_DELETE( l_gdb_group_events );
                 dap_chain_net_sync_gdb(l_net);
             }break;
             case SUBCMD_EVENT_DUMP:{
@@ -1630,7 +1630,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
                     }else if ( strcmp(l_from_events_str,"events_lasts") == 0){
                         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                        dap_chain_cs_dag_event_round_cfg_t l_event_round_cfg;
                         pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                         HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_event_hash,sizeof(l_event_hash),l_event_item);
                         pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
