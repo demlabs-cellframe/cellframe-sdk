@@ -1577,7 +1577,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 }
                 DAP_DELETE(l_event_hash_hex_str);
                 DAP_DELETE(l_event_hash_base58_str);
-                DAP_DELETE( l_gdb_group_events );
+                // DAP_DELETE( l_gdb_group_events );
                 dap_chain_net_sync_gdb(l_net);
             }break;
             case SUBCMD_EVENT_DUMP:{
