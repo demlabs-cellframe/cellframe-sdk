@@ -207,7 +207,6 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                     char * l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
                     char * l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_event_new_hash);
                     //char * l_event_new_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_event_new_hash_hex_str);
-
                     bool l_event_is_ready = false;
                     if ( l_event_new->header.signs_count >= l_event_round_cfg.confirmations_minimum ) {
                         log_it(L_NOTICE,"Event %s minimum confirmations completed", l_event_new_hash_hex_str);
@@ -225,7 +224,6 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                 l_event_new_hash_hex_str, l_ret_event_verify);
                         }
                     }
-
                     if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event_new,
                                                         l_event_size_new, l_gdb_group_events, &l_event_round_cfg) ){
                         if ( dap_chain_global_db_gr_del(dap_strdup(l_event_hash_hex_str), l_gdb_group_events) ) { // Delete old event
@@ -242,20 +240,18 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                             ret = 0;
                             // dap_chain_net_sync_gdb(l_chain_net); // Propagate changes in pool
 
-                            if (l_event_is_ready) {
+                            if (l_event_is_ready) { // minimum signs & verify passed
                                 dap_chain_cs_dag_poa_callback_timer_arg_t * l_callback_arg = DAP_NEW_Z(dap_chain_cs_dag_poa_callback_timer_arg_t);
                                 l_callback_arg->dag = l_dag;
                                 l_callback_arg->l_event_hash_hex_str = dap_strdup(l_event_new_hash_hex_str);
                                 memcpy(&l_callback_arg->event_round_cfg, &l_event_round_cfg, sizeof(dap_chain_cs_dag_event_round_cfg_t));
                                 uint32_t l_timeout = l_event_round_cfg.confirmations_timeout;
-                                // if ( l_timeout <= ((uint64_t)time(NULL) - l_event_round_cfg.ts_confirmations_minimum_completed) ) {
-                                //     s_callback_round_event_to_chain(l_callback_arg);
-                                // }
                                 if ( l_event_new->header.signs_count >= l_poa_pvt->auth_certs_count) {
-                                    s_callback_round_event_to_chain(l_callback_arg);
+                                    s_callback_round_event_to_chain(l_callback_arg); // placement in chain now if max signs
                                 }
-                                else {
+                                else if ( l_timeout > ((uint64_t)time(NULL) - l_event_round_cfg.ts_confirmations_minimum_completed) ) {
                                     l_timeout = l_timeout - ((uint64_t)time(NULL) - l_event_round_cfg.ts_confirmations_minimum_completed);
+                                    // placement in chain by timer
                                     if (dap_timerfd_start(l_timeout*1000, 
                                                         (dap_timerfd_callback_t)s_callback_round_event_to_chain, 
                                                         l_callback_arg) == NULL) {
@@ -263,6 +259,8 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                     } else {
                                         log_it(L_NOTICE,"Run timer %dsec. for Event %s", l_timeout, l_event_new_hash_hex_str);
                                     }
+                                } else { // placement in chain now if timer out
+                                    s_callback_round_event_to_chain(l_callback_arg);
                                 }
                             }
 
@@ -273,7 +271,6 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                                                            l_poa_pvt->events_sign_cert->name ,l_event_new_hash_hex_str, l_event_hash_str);
                         }
                     }else {
-
                         if(!dap_strcmp(l_hash_out_type, "hex")) {
                             dap_chain_node_cli_set_reply_text(a_str_reply,
                                     "GDB Error: Can't place event %s with new sign back in round.new\n",
@@ -295,10 +292,11 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                                   l_event_hash_str);
                     ret=-1;              
                 }
+                DAP_DELETE(l_event_new);
             }
             // DAP_DELETE( l_gdb_group_events );
             // DAP_DELETE(l_event_round_cfg);
-            DAP_DELETE(l_event);
+            // DAP_DELETE(l_event);
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Command dag_poa requires subcommand 'sign'");
         }
