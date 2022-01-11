@@ -58,7 +58,7 @@ typedef struct dap_stream_ch_chain_hash_item{
 
 
 typedef struct dap_stream_ch_chain {
-    dap_stream_ch_t * ch;
+    void *_inheritor;
 
     dap_stream_ch_chain_state_t state;
     dap_chain_node_client_t * node_client; // Node client associated with stream
@@ -75,12 +75,16 @@ typedef struct dap_stream_ch_chain {
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;
 
+    bool was_active;
+    dap_timerfd_t *activity_timer;
+
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
     void *callback_notify_arg;
 } dap_stream_ch_chain_t;
 
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
+#define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
 #define DAP_CHAIN_PKT_EXPECT_SIZE 7168
 
 int dap_stream_ch_chain_init(void);

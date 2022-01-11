@@ -105,7 +105,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
 //    Get block header size
 static size_t s_callback_atom_get_static_hdr_size(void);
 
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id);
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold);
 static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t *  ,
                                                                      dap_chain_atom_ptr_t , size_t);
 
@@ -898,11 +898,12 @@ static size_t s_callback_atom_get_static_hdr_size(void)
  * @param a_chain
  * @return
  */
-static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id)
+static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     l_atom_iter->chain = a_chain;
     l_atom_iter->cell_id = a_cell_id;
+    l_atom_iter->with_treshold = a_with_treshold;
     l_atom_iter->_inheritor = DAP_NEW_Z(dap_chain_cs_blocks_iter_t);
     ITER_PVT(l_atom_iter)->blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
 
@@ -921,7 +922,7 @@ static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t * a_c
     if (a_atom && a_atom_size){
         dap_chain_hash_fast_t l_atom_hash;
         dap_hash_fast(a_atom, a_atom_size, &l_atom_hash);
-        dap_chain_atom_iter_t * l_atom_iter = s_callback_atom_iter_create(a_chain, a_chain->cells->id);
+        dap_chain_atom_iter_t * l_atom_iter = s_callback_atom_iter_create(a_chain, a_chain->cells->id, 0);
         if (l_atom_iter){
             dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
             l_atom_iter->cur_item = ITER_PVT(l_atom_iter)->cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_atom_hash);

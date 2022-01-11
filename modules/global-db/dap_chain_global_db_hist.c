@@ -28,6 +28,13 @@ typedef struct dap_tx_data{
 
 #define LOG_TAG "dap_chain_global_db_hist"
 
+#if 0
+static char **s_ban_list = NULL;
+static uint16_t s_size_ban_list = 0;
+static char **s_white_list = NULL;
+static uint16_t s_size_white_list = 0;
+#endif
+
 /**
  * @brief Packs members of a_rec structure into a single string.
  * 
@@ -273,6 +280,59 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
     }
     dap_list_free(l_groups_masks);
 
+
+    static uint16_t s_size_ban_list = 0;
+    static char **s_ban_list = NULL;
+
+	static uint16_t s_size_white_list = 0;
+	static char **s_white_list = NULL;
+
+    static bool l_try_read_ban_list = false;
+	static bool l_try_read_white_list = false;
+
+    if (!l_try_read_ban_list) {
+            s_ban_list = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_list);
+            l_try_read_ban_list = true;
+    }
+	if (!l_try_read_white_list) {
+			s_white_list = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_list);
+			l_try_read_white_list = true;
+	}
+
+	/* delete if not condition */
+	if (s_size_white_list > 0) {
+        for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; ) {
+            bool l_found = false;
+            for (int i = 0; i < s_size_white_list; i++) {
+                if (!dap_fnmatch(s_white_list[i], l_groups->data, FNM_NOESCAPE)) {
+                    l_found = true;
+                    break;
+                }
+            }
+            if (!l_found) {
+                    dap_list_t *l_tmp = l_groups->next;
+                    l_dap_db_log_list->groups = dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
+                    l_groups = l_tmp;
+			}
+            l_groups = dap_list_next(l_groups);
+        }
+	} else if (s_size_ban_list > 0) {
+        for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; ) {
+            bool l_found = false;
+            for (int i = 0; i < s_size_ban_list; i++) {
+                if (!dap_fnmatch(s_ban_list[i], l_groups->data, FNM_NOESCAPE)) {
+                    dap_list_t *l_tmp = l_groups->next;
+                    l_dap_db_log_list->groups = dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
+                    l_groups = l_tmp;
+                    l_found = true;
+                    break;
+                }
+            }
+            if (l_found) continue;
+            l_groups = dap_list_next(l_groups);
+        }
+    }
+
     for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups)) {
         dap_db_log_list_group_t *l_replace = DAP_NEW_Z(dap_db_log_list_group_t);
         l_replace->name = (char *)l_groups->data;
@@ -337,33 +397,19 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
  */
 dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 {
-    if(!a_db_log_list)
+    if (!a_db_log_list)
         return NULL;
-    dap_list_t *l_list;
-    bool l_is_process;
-    int l_count = 0;
-    while(1) {
-        pthread_mutex_lock(&a_db_log_list->list_mutex);
-        l_is_process = a_db_log_list->is_process;
-        // check next item
-        l_list = a_db_log_list->list_read;
-        if (l_list){
-            a_db_log_list->list_read = dap_list_next(a_db_log_list->list_read);
-            a_db_log_list->items_rest--;
-        }
-        pthread_mutex_unlock(&a_db_log_list->list_mutex);
-        // wait reading next item, no more 1 sec (50 ms * 100 times)
-        if(!l_list && l_is_process) {
-            dap_usleep(DAP_USEC_PER_SEC / 200);
-            l_count++;
-            if(l_count > 100)
-                break;
-        }
-        else
-            break;
+    pthread_mutex_lock(&a_db_log_list->list_mutex);
+    int l_is_process = a_db_log_list->is_process;
+    // check next item
+    dap_list_t *l_list = a_db_log_list->list_read;
+    if (l_list){
+        a_db_log_list->list_read = dap_list_next(a_db_log_list->list_read);
+        a_db_log_list->items_rest--;
     }
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
-    return l_list ? (dap_db_log_list_obj_t *)l_list->data : NULL;
+    return l_list ? (dap_db_log_list_obj_t *)l_list->data : DAP_INT_TO_POINTER(l_is_process);
 }
 
 /**

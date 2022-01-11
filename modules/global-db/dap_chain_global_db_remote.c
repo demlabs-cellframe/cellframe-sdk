@@ -255,20 +255,20 @@ dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj)
     uint32_t l_type = a_store_obj->type;
     memcpy(l_pkt->data, &l_type, sizeof(uint32_t));
     uint64_t l_offset = sizeof(uint32_t);
-    uint16_t group_size = (uint16_t) dap_strlen(a_store_obj->group);
-    memcpy(l_pkt->data + l_offset, &group_size, sizeof(uint16_t));
+    uint16_t l_group_size = (uint16_t) dap_strlen(a_store_obj->group);
+    memcpy(l_pkt->data + l_offset, &l_group_size, sizeof(uint16_t));
     l_offset += sizeof(uint16_t);
-    memcpy(l_pkt->data + l_offset, a_store_obj->group, group_size);
-    l_offset += group_size;
+    memcpy(l_pkt->data + l_offset, a_store_obj->group, l_group_size);
+    l_offset += l_group_size;
     memcpy(l_pkt->data + l_offset, &a_store_obj->id, sizeof(uint64_t));
     l_offset += sizeof(uint64_t);
-    memcpy(l_pkt->data + l_offset, &a_store_obj->timestamp, sizeof(time_t));
-    l_offset += sizeof(time_t);
-    uint16_t key_size = (uint16_t) dap_strlen(a_store_obj->key);
-    memcpy(l_pkt->data + l_offset, &key_size, sizeof(uint16_t));
+    memcpy(l_pkt->data + l_offset, &a_store_obj->timestamp, sizeof(uint64_t));
+    l_offset += sizeof(uint64_t);
+    uint16_t l_key_size = (uint16_t) dap_strlen(a_store_obj->key);
+    memcpy(l_pkt->data + l_offset, &l_key_size, sizeof(uint16_t));
     l_offset += sizeof(uint16_t);
-    memcpy(l_pkt->data + l_offset, a_store_obj->key, key_size);
-    l_offset += key_size;
+    memcpy(l_pkt->data + l_offset, a_store_obj->key, l_key_size);
+    l_offset += l_key_size;
     memcpy(l_pkt->data + l_offset, &a_store_obj->value_len, sizeof(uint64_t));
     l_offset += sizeof(uint64_t);
     memcpy(l_pkt->data + l_offset, a_store_obj->value, a_store_obj->value_len);
@@ -314,9 +314,9 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
         memcpy(&obj->id, pkt->data + offset, sizeof(uint64_t));
         offset += sizeof(uint64_t);
 
-        if (offset+sizeof (time_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'timestamp' field"); break;} // Check for buffer boundries
-        memcpy(&obj->timestamp, pkt->data + offset, sizeof(time_t));
-        offset += sizeof(time_t);
+        if (offset+sizeof (uint64_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'timestamp' field"); break;} // Check for buffer boundries
+        memcpy(&obj->timestamp, pkt->data + offset, sizeof(uint64_t));
+        offset += sizeof(uint64_t);
 
         if (offset+sizeof (uint16_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'key_length' field"); break;} // Check for buffer boundries
         memcpy(&str_length, pkt->data + offset, sizeof(uint16_t));
@@ -337,7 +337,7 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
         memcpy(obj->value, pkt->data + offset, obj->value_len);
         offset += obj->value_len;
     }
-    //assert(pkt->data_size == offset);
+    assert(pkt->data_size == offset);
     if(store_obj_count)
         *store_obj_count = count;
     return store_obj;

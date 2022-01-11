@@ -4449,6 +4449,7 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
 static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply)
 {
     int l_ret = 0;
+
     enum {OPT_FILE, OPT_HASH, OPT_NET, OPT_MIME, OPT_CERT,
           OPT_COUNT};
     struct opts l_opts_check[] = {
@@ -4487,6 +4488,7 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
         dap_chain_node_cli_set_reply_text(a_str_reply, "Not found datum signer in network %s", l_str_opts_check[OPT_NET]);
         return -1;
     }
+    int found = 0;
 
     dap_sign_t *l_sign = NULL;
     dap_chain_datum_t *l_datum = NULL;
@@ -4495,22 +4497,17 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
 
     l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
     if (!l_gdb_group) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Not found network group for chain: %s", l_chain->name);
         l_ret = -1;
         goto end;
     }
 
-    printf("....%p\n", l_chain->cells);
+    dap_chain_hash_fast_t l_hash_tmp;
 
     if (l_str_opts_check[OPT_HASH]) {
-#if 0
-        size_t l_size_store_datum = 0;
-        dap_store_obj_t *l_store_datum = dap_chain_global_db_obj_gr_get(l_str_opts_check[OPT_HASH], &l_size_store_datum, l_gdb_group);
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s datum by hash: %s",
-                                          l_size_store_datum ? "found" : "not found",
-                                          l_str_opts_check[OPT_HASH]);
-#endif
-
+        dap_chain_hash_fast_from_str(l_str_opts_check[OPT_HASH], &l_hash_tmp);
     }
+
 
     if (l_str_opts_check[OPT_FILE]) {
         l_ret = s_get_key_from_file(l_str_opts_check[OPT_FILE], l_str_opts_check[OPT_MIME], l_str_opts_check[OPT_CERT], &l_sign);
@@ -4518,50 +4515,46 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
             l_ret = -1;
             goto end;
         }
-#if 0
-        dap_chain_hash_fast_t l_key_hash;
-        dap_hash_fast(l_sign->pkey_n_sign, l_sign->header.sign_size, &l_key_hash);
-        char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-        if (l_key_str) {
-            size_t l_size_store_datum = 0;
-            dap_store_obj_t *l_store_datum = dap_chain_global_db_obj_gr_get(l_key_str, &l_size_store_datum, l_gdb_group);
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s datum by file: %s",
-                                              l_size_store_datum ? "found" : "not found",
-                                              l_str_opts_check[OPT_FILE]);
-            DAP_FREE(l_key_str);
+
+        l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SIGNER, l_sign->pkey_n_sign, l_sign->header.sign_size);
+        if (!l_datum) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "not created datum");
+            l_ret = -1;
+            goto end;
         }
-#endif
-#if 0
-        dap_chain_cell_id_t l_cell_id = {0};
-        dap_chain_atom_iter_t *l_iter = NULL;
-        for (uint64_t i = 0; i >= 0; i++) {
-            l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell_id);
-            if (l_iter) {
-                size_t l_size = 0;
-                dap_chain_datum_t *l_datum = l_chain->callback_atom_iter_get_next(l_iter, &l_size);
-                if (l_datum) {
-                    printf("l_size: %ld\n", l_size);
-                    for (size_t i = 0; i < l_size; i++) {
 
-                        dap_hash_fast_t l_hash;
-                        dap_chain_hash_fast_from_str(l_datum[i].data, &l_hash);
-                        char *l_key = dap_hash_fast_to_str_new(&l_hash);
-                        printf("key: %s\n", l_key);
-                    }
-
-
-                }
-            } else break;
-            l_cell_id.uint64++;
-        }
-#endif
+        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash_tmp);
     }
 
+
+    dap_chain_cell_id_t l_cell_id = {0};
+    dap_chain_atom_iter_t *l_iter = NULL;
+    dap_chain_cell_t *l_cell_tmp = NULL;
+    dap_chain_cell_t *l_cell = NULL;
+    dap_chain_datum_t *l_datum_tmp = NULL;
+    size_t l_size = 0;
+
+    HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
+        l_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id, 0);
+        dap_chain_datum_t *l_datum = l_cell->chain->callback_atom_find_by_hash(l_iter, &l_hash_tmp, &l_size);
+        if (l_datum) {
+            dap_hash_fast_t l_hash;
+            dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash);
+            if (!memcmp(l_hash_tmp.raw, l_hash.raw, DAP_CHAIN_HASH_FAST_SIZE)) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "found!");
+                found = 1;
+                break;
+            }
+        }
+    }
 
 end:
 
     if (l_gdb_group) DAP_FREE(l_gdb_group);
 
+    if (!found) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "not found!");
+    }
 
     return 0;
 }
@@ -4661,7 +4654,6 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
     dap_chain_datum_t *l_datum = NULL;
     dap_global_db_obj_t *l_objs = NULL;
 
-    printf("#\n");
     l_ret = s_get_key_from_file(l_opts_sign[OPT_FILE], l_opts_sign[OPT_MIME], l_opts_sign[OPT_CERT], &l_sign);
     if (!l_ret) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s cert not found", l_opts_sign[OPT_CERT]);
@@ -4670,7 +4662,6 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
     }
 
 
-    printf("##\n");
 
     l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SIGNER, l_sign->pkey_n_sign, l_sign->header.sign_size);
     if (!l_datum) {
@@ -4679,24 +4670,16 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
         goto end;
     }
 
-    printf("###\n");
 
-#if 0
-    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain);
-    dap_chain_node_cli_set_reply_text(a_str_reply, "%s by certificate is signed %s", l_opts_sign[OPT_FILE],
-                                      l_hash_str ? "successfull": "not successfull");
-
-    if (l_hash_str) {
-        l_ret = 0;
-        DAP_FREE(l_hash_str);
-    }
-    printf("####\n");
-#endif
     dap_chain_cell_id_t l_cell_id = {0};
     dap_chain_cell_create_fill(l_chain, l_cell_id);
     l_ret = l_chain->callback_add_datums(l_chain, &l_datum, 1);
-    printf("l_ret datum: %d\n", l_ret);
 
+    dap_hash_fast_t l_hash;
+    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash);
+    char *l_key_str = dap_chain_hash_fast_to_str_new(&l_hash);
+    dap_chain_node_cli_set_reply_text(a_str_reply, "hash: %s", l_key_str);
+    DAP_FREE(l_key_str);
 end:
 
     if (l_datum) DAP_FREE(l_datum);
@@ -4718,7 +4701,7 @@ SIGNER_COUNT
 
 static char *s_strdup_by_index (const char *a_file, const int a_index);
 static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta);
-static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain, dap_list_t *a_meta_list, int a_index_meta, size_t *a_fullsize);
+static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain, dap_list_t *a_meta_list, size_t *a_fullsize);
 
 /*
  * dap_sign_file - sign a file with flags.
@@ -4775,8 +4758,6 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
         l_shift <<= 1;
     }
 
-    int l_ret = 0;
-
     dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_name);
     if (!l_cert) {
         DAP_FREE(l_buffer);
@@ -4789,7 +4770,7 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
     }
 
     size_t l_full_size_for_sign;
-    uint8_t *l_data = s_concat_hash_and_mimetypes (a_hash, l_std_list, l_index_meta, &l_full_size_for_sign);
+    uint8_t *l_data = s_concat_hash_and_mimetypes(a_hash, l_std_list, &l_full_size_for_sign);
     if (!l_data) {
         DAP_FREE(l_buffer);
         return 0;
@@ -4805,33 +4786,29 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
     return 1;
 }
 
-static byte_t *s_concat_meta (dap_list_t *a_meta, int a_index_meta, size_t *a_fullsize)
+static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
 {
     if (a_fullsize)
         *a_fullsize = 0;
 
-    int l_len = 0;
-    int l_n;
     int l_part = 256;
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
-    int l_total = l_part;
-    int l_counter = 0;
+    size_t l_counter = 0;
     int l_part_power = l_part;
     int l_index = 0;
 
     for ( dap_list_t* l_iter = dap_list_first(a_meta); l_iter; l_iter = l_iter->next){
         if (!l_iter->data) continue;
         dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
-        size_t l_tsd_size = dap_tsd_size(l_tsd);
         l_index = l_counter;
-        l_counter += l_tsd_size;
+        l_counter += strlen((char *)l_tsd->data);
         if (l_counter >= l_part_power) {
             l_part_power = l_part * l_power++;
             l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
 
         }
-        memcpy (&l_buf[l_index], l_tsd->data, l_tsd_size);
+        memcpy (&l_buf[l_index], l_tsd->data, strlen((char *)l_tsd->data));
     }
 
     if (a_fullsize)
@@ -4840,10 +4817,10 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, int a_index_meta, size_t *a_fu
     return l_buf;
 }
 
-static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash, dap_list_t *a_meta_list, int a_index_meta, size_t *a_fullsize)
+static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash, dap_list_t *a_meta_list, size_t *a_fullsize)
 {
     if (!a_fullsize) return NULL;
-    byte_t *l_buf = s_concat_meta (a_meta_list, a_index_meta, a_fullsize);
+    byte_t *l_buf = s_concat_meta (a_meta_list, a_fullsize);
     if (!l_buf) return (uint8_t *) l_buf;
 
     size_t l_len_meta_buf = *a_fullsize;
@@ -4876,7 +4853,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
         case SIGNER_FILENAME_SHORT:
             {
                 char *l_filename_short = NULL;
-                if (l_filename_short = strrchr(a_file, '.')) {
+                if ((l_filename_short = strrchr(a_file, '.')) != 0) {
                     int l_index_of_latest_point = l_filename_short - a_file;
                     l_filename_short = s_strdup_by_index (a_file, l_index_of_latest_point);
                     if (!l_filename_short) return NULL;
@@ -4890,7 +4867,9 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
             {
                 struct stat l_st;
                 stat (a_file, &l_st);
-                return dap_tsd_create_scalar(SIGNER_FILESIZE, l_st.st_size);
+                char l_size[513];
+                snprintf(l_size, 513, "%ld", l_st.st_size);
+                return dap_tsd_create_string(SIGNER_FILESIZE, l_size);
             }
             break;
         case SIGNER_DATE:
@@ -4899,7 +4878,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
                 stat (a_file, &l_st);
                 char *l_ctime = ctime(&l_st.st_ctime);
                 char *l = NULL;
-                if (l = strchr(l_ctime, '\n')) *l = 0;
+                if ((l = strchr(l_ctime, '\n')) != 0) *l = 0;
                 return dap_tsd_create_string(SIGNER_DATE, l_ctime);
             }
             break;

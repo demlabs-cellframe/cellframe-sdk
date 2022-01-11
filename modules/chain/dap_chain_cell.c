@@ -213,7 +213,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         unsigned long l_read = fread(l_element, 1, l_el_size, l_f);
         if(l_read == l_el_size) {
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
-            if (l_res == ATOM_PASS && l_res == ATOM_REJECT) {
+            if (l_res == ATOM_PASS || l_res == ATOM_REJECT) {
                 DAP_DELETE(l_element);
             }
             ++q;
@@ -297,7 +297,7 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
     // if no atom provided in arguments, we flush all the atoms in given chain
     size_t l_atom_size = a_atom_size ? a_atom_size : 0;
     size_t l_total_wrote_bytes = 0, l_count = 0;
-    dap_chain_atom_iter_t *l_atom_iter = a_atom ? NULL : a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id);
+    dap_chain_atom_iter_t *l_atom_iter = a_atom ? NULL : a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, 0);
     if (!a_atom) {
         fseek(a_cell->file_storage, sizeof(dap_chain_cell_file_header_t), SEEK_SET);
     }
