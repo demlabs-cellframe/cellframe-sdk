@@ -90,38 +90,24 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                           dap_ledger_t *a_ledger,
                                           dap_string_t *a_str_out,
                                           const char *a_hash_out_type,
-                                          bool save_processed_tx,
-                                          dap_chain_tx_hash_processed_ht_t **a_tx_hash_processed,
-                                          size_t *l_tx_num)
+                                          dap_chain_hash_fast_t *a_tx_hash)
 {
-    dap_chain_hash_fast_t l_tx_hash;
-    dap_hash_fast(a_datum, dap_chain_datum_tx_get_size(a_datum), &l_tx_hash);
-    if (save_processed_tx){
-        dap_chain_tx_hash_processed_ht_t *l_sht = NULL;
-        HASH_FIND(hh, *a_tx_hash_processed, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_sht);
-        if (l_sht != NULL)
-            return;
-        l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
-        memcpy(&l_sht->hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
-        HASH_ADD(hh, *a_tx_hash_processed, hash, sizeof(dap_chain_hash_fast_t), l_sht);
-        (*l_tx_num)++;
-    }
     time_t l_ts_create = (time_t)a_datum->header.ts_created;
     char *l_hash_str = NULL;
     if (!dap_strcmp(a_hash_out_type, "hex"))
-        l_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_hash);
+        l_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
     else
-        l_hash_str = dap_enc_base58_encode_hash_to_str(&l_tx_hash);
+        l_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
     dap_list_t *l_list_tx_any = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_TOKEN, NULL);
     if(a_ledger == NULL){
-        dap_string_append_printf(a_str_out, "transaction: %s hash: %s\n Items:\n", l_list_tx_any ? "(emit)" : "", l_hash_str);
+        dap_string_append_printf(a_str_out, "transaction:%s hash: %s\n Items:\n", l_list_tx_any ? "(emit)" : "", l_hash_str);
     } else {
         char buf[50];
         const char *l_ticker;
         if (l_list_tx_any) {
             l_ticker = ((dap_chain_tx_token_t*)l_list_tx_any->data)->header.ticker;
         } else {
-            l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_hash);
+            l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
         }
         dap_string_append_printf(a_str_out, "transaction:%s hash: %s\n TS Created: %s Token ticker: %s\n Items:\n",
                                  l_list_tx_any ? " (emit)" : "", l_hash_str, dap_ctime_r(&l_ts_create, buf), l_ticker);
@@ -897,183 +883,192 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     size_t l_datum_num = 0, l_token_num = 0, l_emission_num = 0, l_tx_num = 0;
     size_t l_datum_num_global = a_total_datums ? *a_total_datums : 0;
     while(l_atom && l_atom_size) {
-    size_t l_datums_count = 0;
-    dap_chain_datum_t **l_datums =
-            (a_chain->callback_atom_get_datums && l_atom && l_atom_size) ?
-                    a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count) : NULL;
-    if(!l_datums) {
-        log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
-        return NULL ;
-    }
-    for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
-
-        dap_chain_datum_t *l_datum = l_datums[l_datum_n];
-        if(!l_datum) { // || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
-            // go to next atom
-            //l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
-            continue;
+        size_t l_datums_count = 0;
+        dap_chain_datum_t **l_datums =
+                (a_chain->callback_atom_get_datums && l_atom && l_atom_size) ?
+                        a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count) : NULL;
+        if(!l_datums) {
+            log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
+            return NULL ;
         }
+        for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
 
-    /*dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
-    dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter);
-    size_t l_atom_size = a_chain->callback_atom_get_size(l_atom);
-    size_t l_datum_num = 0, l_token_num = 0, l_emission_num = 0, l_tx_num = 0;
-    while(l_atom && l_atom_size) {
-        dap_chain_datum_t *l_datum =
-                a_chain->callback_atom_get_datum ?
-                        a_chain->callback_atom_get_datum(l_atom) : (dap_chain_datum_t*) l_atom;
-        if(!l_datum) {
-            // go to next transaction
-            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
-            l_atom_size = a_chain->callback_atom_get_size(l_atom);
-            log_it(L_ERROR, "datum=NULL for atom=0x%x", l_atom);
-            continue;
-        }*/
-        char l_time_str[70];
-        // get time of create datum
-        if(dap_time_to_str_rfc822(l_time_str, 71, l_datum->header.ts_create) < 1)
-            l_time_str[0] = '\0';
-        switch (l_datum->header.type_id) {
-
-        // token
-        case DAP_CHAIN_DATUM_TOKEN_DECL: {
-
-            // no token necessary for addr
-            if(a_filtr_addr_base58) {
-                    break;
+            dap_chain_datum_t *l_datum = l_datums[l_datum_n];
+            if(!l_datum) { // || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+                // go to next atom
+                //l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
+                continue;
             }
 
-            dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-            //if(a_datum_start < 0 || (l_datum_num >= a_datum_start && l_datum_num < a_datum_end))
-            // datum out of page
-            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)){
-                l_token_num++;
+        /*dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain);
+        dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter);
+        size_t l_atom_size = a_chain->callback_atom_get_size(l_atom);
+        size_t l_datum_num = 0, l_token_num = 0, l_emission_num = 0, l_tx_num = 0;
+        while(l_atom && l_atom_size) {
+            dap_chain_datum_t *l_datum =
+                    a_chain->callback_atom_get_datum ?
+                            a_chain->callback_atom_get_datum(l_atom) : (dap_chain_datum_t*) l_atom;
+            if(!l_datum) {
+                // go to next transaction
+                l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
+                l_atom_size = a_chain->callback_atom_get_size(l_atom);
+                log_it(L_ERROR, "datum=NULL for atom=0x%x", l_atom);
+                continue;
+            }*/
+            char l_time_str[70];
+            // get time of create datum
+            if(dap_time_to_str_rfc822(l_time_str, 71, l_datum->header.ts_create) < 1)
+                l_time_str[0] = '\0';
+            switch (l_datum->header.type_id) {
+
+            // token
+            case DAP_CHAIN_DATUM_TOKEN_DECL: {
+
+                // no token necessary for addr
+                if(a_filtr_addr_base58) {
+                        break;
+                }
+
+                dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
+                //if(a_datum_start < 0 || (l_datum_num >= a_datum_start && l_datum_num < a_datum_end))
+                // datum out of page
+                if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)){
+                    l_token_num++;
+                    break;
+                }
+                if(!a_filter_token_name || !dap_strcmp(l_token->ticker, a_filter_token_name)) {
+                    dap_string_append_printf(l_str_out, "token %s, created: %s\n", l_token->ticker, l_time_str);
+                    switch (l_token->type) {
+                    // Simple private token decl
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
+                        dap_string_append_printf(l_str_out, "  total_supply: %.0Lf(%"DAP_UINT64_FORMAT_U"), signs: valid/total %02d/%02d \n",
+                                l_token->header_private.total_supply / DATOSHI_LD,
+                                l_token->header_private.total_supply,
+                                l_token->header_private.signs_valid, l_token->header_private.signs_total);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+                        dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
+                                l_token->header_private_decl.tsd_total_size,
+                                l_token->header_private_decl.flags);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+                        dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
+                                l_token->header_private_update.tsd_total_size,
+                                l_token->header_private_update.padding);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
+                        char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
+                        char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
+                        dap_string_append_printf(l_str_out,
+                                " total_supply: %s(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
+                                //l_token->header_public.total_supply / DATOSHI_LD,
+                                dap_chain_balance_to_coins(l_token->header_public.total_supply),
+                                dap_chain_balance_print(l_token->header_public.total_supply),
+                                l_token->header_public.flags,
+                                dap_chain_balance_print(l_token->header_public.premine_supply),
+                                l_addr ? l_addr : "-");
+                        DAP_DELETE(l_addr);
+                        DAP_DELETE(l_balance);
+                    }
+                        break;
+                    default:
+                        dap_string_append_printf(l_str_out, "unknown token type: 0x%x\n", l_token->type);
+                        break;
+
+                    }
+                    dap_string_append_printf(l_str_out, "\n");
+                    l_token_num++;
+                }
+            }
                 break;
-            }
-            if(!a_filter_token_name || !dap_strcmp(l_token->ticker, a_filter_token_name)) {
-                dap_string_append_printf(l_str_out, "token %s, created: %s\n", l_token->ticker, l_time_str);
-                switch (l_token->type) {
-                // Simple private token decl
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
-                    dap_string_append_printf(l_str_out, "  total_supply: %.0Lf(%"DAP_UINT64_FORMAT_U"), signs: valid/total %02d/%02d \n",
-                            l_token->header_private.total_supply / DATOSHI_LD,
-                            l_token->header_private.total_supply,
-                            l_token->header_private.signs_valid, l_token->header_private.signs_total);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
-                            l_token->header_private_decl.tsd_total_size,
-                            l_token->header_private_decl.flags);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-                    dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", padding: 0x%x \n",
-                            l_token->header_private_update.tsd_total_size,
-                            l_token->header_private_update.padding);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: {
-                    char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
-                    char * l_balance = dap_chain_balance_to_coins(l_token->header_public.total_supply);
-                    dap_string_append_printf(l_str_out,
-                            " total_supply: %s(%s), flags: 0x%x\n, premine_supply: %s, premine_address '%s'\n",
-                            //l_token->header_public.total_supply / DATOSHI_LD,
-                            dap_chain_balance_to_coins(l_token->header_public.total_supply),
-                            dap_chain_balance_print(l_token->header_public.total_supply),
-                            l_token->header_public.flags,
-                            dap_chain_balance_print(l_token->header_public.premine_supply),
-                            l_addr ? l_addr : "-");
-                    DAP_DELETE(l_addr);
-                    DAP_DELETE(l_balance);
-                }
-                    break;
-                default:
-                    dap_string_append_printf(l_str_out, "unknown token type: 0x%x\n", l_token->type);
-                    break;
 
-                }
-                dap_string_append_printf(l_str_out, "\n");
-                l_token_num++;
-            }
-        }
-            break;
-
-            // emission
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            // datum out of page
-            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
-                 l_token_num++;
-                 break;
-            }
-            size_t l_emission_size = dap_chain_datum_emission_get_size(l_datum->data);
-            dap_chain_datum_token_emission_t *l_token_em = dap_chain_datum_emission_read(l_datum->data, &l_emission_size);
-            if(!a_filter_token_name || !dap_strcmp(l_token_em->hdr.ticker, a_filter_token_name)) {
-                char * l_token_emission_address_str = dap_chain_addr_to_str(&(l_token_em->hdr.address));
-                // filter for addr
-                if (a_filtr_addr_base58 && dap_strcmp(a_filtr_addr_base58,l_token_emission_address_str)) {
+                // emission
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+                // datum out of page
+                if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
+                     l_token_num++;
                      break;
                 }
+                size_t l_emission_size = dap_chain_datum_emission_get_size(l_datum->data);
+                dap_chain_datum_token_emission_t *l_token_em = dap_chain_datum_emission_read(l_datum->data, &l_emission_size);
+                if(!a_filter_token_name || !dap_strcmp(l_token_em->hdr.ticker, a_filter_token_name)) {
+                    char * l_token_emission_address_str = dap_chain_addr_to_str(&(l_token_em->hdr.address));
+                    // filter for addr
+                    if (a_filtr_addr_base58 && dap_strcmp(a_filtr_addr_base58,l_token_emission_address_str)) {
+                         break;
+                    }
 
-                dap_string_append_printf(l_str_out, "emission: %.0Lf(%"DAP_UINT64_FORMAT_U") %s, type: %s, version: %d\n",
-                        l_token_em->hdr.value / DATOSHI_LD, l_token_em->hdr.value, l_token_em->hdr.ticker,
-                        c_dap_chain_datum_token_emission_type_str[l_token_em->hdr.type],
-                        l_token_em->hdr.version);
-                dap_string_append_printf(l_str_out, "  to addr: %s\n", l_token_emission_address_str);
+                    dap_string_append_printf(l_str_out, "emission: %.0Lf(%"DAP_UINT64_FORMAT_U") %s, type: %s, version: %d\n",
+                            l_token_em->hdr.value / DATOSHI_LD, l_token_em->hdr.value, l_token_em->hdr.ticker,
+                            c_dap_chain_datum_token_emission_type_str[l_token_em->hdr.type],
+                            l_token_em->hdr.version);
+                    dap_string_append_printf(l_str_out, "  to addr: %s\n", l_token_emission_address_str);
 
-                DAP_DELETE(l_token_emission_address_str);
-                switch (l_token_em->hdr.type) {
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:
-                    dap_string_append_printf(l_str_out, "  signs_count: %d\n", l_token_em->data.type_auth.signs_count);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
-                    dap_string_append_printf(l_str_out, "  codename: %s\n", l_token_em->data.type_algo.codename);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
-                    dap_string_append_printf(l_str_out, " value_start: %.0Lf(%"DAP_UINT64_FORMAT_U"), codename: %s\n",
-                            l_token_em->data.type_atom_owner.value_start / DATOSHI_LD,
-                            l_token_em->data.type_atom_owner.value_start,
-                            l_token_em->data.type_atom_owner.value_change_algo_codename);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT: {
-                    char *l_addr = dap_chain_addr_to_str(&l_token_em->data.type_presale.addr);
-                    // get time of create datum
-                    if(dap_time_to_str_rfc822(l_time_str, 71, l_token_em->data.type_presale.lock_time) < 1)
-                            l_time_str[0] = '\0';
-                    dap_string_append_printf(l_str_out, "  flags: 0x%x, lock_time: %s\n", l_token_em->data.type_presale.flags, l_time_str);
-                    dap_string_append_printf(l_str_out, "  addr: %s\n", l_addr);
-                    DAP_DELETE(l_addr);
+                    DAP_DELETE(l_token_emission_address_str);
+                    switch (l_token_em->hdr.type) {
+                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:
+                        dap_string_append_printf(l_str_out, "  signs_count: %d\n", l_token_em->data.type_auth.signs_count);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
+                        dap_string_append_printf(l_str_out, "  codename: %s\n", l_token_em->data.type_algo.codename);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
+                        dap_string_append_printf(l_str_out, " value_start: %.0Lf(%"DAP_UINT64_FORMAT_U"), codename: %s\n",
+                                l_token_em->data.type_atom_owner.value_start / DATOSHI_LD,
+                                l_token_em->data.type_atom_owner.value_start,
+                                l_token_em->data.type_atom_owner.value_change_algo_codename);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT: {
+                        char *l_addr = dap_chain_addr_to_str(&l_token_em->data.type_presale.addr);
+                        // get time of create datum
+                        if(dap_time_to_str_rfc822(l_time_str, 71, l_token_em->data.type_presale.lock_time) < 1)
+                                l_time_str[0] = '\0';
+                        dap_string_append_printf(l_str_out, "  flags: 0x%x, lock_time: %s\n", l_token_em->data.type_presale.flags, l_time_str);
+                        dap_string_append_printf(l_str_out, "  addr: %s\n", l_addr);
+                        DAP_DELETE(l_addr);
+                    }
+                        break;
+                    }
+                    dap_string_append_printf(l_str_out, "\n");
+                    l_emission_num++;
                 }
+                DAP_DELETE(l_token_em);
+            } break;
+
+            // transaction
+            case DAP_CHAIN_DATUM_TX:{
+                // datum out of page
+                if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
+                    l_tx_num++;
                     break;
                 }
-                dap_string_append_printf(l_str_out, "\n");
-                l_emission_num++;
-            }
-            DAP_DELETE(l_token_em);
-        } break;
-
-        // transaction
-        case DAP_CHAIN_DATUM_TX:{
-
-            // datum out of page
-            if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
+                //calc tx hash
+                dap_chain_hash_fast_t l_tx_hash;
+                dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+                dap_chain_tx_hash_processed_ht_t *l_sht = NULL;
+                HASH_FIND(hh, a_tx_hash_processed, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_sht);
+                if (l_sht != NULL)
+                    break;
+                l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
+                memcpy(&l_sht->hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
+                HASH_ADD(hh, a_tx_hash_processed, hash, sizeof(dap_chain_hash_fast_t), l_sht);
                 l_tx_num++;
+                s_dap_chain_datum_tx_out_data(l_tx, a_ledger, l_str_out, a_hash_out_type, &l_tx_hash);
+            }
+                break;
+            default:
+                dap_string_append_printf(l_str_out, "unknown datum type=%d\n", l_datum->header.type_id);
                 break;
             }
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
-            //calc tx hash
-            s_dap_chain_datum_tx_out_data(l_tx, a_ledger, l_str_out, a_hash_out_type, true, &a_tx_hash_processed, &l_tx_num);
+            l_datum_num++;
         }
-            break;
-        default:
-            dap_string_append_printf(l_str_out, "unknown datum type=%d\n", l_datum->header.type_id);
-            break;
-        }
-        l_datum_num++;
-    }
-        // go to next transaction
-        l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
-        //l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
-        //l_atom_size = a_chain->callback_atom_get_size(l_atom);
+            // go to next transaction
+            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
+            //l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
+            //l_atom_size = a_chain->callback_atom_get_size(l_atom);
     }
     a_chain->callback_atom_iter_delete(l_atom_iter);
     //total
@@ -1281,9 +1276,13 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         int l_sub_cmd = SUBCMD_NONE;
         if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "coins", NULL ))
                 l_sub_cmd = SUBCMD_LIST_COIN;
+        if (l_sub_cmd == SUBCMD_NONE) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'list' requires parmeter -coins");
+            return -5;
+        }
         dap_chain_node_cli_find_option_val(a_argv, 3, a_argc, "-net", &l_net_str);
         if (l_net_str == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command requires key -net");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'list' requires key -net");
             return -1;
         }
         dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
@@ -1306,38 +1305,43 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
         //get net
         dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
+        //get search type
+        const char *l_unspent_str = NULL;
+        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-unspent", &l_unspent_str);
         //check input
         if (l_tx_hash_str == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "command requires key -hash");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand 'info' requires key -hash");
             return -1;
         }
         if (l_net_str == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "command requires key -net");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand 'info' requires key -net");
             return -1;
         }
-        dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
-        if (l_ledger == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get ledger for net %s", l_net_str);
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+        if (!l_net) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find net %s", l_net_str);
             return -2;
         }
+
         dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
         if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash) &&
                 dap_enc_base58_hex_to_hash(l_tx_hash_str, l_tx_hash)) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get hash_fast from %s", l_tx_hash_str);
             return -2;
         }
-        dap_chain_datum_tx_t *l_datum_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_hash);
+        dap_chain_datum_tx_t *l_datum_tx = dap_chain_net_get_tx_by_hash(l_net, l_tx_hash,
+                                                                        l_unspent_str ? TX_SEARCH_TYPE_NET_UNSPENT : TX_SEARCH_TYPE_NET);
         if (l_datum_tx == NULL){
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get datum from transaction hash %s", l_tx_hash_str);
             return -2;
         }
         dap_string_t *l_str = dap_string_new("");
-        s_dap_chain_datum_tx_out_data(l_datum_tx, l_ledger, l_str, l_hash_out_type, false, NULL, NULL);
+        s_dap_chain_datum_tx_out_data(l_datum_tx, l_net->pub.ledger, l_str, l_hash_out_type, l_tx_hash);
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str->str);
         dap_string_free(l_str, true);
     }
     else{
-        dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter 'list' or 'tx' or 'info'");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'ledger' requires parameter 'list' or 'tx' or 'info'");
         return -1;
     }
     return 0;

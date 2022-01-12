@@ -63,7 +63,8 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
 #define DAP_CHAIN_LEDGER_TXS_STR                 "txs"
-#define DAP_CHAIN_LEDGER_TXS_THRES_STR           "thres_txs"
+#define DAP_CHAIN_LEDGER_TXS_THRES_STR           "thres_txs"  // obsolete
+#define DAP_CHAIN_LEDGER_SPENT_TXS_STR           "spent_txs"
 #define DAP_CHAIN_LEDGER_BALANCES_STR            "balances"
 
 int dap_chain_ledger_init();
