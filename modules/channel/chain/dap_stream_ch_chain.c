@@ -1406,10 +1406,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
 
 /**
- * @brief dap_stream_ch_chain_go_idle
+ * @brief dap_stream_ch_chain_go_idle_and_free_list
  * @param a_ch_chain
  */
-void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
+void dap_stream_ch_chain_go_idle_and_free_list ( dap_stream_ch_chain_t * a_ch_chain)
 {
     a_ch_chain->state = CHAIN_STATE_IDLE;
     if(s_debug_more)
@@ -1436,6 +1436,40 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
         DAP_DELETE(l_hash_item);
     }
     a_ch_chain->remote_atoms = a_ch_chain->remote_gdbs = NULL;
+}
+/**
+ * @brief dap_stream_ch_chain_go_idle
+ * @param a_ch_chain
+ */
+void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
+{
+    a_ch_chain->state = CHAIN_STATE_IDLE;
+    if(s_debug_more)
+        log_it(L_INFO, "Go in CHAIN_STATE_IDLE");
+
+    // Cleanup after request
+    memset(&a_ch_chain->request, 0, sizeof(a_ch_chain->request));
+    memset(&a_ch_chain->request_hdr, 0, sizeof(a_ch_chain->request_hdr));
+    if (a_ch_chain->request_atom_iter && a_ch_chain->request_atom_iter->chain &&
+            a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete) {
+                a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(a_ch_chain->request_atom_iter);
+                a_ch_chain->request_atom_iter = NULL;
+    }
+    // free log list
+#if 0
+    dap_db_log_list_delete(a_ch_chain->request_db_log);
+    a_ch_chain->request_db_log = NULL;
+    dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
+        HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
+        DAP_DELETE(l_hash_item);
+    }
+    HASH_ITER(hh, a_ch_chain->remote_atoms, l_hash_item, l_tmp) {
+        HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
+        DAP_DELETE(l_hash_item);
+    }
+    a_ch_chain->remote_atoms = a_ch_chain->remote_gdbs = NULL;
+#endif
 }
 
 /**
@@ -1487,7 +1521,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                      &l_ch_chain->request, sizeof(dap_stream_ch_chain_sync_request_t));
                 if (s_debug_more )
                     log_it(L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END");
-                dap_stream_ch_chain_go_idle(l_ch_chain);
+                dap_stream_ch_chain_go_idle_and_free_list(l_ch_chain);
             }
         } break;
 
