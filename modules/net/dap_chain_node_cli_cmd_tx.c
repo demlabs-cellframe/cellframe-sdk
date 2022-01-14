@@ -108,7 +108,7 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
         if (l_list_tx_any) {
             l_ticker = ((dap_chain_tx_token_t*)l_list_tx_any->data)->header.ticker;
         } else {
-            l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_hash);
+            l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
         }
         dap_string_append_printf(a_str_out, "transaction:%s hash: %s\n TS Created: %s Token ticker: %s\n Items:\n",
                                  l_list_tx_any ? " (emit)" : "", l_hash_str, dap_ctime_r(&l_ts_create, buf), l_ticker);
@@ -1313,8 +1313,8 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         //const char *l_chain_group = dap_chain_gdb_get_group(l_chain);
         dap_chain_hash_fast_t l_tx_hash;
         if(l_tx_hash_str) {
-            if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash) &&
-                    dap_enc_base58_hex_to_hash(l_tx_hash_str, l_tx_hash)) {
+            if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) &&
+                    dap_enc_base58_hex_to_hash(l_tx_hash_str, &l_tx_hash)) {
                 l_tx_hash_str = NULL;
                 dap_chain_node_cli_set_reply_text(a_str_reply, "tx hash not recognized");
                 return -1;
@@ -1455,7 +1455,8 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             return -2;
         }
         dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
-        if(dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash)){
+        if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash) &&
+                dap_enc_base58_hex_to_hash(l_tx_hash_str, l_tx_hash)) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get hash_fast from %s", l_tx_hash_str);
             return -4;
         }

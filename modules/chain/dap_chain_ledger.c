@@ -117,7 +117,7 @@ typedef struct dap_chain_ledger_tx_item {
         time_t ts_created;
         int n_outs;
         int n_outs_used;
-        char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX]
+        char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         // TODO dynamically allocates the memory in order not to limit the number of outputs in transaction
         dap_chain_hash_fast_t tx_hash_spent_fast[MAX_OUT_ITEMS]; // spent outs list
     } cache_data;
@@ -201,7 +201,7 @@ typedef struct dap_ledger_private {
     dap_chain_cell_id_t local_cell_id;
     /* Cache section */
     dap_ledger_cache_item_t last_tx;
-    dap_ledger_cache_item_t last_thres_tx;
+    dap_ledger_cache_item_t last_spent_tx;
     dap_ledger_cache_item_t last_emit;
     dap_ledger_cache_str_item_t last_ticker;
 } dap_ledger_private_t;
@@ -2612,6 +2612,7 @@ int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
         if (!PVT(a_ledger)->last_spent_tx.found &&
                 !memcmp(PVT(a_ledger)->last_spent_tx.hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t))) {
             PVT(a_ledger)->last_spent_tx.found = true;
+        }
     }
     return 1;
 }
@@ -2960,8 +2961,8 @@ uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
  * a_public_key_size[in] public key size
  * a_tx_first_hash [in/out] hash of the initial transaction/ found transaction, if 0 start from the beginning
  */
-static dap_chain_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger,
-        const dap_chain_addr_t *a_addr,const char * a_token, dap_chain_hash_fast_t *a_tx_first_hash)
+static dap_chain_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger, const dap_chain_addr_t *a_addr,
+                                                        const char * a_token, dap_chain_hash_fast_t *a_tx_first_hash)
 {
     if(!a_addr || !a_tx_first_hash)
         return NULL;
