@@ -289,6 +289,7 @@ void dap_cert_delete_by_name(const char * a_cert_name)
  */
 dap_cert_t * dap_cert_find_by_name(const char * a_cert_name)
 {
+	if (!a_cert_name) return NULL;
     dap_cert_item_t * l_cert_item = NULL;
     HASH_FIND_STR(s_certs,a_cert_name,l_cert_item);
     if ( l_cert_item ){
