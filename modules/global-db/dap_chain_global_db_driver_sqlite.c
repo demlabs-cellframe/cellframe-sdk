@@ -839,12 +839,13 @@ dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, u
     if(a_count_out)
         l_count_out = (int)*a_count_out;
     char *l_str_query = NULL;
-    if(l_count_out)
+    if (l_count_out) {
         l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>='%lld' ORDER BY id ASC LIMIT %d",
                 l_table_name, a_id, l_count_out);
-    else
+    } else {
         l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>='%lld' ORDER BY id ASC",
                 l_table_name, a_id);
+    }
 	sqlite3 *s_db = s_sqlite_get_connection();
     if(!s_db){
 		if (l_str_query) sqlite3_free(l_str_query);
@@ -917,20 +918,21 @@ dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const 
     if(a_count_out)
         l_count_out = *a_count_out;
     char *l_str_query;
-    if(a_key) {
-        if(l_count_out)
+    if (a_key) {
+        if (l_count_out) {
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE key='%s' ORDER BY id ASC LIMIT %d",
                     l_table_name, a_key, l_count_out);
-        else
+        } else {
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE key='%s' ORDER BY id ASC",
                     l_table_name, a_key);
-    }
-    else {
-        if(l_count_out)
+        }
+    } else {
+        if (l_count_out) {
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC LIMIT %d",
                     l_table_name, l_count_out);
-        else
+        } else {
             l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' ORDER BY id ASC", l_table_name);
+        }
     }
     int l_ret = dap_db_driver_sqlite_query(s_db, l_str_query, &l_res, NULL);
 

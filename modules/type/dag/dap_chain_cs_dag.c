@@ -55,7 +55,6 @@
 
 typedef struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;
-    dap_chain_hash_fast_t hash_event_content;
     time_t ts_added;
     dap_chain_cs_dag_event_t *event;
     size_t event_size;
@@ -96,9 +95,8 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
 
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
-static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain ,
-                                                                       dap_chain_hash_fast_t * a_atom_hash);
-
+static dap_chain_datum_tx_t* s_chain_callback_atom_find_by_tx_hash(dap_chain_t *a_chain,
+                                                                   dap_chain_hash_fast_t *a_tx_hash);
 static dap_chain_datum_t** s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size, size_t *a_datums_count);
 //    Get event(s) from dag
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size ); //    Get the fisrt event from dag
@@ -147,7 +145,7 @@ int dap_chain_cs_dag_init(void)
             "\tdoesn't changes after sign add to event. \n\n"
         "dag -net <chain net name> -chain <chain name> event dump -event <event hash> -from < events | events_lasts | round.new  | round.<Round id in hex> > [-H hex|base58(default)]\n"
             "\tDump event info\n\n"
-        "dag -net <chain net name> -chain <chain name> event list -from < events | events_lasts | round.new  | round.<Round id in hex> \n\n"
+        "dag -net <chain net name> -chain <chain name> event list -from < events | events_lasts | round.new | round.<Round id in hex> \n\n"
             "\tShow event list \n\n"
         "dag -net <chain net name> -chain <chain name> round complete\n\n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
@@ -212,8 +210,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_iter_get_lasts = s_chain_callback_atom_iter_get_lasts;
 
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;
-    a_chain->callback_tx_find_by_hash = s_chain_callback_atom_iter_find_by_tx_hash;
-
+    a_chain->callback_tx_find_by_hash = s_chain_callback_atom_find_by_tx_hash;
 
     a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
 
@@ -355,9 +352,9 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             l_tx_event->ts_added = a_event_item->ts_added;
             l_tx_event->event = a_event_item->event;
             l_tx_event->event_size = a_event_item->event_size;
-            memcpy(&l_tx_event->hash, &a_event_item->hash, sizeof (l_tx_event->hash) );
+            dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_event->hash);
             int l_err = pthread_rwlock_wrlock(l_events_rwlock);
-            HASH_ADD(hh,PVT(a_dag)->tx_events, hash, sizeof (l_tx_event->hash), l_tx_event);
+            HASH_ADD(hh,PVT(a_dag)->tx_events, hash, sizeof(l_tx_event->hash), l_tx_event);
             if (l_err != EDEADLK) {
                 pthread_rwlock_unlock(l_events_rwlock);
             }
@@ -1233,16 +1230,16 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
 }
 
 
-static dap_chain_datum_tx_t* s_chain_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain ,
-                                                                       dap_chain_hash_fast_t * a_atom_hash)
+static dap_chain_datum_tx_t* s_chain_callback_atom_find_by_tx_hash(dap_chain_t *a_chain,
+                                                                   dap_chain_hash_fast_t *a_tx_hash)
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG( a_chain );
     dap_chain_cs_dag_event_item_t * l_event_item = NULL;
     pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-    HASH_FIND(hh, PVT(l_dag)->tx_events,a_atom_hash,sizeof(*a_atom_hash),l_event_item);
+    HASH_FIND(hh, PVT(l_dag)->tx_events, a_tx_hash, sizeof(*a_tx_hash), l_event_item);
     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
     if ( l_event_item ){
-        dap_chain_datum_t * l_datum = dap_chain_cs_dag_event_get_datum(l_event_item->event, l_event_item->event_size) ;
+        dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_event_item->event, l_event_item->event_size);
         return l_datum ? l_datum->header.data_size ? (dap_chain_datum_tx_t*) l_datum->data : NULL :NULL;
     }else
         return NULL;
