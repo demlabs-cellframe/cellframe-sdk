@@ -814,9 +814,8 @@ static bool s_chain_timer_callback(void *a_arg)
     if (!l_ch_chain->was_active) {
         if (l_ch_chain->state != CHAIN_STATE_IDLE) {
             dap_stream_ch_chain_go_idle(l_ch_chain);
-        } else {
-			s_free_log_list(l_ch_chain);
 		}
+		if (l_ch_chain->request_db_log) s_free_log_list_gdb(l_ch_chain);
         DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
@@ -1426,7 +1425,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
  * @brief dap_stream_ch_chain_go_idle_and_free_log_list
  * @param a_ch_chain
  */
-void s_free_log_list ( dap_stream_ch_chain_t * a_ch_chain)
+void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
 {
     // free log list
     dap_db_log_list_delete(a_ch_chain->request_db_log);
@@ -1436,11 +1435,14 @@ void s_free_log_list ( dap_stream_ch_chain_t * a_ch_chain)
         HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
         DAP_DELETE(l_hash_item);
     }
+#if 0
     HASH_ITER(hh, a_ch_chain->remote_atoms, l_hash_item, l_tmp) {
         HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
         DAP_DELETE(l_hash_item);
     }
     a_ch_chain->remote_atoms = a_ch_chain->remote_gdbs = NULL;
+#endif
+	a_ch_chain->remote_gdbs = NULL;
 }
 /**
  * @brief dap_stream_ch_chain_go_idle
@@ -1460,6 +1462,14 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
                 a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(a_ch_chain->request_atom_iter);
                 a_ch_chain->request_atom_iter = NULL;
     }
+
+    dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
+
+    HASH_ITER(hh, a_ch_chain->remote_atoms, l_hash_item, l_tmp) {
+        HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
+        DAP_DELETE(l_hash_item);
+    }
+    a_ch_chain->remote_atoms = NULL;
 }
 
 /**
