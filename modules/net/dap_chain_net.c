@@ -433,6 +433,8 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
+            if (!l_node_client)
+                continue;
             dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(l_node_client->client);
             if (l_stream_worker)
                 continue;

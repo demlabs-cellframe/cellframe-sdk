@@ -1180,7 +1180,8 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 
         dap_chain_hash_fast_t l_tx_hash;
         if(l_tx_hash_str) {
-            if(dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
+            if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) &&
+                    dap_enc_base58_hex_to_hash(l_tx_hash_str, &l_tx_hash)) {
                 l_tx_hash_str = NULL;
                 dap_chain_node_cli_set_reply_text(a_str_reply, "tx hash not recognized");
                 return -1;
