@@ -336,7 +336,7 @@ static void s_sync_out_gdb_first_worker_callback(dap_worker_t *a_worker, void *a
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_hdr.net_id);
 
     // Add it to outgoing list
-    l_ch_chain->request_db_log = l_sync_request->gdb.db_log;
+	if (l_ch_chain->request_db_log == NULL) l_ch_chain->request_db_log = l_sync_request->gdb.db_log;
     l_ch_chain->state = CHAIN_STATE_SYNC_GLOBAL_DB;
     dap_chain_node_addr_t l_node_addr = { 0 };
     l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -394,12 +394,24 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 {
     struct sync_request *l_sync_request = (struct sync_request *)a_arg;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
+	dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_sync_request->worker), l_sync_request->ch_uuid);
+	if (l_ch == NULL) {
+		log_it(L_INFO, "Client disconnected before we sent the reply");
+		s_sync_request_delete(l_sync_request);
+		return;
+	}
+	dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+
     int l_flags = 0;
     if (dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr))
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    dap_db_log_list_t *l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+    dap_db_log_list_t *l_db_log = NULL;
+	if (l_ch_chain->request_db_log == NULL) {
+		l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+		l_ch_chain->request_db_log = l_db_log;
+	}
 
     if(l_db_log) {
         if (s_debug_more)
@@ -445,8 +457,11 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    dap_db_log_list_t *l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
-    l_ch_chain->request_db_log = l_db_log;
+    dap_db_log_list_t *l_db_log = NULL;
+	if (l_ch_chain->request_db_log == NULL) {
+		l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+    	l_ch_chain->request_db_log = l_db_log;
+	}
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_update_gdb_start_worker_callback, l_sync_request);
@@ -799,7 +814,8 @@ static bool s_chain_timer_callback(void *a_arg)
     if (!l_ch_chain->was_active) {
         if (l_ch_chain->state != CHAIN_STATE_IDLE) {
             dap_stream_ch_chain_go_idle(l_ch_chain);
-        }
+		}
+		if (l_ch_chain->request_db_log) s_free_log_list_gdb(l_ch_chain);
         DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
@@ -1406,6 +1422,29 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
 
 /**
+ * @brief dap_stream_ch_chain_go_idle_and_free_log_list
+ * @param a_ch_chain
+ */
+void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
+{
+    // free log list
+    dap_db_log_list_delete(a_ch_chain->request_db_log);
+    a_ch_chain->request_db_log = NULL;
+    dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
+        HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
+        DAP_DELETE(l_hash_item);
+    }
+#if 0
+    HASH_ITER(hh, a_ch_chain->remote_atoms, l_hash_item, l_tmp) {
+        HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
+        DAP_DELETE(l_hash_item);
+    }
+    a_ch_chain->remote_atoms = a_ch_chain->remote_gdbs = NULL;
+#endif
+	a_ch_chain->remote_gdbs = NULL;
+}
+/**
  * @brief dap_stream_ch_chain_go_idle
  * @param a_ch_chain
  */
@@ -1423,19 +1462,14 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
                 a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(a_ch_chain->request_atom_iter);
                 a_ch_chain->request_atom_iter = NULL;
     }
-    // free log list
-    dap_db_log_list_delete(a_ch_chain->request_db_log);
-    a_ch_chain->request_db_log = NULL;
+
     dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
-        HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
-        DAP_DELETE(l_hash_item);
-    }
+
     HASH_ITER(hh, a_ch_chain->remote_atoms, l_hash_item, l_tmp) {
         HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
         DAP_DELETE(l_hash_item);
     }
-    a_ch_chain->remote_atoms = a_ch_chain->remote_gdbs = NULL;
+    a_ch_chain->remote_atoms = NULL;
 }
 
 /**
