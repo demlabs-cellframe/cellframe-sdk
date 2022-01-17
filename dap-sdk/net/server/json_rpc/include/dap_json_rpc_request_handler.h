@@ -38,7 +38,7 @@
 extern "C"{
 #endif
 
-typedef void (handler_func_t)(dap_json_rpc_params_t *a_params, dap_json_rpc_response_t *a_response);
+typedef void (handler_func_t)(dap_json_rpc_params_t *a_params, dap_json_rpc_response_t *a_response, const char *a_method);
 
 typedef  struct dap_json_rpc_request_handler
 {

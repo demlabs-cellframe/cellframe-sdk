@@ -68,7 +68,7 @@ typedef struct uint512_t {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef DAP_GLOBAL_IS_INT128
+#if 0
 
 const  uint128_t two_power_64={ .hi = 1, .lo = 0};
 const  uint128_t lo_64={ .hi = 0, .lo = 0xffffffffffffffff};
@@ -141,7 +141,7 @@ static inline uint256_t AND_256(uint256_t a_256_bit,uint256_t b_256_bit){
     return output;
 
 #else 
-    uint256_t output={ .hi = zero_128, .lo = zero_128};
+    uint256_t output={ .hi = {}, .lo = {}};
     output.hi= AND_128(a_256_bit.hi, b_256_bit.hi);  
     output.lo= AND_128(a_256_bit.lo, b_256_bit.lo);
     return output;
@@ -158,7 +158,7 @@ static inline uint256_t OR_256(uint256_t a_256_bit,uint256_t b_256_bit){
     return output;
 
 #else 
-    uint256_t output={ .hi = zero_128, .lo = zero_128};
+    uint256_t output={ .hi = {}, .lo = {}};
     output.hi= OR_128(a_256_bit.hi, b_256_bit.hi); 
     output.lo= OR_128(a_256_bit.lo, b_256_bit.lo); 
     return output;
@@ -250,6 +250,7 @@ static inline void LEFT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int n
 #else 
     if (n >= 128) // shifting 64-bit integer by more than 63 bits is not defined
     {   
+        uint128_t zero_128 = {};
         a_256_bit.hi=a_256_bit.lo;
         a_256_bit.lo=zero_128;
         LEFT_SHIFT_256(a_256_bit,b_256_bit,n-128);
@@ -260,11 +261,11 @@ static inline void LEFT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int n
        b_256_bit->lo=a_256_bit.lo;
     } 
     if (n<128)
-    {   uint128_t shift_temp{.hi=0, .lo=0};
+    {   uint128_t shift_temp={.hi=0, .lo=0};
         LEFT_SHIFT_128(a_256_bit.lo,&shift_temp,n);
         b_256_bit->lo=shift_temp;   
-        uint128_t shift_temp_or_left{.hi=0, .lo=0};
-        uint128_t shift_temp_or_right{.hi=0, .lo=0};
+        uint128_t shift_temp_or_left={.hi=0, .lo=0};
+        uint128_t shift_temp_or_right={.hi=0, .lo=0};
         LEFT_SHIFT_128(a_256_bit.hi,&shift_temp_or_left,n);
         RIGHT_SHIFT_128(a_256_bit.lo,&shift_temp_or_right,128-n);
         b_256_bit->hi=OR_128(shift_temp_or_left,shift_temp_or_right);
@@ -297,7 +298,8 @@ static inline void RIGHT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int 
 
 #else 
     if (n >= 128) // shifting 64-bit integer by more than 63 bits is not defined
-    {   
+    {
+        uint128_t zero_128 = {};
         a_256_bit.lo=a_256_bit.hi;
         a_256_bit.hi=zero_128;
         RIGHT_SHIFT_256(a_256_bit,b_256_bit,n-128);
@@ -308,11 +310,11 @@ static inline void RIGHT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int 
        b_256_bit->lo=a_256_bit.lo;
     } 
     if (n<128)
-    {   uint128_t shift_temp{.hi=0, .lo=0};
+    {   uint128_t shift_temp={.hi=0, .lo=0};
         RIGHT_SHIFT_128(a_256_bit.hi,&shift_temp,n);
         b_256_bit->hi=shift_temp;   
-        uint128_t shift_temp_or_left{.hi=0, .lo=0};
-        uint128_t shift_temp_or_right{.hi=0, .lo=0};
+        uint128_t shift_temp_or_left={.hi=0, .lo=0};
+        uint128_t shift_temp_or_right={.hi=0, .lo=0};
         RIGHT_SHIFT_128(a_256_bit.lo,&shift_temp_or_left,n);
         LEFT_SHIFT_128(a_256_bit.hi,&shift_temp_or_right,128-n);
         b_256_bit->lo=OR_128(shift_temp_or_left,shift_temp_or_right);
@@ -359,6 +361,7 @@ static inline void INCR_256(uint256_t* a_256_bit){
 
 #else 
     INCR_128(&a_256_bit->lo);
+    uint128_t zero_128 = {};
     if(EQUAL_128(a_256_bit->lo, zero_128))
     {
         INCR_128(&a_256_bit->hi);
@@ -396,7 +399,7 @@ return overflow_flag;}
 //c_128_bit->lo=a_64_bit+b_64_bit;
 //c_128_bit->hi=(c_128_bit->lo<a_64_bit);}
 
-#ifndef DAP_GLOBAL_IS_INT128
+#if 0
 //Mixed precision: add a uint64_t into a uint128_t
 static inline int ADD_64_INTO_128(uint64_t a_64_bit,uint128_t* c_128_bit ) {
     int overflow_flag=0;
