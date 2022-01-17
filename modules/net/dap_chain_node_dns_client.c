@@ -219,6 +219,7 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
     }
     l_dns_client->dns_request = DAP_NEW_Z(dap_dns_buf_t);
     if( ! l_dns_client->dns_request){
+        DAP_DELETE(l_dns_client->buf);
         DAP_DELETE(l_dns_client);
         return -3;
     }
