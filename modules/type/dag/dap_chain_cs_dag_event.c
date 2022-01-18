@@ -141,20 +141,21 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_
         dap_chain_addr_fill(&l_item_addr, l_item_sign->header.type, &l_item_pkey_hash, a_net->pub.id);
         // checking re-sign from one address
         if (memcmp(&l_addr, &l_item_addr, sizeof(l_item_addr)) == 0) {
-            log_it(L_WARNING, "Re-sign from addr: %s", l_addr_str);
+            log_it(L_DEBUG, "Sign from this addr exists: %s", l_addr_str);
+            DAP_DELETE(l_sign);
             DAP_DELETE(l_addr_str);
             return NULL;
         }
         l_offset += l_sign_size;
     }
-    DAP_DELETE(l_addr_str);
-
     // dap_chain_cs_dag_event_t * l_event_new = DAP_REALLOC(a_event, l_event_size+l_sign_size);
     dap_chain_cs_dag_event_t * l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size+l_sign_size);
     memcpy(l_event_new, a_event, l_event_size);
     memcpy(l_event_new->hashes_n_datum_n_signs+l_offset, l_sign, l_sign_size);
     *a_event_size_new = l_event_size+l_sign_size;
     l_event_new->header.signs_count++;
+    DAP_DELETE(l_sign);
+    DAP_DELETE(l_addr_str);
     return l_event_new;
 }
 

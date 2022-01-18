@@ -87,7 +87,8 @@ static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_
 static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
                                         const char *a_key, const void *a_value, const size_t a_value_size);
 static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event, 
-                                            size_t a_event_size, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
+                                            size_t a_event_size, char * a_event_hash_hex_str, 
+                                            dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
 static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event,
                                     char * a_event_hash_hex_str, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
 static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, char * a_event_hash_hex_str);
@@ -219,7 +220,8 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                     char * l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
                     char * l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_event_new_hash);
                     //char * l_event_new_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_event_new_hash_hex_str);
-                    bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event_new, l_event_size_new, &l_event_round_cfg);
+                    bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event_new, l_event_size_new,
+                                                                        l_event_new_hash_hex_str, &l_event_round_cfg);
                     if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event_new,
                                                         l_event_size_new, l_gdb_group_events, &l_event_round_cfg) ){
                         if ( !dap_chain_global_db_gr_del(dap_strdup(l_event_hash_hex_str), l_gdb_group_events) ) { // Delete old event
@@ -407,17 +409,21 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, char * a_event_h
 }
 
 static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event, 
-                                            size_t a_event_size, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
+                                            size_t a_event_size, char * a_event_hash_hex_str,
+                                            dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
     if ( a_event->header.signs_count < a_event_round_cfg->confirmations_minimum ) {
         return false;
     }
     a_dag->callback_cs_set_event_round_cfg(a_dag, a_event_round_cfg);
-    if ( a_dag->callback_cs_verify(a_dag, a_event, a_event_size) == 0 ) {
+    int l_ret_event_verify = a_dag->callback_cs_verify(a_dag, a_event, a_event_size);
+    if ( l_ret_event_verify == 0 ) {
         if (a_event_round_cfg->ts_confirmations_minimum_completed == (uint64_t)0) {
             a_event_round_cfg->ts_confirmations_minimum_completed = (uint64_t)time(NULL);
         }
         return true;
     }
+    log_it(L_ERROR,"Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
+                          a_event_hash_hex_str, l_ret_event_verify );
     return false;
 }
 
@@ -632,7 +638,8 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         dap_chain_hash_fast_t l_event_new_hash;
         dap_chain_cs_dag_event_calc_hash(l_event_new, l_event_size_new, &l_event_new_hash);
         char * l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
-        bool l_event_is_ready = s_round_event_ready_minimum_check(a_dag, l_event_new, l_event_size_new, &l_event_round_item->cfg);
+        bool l_event_is_ready = s_round_event_ready_minimum_check(a_dag, l_event_new, l_event_size_new, 
+                                                                    l_event_new_hash_hex_str,  &l_event_round_item->cfg);
         if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event_new,
                                             l_event_size_new, l_gdb_group_events, &l_event_round_item->cfg) ){
             dap_chain_global_db_gr_del(dap_strdup(a_key), l_gdb_group_events); // Delete old event
