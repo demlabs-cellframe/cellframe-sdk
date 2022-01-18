@@ -232,7 +232,7 @@ static inline void LEFT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int n
        b_256_bit->hi=a_256_bit.hi;
        b_256_bit->lo=a_256_bit.lo;
     }
-    if (n<128) {
+    else if (n<128) {
         uint128_t shift_temp=uint128_0;
         LEFT_SHIFT_128(a_256_bit.lo,&shift_temp,n);
         b_256_bit->lo=shift_temp;
@@ -255,7 +255,7 @@ static inline void RIGHT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int 
        b_256_bit->hi=a_256_bit.hi;
        b_256_bit->lo=a_256_bit.lo;
     }
-    if (n<128) {
+    else if (n<128) {
         uint128_t shift_temp=uint128_0;
         RIGHT_SHIFT_128(a_256_bit.hi,&shift_temp,n);
         b_256_bit->hi=shift_temp;
