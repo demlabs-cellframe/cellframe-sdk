@@ -53,6 +53,14 @@
 #define LOG_TAG "dap_enc_http"
 
 static dap_enc_acl_callback_t s_acl_callback = NULL;
+static dap_enc_acl_callback_t s_acl_params_callback = NULL;
+
+
+void dap_enc_http_set_acl_params_callback(dap_enc_acl_callback_t a_callback)
+{
+    s_acl_params_callback = a_callback;
+}
+
 
 int enc_http_init()
 {
@@ -144,6 +152,15 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         } else {
             log_it(L_DEBUG, "Callback for ACL is not set, pass anauthorized");
         }
+		if (s_acl_params_callback) {
+			if (!l_enc_key_ks->acl_bugreport)
+				l_enc_key_ks->acl_bugreport = s_acl_params_callback(&l_sign_hash);
+			else {
+				if (l_enc_key_ks->acl_bugreport[0] == false) {
+					l_enc_key_ks->acl_bugreport = s_acl_params_callback(&l_sign_hash);
+				}
+			}
+		}
 
         char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(l_pkey_exchange_key->pub_key_data_size) + 1];
         size_t encrypt_msg_size = dap_enc_base64_encode(l_pkey_exchange_key->pub_key_data, l_pkey_exchange_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);

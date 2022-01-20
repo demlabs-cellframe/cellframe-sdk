@@ -30,9 +30,9 @@
 #include "dap_list.h"
 
 typedef struct dap_store_obj {
-	uint64_t id;
+    uint64_t id;
     uint64_t timestamp;
-	uint8_t type;
+    uint8_t type;
     char *group;
     char *key;
     const char *c_key;
@@ -44,7 +44,7 @@ typedef struct dap_store_obj_pkt {
     uint64_t timestamp;
     uint64_t data_size;
     uint32_t obj_count;
-	uint8_t data[];
+    uint8_t data[];
 }__attribute__((packed)) dap_store_obj_pkt_t;
 
 typedef int (*dap_db_driver_write_callback_t)(dap_store_obj_t*);

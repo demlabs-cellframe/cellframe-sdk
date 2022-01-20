@@ -3,7 +3,7 @@
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Kelvin Project https://github.com/kelvinblockchain
- * Copyright  (c) 2017-2018
+ * Copyright  (c) 2017-2019
  * All rights reserved.
 
  This file is part of DAP (Deus Applications Prototypes) the open source project
@@ -36,6 +36,6 @@ typedef struct dap_chain_cs_dag_poc
 #define DAP_CHAIN_CS_DAG_POC(a) ( (dap_chain_cs_dag_poc_t *) (a)->_inheritor)
 
 
-int dap_chain_cs_dag_poc_init();
+int dap_chain_cs_dag_poc_init(void);
 void dap_chain_cs_dag_poc_deinit(void);
-
+dap_cert_t **dap_chain_cs_dag_poc_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count);

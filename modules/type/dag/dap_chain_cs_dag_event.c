@@ -110,16 +110,52 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t 
  * @param l_key
  * @return
  */
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-                                                                      dap_enc_key_t * l_key)
+dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, 
+                                                            size_t * a_event_size_new,
+                                                            dap_chain_net_t * a_net, dap_enc_key_t * a_key)
 {
-    size_t l_event_signing_size = dap_chain_cs_dag_event_calc_size_excl_signs( a_event ,a_event_size);
-    dap_sign_t * l_sign = dap_sign_create(l_key,a_event,l_event_signing_size,0);
+    size_t l_hashes_size = a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
+    dap_chain_datum_t * l_datum = (dap_chain_datum_t*)(a_event->hashes_n_datum_n_signs + l_hashes_size);
+    size_t l_datum_size =  dap_chain_datum_size(l_datum);
+    size_t l_event_size_excl_sign = sizeof(a_event->header)+l_hashes_size+l_datum_size;
+    // size_t l_event_size_excl_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_event,a_event_size);
+    size_t l_event_size = a_event_size;
+    size_t l_event_signs_size = l_event_size - l_event_size_excl_sign;
+    dap_sign_t * l_sign = dap_sign_create(a_key,a_event,l_event_size_excl_sign,0);
+
     size_t l_sign_size = dap_sign_get_size(l_sign);
-    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, a_event_size+l_sign_size);
-    memcpy(l_event_new, a_event,a_event_size);
-    memcpy(l_event_new+a_event_size,l_sign,l_sign_size);
+    dap_chain_addr_t l_addr = {0};
+    dap_chain_hash_fast_t l_pkey_hash;
+    dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+    dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_net->pub.id);
+    char * l_addr_str = dap_chain_addr_to_str(&l_addr);
+
+    size_t l_offset = l_hashes_size+l_datum_size;
+    // checking re-sign from one address and calc signs size
+    while ( l_offset+sizeof(a_event->header) < l_event_size  ) {
+        dap_sign_t * l_item_sign = (dap_sign_t *)(a_event->hashes_n_datum_n_signs +l_offset);
+        size_t l_sign_size = dap_sign_get_size(l_item_sign);
+        dap_chain_addr_t l_item_addr = {0};
+        dap_chain_hash_fast_t l_item_pkey_hash;
+        dap_sign_get_pkey_hash(l_item_sign, &l_item_pkey_hash);
+        dap_chain_addr_fill(&l_item_addr, l_item_sign->header.type, &l_item_pkey_hash, a_net->pub.id);
+        // checking re-sign from one address
+        if (memcmp(&l_addr, &l_item_addr, sizeof(l_item_addr)) == 0) {
+            log_it(L_DEBUG, "Sign from this addr exists: %s", l_addr_str);
+            DAP_DELETE(l_sign);
+            DAP_DELETE(l_addr_str);
+            return NULL;
+        }
+        l_offset += l_sign_size;
+    }
+    // dap_chain_cs_dag_event_t * l_event_new = DAP_REALLOC(a_event, l_event_size+l_sign_size);
+    dap_chain_cs_dag_event_t * l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size+l_sign_size);
+    memcpy(l_event_new, a_event, l_event_size);
+    memcpy(l_event_new->hashes_n_datum_n_signs+l_offset, l_sign, l_sign_size);
+    *a_event_size_new = l_event_size+l_sign_size;
     l_event_new->header.signs_count++;
+    DAP_DELETE(l_sign);
+    DAP_DELETE(l_addr_str);
     return l_event_new;
 }
 
@@ -150,6 +186,38 @@ dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event
         return (dap_sign_t*) l_signs + l_signs_offset;
     }else
         return NULL;
+}
+
+bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
+                                    const char *a_group, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
+    dap_chain_cs_dag_event_round_item_t * l_event_round_item = DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
+                                                                            sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_size );
+    l_event_round_item->event_size = a_event_size;
+    a_event_round_cfg->ts_update = (uint64_t)time(NULL);
+    // l_event_round_item->event = DAP_DUP_SIZE(a_event, a_event_size);
+    memcpy(&l_event_round_item->cfg, a_event_round_cfg, sizeof(dap_chain_cs_dag_event_round_cfg_t));
+    memcpy(l_event_round_item->event, a_event, a_event_size);
+    bool ret = dap_chain_global_db_gr_set(dap_strdup(a_event_hash_str), (uint8_t *)l_event_round_item,
+            dap_chain_cs_dag_event_round_item_get_size(l_event_round_item),
+            a_group);
+    DAP_DELETE(l_event_round_item);
+    return ret;
+}
+
+dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(char *a_event_hash_str, size_t * a_event_size, const char *a_group,
+                                                            dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
+    size_t l_event_round_item_size = 0;
+    dap_chain_cs_dag_event_round_item_t* l_event_round_item = 
+                (dap_chain_cs_dag_event_round_item_t*)dap_chain_global_db_gr_get(a_event_hash_str, &l_event_round_item_size, a_group );
+    if ( l_event_round_item == NULL )
+        return NULL;
+    size_t l_event_size = l_event_round_item->event_size;
+    dap_chain_cs_dag_event_t* l_event = DAP_NEW_SIZE(dap_chain_cs_dag_event_t, l_event_size);
+    memcpy(a_event_round_cfg, &l_event_round_item->cfg, sizeof(dap_chain_cs_dag_event_round_cfg_t));
+    memcpy(l_event, l_event_round_item->event, l_event_size);
+    DAP_DELETE(l_event_round_item);
+    *a_event_size = l_event_size;
+    return l_event;
 }
 
 
