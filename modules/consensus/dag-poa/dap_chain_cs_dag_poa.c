@@ -91,7 +91,7 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t * a_dag, dap_ch
                                             dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
 static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event,
                                     char * a_event_hash_hex_str, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
-static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, char * a_event_hash_hex_str);
+static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_event_hash_hex_str);
 
 // CLI commands
 static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
@@ -346,7 +346,7 @@ typedef struct event_clean_dup_items {
 
 static event_clean_dup_items_t *s_event_clean_dup_items = NULL;
 
-static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, char * a_event_hash_hex_str) {
+static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_event_hash_hex_str) {
     char * l_gdb_group_events = a_dag->gdb_group_events_round_new;
     size_t l_event_size = 0;
     dap_chain_cs_dag_event_t * l_event;

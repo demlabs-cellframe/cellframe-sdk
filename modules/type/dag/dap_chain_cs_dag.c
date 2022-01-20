@@ -1656,11 +1656,11 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         DAP_DELETE(l_hash_str);
                         dap_string_append_printf(l_str_tmp,
                             "\t\t\t\tts_update: %s", 
-                            dap_ctime_r(&l_event_round_cfg.ts_update, buf) );
+                            dap_ctime_r((time_t *)&l_event_round_cfg.ts_update, buf) );
                         if (l_event_round_cfg.ts_confirmations_minimum_completed != 0)
                             dap_string_append_printf(l_str_tmp,
                                 "\t\t\t\tts_confirmations_minimum_completed: %s", 
-                                dap_ctime_r(&l_event_round_cfg.ts_confirmations_minimum_completed, buf) );
+                                dap_ctime_r((time_t *)&l_event_round_cfg.ts_confirmations_minimum_completed, buf) );
                     }
 
                      // Header
