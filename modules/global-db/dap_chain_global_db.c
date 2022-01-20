@@ -604,10 +604,8 @@ bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
  * @param a_group a group name string
  * @return True if object was deleted or false otherwise.
  */
-bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
+bool dap_chain_global_db_gr_del(char *a_key, const char *a_group)
 {
-    if(!a_key)
-        return NULL;
     dap_store_obj_t store_data;
     memset(&store_data, 0, sizeof(dap_store_obj_t));
     store_data.key = dap_strdup(a_key);
@@ -615,16 +613,18 @@ bool dap_chain_global_db_gr_del(char *a_key,const char *a_group)
     lock();
     int l_res = dap_chain_global_db_driver_delete(&store_data, 1);
     unlock();
-    if(l_res >= 0) {
-        // add to Del group
-        global_db_gr_del_add(dap_strdup(a_key), store_data.group, time(NULL));
-    }
-    // do not add to history if l_res=1 (already deleted)
-    if (!l_res) {
-        store_data.key = a_key;
-        dap_global_db_obj_track_history(&store_data);
-    } else {
-        DAP_DELETE(a_key);
+    if (a_key) {
+        if (l_res >= 0) {
+            // add to Del group
+            global_db_gr_del_add(dap_strdup(a_key), store_data.group, time(NULL));
+        }
+        // do not add to history if l_res=1 (already deleted)
+        if (!l_res) {
+            store_data.key = a_key;
+            dap_global_db_obj_track_history(&store_data);
+        } else {
+            DAP_DELETE(a_key);
+        }
     }
     return !l_res;
 }

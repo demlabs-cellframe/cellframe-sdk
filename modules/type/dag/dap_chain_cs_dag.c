@@ -382,9 +382,10 @@ static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_
     if (s_debug_more) {
         char l_buf_hash[128] = {'\0'};
         dap_chain_hash_fast_to_str(&a_event_item->hash,l_buf_hash,sizeof(l_buf_hash)-1);
-        log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
         if (l_ledger_res != 0)
             log_it(L_WARNING,"Dag event %s checked, but ledger declined: code %d", l_buf_hash, l_ledger_res);
+        else
+            log_it(L_DEBUG,"Dag event %s checked, add it to ledger", l_buf_hash);
     }
     return l_ledger_res;
 }
@@ -1655,11 +1656,11 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         DAP_DELETE(l_hash_str);
                         dap_string_append_printf(l_str_tmp,
                             "\t\t\t\tts_update: %s", 
-                            dap_ctime_r(&l_event_round_cfg.ts_update, buf) );
+                            dap_ctime_r((time_t *)&l_event_round_cfg.ts_update, buf) );
                         if (l_event_round_cfg.ts_confirmations_minimum_completed != 0)
                             dap_string_append_printf(l_str_tmp,
                                 "\t\t\t\tts_confirmations_minimum_completed: %s", 
-                                dap_ctime_r(&l_event_round_cfg.ts_confirmations_minimum_completed, buf) );
+                                dap_ctime_r((time_t *)&l_event_round_cfg.ts_confirmations_minimum_completed, buf) );
                     }
 
                      // Header

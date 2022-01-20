@@ -499,7 +499,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if (s_debug_more){
             char l_atom_hash_str[72]={[0]='\0'};
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
-            log_it(L_WARNING,"Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
+            log_it(L_INFO, "%s atom with hash %s for %s:%s", l_atom_add_res == ATOM_ACCEPT ? "Accepted" : "Thresholded",
+                            l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
         dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         DAP_DELETE(l_atom_copy);
