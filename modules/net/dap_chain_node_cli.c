@@ -67,6 +67,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_node_commands.h"
 
 //#include "dap_chain_node_cli.h"
 
@@ -93,9 +94,9 @@ static dap_chain_node_cmd_item_t * s_commands = NULL;
  * return zero if the time limit expired
  * return: >0 if data is present to read
  * return: -1 if error
- * @param socket 
- * @param timeout 
- * @return int 
+ * @param socket
+ * @param timeout
+ * @return int
  */
 static int s_poll( int socket, int timeout )
 {
@@ -118,9 +119,9 @@ static int s_poll( int socket, int timeout )
 /**
  * @brief is_valid_socket
  * Check socket for validity
- * @param sock 
- * @return true 
- * @return false 
+ * @param sock
+ * @return true
+ * @return false
  */
 static bool is_valid_socket(SOCKET sock)
 {
@@ -156,11 +157,11 @@ static bool is_valid_socket(SOCKET sock)
  * @brief s_recv
  * timeout in milliseconds
  * return the number of read bytes (-1 err or -2 timeout)
- * @param sock 
- * @param buf 
- * @param bufsize 
- * @param timeout 
- * @return long 
+ * @param sock
+ * @param buf
+ * @param bufsize
+ * @param timeout
+ * @return long
  */
 long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
 {
@@ -193,12 +194,12 @@ long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
  * del_stop_str - удалять ли строку для поиска в конце
  * timeout - in ms
  * return: string (if waited for final characters) or NULL, if the string requires deletion
- * @param nSocket 
- * @param dwLen 
- * @param stop_str 
- * @param del_stop_str 
- * @param timeout 
- * @return char* 
+ * @param nSocket
+ * @param dwLen
+ * @param stop_str
+ * @param del_stop_str
+ * @param timeout
+ * @return char*
  */
 char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
 {
@@ -405,13 +406,13 @@ static void* thread_one_client_func(void *args)
 
 /**
  * @brief p_get_next_str
- * 
- * @param hPipe 
- * @param dwLen 
- * @param stop_str 
- * @param del_stop_str 
- * @param timeout 
- * @return char* 
+ *
+ * @param hPipe
+ * @param dwLen
+ * @param stop_str
+ * @param del_stop_str
+ * @param timeout
+ * @return char*
  */
 char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
 {
@@ -491,8 +492,8 @@ char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_s
 /**
  * @brief thread_pipe_client_func
  * threading function for processing a request from a client
- * @param args 
- * @return void* 
+ * @param args
+ * @return void*
  */
 static void *thread_pipe_client_func( void *args )
 {
@@ -647,8 +648,8 @@ static void *thread_pipe_client_func( void *args )
 /**
  * @brief thread_pipe_func
  * main threading server function pipe win32
- * @param args 
- * @return void* 
+ * @param args
+ * @return void*
  */
 static void* thread_pipe_func( void *args )
 {
@@ -700,8 +701,8 @@ static void* thread_pipe_func( void *args )
 /**
  * @brief thread_main_func
  * main threading server function
- * @param args 
- * @return void* 
+ * @param args
+ * @return void*
  */
 static void* thread_main_func(void *args)
 {
@@ -735,9 +736,9 @@ static void* thread_main_func(void *args)
 /**
  * @brief dap_chain_node_cli_set_reply_text
  * Write text to reply string
- * @param str_reply 
- * @param str 
- * @param ... 
+ * @param str_reply
+ * @param str
+ * @param ...
  */
 void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
 {
@@ -784,12 +785,12 @@ int dap_chain_node_cli_check_option( char** argv, int arg_start, int arg_end, co
 /**
  * @brief dap_chain_node_cli_find_option_val
  * return index of string in argv, or 0 if not found
- * @param argv 
- * @param arg_start 
- * @param arg_end 
- * @param opt_name 
- * @param opt_value 
- * @return int 
+ * @param argv
+ * @param arg_start
+ * @param arg_end
+ * @param opt_name
+ * @param opt_value
+ * @return int
  */
 int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
 {
@@ -851,9 +852,9 @@ void dap_chain_node_cli_cmd_item_create_ex(const char * a_name, cmdfunc_ex_t *a_
 
 /**
  * @brief dap_chain_node_cli_cmd_item_apply_overrides
- * 
- * @param a_name 
- * @param a_overrides 
+ *
+ * @param a_name
+ * @param a_overrides
  */
 void dap_chain_node_cli_cmd_item_apply_overrides(const char * a_name, const dap_chain_node_cmd_item_func_overrides_t * a_overrides){
     dap_chain_node_cmd_item_t *l_cmd_item = dap_chain_node_cli_cmd_find(a_name);
@@ -889,8 +890,8 @@ dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name)
  * with the console kelvin-node-cli
  * init commands description
  * return 0 if OK, -1 error
- * @param g_config 
- * @return int 
+ * @param g_config
+ * @return int
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
@@ -923,45 +924,54 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     }
 #endif
 
-    dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
-            "global_db cells add -cell <cell id> \n"
-            "global_db flush \n\n"
+    int str_size = strlen(globalDBCellsAddParams) + strlen(globalDBFlushParams);
+    char *global_db_params = (char*)malloc(str_size * sizeof (char));
+    snprintf(global_db_params, str_size, "%s%s", globalDBCellsAddParams, globalDBFlushParams);
+    dap_chain_node_cli_cmd_item_create(globalDB, com_global_db, "Work with global database",
+            global_db_params
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
+    free(global_db_params);
 
-    dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
-            "node add  -net <net name> -addr {<node address> | -alias <node alias>} {-port <port>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
-                    "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
-                    "node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
-                    "node alias -addr <node address> -alias <node alias>\n\n"
-                    "node connect {<node address> | -alias <node alias> | auto}\n\n"
-                    "node handshake {<node address> | -alias <node alias>}\n"
-                    "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
-                                        );
-    dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
-            "ping [-c <count>] host\n");
-    dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
-            "traceroute host\n");
-    dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath,"Traces path to a network host along this path",
-            "tracepath host\n");
-    dap_chain_node_cli_cmd_item_create ("version", com_version, "Return software version",
-                                        "version\n"
-                                        "\tReturn version number\n"
-                                        );
+    str_size = strlen(nodeAddParams) + strlen(nodeDelParams) + strlen(nodeLinkParams) + strlen(nodeAliasParams) + strlen(nodeConnectParams) + strlen(nodeHandshakeParams) + strlen(nodeDumpParams);
+    char *node_params = (char*)malloc(str_size * sizeof (char));
+    snprintf(node_params, str_size, "%s%s%s%s%s%s%s", nodeAddParams, nodeDelParams, nodeLinkParams, nodeAliasParams, nodeConnectParams, nodeHandshakeParams, nodeDumpParams);
+    dap_chain_node_cli_cmd_item_create(node, com_node, "Work with node", node_params);
+    free(node_params);
 
-    dap_chain_node_cli_cmd_item_create ("help", com_help, "Description of command parameters",
-                                        "help [<command>]\n"
-                                        "\tObtain help for <command> or get the total list of the commands\n"
+    dap_chain_node_cli_cmd_item_create (ping, com_ping, "Send ICMP ECHO_REQUEST to network hosts",
+            pingParams);
+    dap_chain_node_cli_cmd_item_create (traceroute, com_traceroute, "Print the hops and time of packets trace to network host",
+            tracerouteHostParams);
+    dap_chain_node_cli_cmd_item_create (tracepath, com_tracepath,"Traces path to a network host along this path",
+            tracepathHostParams);
+
+    str_size = strlen(versionParams) + strlen(reternVersionNumberParams);
+    char *global_version_params = (char*)malloc(str_size * sizeof (char));
+    snprintf(global_version_params, str_size, "%s%s", versionParams, reternVersionNumberParams);
+    dap_chain_node_cli_cmd_item_create (version, com_version, "Return software version",
+                                        global_version_params
                                         );
+    free(global_version_params);
+
+    str_size = strlen(helpParams) + strlen(bigHelpParams);
+    char *global_help_params = (char*)malloc(str_size * sizeof (char));
+    snprintf(global_help_params, str_size, "%s%s", helpParams, bigHelpParams);
+    dap_chain_node_cli_cmd_item_create (help, com_help, "Description of command parameters",
+                                        global_help_params
+                                        );
+    free(global_help_params);
+
     dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for \"help\"",
                                         "? [<command>]\n"
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
-    dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
-            "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
+
+    dap_chain_node_cli_cmd_item_create(wallet, com_tx_wallet, "Wallet operations",
+            walletParams);
 
     // Token commands
-    dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, "Token update",
+    dap_chain_node_cli_cmd_item_create (tokenUpdate, com_token_update, "Token update",
             "\nPrivate token update\n"
             "\t token_update -net <net name> -chain <chain name> -token <token ticker> [-type private] [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Update private token <token ticker> for <netname>:<chain name> with"
@@ -1011,7 +1021,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\n"
             );
     // Token commands
-    dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
+    dap_chain_node_cli_cmd_item_create (tokenDecl, com_token_decl, "Token declaration",
             "Simple token declaration:\n"
             "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
@@ -1050,68 +1060,70 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\n"
             );
 
-    dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
+    dap_chain_node_cli_cmd_item_create (tokenDeclSign, com_token_decl_sign, "Token declaration add sign",
             "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
-    dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> -addr <addr> -token <token ticker> -certs <cert> -emission_value <val>\n");
+    dap_chain_node_cli_cmd_item_create (tokenEmit, com_token_emit, "Token emission",
+            tokenEmitParams);
 
-    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network",
-            "mempool_list -net <net name>\n");
+    dap_chain_node_cli_cmd_item_create (mempoolList, com_mempool_list, "List mempool entries for selected chain network",
+            mempoolListParams);
 
-    dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
-            "mempool_proc -net <net name> -datum <datum hash>\n");
+    dap_chain_node_cli_cmd_item_create (mempoolProc, com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
+            mempoolProcParams);
 
-    dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
-            "mempool_delete -net <net name> -datum <datum hash>\n");
+    dap_chain_node_cli_cmd_item_create (mempoolDelete, com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
+            mempoolDeleteParams);
 
-    dap_chain_node_cli_cmd_item_create ("mempool_add_ca", com_mempool_add_ca,
+    dap_chain_node_cli_cmd_item_create (mempoolAddCa, com_mempool_add_ca,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
-            "mempool_add_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+            mempoolAddCaParams);
 
-    dap_chain_node_cli_cmd_item_create ("chain_ca_pub", com_chain_ca_pub,
+    dap_chain_node_cli_cmd_item_create (chainCaPub, com_chain_ca_pub,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
-            "chain_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+            chainCaParams);
 
-    dap_chain_node_cli_cmd_item_create ("chain_ca_copy", com_chain_ca_copy,
+    dap_chain_node_cli_cmd_item_create (chainCaCopy, com_chain_ca_copy,
                                         "Copy pubic certificate into the mempool to prepare its way to chains",
-            "chain_ca -net <net name> [-chain <chain name>] -ca_name <Public certificate name>\n");
+            chainCaCopyParams);
 
     // Transaction commands
-    dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
-    dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
-            "tx_cond_create -net <net name> -token <token_ticker> -wallet_f <wallet_from> -wallet_t <wallet_to>"
-                                        "-value <value_datoshi> -unit <mb|kb|b|sec|day> -service <vpn>\n" );
-    dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
-            "tx_verify -net <net name> -chain <chain name> -tx <tx_hash>\n" );
+    dap_chain_node_cli_cmd_item_create (txCreate, com_tx_create, "Make transaction",
+            txCreateParams);
+    dap_chain_node_cli_cmd_item_create (txCondCreate, com_tx_cond_create, "Make cond transaction",
+            txCondCreateParams);
+    dap_chain_node_cli_cmd_item_create (txVerify, com_tx_verify, "Verifing transaction in mempool",
+            txVerifyParams);
 
     // Transaction history
-    dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
+    dap_chain_node_cli_cmd_item_create(txHistory, com_tx_history, "Transaction history (for address or by hash)",
+            txHistoryParams);
 
     // Ledger info
-    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger info",
-            "ledger list coins -net <network name>\n"
-            "ledger list coins_cond -net <network name>\n"
-            "ledger list addrs -net <network name>\n"
-            "ledger tx [all | -addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
+    str_size = strlen(ledgerListCoinsParams) + strlen(ledgerListCoinsCondParams) + strlen(ledgerListAddrsParams) + strlen(ledgerTxParams);
+    char *global_ledger_params = (char*)malloc(str_size * sizeof (char));
+    snprintf(global_ledger_params, str_size, "%s%s%s%s", ledgerListCoinsParams, ledgerListCoinsCondParams, ledgerListAddrsParams, ledgerTxParams);
+    dap_chain_node_cli_cmd_item_create(ledger, com_ledger, "Ledger info",
+            global_ledger_params);
+    free(global_ledger_params);
 
     // Token info
-    dap_chain_node_cli_cmd_item_create("token", com_token, "Token info",
-            "token list -net <network name>\n"
-            "token info -net <network name> -name <token name>\n"
-            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token name> -net <network name> [-page_start <page>] [-page <page>]\n");
+    str_size = strlen(tokenListParams) + strlen(tokenInfoParams) + strlen(tokenTxParams);
+    char *global_token_params = (char*)malloc(str_size * sizeof (char));
+    snprintf(global_token_params, str_size, "%s%s%s", tokenListParams, tokenInfoParams, tokenTxParams);
+    dap_chain_node_cli_cmd_item_create(token, com_token, "Token info",
+             global_token_params);
+    free(global_token_params);
 
     // Log
-    dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
-                "print_log [ts_after <timestamp >] [limit <line numbers>]\n" );
+    dap_chain_node_cli_cmd_item_create (printLog, com_print_log, "Print log info",
+                printLogParams);
 
     // Statisticss
-    dap_chain_node_cli_cmd_item_create("stats", com_stats, "Print statistics",
-                "stats cpu");
+    dap_chain_node_cli_cmd_item_create(stats, com_stats, "Print statistics",
+                statsCpu);
 
 
 
@@ -1120,12 +1132,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                 "exit\n" );
 
      // Export GDB to JSON
-     dap_chain_node_cli_cmd_item_create("gdb_export", cmd_gdb_export, "Export gdb to JSON",
-                                        "gdb_export filename <filename without extension>");
+     dap_chain_node_cli_cmd_item_create(gdbExport, cmd_gdb_export, "Export gdb to JSON",
+                                        gdbExportFilenameParams);
 
      //Import GDB from JSON
-     dap_chain_node_cli_cmd_item_create("gdb_import", cmd_gdb_import, "Import gdb from JSON",
-                                        "gdb_import filename <filename without extension>");
+     dap_chain_node_cli_cmd_item_create(gdbImport, cmd_gdb_import, "Import gdb from JSON",
+                                        gdbImportFilenameParams);
 
     // create thread for waiting of clients
     pthread_t l_thread_id;
