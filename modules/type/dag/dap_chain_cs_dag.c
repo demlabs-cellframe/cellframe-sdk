@@ -26,6 +26,7 @@
 #include <pthread.h>
 #include "errno.h"
 #include "uthash.h"
+#include "utlist.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -548,12 +549,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
     dap_chain_hash_fast_t * l_hashes = l_hashes_size ?DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
                                              sizeof(dap_chain_hash_fast_t) * l_hashes_size) : NULL;
     size_t l_hashes_linked = 0;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    dap_chain_cell_id_t l_cell_id = {
-        .uint64 = l_net ? l_net->pub.cell_id.uint64 : 0
-    };
-    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, l_cell_id);
-
     for (size_t d = 0; d <a_datums_count ; d++){
         dap_chain_datum_t * l_datum = a_datums[d];
         if(l_datum == NULL){ // Was wrong datum thats not passed checks
@@ -636,31 +631,28 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             if ( l_event&&l_event_size){ // Event is created
                 if (l_dag->is_add_directly) {
                     if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
-                        // add events to file
-                        if (!l_cell) {
-                            l_cell = dap_chain_cell_create_fill(a_chain, l_cell_id);
-                        }
-                        if (dap_chain_cell_file_append(l_cell, l_event, l_event_size )  < 0) {
-                            log_it(L_ERROR, "Can't add new event to the file '%s'", l_cell->file_storage_path);
-                            continue;
+                        if (dap_chain_atom_save(a_chain, (uint8_t *)l_event, l_event_size, a_chain->cells->id) < 0) {
+                            log_it(L_ERROR, "Can't add new event to the file");
                         }
                         // add all atoms from treshold
-                        {
-                            dap_chain_atom_ptr_t l_atom_treshold;
-                            do {
-                                size_t l_atom_treshold_size;
-                                // add in ledger
-                                l_atom_treshold = s_chain_callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
-                                // add into file
-                                if(l_atom_treshold) {
-                                    int l_res = dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
-                                    if(l_res < 0) {
-                                        log_it(L_ERROR, "Can't save event %p from treshold to the file '%s'",
-                                                l_atom_treshold, l_cell ? l_cell->file_storage_path : "[null]");
+                        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+                        dap_chain_t *l_cur_chain;
+                        DL_FOREACH(l_net->pub.chains, l_cur_chain) {
+                            if (l_cur_chain->callback_atom_add_from_treshold) {
+                                dap_chain_atom_ptr_t l_atom_treshold;
+                                do {
+                                    size_t l_atom_treshold_size;
+                                    // add in ledger
+                                    l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
+                                    // add into file
+                                    if (l_atom_treshold) {
+                                        int l_res = dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cur_chain->cells->id);
+                                        if (l_res < 0) {
+                                            log_it(L_ERROR, "Can't save event %p from treshold", l_atom_treshold);
+                                        }
                                     }
-                                }
+                                } while (l_atom_treshold);
                             }
-                            while(l_atom_treshold);
                         }
                         l_datum_processed++;
                     }
@@ -721,9 +713,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         }
     }
     DAP_DELETE(l_hashes);
-    if (l_cell) {
-        dap_chain_cell_close(l_cell);
-    }
     dap_chain_global_db_objs_delete(l_events_round_new, l_events_round_new_size);
     return  l_datum_processed;
 }

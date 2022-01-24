@@ -1142,7 +1142,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 
         case NET_STATE_LINKS_CONNECTING: {
             log_it(L_INFO, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
-            int l_used_links = 0;
+            size_t l_used_links = 0;
             for (dap_list_t *l_tmp = l_net_pvt->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = ((struct net_link *)l_tmp->data)->link_info;
                 dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, l_link_info);
