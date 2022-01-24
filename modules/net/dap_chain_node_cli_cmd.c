@@ -3281,13 +3281,10 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // Create emission datum
     // then create datum in memory
     if (!l_emission) {
-        char * l_gdb_group_mempool_emission;
-        if(l_chain_emission) {
-            l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
+        if (!l_chain_emission) {
+            l_chain_emission = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
         }
-        else {
-            l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
-        }
+        char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
         size_t l_emission_size = sizeof(l_emission->hdr) +
                 sizeof(l_emission->data.type_auth.signs_count);
 
@@ -3349,7 +3346,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     l_tx->header.ts_created = time(NULL);
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     // create items
-    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(&l_emission_hash, l_ticker);
+    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(l_chain_emission->id, &l_emission_hash, l_ticker);
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
     dap_chain_256_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(l_addr, l_emission_value);
 
