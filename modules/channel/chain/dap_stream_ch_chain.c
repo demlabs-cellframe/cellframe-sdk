@@ -109,6 +109,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg);
 
 static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
 static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_arg);
+static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain);
 
 static bool s_debug_more=false;
 static uint_fast16_t s_update_pack_size=100; // Number of hashes packed into the one packet
@@ -398,7 +399,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 	if (l_ch == NULL) {
 		log_it(L_INFO, "Client disconnected before we sent the reply");
 		s_sync_request_delete(l_sync_request);
-		return;
+        return true;
 	}
 	dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
 
@@ -528,7 +529,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if (s_debug_more) {
             char l_atom_hash_str[72]={'\0'};
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
-            log_it(L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
+            log_it(L_INFO, "%s atom with hash %s for %s:%s", l_atom_add_res == ATOM_ACCEPT ? "Accepted" : "Thresholded",
+                            l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
         dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(l_chain, l_sync_request->request_hdr.cell_id);
         if (!l_cell) {
@@ -1425,7 +1427,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
  * @brief dap_stream_ch_chain_go_idle_and_free_log_list
  * @param a_ch_chain
  */
-void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
+static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
 {
     // free log list
     dap_db_log_list_delete(a_ch_chain->request_db_log);

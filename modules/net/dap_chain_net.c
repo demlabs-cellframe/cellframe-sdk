@@ -1783,6 +1783,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
                 } else {
                     dap_chain_load_all(l_chain);
+                    if (l_chain->callback_atom_add_from_treshold) {
+                        while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                            log_it(L_DEBUG, "Added atom from treshold");
+                        }
+                    }
+
                 }
             }
         } else {
