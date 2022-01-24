@@ -925,19 +925,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 #endif
 
     int str_size = strlen(globalDBCellsAddParams) + strlen(globalDBFlushParams);
-    char *global_db_params = (char*)malloc(str_size * sizeof (char));
-    snprintf(global_db_params, str_size, "%s%s", globalDBCellsAddParams, globalDBFlushParams);
+    char *global_db_params = DAP_NEW_SIZE(char, str_size * sizeof (char));
+    dap_snprintf(global_db_params, str_size, "%s%s", globalDBCellsAddParams, globalDBFlushParams);
     dap_chain_node_cli_cmd_item_create(globalDB, com_global_db, "Work with global database",
             global_db_params
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
-    free(global_db_params);
+    DAP_FREE(global_db_params);
 
     str_size = strlen(nodeAddParams) + strlen(nodeDelParams) + strlen(nodeLinkParams) + strlen(nodeAliasParams) + strlen(nodeConnectParams) + strlen(nodeHandshakeParams) + strlen(nodeDumpParams);
-    char *node_params = (char*)malloc(str_size * sizeof (char));
-    snprintf(node_params, str_size, "%s%s%s%s%s%s%s", nodeAddParams, nodeDelParams, nodeLinkParams, nodeAliasParams, nodeConnectParams, nodeHandshakeParams, nodeDumpParams);
+    char *node_params = DAP_NEW_SIZE(char, str_size * sizeof (char));
+    dap_snprintf(node_params, str_size, "%s%s%s%s%s%s%s", nodeAddParams, nodeDelParams, nodeLinkParams, nodeAliasParams, nodeConnectParams, nodeHandshakeParams, nodeDumpParams);
     dap_chain_node_cli_cmd_item_create(node, com_node, "Work with node", node_params);
-    free(node_params);
+    DAP_FREE(node_params);
 
     dap_chain_node_cli_cmd_item_create (ping, com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             pingParams);
@@ -947,20 +947,20 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             tracepathHostParams);
 
     str_size = strlen(versionParams) + strlen(reternVersionNumberParams);
-    char *global_version_params = (char*)malloc(str_size * sizeof (char));
-    snprintf(global_version_params, str_size, "%s%s", versionParams, reternVersionNumberParams);
+    char *global_version_params = DAP_NEW_SIZE(char, str_size * sizeof (char));
+    dap_snprintf(global_version_params, str_size, "%s%s", versionParams, reternVersionNumberParams);
     dap_chain_node_cli_cmd_item_create (version, com_version, "Return software version",
                                         global_version_params
                                         );
-    free(global_version_params);
+    DAP_FREE(global_version_params);
 
     str_size = strlen(helpParams) + strlen(bigHelpParams);
-    char *global_help_params = (char*)malloc(str_size * sizeof (char));
-    snprintf(global_help_params, str_size, "%s%s", helpParams, bigHelpParams);
+    char *global_help_params = DAP_NEW_SIZE(char, str_size * sizeof (char));
+    dap_snprintf(global_help_params, str_size, "%s%s", helpParams, bigHelpParams);
     dap_chain_node_cli_cmd_item_create (help, com_help, "Description of command parameters",
                                         global_help_params
                                         );
-    free(global_help_params);
+    DAP_FREE(global_help_params);
 
     dap_chain_node_cli_cmd_item_create ("?", com_help, "Synonym for \"help\"",
                                         "? [<command>]\n"
@@ -1103,19 +1103,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Ledger info
     str_size = strlen(ledgerListCoinsParams) + strlen(ledgerListCoinsCondParams) + strlen(ledgerListAddrsParams) + strlen(ledgerTxParams);
-    char *global_ledger_params = (char*)malloc(str_size * sizeof (char));
-    snprintf(global_ledger_params, str_size, "%s%s%s%s", ledgerListCoinsParams, ledgerListCoinsCondParams, ledgerListAddrsParams, ledgerTxParams);
+    char *global_ledger_params = DAP_NEW_SIZE(char, str_size * sizeof (char));
+    dap_snprintf(global_ledger_params, str_size, "%s%s%s%s", ledgerListCoinsParams, ledgerListCoinsCondParams, ledgerListAddrsParams, ledgerTxParams);
     dap_chain_node_cli_cmd_item_create(ledger, com_ledger, "Ledger info",
             global_ledger_params);
-    free(global_ledger_params);
+    DAP_FREE(global_ledger_params);
 
     // Token info
     str_size = strlen(tokenListParams) + strlen(tokenInfoParams) + strlen(tokenTxParams);
-    char *global_token_params = (char*)malloc(str_size * sizeof (char));
-    snprintf(global_token_params, str_size, "%s%s%s", tokenListParams, tokenInfoParams, tokenTxParams);
+    char *global_token_params = DAP_NEW_SIZE(char, str_size * sizeof (char));
+    dap_snprintf(global_token_params, str_size, "%s%s%s", tokenListParams, tokenInfoParams, tokenTxParams);
     dap_chain_node_cli_cmd_item_create(token, com_token, "Token info",
              global_token_params);
-    free(global_token_params);
+    DAP_FREE(global_token_params);
 
     // Log
     dap_chain_node_cli_cmd_item_create (printLog, com_print_log, "Print log info",
