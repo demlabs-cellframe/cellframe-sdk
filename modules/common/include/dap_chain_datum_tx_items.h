@@ -80,7 +80,7 @@ size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item);
  *
  * return item, NULL Error
  */
-dap_chain_tx_token_t* dap_chain_datum_tx_item_token_create(dap_chain_hash_fast_t * a_datum_token_hash,const char * a_ticker);
+dap_chain_tx_token_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
 
 /**
  * Create item dap_chain_tx_out_t
