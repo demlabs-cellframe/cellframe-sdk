@@ -783,6 +783,9 @@ static bool s_chain_timer_callback(void *a_arg)
         if (l_ch_chain->state != CHAIN_STATE_IDLE) {
             dap_stream_ch_chain_go_idle(l_ch_chain);
         }
+        if (l_ch_chain->callback_notify_packet_out)
+            l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT, NULL, 0,
+                                                   l_ch_chain->callback_notify_arg);
         DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
