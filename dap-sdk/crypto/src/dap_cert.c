@@ -226,7 +226,6 @@ dap_cert_t * dap_cert_generate_mem_with_seed(const char * a_cert_name, dap_enc_k
         return l_cert;
     } else {
         log_it(L_ERROR,"Can't generate key in memory!");
-        dap_cert_delete(l_cert);
         return NULL;
     }
 }
