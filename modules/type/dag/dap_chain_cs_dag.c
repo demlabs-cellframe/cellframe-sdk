@@ -258,15 +258,17 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     char * l_round_new_str = dap_strdup( dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new", "new"));
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if(!l_dag->is_celled){
-        l_dag->gdb_group_events_round_new = dap_strdup_printf( "round.%016llX.%016llX.%s",l_net->pub.id.uint64,
-                                                  a_chain->id.uint64, l_round_new_str);
+        //char * gdb_group = dap_strdup_printf( "%016llx-%016llx-round", l_net->pub.id.uint64, a_chain->id.uint64);
+        char * gdb_group = dap_strdup_printf( "%s-%s-round", l_net->pub.name, a_chain->name);
+        l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", gdb_group, l_round_new_str);
+        dap_chain_global_db_add_sync_group(gdb_group, s_history_callback_round_notify, l_dag);
     }else {
-        l_dag->gdb_group_events_round_new = dap_strdup_printf( "round.%016llX.%016llX.%016llX.%s",l_net->pub.id.uint64,
-                                                  a_chain->id.uint64, l_net->pub.cell_id.uint64, l_round_new_str);
+        //char * gdb_group = dap_strdup_printf( "%016llx-%016llx-%016llx-round", l_net->pub.id.uint64, a_chain->id.uint64, l_net->pub.cell_id.uint64);
+        char * gdb_group = dap_strdup_printf( "%s-%s-%016llx-round", l_net->pub.name, a_chain->name, l_net->pub.cell_id.uint64);
+        l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", gdb_group, l_round_new_str);
+        dap_chain_global_db_add_sync_group(gdb_group, s_history_callback_round_notify, l_dag);
     }
     DAP_DELETE(l_round_new_str);
-
-    dap_chain_global_db_add_sync_group("round", s_history_callback_round_notify, l_dag);
 
     if ( l_dag->is_single_line ) {
         log_it (L_NOTICE, "DAG chain initialized (single line)");
