@@ -832,6 +832,10 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
         if (((struct net_link *)it->data)->link == a_node_client) {
             log_it(L_DEBUG,"Replace node client with new one");
             ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
+            if (l_net_pvt->links_connected_count)
+                l_net_pvt->links_connected_count--;
+            else
+                log_it(L_ERROR, "Links count is zero in delete callback");
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
