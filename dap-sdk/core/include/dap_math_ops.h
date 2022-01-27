@@ -83,6 +83,10 @@ const uint64_t ones_64=0xffffffffffffffff;
 
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static inline bool EQUAL_128(uint128_t a_128_bit, uint128_t b_128_bit){
 #ifdef DAP_GLOBAL_IS_INT128
     return a_128_bit == b_128_bit;
@@ -889,4 +893,7 @@ void bindivmod128(uint128_t M, uint128_t N, uint128_t* Q, uint128_t* R)
 uint128_t dap_uint128_substract(uint128_t a, uint128_t b);
 uint128_t dap_uint128_add(uint128_t a, uint128_t b);
 bool dap_uint128_check_equal(uint128_t a, uint128_t b);
+#endif
+#ifdef __cplusplus
+}
 #endif
