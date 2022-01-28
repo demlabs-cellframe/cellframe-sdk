@@ -377,6 +377,12 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     return 0;
 }
 
+/**
+ * @brief get PVT(a_net)->state_target from dap_chain_net_t object
+ * 
+ * @param a_net dap_chain_net_t
+ * @return dap_chain_net_state_t 
+ */
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 {
     return PVT(a_net)->state_target;
@@ -471,10 +477,13 @@ static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, c
 }
 
 /**
- * @brief s_chain_callback_notify
- * @param a_arg
- * @param a_chain
- * @param a_id
+ * @brief added as a_chain->callback_notify function in dap_chain_t object 
+ * through dap_chain_add_callback_notify
+ * @param a_arg 
+ * @param a_chain dap_chain_t object
+ * @param a_id cell id
+ * @param a_atom pointer to atom
+ * @param a_atom_size atom size
  */
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size)
 {
@@ -496,6 +505,12 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
     }
 }
 
+/**
+ * @brief 
+ * 
+ * @param a_net 
+ * @return dap_chain_node_info_t* 
+ */
 static dap_chain_node_info_t *s_get_dns_link_from_cfg(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
@@ -760,10 +775,11 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
 }
 
 /**
- * @brief s_node_link_callback_stage
- * @param a_node_client
- * @param a_stage
- * @param a_arg
+ * @brief 
+ * 
+ * @param a_node_client 
+ * @param a_stage 
+ * @param a_arg 
  */
 static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg)
 {
@@ -783,10 +799,11 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 }
 
 /**
- * @brief s_node_link_callback_error
- * @param a_node_client
- * @param a_error
- * @param a_arg
+ * @brief 
+ * 
+ * @param a_node_client 
+ * @param a_error 
+ * @param a_arg 
  */
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg)
 {
@@ -805,9 +822,10 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
 }
 
 /**
- * @brief s_node_link_callback_delete
- * @param a_node_client
- * @param a_arg
+ * @brief 
+ * 
+ * @param a_node_client 
+ * @param a_arg 
  */
 static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg)
 {
@@ -999,8 +1017,12 @@ static void s_net_links_notify(dap_chain_net_t * a_net )
 }
 
 /**
- * @brief s_net_states_proc
- * @param l_net
+ * @brief 
+ * 
+ * @param a_thread 
+ * @param a_arg 
+ * @return true 
+ * @return false 
  */
 static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 {
@@ -1178,6 +1200,14 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     return ! l_repeat_after_exit;
 }
 
+/**
+ * @brief 
+ * 
+ * @param a_net 
+ * @param a_client 
+ * @return true 
+ * @return false 
+ */
 bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
@@ -1202,6 +1232,12 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     return !l_found;
 }
 
+/**
+ * @brief 
+ * 
+ * @param a_net 
+ * @param a_client 
+ */
 void dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
     if (!a_net)
@@ -1376,6 +1412,12 @@ void dap_chain_net_load_all()
     DAP_DELETE (l_net_dir_str);
 }
 
+/**
+ * @brief 
+ * 
+ * @param a_str_reply 
+ * @param a_net 
+ */
 void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
     char* l_node_address_text_block = NULL;
     dap_chain_node_addr_t l_cur_node_addr = { 0 };

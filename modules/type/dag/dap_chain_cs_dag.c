@@ -164,6 +164,16 @@ void dap_chain_cs_dag_deinit(void)
 
 }
 
+/**
+ * @brief callback during round verification, calling from dap_global_db_obj_track_history (l_sync_group_item->callback_notify)
+ * 
+ * @param a_arg callabck function arguments (dap_chain_cs_dag_t)
+ * @param a_op_code opcode letter (f.e. "a","d")
+ * @param a_group group name, f.e. "home21-network-poa-0000000000000000-round.new"
+ * @param a_key key in hex format, f.e. "0x9AE0BDCE677D3B7CBE836B2C1E76F63B9130F5A7E1C941B61A5221859C0ADA31"
+ * @param a_value 
+ * @param a_value_size size of value
+ */
 static void s_history_callback_round_notify(void * a_arg, const char a_op_code, const char * a_group,
         const char * a_key, const void * a_value, const size_t a_value_size)
 {
