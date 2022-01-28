@@ -23,10 +23,10 @@
 */
 #pragma once
 
+#include "dap_chain_net.h"
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
-#include "dap_chain_net.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
 
