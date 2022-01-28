@@ -688,7 +688,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     // consensus emulation
     //
 
-    if (dap_file_test("D://Distr//concensus.txt"))
+    if (dap_file_test("C://Distr//concensus.txt"))
     {
          log_it(L_NOTICE, "Consensus file is found");
          //return 0;
