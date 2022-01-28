@@ -79,6 +79,10 @@ typedef struct uint512_t {
 #define ones_64 ((uint64_t)0xffffffffffffffff)
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static inline uint128_t GET_128_FROM_64(uint64_t n) {
 #ifdef DAP_GLOBAL_IS_INT128
     return (uint128_t) n;
@@ -981,3 +985,7 @@ static inline uint256_t MULT_256_FLOAT(uint256_t a_val, long double a_mult)
     DIV_256(l_ret, GET_256_FROM_64(CONV_256_FLOAT), &l_ret);
     return l_ret;
 }
+
+#ifdef __cplusplus
+}
+#endif
