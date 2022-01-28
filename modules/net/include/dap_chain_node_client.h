@@ -49,6 +49,14 @@ typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_CHECKED = 130,
 } dap_chain_node_client_state_t;
 
+typedef enum dap_chain_node_sync_status {
+    NODE_SYNC_STATUS_STARTED = 0,
+    NODE_SYNC_STATUS_WAITING = 1,
+    NODE_SYNC_STATUS_IN_PROGRESS = 2,
+    NODE_SYNC_STATUS_FAILED = -1,
+    NODE_SYNC_STATUS_MISSING = -2
+} dap_chain_node_sync_status_t;
+
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 
 typedef void (*dap_chain_node_client_callback_t)(dap_chain_node_client_t *, void*);
@@ -168,6 +176,8 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
 
 int dap_chain_node_client_send_nodelist_req(dap_chain_node_client_t *a_client);
+
+dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_uuid_t *l_uuid);
 
 static inline const char * dap_chain_node_client_state_to_str( dap_chain_node_client_state_t a_state)
 {

@@ -126,7 +126,7 @@ uint8_t* dap_enc_dilithium_write_signature(dilithium_signature_t* a_sign, size_t
         return NULL ;
     }
     size_t l_shift_mem = 0;
-    size_t l_buflen = dap_enc_dilithium_calc_signagture_size(a_sign);
+    uint64_t l_buflen = dap_enc_dilithium_calc_signagture_size(a_sign);
 
     uint8_t *l_buf = DAP_NEW_SIZE(uint8_t, l_buflen);
     if(! l_buf)

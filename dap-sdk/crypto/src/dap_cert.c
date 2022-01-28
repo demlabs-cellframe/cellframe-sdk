@@ -216,15 +216,16 @@ dap_cert_t * dap_cert_generate_mem_with_seed(const char * a_cert_name, dap_enc_k
     if ( l_enc_key ){
         dap_cert_t * l_cert = dap_cert_new(a_cert_name);
         l_cert->enc_key = l_enc_key;
-        //log_it(L_DEBUG,"Certificate generated");
-        //dap_cert_item_t * l_cert_item = DAP_NEW_Z(dap_cert_item_t);
-        //snprintf(l_cert_item->name,sizeof(l_cert_item->name),"%s",a_cert_name);
-        //HASH_ADD_STR(s_certs,name,l_cert_item);
-        //log_it(L_DEBUG,"Certificate name %s recorded", a_cert_name);
+        if (a_seed && a_seed_size) {
+            dap_chain_hash_fast_t l_seed_hash;
+            dap_hash_fast(a_seed, a_seed_size, &l_seed_hash);
+            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_seed_hash);
+            log_it(L_DEBUG, "Certificate generated with seed hash %s", l_hash_str);
+            DAP_FREE(l_hash_str);
+        }
         return l_cert;
     } else {
         log_it(L_ERROR,"Can't generate key in memory!");
-        //dap_cert_delete(l_cert);
         return NULL;
     }
 }
