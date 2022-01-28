@@ -22,6 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_chain_cs_dag_event.h"
 #include "dap_common.h"
 #include "dap_enc_key.h"
 
@@ -29,7 +30,6 @@
 #include "dap_sign.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_cs_dag.h"
-#include "dap_chain_cs_dag_event.h"
 
 #define LOG_TAG "dap_chain_cs_dag_event"
 
