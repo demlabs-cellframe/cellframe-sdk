@@ -152,8 +152,9 @@ typedef struct dap_chain_net_pvt{
 
     //Active synchronizing link
     dap_chain_node_client_t *active_link;
+    dap_list_t *links_queue;            // Links waiting for sync
 
-    dap_list_t *net_links;                  // Links list
+    dap_list_t *net_links;              // Links list
     size_t links_connected_count;
 
     atomic_uint links_dns_requests;
@@ -358,9 +359,11 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
-    if (PVT(a_net)->state_target == a_new_state){
-        log_it(L_WARNING,"Already going to state %s",s_net_state_to_str(a_new_state));
+    if (PVT(a_net)->state != NET_STATE_OFFLINE){
+        PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
+        s_net_states_proc(NULL, a_net);
     }
+
     PVT(a_net)->state_target = a_new_state;
 
     pthread_mutex_lock( &PVT(a_net)->state_mutex_cond); // Preventing call of state_go_to before wait cond will be armed
@@ -823,11 +826,16 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
                                     NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
         return;
     }
+    dap_chain_net_sync_unlock(l_net, a_node_client);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     for ( dap_list_t * it = l_net_pvt->net_links; it; it=it->next ){
         if (((struct net_link *)it->data)->link == a_node_client) {
             log_it(L_DEBUG,"Replace node client with new one");
             ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
+            if (l_net_pvt->links_connected_count)
+                l_net_pvt->links_connected_count--;
+            else
+                log_it(L_ERROR, "Links count is zero in delete callback");
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
@@ -1142,7 +1150,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 
         case NET_STATE_LINKS_CONNECTING: {
             log_it(L_INFO, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
-            int l_used_links = 0;
+            size_t l_used_links = 0;
             for (dap_list_t *l_tmp = l_net_pvt->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = ((struct net_link *)l_tmp->data)->link_info;
                 dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, l_link_info);
@@ -1178,6 +1186,11 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     return ! l_repeat_after_exit;
 }
 
+int s_net_list_compare_uuids(const void *a_uuid1, const void *a_uuid2)
+{
+    return memcmp(a_uuid1, a_uuid2, sizeof(dap_events_socket_uuid_t));
+}
+
 bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
@@ -1199,18 +1212,35 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
         l_net_pvt->active_link = a_client;
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    if (l_found && !dap_list_find_custom(l_net_pvt->links_queue, &a_client->uuid, s_net_list_compare_uuids)) {
+        dap_events_socket_uuid_t *l_uuid = DAP_DUP(&a_client->uuid);
+        l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, l_uuid);
+    }
     return !l_found;
 }
 
-void dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
+bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
     if (!a_net)
-        return;
+        return false;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_rdlock(&l_net_pvt->rwlock);
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
+        dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
+        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
+        if (l_status != NODE_SYNC_STATUS_WAITING) {
+            DAP_DELETE(l_uuid);
+            dap_list_t *l_to_remove = l_net_pvt->links_queue;
+            l_net_pvt->links_queue = l_net_pvt->links_queue->next;
+            DAP_DELETE(l_to_remove);
+        } else {
+            break;
+        }
+    }
+    return l_net_pvt->active_link;
 }
 /**
  * @brief dap_chain_net_client_create_n_connect
@@ -1580,7 +1610,10 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             else if(strcmp(l_go_str, "sync") == 0) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" resynchronizing",
                                                   l_net->pub.name);
-                dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
+                if (PVT(l_net)->state_target == NET_STATE_ONLINE)
+                    dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                else
+                    dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
             }
 
         } else if ( l_get_str){
@@ -1781,10 +1814,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
                 } else {
                     dap_chain_load_all(l_chain);
-                    if (l_chain->callback_atom_add_from_treshold) {
-                        while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                            log_it(L_DEBUG, "Added atom from treshold");
-                        }
+                }
+            }
+            DL_FOREACH(l_net->pub.chains, l_chain) {
+                if (l_chain->callback_atom_add_from_treshold) {
+                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                        log_it(L_DEBUG, "Added atom from treshold");
                     }
                 }
             }
@@ -2250,6 +2285,14 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_list = dap_list_next(l_list);
             }
             dap_list_free(l_prior_list);
+            dap_chain_t *l_chain;
+            DL_FOREACH(l_net->pub.chains, l_chain) {
+                if (l_chain->callback_atom_add_from_treshold) {
+                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                        log_it(L_DEBUG, "Added atom from treshold");
+                    }
+                }
+            }
 
             const char* l_default_chain_name = dap_config_get_item_str(l_cfg , "general" , "default_chain");
             if(l_default_chain_name)
