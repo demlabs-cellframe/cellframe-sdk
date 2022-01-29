@@ -39,6 +39,9 @@ typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(d
 typedef void (*dap_chain_cs_dag_callback_get_round_cfg_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_round_cfg_t *);
 typedef void (*dap_chain_cs_dag_callback_set_event_round_cfg_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_round_cfg_t *);
 
+typedef int (*dap_chain_cs_dag_callback_event_round_sync_t)(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
+                                                const char *a_key, const void *a_value, const size_t a_value_size);
+
 typedef struct dap_chain_cs_dag_hal_item {
     dap_chain_hash_fast_t hash;
     UT_hash_handle hh;
@@ -65,6 +68,7 @@ typedef struct dap_chain_cs_dag
     dap_chain_cs_dag_callback_event_t callback_cs_verify;
     dap_chain_cs_dag_callback_get_round_cfg_t callback_cs_get_round_cfg;
     dap_chain_cs_dag_callback_set_event_round_cfg_t callback_cs_set_event_round_cfg;
+    dap_chain_cs_dag_callback_event_round_sync_t callback_cs_event_round_sync;
 
     void * _pvt;
     void * _inheritor;
