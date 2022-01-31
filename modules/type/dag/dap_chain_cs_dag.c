@@ -123,6 +123,9 @@ static int s_cli_dag(int argc, char ** argv, char **str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 static void s_dag_chain_cs_set_event_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
 
+static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
+static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool desc);
+
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 /**
@@ -222,6 +225,11 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
     a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
 */
+    // Get tx list
+    a_chain->callback_get_txs = s_dap_chain_callback_get_txs;
+    // Get tx count
+    a_chain->callback_count_tx = s_dap_chain_callback_get_count_tx;
+
     // Others
     a_chain->_inheritor = l_dag;
 
@@ -1811,4 +1819,44 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
         ret = -13;
     }
     return ret;
+}
+
+/*
+ * @breif s_dap_chain_callback_get_count_tx
+ */
+static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain){
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    size_t l_count = HASH_COUNT(PVT(l_dag)->tx_events);
+    return l_count;
+}
+static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool desc){
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    size_t l_count = s_dap_chain_callback_get_count_tx(a_chain);
+    size_t l_offset = a_count * a_page;
+    if (l_offset > l_count){
+        return NULL;
+    }
+    dap_list_t *l_list = dap_list_alloc();
+    size_t l_start = 0;
+    size_t l_end = 0;
+    if (desc){
+        l_start = l_count - l_offset;
+        l_end  =  l_start - a_count;
+        for (
+                dap_chain_cs_dag_event_item_t *item = PVT(l_dag)->tx_events + l_end;
+                item != NULL || item == PVT(l_dag)->tx_events + l_start;
+                item->hh.prev){
+            dap_list_append(l_list, item);
+        }
+    } else {
+        l_start = l_offset;
+        l_end = l_start + a_count;
+        for (
+                dap_chain_cs_dag_event_item_t *item = PVT(l_dag)->tx_events + l_start;
+                item != NULL || item == PVT(l_dag)->events + l_end;
+                item->hh.next) {
+            dap_list_append(l_list, item);
+        }
+    }
+    return l_list;
 }
