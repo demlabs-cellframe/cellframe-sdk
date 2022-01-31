@@ -51,6 +51,8 @@ typedef struct dap_chain_cs_dag_event_round_cfg {
     uint16_t confirmations_minimum; // param auth_certs_count_verify in PoA
     uint32_t confirmations_timeout; // wait confirmations over minimum value (confirmations_minimum)
     uint64_t ts_confirmations_minimum_completed;
+    uint64_t ts_update;
+    dap_chain_hash_fast_t first_event_hash; // first event hash in round
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_cfg_t;
 
 typedef struct dap_chain_cs_dag_event_round_item {
@@ -80,7 +82,7 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t 
 // Important: returns new deep copy of event
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
                                                 size_t * a_event_size_new,
-                                                dap_chain_net_t * l_net, dap_enc_key_t * l_key);
+                                                dap_chain_net_t * a_net, dap_enc_key_t * a_key);
 dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, uint16_t a_sign_number);
 
 /**
@@ -138,11 +140,11 @@ static inline void dap_chain_cs_dag_event_calc_hash(dap_chain_cs_dag_event_t * a
     dap_hash_fast(a_event, a_event_size, a_event_hash);
 }
 
-static inline uint32_t dap_chain_cs_dag_event_round_item_get_size(dap_chain_cs_dag_event_round_item_t * a_event_round_item){
+static inline size_t dap_chain_cs_dag_event_round_item_get_size(dap_chain_cs_dag_event_round_item_t * a_event_round_item){
     return sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_round_item->event_size;
 }
 
-bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, uint32_t a_event_size,
+bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
                                         const char *a_group, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
 
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(const char *a_event_hash_str, size_t *a_event_size,

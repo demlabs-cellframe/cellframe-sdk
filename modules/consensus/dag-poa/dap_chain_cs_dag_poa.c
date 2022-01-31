@@ -61,6 +61,9 @@ typedef struct dap_chain_cs_dag_poa_pvt
     uint16_t auth_certs_count;
     uint16_t auth_certs_count_verify; // Number of signatures, needed for event verification
     uint32_t confirmations_timeout; // wait signs over min value (auth_certs_count_verify)
+    bool auto_confirmation;
+    bool auto_round_complete;
+    uint32_t wait_sync_before_complete;
     uint8_t padding[4];
     dap_chain_callback_new_cfg_t prev_callback_created; // global network config init
 } dap_chain_cs_dag_poa_pvt_t;
@@ -81,6 +84,14 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size);
 static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_arg_t * a_callback_arg);
+static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
+                                        const char *a_key, const void *a_value, const size_t a_value_size);
+static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event, 
+                                            size_t a_event_size, char * a_event_hash_hex_str, 
+                                            dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
+static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event,
+                                    char * a_event_hash_hex_str, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
+static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_event_hash_hex_str);
 
 // CLI commands
 static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
@@ -209,73 +220,35 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                     char * l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_event_new_hash);
                     //char * l_event_new_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_event_new_hash_hex_str);
 
-                    bool l_event_is_ready = false;
-                    if ( l_event_new->header.signs_count >= l_event_round_cfg.confirmations_minimum ) {
-                        log_it(L_NOTICE,"Event %s minimum confirmations completed", l_event_new_hash_hex_str);
-                        int l_ret_event_verify;
-                        l_dag->callback_cs_set_event_round_cfg(l_dag, &l_event_round_cfg);
-                        if ( ( l_ret_event_verify = l_dag->callback_cs_verify(l_dag, l_event_new, l_event_size_new)) == 0 ) {
-                            log_it(L_NOTICE,"Event %s verification passed", l_event_new_hash_hex_str);
-
-                            if (l_event_round_cfg.ts_confirmations_minimum_completed == (uint64_t)0) {
-                                l_event_round_cfg.ts_confirmations_minimum_completed = (uint64_t)time(NULL);
-                            }
-                            l_event_is_ready = true;
-                        } else {
-                            log_it(L_NOTICE,"Error! Event %s is not passing consensus verification, ret code %d\n",
-                                l_event_new_hash_hex_str, l_ret_event_verify);
-                        }
-                    }
+                    bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event_new, l_event_size_new,
+                                                                        l_event_new_hash_hex_str, &l_event_round_cfg);
 
                     if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event_new,
                                                         l_event_size_new, l_gdb_group_events, &l_event_round_cfg) ){
-                        if ( dap_chain_global_db_gr_del(dap_strdup(l_event_hash_hex_str), l_gdb_group_events) ) { // Delete old event
-                            if(!dap_strcmp(l_hash_out_type, "hex")) {
-                                dap_chain_node_cli_set_reply_text(a_str_reply,
-                                        "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                        l_poa_pvt->events_sign_cert->name, l_event_new_hash_hex_str);
-                            }
-                            else {
-                                dap_chain_node_cli_set_reply_text(a_str_reply,
-                                        "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                        l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
-                            }
-                            ret = 0;
-                            // dap_chain_net_sync_gdb(l_chain_net); // Propagate changes in pool
-
-                            if (l_event_is_ready) { // minimum signs & verify passed
-                                dap_chain_cs_dag_poa_callback_timer_arg_t * l_callback_arg = DAP_NEW_Z(dap_chain_cs_dag_poa_callback_timer_arg_t);
-                                l_callback_arg->dag = l_dag;
-                                l_callback_arg->l_event_hash_hex_str = dap_strdup(l_event_new_hash_hex_str);
-                                memcpy(&l_callback_arg->event_round_cfg, &l_event_round_cfg, sizeof(dap_chain_cs_dag_event_round_cfg_t));
-                                uint32_t l_timeout = l_event_round_cfg.confirmations_timeout;
-
-                                if ( l_event_new->header.signs_count >= l_poa_pvt->auth_certs_count) {
-                                    s_callback_round_event_to_chain(l_callback_arg); // placement in chain now if max signs
-                                }
-                                else if ( l_timeout > ((uint64_t)time(NULL) - l_event_round_cfg.ts_confirmations_minimum_completed) ) {
-                                    l_timeout = l_timeout - ((uint64_t)time(NULL) - l_event_round_cfg.ts_confirmations_minimum_completed);
-                                    // placement in chain by timer
-                                    if (dap_timerfd_start(l_timeout*1000, 
-                                                        (dap_timerfd_callback_t)s_callback_round_event_to_chain, 
-                                                        l_callback_arg) == NULL) {
-                                        log_it(L_ERROR,"Can't run timer for Event %s", l_event_new_hash_hex_str);
-                                    } else {
-                                        log_it(L_NOTICE,"Run timer %dsec. for Event %s", l_timeout, l_event_new_hash_hex_str);
-                                    }
-                                } else { // placement in chain now if timer out
-                                    s_callback_round_event_to_chain(l_callback_arg);
-                                }
-                            }
-
-                        }else {
+                        if ( !dap_chain_global_db_gr_del(dap_strdup(l_event_hash_hex_str), l_gdb_group_events) ) { // Delete old event
                             ret = 1;
                             dap_chain_node_cli_set_reply_text(a_str_reply, "Added new sign with cert \"%s\", event %s placed back in round.new\n"
                                                                            "WARNING! Old event %s with same datum is still in round.new, produced DUP!\n",
                                                                            l_poa_pvt->events_sign_cert->name ,l_event_new_hash_hex_str, l_event_hash_str);
                         }
-                    }else {
 
+                        if(!dap_strcmp(l_hash_out_type, "hex")) {
+                            dap_chain_node_cli_set_reply_text(a_str_reply,
+                                    "Added new sign with cert \"%s\", event %s placed back in round.new\n",
+                                    l_poa_pvt->events_sign_cert->name, l_event_new_hash_hex_str);
+                        }
+                        else {
+                            dap_chain_node_cli_set_reply_text(a_str_reply,
+                                    "Added new sign with cert \"%s\", event %s placed back in round.new\n",
+                                    l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
+                        }
+                        ret = 0;
+                        // dap_chain_net_sync_gdb(l_chain_net); // Propagate changes in pool
+                        if (l_event_is_ready && l_poa_pvt->auto_round_complete) { // cs done (minimum signs & verify passed)
+                            s_round_event_cs_done(l_dag, l_event_new, l_event_new_hash_hex_str, &l_event_round_cfg);
+                        }
+
+                    }else {
                         if(!dap_strcmp(l_hash_out_type, "hex")) {
                             dap_chain_node_cli_set_reply_text(a_str_reply,
                                     "GDB Error: Can't place event %s with new sign back in round.new\n",
@@ -289,6 +262,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                         ret=-31;
 
                     }
+                    DAP_DELETE(l_event_new);
                     DAP_DELETE(l_event_new_hash_hex_str);
                     DAP_DELETE(l_event_new_hash_base58_str);
                 } else {
@@ -297,11 +271,11 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                                   l_event_hash_str);
                     ret=-1;              
                 }
-                DAP_DELETE(l_event_new);
+                //DAP_DELETE(l_event_new);
             }
             // DAP_DELETE( l_gdb_group_events );
             // DAP_DELETE(l_event_round_cfg);
-            // DAP_DELETE(l_event);
+            DAP_DELETE(l_event);
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Command dag_poa requires subcommand 'sign'");
         }
@@ -360,6 +334,141 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     return 0;
 }
 
+typedef struct event_clean_dup_items {
+    uint16_t signs_count;
+    uint64_t ts_update;
+    char * hash_str;
+    UT_hash_handle hh;
+} event_clean_dup_items_t;
+
+static event_clean_dup_items_t *s_event_clean_dup_items = NULL;
+
+static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_event_hash_hex_str) {
+    char * l_gdb_group_events = a_dag->gdb_group_events_round_new;
+    size_t l_event_size = 0;
+    dap_chain_cs_dag_event_t * l_event;
+    dap_chain_cs_dag_event_round_cfg_t l_event_round_cfg;
+    if ( (l_event = dap_chain_cs_dag_event_gdb_get( a_event_hash_hex_str, &l_event_size,
+                                                    l_gdb_group_events, &l_event_round_cfg )) == NULL  ) {
+        return;
+    }
+
+    //char * l_event_first_hash_str = dap_chain_hash_fast_to_str_new(&l_event_round_cfg.first_event_hash);
+    size_t l_events_round_size = 0;
+    // dap_global_db_obj_t * l_events_round = dap_chain_global_db_gr_load(a_dag->gdb_group_events_round_new, &l_events_round_size );
+    dap_store_obj_t *l_events_round = dap_chain_global_db_driver_read(a_dag->gdb_group_events_round_new, NULL, &l_events_round_size);
+    uint16_t l_max_signs_count = 0;
+    //char * l_max_signs_hash;
+    for (size_t l_index = 0; l_index<l_events_round_size; l_index++) {
+        // dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
+        //         ((dap_chain_cs_dag_event_round_item_t *)l_events_round[l_index].value)->event;
+        // size_t l_event_size = ((dap_chain_cs_dag_event_round_item_t *)l_events_round[l_index].value)->event_size;
+        dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_events_round[l_index].value;
+        dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)l_event_round_item->event;
+        if ( memcmp(&l_event_round_cfg.first_event_hash, 
+                        &l_event_round_item->cfg.first_event_hash, sizeof(dap_chain_hash_fast_t)) == 0 ) {
+            event_clean_dup_items_t * l_item = DAP_NEW_Z(event_clean_dup_items_t);
+            l_item->signs_count = l_event->header.signs_count;
+            // l_item->ts_update = l_events_round[l_index].timestamp;
+            l_item->ts_update = l_event_round_item->cfg.ts_update;
+            l_item->hash_str = l_events_round[l_index].key;
+            HASH_ADD_STR(s_event_clean_dup_items, hash_str, l_item);
+            if ( l_event->header.signs_count > l_max_signs_count ) {
+                l_max_signs_count = l_event->header.signs_count;
+            }
+        }
+    }
+
+    uint64_t l_max_ts_update = 0;
+    char * l_max_ts_update_hash;
+    event_clean_dup_items_t *l_clean_item=NULL, *l_clean_tmp=NULL;
+    HASH_ITER(hh, s_event_clean_dup_items, l_clean_item, l_clean_tmp) {
+        if ( l_clean_item->signs_count < l_max_signs_count ) {
+            // delete dup by min signatures 
+            dap_chain_global_db_gr_del(dap_strdup(l_clean_item->hash_str), l_gdb_group_events);
+            HASH_DEL(s_event_clean_dup_items, l_clean_item);
+            DAP_DELETE(l_clean_item);
+        } else if ( l_clean_item->ts_update > l_max_ts_update ) {
+            l_max_ts_update = l_clean_item->ts_update;
+            l_max_ts_update_hash = l_clean_item->hash_str;
+        }
+    }
+    HASH_ITER(hh, s_event_clean_dup_items, l_clean_item, l_clean_tmp) {
+        if ( dap_strcmp(l_max_ts_update_hash, l_clean_item->hash_str) != 0 ) {
+            // delete dup by older
+            dap_chain_global_db_gr_del(dap_strdup(l_clean_item->hash_str), l_gdb_group_events);
+        }
+        HASH_DEL(s_event_clean_dup_items, l_clean_item);
+        DAP_DELETE(l_clean_item);
+    }
+    //HASH_CLEAR(hh, s_event_clean_dup_items);
+    dap_store_obj_free(l_events_round, l_events_round_size);
+}
+
+static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event, 
+                                            size_t a_event_size, char * a_event_hash_hex_str,
+                                            dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
+    if ( a_event->header.signs_count < a_event_round_cfg->confirmations_minimum ) {
+        return false;
+    }
+    a_dag->callback_cs_set_event_round_cfg(a_dag, a_event_round_cfg);
+    int l_ret_event_verify = a_dag->callback_cs_verify(a_dag, a_event, a_event_size);
+    if ( l_ret_event_verify == 0 ) {
+        if (a_event_round_cfg->ts_confirmations_minimum_completed == (uint64_t)0) {
+            a_event_round_cfg->ts_confirmations_minimum_completed = (uint64_t)time(NULL);
+        }
+        return true;
+    }
+    log_it(L_ERROR,"Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
+                          a_event_hash_hex_str, l_ret_event_verify );
+    return false;
+}
+
+static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event,
+                                    char * a_event_hash_hex_str, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
+    dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( a_dag );
+    dap_chain_cs_dag_poa_callback_timer_arg_t * l_callback_arg = DAP_NEW_Z(dap_chain_cs_dag_poa_callback_timer_arg_t);
+    l_callback_arg->dag = a_dag;
+    l_callback_arg->l_event_hash_hex_str = dap_strdup(a_event_hash_hex_str);
+    memcpy(&l_callback_arg->event_round_cfg, a_event_round_cfg, sizeof(dap_chain_cs_dag_event_round_cfg_t));
+    uint32_t l_timeout = a_event_round_cfg->confirmations_timeout;
+
+    if (a_event_round_cfg->ts_confirmations_minimum_completed == (uint64_t)0) {
+        a_event_round_cfg->ts_confirmations_minimum_completed = (uint64_t)time(NULL);
+    }
+
+    if ( a_event->header.signs_count >= PVT(l_poa)->auth_certs_count) {
+        // placement in chain now if max signs
+        if (dap_timerfd_start(PVT(l_poa)->wait_sync_before_complete*1000, 
+                            (dap_timerfd_callback_t)s_callback_round_event_to_chain, 
+                            l_callback_arg) == NULL) {
+            log_it(L_ERROR,"Can't run timer for Event %s", a_event_hash_hex_str);
+        } else {
+            log_it(L_NOTICE,"Run timer %dsec. for Event %s", PVT(l_poa)->wait_sync_before_complete, a_event_hash_hex_str);
+        }
+    }
+    else if ( l_timeout > ((uint64_t)time(NULL) - a_event_round_cfg->ts_confirmations_minimum_completed) ) {
+        l_timeout = l_timeout - ((uint64_t)time(NULL) - a_event_round_cfg->ts_confirmations_minimum_completed);
+        // placement in chain by timer
+        l_timeout += PVT(l_poa)->wait_sync_before_complete;
+        if (dap_timerfd_start(l_timeout*1000, 
+                            (dap_timerfd_callback_t)s_callback_round_event_to_chain, 
+                            l_callback_arg) == NULL) {
+            log_it(L_ERROR,"Can't run timer for Event %s", a_event_hash_hex_str);
+        } else {
+            log_it(L_NOTICE,"Run timer %dsec. for Event %s", l_timeout, a_event_hash_hex_str);
+        }
+    } else { // placement in chain now if timer out
+        if (dap_timerfd_start(PVT(l_poa)->wait_sync_before_complete*1000, 
+                            (dap_timerfd_callback_t)s_callback_round_event_to_chain, 
+                            l_callback_arg) == NULL) {
+            log_it(L_ERROR,"Can't run timer for Event %s", a_event_hash_hex_str);
+        } else {
+            log_it(L_NOTICE,"Run timer %dsec. for Event %s", PVT(l_poa)->wait_sync_before_complete, a_event_hash_hex_str);
+        }
+    }
+}
+
 static void s_callback_get_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT (l_poa);
@@ -367,7 +476,6 @@ static void s_callback_get_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_da
     a_event_round_cfg->confirmations_timeout = l_poa_pvt->confirmations_timeout;
     a_event_round_cfg->ts_confirmations_minimum_completed = 0;
 }
-
 
 static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_arg_t * a_callback_arg) {
     dap_chain_cs_dag_t * l_dag = a_callback_arg->dag;
@@ -489,6 +597,57 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
         return NULL;
 }
 
+static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
+                                        const char *a_key, const void *a_value, const size_t a_value_size)
+{
+
+    dap_chain_net_t *l_net = dap_chain_net_by_id( a_dag->chain->net_id);
+
+    if ( a_value == NULL || a_op_code != 'a' ) {
+        return 0;
+    }
+
+    dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
+    if ( !PVT(l_poa)->auto_confirmation ) {
+        s_round_event_clean_dup(a_dag, a_key); // Delete dup for manual mode
+        return 0;
+    }
+    dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_value;
+    size_t l_event_size = l_event_round_item->event_size;
+    dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)l_event_round_item->event;
+    // dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_event_round_item->event, l_event_size);
+    size_t l_event_size_new = 0;
+    dap_chain_cs_dag_event_t *l_event_new = dap_chain_cs_dag_event_copy_with_sign_add(l_event, l_event_size, 
+                                            &l_event_size_new, l_net,
+                                            PVT(l_poa)->events_sign_cert->enc_key);
+    
+    if ( l_event_new ) {
+        char * l_gdb_group_events = a_dag->gdb_group_events_round_new;
+        dap_chain_hash_fast_t l_event_new_hash;
+        dap_chain_cs_dag_event_calc_hash(l_event_new, l_event_size_new, &l_event_new_hash);
+        char * l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
+        bool l_event_is_ready = s_round_event_ready_minimum_check(a_dag, l_event_new, l_event_size_new, 
+                                                                    l_event_new_hash_hex_str,  &l_event_round_item->cfg);
+        if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event_new,
+                                            l_event_size_new, l_gdb_group_events, &l_event_round_item->cfg) ){
+            dap_chain_global_db_gr_del(dap_strdup(a_key), l_gdb_group_events); // Delete old event
+            if (l_event_is_ready && PVT(l_poa)->auto_round_complete) { // cs done (minimum signs & verify passed)
+                s_round_event_cs_done(a_dag, l_event_new, l_event_new_hash_hex_str, &l_event_round_item->cfg);
+            }
+        }
+        s_round_event_clean_dup(a_dag, l_event_new_hash_hex_str); // Delete dup
+        DAP_DELETE(l_event_new);
+    } else {
+        // if (PVT(l_poa)->auto_round_complete) {
+        //     if (s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, &l_event_round_item->cfg)){
+        //         s_round_event_cs_done(a_dag, l_event, a_key, &l_event_round_item->cfg);
+        //     }
+        // }
+        s_round_event_clean_dup(a_dag, a_key); // Delete dup
+    }
+
+    return 0;
+}
 
 /**
  * @brief 
@@ -510,7 +669,6 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     uint16_t l_certs_count_verify = a_dag->use_event_round_cfg ? a_dag->event_round_cfg.confirmations_minimum
                                                                 : l_poa_pvt->auth_certs_count_verify;
     a_dag->use_event_round_cfg = false;
-
     // if ( a_dag_event->header.signs_count >= l_poa_pvt->auth_certs_count_verify ){
     if ( a_dag_event->header.signs_count >= l_certs_count_verify ){
         size_t l_verified = 0;
