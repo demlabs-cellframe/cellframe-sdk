@@ -2,109 +2,109 @@
 #define DAP_CHAIN_NODE_COMMANDS_H
 
 
-const char *globalDB = "global_db";
-const char *globalDBCellsAdd = "global_db cells add";
-const char *globalDBCellsAddParams = "global_db cells add -cell <cell id> \n";
-const char *globalDBFlush = "global_db flush";
-const char *globalDBFlushParams = "global_db flush \n\n";
-const char *globalDBWlletInfoSet = "global_db wallet_info set";
+extern const char *globalDB;
+extern const char *globalDBCellsAdd;
+extern const char *globalDBCellsAddParams;
+extern const char *globalDBFlush;
+extern const char *globalDBFlushParams;
+extern const char *globalDBWlletInfoSet;
 
-const char *node = "node";
-const char *nodeAdd = "node add";
-const char *nodeAddParams = "node add  -net <net name> -addr {<node address> | -alias <node alias>} {-port <port>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n";
-const char *nodeDel = "node del";
-const char *nodeDelParams = "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n";
-const char *nodeLink = "node link";
-const char *nodeLinkParams = "node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n";
-const char *nodeAlias = "node alias";
-const char *nodeAliasParams = "node alias -addr <node address> -alias <node alias>\n\n";
-const char *nodeConnect = "node connect";
-const char *nodeConnectParams = "node connect {<node address> | -alias <node alias> | auto}\n\n";
-const char *nodeHandshake = "node handshake";
-const char *nodeHandshakeParams = "node handshake {<node address> | -alias <node alias>}\n";
-const char *nodeDump = "node dump";
-const char *nodeDumpParams = "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n";
+extern const char *node;
+extern const char *nodeAdd;
+extern const char *nodeAddParams;
+extern const char *nodeDel;
+extern const char *nodeDelParams;
+extern const char *nodeLink;
+extern const char *nodeLinkParams;
+extern const char *nodeAlias;
+extern const char *nodeAliasParams;
+extern const char *nodeConnect;
+extern const char *nodeConnectParams;
+extern const char *nodeHandshake;
+extern const char *nodeHandshakeParams;
+extern const char *nodeDump;
+extern const char *nodeDumpParams;
 
-const char *ping = "ping";
-const char *pingParams = "ping [-c <count>] host\n";
+extern const char *ping;
+extern const char *pingParams;
 
-const char *traceroute = "traceroute";
-const char *tracerouteHost = "traceroute host";
-const char *tracerouteHostParams = "traceroute host\n";
+extern const char *traceroute;
+extern const char *tracerouteHost;
+extern const char *tracerouteHostParams;
 
-const char *tracepath = "tracepath";
-const char *tracepathHost = "tracepath host";
-const char *tracepathHostParams = "tracepath host\n";
+extern const char *tracepath;
+extern const char *tracepathHost;
+extern const char *tracepathHostParams;
 
-const char *version = "version";
-const char *versionParams = "version\n";
-const char *reternVersionNumber = "Return version number";
-const char *reternVersionNumberParams = "\tReturn version number\n";
+extern const char *version;
+extern const char *versionParams;
+extern const char *reternVersionNumber;
+extern const char *reternVersionNumberParams;
 
-const char *help = "help";
-const char *helpParams = "help [<command>]\n";
-const char *bigHelpParams = "\tObtain help for <command> or get the total list of the commands\n";
+extern const char *help;
+extern const char *helpParams;
+extern const char *bigHelpParams;
 
-const char *wallet = "wallet";
-const char *walletParams = "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n";
+extern const char *wallet;
+extern const char *walletParams;
 
-const char *tokenUpdate = "token_update";
-const char *tokenDecl = "token_decl";
-const char *tokenDeclSign = "token_decl_sign";
-const char *tokenEmit = "token_emit";
-const char *tokenEmitParams = "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> -addr <addr> -token <token ticker> -certs <cert> -emission_value <val>\n";
+extern const char *tokenUpdate;
+extern const char *tokenDecl;
+extern const char *tokenDeclSign;
+extern const char *tokenEmit;
+extern const char *tokenEmitParams;
 
-const char *mempoolList = "mempool_list";
-const char *mempoolListParams = "mempool_list -net <net name>\n";
-const char *mempoolProc = "mempool_proc";
-const char *mempoolProcParams = "mempool_proc -net <net name> -datum <datum hash>\n";
-const char *mempoolDelete = "mempool_delete";
-const char *mempoolDeleteParams = "mempool_delete -net <net name> -datum <datum hash>\n";
-const char *mempoolAddCa = "mempool_add_ca";
-const char *mempoolAddCaParams = "mempool_add_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n";
+extern const char *mempoolList;
+extern const char *mempoolListParams;
+extern const char *mempoolProc;
+extern const char *mempoolProcParams;
+extern const char *mempoolDelete;
+extern const char *mempoolDeleteParams;
+extern const char *mempoolAddCa;
+extern const char *mempoolAddCaParams;
 
-const char *chainCaPub = "chain_ca_pub";
-const char *chainCaParams = "chain_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n";
-const char *chainCaCopy = "chain_ca_copy";
-const char *chainCaCopyParams = "chain_ca -net <net name> [-chain <chain name>] -ca_name <Public certificate name>\n";
+extern const char *chainCaPub;
+extern const char *chainCaParams;
+extern const char *chainCaCopy;
+extern const char *chainCaCopyParams;
 
-const char *txCreate = "tx_create";
-const char *txCreateParams = "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n";
-const char *txCondCreate = "tx_cond_create";
-const char *txCondCreateParams = "tx_cond_create -net <net name> -token <token_ticker> -wallet_f <wallet_from> -wallet_t <wallet_to> -value <value_datoshi> -unit <mb|kb|b|sec|day> -service <vpn>\n";
-const char *txVerify = "tx_verify";
-const char *txVerifyParams = "tx_verify -net <net name> -chain <chain name> -tx <tx_hash>\n";
-const char *txHistory = "tx_history";
-const char *txHistoryParams = "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n";
+extern const char *txCreate;
+extern const char *txCreateParams;
+extern const char *txCondCreate;
+extern const char *txCondCreateParams;
+extern const char *txVerify;
+extern const char *txVerifyParams;
+extern const char *txHistory;
+extern const char *txHistoryParams;
 
-const char *ledger = "ledger";
-const char *ledgerListCoins = "ledger list coins";
-const char *ledgerListCoinsParams = "ledger list coins -net <network name>\n";
-const char *ledgerListCoinsCond = "ledger list coins_cond";
-const char *ledgerListCoinsCondParams = "ledger list coins_cond -net <network name>\n";
-const char *ledgerListAddrs = "ledger list addrs";
-const char *ledgerListAddrsParams = "ledger list addrs -net <network name>\n";
-const char *ledgerTx = "ledger tx";
-const char *ledgerTxParams = "ledger tx [all | -addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n";
+extern const char *ledger;
+extern const char *ledgerListCoins;
+extern const char *ledgerListCoinsParams;
+extern const char *ledgerListCoinsCond;
+extern const char *ledgerListCoinsCondParams;
+extern const char *ledgerListAddrs;
+extern const char *ledgerListAddrsParams;
+extern const char *ledgerTx;
+extern const char *ledgerTxParams;
 
-const char *token = "token";
-const char *tokenList = "token list";
-const char *tokenListParams = "token list -net <network name>\n";
-const char *tokenInfo = "token info";
-const char *tokenInfoParams = "token info -net <network name> -name <token name>\n";
-const char *tokenTx = "token tx";
-const char *tokenTxParams = "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token name> -net <network name> [-page_start <page>] [-page <page>]\n";
+extern const char *token;
+extern const char *tokenList;
+extern const char *tokenListParams;
+extern const char *tokenInfo;
+extern const char *tokenInfoParams;
+extern const char *tokenTx;
+extern const char *tokenTxParams;
 
-const char *printLog = "print_log";
-const char *printLogParams = "print_log [ts_after <timestamp >] [limit <line numbers>]\n";
-const char *stats = "stats";
-const char *statsCpu = "stats cpu";
+extern const char *printLog;
+extern const char *printLogParams;
+extern const char *stats;
+extern const char *statsCpu;
 
-const char *gdbExport = "gdb_export";
-const char *gdbExportFilename = "gdb_export filename";
-const char *gdbExportFilenameParams = "gdb_export filename <filename without extension>";
-const char *gdbImport = "gdb_import";
-const char *gdbImportFilename = "gdb_import filename";
-const char *gdbImportFilenameParams = "gdb_import filename <filename without extension>";
+extern const char *gdbExport;
+extern const char *gdbExportFilename;
+extern const char *gdbExportFilenameParams;
+extern const char *gdbImport;
+extern const char *gdbImportFilename;
+extern const char *gdbImportFilenameParams;
 
 #endif // DAP_CHAIN_NODE_COMMANDS_H
