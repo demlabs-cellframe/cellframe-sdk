@@ -1846,16 +1846,16 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
                 dap_chain_cs_dag_event_item_t *item = PVT(l_dag)->tx_events + l_end;
                 item != NULL || item == PVT(l_dag)->tx_events + l_start;
                 item->hh.prev){
-            dap_list_append(l_list, item);
+            dap_list_append(l_list, item->event);
         }
     } else {
         l_start = l_offset;
         l_end = l_start + a_count;
         for (
                 dap_chain_cs_dag_event_item_t *item = PVT(l_dag)->tx_events + l_start;
-                item != NULL || item == PVT(l_dag)->events + l_end;
+                item != NULL || item == PVT(l_dag)->tx_events + l_end;
                 item->hh.next) {
-            dap_list_append(l_list, item);
+            dap_list_append(l_list, item->event);
         }
     }
     return l_list;
