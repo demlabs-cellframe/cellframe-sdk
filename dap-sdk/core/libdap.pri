@@ -51,7 +51,8 @@ win32 {
 
 # 3rd party
 HEADERS += $$PWD/../../3rdparty/uthash/src/utlist.h \
-           $$PWD/../../3rdparty/uthash/src/uthash.h
+           $$PWD/../../3rdparty/uthash/src/uthash.h \
+           /Users/anastasiasidorova/cellframe-dashboard/cellframe-node/cellframe-sdk/modules/net/dap_chain_node_commands.h
 
 #if(DAPSDK_MODULES MATCHES "ssl-support")
 #    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
@@ -81,4 +82,5 @@ SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_string.c
 
 INCLUDEPATH += $$PWD/include \
-    $$PWD/../../3rdparty/uthash/src/
+    $$PWD/../../3rdparty/uthash/src/ \
+    /Users/anastasiasidorova/cellframe-dashboard/cellframe-node/cellframe-sdk/modules/net/
