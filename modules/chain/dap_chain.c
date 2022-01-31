@@ -360,13 +360,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                     DAP_CHAIN_PVT ( l_chain)->file_storage_dir = strdup (
                                 dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) ;
                     if (dap_chain_load_all(l_chain) == 0) {
-                        if (l_chain->callback_atom_add_from_treshold) {
-                            while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                                log_it(L_DEBUG, "Added atom from treshold");
-                            }
-                        }
-                        /* Temporary garbage cleaner */
-                        dap_chain_save_all( l_chain );  // Save only the valid chain, throw all garbage out!
                         log_it (L_NOTICE, "Loaded chain files");
                     } else {
                         dap_chain_save_all( l_chain );
@@ -374,10 +367,11 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                     }
                 } else{
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
-                    //dap_chain_delete(l_chain);
-                    //l_chain = NULL;
                 }
-
+                if (!l_chain->cells) {
+                    dap_chain_cell_id_t l_cell_id = {.uint64 = 0};
+                    dap_chain_cell_create_fill(l_chain, l_cell_id);
+                }
             }else{
                 log_it (L_ERROR, "Can't init consensus \"%s\"",dap_config_get_item_str_default( l_cfg , "chain","consensus","NULL"));
                 dap_chain_delete(l_chain);
@@ -579,4 +573,18 @@ bool dap_chain_get_atom_last_hash(dap_chain_t * a_chain, dap_hash_fast_t * a_ato
     }
     a_chain->callback_atom_iter_delete(l_atom_iter);
     return l_ret;
+}
+
+ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t a_atom_size, dap_chain_cell_id_t a_cell_id)
+{
+    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_cell_id);
+    if (!l_cell) {
+        log_it(L_INFO, "Creating cell 0x%016"DAP_UINT64_FORMAT_X, a_cell_id.uint64);
+        l_cell = dap_chain_cell_create_fill(a_chain, a_cell_id);
+        if (!l_cell) {
+            log_it(L_ERROR, "Can't create cell with id 0x%"DAP_UINT64_FORMAT_x" to save event...", a_cell_id.uint64);
+            return -7;
+        }
+    }
+    return dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
 }

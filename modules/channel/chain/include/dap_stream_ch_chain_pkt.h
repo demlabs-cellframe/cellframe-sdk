@@ -68,6 +68,7 @@
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB          0x36
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END      0x46
 
+#define DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT                   0xfe
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR                     0xff
 
 // TSD sections
