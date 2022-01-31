@@ -622,7 +622,7 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
  * callback for create event operation
  * @param a_dag dap_chain_cs_dag_t DAG object
  * @param a_datum dap_chain_datum_t object
- * @param a_hashes  dap_chain_hash_fast_t 
+ * @param a_hashes  dap_chain_hash_fast_t object
  * @param a_hashes_count size_t count of hashes
  * @param a_dag_event_size size_t size of event
  * @return dap_chain_cs_dag_event_t* 

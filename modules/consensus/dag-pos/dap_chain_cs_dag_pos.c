@@ -73,8 +73,11 @@ void dap_chain_cs_dag_pos_deinit(void)
 
 /**
  * @brief s_cs_callback
- * @param a_chain
- * @param a_chain_cfg
+ * dap_chain_callback_new_cfg_item_t->callback_init function.
+ * get dag-pos consensus parameters from config
+ * and set dap_chain_cs_dag_t l_dag->chain->callback_created = s_callback_new
+ * @param a_chain dap_chain_t chain object
+ * @param a_chain_cfg chain config object
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
@@ -136,9 +139,10 @@ lb_err:
 }
 
 /**
- * @brief s_callback_created
- * @param a_chain
- * @param a_chain_cfg
+ * @brief create callback load certificate for event signing for dag-pos chain
+ * path to certificate iw written to chain config file in dag_poa section
+ * @param a_chain chain object (for example, a_chain.name = zerochain, a_chain.network = kelvin-testnet)
+ * @param a_chain_net_cfg dap_config_t network config object
  * @return
  */
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_cfg)
@@ -166,7 +170,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
 
 /**
  * @brief s_chain_cs_dag_callback_delete
- * @param a_dag
+ * @param a_dag dap_chain_cs_dag_t object
  */
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 {
@@ -184,12 +188,12 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 
 /**
  * @brief 
- * create event
- * @param a_dag 
- * @param a_datum 
- * @param a_hashes 
- * @param a_hashes_count 
- * @param a_dag_event_size 
+ * callback for create event operation
+ * @param a_dag dap_chain_cs_dag_t DAG object
+ * @param a_datum dap_chain_datum_t object
+ * @param a_hashes  dap_chain_hash_fast_t object
+ * @param a_hashes_count size_t count of hashes
+ * @param a_dag_event_size size_t size of event
  * @return dap_chain_cs_dag_event_t* 
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
