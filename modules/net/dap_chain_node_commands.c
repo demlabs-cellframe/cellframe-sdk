@@ -1,6 +1,4 @@
-#ifndef DAP_CHAIN_NODE_COMMANDS_H
-#define DAP_CHAIN_NODE_COMMANDS_H
-
+#include "dap_chain_node_commands.h"
 
 const char *globalDB = "global_db";
 const char *globalDBCellsAdd = "global_db cells add";
@@ -106,5 +104,3 @@ const char *gdbExportFilenameParams = "gdb_export filename <filename without ext
 const char *gdbImport = "gdb_import";
 const char *gdbImportFilename = "gdb_import filename";
 const char *gdbImportFilenameParams = "gdb_import filename <filename without extension>";
-
-#endif // DAP_CHAIN_NODE_COMMANDS_H
