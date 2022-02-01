@@ -622,6 +622,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
 
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     if ( !PVT(l_poa)->auto_confirmation ) {
+        s_round_event_clean_dup(a_dag, a_key); // Delete dup for manual mode
         return 0;
     }
     dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_value;
