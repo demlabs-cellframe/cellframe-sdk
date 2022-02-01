@@ -1836,26 +1836,42 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     if (l_offset > l_count){
         return NULL;
     }
-    dap_list_t *l_list = dap_list_alloc();
+    dap_list_t *l_list = NULL;
     size_t l_start = 0;
     size_t l_end = 0;
     if (desc){
-        l_start = l_count - l_offset;
-        l_end  =  l_start - a_count;
-        for (
-                dap_chain_cs_dag_event_item_t *item = PVT(l_dag)->tx_events + l_end;
-                item != NULL || item == PVT(l_dag)->tx_events + l_start;
-                item->hh.prev){
-            dap_list_append(l_list, item->event);
+        l_end = l_count - l_offset;
+        l_start  =  l_end - a_count;
+        size_t l_cnt = l_start;
+        for(dap_chain_cs_dag_event_item_t *item=PVT(l_dag)->tx_events; item != NULL || l_cnt < l_end; item = item->hh.next){
+            if (l_cnt >= l_start && l_cnt < l_end) {
+                dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(item->event, item->event_size);
+                dap_chain_datum_tx_t *l_datum_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_datum->header.data_size);
+                memcpy(l_datum_tx, l_datum->data, l_datum->header.data_size);
+                l_list = dap_list_append(l_list, l_datum_tx);
+            }
+            l_cnt++;
         }
+//        for (
+//                dap_chain_cs_dag_event_item_t *item = PVT(l_dag)->tx_events + l_start;
+//                item != NULL || l_cnt == l_end;
+//                item->hh.prev){
+//            dap_chain_datum_t  *l_datum = dap_chain_cs_dag_event_get_datum(item->event, item->event_size);
+//            dap_list_append(l_list, l_datum);
+//            l_cnt--;
+//        }
     } else {
         l_start = l_offset;
         l_end = l_start + a_count;
-        for (
-                dap_chain_cs_dag_event_item_t *item = PVT(l_dag)->tx_events + l_start;
-                item != NULL || item == PVT(l_dag)->tx_events + l_end;
-                item->hh.next) {
-            dap_list_append(l_list, item->event);
+        size_t l_cnt = 1;
+        for(dap_chain_cs_dag_event_item_t *item=PVT(l_dag)->tx_events; item != NULL || l_cnt < l_end; item = item->hh.next){
+            if (l_cnt >= l_start && l_cnt < l_end) {
+                dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(item->event, item->event_size);
+                dap_chain_datum_tx_t *l_datum_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_datum->header.data_size);
+                memcpy(l_datum_tx, l_datum->data, l_datum->header.data_size);
+                l_list = dap_list_append(l_list, l_datum_tx);
+            }
+            l_cnt++;
         }
     }
     return l_list;
