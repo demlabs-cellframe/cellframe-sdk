@@ -727,9 +727,11 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
             log_it(L_ERROR, "Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
     }
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
+        a_node_client->keep_connection = true;
         for (dap_list_t *it = l_net_pvt->net_links; it; it = it->next) {
             if (((struct net_link *)it->data)->link == NULL) {  // We have a free prepared link
                 s_node_link_remove(l_net_pvt, a_node_client);
+                a_node_client->keep_connection = false;
                 ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net,
                                                         ((struct net_link *)it->data)->link_info);
                 pthread_rwlock_unlock(&l_net_pvt->rwlock);
@@ -737,9 +739,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
             }
         }
         dap_chain_node_info_t *l_link_node_info = s_get_dns_link_from_cfg(l_net);
-        if (!l_link_node_info) {    // Try to keep this connection
-            a_node_client->keep_connection = true;
-        } else {
+        if (l_link_node_info) {
             struct link_dns_request *l_dns_request = DAP_NEW_Z(struct link_dns_request);
             l_dns_request->net = l_net;
             if (dap_chain_node_info_dns_request(l_link_node_info->hdr.ext_addr_v4,
@@ -752,7 +752,6 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
                 log_it(L_ERROR, "Can't process node info dns request");
                 DAP_DELETE(l_link_node_info);
                 DAP_DELETE(l_dns_request);
-                a_node_client->keep_connection = true;
             } else {
                 s_node_link_remove(l_net_pvt, a_node_client);
                 a_node_client->keep_connection = false;
@@ -825,6 +824,12 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
                                 "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                     NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
         return;
+    } else if (a_node_client->is_connected){
+        a_node_client->is_connected = false;
+        if (l_net_pvt->links_connected_count)
+            l_net_pvt->links_connected_count--;
+        else
+            log_it(L_ERROR, "Links count is zero in delete callback");
     }
     dap_chain_net_sync_unlock(l_net, a_node_client);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
@@ -832,10 +837,6 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
         if (((struct net_link *)it->data)->link == a_node_client) {
             log_it(L_DEBUG,"Replace node client with new one");
             ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
-            if (l_net_pvt->links_connected_count)
-                l_net_pvt->links_connected_count--;
-            else
-                log_it(L_ERROR, "Links count is zero in delete callback");
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
@@ -1154,7 +1155,6 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             for (dap_list_t *l_tmp = l_net_pvt->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                 dap_chain_node_info_t *l_link_info = ((struct net_link *)l_tmp->data)->link_info;
                 dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, l_link_info);
-                l_client->keep_connection = true;
                 ((struct net_link *)l_tmp->data)->link = l_client;
                 if (++l_used_links == s_required_links_count)
                     break;
@@ -1250,7 +1250,14 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
  */
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net,struct dap_chain_node_info* a_link_info)
 {
-    return dap_chain_node_client_create_n_connect(a_net, a_link_info,"CN",(dap_chain_node_client_callbacks_t *)&s_node_link_callbacks,a_net);
+    dap_chain_node_client_t *l_ret = dap_chain_node_client_create_n_connect(a_net,
+                                                                            a_link_info,
+                                                                            "CN",
+                                                                            (dap_chain_node_client_callbacks_t *)&s_node_link_callbacks,
+                                                                            a_net);
+    if (l_ret)
+        l_ret->keep_connection = true;
+    return l_ret;
 }
 
 /**
@@ -1816,13 +1823,18 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_load_all(l_chain);
                 }
             }
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-                if (l_chain->callback_atom_add_from_treshold) {
-                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                        log_it(L_DEBUG, "Added atom from treshold");
+            bool l_processed;
+            do {
+                l_processed = false;
+                DL_FOREACH(l_net->pub.chains, l_chain) {
+                    if (l_chain->callback_atom_add_from_treshold) {
+                        while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                            log_it(L_DEBUG, "Added atom from treshold");
+                            l_processed = true;
+                        }
                     }
                 }
-            }
+            } while (l_processed);
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                                               "Command requires one of subcomand: sync, link, go, get, stats, ca, ledger");
@@ -2544,10 +2556,6 @@ void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_
     assert(l_net);
     log_it(L_DEBUG,"%s set state %s", l_net->pub.name, dap_chain_net_state_to_str(a_state)  );
     pthread_rwlock_wrlock(&PVT(l_net)->rwlock);
-    if( a_state == PVT(l_net)->state){
-        pthread_rwlock_unlock(&PVT(l_net)->rwlock);
-        return;
-    }
     PVT(l_net)->state = a_state;
     pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc,l_net );
