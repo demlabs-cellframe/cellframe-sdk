@@ -435,6 +435,10 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
     log_it(L_DEBUG, "Prepare request to gdb sync from %s", l_sync_request->request.id_start ? "last sync" : "zero");
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_sync_request->worker), l_sync_request->ch_uuid);
+    if (!l_ch) {
+        DAP_DELETE(l_sync_request);
+        return true;
+    }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     int l_flags = 0;
     if (dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr))
@@ -499,8 +503,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if (s_debug_more){
             char l_atom_hash_str[72]={[0]='\0'};
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
-            log_it(L_INFO, "%s atom with hash %s for %s:%s", l_atom_add_res == ATOM_ACCEPT ? "Accepted" : "Thresholded",
-                            l_atom_hash_str, l_chain->net_name, l_chain->name);
+            log_it(L_INFO, "Passed atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
         dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         DAP_DELETE(l_atom_copy);
@@ -528,30 +531,34 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         }
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
         dap_chain_t *l_cur_chain;
-        DL_FOREACH(l_net->pub.chains, l_cur_chain) {
-            if (l_cur_chain->callback_atom_add_from_treshold) {
-                dap_chain_atom_ptr_t l_atom_treshold;
-                do {
-                    size_t l_atom_treshold_size;
-                    if (s_debug_more)
-                        log_it(L_DEBUG, "Try to add atom from treshold");
-                    l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
-                    if (l_atom_treshold) {
-                        dap_chain_cell_id_t l_cell_id = (l_cur_chain == l_chain) ? l_sync_request->request_hdr.cell_id
-                                                                                 : l_cur_chain->cells->id;
-                        int l_res = dap_chain_atom_save(l_cur_chain, l_atom_copy, l_atom_copy_size, l_cell_id);
-                        log_it(L_INFO, "Added atom from treshold");
-                        if (l_res < 0) {
-                            char l_atom_hash_str[72] = {'\0'};
-                            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str, sizeof(l_atom_hash_str) - 1);
-                            log_it(L_ERROR, "Can't save atom %s from treshold to file", l_atom_hash_str);
-                        } else if (l_cur_chain == l_chain) {
-                            dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        bool l_processed;
+        do {
+            l_processed = false;
+            DL_FOREACH(l_net->pub.chains, l_cur_chain) {
+                if (l_cur_chain->callback_atom_add_from_treshold) {
+                    dap_chain_atom_ptr_t l_atom_treshold;
+                    do {
+                        size_t l_atom_treshold_size;
+                        if (s_debug_more)
+                            log_it(L_DEBUG, "Try to add atom from treshold");
+                        l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
+                        if (l_atom_treshold) {
+                            dap_chain_cell_id_t l_cell_id = (l_cur_chain == l_chain) ? l_sync_request->request_hdr.cell_id
+                                                                                     : l_cur_chain->cells->id;
+                            int l_res = dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cell_id);
+                            log_it(L_INFO, "Added atom from treshold");
+                            if (l_res < 0) {
+                                char l_atom_hash_str[72] = {'\0'};
+                                dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str, sizeof(l_atom_hash_str) - 1);
+                                log_it(L_ERROR, "Can't save atom %s from treshold to file", l_atom_hash_str);
+                            } else if (l_cur_chain == l_chain) {
+                                dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+                            }
                         }
-                    }
-                } while(l_atom_treshold);
+                    } while(l_atom_treshold);
+                }
             }
-        }
+        } while (l_processed);
         //dap_chain_cell_close(l_cell);
         break;
     case ATOM_REJECT: {
