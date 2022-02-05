@@ -1255,6 +1255,8 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     }
     l_client_pvt->stream = NULL;
     l_client_pvt->stream_es = NULL;
+    //dap_client_delete_mt(l_client_pvt->client);    // TODO find a way to delete the client if it no closed yet
+
 }
 
 /**
