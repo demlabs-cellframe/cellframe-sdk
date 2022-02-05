@@ -689,6 +689,7 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
     for(size_t q = 0; q < a_objs_count; ++q) {
         dap_store_obj_t *store_data_cur = l_store_data + q;
         dap_global_db_obj_t *a_obj_cur = a_objs + q;
+        store_data_cur->type = 'a';
         store_data_cur->key = a_obj_cur->key;
         store_data_cur->group = (char*)a_group;
         store_data_cur->value = a_obj_cur->value;
