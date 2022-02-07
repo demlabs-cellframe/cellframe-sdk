@@ -1555,28 +1555,21 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to", &l_to_str);
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-prev_sec", &l_prev_sec_str);
 
-                if (l_from_str ) {
+                time_t l_ts_now = time(NULL);
+                if (l_from_str) {
                     strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
-                }
-
-                if (l_to_str) {
-                    strptime( (char *)l_to_str, c_time_fmt, &l_to_tm );
-                }
-
-                if ( l_to_str == NULL ){ // If not set '-to' - we set up current time
-                    time_t l_ts_now = time(NULL);
-                    localtime_r(&l_ts_now, &l_to_tm);
-                }
-
-                if ( l_prev_sec_str ){
-                    time_t l_ts_now = time(NULL);
+                    if (l_to_str) {
+                        strptime( (char *)l_to_str, c_time_fmt, &l_to_tm );
+                    } else { // If not set '-to' - we set up current time
+                        localtime_r(&l_ts_now, &l_to_tm);
+                    }
+                } else if (l_prev_sec_str) {
                     l_ts_now -= strtol( l_prev_sec_str, NULL,10 );
                     localtime_r(&l_ts_now, &l_from_tm );
-                }/*else if ( l_from_str == NULL ){ // If not set '-from' we set up current time minus 10 seconds
-                    time_t l_ts_now = time(NULL);
-                    l_ts_now -= 10;
+                } else if ( l_from_str == NULL ) { // If not set '-from' we set up current time minus 60 seconds
+                    l_ts_now -= 60;
                     localtime_r(&l_ts_now, &l_from_tm );
-                }*/
+                }
 
                 // Form timestamps from/to
                 time_t l_from_ts = mktime(&l_from_tm);
@@ -1600,6 +1593,15 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_string_append_printf( l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count );
                 dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
                 dap_string_free( l_ret_str, false );
+            } else if (strcmp(l_stats_str, "tps") == 0) {
+                dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
+                dap_string_append_printf(l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps);
+                dap_string_append_printf(l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count);
+                dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
+                dap_string_free( l_ret_str, false );
+            } else {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "Subcommand 'stats' requires one of parameter: tx, tps\n");
             }
         } else if ( l_go_str){
             if ( strcmp(l_go_str,"online") == 0 ) {
@@ -1613,14 +1615,16 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                                                   c_net_states[NET_STATE_OFFLINE]);
                 dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
 
-            }
-            else if(strcmp(l_go_str, "sync") == 0) {
+            } else if(strcmp(l_go_str, "sync") == 0) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" resynchronizing",
                                                   l_net->pub.name);
                 if (PVT(l_net)->state_target == NET_STATE_ONLINE)
                     dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
                 else
                     dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
+            } else {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "Subcommand 'go' requires one of parameter: online, offline, sync\n");
             }
 
         } else if ( l_get_str){
@@ -1678,7 +1682,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply,"Stopped network\n");
             }else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "Subcommand \"link\" requires one of parameter: list\n");
+                                                  "Subcommand 'link' requires one of parameter: list\n");
                 ret = -3;
             }
 
@@ -1704,7 +1708,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
 
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "Subcommand \"sync\" requires one of parameter: all,gdb,chains\n");
+                                                  "Subcommand 'sync' requires one of parameter: all, gdb, chains\n");
                 ret = -2;
             }
         } else if (l_ca_str) {
@@ -1807,7 +1811,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 return 0;
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "Subcommand \"ca\" requires one of parameter: add, list, del\n");
+                                                  "Subcommand 'ca' requires one of parameter: add, list, del\n");
                 ret = -5;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
@@ -1837,7 +1841,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             } while (l_processed);
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                                              "Command requires one of subcomand: sync, link, go, get, stats, ca, ledger");
+                                              "Command 'net' requires one of subcomand: sync, link, go, get, stats, ca, ledger");
             ret = -1;
         }
 
