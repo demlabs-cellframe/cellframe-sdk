@@ -162,14 +162,14 @@ static vpn_local_network_t *s_raw_server = NULL;
 static pthread_rwlock_t s_raw_server_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 // Service callbacks
-static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client
+static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
                                     , const void * a_custom_data, size_t a_custom_data_size );
-static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client
+static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
                                     , const void * a_custom_data, size_t a_custom_data_size );
-static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client
+static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
                                     , const void * a_custom_data, size_t a_custom_data_size );
 
-static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
+static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
                     const void * a_receipt_next, size_t a_receipt_next_size);
 
 
@@ -542,7 +542,7 @@ static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, 
  * @param a_success_size
  * @return
  */
-static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
+static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
                     const void * a_success, size_t a_success_size)
 {
     if(!a_srv || !a_srv_client || !a_srv_client->stream_worker || !a_success || a_success_size < sizeof(dap_stream_ch_chain_net_srv_pkt_success_t))
@@ -607,7 +607,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
  * @param a_receipt_size
  * @return
  */
-static int s_callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
+static int s_callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
                     dap_chain_datum_tx_receipt_t **a_receipt, size_t a_receipt_size)
 {
     dap_chain_datum_tx_receipt_t *l_receipt = *a_receipt;
@@ -648,7 +648,7 @@ int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
     }
 
 
-    if(!dap_chain_net_srv_client_init(l_uid, s_callback_requested,
+    if(!dap_chain_net_srv_remote_init(l_uid, s_callback_requested,
             s_callback_response_success, s_callback_response_error,
             s_callback_receipt_next_success,
             s_callback_client_success,
@@ -909,7 +909,7 @@ void dap_chain_net_srv_vpn_deinit(void)
 /**
  * Callback calls after successful request for service
  */
-static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client
+static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
                                     , const void * a_custom_data, size_t a_custom_data_size )
 {
 
@@ -923,7 +923,7 @@ static int s_callback_requested(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id
 /**
  * Called if responses success with all signature checks
  */
-static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client
+static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
                                     , const void * a_request, size_t a_request_size )
 {
     int l_ret = 0;
@@ -974,7 +974,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
 
 
 
-static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client,
+static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
                     const void * a_receipt_next, size_t a_receipt_next_size)
 {
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor;
@@ -998,7 +998,7 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t
 /**
  * If error
  */
-static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_t * a_srv_client
+static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client
                                     , const void * a_custom_data, size_t a_custom_data_size )
 {
     if (a_custom_data_size != sizeof (dap_stream_ch_chain_net_srv_pkt_error_t)){

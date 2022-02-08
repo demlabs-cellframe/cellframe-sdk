@@ -205,4 +205,3 @@ DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chai
 }
 
 uint8_t dap_stream_ch_chain_net_srv_get_id();
-
