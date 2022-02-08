@@ -49,6 +49,8 @@ typedef struct dap_stream_ch_pkt{
     uint8_t data[];
 } __attribute__((packed)) dap_stream_ch_pkt_t;
 
+typedef void (*dap_stream_ch_callback_packet_t)(void *, uint8_t, dap_stream_ch_pkt_t *, void *);
+
 int dap_stream_ch_pkt_init();
 void dap_stream_ch_pkt_deinit();
 

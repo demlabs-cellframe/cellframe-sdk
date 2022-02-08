@@ -28,6 +28,7 @@
 #include "uthash.h"
 #include "dap_client.h"
 #include "dap_chain_node.h"
+#include "dap_stream_ch_pkt.h"
 
 // connection states
 typedef enum dap_chain_node_client_state {
@@ -69,6 +70,13 @@ typedef struct dap_chain_node_client_callbacks{
     dap_chain_node_client_callback_t delete;
     dap_chain_node_client_callback_stage_t stage;
     dap_chain_node_client_callback_error_t error;
+
+    dap_stream_ch_callback_packet_t chain_pkt_in;
+    dap_stream_ch_callback_packet_t chain_pkt_out;
+    dap_stream_ch_callback_packet_t net_pkt_in;
+    dap_stream_ch_callback_packet_t net_pkt_out;
+    dap_stream_ch_callback_packet_t srv_pkt_in;
+    dap_stream_ch_callback_packet_t srv_pkt_out;
 } dap_chain_node_client_callbacks_t;
 
 // state for a client connection
@@ -94,6 +102,9 @@ typedef struct dap_chain_node_client {
     // Channel chain net
     dap_stream_ch_t * ch_chain_net;
     dap_stream_ch_uuid_t ch_chain_net_uuid;
+    // Channel chain net srv
+    dap_stream_ch_t * ch_chain_net_srv;
+    dap_stream_ch_uuid_t ch_chain_net_srv_uuid;
 
     dap_chain_node_info_t * info;
     dap_events_t *events;

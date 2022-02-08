@@ -471,11 +471,9 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
             l_request->data_size_recv = a_data_size_to_recv;
             l_request->data_size = a_data_size_to_send;
             randombytes(l_request->data, a_data_size_to_send);
-            dap_chain_hash_fast_t l_data_hash;
             dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
             if(a_ipv4_str)
                 memcpy(l_request->ip_recv, a_ipv4_str, min(sizeof(l_request->ip_recv), strlen(a_ipv4_str)));
-
             l_request->time_connect_ms = l_dtime_connect_ms;
             gettimeofday(&l_request->send_time1, NULL);
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
