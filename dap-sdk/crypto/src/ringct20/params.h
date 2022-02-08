@@ -1,6 +1,7 @@
 #ifndef PARAMS_RINGCT20_H
 #define PARAMS_RINGCT20_H
 
+//TODO: regenerate parameters
 #define NEWHOPE_RINGCT20_Q 12289
 #define NEWHOPE_RINGCT20_2Q 24578
 #define NEWHOPE_RINGCT20_K 8 /* used in noise sampling */

@@ -297,7 +297,7 @@ static unsigned char hw(unsigned char a) {
 *              - const unsigned char *seed: pointer to input seed 
 *              - unsigned char nonce:       one-byte input nonce
 **************************************************/
-void poly_sample(poly_ringct20 *r, const unsigned char *seed, unsigned char nonce) {
+void poly_sample(poly_ringct20 *r, const unsigned char *seed, unsigned char nonce) { //TODO: check this func and use it when needed gaussian distribution
 #if NEWHOPE_RINGCT20_K != 8
 #error "poly_sample in poly_ringct20.c only supports k=8"
 #endif
@@ -336,7 +336,8 @@ void poly_mul_pointwise(poly_ringct20 *r, const poly_ringct20 *a, const poly_rin
 	int i;
 	uint16_t t;
 
-	for (i = 0; i < NEWHOPE_RINGCT20_N; i++) {
+//	for (i = 0; i < NEWHOPE_RINGCT20_N; i++) {
+	for (i = 0; i < 3; i++) {
         t = montgomery_reduce_32_16(3186 * b->coeffs[i]);         /* t is now in Montgomery domain */ //3186 != 2^32^2 mod Q
         r->coeffs[i] = montgomery_reduce_32_16(a->coeffs[i] * t); /* r->coeffs[i] is back in normal domain */
 	}

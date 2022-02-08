@@ -1,4 +1,4 @@
-
+//TODO: regenerate parameters
 #include "ringct20_params.h"
 
 #if (NEWHOPE_RINGCT20_N == 512)
