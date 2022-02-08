@@ -1,6 +1,7 @@
 /*
 * Authors:
 * Dmitriy Gerasimov <naeper@demlabs.net>
+* Roman Khlopkov <roman.khlopkov@demlabs.net>
 * Cellframe       https://cellframe.net
 * DeM Labs Inc.   https://demlabs.net
 * Copyright  (c) 2017-2022
@@ -30,11 +31,13 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define LOG_TAG "dap_chain_net_srv_client"
 
 static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg);
-static void s_srv_client_callback_connected(dap_chain_node_client_t * a_node_client, void * a_arg);
+static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_client, void *a_arg);
+static void s_srv_client_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg);
 static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client, void *a_arg);
 
 static dap_chain_node_client_callbacks_t s_callbacks = {
     .connected = s_srv_client_callback_connected,
+    .disconncted = s_srv_client_callback_disconnected,
     .delete = s_srv_client_callback_deleted
 };
 
@@ -84,6 +87,15 @@ static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_clie
     DAP_DELETE(l_request); */
 }
 
+static void s_srv_client_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg)
+{
+    UNUSED(a_node_client);
+    log_it(L_INFO, "Service client disconnected");
+    dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
+    if (l_srv_client->callbacks.disconnected)
+        l_srv_client->callbacks.disconnected(l_srv_client, l_srv_client->callbacks_arg);
+}
+
 static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client, void *a_arg)
 {
     UNUSED(a_node_client);
@@ -97,9 +109,8 @@ static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client
 static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8_t a_pkt_type, dap_stream_ch_pkt_t *a_pkt, void *a_arg)
 {
     UNUSED(a_ch_chain);
-    dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)a_arg;
+    //dap_chain_node_client_t *l_node_client = (dap_chain_node_client_t *)a_arg;
     switch (a_pkt_type) {
-    // get new generated current node address
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
             dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_test_t *) a_pkt->data;
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
