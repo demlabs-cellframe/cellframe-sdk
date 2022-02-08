@@ -240,7 +240,7 @@ uint64_t dap_chain_uint256_to(uint256_t a_from)
     }
     return (uint64_t)a_from.lo;
 #else
-    if (!IS_ZERO_128(a_from.hi) || a_from.lo.hi {
+    if (!IS_ZERO_128(a_from.hi) || a_from.lo.hi) {
         log_it(L_ERROR, "Can't convert balance to uint64_t. It's too big.");
     }
     return a_from.lo.lo;

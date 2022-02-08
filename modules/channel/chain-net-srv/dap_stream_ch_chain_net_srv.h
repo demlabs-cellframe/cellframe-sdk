@@ -27,6 +27,7 @@
 #include <pthread.h>
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_chain_common.h"
 
 typedef struct dap_stream_ch_chain_net_srv dap_stream_ch_chain_net_srv_t;
 
