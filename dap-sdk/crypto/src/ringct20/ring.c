@@ -12,6 +12,7 @@ void LRCT_SampleKey(poly_ringct20 *r, int mLen)
     int i;
 	for ( i = 0; i < mLen; i++)
 	{
+#ifndef NEW_SAMPLE_KEY
         randombytes(seed, NEWHOPE_RINGCT20_SYMBYTES);
 		for (size_t j = 0; j < NEWHOPE_RINGCT20_SYMBYTES; j++)
 		{
@@ -38,6 +39,22 @@ void LRCT_SampleKey(poly_ringct20 *r, int mLen)
 			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 6] = (seed[j] & 0x40)>>6;
 			r[i].coeffs[NEWHOPE_RINGCT20_SYMBYTES * 8 + j * 8 + 7] = (seed[j] & 0x80)>>7;
 		}
+#else
+        uint8_t stm[NEWHOPE_RINGCT20_N*2];
+        randombytes(stm, NEWHOPE_RINGCT20_N*2);
+        const int gamma = 8;
+        for(int j = 0; j < NEWHOPE_RINGCT20_N; ++j)
+        {
+            uint16_t v = stm[2*j];
+            v<<= 8;
+            v ^= stm[2*j + 1];
+            v %= gamma;
+            v -= gamma/2;
+            if(v < 0)
+                v += NEWHOPE_RINGCT20_Q;
+            r[i].coeffs[j] = v;
+        }
+#endif
 	}
 
 }
@@ -725,6 +742,7 @@ void LRCT_MatrixMulPoly(poly_ringct20 *r, poly_ringct20 *A, poly_ringct20 *s, in
 	{
 		poly_cofcopy(&tmpA, A + i);
 		poly_cofcopy(&tmps, s + i);
+        poly_init(&tmp);
 	  // poly_ntt_ringct20(&tmpA);
 		//poly_ntt_ringct20(&tmps);
 		poly_mul_pointwise(&tmp, &tmpA, &tmps);
