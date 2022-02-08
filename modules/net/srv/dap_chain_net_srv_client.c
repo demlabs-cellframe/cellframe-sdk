@@ -37,7 +37,7 @@ static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client
 
 static dap_chain_node_client_callbacks_t s_callbacks = {
     .connected = s_srv_client_callback_connected,
-    .disconncted = s_srv_client_callback_disconnected,
+    .disconnected = s_srv_client_callback_disconnected,
     .delete = s_srv_client_callback_deleted
 };
 
