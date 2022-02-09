@@ -197,6 +197,12 @@ static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worke
         DAP_DELETE(a_arg);
 }
 
+/**
+ * @brief start node syncronization procedure
+ * 
+ * @param l_uuid Universal ID, f.e. 4851888613748957368
+ * @return dap_chain_node_sync_status_t 
+ */
 dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_uuid_t *a_uuid)
 {
     dap_chain_node_client_handle_t *l_client_found = NULL;
