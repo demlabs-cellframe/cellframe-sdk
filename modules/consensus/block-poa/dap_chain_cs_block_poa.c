@@ -93,12 +93,12 @@ void dap_chain_cs_block_poa_deinit(void)
 
 
 /**
- * @brief s_cli_block_poa
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return
+ * @brief 
+ * 
+ * @param argc 
+ * @param argv 
+ * @param a_str_reply 
+ * @return int 
  */
 static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
 {

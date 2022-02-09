@@ -125,15 +125,13 @@ void dap_chain_cs_dag_poa_deinit(void)
 }
 
 
-
 /**
- * @brief
- * parse and execute cellframe-node-cli dag-poa commands
+ * @brief parse and execute cellframe-node-cli dag-poa commands
+ * 
  * @param argc arguments count
  * @param argv array with arguments
- * @param arg_func
- * @param str_reply
- * @return
+ * @param a_str_reply 
+ * @return int 
  */
 static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
 {
@@ -346,6 +344,12 @@ typedef struct event_clean_dup_items {
 
 static event_clean_dup_items_t *s_event_clean_dup_items = NULL;
 
+/**
+ * @brief clean duplicated event in round confirmation stage
+ * 
+ * @param a_dag dap_chain_cs_dag_t DAG object
+ * @param a_event_hash_hex_str event hash string hash (f.e. "0xF5A8447F19EDF7B4662A9DD284E31669DACA4D973E2DF2A41BA96C735EC47C89")
+ */
 static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_event_hash_hex_str) {
     char * l_gdb_group_events = a_dag->gdb_group_events_round_new;
     size_t l_event_size = 0;
@@ -408,6 +412,17 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     dap_store_obj_free(l_events_round, l_events_round_size);
 }
 
+/**
+ * @brief check minimum count of event in round for preparing to automatic round complete
+ * 
+ * @param a_dag 
+ * @param a_event dap_chain_cs_dag_event_t event object
+ * @param a_event_size event size
+ * @param a_event_hash_hex_str 
+ * @param a_event_round_cfg 
+ * @return true 
+ * @return false 
+ */
 static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event, 
                                             size_t a_event_size, char * a_event_hash_hex_str,
                                             dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
@@ -427,6 +442,14 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t * a_dag, dap_ch
     return false;
 }
 
+/**
+ * @brief 
+ * 
+ * @param a_dag 
+ * @param a_event 
+ * @param a_event_hash_hex_str 
+ * @param a_event_round_cfg 
+ */
 static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event,
                                     char * a_event_hash_hex_str, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA( a_dag );
@@ -472,6 +495,12 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_e
     }
 }
 
+/**
+ * @brief get round specific config parameters from chain config
+ * 
+ * @param a_dag DAG object
+ * @param a_event_round_cfg round config params (confirmations_minimum; confirmations_timeout; ts_confirmations_minimum_completed; ts_update; first_event_hash)
+ */
 static void s_callback_get_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT (l_poa);
@@ -480,6 +509,13 @@ static void s_callback_get_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_da
     a_event_round_cfg->ts_confirmations_minimum_completed = 0;
 }
 
+/**
+ * @brief function is executed by timer (dap_timerfd_start) during event verification in round
+ * 
+ * @param a_callback_arg function arguments
+ * @return true 
+ * @return false 
+ */
 static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_arg_t * a_callback_arg) {
     dap_chain_cs_dag_t * l_dag = a_callback_arg->dag;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
@@ -585,10 +621,10 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
  * @brief 
  * callback for create event operation
  * @param a_dag dap_chain_cs_dag_t DAG object
- * @param a_datum dap_chain_datum_t
- * @param a_hashes  dap_chain_hash_fast_t 
- * @param a_hashes_count size_t
- * @param a_dag_event_size size_t
+ * @param a_datum dap_chain_datum_t object
+ * @param a_hashes  dap_chain_hash_fast_t object
+ * @param a_hashes_count size_t count of hashes
+ * @param a_dag_event_size size_t size of event
  * @return dap_chain_cs_dag_event_t* 
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
@@ -609,7 +645,16 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
         return NULL;
 }
 
-
+/**
+ * @brief executes logic of round syncing proc for specific consensus
+ * 
+ * @param a_dag DAG object
+ * @param a_op_code opcode letter (f.e. "a","d")
+ * @param a_group group name, f.e. "home21-network-poa-0000000000000000-round.new"
+ * @param a_key key in hex format, f.e. "0x9AE0BDCE677D3B7CBE836B2C1E76F63B9130F5A7E1C941B61A5221859C0ADA31"
+ * @param a_value dap_chain_cs_dag_event_round_item_t object
+ * @param a_value_size size of value
+ */
 static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
                                         const char *a_key, const void *a_value, const size_t a_value_size)
 {
@@ -721,6 +766,13 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     }
 }
 
+/**
+ * @brief return array of certificates, which are set in dag_poa chain config file
+ * 
+ * @param a_chain dap_chain_t chain object
+ * @param a_auth_certs_count auth certificates count, which are set in dag_poa chain config file
+ * @return dap_cert_t** 
+ */
 dap_cert_t **dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count)
 {
     dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(a_chain);
