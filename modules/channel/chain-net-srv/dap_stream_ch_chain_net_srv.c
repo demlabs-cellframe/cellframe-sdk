@@ -224,7 +224,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
         l_err.usage_id = l_usage->id;
 
         // Create one client
-        l_usage->client = DAP_NEW_Z( dap_chain_net_srv_client_t);
+        l_usage->client = DAP_NEW_Z( dap_chain_net_srv_client_remote_t);
         l_usage->client->stream_worker = l_ch->stream_worker;
         l_usage->client->ch = l_ch;
         l_usage->client->session_id = l_ch->stream->session->id;
@@ -656,7 +656,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_success->hdr.srv_uid);
                 if ( l_srv && l_srv->callback_client_success){
                     // Create client for client)
-                    dap_chain_net_srv_client_t *l_client = DAP_NEW_Z( dap_chain_net_srv_client_t);
+                    dap_chain_net_srv_client_remote_t *l_client = DAP_NEW_Z( dap_chain_net_srv_client_remote_t);
                     l_client->ch = a_ch;
                     l_client->stream_worker = a_ch->stream_worker;
                     l_client->ts_created = time(NULL);

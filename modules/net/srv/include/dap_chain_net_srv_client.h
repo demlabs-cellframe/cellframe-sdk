@@ -32,17 +32,28 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_worker.h"
 #include "dap_chain_net_srv_common.h"
 #include "dap_chain_net_remote.h"
+#include "dap_chain_node_client.h"
 
+typedef struct dap_chain_net_srv_client dap_chain_net_srv_client_t;
 
-typedef struct dap_chain_net_srv_client
-{
-    dap_stream_ch_t * ch; // Use ONLY in own context, not thread-safe
-    time_t ts_created;
-    dap_stream_worker_t * stream_worker;
-    int session_id;
-    dap_chain_net_remote_t *net_remote; // For remotes
-    uint64_t bytes_received;
-    uint64_t bytes_sent;
-    struct dap_chain_net_srv_client *prev;
-    struct dap_chain_net_srv_client *next;
+typedef void (*dap_chain_net_srv_client_callback_t)(dap_chain_net_srv_client_t *, void *);
+
+typedef struct dap_chain_net_srv_client_callbacks {
+    dap_chain_net_srv_client_callback_t connected;
+    dap_chain_net_srv_client_callback_t disconnected;
+    dap_chain_net_srv_client_callback_t deleted;
+    dap_stream_ch_callback_packet_t pkt_in;
+} dap_chain_net_srv_client_callbacks_t;
+
+typedef struct dap_chain_net_srv_client {
+    dap_chain_net_srv_client_callbacks_t callbacks;
+    void *callbacks_arg;
+    dap_stream_ch_uuid_t ch_uuid;
+    dap_chain_node_client_t *node_client;
+    dap_client_t *net_client;
 } dap_chain_net_srv_client_t;
+
+dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_net_t *a_net, char *a_addr, uint16_t a_port,
+                                                                      dap_chain_net_srv_client_callbacks_t *a_callbacks,
+                                                                      void *a_callbacks_arg);
+ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uint8_t a_type, void *a_pkt_data, size_t a_pkt_data_size);

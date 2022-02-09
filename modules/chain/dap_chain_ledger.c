@@ -50,6 +50,7 @@
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 #include "dap_cert.h"
+#include "dap_timerfd.h"
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_mempool.h"
@@ -193,17 +194,24 @@ typedef struct dap_ledger_private {
     dap_chain_cell_id_t local_cell_id;
 
     bool load_mode;
+    // TPS section
+    dap_timerfd_t *tps_timer;
+    struct timespec tps_start_time;
+    struct timespec tps_current_time;
+    struct timespec tps_end_time;
+    size_t tps_count;
 } dap_ledger_private_t;
 #define PVT(a) ( (dap_ledger_private_t* ) a->_internal )
 
 
 static  dap_chain_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger,
         const dap_chain_addr_t *a_addr, const char * a_token, dap_chain_hash_fast_t *a_tx_first_hash);
-
 static void s_treshold_emissions_proc( dap_ledger_t * a_ledger);
 static void s_treshold_txs_proc( dap_ledger_t * a_ledger);
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size);
 static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_item, uint16_t a_permission_id, const void * a_data,size_t a_data_size );
+static bool s_ledger_tps_callback(void *a_arg);
+
 static size_t s_treshold_emissions_max = 1000;
 static size_t s_treshold_txs_max = 10000;
 static bool s_debug_more = false;
@@ -1096,6 +1104,8 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     l_ledger_priv->check_token_emission = a_check_flags & DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
     l_ledger_priv->net = dap_chain_net_by_name(a_net_name);
     l_ledger_priv->load_mode = true;
+    l_ledger_priv->tps_timer = NULL;
+    l_ledger_priv->tps_count = 0;
 
     log_it(L_DEBUG,"Created ledger \"%s\"",a_net_name);
     if (dap_config_get_item_bool_default(g_config, "ledger", "cached", true)) {
@@ -2118,7 +2128,13 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
     dap_chain_ledger_tx_item_t *l_item_tmp = NULL;
-
+    if (!l_ledger_priv->tps_timer) {
+        clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_start_time);
+        l_ledger_priv->tps_current_time.tv_sec = l_ledger_priv->tps_start_time.tv_sec;
+        l_ledger_priv->tps_current_time.tv_nsec = l_ledger_priv->tps_start_time.tv_nsec;
+        l_ledger_priv->tps_count = 0;
+        l_ledger_priv->tps_timer = dap_timerfd_start(500, s_ledger_tps_callback, l_ledger_priv);
+    }
     dap_chain_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
     char l_tx_hash_str[70];
     dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
@@ -2377,7 +2393,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         l_item_tmp = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
         memcpy(&l_item_tmp->tx_hash_fast, l_tx_hash, sizeof(dap_chain_hash_fast_t));
         l_item_tmp->tx = DAP_NEW_SIZE(dap_chain_datum_tx_t, dap_chain_datum_tx_get_size(a_tx));
-        l_item_tmp->cache_data.ts_created = (time_t) a_tx->header.ts_created;
+        l_item_tmp->cache_data.ts_created = time(NULL); // Time of transasction added to ledger
         dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_item_tmp->cache_data.n_outs);
         // If debug mode dump the UTXO
         if (dap_log_level_get() == L_DEBUG && s_debug_more) {
@@ -2412,7 +2428,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
         HASH_ADD(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash_fast: name of key field
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
-
+        // Count TPS
+        clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_end_time);
+        l_ledger_priv->tps_count++;
         // Add it to cache
         uint8_t *l_tx_cache = DAP_NEW_Z_SIZE(uint8_t, l_tx_size + sizeof(l_item_tmp->cache_data));
         memcpy(l_tx_cache, &l_item_tmp->cache_data, sizeof(l_item_tmp->cache_data));
@@ -2431,6 +2449,19 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 FIN:
     DAP_DELETE(l_tx_hash);
     return ret;
+}
+
+static bool s_ledger_tps_callback(void *a_arg)
+{
+    dap_ledger_private_t *l_ledger_pvt = (dap_ledger_private_t *)a_arg;
+    if (l_ledger_pvt->tps_current_time.tv_sec != l_ledger_pvt->tps_end_time.tv_sec ||
+            l_ledger_pvt->tps_current_time.tv_nsec != l_ledger_pvt->tps_end_time.tv_nsec) {
+        l_ledger_pvt->tps_current_time.tv_sec = l_ledger_pvt->tps_end_time.tv_sec;
+        l_ledger_pvt->tps_current_time.tv_nsec = l_ledger_pvt->tps_end_time.tv_nsec;
+        return true;
+    }
+    l_ledger_pvt->tps_timer = NULL;
+    return false;
 }
 
 int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
@@ -2517,7 +2548,6 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
 void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
 {
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
-    const int l_hash_str_size = DAP_CHAIN_HASH_FAST_SIZE * 2 + 2;
     pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
     pthread_rwlock_wrlock(&l_ledger_priv->tokens_rwlock);
     pthread_rwlock_wrlock(&l_ledger_priv->treshold_emissions_rwlock);
@@ -2655,6 +2685,22 @@ uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, time_t a_ts_fro
 
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     return l_ret;
+}
+
+size_t dap_chain_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_from, struct timespec *a_ts_to)
+{
+    if (!a_ledger)
+        return 0;
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+    if (a_ts_from) {
+        a_ts_from->tv_sec = l_ledger_priv->tps_start_time.tv_sec;
+        a_ts_from->tv_nsec = l_ledger_priv->tps_start_time.tv_nsec;
+    }
+    if (a_ts_to) {
+        a_ts_to->tv_sec = l_ledger_priv->tps_end_time.tv_sec;
+        a_ts_to->tv_nsec = l_ledger_priv->tps_end_time.tv_nsec;
+    }
+    return l_ledger_priv->tps_count;
 }
 
 /**
