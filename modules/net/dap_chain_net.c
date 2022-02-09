@@ -1537,18 +1537,16 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         if ( !dap_strcmp(l_sync_mode_str,"all") )
             dap_chain_net_get_flag_sync_from_zero(l_net);
 
-        if ( l_stats_str ){
+        if ( l_stats_str ){          
+
+            char l_from_str_new[50], l_to_str_new[50];
+            const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
+            struct tm l_from_tm = {}, l_to_tm = {};
+
             if ( strcmp(l_stats_str,"tx") == 0 ) {
                 const char *l_to_str = NULL;
-                struct tm l_to_tm = {0};
-
                 const char *l_from_str = NULL;
-                struct tm l_from_tm = {0};
-
                 const char *l_prev_sec_str = NULL;
-                //time_t l_prev_sec_ts;
-
-                const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
 
                 // Read from/to time
                 dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from", &l_from_str);
@@ -1570,20 +1568,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     l_ts_now -= 60;
                     localtime_r(&l_ts_now, &l_from_tm );
                 }
-
-                // Form timestamps from/to
                 time_t l_from_ts = mktime(&l_from_tm);
                 time_t l_to_ts = mktime(&l_to_tm);
 
-                // Produce strings
-                char l_from_str_new[50];
-                char l_to_str_new[50];
+                dap_string_t * l_ret_str = dap_string_new("Transactions statistics:\n");
                 strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt,&l_from_tm );
                 strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt,&l_to_tm );
-
-
-                dap_string_t * l_ret_str = dap_string_new("Transactions statistics:\n");
-
                 dap_string_append_printf( l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
                 log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
                 uint64_t l_tx_count = dap_chain_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
@@ -1594,11 +1584,23 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
                 dap_string_free( l_ret_str, false );
             } else if (strcmp(l_stats_str, "tps") == 0) {
+                struct timespec l_from_time_acc = {}, l_to_time_acc = {};
                 dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
-                dap_string_append_printf(l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps);
-                dap_string_append_printf(l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count);
-                dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
-                dap_string_free( l_ret_str, false );
+                size_t l_tx_num = dap_chain_ledger_count_tps(l_net->pub.ledger, &l_from_time_acc, &l_to_time_acc);
+                if (l_tx_num) {
+                    localtime_r(&l_from_time_acc.tv_sec, &l_from_tm);
+                    strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt, &l_from_tm);
+                    localtime_r(&l_to_time_acc.tv_sec, &l_to_tm);
+                    strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt, &l_to_tm);
+                    dap_string_append_printf(l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
+                    uint64_t l_diff_ns = (l_to_time_acc.tv_sec - l_from_time_acc.tv_sec) * 1000000000 +
+                                            l_to_time_acc.tv_nsec - l_from_time_acc.tv_nsec;
+                    long double l_tps = (long double)(l_tx_num * 1000000000) / (long double)(l_diff_ns);
+                    dap_string_append_printf(l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps);
+                }
+                dap_string_append_printf(l_ret_str, "\tTotal:  %zu\n", l_tx_num);
+                dap_chain_node_cli_set_reply_text(a_str_reply, l_ret_str->str);
+                dap_string_free(l_ret_str, false);
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Subcommand 'stats' requires one of parameter: tx, tps\n");
