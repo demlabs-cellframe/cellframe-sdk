@@ -292,6 +292,7 @@ bool dap_chain_node_mempool_autoproc_init()
                 }
                 DAP_DELETE(l_gdb_group_mempool);
             }
+            dap_chain_net_add_notify_callback(l_net_list[i], dap_chain_node_mempool_autoproc_notify);
         }
     }
     DAP_DELETE(l_net_list);

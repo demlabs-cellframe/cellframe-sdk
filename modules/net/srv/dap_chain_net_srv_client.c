@@ -35,12 +35,6 @@ static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_clie
 static void s_srv_client_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg);
 static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client, void *a_arg);
 
-static dap_chain_node_client_callbacks_t s_callbacks = {
-    .connected = s_srv_client_callback_connected,
-    .disconnected = s_srv_client_callback_disconnected,
-    .delete = s_srv_client_callback_deleted
-};
-
 dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_net_t *a_net, char *a_addr, uint16_t a_port,
                                                                       dap_chain_net_srv_client_callbacks_t *a_callbacks,
                                                                       void *a_callbacks_arg)
@@ -49,14 +43,19 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
     if (a_callbacks)
         memcpy(&l_ret->callbacks, a_callbacks, sizeof(*a_callbacks));
     l_ret->callbacks_arg = a_callbacks_arg;
+    dap_chain_node_client_callbacks_t l_callbacks = {
+        .connected = s_srv_client_callback_connected,
+        .disconnected = s_srv_client_callback_disconnected,
+        .delete = s_srv_client_callback_deleted
+    };
     if (a_callbacks->pkt_in)
-        s_callbacks.srv_pkt_in = a_callbacks->pkt_in;
+        l_callbacks.srv_pkt_in = a_callbacks->pkt_in;
     else
-        s_callbacks.srv_pkt_in = (dap_stream_ch_callback_packet_t)s_srv_client_pkt_in;
+        l_callbacks.srv_pkt_in = (dap_stream_ch_callback_packet_t)s_srv_client_pkt_in;
     dap_chain_node_info_t *l_info = DAP_NEW_Z(dap_chain_node_info_t);
     inet_pton(AF_INET, a_addr, &l_info->hdr.ext_addr_v4);
     l_info->hdr.ext_port = a_port;
-    l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, l_info, "R", &s_callbacks, l_ret);
+    l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, l_info, "R", &l_callbacks, l_ret);
     return l_ret;
 }
 

@@ -56,6 +56,11 @@ char *s_server_continents[]={
 		"Antarctica"
  };
 
+struct dap_order_notify {
+    dap_chain_net_t *net;
+    dap_global_db_obj_callback_notify_t callback;
+};
+static dap_list_t *s_order_notify_callbacks = NULL;
 static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
                                    const char *a_key, const void *a_value, const size_t a_value_len);
 
@@ -65,7 +70,11 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
  */
 int dap_chain_net_srv_order_init(void)
 {
-    dap_chain_net_set_srv_callback_notify(s_srv_order_callback_notify);
+    uint16_t l_net_count;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (uint16_t i = 0; i < l_net_count; i++) {
+        dap_chain_net_add_notify_callback(l_net_list[i], s_srv_order_callback_notify);
+    }
 	//geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
     return 0;
 }
@@ -75,7 +84,7 @@ int dap_chain_net_srv_order_init(void)
  */
 void dap_chain_net_srv_order_deinit()
 {
-
+    dap_list_free_full(s_order_notify_callbacks, free);
 }
 
 size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)
@@ -521,37 +530,54 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
                                    const char *a_key, const void *a_value, const size_t a_value_len)
 {
     UNUSED(a_value_len);
-    if (!a_arg || !a_value || a_op_code != 'a' || !dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+    if (!a_arg || !a_key) {
         return;
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
     if (!strcmp(a_group, l_gdb_group_str)) {
-        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
-        if (l_order->version != 2) {
-            dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
-        } else {
-            dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
-            if (!dap_sign_verify_size(l_sign, a_value_len) ||
-                    dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
-                dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
-                DAP_DELETE(l_gdb_group_str);
-                return;
+        for (dap_list_t *it = s_order_notify_callbacks; it; it = s_order_notify_callbacks->next) {
+            struct dap_order_notify *l_notifier = (struct dap_order_notify *)it->data;
+            if ((l_notifier->net == NULL || l_notifier->net == l_net) &&
+                        l_notifier->callback) {
+                l_notifier->callback(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
             }
-            /*dap_chain_hash_fast_t l_pkey_hash;
-            if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+        }
+        if (a_value && a_op_code != 'a' && dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+            dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
+            if (l_order->version != 2) {
                 dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
-                DAP_DELETE(l_gdb_group_str);
-                return;
+            } else {
+                dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
+                if (!dap_sign_verify_size(l_sign, a_value_len) ||
+                        dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
+                    dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
+                    DAP_DELETE(l_gdb_group_str);
+                    return;
+                }
+                /*dap_chain_hash_fast_t l_pkey_hash;
+                if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
+                    dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
+                    DAP_DELETE(l_gdb_group_str);
+                    return;
+                }
+                dap_chain_addr_t l_addr = {};
+                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
+                uint128_t l_balance = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
+                uint64_t l_solvency = dap_chain_uint128_to(l_balance);
+                if (l_solvency < l_order->price && !dap_chain_net_srv_stake_key_delegated(&l_addr)) {
+                    dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
+                }*/
             }
-            dap_chain_addr_t l_addr = {};
-            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
-            uint128_t l_balance = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
-            uint64_t l_solvency = dap_chain_uint128_to(l_balance);
-            if (l_solvency < l_order->price && !dap_chain_net_srv_stake_key_delegated(&l_addr)) {
-                dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
-            }*/
         }
         DAP_DELETE(l_gdb_group_str);
     }
+}
+
+void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback)
+{
+    struct dap_order_notify *l_notifier = DAP_NEW(struct dap_order_notify);
+    l_notifier->net = a_net;
+    l_notifier->callback = a_callback;
+    s_order_notify_callbacks = dap_list_append(s_order_notify_callbacks, l_notifier);
 }

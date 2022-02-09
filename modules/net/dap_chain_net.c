@@ -186,6 +186,7 @@ typedef struct dap_chain_net_pvt{
     // General rwlock for structure
     pthread_rwlock_t rwlock;
 
+    dap_list_t *notify_callbacks;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -263,9 +264,6 @@ static bool s_seed_mode = false;
 
 static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 uint8_t *dap_chain_net_set_acl_param(dap_chain_hash_fast_t *a_pkey_hash);
-
-
-static dap_global_db_obj_callback_notify_t s_srv_callback_notify = NULL;
 
 /**
  * @brief
@@ -390,9 +388,9 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
  * 
  * @param a_callback dap_global_db_obj_callback_notify_t callback function
  */
-void dap_chain_net_set_srv_callback_notify(dap_global_db_obj_callback_notify_t a_callback)
+void dap_chain_net_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback)
 {
-    s_srv_callback_notify = a_callback;
+   PVT(a_net)->notify_callbacks = dap_list_append(PVT(a_net)->notify_callbacks, a_callback);
 }
 
 /**
@@ -460,16 +458,17 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
  * @param a_value buffer with data
  * @param a_value_len buffer size
  */
-static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, const char * a_group,
-                                                     const char * a_key, const void * a_value, const size_t a_value_len)
+static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
+                                          const char *a_key, const void *a_value, const size_t a_value_len)
 {
     if (!a_arg) {
         return;
     }
-    dap_chain_node_mempool_autoproc_notify(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
-    dap_chain_net_sync_gdb_broadcast(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
-    if (s_srv_callback_notify) {
-        s_srv_callback_notify(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    for (dap_list_t *it = PVT(l_net)->notify_callbacks; it; it = PVT(l_net)->notify_callbacks->next) {
+        dap_global_db_obj_callback_notify_t l_callback = (dap_global_db_obj_callback_notify_t)it->data;
+        if (l_callback)
+            l_callback(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
     }
 }
 
@@ -1953,7 +1952,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         if (l_gdb_sync_groups && l_gdb_sync_groups_count > 0) {
             for(uint16_t i = 0; i < l_gdb_sync_groups_count; i++) {
                 // add group to special sync
-                dap_chain_global_db_add_sync_extra_group(l_gdb_sync_groups[i], s_gbd_history_callback_notify, l_net);
+                dap_chain_global_db_add_sync_extra_group(l_gdb_sync_groups[i], dap_chain_net_sync_gdb_broadcast, l_net);
             }
         }
 
@@ -2384,7 +2383,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
         l_net_pvt->load_mode = false;
         dap_chain_ledger_load_end(l_net->pub.ledger);
-
+        dap_chain_net_add_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast);
         if (l_target_state != l_net_pvt->state_target)
             dap_chain_net_state_go_to(l_net, l_target_state);
 
