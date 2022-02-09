@@ -87,7 +87,7 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
     if ( a_usage->receipt )
         DAP_DELETE( a_usage->receipt );
     if ( a_usage->client ){
-        for (dap_chain_net_srv_client_t * l_srv_client = a_usage->client, * tmp = NULL; l_srv_client; ){
+        for (dap_chain_net_srv_client_remote_t * l_srv_client = a_usage->client, * tmp = NULL; l_srv_client; ){
             tmp = l_srv_client;
             l_srv_client = l_srv_client->next;
             DAP_DELETE( tmp);
