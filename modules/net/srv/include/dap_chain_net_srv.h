@@ -31,9 +31,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 
-typedef void (*dap_chain_net_srv_callback_t)(dap_chain_net_srv_t *, dap_chain_net_srv_client_t *);
-typedef int (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_t *, const void *, size_t );
-typedef int (*dap_chain_net_srv_callback_sign_request_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_t *, dap_chain_datum_tx_receipt_t **, size_t );
+typedef void (*dap_chain_net_srv_callback_t)(dap_chain_net_srv_t *, dap_chain_net_srv_client_remote_t *);
+typedef int (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t );
+typedef int (*dap_chain_net_srv_callback_sign_request_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, dap_chain_datum_tx_receipt_t **, size_t );
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
 
 typedef struct dap_chain_net_srv_banlist_item {
@@ -81,8 +81,21 @@ typedef struct dap_chain_net_srv
     // Pointer to inheritor object
     void * _inhertor;
 } dap_chain_net_srv_t;
-typedef void (*dap_chain_net_srv_callback_new_t)(dap_chain_net_srv_t *, dap_config_t *);
 
+typedef struct dap_chain_net_srv_client_remote
+{
+    dap_stream_ch_t * ch; // Use ONLY in own context, not thread-safe
+    time_t ts_created;
+    dap_stream_worker_t * stream_worker;
+    int session_id;
+    dap_chain_net_remote_t *net_remote; // For remotes
+    uint64_t bytes_received;
+    uint64_t bytes_sent;
+    struct dap_chain_net_srv_client_remote *prev;
+    struct dap_chain_net_srv_client_remote *next;
+} dap_chain_net_srv_client_remote_t;
+
+typedef void (*dap_chain_net_srv_callback_new_t)(dap_chain_net_srv_t *, dap_config_t *);
 
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
@@ -115,7 +128,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                 );
 
 
-int dap_chain_net_srv_client_init(dap_chain_net_srv_uid_t a_uid,
+int dap_chain_net_srv_remote_init(dap_chain_net_srv_uid_t a_uid,
         dap_chain_net_srv_callback_data_t a_callback_request,
         dap_chain_net_srv_callback_data_t a_callback_response_success,
         dap_chain_net_srv_callback_data_t a_callback_response_error,

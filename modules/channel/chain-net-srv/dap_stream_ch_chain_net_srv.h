@@ -24,9 +24,9 @@
 
 #pragma once
 
-#include <pthread.h>
-#include "dap_stream_ch.h"
+#include "dap_chain_net_srv_common.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_chain_net_srv_stream_session.h"
 
 typedef struct dap_stream_ch_chain_net_srv dap_stream_ch_chain_net_srv_t;
 

@@ -110,7 +110,7 @@ char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,
 
 int dap_chain_net_srv_order_save(dap_chain_net_t * a_net, dap_chain_net_srv_order_t *a_order);
 void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out, const char *a_hash_out_type);
-
+void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback);
 /**
 * @brief dap_chain_net_srv_order_get_gdb_group_mempool
 * @param l_chain
