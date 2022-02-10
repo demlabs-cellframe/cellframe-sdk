@@ -1037,7 +1037,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     l_link->keep_connection = false;
                     dap_chain_node_client_close(l_link);
                 }
-                DAP_DELETE(((struct net_link *)l_tmp->data)->link_info);
+                DAP_DEL_Z(((struct net_link *)l_tmp->data)->link_info);
                 DAP_DELETE(l_tmp);
                 l_tmp = l_next;
             }

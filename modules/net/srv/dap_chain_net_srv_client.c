@@ -56,6 +56,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
     inet_pton(AF_INET, a_addr, &l_info->hdr.ext_addr_v4);
     l_info->hdr.ext_port = a_port;
     l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, l_info, "R", &l_callbacks, l_ret);
+    DAP_DELETE(l_info);
     return l_ret;
 }
 
