@@ -86,9 +86,9 @@ static int dap_db_driver_sqlite_exec(sqlite3 *l_db, const char *l_query, char **
 
 static sqlite3 *s_sqlite_get_connection(void)
 {
-	if (pthread_rwlock_wrlock(&s_db_rwlock) == EDEADLK) {
-		return NULL;
-	}
+    if (pthread_rwlock_wrlock(&s_db_rwlock) == EDEADLK) {
+        return s_trans;
+    }
 
 	sqlite3 *l_ret = NULL;
 	for (int i = 0; i < DAP_SQLITE_POOL_COUNT; i++) {
