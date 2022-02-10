@@ -978,7 +978,8 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
             if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {
                 dap_stream_ch_chain_net_srv_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
                 if (l_node_client->callbacks.srv_pkt_in) {
-                    l_ch_chain->notify_callback = l_node_client->callbacks.srv_pkt_in;
+                    l_ch_chain->notify_callback = (dap_stream_ch_chain_net_srv_callback_packet_t)
+                                                             l_node_client->callbacks.srv_pkt_in;
                     l_ch_chain->notify_callback_arg = l_node_client->callbacks_arg;
                 } else {
                     l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_R;
