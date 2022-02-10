@@ -312,25 +312,15 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     }
                     if(l_continent_num>=0)
                         l_order->continent = l_continent_num;*/
-
-
-                    ret = dap_chain_net_srv_order_save(l_net, l_order);
-                    if(!ret)
-                        ret = 0;
-                    if(!ret) {
-                        dap_chain_hash_fast_t l_new_order_hash;
-                        size_t l_new_order_size = dap_chain_net_srv_order_get_size(l_order);
-                        dap_hash_fast(l_order, l_new_order_size, &l_new_order_hash);
-                        char * l_new_order_hash_str = dap_chain_hash_fast_to_str_new(&l_new_order_hash);
+                    char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order);
+                    if (l_new_order_hash_str) {
                         // delete prev order
                         if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
                             dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_hex_str);
                         DAP_DELETE(l_new_order_hash_str);
-                        dap_string_append_printf(l_string_ret, "order updated\n");
-                    }
-                    else
-                        dap_string_append_printf(l_string_ret, "order did not updated\n");
-
+                        dap_string_append_printf(l_string_ret, "Order updated\n");
+                    } else
+                        dap_string_append_printf(l_string_ret, "Order did not updated\n");
                     DAP_DELETE(l_order);
                 }
             }

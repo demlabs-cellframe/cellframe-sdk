@@ -244,58 +244,67 @@ char * dap_chain_net_srv_order_create(
         dap_enc_key_t *a_key
         )
 {
-    UNUSED(a_expires);
-    if (a_net) {
-        dap_chain_net_srv_order_t *l_order;
-        if (a_ext_size) {
-            l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
-            memcpy(l_order->ext, a_ext, a_ext_size);
-            l_order->ext_size = a_ext_size;
-        }
-        else {
-            l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
-            dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
-        }
-
-        dap_chain_hash_fast_t l_order_hash;
-        l_order->version = a_key ? 2 : 1;
-        l_order->srv_uid = a_srv_uid;
-        l_order->direction = a_direction;
-        l_order->ts_created = (dap_chain_time_t) time(NULL);
-
-
-        if ( a_node_addr.uint64)
-            l_order->node_addr.uint64 = a_node_addr.uint64;
-
-        memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
-        l_order->price = a_price;
-        l_order->price_unit.uint32 = a_price_unit.uint32;
-
-        if ( a_price_ticker)
-            strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
-        if (a_key) {
-            dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
-            if (!l_sign) {
-                return NULL;
-            }
-            size_t l_sign_size = dap_sign_get_size(l_sign); // sign data
-            l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
-            memcpy(&l_order->ext[l_order->ext_size], l_sign, l_sign_size);
-            DAP_DELETE(l_sign);
-        }
-        size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
-        dap_hash_fast( l_order, l_order_size, &l_order_hash );
-        char * l_order_hash_str = dap_chain_hash_fast_to_str_new( &l_order_hash );
-        char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
-        if ( !dap_chain_global_db_gr_set( dap_strdup(l_order_hash_str), l_order, l_order_size, l_gdb_group_str ) ){
-            DAP_DELETE( l_order );
-            DAP_DELETE( l_gdb_group_str );
-            return NULL;
-        }
-        DAP_DELETE( l_gdb_group_str );
-        return  l_order_hash_str;
-    }else
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, a_direction, a_srv_uid, a_node_addr, a_tx_cond_hash, a_price,
+                                                                         a_price_unit, a_price_ticker, a_expires, a_ext, a_ext_size,
+                                                                         a_region, a_continent_num, a_key);
+    if (!l_order)
         return NULL;
+    char *l_ret = dap_chain_net_srv_order_save(a_net, l_order);
+    DAP_DELETE(l_order);
+    return l_ret;
+}
+
+dap_chain_net_srv_order_t * dap_chain_net_srv_order_compose(
+        dap_chain_net_t * a_net,
+        dap_chain_net_srv_order_direction_t a_direction,
+        dap_chain_net_srv_uid_t a_srv_uid, // Service UID
+        dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
+        dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
+        uint64_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
+        dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+        const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+        dap_chain_time_t a_expires, // TS when the service expires
+        const uint8_t *a_ext,
+        uint32_t a_ext_size,
+        const char *a_region,
+        int8_t a_continent_num,
+        dap_enc_key_t *a_key
+        )
+{
+    UNUSED(a_expires);
+    if (!a_net)
+        return NULL;
+    dap_chain_net_srv_order_t *l_order;
+    if (a_ext_size) {
+        l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
+        memcpy(l_order->ext, a_ext, a_ext_size);
+        l_order->ext_size = a_ext_size;
+    }
+    else {
+        l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
+        dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
+    }
+    l_order->version = a_key ? 2 : 1;
+    l_order->srv_uid = a_srv_uid;
+    l_order->direction = a_direction;
+    l_order->ts_created = (dap_chain_time_t) time(NULL);
+    if ( a_node_addr.uint64)
+        l_order->node_addr.uint64 = a_node_addr.uint64;
+    memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
+    l_order->price = a_price;
+    l_order->price_unit.uint32 = a_price_unit.uint32;
+    if ( a_price_ticker)
+        strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
+    if (a_key) {
+        dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
+        if (!l_sign)
+            return NULL;
+        size_t l_sign_size = dap_sign_get_size(l_sign); // sign data
+        l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
+        memcpy(&l_order->ext[l_order->ext_size], l_sign, l_sign_size);
+        DAP_DELETE(l_sign);
+    }
+    return l_order;
 }
 
 /**
@@ -304,22 +313,22 @@ char * dap_chain_net_srv_order_create(
  * @param a_order
  * @return
  */
-int dap_chain_net_srv_order_save(dap_chain_net_t * a_net, dap_chain_net_srv_order_t *a_order)
+char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order)
 {
     if (!a_net || !a_order)
-        return -1;
+        return NULL;
 
     dap_chain_hash_fast_t l_order_hash;
     size_t l_order_size = dap_chain_net_srv_order_get_size(a_order);
     dap_hash_fast( a_order, l_order_size, &l_order_hash );
     char * l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
     char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
-    if ( !dap_chain_global_db_gr_set(l_order_hash_str, a_order, l_order_size, l_gdb_group_str ) ){
+    if (!dap_chain_global_db_gr_set(dap_strdup(l_order_hash_str), DAP_DUP(a_order), l_order_size, l_gdb_group_str)) {
         DAP_DELETE( l_gdb_group_str );
-        return -1;
+        return NULL;
     }
     DAP_DELETE( l_gdb_group_str );
-    return 0;
+    return l_order_hash_str;
 }
 
 /**
