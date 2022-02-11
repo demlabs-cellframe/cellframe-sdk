@@ -465,7 +465,7 @@ static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, con
         return;
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    for (dap_list_t *it = PVT(l_net)->notify_callbacks; it; it = PVT(l_net)->notify_callbacks->next) {
+    for (dap_list_t *it = PVT(l_net)->notify_callbacks; it; it = it->next) {
         dap_global_db_obj_callback_notify_t l_callback = (dap_global_db_obj_callback_notify_t)it->data;
         if (l_callback)
             l_callback(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
@@ -999,7 +999,7 @@ static void s_net_links_notify(dap_chain_net_t * a_net )
     dap_notify_server_send_f_mt("{"
                                     "class:\"NetLinks\","
                                     "net_id:0x%016"DAP_UINT64_FORMAT_X","
-                                    "links:%s"
+                                    "links:%s]"
                                 "}\n", a_net->pub.id.uint64,
                                        l_str_reply->str);
     dap_string_free(l_str_reply,true);
