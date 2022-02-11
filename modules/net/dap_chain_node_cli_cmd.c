@@ -3889,6 +3889,17 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         return -1;
     }
 
+    //
+    // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
+    //
+
+    if (addr_to->net_id.uint64 != l_net->pub.id.uint64)
+    {
+        dap_chain_node_cli_set_reply_text(str_reply, "destination wallet network ID=0x%llx and network ID=0x%llx is not equal. Please, change network name or wallet address", 
+                                            addr_to->net_id.uint64, l_net->pub.id.uint64);
+        return -1;
+    }
+
     dap_string_t *string_ret = dap_string_new(NULL);
     //g_string_printf(string_ret, "from=%s\nto=%s\nval=%lld\nfee=%s\nval_fee=%lld\n\n",
     //        addr_base58_from, addr_base58_to, value, addr_base58_fee, value_fee);
