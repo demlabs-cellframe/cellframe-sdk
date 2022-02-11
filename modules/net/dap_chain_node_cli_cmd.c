@@ -3851,17 +3851,6 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         return -1;
     }
 
-    //
-    // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
-    //
-
-    if (addr_to->net_id.uint64 != l_net->pub.id.uint64)
-    {
-        dap_chain_node_cli_set_reply_text(str_reply, "destination wallet network ID=0x%llx and network ID=0x%llx is not equal. Please, change network name or wallet address", 
-                                            addr_to->net_id.uint64, l_net->pub.id.uint64);
-        return -1;
-    }
-
     /*    if(!l_chain_name) {
      dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-chain'");
      return -1;
@@ -3897,6 +3886,17 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
     if(addr_base58_fee && !addr_fee) {
         dap_chain_node_cli_set_reply_text(str_reply, "fee address is invalid");
+        return -1;
+    }
+
+    //
+    // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
+    //
+
+    if (addr_to->net_id.uint64 != l_net->pub.id.uint64)
+    {
+        dap_chain_node_cli_set_reply_text(str_reply, "destination wallet network ID=0x%llx and network ID=0x%llx is not equal. Please, change network name or wallet address", 
+                                            addr_to->net_id.uint64, l_net->pub.id.uint64);
         return -1;
     }
 
