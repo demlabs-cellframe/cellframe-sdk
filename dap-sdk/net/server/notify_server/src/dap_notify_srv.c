@@ -57,10 +57,6 @@ static void s_notify_server_callback_delete(dap_events_socket_t * a_es, void * a
  */
 int dap_notify_server_init()
 {
-    dap_events_socket_callbacks_t l_callbacks={.new_callback = s_notify_server_callback_new,
-                                              .delete_callback = s_notify_server_callback_delete };
-
-
     const char * l_notify_socket_path = dap_config_get_item_str_default(g_config, "notify_server", "listen_path",NULL);
     const char * l_notify_socket_path_mode = dap_config_get_item_str_default(g_config, "notify_server", "listen_path_mode","0600");
 
@@ -68,10 +64,10 @@ int dap_notify_server_init()
     uint16_t l_notify_socket_port = dap_config_get_item_uint16_default(g_config, "notify_server", "listen_port",0);
 
     if(l_notify_socket_path){
-        s_notify_server = dap_server_new_local(dap_events_get_default(),l_notify_socket_path,l_notify_socket_path_mode , &l_callbacks);
+        s_notify_server = dap_server_new_local(dap_events_get_default(),l_notify_socket_path,l_notify_socket_path_mode , NULL);
     }else if (l_notify_socket_address && l_notify_socket_port ){
         s_notify_server = dap_server_new(dap_events_get_default(),l_notify_socket_address,
-                                            l_notify_socket_port, SERVER_TCP, &l_callbacks);
+                                            l_notify_socket_port, SERVER_TCP, NULL);
     }else{
         log_it(L_INFO,"Notify server is not configured, nothing to init but thats okay");
         return 0;
@@ -79,7 +75,8 @@ int dap_notify_server_init()
 
     if (!s_notify_server)
         return -1;
-
+    s_notify_server->client_callbacks.new_callback = s_notify_server_callback_new;
+    s_notify_server->client_callbacks.delete_callback = s_notify_server_callback_delete;
     s_notify_server_queue = dap_events_socket_create_type_queue_ptr_mt(dap_events_worker_get_auto(),s_notify_server_callback_queue);
     uint32_t l_workers_count = dap_events_worker_get_count();
     s_notify_server_queue_inter = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof (dap_events_socket_t*)*l_workers_count );
@@ -127,7 +124,9 @@ int dap_notify_server_send_f_inter(uint32_t a_worker_id, const char * a_format,.
     va_list va;
     va_start(va, a_format);
     size_t l_str_size=dap_vsnprintf(NULL,0,a_format,va);
+    va_end(va);
     char * l_str = DAP_NEW_SIZE(char,l_str_size+1);
+    va_start(va, a_format);
     dap_vsnprintf(l_str,l_str_size+1,a_format,va);
     va_end(va);
     return dap_events_socket_queue_ptr_send_to_input(l_input,l_str);
@@ -145,7 +144,9 @@ int dap_notify_server_send_f_mt(const char * a_format,...)
     va_list va;
     va_start(va, a_format);
     size_t l_str_size=dap_vsnprintf(NULL,0,a_format,va);
+    va_end(va);
     char * l_str = DAP_NEW_SIZE(char,l_str_size+1);
+    va_start(va, a_format);
     dap_vsnprintf(l_str,l_str_size+1,a_format,va);
     va_end(va);
     return dap_events_socket_queue_ptr_send(s_notify_server_queue ,l_str);
@@ -168,7 +169,7 @@ static void s_notify_server_callback_queue(dap_events_socket_t * a_es, void * a_
         }
         size_t l_str_len = a_arg? strlen((char*)a_arg): 0;
         if(l_str_len){
-            dap_events_socket_write_inter(a_es->worker->queue_es_io_input[l_worker_id],
+            dap_events_socket_write_mt(l_socket_handler->esocket->worker, //) inter(a_es->worker->queue_es_io_input[l_worker_id],
                                           l_socket_handler->uuid,
                                           a_arg, l_str_len + 1);
         }
@@ -198,6 +199,7 @@ static void s_notify_server_callback_new(dap_events_socket_t * a_es, void * a_ar
         l_hh_new->esocket = a_es;
         l_hh_new->uuid = a_es->uuid;
         l_hh_new->worker_id = a_es->worker->id;
+        a_es->no_close = true;
         HASH_ADD(hh, s_notify_server_clients, uuid, sizeof (l_hh_new->uuid), l_hh_new);
     }
     pthread_rwlock_unlock(&s_notify_server_clients_mutex);
