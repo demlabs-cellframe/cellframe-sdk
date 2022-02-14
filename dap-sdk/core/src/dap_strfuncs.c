@@ -13,6 +13,27 @@
 #include "dap_strfuncs.h"
 
 #define LOG_TAG "dap_strfunc"
+
+/**
+ * @brief s_isstralnum
+ * check if string contains digits and alphabetical symbols
+ * @param c
+ * @return
+ */
+bool s_isstralnum(const char *c)
+{ 
+    size_t str_len = strlen(c);
+
+    for (size_t i = 0; i < str_len; i++)
+    {
+        if (!isalnum(c[i]))
+            return false;
+    }
+
+    return true;
+}
+
+
 /**
  * @brief s_strdigit
  * @param c
