@@ -323,7 +323,7 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     dap_hash_fast( a_order, l_order_size, &l_order_hash );
     char * l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
     char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
-    if (!dap_chain_global_db_gr_set(dap_strdup(l_order_hash_str), DAP_DUP(a_order), l_order_size, l_gdb_group_str)) {
+    if (!dap_chain_global_db_gr_set(dap_strdup(l_order_hash_str), DAP_DUP_SIZE(a_order, l_order_size), l_order_size, l_gdb_group_str)) {
         DAP_DELETE( l_gdb_group_str );
         return NULL;
     }
@@ -387,9 +387,19 @@ lb_order_pass:
         l_orders_size = 0;
         for (size_t i=0; i< l_orders_count; i++){
             dap_chain_net_srv_order_t * l_order = (dap_chain_net_srv_order_t *) l_orders[i].value;
-            if (l_order->version > 2 || l_order->direction > SERV_DIR_SELL ||
-                    dap_chain_net_srv_order_get_size(l_order) != l_orders[i].value_len) {
-                continue; // order is corrupted
+            if (l_order_pass_first) {
+                if (l_order->version > 2 || l_order->direction > SERV_DIR_SELL ||
+                        dap_chain_net_srv_order_get_size(l_order) != l_orders[i].value_len) {
+                    dap_chain_global_db_gr_del(dap_strdup(l_orders[i].key), l_gdb_group_str);
+                    continue; // order is corrupted
+                }
+                dap_chain_hash_fast_t l_hash, l_hash_gdb;
+                dap_hash_fast(l_order, dap_chain_net_srv_order_get_size(l_order), &l_hash);
+                dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
+                if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
+                    dap_chain_global_db_gr_del(dap_strdup(l_orders[i].key), l_gdb_group_str);
+                    continue; // order is corrupted
+                }
             }
             // Check direction
             if (a_direction != SERV_DIR_UNDEFINED )
