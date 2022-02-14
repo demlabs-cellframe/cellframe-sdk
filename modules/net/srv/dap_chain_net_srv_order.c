@@ -95,7 +95,10 @@ size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)
     size_t l_header_size = sizeof(dap_chain_net_srv_order_old_t);
     if (a_order->version > 1) {
         dap_sign_t *l_sign = (dap_sign_t *)&a_order->ext_n_sign[a_order->ext_size];
-        l_sign_size = dap_sign_get_size(l_sign);
+        if (l_sign->header.type.type == SIG_TYPE_NULL)
+            l_sign_size = sizeof(dap_sign_type_t);
+        else
+            l_sign_size = dap_sign_get_size(l_sign);
         l_header_size = sizeof(dap_chain_net_srv_order_t);
     }
     return l_header_size + a_order->ext_size + l_sign_size;
@@ -262,7 +265,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
-        uint64_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
+        uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_chain_time_t a_expires, // TS when the service expires
@@ -279,33 +282,43 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
     dap_chain_net_srv_order_t *l_order;
     if (a_ext_size) {
         l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
-        memcpy(l_order->ext, a_ext, a_ext_size);
+        memcpy(l_order->ext_n_sign, a_ext, a_ext_size);
         l_order->ext_size = a_ext_size;
     }
     else {
         l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
         dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
     }
-    l_order->version = a_key ? 2 : 1;
+
+    l_order->version = 2;
     l_order->srv_uid = a_srv_uid;
     l_order->direction = a_direction;
     l_order->ts_created = (dap_chain_time_t) time(NULL);
+
     if ( a_node_addr.uint64)
         l_order->node_addr.uint64 = a_node_addr.uint64;
+
     memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
     l_order->price = a_price;
     l_order->price_unit.uint32 = a_price_unit.uint32;
+
     if ( a_price_ticker)
         strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
     if (a_key) {
         dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
-        if (!l_sign)
+        if (!l_sign) {
             return NULL;
+        }
         size_t l_sign_size = dap_sign_get_size(l_sign); // sign data
         l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
-        memcpy(&l_order->ext[l_order->ext_size], l_sign, l_sign_size);
+        memcpy(&l_order->ext_n_sign[l_order->ext_size], l_sign, l_sign_size);
         DAP_DELETE(l_sign);
+    } else {
+        dap_sign_type_t l_type = { .type = SIG_TYPE_NULL };
+        l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + sizeof(dap_sign_type_t));
+        memcpy(&l_order->ext_n_sign[l_order->ext_size], &l_type, sizeof(dap_sign_type_t));
     }
+
     return l_order;
 }
 
@@ -555,7 +568,7 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
     if (!strcmp(a_group, l_gdb_group_str)) {
-        for (dap_list_t *it = s_order_notify_callbacks; it; it = s_order_notify_callbacks->next) {
+        for (dap_list_t *it = s_order_notify_callbacks; it; it = it->next) {
             struct dap_order_notify *l_notifier = (struct dap_order_notify *)it->data;
             if ((l_notifier->net == NULL || l_notifier->net == l_net) &&
                         l_notifier->callback) {
