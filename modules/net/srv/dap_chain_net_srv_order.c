@@ -567,7 +567,7 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
-    if (!strcmp(a_group, l_gdb_group_str)) {
+    if (!dap_strcmp(a_group, l_gdb_group_str)) {
         for (dap_list_t *it = s_order_notify_callbacks; it; it = it->next) {
             struct dap_order_notify *l_notifier = (struct dap_order_notify *)it->data;
             if ((l_notifier->net == NULL || l_notifier->net == l_net) &&
