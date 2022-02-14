@@ -48,7 +48,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
         .disconnected = s_srv_client_callback_disconnected,
         .delete = s_srv_client_callback_deleted
     };
-    if (a_callbacks->pkt_in)
+    if (a_callbacks && a_callbacks->pkt_in)
         l_callbacks.srv_pkt_in = a_callbacks->pkt_in;
     else
         l_callbacks.srv_pkt_in = (dap_stream_ch_callback_packet_t)s_srv_client_pkt_in;
