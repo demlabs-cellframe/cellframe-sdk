@@ -683,7 +683,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     l_node_client->callbacks_arg = a_callback_arg;
     if(a_callbacks)
         memcpy(&l_node_client->callbacks,a_callbacks,sizeof (*a_callbacks));
-    l_node_client->info = a_node_info;
+    l_node_client->info = DAP_DUP(a_node_info);
     l_node_client->uuid = dap_uuid_generate_uint64();
     l_node_client->net = a_net;
     dap_chain_node_client_handle_t * l_client_handle = DAP_NEW_Z(dap_chain_node_client_handle_t);
