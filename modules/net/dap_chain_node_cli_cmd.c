@@ -201,7 +201,7 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
  * @param l_sign_counter - counter of successful data signing operation
  * @return dap_chain_datum_token_t* 
  */
-dap_chain_datum_token_t * dap_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t * l_datum_token, size_t l_certs_count, size_t l_datum_data_offset, uint32_t * l_sign_counter)
+static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t * l_datum_token, size_t l_certs_count, size_t l_datum_data_offset, uint32_t * l_sign_counter)
 {   
     for(size_t i = 0; i < l_certs_count; i++) 
     {
@@ -1689,7 +1689,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     // Check if wallet name has only digits and English letters
     //
 
-    size_t is_str = s_isstralnum(l_wallet_name);
+    size_t is_str = dap_isstralnum(l_wallet_name);
 
     if (!is_str)
     {
@@ -2699,7 +2699,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             // Important:
 
 
-            l_datum_token_update = dap_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, l_datum_data_offset, &l_sign_counter);
+            l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, l_datum_data_offset, &l_sign_counter);
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
@@ -2979,7 +2979,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
 
-            l_datum_token = dap_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, l_datum_data_offset, &l_sign_counter);
+            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, l_datum_data_offset, &l_sign_counter);
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
@@ -3111,7 +3111,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
 
-             l_datum_token = dap_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, l_datum_data_offset, &l_sign_counter);
+             l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, l_datum_data_offset, &l_sign_counter);
 
         }break;
         default:
