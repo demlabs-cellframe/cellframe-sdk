@@ -93,6 +93,7 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache)
     assert(a_block_cache);
     assert(a_block_cache->block);
     dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
+    a_block_cache->block_hash_str = dap_hash_fast_to_str_new(&a_block_cache->block_hash);
     if (a_block_cache->meta)
         DAP_DELETE(a_block_cache->meta);
     if (a_block_cache->datum)
