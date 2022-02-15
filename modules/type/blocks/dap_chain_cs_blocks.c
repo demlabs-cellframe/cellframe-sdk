@@ -672,7 +672,9 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
 static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t * a_ledger, dap_chain_block_cache_t * a_block_cache )
 {
     pthread_rwlock_rdlock( &PVT(a_blocks)->rwlock );
-    int res = a_blocks->callback_block_verify(a_blocks,a_block_cache->block, a_block_cache->block_size);
+    int res = a_blocks->callback_block_verify ?
+                a_blocks->callback_block_verify(a_blocks,a_block_cache->block, a_block_cache->block_size)
+                : 0;
     if (res == 0 || memcmp( &a_block_cache->block_hash, &PVT(a_blocks)->genesis_block_hash, sizeof(a_block_cache->block_hash) ) == 0) {
         log_it(L_DEBUG,"Block %s checked, add it to ledger", a_block_cache->block_hash_str );
         pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
@@ -865,19 +867,19 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
 
     if(res == ATOM_ACCEPT){
         // genesis or seed mode
-        if ( l_is_genesis){
-            if( s_seed_mode && ! l_blocks_pvt->blocks ){
-                log_it(L_NOTICE,"Accepting new genesis block");
-                return ATOM_ACCEPT;
-            }else if(s_seed_mode){
+        if (l_is_genesis) {
+            if (!l_blocks_pvt->blocks) {
+                if (s_seed_mode)
+                    log_it(L_NOTICE, "Accepting new genesis block");
+                else
+                    log_it(L_NOTICE, "Accepting static genesis block");
+            } else {
                 log_it(L_WARNING,"Cant accept genesis block: already present data in blockchain");
-                return  ATOM_REJECT;
+                res = ATOM_REJECT;
             }
-        }else{
-            if( PVT(l_blocks)->block_cache_last )
-                if (! dap_hash_fast_compare(& PVT(l_blocks)->block_cache_last->block_hash, &l_block_prev_hash) )
-                    res = ATOM_MOVE_TO_THRESHOLD ;
-        }
+        } else if (!PVT(l_blocks)->block_cache_last ||
+                    !dap_hash_fast_compare(&PVT(l_blocks)->block_cache_last->block_hash, &l_block_prev_hash))
+            res = ATOM_MOVE_TO_THRESHOLD;
     }
 
 
@@ -1123,8 +1125,36 @@ static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)
     }
     dap_chain_atom_verify_res_t l_res = s_callback_atom_add(a_blocks->chain, a_blocks->block_new, a_blocks->block_new_size);
     DAP_DEL_Z(a_blocks->block_new);
-    if (l_res == ATOM_ACCEPT)
+    if (l_res == ATOM_ACCEPT) {
+        if (dap_chain_atom_save(a_blocks->chain, (uint8_t *)a_blocks->block_new, a_blocks->block_new_size, a_blocks->chain->cells->id) < 0) {
+            log_it(L_ERROR, "Can't add new event to the file");
+        }
+        /* TODO add all atoms from treshold
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        dap_chain_t *l_cur_chain;
+        bool l_processed;
+        do {
+            l_processed = false;
+            DL_FOREACH(l_net->pub.chains, l_cur_chain) {
+                if (l_cur_chain->callback_atom_add_from_treshold) {
+                    dap_chain_atom_ptr_t l_atom_treshold;
+                    do {
+                        size_t l_atom_treshold_size;
+                        // add in ledger
+                        l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
+                        // add into file
+                        if (l_atom_treshold) {
+                            int l_res = dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cur_chain->cells->id);
+                            if (l_res < 0) {
+                                log_it(L_ERROR, "Can't save event %p from treshold", l_atom_treshold);
+                            }
+                        }
+                    } while (l_atom_treshold);
+                }
+            }
+        } while (l_processed); */
         return 0;
+    }
     return -2;
 }
 
