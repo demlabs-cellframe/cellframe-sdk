@@ -15,13 +15,16 @@
 #define LOG_TAG "dap_strfunc"
 
 /**
- * @brief s_isstralnum
+ * @brief dap_isstralnum
  * check if string contains digits and alphabetical symbols
  * @param c
  * @return
  */
-bool s_isstralnum(const char *c)
+bool dap_isstralnum(const char *c)
 { 
+    if (!c)
+        return FALSE;
+        
     size_t str_len = strlen(c);
 
     for (size_t i = 0; i < str_len; i++)
