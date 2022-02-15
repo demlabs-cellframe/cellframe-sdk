@@ -187,6 +187,40 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
 
 
 /**
+ * @brief 
+ * sign data (datum_token) by certificates (1 or more)
+ * successful count of signes return in l_sign_counter
+ * @param l_certs - array with certificates loaded from dcert file
+ * @param l_datum_token - updated pointer for l_datum_token variable after realloc
+ * @param l_certs_count - count of certificate
+ * @param l_datum_data_offset - offset of datum
+ * @param l_sign_counter - counter of successful data signing operation
+ * @return dap_chain_datum_token_t* 
+ */
+dap_chain_datum_token_t * dap_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t * l_datum_token, size_t l_certs_count, size_t l_datum_data_offset, uint32_t * l_sign_counter)
+{   
+    for(size_t i = 0; i < l_certs_count; i++) 
+    {
+        dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token, 
+           sizeof(l_datum_token->header_private), 0);
+
+        if (l_sign)
+        {
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_sign_size);
+            memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_sign, l_sign_size);
+            l_datum_data_offset += l_sign_size;
+            DAP_DELETE(l_sign);
+            log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
+            *l_sign_counter += 1;
+        }
+    }
+
+    return l_datum_token;
+}
+
+
+/**
  * @brief node_info_read_and_reply
  * Read node from base
  * @param a_net 
@@ -1648,6 +1682,18 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
 
+    //
+    // Check if wallet name has only digits and English letters
+    //
+
+    size_t is_str = s_isstralnum(l_wallet_name);
+
+    if (!is_str)
+    {
+        dap_chain_node_cli_set_reply_text(str_reply, "Wallet name must contain digits and alphabet symbols");
+        return -1;
+    }
+
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
 
     dap_string_t *l_string_ret = dap_string_new(NULL);
@@ -2496,6 +2542,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_datum_token_t * l_datum_token_update = NULL;
     size_t l_datum_data_offset = 0;
+    uint32_t l_sign_counter = 0;
 
     switch(l_type){
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
@@ -2647,17 +2694,9 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 
             // Sign header with all certificates in the list and add signs to the end of token update
             // Important:
-            for(size_t i = 0; i < l_certs_count; i++) {
-                dap_sign_t * l_sign = dap_cert_sign(l_certs[i],
-                        l_datum_token_update,
-                        sizeof(l_datum_token_update->header_private),
-                        0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
-                l_datum_token_update = DAP_REALLOC(l_datum_token_update, sizeof(dap_chain_datum_token_t) +l_tsd_total_size + l_datum_data_offset + l_sign_size);
-                memcpy(l_datum_token_update->data_n_tsd + l_datum_data_offset, l_sign, l_sign_size);
-                l_datum_data_offset += l_sign_size;
-                DAP_DELETE(l_sign);
-            }
+            
+            l_datum_token_update = dap_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, l_datum_data_offset, &l_sign_counter);
+
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
@@ -2674,6 +2713,13 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "Unknown token type");
             return -8;
+    }
+
+    if (l_sign_counter == 0)
+    {
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "Token declaration failed. Successful count of certificate signing is 0");
+            return -9;
     }
 
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE, l_datum_token_update,
@@ -2831,6 +2877,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_datum_token_t * l_datum_token = NULL;
     size_t l_datum_data_offset = 0;
+    uint32_t l_sign_counter = 0;
 
     switch(l_type){
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:{
@@ -2924,18 +2971,8 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
-            for(size_t i = 0; i < l_certs_count; i++) {
-                dap_sign_t * l_sign = dap_cert_sign(l_certs[i],
-                        l_datum_token,
-                        sizeof(l_datum_token->header_private),
-                        0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
-                l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) +l_tsd_total_size + l_datum_data_offset + l_sign_size);
-                memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_sign, l_sign_size);
-                l_datum_data_offset += l_sign_size;
-                DAP_DELETE(l_sign);
-                log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
-            }
+
+            l_datum_token = dap_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, l_datum_data_offset, &l_sign_counter);
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
@@ -3068,22 +3105,26 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
-            for(size_t i = 0; i < l_certs_count; i++) {
-                dap_sign_t * l_sign = dap_cert_sign(l_certs[i],
-                        l_datum_token,
-                        sizeof(l_datum_token->header_private),
-                        0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
-                l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_sign_size);
-                memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_sign, l_sign_size);
-                l_datum_data_offset += l_sign_size;
-                DAP_DELETE(l_sign);
-            }
+
+            l_datum_token = dap_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, l_datum_data_offset, &l_sign_counter);
+
         }break;
         default:
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "Unknown token type");
             return -8;
+    }
+
+    //
+    // We skip datum creation opeartion, if count of signed certificates in dap_sign_cert_in_cycle is 0.
+    // Usually it happen, when certificate in token_decl or token_update command doesn't contain private data or broken
+    //
+
+    if (l_sign_counter == 0)
+    {
+        dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "Token declaration failed. Successful count of certificate signing is 0");
+            return -9;
     }
 
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL, l_datum_token,
