@@ -39,7 +39,7 @@ typedef struct dap_chain_net_srv_stake_item {
     dap_chain_addr_t signing_addr;
     long double fee_value;
     dap_chain_hash_fast_t tx_hash;
-    dap_chain_hash_fast_t order_hash;
+    dap_chain_node_addr_t node_addr;
     UT_hash_handle hh;
 } dap_chain_net_srv_stake_item_t;
 

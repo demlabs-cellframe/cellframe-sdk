@@ -109,7 +109,7 @@ int dap_chain_net_srv_stake_init()
             // Create the stake item
             dap_chain_net_srv_stake_item_t *l_stake;
             bool l_is_new = false;
-            HASH_FIND(hh, s_srv_stake->itemlist, &l_out_cond->params, sizeof(dap_chain_addr_t), l_stake);
+            HASH_FIND(hh, s_srv_stake->itemlist, &_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t), l_stake);
             if (!l_stake) {
                 l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
                 l_is_new = true;
@@ -123,10 +123,11 @@ int dap_chain_net_srv_stake_init()
                     break;
                 }
             }
-            memcpy(&l_stake->signing_addr, &l_out_cond->params, sizeof(dap_chain_addr_t));
+            memcpy(&l_stake->signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t));
             memcpy(&l_stake->addr_hldr, &l_out_cond->subtype.srv_stake.hldr_addr, sizeof(dap_chain_addr_t));
             memcpy(&l_stake->addr_fee, &l_out_cond->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t));
             l_stake->fee_value = l_out_cond->subtype.srv_stake.fee_value;
+            memcpy(&l_stake->node_addr, &l_out_cond->subtype.srv_stake.signer_node_addr, sizeof(dap_chain_node_addr_t));
             memcpy(&l_stake->tx_hash, &l_tx_cur_hash, sizeof(dap_chain_hash_fast_t));
             if (l_is_new)
                 HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
@@ -151,7 +152,7 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
 {
     dap_chain_net_srv_stake_item_t *l_stake;
     if (a_cond)
-        HASH_FIND(hh, s_srv_stake->itemlist, &a_cond->params, sizeof(dap_chain_addr_t), l_stake);
+        HASH_FIND(hh, s_srv_stake->itemlist, &a_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t), l_stake);
     else
         l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
     assert(l_stake);
@@ -165,17 +166,17 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
     // Update stake parameters
     if (!a_cond) {
         // New stake transaction
-        memcpy(&l_stake->signing_addr, &l_out_cond->params, sizeof(dap_chain_addr_t));
+        memcpy(&l_stake->signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t));
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
-    } else if (memcmp(&a_cond->params, &l_out_cond->params, sizeof(dap_chain_addr_t))) {
+    } else if (memcmp(&a_cond->subtype.srv_stake.signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t))) {
         HASH_DEL(s_srv_stake->itemlist, l_stake);
         dap_chain_net_srv_stake_item_t *l_stake_cur = NULL;
-        HASH_FIND(hh, s_srv_stake->itemlist, &l_out_cond->params, sizeof(dap_chain_addr_t), l_stake_cur);
+        HASH_FIND(hh, s_srv_stake->itemlist, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t), l_stake_cur);
         if (l_stake_cur) {
             DAP_DELETE(l_stake);
             l_stake = l_stake_cur;
         }
-        memcpy(&l_stake->signing_addr, &l_out_cond->params, sizeof(dap_chain_addr_t));
+        memcpy(&l_stake->signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t));
         if (l_stake_cur)
             HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
     }
@@ -184,6 +185,7 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
     memcpy(&l_stake->addr_hldr, &l_out_cond->subtype.srv_stake.hldr_addr, sizeof(dap_chain_addr_t));
     memcpy(&l_stake->addr_fee, &l_out_cond->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t));
     l_stake->fee_value = l_out_cond->subtype.srv_stake.fee_value;
+    memcpy(&l_stake->node_addr, &l_out_cond->subtype.srv_stake.fee_addr, sizeof(dap_chain_node_addr_t));
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_stake->tx_hash);
 }
 
@@ -362,7 +364,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_srv_stake_item_t *a
         dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_ID };
         dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_uid, a_stake->value, a_stake->fee_value,
                                                                                               &a_stake->addr_fee, &a_stake->addr_hldr,
-                                                                                              (void *)&a_stake->signing_addr, sizeof(dap_chain_addr_t));
+                                                                                              &a_stake->signing_addr, &a_stake->node_addr);
         if (!l_tx_out) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_owner_addr);
@@ -449,7 +451,7 @@ static dap_chain_datum_tx_t *s_stake_tx_approve(dap_chain_net_srv_stake_item_t *
         dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_ID };
         dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_uid, a_stake->value, a_stake->fee_value,
                                                                                               &a_stake->addr_fee, &a_stake->addr_hldr,
-                                                                                              (void *)&a_stake->signing_addr, sizeof(dap_chain_addr_t));
+                                                                                              &a_stake->signing_addr, &a_stake->node_addr);
         if (!l_tx_out) {
             dap_chain_datum_tx_delete(l_tx);
             log_it(L_ERROR, "Can't compose the transaction conditional output");
@@ -549,7 +551,8 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     }
     dap_srv_stake_order_ext_t *l_ext = (dap_srv_stake_order_ext_t *)a_order->ext_n_sign;
     dap_sign_t *l_sign = (dap_sign_t *)(&a_order->ext_n_sign[a_order->ext_size]);
-    if (dap_sign_verify(l_sign, a_order, dap_chain_net_srv_order_get_size(a_order)) != 1) {
+    if (!dap_sign_verify_size(l_sign, dap_chain_net_srv_order_get_size(a_order)) ||
+            dap_sign_verify(l_sign, a_order, sizeof(dap_chain_net_srv_order_t) + a_order->ext_size) != 1) {
         log_it(L_WARNING, "Order sign is invalid");
         return NULL;
     }
@@ -568,6 +571,7 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     l_item->net = a_net;
     l_item->value = a_order->price;
     strcpy(l_item->token, a_order->price_ticker);
+    memcpy(&l_item->node_addr, &a_order->node_addr, sizeof(dap_chain_node_addr_t));
     return l_item;
 }
 
@@ -665,7 +669,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             DAP_DELETE(l_addr_hldr);
             DAP_DELETE(l_signing_addr);
             l_stake->fee_value = l_fee;
-            // Create the order & put it to GDB
+            // Create the order & put it in GDB
             char *l_order_hash_str = s_stake_order_create(l_stake, l_cert->enc_key);
             if (l_order_hash_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
@@ -1073,7 +1077,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_wallet_close(l_wallet);
                 if (l_tx && s_stake_tx_put(l_tx, l_net)) {
                     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);         
-                    // TODO send request to order owner to delete it
+                    // TODO send a notification to order owner to delete it
                     dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
                 }
                 DAP_DELETE(l_order);
