@@ -1525,7 +1525,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                        dap_chain_hash_fast_t l_datum_hash;
                        dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
                        char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-                       if ( dap_chain_global_db_gr_del( dap_strdup(l_datums_datum_hash_str),l_gdb_group_mempool ) ){
+		       if ( dap_chain_global_db_gr_del( l_datums_datum_hash_str, l_gdb_group_mempool ) ){
                            dap_chain_node_cli_set_reply_text(a_str_reply,
                                                              "Converted datum %s from mempool to event in the new forming round ",
                                                              l_datums_datum_hash_str);
@@ -1557,7 +1557,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             }break;
             case SUBCMD_EVENT_CANCEL:{
                 char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
-                if ( dap_chain_global_db_gr_del( dap_strdup(l_event_hash_hex_str) ,l_gdb_group_events ) ){
+		if ( dap_chain_global_db_gr_del( l_event_hash_hex_str ,l_gdb_group_events ) ){
                     if(!dap_strcmp(l_hash_out_type, "hex")){
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "Successfuly removed event %s from the new forming round ",

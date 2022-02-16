@@ -225,7 +225,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
 
                     if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event_new,
                                                         l_event_size_new, l_gdb_group_events, &l_event_round_cfg) ){
-                        if ( !dap_chain_global_db_gr_del(dap_strdup(l_event_hash_hex_str), l_gdb_group_events) ) { // Delete old event
+			if ( !dap_chain_global_db_gr_del( l_event_hash_hex_str, l_gdb_group_events) ) { // Delete old event
                             ret = 1;
                             dap_chain_node_cli_set_reply_text(a_str_reply, "Added new sign with cert \"%s\", event %s placed back in round.new\n"
                                                                            "WARNING! Old event %s with same datum is still in round.new, produced DUP!\n",
@@ -385,7 +385,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     HASH_ITER(hh, s_event_clean_dup_items, l_clean_item, l_clean_tmp) {
         if ( l_clean_item->signs_count < l_max_signs_count ) {
             // delete dup by min signatures 
-            dap_chain_global_db_gr_del(dap_strdup(l_clean_item->hash_str), l_gdb_group_events);
+	    dap_chain_global_db_gr_del( l_clean_item->hash_str, l_gdb_group_events);
             HASH_DEL(s_event_clean_dup_items, l_clean_item);
             DAP_DELETE(l_clean_item);
         } else if ( l_clean_item->ts_update > l_max_ts_update ) {
@@ -396,7 +396,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     HASH_ITER(hh, s_event_clean_dup_items, l_clean_item, l_clean_tmp) {
         if ( dap_strcmp(l_max_ts_update_hash, l_clean_item->hash_str) != 0 ) {
             // delete dup by older
-            dap_chain_global_db_gr_del(dap_strdup(l_clean_item->hash_str), l_gdb_group_events);
+	    dap_chain_global_db_gr_del(l_clean_item->hash_str, l_gdb_group_events);
         }
         HASH_DEL(s_event_clean_dup_items, l_clean_item);
         DAP_DELETE(l_clean_item);
@@ -504,7 +504,7 @@ static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_
 
             if (dap_chain_cell_file_update(l_dag->chain->cells) > 0) {
                 // delete events from db
-                dap_chain_global_db_gr_del(dap_strdup(a_callback_arg->l_event_hash_hex_str), l_dag->gdb_group_events_round_new);
+		dap_chain_global_db_gr_del(a_callback_arg->l_event_hash_hex_str, l_dag->gdb_group_events_round_new);
             }
             dap_chain_cell_close(l_dag->chain->cells);
             // dap_chain_net_sync_all(l_net);
@@ -630,7 +630,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
                                                                     l_event_new_hash_hex_str,  &l_event_round_item->cfg);
         if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event_new,
                                             l_event_size_new, l_gdb_group_events, &l_event_round_item->cfg) ){
-            dap_chain_global_db_gr_del(dap_strdup(a_key), l_gdb_group_events); // Delete old event
+	    dap_chain_global_db_gr_del( a_key, l_gdb_group_events); // Delete old event
             if (l_event_is_ready && PVT(l_poa)->auto_round_complete) { // cs done (minimum signs & verify passed)
                 s_round_event_cs_done(a_dag, l_event_new, l_event_new_hash_hex_str, &l_event_round_item->cfg);
             }

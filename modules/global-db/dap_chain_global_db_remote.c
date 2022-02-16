@@ -22,19 +22,19 @@
  */
 static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name, time_t a_expire_time)
 {
+char	l_key [DAP_DB_K_MAXKEYLEN];
+bool	l_ret;
+
     if(!a_net_name)
         return false;
-    char *l_key = dap_strdup_printf("cur_node_addr_%s", a_net_name);
-    uint64_t * l_address = DAP_NEW_Z(uint64_t);
-    *l_address = a_address;
-    bool l_ret = dap_chain_global_db_gr_set(l_key, (uint8_t*) l_address, sizeof(a_address), GROUP_LOCAL_GENERAL);
-    //DAP_DELETE(l_key);
-    if(l_ret) {
-        time_t *l_cur_time = DAP_NEW_Z(time_t);
-        *l_cur_time= a_expire_time;
-        char *l_key_time = dap_strdup_printf("cur_node_addr_%s_time", a_net_name);
-        l_ret = dap_chain_global_db_gr_set(l_key_time, (uint8_t*) l_cur_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
+
+    dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s", a_net_name);
+    if ( !(l_ret = dap_chain_global_db_gr_set(l_key, &a_address, sizeof(a_address), GROUP_LOCAL_GENERAL)) ) {
+
+	dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s_time", a_net_name);
+	l_ret = dap_chain_global_db_gr_set(l_key, &a_expire_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
     }
+
     return l_ret;
 }
 
@@ -71,26 +71,39 @@ bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
  */
 uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 {
+char	l_key[DAP_DB_K_MAXKEYLEN], l_key_time[DAP_DB_K_MAXKEYLEN];
+uint8_t *l_node_addr_data, *l_node_time_data;
     size_t l_node_addr_len = 0, l_node_time_len = 0;
+uint64_t l_node_addr_ret = 0;
+time_t l_node_time = 0;
+
     if(!a_net_name)
         return 0;
-    char *l_key = dap_strdup_printf("cur_node_addr_%s", a_net_name);
-    char *l_key_time = dap_strdup_printf("cur_node_addr_%s_time", a_net_name);
-    uint8_t *l_node_addr_data = dap_chain_global_db_gr_get(l_key, &l_node_addr_len, GROUP_LOCAL_GENERAL);
-    uint8_t *l_node_time_data = dap_chain_global_db_gr_get(l_key_time, &l_node_time_len, GROUP_LOCAL_GENERAL);
-    uint64_t l_node_addr_ret = 0;
-    time_t l_node_time = 0;
+
+    dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s", a_net_name);
+    dap_snprintf(l_key_time, sizeof(l_key_time) - 1, "cur_node_addr_%s_time", a_net_name);
+
+    l_node_addr_data = dap_chain_global_db_gr_get(l_key, &l_node_addr_len, GROUP_LOCAL_GENERAL);
+    l_node_time_data = dap_chain_global_db_gr_get(l_key_time, &l_node_time_len, GROUP_LOCAL_GENERAL);
+
     if(l_node_addr_data && l_node_addr_len == sizeof(uint64_t))
-        memcpy(&l_node_addr_ret, l_node_addr_data, l_node_addr_len);
+	    l_node_addr_ret = *( (uint64_t *) l_node_addr_data );
+
     if(l_node_time_data && l_node_time_len == sizeof(time_t))
-        memcpy(&l_node_time, l_node_time_data, l_node_time_len);
+	    l_node_time = *( (time_t *) l_node_time_data );
+
+    DAP_DELETE(l_node_addr_data);
+    DAP_DELETE(l_node_time_data);
+
     // time delta in seconds
     static int64_t addr_time_expired = -1;
     // read time-expired
+
     if(addr_time_expired == -1) {
         dap_string_t *l_cfg_path = dap_string_new("network/");
         dap_string_append(l_cfg_path, a_net_name);
         dap_config_t *l_cfg;
+
         if((l_cfg = dap_config_open(l_cfg_path->str)) == NULL) {
             log_it(L_ERROR, "Can't open default network config");
             addr_time_expired = 0;
@@ -101,15 +114,13 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
         }
         dap_string_free(l_cfg_path, true);
     }
+
     time_t l_dt = time(NULL) - l_node_time;
     //NODE_TIME_EXPIRED
     if(l_node_time && l_dt > addr_time_expired) {
         l_node_addr_ret = 0;
     }
-    DAP_DELETE(l_key);
-    DAP_DELETE(l_key_time);
-    DAP_DELETE(l_node_addr_data);
-    DAP_DELETE(l_node_time_data);
+
     return l_node_addr_ret;
 }
 
@@ -123,13 +134,10 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
  */
 bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group)
 {
-    //log_it( L_DEBUG, "Node 0x%016X set last synced id %"DAP_UINT64_FORMAT_U"", a_node_addr, a_id);
-    char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
-    uint64_t *l_id = DAP_NEW(uint64_t);
-    *l_id = a_id;
-    bool l_ret = dap_chain_global_db_gr_set(l_node_addr_str, l_id, sizeof(uint64_t),
-                                            GROUP_LOCAL_NODE_LAST_ID);
-    return l_ret;
+char	l_key[DAP_DB_K_MAXKEYLEN];
+
+    dap_snprintf(l_key, sizeof(l_key) - 1, "%ju%s", a_node_addr, a_group);
+    return  dap_chain_global_db_gr_set(l_key, &a_id, sizeof(uint64_t), GROUP_LOCAL_NODE_LAST_ID);
 }
 
 /**
@@ -166,8 +174,10 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
  */
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
-    return dap_chain_global_db_gr_set(dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name),
-                                      DAP_DUP(a_hash), sizeof(*a_hash), GROUP_LOCAL_NODE_LAST_ID);
+char	l_key[DAP_DB_K_MAXKEYLEN];
+
+    dap_snprintf(l_key, sizeof(l_key) - 1, "%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
+    return dap_chain_global_db_gr_set(l_key, a_hash, sizeof(dap_chain_hash_fast_t), GROUP_LOCAL_NODE_LAST_ID);
 }
 
 /**

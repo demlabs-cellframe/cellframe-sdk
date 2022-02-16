@@ -83,8 +83,7 @@ bool dap_chain_node_check_addr(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_
  */
 bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, dap_chain_node_addr_t *a_addr)
 {
-    return dap_chain_global_db_gr_set( dap_strdup(a_alias), DAP_DUP(a_addr),
-                                       sizeof(dap_chain_node_addr_t), a_net->pub.gdb_nodes_aliases);
+    return dap_chain_global_db_gr_set( a_alias, a_addr, sizeof(dap_chain_node_addr_t), a_net->pub.gdb_nodes_aliases);
 }
 
 /**
@@ -284,7 +283,7 @@ bool dap_chain_node_mempool_autoproc_init()
                         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
                         if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
                             // Delete processed objects
-                            dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
+			    dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
                         }
                     }
                     dap_chain_global_db_objs_delete(l_objs, l_objs_size);
@@ -324,7 +323,7 @@ void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, c
         if (!strcmp(a_group, l_gdb_group_str)) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
             if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
-                dap_chain_global_db_gr_del(dap_strdup(a_key), l_gdb_group_str);
+		dap_chain_global_db_gr_del( a_key, l_gdb_group_str);
             }
         }
         DAP_DELETE(l_gdb_group_str);

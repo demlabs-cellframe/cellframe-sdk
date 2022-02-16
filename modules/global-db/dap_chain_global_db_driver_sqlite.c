@@ -126,21 +126,27 @@ static void s_sqlite_free_connection(sqlite3 *a_conn)
  * @param a_drv_callback a pointer to a structure of callback functions 
  * @return If successful returns 0, else a code < 0.
  */
-int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks_t *a_drv_callback)
+int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks_t *a_drv_callback,
+			      bool db_drvmode_async)
 {
     int l_ret = -1;
+
     if(sqlite3_threadsafe() && !sqlite3_config(SQLITE_CONFIG_SERIALIZED))
         l_ret = sqlite3_initialize();
+
     if(l_ret != SQLITE_OK) {
         log_it(L_ERROR, "Can't init sqlite err=%d (%s)", l_ret, sqlite3_errstr(l_ret));
         return -2;
     }
+
     // Check paths and create them if nessesary
     char * l_filename_dir = dap_path_get_dirname(a_filename_db);
     if(!dap_dir_test(l_filename_dir)){
         log_it(L_NOTICE, "No directory %s, trying to create...",l_filename_dir);
+
         int l_mkdir_ret = dap_mkdir_with_parents(l_filename_dir);
         int l_errno = errno;
+
         if(!dap_dir_test(l_filename_dir)){
             char l_errbuf[255];
             l_errbuf[0] = '\0';
@@ -152,6 +158,7 @@ int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks
             log_it(L_NOTICE,"Directory created");
     }
     DAP_DEL_Z(l_filename_dir);
+
     // Open Sqlite file, create if nessesary
     char *l_error_message = NULL;
 	for (int i = 0; i < DAP_SQLITE_POOL_COUNT; i++) {
