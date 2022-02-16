@@ -175,7 +175,12 @@ dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data
                                        , size_t a_data_size, size_t a_output_size_wished )
 {
     dap_sign_t *l_ret = dap_sign_create(a_cert->enc_key, a_data, a_data_size, a_output_size_wished);
-    log_it(L_INFO, "Sign sizes: %d %d", l_ret->header.sign_size, l_ret->header.sign_pkey_size);
+
+    if (l_ret)
+        log_it(L_INFO, "Sign sizes: %d %d", l_ret->header.sign_size, l_ret->header.sign_pkey_size);
+    else
+        log_it(L_ERROR, "dap_sign_create returns NULL"); 
+
     return l_ret;
 }
 
