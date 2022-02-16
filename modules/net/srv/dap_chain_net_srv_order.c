@@ -94,7 +94,10 @@ size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)
     size_t l_sign_size = 0;
     if (a_order->version > 1) {
         dap_sign_t *l_sign = (dap_sign_t *)&a_order->ext[a_order->ext_size];
-        l_sign_size = dap_sign_get_size(l_sign);
+        if (l_sign->header.type.type == SIG_TYPE_NULL)
+            l_sign_size = sizeof(dap_sign_type_t);
+        else
+            l_sign_size = dap_sign_get_size(l_sign);
     }
     return sizeof(dap_chain_net_srv_order_t) + a_order->ext_size + l_sign_size;
 }
@@ -303,6 +306,10 @@ dap_chain_net_srv_order_t * dap_chain_net_srv_order_compose(
         l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
         memcpy(&l_order->ext[l_order->ext_size], l_sign, l_sign_size);
         DAP_DELETE(l_sign);
+    } else {
+        dap_sign_type_t l_type = { .type = SIG_TYPE_NULL };
+        l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + sizeof(dap_sign_type_t));
+        memcpy(&l_order->ext[l_order->ext_size], &l_type, sizeof(dap_sign_type_t));
     }
     return l_order;
 }
