@@ -249,7 +249,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
             log_it(L_ERROR, "Can't create condition for user");
         } else {
             // save transaction for login
-            dap_chain_global_db_gr_set(dap_strdup("client_tx_cond_hash"), l_tx_cond_hash, sizeof(dap_chain_hash_fast_t),
+            dap_chain_global_db_gr_set( "client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t),
                     l_gdb_group);
         }
         //DAP_DELETE(l_addr_from_str);
@@ -273,15 +273,13 @@ int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet
     if(!l_wallet) {
         return -1;
     }
-    size_t l_gdb_group_size = 0;
+
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    if(!dap_chain_global_db_gr_set(dap_strdup("wallet_name"), (void*) a_wallet_name, dap_strlen(a_wallet_name) + 1,
-            l_gdb_group))
+    if(!dap_chain_global_db_gr_set("wallet_name", a_wallet_name, -1, l_gdb_group))
         return -2;
-    if(!dap_chain_global_db_gr_set(dap_strdup("token_name"), (void*) a_str_token, dap_strlen(a_str_token) + 1,
-            l_gdb_group))
+    if(!dap_chain_global_db_gr_set("token_name", a_str_token, -1, l_gdb_group))
         return -2;
-    if(!dap_chain_global_db_gr_set(dap_strdup("value_datoshi"), &a_value_datoshi, sizeof(a_value_datoshi), l_gdb_group))
+    if(!dap_chain_global_db_gr_set("value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), l_gdb_group))
         return -2;
     DAP_DELETE(l_gdb_group);
     dap_chain_hash_fast_t *l_hash = dap_chain_net_vpn_client_tx_cond_hash(a_net, l_wallet, a_str_token,

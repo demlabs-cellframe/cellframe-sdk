@@ -72,7 +72,7 @@ static bool s_db_drvmode_async = false;
 
 /* A list of the request to be executed by processor thread */
 static struct __cuttdb_req_list__ {
-	struct __cuttdb_req_list__	*next;
+    struct __cuttdb_req_list__	*next;
 
 } s_req_list = {0};
 
@@ -91,25 +91,25 @@ static	void *	s_req_async_proc	(void *arg)
 int	rc, flag;
 struct timespec tmo = {0};
 
-	log_it(L_NOTICE, "Run processor thread ...");
+    log_it(L_NOTICE, "Run processor thread ...");
 
-	while ( !s_req_async_proc_stop_flag )
-		{
-		tmo.tv_sec = time (NULL) + 2;					/* Timeout is 2 seconds */
+    while ( !s_req_async_proc_stop_flag )
+        {
+        tmo.tv_sec = time (NULL) + 2;					/* Timeout is 2 seconds */
 
-		if ( ETIMEDOUT == (rc = pthread_mutex_timedlock (&s_req_list_async_lock, &tmo)) )
-			{
-			log_it(L_ERROR, "pthread_mutex_timedlock(req_mutex)->%d, errno=%d", rc, errno);
-			continue;
-			}
+        if ( ETIMEDOUT == (rc = pthread_mutex_timedlock (&s_req_list_async_lock, &tmo)) )
+            {
+            log_it(L_ERROR, "pthread_mutex_timedlock(req_mutex)->%d, errno=%d", rc, errno);
+            continue;
+            }
 
-		flag = atomic_load(&s_req_flag);
+        flag = atomic_load(&s_req_flag);
 
 
-		}
+        }
 
-	log_it(L_NOTICE, "Exiting processor thread");
-	pthread_exit(NULL);
+    log_it(L_NOTICE, "Exiting processor thread");
+    pthread_exit(NULL);
 }
 
 
@@ -287,7 +287,7 @@ ERR:
  * @return 0 if success, -1 if сouldn't open db directory, -2 if dap_cdb_init_group() returns NULL.
  */
 int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_drv_callback,
-			   bool a_db_drvmode_async)
+               bool a_db_drvmode_async)
 {
     s_cdb_path = dap_strdup(a_cdb_path);
     if(s_cdb_path[strlen(s_cdb_path)] == '/') {
@@ -646,7 +646,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
     if (!l_cdb_i) {
         return -1;
     }
-    if(a_store_obj->type == 'a') {
+    if(a_store_obj->type == DAP_DB$K_OPTYPE_ADD) {
         if(!a_store_obj->key) {
             return -2;
         }
@@ -679,7 +679,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         }
         DAP_DELETE(l_rec.key);
         DAP_DELETE(l_rec.val);
-    } else if(a_store_obj->type == 'd') {
+    } else if(a_store_obj->type == DAP_DB$K_OPTYPE_DEL) {
         if(a_store_obj->key) {
             if(cdb_del(l_cdb_i->cdb, a_store_obj->key, (int) strlen(a_store_obj->key)) == -3)
                 ret = 1;

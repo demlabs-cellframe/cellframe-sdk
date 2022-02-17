@@ -364,7 +364,7 @@ static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, d
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return false;
-    }   
+    }
     int l_prev_cond_idx;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx)) {
@@ -435,6 +435,8 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 
 static bool s_xchange_db_add(dap_chain_net_srv_xchange_price_t *a_price)
 {
+    int rc;
+
     size_t l_size = sizeof(dap_chain_net_srv_xchange_db_item_t) + strlen(a_price->wallet_str) + 1;
     dap_chain_net_srv_xchange_db_item_t *l_item = DAP_NEW_Z_SIZE(dap_chain_net_srv_xchange_db_item_t, l_size);
     strcpy(l_item->token_sell, a_price->token_sell);
@@ -446,7 +448,11 @@ static bool s_xchange_db_add(dap_chain_net_srv_xchange_price_t *a_price)
     memcpy(&l_item->tx_hash, &a_price->tx_hash, sizeof(dap_chain_hash_fast_t));
     memcpy(&l_item->order_hash, &a_price->order_hash, sizeof(dap_chain_hash_fast_t));
     strcpy(l_item->wallet_str, a_price->wallet_str);
-    return dap_chain_global_db_gr_set(dap_strdup(a_price->key_ptr), (uint8_t *)l_item, l_size, GROUP_LOCAL_XCHANGE);
+
+    rc = dap_chain_global_db_gr_set(a_price->key_ptr, l_item, l_size, GROUP_LOCAL_XCHANGE);
+    DAP_DELETE(l_item);
+
+    return  rc;
 }
 
 static dap_chain_net_srv_xchange_price_t *s_xchange_db_load(char *a_key, uint8_t *a_item)
@@ -728,7 +734,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                     return -14;
                 }
                 HASH_DEL(s_srv_xchange->pricelist, l_price);
-		dap_chain_global_db_gr_del( l_price->key_ptr, GROUP_LOCAL_XCHANGE);
+        dap_chain_global_db_gr_del( l_price->key_ptr, GROUP_LOCAL_XCHANGE);
                 bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet); // may be changed to old price later
                 dap_chain_wallet_close(l_wallet);
                 if (!l_ret) {

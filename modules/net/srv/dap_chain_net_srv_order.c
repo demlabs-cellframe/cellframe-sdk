@@ -50,10 +50,10 @@ char *s_server_continents[]={
         "North America",
         "South America",
         "Southeast Asia",
-		"Asia",
+        "Asia",
         //"Near East",
-		"Oceania",
-		"Antarctica"
+        "Oceania",
+        "Antarctica"
  };
 
 struct dap_order_notify {
@@ -75,7 +75,7 @@ int dap_chain_net_srv_order_init(void)
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_net_add_notify_callback(l_net_list[i], s_srv_order_callback_notify);
     }
-	//geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
+    //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
     return 0;
 }
 
@@ -173,19 +173,19 @@ bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_o
  */
 const char* dap_chain_net_srv_order_get_country_code(dap_chain_net_srv_order_t *a_order)
 {
-	char *l_region = NULL;
-	if (!dap_chain_net_srv_order_get_continent_region(a_order, NULL, &l_region))
-		return NULL;
-	int l_countries = sizeof(s_server_countries)/sizeof(char*);
-	for (int i = 0; i < l_countries; i+=4) {
-		if(l_region && (!strcasecmp(l_region, s_server_countries[i+1]) || !strcasecmp(l_region, s_server_countries[i+2]))){
-			const char *l_country_code = s_server_countries[i];
-			DAP_DELETE(l_region);
-			return l_country_code;
-		}
-	}
-	DAP_DELETE(l_region);
-	return NULL;
+    char *l_region = NULL;
+    if (!dap_chain_net_srv_order_get_continent_region(a_order, NULL, &l_region))
+        return NULL;
+    int l_countries = sizeof(s_server_countries)/sizeof(char*);
+    for (int i = 0; i < l_countries; i+=4) {
+        if(l_region && (!strcasecmp(l_region, s_server_countries[i+1]) || !strcasecmp(l_region, s_server_countries[i+2]))){
+            const char *l_country_code = s_server_countries[i];
+            DAP_DELETE(l_region);
+            return l_country_code;
+        }
+    }
+    DAP_DELETE(l_region);
+    return NULL;
 }
 
 /**
@@ -337,7 +337,7 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     dap_hash_fast(a_order, l_order_size, &l_order_hash);
     char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
-    if (!dap_chain_global_db_gr_set(dap_strdup(l_order_hash_str), DAP_DUP_SIZE(a_order, l_order_size), l_order_size, l_gdb_group_str)) {
+    if (!dap_chain_global_db_gr_set( l_order_hash_str, a_order,  l_order_size, l_gdb_group_str)) {
         DAP_DELETE(l_gdb_group_str);
         return NULL;
     }
@@ -405,14 +405,14 @@ lb_order_pass:
             if (l_order_pass_first) {
                 if (l_order->version > 2 || l_order->direction > SERV_DIR_SELL ||
                         dap_chain_net_srv_order_get_size(l_order) != l_orders[i].value_len) {
-                    dap_chain_global_db_gr_del(dap_strdup(l_orders[i].key), l_gdb_group_str);
+                    dap_chain_global_db_gr_del( l_orders[i].key, l_gdb_group_str);
                     continue; // order is corrupted
                 }
                 dap_chain_hash_fast_t l_hash, l_hash_gdb;
                 dap_hash_fast(l_order, dap_chain_net_srv_order_get_size(l_order), &l_hash);
                 dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
                 if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
-                    dap_chain_global_db_gr_del(dap_strdup(l_orders[i].key), l_gdb_group_str);
+                    dap_chain_global_db_gr_del( l_orders[i].key, l_gdb_group_str);
                     continue; // order is corrupted
                 }
             }
@@ -578,12 +578,12 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
         if (a_value && a_op_code != 'a' && dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
             if (l_order->version != 2) {
-                dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
+                dap_chain_global_db_gr_del( a_key, a_group);
             } else {
                 dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext_n_sign[l_order->ext_size];
                 if (!dap_sign_verify_size(l_sign, a_value_len) ||
                         dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
-                    dap_chain_global_db_gr_del(dap_strdup(a_key), a_group);
+                    dap_chain_global_db_gr_del( a_key, a_group);
                     DAP_DELETE(l_gdb_group_str);
                     return;
                 }

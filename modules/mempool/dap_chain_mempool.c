@@ -95,7 +95,6 @@ char *dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_c
     } else {
         log_it(L_WARNING, "Can't place data's hash %s was placed in mempool", l_key_str);
         DAP_DELETE(l_key_str);
-	l_key_str = NULL;
     }
 
     DAP_DELETE(l_gdb_group);
@@ -940,7 +939,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-		    if ( dap_chain_global_db_gr_set(a_key, request_str, request_size,
+            if ( dap_chain_global_db_gr_set(a_key, request_str, request_size,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         *return_code = Http_Status_OK;
                     }
@@ -971,7 +970,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 
                 case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
                     strcpy(cl_st->reply_mime, "text/text");
-		    if(dap_chain_global_db_gr_del( a_key,
+            if(dap_chain_global_db_gr_del( a_key,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         dg->response = strdup("1");
 

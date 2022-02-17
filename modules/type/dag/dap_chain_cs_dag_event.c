@@ -195,7 +195,7 @@ bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_eve
     // l_event_round_item->event = DAP_DUP_SIZE(a_event, a_event_size);
     memcpy(&l_event_round_item->cfg, a_event_round_cfg, sizeof(dap_chain_cs_dag_event_round_cfg_t));
     memcpy(l_event_round_item->event, a_event, a_event_size);
-    bool ret = dap_chain_global_db_gr_set(dap_strdup(a_event_hash_str), (uint8_t *)l_event_round_item,
+    bool ret = dap_chain_global_db_gr_set(a_event_hash_str, l_event_round_item,
             dap_chain_cs_dag_event_round_item_get_size(l_event_round_item),
             a_group);
     DAP_DELETE(l_event_round_item);
@@ -205,7 +205,7 @@ bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_eve
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(const char *a_event_hash_str, size_t *a_event_size, const char *a_group,
                                                             dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
     size_t l_event_round_item_size = 0;
-    dap_chain_cs_dag_event_round_item_t* l_event_round_item = 
+    dap_chain_cs_dag_event_round_item_t* l_event_round_item =
                 (dap_chain_cs_dag_event_round_item_t*)dap_chain_global_db_gr_get(a_event_hash_str, &l_event_round_item_size, a_group );
     if ( l_event_round_item == NULL )
         return NULL;

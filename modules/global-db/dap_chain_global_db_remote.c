@@ -29,10 +29,10 @@ bool	l_ret;
         return false;
 
     dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s", a_net_name);
-    if ( !(l_ret = dap_chain_global_db_gr_set(l_key, &a_address, sizeof(a_address), GROUP_LOCAL_GENERAL)) ) {
 
-	dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s_time", a_net_name);
-	l_ret = dap_chain_global_db_gr_set(l_key, &a_expire_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
+    if ( !(l_ret = dap_chain_global_db_gr_set(l_key, &a_address, sizeof(a_address), GROUP_LOCAL_GENERAL)) ) {
+        dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s_time", a_net_name);
+        l_ret = dap_chain_global_db_gr_set(l_key, &a_expire_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
     }
 
     return l_ret;
@@ -40,7 +40,7 @@ bool	l_ret;
 
 /**
  * @brief Sets an adress of a current node and no expire time.
- * 
+ *
  * @param a_address an adress of a current node
  * @param a_net_name a net name string
  * @return Returns true if siccessful, otherwise false
@@ -52,7 +52,7 @@ bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name )
 
 /**
  * @brief Sets an adress of a current node and expire time.
- * 
+ *
  * @param a_address an adress of a current node
  * @param a_net_name a net name string
  * @return Returns true if siccessful, otherwise false
@@ -65,7 +65,7 @@ bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
 
 /**
  * @brief Gets an adress of current node by a net name.
- * 
+ *
  * @param a_net_name a net name string
  * @return Returns an adress if successful, otherwise 0.
  */
@@ -87,10 +87,10 @@ time_t l_node_time = 0;
     l_node_time_data = dap_chain_global_db_gr_get(l_key_time, &l_node_time_len, GROUP_LOCAL_GENERAL);
 
     if(l_node_addr_data && l_node_addr_len == sizeof(uint64_t))
-	    l_node_addr_ret = *( (uint64_t *) l_node_addr_data );
+        l_node_addr_ret = *( (uint64_t *) l_node_addr_data );
 
     if(l_node_time_data && l_node_time_len == sizeof(time_t))
-	    l_node_time = *( (time_t *) l_node_time_data );
+        l_node_time = *( (time_t *) l_node_time_data );
 
     DAP_DELETE(l_node_addr_data);
     DAP_DELETE(l_node_time_data);
@@ -126,7 +126,7 @@ time_t l_node_time = 0;
 
 /**
  * @brief Sets last id of a remote node.
- * 
+ *
  * @param a_node_addr a node adress
  * @param a_id id
  * @param a_group a group name string
@@ -142,7 +142,7 @@ char	l_key[DAP_DB_K_MAXKEYLEN];
 
 /**
  * @brief Gets last id of a remote node.
- * 
+ *
  * @param a_node_addr a node adress
  * @param a_group a group name string
  * @return Returns id if successful, otherwise 0.
@@ -165,12 +165,12 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 
 /**
  * @brief Sets the last hash of a remote node.
- * 
+ *
  * @param a_node_addr a node adress
  * @param a_chain a pointer to the chain stucture
- * @param a_hash a 
- * @return true 
- * @return false 
+ * @param a_hash a
+ * @return true
+ * @return false
  */
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
@@ -182,7 +182,7 @@ char	l_key[DAP_DB_K_MAXKEYLEN];
 
 /**
  * @brief Gets the last hash of a remote node.
- * 
+ *
  * @param a_node_addr a node adress
  * @param a_chain a pointer to a chain structure
  * @return Returns a hash if successful.
@@ -199,7 +199,7 @@ dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_cha
 
 /**
  * @brief Gets a size of an object.
- * 
+ *
  * @param store_obj a pointer to the object
  * @return Returns the size.
  */
@@ -214,7 +214,7 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 /**
  * @brief Multiples data into a_old_pkt structure from a_new_pkt structure.
  * @param a_old_pkt a pointer to the old object
- * @param a_new_pkt a pointer to the new object 
+ * @param a_new_pkt a pointer to the new object
  * @return Returns a pointer to the multiple object
  */
 dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt)
@@ -234,7 +234,7 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, d
 
 /**
  * @brief Changes id in a packed structure.
- * 
+ *
  * @param a_pkt a pointer to the packed structure
  * @param a_id id
  * @return (none)

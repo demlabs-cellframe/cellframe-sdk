@@ -597,13 +597,13 @@ bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_pa
 {
 char	*cp;
 
-	if ( !(cp =  dap_config_get_item_str(a_config, a_section_path, a_item_name)) )
-		return	false;
+    if ( !(cp = dap_config_get_item_str(a_config, a_section_path, a_item_name)) )
+        return	false;
 
 #ifdef	WIN32
-	return	!strnicmp (cp, "true", 4);
+    return	!strnicmp (cp, "true", 4);
 #else
-	return	!strncasecmp (cp, "true", 4);	/* 0 == True */
+    return	!strncasecmp (cp, "true", 4);	/* 0 == True */
 #endif
 }
 
