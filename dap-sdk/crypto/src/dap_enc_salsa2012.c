@@ -16,7 +16,7 @@
 /**
  * @brief dap_enc_salsa2012_key_generate
  * 
- * Generate key for Salsa20 crypto alghorithm. Key is stored in a_key->priv_key_data
+ * Generate key for Salsa20 crypto algorithm. Key is stored in a_key->priv_key_data
  * 
  * @param a_key - dap_enc_key key descriptor
  * @param kex_buf - 
