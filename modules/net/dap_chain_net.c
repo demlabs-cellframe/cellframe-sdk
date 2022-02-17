@@ -2283,12 +2283,13 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             // sort list with chains names by priority
             l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);
             // load chains by priority
+            dap_chain_t *l_chain;
             dap_list_t *l_list = l_prior_list;
             while(l_list){
                 list_priority *l_chain_prior = l_list->data;
                 // Create chain object
-                dap_chain_t * l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
-                        l_net->pub.id, l_chain_prior->chains_path);
+                l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
+                                                  l_net->pub.id, l_chain_prior->chains_path);
                 if(l_chain) {
                     DL_APPEND(l_net->pub.chains, l_chain);
                     if(l_chain->callback_created)
@@ -2299,15 +2300,19 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 DAP_DELETE (l_chain_prior->chains_path);
                 l_list = dap_list_next(l_list);
             }
-            dap_list_free(l_prior_list);
-            dap_chain_t *l_chain;
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-                if (l_chain->callback_atom_add_from_treshold) {
-                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                        log_it(L_DEBUG, "Added atom from treshold");
+            dap_list_free_full(l_prior_list, free);
+            bool l_processed;
+            do {
+                l_processed = false;
+                DL_FOREACH(l_net->pub.chains, l_chain) {
+                    if (l_chain->callback_atom_add_from_treshold) {
+                        while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                            log_it(L_DEBUG, "Added atom from treshold");
+                            l_processed = true;
+                        }
                     }
                 }
-            }
+            } while (l_processed);
 
             const char* l_default_chain_name = dap_config_get_item_str(l_cfg , "general" , "default_chain");
             if(l_default_chain_name)
@@ -2316,9 +2321,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_net->pub.default_chain = NULL;
 
         } else {
-            log_it(L_ERROR,"Can't any chains for network %s",l_net->pub.name);
+            log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
             l_net_pvt->load_mode = false;
-
             return -2;
         }
         // Do specific role actions post-chain created

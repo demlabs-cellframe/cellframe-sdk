@@ -260,6 +260,17 @@ bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr)
     return false;
 }
 
+dap_list_t *dap_chain_net_srv_stake_get_validators()
+{
+    dap_list_t *l_ret = NULL;
+    dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
+    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
+        if (l_stake->is_active)
+            l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
+    }
+    return l_ret;
+}
+
 bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_t *a_datum)
 {
     if (!s_srv_stake) { // Drop all atoms if stake service inactivated

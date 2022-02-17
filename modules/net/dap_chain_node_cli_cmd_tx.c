@@ -87,7 +87,7 @@ void _dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_ha
  * @param l_tx_num 
  */
 
-static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
+static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                           dap_ledger_t *a_ledger,
                                           dap_string_t *a_str_out,
                                           const char *a_hash_out_type,
@@ -110,6 +110,8 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
         } else {
             l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
         }
+        if (!l_ticker)
+            return false;
         dap_string_append_printf(a_str_out, "transaction:%s hash: %s\n TS Created: %s Token ticker: %s\n Items:\n",
                                  l_list_tx_any ? " (emit)" : "", l_hash_str, dap_ctime_r(&l_ts_create, buf), l_ticker);
     }
@@ -117,7 +119,6 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     dap_list_free(l_list_tx_any);
     uint32_t l_tx_items_count = 0;
     uint32_t l_tx_items_size =a_datum->header.tx_items_size;
-    char *l_hash_str_tmp = NULL;
     char l_tmp_buf[70];
     dap_sign_t *l_sign_tmp;
     dap_chain_hash_fast_t l_pkey_hash_tmp;
@@ -410,8 +411,8 @@ static void s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
         l_tx_items_count += l_item_tx_size;
 
     }
-
     dap_string_append_printf(a_str_out, "\n");
+    return true;
 }
 
 // for dap_db_history_tx & dap_db_history_addr()
@@ -1105,7 +1106,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
                     // datum out of page
                     if(a_datum_start >= 0 && (l_datum_num+l_datum_num_global < (size_t)a_datum_start || l_datum_num+l_datum_num_global >= (size_t)a_datum_end)) {
-                         l_token_num++;
+                         l_emission_num++;
                          break;
                     }
                     size_t l_emission_size = dap_chain_datum_emission_get_size(l_datum->data);
@@ -1183,13 +1184,15 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
                     dap_chain_tx_hash_processed_ht_t *l_sht = NULL;
                     HASH_FIND(hh, a_tx_hash_processed, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_sht);
-                    if (l_sht != NULL)
+                    if (l_sht != NULL ||
+                            !s_dap_chain_datum_tx_out_data(l_tx, a_ledger, l_str_out, a_hash_out_type, &l_tx_hash)) {
+                        l_datum_num--;
                         break;
+                    }
                     l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
                     memcpy(&l_sht->hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
                     HASH_ADD(hh, a_tx_hash_processed, hash, sizeof(dap_chain_hash_fast_t), l_sht);
                     l_tx_num++;
-                    s_dap_chain_datum_tx_out_data(l_tx, a_ledger, l_str_out, a_hash_out_type, &l_tx_hash);
                 } break;
 
                 default:
