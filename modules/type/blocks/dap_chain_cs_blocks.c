@@ -635,7 +635,7 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
                     break;
                 }
                 // don't save bad transactions to base
-                int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx);
+                int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx, NULL);
                 if( l_ret != 1 )
                     break;
 

@@ -356,7 +356,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         case DAP_CHAIN_DATUM_TX:{
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
             // No trashhold herr, don't save bad transactions to base
-            if(dap_chain_ledger_tx_load(a_chain->ledger, l_tx) != 1)
+            if(dap_chain_ledger_tx_load(a_chain->ledger, l_tx, NULL) != 1)
                 return ATOM_REJECT;
         }break;
         case DAP_CHAIN_DATUM_CA:{
