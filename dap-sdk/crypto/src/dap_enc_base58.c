@@ -153,7 +153,7 @@ size_t dap_enc_base58_decode(const char * a_in, void * a_out)
 
 
 /**
- * @brief dap_enc_base58_encode encode string in Base58 alghorithm
+ * @brief dap_enc_base58_encode encode string in Base58 algorithm
  * 
  * @param a_in - input buffer
  * @param a_in_size - buffer size

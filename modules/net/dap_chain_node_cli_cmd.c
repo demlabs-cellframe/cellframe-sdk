@@ -197,8 +197,15 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
  * @param l_sign_counter - counter of successful data signing operation
  * @return dap_chain_datum_token_t* 
  */
-static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t * l_datum_token, size_t l_certs_count, size_t l_datum_data_offset, uint32_t * l_sign_counter)
-{   
+static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t * l_datum_token, size_t l_certs_count, 
+            size_t * l_datum_data_offset, uint32_t * l_sign_counter)
+{         
+    if (!l_datum_data_offset)
+    {
+        log_it(L_DEBUG,"l_datum_data_offset is NULL");
+        return NULL;
+    }  
+    
     for(size_t i = 0; i < l_certs_count; i++) 
     {
         dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token, 
@@ -207,9 +214,9 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
         if (l_sign)
         {
             size_t l_sign_size = dap_sign_get_size(l_sign);
-            l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_sign_size);
-            memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_sign, l_sign_size);
-            l_datum_data_offset += l_sign_size;
+            l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + *l_datum_data_offset + l_sign_size);
+            memcpy(l_datum_token->data_n_tsd + *l_datum_data_offset, l_sign, l_sign_size);
+            *l_datum_data_offset += l_sign_size;
             DAP_DELETE(l_sign);
             log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
             *l_sign_counter += 1;
@@ -1682,24 +1689,13 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
 
-    //
-    // Check if wallet name has only digits and English letters
-    //
-
-    size_t is_str = dap_isstralnum(l_wallet_name);
-
-    if (!is_str)
-    {
-        dap_chain_node_cli_set_reply_text(str_reply, "Wallet name must contain digits and alphabet symbols");
-        return -1;
-    }
-
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
 
     dap_string_t *l_string_ret = dap_string_new(NULL);
     switch (cmd_num) {
     // new wallet
     case CMD_WALLET_NEW: {
+       
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-sign", &l_sign_type_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-restore", &l_restore_str);
         // rewrite existing wallet
@@ -1709,6 +1705,19 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
             dap_chain_node_cli_set_reply_text(str_reply, "Wallet name option <-w>  not defined");
             return -1;
         }
+
+        //
+        // Check if wallet name has only digits and English letters
+        //
+
+        size_t is_str = dap_isstralnum(l_wallet_name);
+
+        if (!is_str)
+        {
+            dap_chain_node_cli_set_reply_text(str_reply, "Wallet name must contain digits and alphabet symbols");
+            return -1;
+        }
+
         // check wallet existence
         if(!l_is_force) {
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
@@ -1729,6 +1738,16 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
                 dap_chain_node_cli_set_reply_text(str_reply, "Unknown signature type");
                 return -1;
             }
+        }
+
+        //
+        // Check unsupported tesla algorithm
+        //
+
+        if (l_sign_type.type == SIG_TYPE_TESLA)
+        {
+                dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is not supported, please, use another variant");
+                return -1;
         }
 
         uint8_t *l_seed = NULL;
@@ -2695,7 +2714,8 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             // Sign header with all certificates in the list and add signs to the end of token update
             // Important:
             
-            l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, l_datum_data_offset, &l_sign_counter);
+            l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_datum_data_offset, 
+                                                        &l_sign_counter);
 
 
             // Add TSD sections in the end
@@ -2972,7 +2992,8 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
 
-            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, l_datum_data_offset, &l_sign_counter);
+            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, 
+                                                    &l_sign_counter);
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
@@ -3106,7 +3127,8 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
 
-            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, l_datum_data_offset, &l_sign_counter);
+            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, 
+                                &l_sign_counter);
 
         }break;
         default:
