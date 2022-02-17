@@ -359,19 +359,27 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         }
         break;
         case DAP_CHAIN_DATUM_TX: {
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-            int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx);
-            //TODO process return codes
-            dap_chain_cs_dag_event_item_t * l_tx_event = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-            l_tx_event->ts_added = a_event_item->ts_added;
-            l_tx_event->event = a_event_item->event;
-            l_tx_event->event_size = a_event_item->event_size;
-            dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_event->hash);
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+            dap_hash_fast_t l_tx_hash;
+            int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx, &l_tx_hash);
+            //TODO process return codes & different datums
+            unsigned l_hash_item_hashv;
+            HASH_VALUE(&l_tx_hash, sizeof(l_tx_hash), l_hash_item_hashv);
+            dap_chain_cs_dag_event_item_t *l_tx_event;
             int l_err = pthread_rwlock_wrlock(l_events_rwlock);
-            HASH_ADD(hh, PVT(a_dag)->tx_events, hash, sizeof(l_tx_event->hash), l_tx_event);
-            if (l_err != EDEADLK) {
-                pthread_rwlock_unlock(l_events_rwlock);
+            HASH_FIND_BYHASHVALUE(hh, PVT(a_dag)->tx_events, &l_tx_hash, sizeof(l_tx_event->hash),
+                                  l_hash_item_hashv, l_tx_event);
+            if (!l_tx_event) {
+                l_tx_event = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+                l_tx_event->ts_added = a_event_item->ts_added;
+                l_tx_event->event = a_event_item->event;
+                l_tx_event->event_size = a_event_item->event_size;
+                memcpy(&l_tx_event->hash, &l_tx_hash, sizeof(l_tx_hash));
+                HASH_ADD_BYHASHVALUE(hh, PVT(a_dag)->tx_events, hash, sizeof(l_tx_event->hash),
+                                     l_hash_item_hashv, l_tx_event);
             }
+            if (l_err != EDEADLK)
+                pthread_rwlock_unlock(l_events_rwlock);
         }
         break;
         case DAP_CHAIN_DATUM_CA: {
