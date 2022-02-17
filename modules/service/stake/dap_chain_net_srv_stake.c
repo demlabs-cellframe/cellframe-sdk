@@ -109,7 +109,7 @@ int dap_chain_net_srv_stake_init()
             // Create the stake item
             dap_chain_net_srv_stake_item_t *l_stake;
             bool l_is_new = false;
-            HASH_FIND(hh, s_srv_stake->itemlist, &_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t), l_stake);
+            HASH_FIND(hh, s_srv_stake->itemlist, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t), l_stake);
             if (!l_stake) {
                 l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
                 l_is_new = true;

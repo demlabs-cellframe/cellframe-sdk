@@ -1006,7 +1006,7 @@ static void s_treshold_txs_proc( dap_ledger_t *a_ledger)
             }
         }
     } while (l_success);
-    pthread_rwlock_unlock(&l_ledger_pvt->treshold_txs_rwlock)
+    pthread_rwlock_unlock(&l_ledger_pvt->treshold_txs_rwlock);
 }
 
 void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
@@ -2284,8 +2284,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             if(s_debug_more)
                 log_it (L_WARNING, "dap_chain_ledger_tx_add() tx %s not passed the check: code %d ",l_tx_hash_str, l_ret_check);
         }
-        ret = l_ret_check;
-        goto FIN;
+        return l_ret_check;
     }
     if(s_debug_more)
         log_it ( L_DEBUG, "dap_chain_ledger_tx_add() check passed for tx %s",l_tx_hash_str);
