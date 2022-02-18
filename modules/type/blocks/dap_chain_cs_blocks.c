@@ -418,11 +418,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             l_datums[0] = l_datum;
             if ( s_callback_add_datums(l_chain,l_datums,l_datums_count ) == l_datums_count ){
                 for ( size_t i = 0; i <l_datums_count; i++){
-                   dap_chain_hash_fast_t l_datum_hash;
-                   dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
-                   char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+                    dap_chain_hash_fast_t l_datum_hash;
+                    dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
+                    char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
 
-		   if ( dap_chain_global_db_gr_del( l_datums_datum_hash_str,l_gdb_group_mempool ) ){
+                    if ( dap_chain_global_db_gr_del( l_datums_datum_hash_str,l_gdb_group_mempool ) ){
                        dap_chain_node_cli_set_reply_text(a_str_reply,
                                                          "Converted datum %s from mempool to event in the new forming round ",
                                                          l_datums_datum_hash_str);

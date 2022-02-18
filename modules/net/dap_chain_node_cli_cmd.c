@@ -2110,6 +2110,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                             return 1;
                         }
 
+                        DAP_DELETE(l_datum_hash_hex_str);
                         DAP_DELETE(l_key_str);
                         DAP_DELETE(l_key_str_base58);
                     }
@@ -3138,18 +3139,21 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     }
     else {
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
-
     }
 
     int l_ret = 0;
 
     if ( !(l_ret = dap_chain_global_db_gr_set( l_key_str, l_datum, l_datum_size, l_gdb_group_mempool)) ) {
-        DAP_DELETE(l_datum);
         l_ret = -2;
     }
     else dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
                                       dap_strcmp(l_hash_out_type, "hex") ? l_key_str_base58 : l_key_str,
                                       l_ticker, (l_ret == 1) ? "" : " not");
+
+    DAP_DELETE(l_datum);
+    DAP_DELETE(l_key_str);
+    DAP_DELETE(l_key_str_base58);
+
 
     return l_ret;
 }
@@ -3355,14 +3359,14 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         DAP_DEL_Z(l_emission);
 
         // Add token emission datum to mempool
-        bool l_placed = dap_chain_global_db_gr_set(dap_strdup(l_emission_hash_str),
+        bool l_placed = dap_chain_global_db_gr_set(l_emission_hash_str,
                                                    l_datum_emission,
                                                    l_datum_emission_size,
                                                    l_gdb_group_mempool_emission);
         str_reply_tmp = dap_strdup_printf("Datum %s with 256bit emission is%s placed in datum pool",
                                           dap_strcmp(l_hash_out_type, "hex") ? l_emission_hash_str_base58 : l_emission_hash_str,
                                           l_placed ? "" : " not");
-        DAP_DELETE((char *)l_emission_hash_str);
+        DAP_DELETE(l_emission_hash_str);
         DAP_DEL_Z(l_emission_hash_str_base58);
         if (!l_placed) {
             DAP_DEL_Z(l_datum_emission);

@@ -187,7 +187,8 @@ dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event
 }
 
 bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-                                    const char *a_group, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg) {
+                                    const char *a_group, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg)
+{
     dap_chain_cs_dag_event_round_item_t * l_event_round_item = DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
                                                                             sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_size );
     l_event_round_item->event_size = a_event_size;

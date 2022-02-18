@@ -1318,7 +1318,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                                                 : &l_ledger_priv->treshold_emissions_rwlock);
             // Add it to cache
             char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_EMISSIONS_STR);
-        if (!dap_chain_global_db_gr_set(l_hash_str, a_token_emission, a_token_emission_size, l_gdb_group)) {
+            if (!dap_chain_global_db_gr_set(l_hash_str, a_token_emission, a_token_emission_size, l_gdb_group)) {
                 log_it(L_WARNING, "Ledger cache mismatch");
             }
 
@@ -2597,14 +2597,14 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         memcpy(l_tx_cache, &l_item_tmp->cache_data, sizeof(l_item_tmp->cache_data));
         memcpy(l_tx_cache + sizeof(l_item_tmp->cache_data), a_tx, l_tx_size);
         char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
-    if (!dap_chain_global_db_gr_set( l_tx_hash_str, l_tx_cache, l_tx_size + sizeof(l_item_tmp->cache_data), l_gdb_group)) {
+        if (!dap_chain_global_db_gr_set( l_tx_hash_str, l_tx_cache, l_tx_size + sizeof(l_item_tmp->cache_data), l_gdb_group)) {
             if(s_debug_more)
                 log_it(L_WARNING, "Ledger cache mismatch");
-            DAP_DELETE(l_tx_cache);
         }
+
+        DAP_DELETE(l_tx_cache);
         DAP_DELETE(l_gdb_group);
-        //if (!a_from_threshold)
-        //    s_treshold_txs_proc(a_ledger);        // TODO process thresholds only for non consensus chains
+
         ret = 1;
     }
 FIN:

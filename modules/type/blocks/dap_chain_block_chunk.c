@@ -88,9 +88,6 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         return;
     dap_chain_block_cache_hash_t  * l_chunk_cache_hash = NULL;
     // Parse block and produce cache object
-    dap_chain_block_t *l_block = a_block_cache->block;
-    size_t l_block_size = a_block_cache->block_size;
-
     // Check if already present
     HASH_FIND(hh, a_chunks->cache, &a_block_cache->block_hash, sizeof (l_chunk_cache_hash->block_hash), l_chunk_cache_hash);
     if (l_chunk_cache_hash){
@@ -99,7 +96,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         return;
     }
     // Save to GDB
-    dap_chain_global_db_gr_set(a_block_cache->block_hash_str,l_block,l_block_size, a_chunks->gdb_group);
+    dap_chain_global_db_gr_set(a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size, a_chunks->gdb_group);
 
 
     // And here we select chunk for the new block cache

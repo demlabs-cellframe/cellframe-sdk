@@ -279,7 +279,7 @@ bool dap_chain_node_mempool_autoproc_init()
                         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
                         if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
                             // Delete processed objects
-                dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
+                            dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
                         }
                     }
                     dap_chain_global_db_objs_delete(l_objs, l_objs_size);
@@ -319,7 +319,7 @@ void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, c
         if (!strcmp(a_group, l_gdb_group_str)) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
             if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
-        dap_chain_global_db_gr_del( a_key, l_gdb_group_str);
+                dap_chain_global_db_gr_del( a_key, l_gdb_group_str);
             }
         }
         DAP_DELETE(l_gdb_group_str);

@@ -734,7 +734,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                     return -14;
                 }
                 HASH_DEL(s_srv_xchange->pricelist, l_price);
-        dap_chain_global_db_gr_del( l_price->key_ptr, GROUP_LOCAL_XCHANGE);
+                dap_chain_global_db_gr_del( l_price->key_ptr, GROUP_LOCAL_XCHANGE);
                 bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet); // may be changed to old price later
                 dap_chain_wallet_close(l_wallet);
                 if (!l_ret) {
