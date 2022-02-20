@@ -3368,11 +3368,11 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
                                           l_placed ? "" : " not");
         DAP_DELETE(l_emission_hash_str);
         DAP_DEL_Z(l_emission_hash_str_base58);
+        DAP_DEL_Z(l_datum_emission);
+
         if (!l_placed) {
-            DAP_DEL_Z(l_datum_emission);
             return -1;
         }
-        l_datum_emission = NULL;
     } // TODO possible update emission if it found, or remove -emission parameter
 
     // create first transaction (with tx_token)
@@ -3627,7 +3627,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
  */
 int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
 {
-    int arg_index = 1;
+    int arg_index = 1, rc;
 
     // Read params
     const char * l_ca_name = NULL;
@@ -3699,17 +3699,21 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
 
     // Finaly add datum to mempool
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum,l_chain);
+
     if (l_hash_str) {
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "Datum %s was successfully placed to mempool", l_hash_str);
         DAP_DELETE(l_hash_str);
-        return 0;
+        rc = 0;
     } else {
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "Can't place certificate \"%s\" to mempool", l_ca_name);
-        DAP_DELETE( l_datum );
-        return -8;
+        rc = -8;
     }
+
+    DAP_DELETE( l_datum );
+
+    return  rc;
 }
 
 /**
@@ -3738,7 +3742,7 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, char ** a_str_reply)
  */
 int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply)
 {
-    int arg_index = 1;
+    int arg_index = 1, rc;
     // Read params
     const char * l_ca_name = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -3795,17 +3799,21 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply)
 
     // Finaly add datum to mempool
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum,l_chain);
+
+    DAP_DELETE( l_datum );
+
     if (l_hash_str) {
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "Datum %s was successfully placed to mempool", l_hash_str);
         DAP_DELETE(l_hash_str);
-        return 0;
+        rc = 0;
     } else {
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "Can't place certificate \"%s\" to mempool", l_ca_name);
-        DAP_DELETE( l_datum );
-        return -8;
+        rc = -8;
     }
+
+    return  rc;
 }
 
 

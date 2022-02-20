@@ -331,17 +331,19 @@ static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
     DAP_DELETE(a_tx);
     dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     if (!l_chain) {
-        return false;
-    }
-    // Processing will be made according to autoprocess policy
-    char *l_ret;
-
-    if (  !(l_ret = dap_chain_mempool_datum_add(l_datum, l_chain)) ) {
         DAP_DELETE(l_datum);
         return false;
     }
+    // Processing will be made according to autoprocess policy
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain);
+
+    DAP_DELETE(l_datum);
+
+    if (  !l_ret )
+        return false;
 
     DAP_DELETE(l_ret);
+
     return true;
 }
 

@@ -2504,11 +2504,13 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type)
 {
     dap_chain_t * l_chain;
+
     if(!l_net)
         return NULL;
+
     DL_FOREACH(l_net->pub.chains, l_chain)
     {
-        for(uint16_t i = 0; i < l_chain->datum_types_count; i++) {
+        for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
                 return l_chain;
         }
@@ -2528,7 +2530,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
         return NULL;
     DL_FOREACH(l_net->pub.chains, l_chain)
     {
-        for(uint16_t i = 0; i < l_chain->datum_types_count; i++) {
+        for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
                 return dap_chain_net_get_gdb_group_mempool(l_chain);
         }

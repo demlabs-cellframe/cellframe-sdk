@@ -77,7 +77,7 @@ int dap_datum_mempool_init(void)
  * @param a_datum
  * @return
  */
-char *dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain )
+char *dap_chain_mempool_datum_add(const dap_chain_datum_t * a_datum, const dap_chain_t * a_chain )
 {
     if( a_datum == NULL){
         log_it(L_ERROR, "NULL datum trying to add in mempool");
@@ -170,11 +170,13 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     dap_hash_fast(l_tx, l_tx_size, l_ret);
     DAP_DELETE(l_tx);
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum, a_chain);
+
+    DAP_DELETE( l_datum );
+
     if (l_hash_str) {
         DAP_DELETE(l_hash_str);
         return l_ret;
     }else{
-        DAP_DELETE( l_datum );
         DAP_DELETE(l_ret);
         return NULL;
     }
