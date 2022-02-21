@@ -325,15 +325,15 @@ bool dap_chain_ledger_token_ticker_check_supply(dap_ledger_t * a_ledger, const c
             l_token_item->current_supply.lo -= l_emission_value;
         pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
         if(s_debug_more)
-            log_it(L_WARNING, "New current supply %lld for token = %s", 
-                                    l_token_item->current_supply, l_token_item->ticker);
+            log_it(L_WARNING, "New current supply %s for token = %s", 
+                                    dap_chain_balance_print(l_token_item->current_supply), l_token_item->ticker);
     } 
     else 
     {
         pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
         if(s_debug_more)
-            log_it(L_WARNING, "Emission size %lld bigger, than current_supply = %lld", 
-                                    l_emission_value, l_token_item->current_supply);
+            log_it(L_WARNING, "Emission size %lld bigger, than current_supply = %s", 
+                                    l_emission_value, dap_chain_balance_print(l_token_item->current_supply));
         return false;
     }
 
@@ -432,6 +432,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     switch(a_token->type){
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: {// 256
             l_token_item->total_supply = a_token->header_private.total_supply_256;
+            l_token_item->current_supply = l_token_item->total_supply;
             l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(a_token,a_token_size,
                                                                                        &l_token_item->auth_signs_total,
                                                                                        &l_token_item->auth_signs_valid );
@@ -1352,14 +1353,14 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             //
             if (!PVT(a_ledger)->load_mode && l_token_item)
             {
-                if (l_token_item->current_supply.lo >= l_token_emission_item->datum_token_emission->hdr.value)
+                if (compare256(l_token_item->current_supply, l_token_emission_item->datum_token_emission->hdr.value_256) >= 0)
                    {
-                       l_token_item->current_supply.lo -= l_token_emission_item->datum_token_emission->hdr.value;
-                       log_it(L_WARNING,"New current supply %lld for token %s", l_token_item->current_supply, l_token_item->ticker);
+                       SUBTRACT_256_256(l_token_item->current_supply, l_token_emission_item->datum_token_emission->hdr.value_256, &l_token_item->current_supply);
+                       log_it(L_WARNING,"New current supply %s for token %s", dap_chain_balance_print(l_token_item->current_supply), l_token_item->ticker);
                    }                
                    else
                    {
-                       log_it(L_WARNING,"Token current supply %lld lower, than emission value = %lld", l_token_item->current_supply, 
+                       log_it(L_WARNING,"Token current supply %s lower, than emission value = %lld", dap_chain_balance_print(l_token_item->current_supply), 
                                                        l_token_emission_item->datum_token_emission->hdr.value);
                        pthread_rwlock_unlock( l_token_item ? &l_token_item->token_emissions_rwlock
                                                 : &l_ledger_priv->treshold_emissions_rwlock);
@@ -1448,14 +1449,14 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
             if (l_token_emission_item) {
                 pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
 
-                if (l_token_item->current_supply.lo >= l_token_emission_item->datum_token_emission->hdr.value)
+                if (compare256(l_token_item->current_supply, l_token_emission_item->datum_token_emission->hdr.value_256) >=0)
                 {
-                    l_token_item->current_supply.lo -= l_token_emission_item->datum_token_emission->hdr.value;
-                    log_it(L_WARNING,"New current supply %lld for token %s", l_token_item->current_supply, l_token_item->ticker);
+                    SUBTRACT_256_256(l_token_item->current_supply, l_token_emission_item->datum_token_emission->hdr.value_256, &l_token_item->current_supply);
+                    log_it(L_WARNING,"New current supply %s for token %s", dap_chain_balance_print(l_token_item->current_supply), l_token_item->ticker);
                 }                
                 else
                 {
-                    log_it(L_WARNING,"Token current supply %lld lower, than emission value = %lld", l_token_item->current_supply, 
+                    log_it(L_WARNING,"Token current supply %s lower, than emission value = %lld", dap_chain_balance_print(l_token_item->current_supply), 
                                                     l_token_emission_item->datum_token_emission->hdr.value);
                     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);       
                     return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
