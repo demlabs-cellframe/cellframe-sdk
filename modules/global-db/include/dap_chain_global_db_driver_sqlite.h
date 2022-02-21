@@ -29,7 +29,7 @@
 
 #define DAP_SQLITE_POOL_COUNT                   16
 
-int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks_t *a_drv_callback);
+int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks_t *a_drv_callback, bool db_drvmode_async);
 int dap_db_driver_sqlite_deinit(void);
 
 sqlite3* dap_db_driver_sqlite_open(const char *a_filename_utf8, int a_flags, char **error_message);
