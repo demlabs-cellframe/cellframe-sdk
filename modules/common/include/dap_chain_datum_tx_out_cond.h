@@ -93,6 +93,10 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_addr_t fee_addr;
             // Fee value in percent
             long double fee_value;
+            // Public key hash of signing certificate combined with net id
+            dap_chain_addr_t signing_addr;
+            // Node address of signer with this stake
+            dap_chain_node_addr_t signer_node_addr;
         } srv_stake;
     } subtype;
     uint32_t params_size; // Condition parameters size

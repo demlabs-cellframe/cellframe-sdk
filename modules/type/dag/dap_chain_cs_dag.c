@@ -261,7 +261,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", gdb_group, l_round_new_str);
         dap_chain_global_db_add_sync_group(gdb_group, s_history_callback_round_notify, l_dag);
     }
-
+ 
     DAP_DELETE(l_round_new_str);
 
     if ( l_dag->is_single_line ) {
@@ -274,8 +274,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 }
 
 static void s_dag_chain_cs_set_event_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg){
-    memcpy(&a_dag->event_round_cfg,
-                a_event_round_cfg,
+    memcpy(&a_dag->event_round_cfg, 
+                a_event_round_cfg, 
                 sizeof(dap_chain_cs_dag_event_round_cfg_t));
     a_dag->use_event_round_cfg = true;
 }
@@ -347,22 +347,27 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         }
         break;
         case DAP_CHAIN_DATUM_TX: {
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-            // don't save bad transactions to base
-            int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx);
-            if( l_ret != 1 ) {
-                return l_ret;
-            }
-            dap_chain_cs_dag_event_item_t * l_tx_event = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-            l_tx_event->ts_added = a_event_item->ts_added;
-            l_tx_event->event = a_event_item->event;
-            l_tx_event->event_size = a_event_item->event_size;
-            dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_event->hash);
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+            dap_hash_fast_t l_tx_hash;
+            int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx, &l_tx_hash);
+            //TODO process return codes & different datums
+            unsigned l_hash_item_hashv;
+            HASH_VALUE(&l_tx_hash, sizeof(l_tx_hash), l_hash_item_hashv);
+            dap_chain_cs_dag_event_item_t *l_tx_event;
             int l_err = pthread_rwlock_wrlock(l_events_rwlock);
-            HASH_ADD(hh,PVT(a_dag)->tx_events, hash, sizeof(l_tx_event->hash), l_tx_event);
-            if (l_err != EDEADLK) {
-                pthread_rwlock_unlock(l_events_rwlock);
+            HASH_FIND_BYHASHVALUE(hh, PVT(a_dag)->tx_events, &l_tx_hash, sizeof(l_tx_event->hash),
+                                  l_hash_item_hashv, l_tx_event);
+            if (!l_tx_event) {
+                l_tx_event = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+                l_tx_event->ts_added = a_event_item->ts_added;
+                l_tx_event->event = a_event_item->event;
+                l_tx_event->event_size = a_event_item->event_size;
+                memcpy(&l_tx_event->hash, &l_tx_hash, sizeof(l_tx_hash));
+                HASH_ADD_BYHASHVALUE(hh, PVT(a_dag)->tx_events, hash, sizeof(l_tx_event->hash),
+                                     l_hash_item_hashv, l_tx_event);
             }
+            if (l_err != EDEADLK)
+                pthread_rwlock_unlock(l_events_rwlock);
         }
         break;
         case DAP_CHAIN_DATUM_CA: {
@@ -370,9 +375,9 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             return DAP_CHAIN_DATUM_CA;
         }
         break;
-    case DAP_CHAIN_DATUM_SIGNER: {
-        return 0;
-        }
+	case DAP_CHAIN_DATUM_SIGNER: {
+		return 0;
+    	}
         default:
             return -1;
     }
@@ -463,43 +468,32 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         break;
     case ATOM_ACCEPT: {
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
+        pthread_rwlock_wrlock(l_events_rwlock);
+        HASH_ADD(hh, PVT(l_dag)->events,hash, sizeof(l_event_item->hash), l_event_item);
+        s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
+        pthread_rwlock_unlock(l_events_rwlock);
         switch (l_consensus_check) {
         case 0:
-            pthread_rwlock_wrlock(l_events_rwlock);
-            HASH_ADD(hh, PVT(l_dag)->events,hash, sizeof(l_event_item->hash), l_event_item);
-            s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-            pthread_rwlock_unlock(l_events_rwlock);
             if(s_debug_more)
                 log_it(L_DEBUG, "... added");
             break;
         case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS:
         case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION:
         case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN:
-            pthread_rwlock_wrlock(l_events_rwlock);
-            HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
-            pthread_rwlock_unlock(l_events_rwlock);
             if(s_debug_more)
-                log_it(L_DEBUG, "... tresholded");
-            ret = ATOM_MOVE_TO_THRESHOLD;
+                log_it(L_DEBUG, "... ledger tresholded");
             break;
         case DAP_CHAIN_DATUM_CA:
-            ret = ATOM_ACCEPT;
             if(s_debug_more)
                 log_it(L_DEBUG, "... DATUM_CA");
             break;
-        case DAP_CHAIN_DATUM_SIGNER:
-        ret = ATOM_ACCEPT;
-        break;
         default:
-            if (s_debug_more) {
-                l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-                log_it(L_WARNING, "Atom %s (size %zd) error adding (code %d)", l_event_hash_str, a_atom_size, l_consensus_check);
-            }
-            ret = ATOM_REJECT;
+            if (s_debug_more)
+                log_it(L_WARNING, "... added with ledger code %d", l_consensus_check);
             break;
+
         }
-    }
-        break;
+    } break;
     default: break;
     }
     if(s_debug_more)
@@ -640,7 +634,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                         if (dap_chain_atom_save(a_chain, (uint8_t *)l_event, l_event_size, a_chain->cells->id) < 0) {
                             log_it(L_ERROR, "Can't add new event to the file");
                         }
-                        // add all atoms from treshold
+                        // add all atoms from treshold       
                         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
                         dap_chain_t *l_cur_chain;
                         bool l_processed;
@@ -968,19 +962,17 @@ dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t
                 DAP_DELETE(l_event_hash_str);
             }
             int l_add_res = s_dap_chain_add_atom_to_events_table(a_dag, a_ledger, l_event_item);
-            if (!l_add_res) {
-                HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
-                HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
-                s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
-                if(s_debug_more)
+            HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
+            HASH_ADD(hh, PVT(a_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
+            s_dag_events_lasts_process_new_last_event(a_dag, l_event_item);
+            res = true;
+            if(s_debug_more) {
+                if (!l_add_res)
                     log_it(L_INFO, "... moved from treshold to main chains");
-                res = true;
-                break;
-            } else {
-                if(s_debug_more)
-                    log_it(L_WARNING, "... error adding");
+                else
+                    log_it(L_WARNING, "... moved with ledger code %d", l_add_res);
             }
-            //res = true;
+            break;
         } else if (ret == DAP_THRESHOLD_CONFLICTING) {
             HASH_DEL(PVT(a_dag)->events_treshold, l_event_item);
             HASH_ADD(hh, PVT(a_dag)->events_treshold_conflicted, hash, sizeof (l_event_item->hash), l_event_item);
@@ -1095,13 +1087,13 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
         }
     }
     if (!found && a_atom_iter->with_treshold) {
-        HASH_ITER(hh, l_dag_pvt->events_treshold, l_item_cur, l_item_tmp) {
-            if (l_item_cur->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
-                a_atom_iter->cur_item = l_item_cur;
+	    HASH_ITER(hh, l_dag_pvt->events_treshold, l_item_cur, l_item_tmp) {
+		    if (l_item_cur->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
+			    a_atom_iter->cur_item = l_item_cur;
                 a_atom_iter->found_in_treshold = 1;
-                break;
-            }
-        }
+			    break;
+		    }
+	    }
     }
 
     if ( a_atom_iter->cur_item ){
@@ -1144,7 +1136,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
             l_ret[i] = l_event_item->event;
             (*a_lasts_size_array)[i] = l_event_item->event_size;
             i++;
-        }
+        }    
     }
     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
     return l_ret;
@@ -1443,7 +1435,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     // delete events from db
                     dap_list_t *l_list_tmp = l_list_to_del;
                     while(l_list_tmp) {
-                        dap_chain_global_db_gr_del(l_list_tmp->data, l_dag->gdb_group_events_round_new);
+                        char *l_key = strdup((char*) l_list_tmp->data);
+                        dap_chain_global_db_gr_del(l_key, l_dag->gdb_group_events_round_new);
                         l_list_tmp = dap_list_next(l_list_tmp);
                     }
                 }
@@ -1521,10 +1514,10 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 l_datums[0] = l_datum;
                 if ( s_chain_callback_datums_pool_proc(l_chain,l_datums,l_datums_count ) == l_datums_count ){
                     for ( size_t i = 0; i <l_datums_count; i++){
-                        dap_chain_hash_fast_t l_datum_hash;
-                        dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
-                        char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-                        if ( dap_chain_global_db_gr_del( l_datums_datum_hash_str, l_gdb_group_mempool ) ){
+                       dap_chain_hash_fast_t l_datum_hash;
+                       dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
+                       char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+                       if ( dap_chain_global_db_gr_del( dap_strdup(l_datums_datum_hash_str),l_gdb_group_mempool ) ){
                            dap_chain_node_cli_set_reply_text(a_str_reply,
                                                              "Converted datum %s from mempool to event in the new forming round ",
                                                              l_datums_datum_hash_str);
@@ -1556,7 +1549,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             }break;
             case SUBCMD_EVENT_CANCEL:{
                 char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
-                if ( dap_chain_global_db_gr_del( l_event_hash_hex_str ,l_gdb_group_events ) ){
+                if ( dap_chain_global_db_gr_del( dap_strdup(l_event_hash_hex_str) ,l_gdb_group_events ) ){
                     if(!dap_strcmp(l_hash_out_type, "hex")){
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "Successfuly removed event %s from the new forming round ",
@@ -1675,18 +1668,18 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     // Round cfg
                     if ( strcmp(l_from_events_str,"round.new") == 0 ){
                         dap_string_append_printf(l_str_tmp,
-                            "\t\tRound cfg:\n\t\t\t\tconfirmations_minimum: %d\n\t\t\t\tconfirmations_timeout: %d\n",
+                            "\t\tRound cfg:\n\t\t\t\tconfirmations_minimum: %d\n\t\t\t\tconfirmations_timeout: %d\n", 
                             l_event_round_cfg.confirmations_minimum,
                             l_event_round_cfg.confirmations_timeout);
                         char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_event_round_cfg.first_event_hash);
                         dap_string_append_printf(l_str_tmp, "\t\t\t\tfirst_event_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
                         dap_string_append_printf(l_str_tmp,
-                            "\t\t\t\tts_update: %s",
+                            "\t\t\t\tts_update: %s", 
                             dap_ctime_r((time_t *)&l_event_round_cfg.ts_update, buf) );
                         if (l_event_round_cfg.ts_confirmations_minimum_completed != 0)
                             dap_string_append_printf(l_str_tmp,
-                                "\t\t\t\tts_confirmations_minimum_completed: %s",
+                                "\t\t\t\tts_confirmations_minimum_completed: %s", 
                                 dap_ctime_r((time_t *)&l_event_round_cfg.ts_confirmations_minimum_completed, buf) );
                     }
 

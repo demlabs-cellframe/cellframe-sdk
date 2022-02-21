@@ -39,7 +39,7 @@ typedef struct dap_chain_net_srv_stake_item {
     dap_chain_addr_t signing_addr;
     long double fee_value;
     dap_chain_hash_fast_t tx_hash;
-    dap_chain_hash_fast_t order_hash;
+    dap_chain_node_addr_t node_addr;
     UT_hash_handle hh;
 } dap_chain_net_srv_stake_item_t;
 
@@ -60,3 +60,4 @@ bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_ch
 bool dap_chain_net_srv_stake_updater(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_t *a_datum);
 bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
+dap_list_t *dap_chain_net_srv_stake_get_validators();
