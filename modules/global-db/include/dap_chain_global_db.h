@@ -26,6 +26,11 @@ typedef struct dap_global_db_obj {
 typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
                                                      const char * a_key, const void * a_value, const size_t a_value_len);
 
+
+#define	DAP_DB_K_MAXKEYLEN	128			/* @RRL: A maximum key's size */
+#define	DAP_DB_K_MAXGRPLEN	128			/* @RRL: A maximum group name  */
+
+
 /**
  * Flush DB
  */
@@ -68,13 +73,13 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
 /**
  * Set one entry to base
  */
-bool dap_chain_global_db_gr_set(char *a_key,  void *a_value, size_t a_value_len, const char *a_group);
+bool dap_chain_global_db_gr_set(const char *a_key,  const void *a_value, size_t a_value_len, const char *a_group);
 bool dap_chain_global_db_set( char *a_key, void *a_value, size_t a_value_len);
 
 /**
  * Delete entry from base
  */
-bool dap_chain_global_db_gr_del(char *a_key, const char *a_group);
+bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group);
 bool dap_chain_global_db_del(char *a_key);
 
 /**
@@ -98,7 +103,7 @@ dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out);
  *
  * @return
  */
-bool dap_chain_global_db_obj_save(void* a_store_data, size_t a_objs_count);
+bool dap_chain_global_db_obj_save(dap_store_obj_t *a_store_data, size_t a_objs_count);
 bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group);
 bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count);
 /**

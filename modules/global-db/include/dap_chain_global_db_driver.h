@@ -29,10 +29,17 @@
 #include "dap_common.h"
 #include "dap_list.h"
 
+enum    {
+    DAP_DB$K_OPTYPE_ADD  = 'a',                 /* Operation Type = INSERT/ADD */
+    DAP_DB$K_OPTYPE_DEL  = 'd',                 /*  -- // -- DELETE */
+
+};
+
+
 typedef struct dap_store_obj {
-	uint64_t id;
+    uint64_t id;
     uint64_t timestamp;
-	uint8_t type;
+    uint32_t type;                               /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
     char *group;
     char *key;
     const char *c_key;
@@ -44,7 +51,7 @@ typedef struct dap_store_obj_pkt {
     uint64_t timestamp;
     uint64_t data_size;
     uint32_t obj_count;
-	uint8_t data[];
+    uint8_t data[];
 }__attribute__((packed)) dap_store_obj_pkt_t;
 
 typedef int (*dap_db_driver_write_callback_t)(dap_store_obj_t*);
@@ -71,7 +78,7 @@ typedef struct dap_db_driver_callbacks {
 } dap_db_driver_callbacks_t;
 
 
-int dap_db_driver_init(const char *driver_name, const char *a_filename_db);
+int dap_db_driver_init(const char *driver_name, const char *a_filename_db, bool a_db_drvmode_async);
 void dap_db_driver_deinit(void);
 
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count);
@@ -80,7 +87,7 @@ int dap_db_driver_flush(void);
 
 char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size);
 
-int dap_chain_global_db_driver_appy(pdap_store_obj_t a_store_obj, size_t a_store_count);
+int dap_chain_global_db_driver_apply(pdap_store_obj_t a_store_obj, size_t a_store_count);
 int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
 int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
 dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group);

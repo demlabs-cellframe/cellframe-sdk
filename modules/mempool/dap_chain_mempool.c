@@ -77,24 +77,26 @@ int dap_datum_mempool_init(void)
  * @param a_datum
  * @return
  */
-char *dap_chain_mempool_datum_add(dap_chain_datum_t * a_datum, dap_chain_t * a_chain )
+char *dap_chain_mempool_datum_add(const dap_chain_datum_t * a_datum, const dap_chain_t * a_chain )
 {
     if( a_datum == NULL){
         log_it(L_ERROR, "NULL datum trying to add in mempool");
         return NULL;
     }
+
     dap_chain_hash_fast_t l_key_hash;
+
     dap_hash_fast(a_datum->data , a_datum->header.data_size, &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
-    if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (byte_t *) a_datum, dap_chain_datum_size(a_datum)
-            ,l_gdb_group)) {
+
+    if(dap_chain_global_db_gr_set( l_key_str, a_datum, dap_chain_datum_size(a_datum), l_gdb_group)) {
         log_it(L_NOTICE, "Datum with data's hash %s was placed in mempool", l_key_str);
     } else {
         log_it(L_WARNING, "Can't place data's hash %s was placed in mempool", l_key_str);
         DAP_DELETE(l_key_str);
-	l_key_str = NULL;
     }
+
     DAP_DELETE(l_gdb_group);
     return l_key_str;
 }
@@ -168,11 +170,13 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     dap_hash_fast(l_tx, l_tx_size, l_ret);
     DAP_DELETE(l_tx);
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum, a_chain);
+
+    DAP_DELETE( l_datum );
+
     if (l_hash_str) {
         DAP_DELETE(l_hash_str);
         return l_ret;
     }else{
-        DAP_DELETE( l_datum );
         DAP_DELETE(l_ret);
         return NULL;
     }
@@ -452,10 +456,12 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     else
         l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
 
-    if( dap_chain_global_db_gr_set( dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
-                                   , l_gdb_group ) ) {
+    if( dap_chain_global_db_gr_set( l_key_str, l_datum, dap_chain_datum_size(l_datum), l_gdb_group ) ) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
+
+    DAP_DELETE(l_datum);
     }
+
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
 
@@ -623,10 +629,11 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
-    if( dap_chain_global_db_gr_set( dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
-                                   , l_gdb_group ) ) {
+
+    if( dap_chain_global_db_gr_set( l_key_str, l_datum, dap_chain_datum_size(l_datum), l_gdb_group ) ) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
     }
+
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
 
@@ -936,7 +943,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if(dap_chain_global_db_gr_set(dap_strdup(a_key), request_str,(size_t) request_size,
+                    if ( dap_chain_global_db_gr_set(a_key, request_str, request_size,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         *return_code = Http_Status_OK;
                     }
@@ -955,8 +962,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                         DAP_DEL_Z(str);
                         log_it(L_INFO, "Check hash: key=%s result: Present", a_key);
                     }
-                    else
-                    {
+                    else {
                         dg->response = strdup("0");
                         log_it(L_INFO, "Check hash: key=%s result: Absent", a_key);
                     }
@@ -967,14 +973,13 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 
                 case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
                     strcpy(cl_st->reply_mime, "text/text");
-                    if(dap_chain_global_db_gr_del( dap_strdup(a_key),
+                    if(dap_chain_global_db_gr_del( a_key,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         dg->response = strdup("1");
 
                         log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
                     }
-                    else
-                    {
+                    else {
                         dg->response = strdup("0");
                         log_it(L_INFO, "Delete hash: key=%s result: False!", a_key);
                     }
@@ -991,19 +996,16 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                     return;
                 }
                 DAP_DEL_Z(a_key);
-            } else{
-                *return_code = Http_Status_BadRequest;
-            }
+            } else  *return_code = Http_Status_BadRequest;
 
             DAP_DELETE(request_str);
         }
-        else
-            *return_code = Http_Status_BadRequest;
+        else    *return_code = Http_Status_BadRequest;
+
         enc_http_delegate_delete(dg);
     }
-    else {
-        *return_code = Http_Status_Unauthorized;
-    }
+    else    *return_code = Http_Status_Unauthorized;
+
     if(hdr_session_close_id && hdr_session_close_id->value && !strcmp(hdr_session_close_id->value, "yes")) {
         // close session
         if(hdr_key_id && hdr_key_id->value) {

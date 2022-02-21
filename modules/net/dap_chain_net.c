@@ -316,9 +316,9 @@ int dap_chain_net_init()
 
 /**
  * @brief get certificate hash from chain config [acl_accept_ca_gdb] param
- * 
+ *
  * @param a_net dap_chain_net_t chain object
- * @return char* 
+ * @return char*
  */
 char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
 {
@@ -338,9 +338,9 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
 
 /**
  * @brief convert dap_chain_net_state_t net state object to string
- * 
+ *
  * @param l_state dap_chain_net_state_t
- * @return const char* 
+ * @return const char*
  */
 inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
 {
@@ -349,10 +349,10 @@ inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
 
 /**
  * @brief set current network state to F_DAP_CHAIN_NET_GO_SYNC
- * 
+ *
  * @param a_net dap_chain_net_t network object
  * @param a_new_state dap_chain_net_state_t new network state
- * @return int 
+ * @return int
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
@@ -384,7 +384,7 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 
 /**
  * @brief set s_srv_callback_notify
- * 
+ *
  * @param a_callback dap_global_db_obj_callback_notify_t callback function
  */
 void dap_chain_net_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback)
@@ -411,20 +411,20 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (PVT(l_net)->state == NET_STATE_ONLINE) {
         char *l_group;
-        if (a_op_code == 'd') {
+        if (a_op_code == DAP_DB$K_OPTYPE_DEL ) {
             l_group = dap_strdup_printf("%s.del", a_group);
         } else {
             l_group = (char *)a_group;
         }
         dap_store_obj_t *l_obj = (dap_store_obj_t *)dap_chain_global_db_obj_get(a_key, l_group);
-        if (a_op_code == 'd') {
+        if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
             DAP_DELETE(l_group);
         }
         if (!l_obj) {
             log_it(L_DEBUG, "Notified GDB event does not exist");
             return;
         }
-        l_obj->type = (uint8_t)a_op_code;
+        l_obj->type = a_op_code;
         DAP_DELETE(l_obj->group);
         l_obj->group = dap_strdup(a_group);
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
@@ -432,7 +432,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
         dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-        pthread_rwlock_rdlock(&PVT(l_net)->rwlock);   
+        pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
             if (!l_node_client)
@@ -451,7 +451,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
 
 /**
  * @brief added like callback in dap_chain_global_db_add_sync_group
- * 
+ *
  * @param a_arg arguments. Can be network object (dap_chain_net_t)
  * @param a_op_code object type (f.e. l_net->type from dap_store_obj)
  * @param a_group group, for example "chain-gdb.home21-network.chain-F"
@@ -714,7 +714,7 @@ static void s_node_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cl
  */
 
 static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg)
-{ 
+{
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
@@ -1064,7 +1064,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                 l_link_node_info->hdr.address.uint64 = l_net_pvt->gdb_sync_nodes_addrs[i].uint64;
                 l_link_node_info->hdr.ext_addr_v4.s_addr = l_net_pvt->gdb_sync_nodes_links_ips[i];
-                l_link_node_info->hdr.ext_port = l_net_pvt->gdb_sync_nodes_links_ports[i];              
+                l_link_node_info->hdr.ext_port = l_net_pvt->gdb_sync_nodes_links_ports[i];
                 struct net_link *l_new_link = DAP_NEW_Z(struct net_link);
                 l_new_link->link_info = l_link_node_info;
                 l_net_pvt->net_links = dap_list_append(l_net_pvt->net_links, l_new_link);
@@ -1076,7 +1076,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_net_pvt->node_info->links[i]);
                     if (!l_link_node_info || l_link_node_info->hdr.address.uint64 == l_own_addr) {
                         continue;   // Do not link with self
-                    }        
+                    }
                     struct net_link *l_new_link = DAP_NEW_Z(struct net_link);
                     l_new_link->link_info = l_link_node_info;
                     l_net_pvt->net_links = dap_list_append(l_net_pvt->net_links, l_new_link);
@@ -1106,7 +1106,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 case NODE_ROLE_FULL:
                 case NODE_ROLE_MASTER:
                 case NODE_ROLE_LIGHT:
-                default: {              
+                default: {
                     if (!l_net_pvt->seed_aliases_count && ! l_net_pvt->bootstrap_nodes_count) {
                        log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
                        if (l_net_pvt->net_links) { // We have other links
@@ -1230,7 +1230,7 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
     pthread_rwlock_rdlock(&l_net_pvt->rwlock);
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);   
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
         dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
         dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
@@ -1289,10 +1289,10 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
 /**
  * @brief set node role
  * [root_master, root, archive, cell_master, master, full, light]
- * @param a_id 
- * @param a_name 
- * @param a_node_role 
- * @return dap_chain_net_t* 
+ * @param a_id
+ * @param a_name
+ * @param a_node_role
+ * @return dap_chain_net_t*
  */
 static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
                                     const char * a_node_role)
@@ -1371,7 +1371,7 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
 
 
 /**
- * @brief 
+ * @brief
  * load network config settings
  */
 void dap_chain_net_load_all()
@@ -1766,7 +1766,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
                     return -11;
                 }
-                ret = dap_chain_global_db_gr_set(dap_strdup(l_hash_hex_str), (void *)&c, 1, dap_chain_net_get_gdb_group_acl(l_net));
+                ret = dap_chain_global_db_gr_set(l_hash_hex_str, &c, 1, dap_chain_net_get_gdb_group_acl(l_net));
                 DAP_DELETE(l_gdb_group_str);
                 DAP_DELETE(l_hash_hex_str);
                 if (!ret) {
@@ -1804,7 +1804,8 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
                     return -11;
                 }
-                ret = dap_chain_global_db_gr_del((char *)l_hash_string, l_gdb_group_str);
+                ret = dap_chain_global_db_gr_del(l_hash_string, l_gdb_group_str);
+                DAP_DELETE(l_hash_string);
                 DAP_DELETE(l_gdb_group_str);
                 if (!ret) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Cant't find certificate public key hash in database");
@@ -1870,10 +1871,10 @@ static int callback_compare_prioritity_list(const void * a_item1, const void * a
 
 /**
  * @brief load network config settings from cellframe-node.cfg file
- * 
+ *
  * @param a_net_name const char *: network name, for example "home21-network"
  * @param a_acl_idx currently 0
- * @return int 
+ * @return int
  */
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 {
@@ -2050,7 +2051,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
                     // save pub key
                     if(l_pub_key_data && l_pub_key_data_size > 0)
-                        dap_chain_global_db_gr_set(dap_strdup("cur-node-addr-pkey"), DAP_DUP_SIZE(l_pub_key_data, l_pub_key_data_size), l_pub_key_data_size,
+                        dap_chain_global_db_gr_set( "cur-node-addr-pkey", l_pub_key_data, l_pub_key_data_size,
                         GROUP_LOCAL_NODE_ADDR);
                 }
             }
@@ -2131,9 +2132,9 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     l_node_info->hdr.address.uint64 = l_seed_node_addr->uint64;
                     if ( l_node_info->hdr.ext_addr_v4.s_addr ||
                     #ifdef DAP_OS_BSD
-                	l_node_info->hdr.ext_addr_v6.__u6_addr.__u6_addr32[0]
+                    l_node_info->hdr.ext_addr_v6.__u6_addr.__u6_addr32[0]
                     #else
-                        l_node_info->hdr.ext_addr_v6.s6_addr32[0] 
+                        l_node_info->hdr.ext_addr_v6.s6_addr32[0]
                     #endif
                             ){
                         int l_ret;
@@ -2507,11 +2508,13 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type)
 {
     dap_chain_t * l_chain;
+
     if(!l_net)
         return NULL;
+
     DL_FOREACH(l_net->pub.chains, l_chain)
     {
-        for(uint16_t i = 0; i < l_chain->datum_types_count; i++) {
+        for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
                 return l_chain;
         }
@@ -2531,7 +2534,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
         return NULL;
     DL_FOREACH(l_net->pub.chains, l_chain)
     {
-        for(uint16_t i = 0; i < l_chain->datum_types_count; i++) {
+        for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
                 return dap_chain_net_get_gdb_group_mempool(l_chain);
         }
@@ -2713,7 +2716,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
                 if (l_verify_datum != 0){
                     log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
                                              l_verify_datum);
-                    dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
+                    dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
                     l_datums[i] = NULL;
                 }else{
                     l_datums[i] = l_datum;
@@ -2732,7 +2735,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
             // Delete processed objects
             size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
             for(size_t i = 0; i < l_objs_processed; i++) {
-                dap_chain_global_db_gr_del(dap_strdup(l_objs[i].key), l_gdb_group_mempool);
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
                 if(i < l_objs_processed_tmp) {
                     dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
                             l_objs[i].key);
@@ -2880,7 +2883,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                     if ( dap_chain_datum_token_is_old(l_token->type) )
                         dap_string_append_printf(a_str_out, "total_supply: %"DAP_UINT64_FORMAT_U"\n", l_token->header_private.total_supply );
                     else
-                        dap_string_append_printf(a_str_out, "total_supply: %s\n", 
+                        dap_string_append_printf(a_str_out, "total_supply: %s\n",
                                                 dap_chain_balance_print(l_token->header_private.total_supply_256));
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE:
@@ -3095,7 +3098,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
                                 case TX_ITEM_TYPE_OUT_256: { // 256
-                                    dap_string_append_printf(a_str_out,"\tvalue: %s\n", 
+                                    dap_string_append_printf(a_str_out,"\tvalue: %s\n",
                                                 dap_chain_balance_print(((dap_chain_256_tx_out_t *)l_cur->data)->header.value)
                                             );
                                     char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_256_tx_out_t *)l_cur->data)->addr );
@@ -3251,11 +3254,11 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
 
 /**
  * @brief check certificate access list, written in chain config
- * 
+ *
  * @param a_net - network object
  * @param a_pkey_hash - certificate hash
- * @return true 
- * @return false 
+ * @return true
+ * @return false
  */
 static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pkey_hash)
 {
@@ -3321,7 +3324,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
  * @brief s_acl_callback function. Usually called from enc_http_proc
  * set acl (l_enc_key_ks->acl_list) from acl_accept_ca_list, acl_accept_ca_gdb chain config parameters in [auth] section
  * @param a_pkey_hash dap_chain_hash_fast_t hash object
- * @return uint8_t* 
+ * @return uint8_t*
  */
 static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
 {

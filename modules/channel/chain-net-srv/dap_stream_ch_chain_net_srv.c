@@ -428,7 +428,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
             } break;
 
-        	// only for server
+            // only for server
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST:{
                 if (l_ch_pkt->hdr.size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
                     log_it( L_WARNING, "Wrong request size, less than minimum");
@@ -586,9 +586,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 // Store receipt if any problems with transactions
                 dap_chain_hash_fast_t l_receipt_hash={0};
                 dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
+
                 char * l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
                 dap_chain_global_db_gr_set( l_receipt_hash_str,l_receipt,l_receipt_size,"local.receipts");
-                l_receipt_hash_str = NULL; // To prevent usage of this pointer when it will be free by GDB processor
+                DAP_DELETE(l_receipt_hash_str);
+
                 size_t l_success_size;
                 dap_chain_hash_fast_t *l_tx_in_hash  = NULL;
                 if (!l_usage->is_grace) {
