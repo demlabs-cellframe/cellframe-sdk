@@ -40,10 +40,10 @@ typedef struct dap_store_obj {
     uint64_t id;
     uint64_t timestamp;
     uint32_t type;                               /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
-    char *group;
-    char *key;
+    const char *group;
+    const char *key;
     const char *c_key;
-    uint8_t *value;
+    const uint8_t *value;
     uint64_t value_len;
 }DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
 

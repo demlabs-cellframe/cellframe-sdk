@@ -316,8 +316,8 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
 
         if (offset+str_length> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'group' field"); break;} // Check for buffer boundries
         obj->group = DAP_NEW_SIZE(char, str_length + 1);
-        memcpy(obj->group, pkt->data + offset, str_length);
-        obj->group[str_length] = '\0';
+        memcpy((char *)obj->group, pkt->data + offset, str_length);
+        ((char *)obj->group)[str_length] = '\0';
         offset += str_length;
 
         if (offset+sizeof (uint64_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'id' field"); break;} // Check for buffer boundries
@@ -334,8 +334,8 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
 
         if (offset+ str_length > pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'key' field"); break;} // Check for buffer boundries
         obj->key = DAP_NEW_SIZE(char, str_length + 1);
-        memcpy(obj->key, pkt->data + offset, str_length);
-        obj->key[str_length] = '\0';
+        memcpy((char *)obj->key, pkt->data + offset, str_length);
+        ((char *)obj->key)[str_length] = '\0';
         offset += str_length;
 
         if (offset+sizeof (uint64_t)> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;} // Check for buffer boundries
@@ -344,7 +344,7 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
 
         if (offset+obj->value_len> pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field"); break;} // Check for buffer boundries
         obj->value = DAP_NEW_SIZE(uint8_t, obj->value_len);
-        memcpy(obj->value, pkt->data + offset, obj->value_len);
+        memcpy((char *)obj->value, pkt->data + offset, obj->value_len);
         offset += obj->value_len;
     }
     assert(pkt->data_size == offset);

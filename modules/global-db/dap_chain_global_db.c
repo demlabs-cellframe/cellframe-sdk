@@ -337,7 +337,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
  * @param a_timestamp an object time stamp
  * @return True if successful, false otherwise.
  */
-static bool global_db_gr_del_add(char *a_key,const char *a_group, time_t a_timestamp)
+static bool global_db_gr_del_add(const char *a_key, const char *a_group, time_t a_timestamp)
 {
 dap_store_obj_t store_data = {0};
 char	l_group[DAP_DB_K_MAXGRPLEN];
@@ -390,7 +390,7 @@ int	l_res = 0;
  * @param a_key an object key string, looked like "0x8FAFBD00B..."
  * @return If successful, a time stamp, otherwise 0.
  */
-time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
+time_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
 {
     time_t l_timestamp = 0;
     if(!a_key)
@@ -410,7 +410,7 @@ time_t global_db_gr_del_get_timestamp(const char *a_group, char *a_key)
         dap_store_obj_free(l_obj, l_count_out);
     }
     unlock();
-    DAP_DELETE(store_data.group);
+    DAP_DELETE((char *)store_data.group);
     return l_timestamp;
 }
 

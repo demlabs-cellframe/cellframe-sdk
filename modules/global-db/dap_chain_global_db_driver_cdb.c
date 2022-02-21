@@ -78,10 +78,10 @@ static struct __cuttdb_req_list__ {
 
 atomic_int	s_req_flag;
 
-static pthread_mutex_t	s_req_list_lock = PTHREAD_MUTEX_INITIALIZER;		/* Coordinate access to the req_list */
+static pthread_mutex_t s_req_list_lock = PTHREAD_MUTEX_INITIALIZER;		/* Coordinate access to the req_list */
 
-static pthread_mutex_t	s_req_list_async_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t	s_req_list_async_cond = PTHREAD_COND_INITIALIZER;
+static pthread_mutex_t s_req_list_async_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_req_list_async_cond = PTHREAD_COND_INITIALIZER;
 
 static int s_req_async_proc_stop_flag = 0;
 
@@ -136,7 +136,7 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(uint64_t));
     offset += sizeof(uint64_t);
     a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
-    memcpy(a_obj->value, val + offset, a_obj->value_len);
+    memcpy((byte_t *)a_obj->value, val + offset, a_obj->value_len);
     offset += a_obj->value_len;
     a_obj->timestamp = dap_hex_to_uint(val + offset, sizeof(uint64_t));
 }
@@ -217,7 +217,7 @@ bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, cons
    CDB_PAGEWARMUP
  * @return A pointer to CDB, if success. NULL, if error.
  */
-pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
+pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
     pcdb_instance l_cdb_i = NULL;
     pthread_mutex_lock(&cdb_mutex);
     char l_cdb_path[strlen(s_cdb_path) + strlen(a_group) + 2];
@@ -658,7 +658,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
             }
         }*/
         cdb_record l_rec;
-        l_rec.key = a_store_obj->key; //dap_strdup(a_store_obj->key);
+        l_rec.key = (char *)a_store_obj->key; //dap_strdup(a_store_obj->key);
         int offset = 0;
         char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(uint64_t) + a_store_obj->value_len + sizeof(uint64_t));
         dap_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
@@ -667,7 +667,6 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         offset += sizeof(uint64_t);
         if(a_store_obj->value && a_store_obj->value_len){
             memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
-            DAP_DELETE(a_store_obj->value);
         }
         offset += a_store_obj->value_len;
         dap_uint_to_hex(l_val + offset, a_store_obj->timestamp, sizeof(uint64_t));
@@ -677,13 +676,11 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
             log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
             ret = -1;
         }
-        DAP_DELETE(l_rec.key);
         DAP_DELETE(l_rec.val);
     } else if(a_store_obj->type == DAP_DB$K_OPTYPE_DEL) {
         if(a_store_obj->key) {
             if(cdb_del(l_cdb_i->cdb, a_store_obj->key, (int) strlen(a_store_obj->key)) == -3)
                 ret = 1;
-            DAP_DELETE(a_store_obj->key);
         } else {
             cdb_destroy(l_cdb_i->cdb);
             if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP)) {

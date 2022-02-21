@@ -92,16 +92,23 @@ size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)
     if (!a_order)
         return 0;
     size_t l_sign_size = 0;
-    size_t l_header_size = sizeof(dap_chain_net_srv_order_old_t);
-    if (a_order->version > 1) {
+    if (a_order->version == 3) {
         dap_sign_t *l_sign = (dap_sign_t *)&a_order->ext_n_sign[a_order->ext_size];
         if (l_sign->header.type.type == SIG_TYPE_NULL)
             l_sign_size = sizeof(dap_sign_type_t);
         else
             l_sign_size = dap_sign_get_size(l_sign);
-        l_header_size = sizeof(dap_chain_net_srv_order_t);
+        return sizeof(dap_chain_net_srv_order_t) + a_order->ext_size + l_sign_size;
     }
-    return l_header_size + a_order->ext_size + l_sign_size;
+    dap_chain_net_srv_order_old_t *l_order = (dap_chain_net_srv_order_old_t *)a_order;
+    if(l_order->version == 2) {
+        dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext[l_order->ext_size];
+        if (l_sign->header.type.type == SIG_TYPE_NULL)
+            l_sign_size = sizeof(dap_sign_type_t);
+        else
+            l_sign_size = dap_sign_get_size(l_sign);
+    }
+    return sizeof(dap_chain_net_srv_order_old_t) + l_order->ext_size + l_sign_size;
 }
 
 /**
@@ -277,7 +284,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         )
 {
     UNUSED(a_expires);
-    if (!a_net)
+    if (!a_net && !a_key)   // Order must have network & sign
         return NULL;
     dap_chain_net_srv_order_t *l_order;
     if (a_ext_size) {
@@ -290,7 +297,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
     }
 
-    l_order->version = 2;
+    l_order->version = 3;
     l_order->srv_uid = a_srv_uid;
     l_order->direction = a_direction;
     l_order->ts_created = (dap_chain_time_t) time(NULL);
@@ -304,21 +311,13 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
 
     if ( a_price_ticker)
         strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
-    if (a_key) {
-        dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
-        if (!l_sign) {
-            return NULL;
-        }
-        size_t l_sign_size = dap_sign_get_size(l_sign); // sign data
-        l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
-        memcpy(&l_order->ext_n_sign[l_order->ext_size], l_sign, l_sign_size);
-        DAP_DELETE(l_sign);
-    } else {
-        dap_sign_type_t l_type = { .type = SIG_TYPE_NULL };
-        l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + sizeof(dap_sign_type_t));
-        memcpy(&l_order->ext_n_sign[l_order->ext_size], &l_type, sizeof(dap_sign_type_t));
+    dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
+    if (!l_sign) {
+        return NULL;
     }
-
+    size_t l_sign_size = dap_sign_get_size(l_sign); // sign data
+    l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
+    memcpy(&l_order->ext_n_sign[l_order->ext_size], l_sign, l_sign_size);
     return l_order;
 }
 
@@ -343,6 +342,41 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     }
     DAP_DELETE(l_gdb_group_str);
     return l_order_hash_str;
+}
+
+dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order)
+{
+    if (((dap_chain_net_srv_order_t *)a_order)->version == 3)
+        return DAP_DUP_SIZE(a_order, dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)a_order));
+    dap_chain_net_srv_order_old_t *l_old = (dap_chain_net_srv_order_old_t *)a_order;
+    size_t l_ret_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)l_old) +
+                            sizeof(dap_chain_net_srv_order_t) - sizeof(dap_chain_net_srv_order_old_t);
+    if (l_old->version == 1)
+        l_ret_size += sizeof(dap_sign_type_t);
+    dap_chain_net_srv_order_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_ret_size);
+    l_ret->version = 3;
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    l_ret->srv_uid.uint64 = l_old->srv_uid.uint64;
+#else
+    l_ret->srv_uid.uint128 = dap_chain_uint128_from(l_old->srv_uid.uint64);
+#endif
+    l_ret->direction = l_old->direction;
+    l_ret->node_addr.uint64 = l_old->node_addr.uint64;
+    memcpy(&l_ret->tx_cond_hash, &l_old->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
+    l_ret->price_unit.uint32 = l_old->price_unit.uint32;
+    l_ret->ts_created = l_old->ts_created;
+    l_ret->ts_expires = l_old->ts_expires;
+    l_ret->price = dap_chain_uint256_from(l_old->price);
+    strncpy(l_ret->price_ticker, l_old->price_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+    l_ret->ext_size = l_old->ext_size;
+    memcpy(&l_ret->ext_n_sign, &l_old->ext, l_old->ext_size);
+    dap_sign_t *l_sign = (dap_sign_t *)&l_old->ext[l_old->ext_size];
+    size_t l_sign_size = l_old->version == 1 ? 0 : dap_sign_get_size(l_sign);
+    if (l_sign_size)
+        memcpy(&l_ret->ext_n_sign[l_ret->ext_size], l_sign, l_sign_size);
+    else
+        ((dap_sign_type_t *)&l_ret->ext_n_sign[l_ret->ext_size])->type = SIG_TYPE_NULL;
+    return l_ret;
 }
 
 
@@ -389,83 +423,60 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
                                         const uint256_t a_price_min, const uint256_t a_price_max,
                                         dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count)
 {
-    if ( a_net && a_output_orders && a_output_orders_count ){
-        char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
-        size_t l_orders_count = 0;
-        dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str,&l_orders_count);
-        log_it( L_DEBUG ,"Loaded %zd orders", l_orders_count);
-        bool l_order_pass_first=true;
-        size_t l_order_passed_index;
-        size_t l_orders_size;
-lb_order_pass:
-        l_order_passed_index = 0;
-        l_orders_size = 0;
-        for (size_t i=0; i< l_orders_count; i++){
-            dap_chain_net_srv_order_t * l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
-            if (l_order_pass_first) {
-                if (l_order->version > 2 || l_order->direction > SERV_DIR_SELL ||
-                        dap_chain_net_srv_order_get_size(l_order) != l_orders[i].value_len) {
-                    dap_chain_global_db_gr_del( l_orders[i].key, l_gdb_group_str);
-                    continue; // order is corrupted
-                }
-                dap_chain_hash_fast_t l_hash, l_hash_gdb;
-                dap_hash_fast(l_order, dap_chain_net_srv_order_get_size(l_order), &l_hash);
-                dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
-                if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
-                    dap_chain_global_db_gr_del( l_orders[i].key, l_gdb_group_str);
-                    continue; // order is corrupted
-                }
-            }
-            // Check direction
-            if (a_direction != SERV_DIR_UNDEFINED )
-                if ( l_order->direction != a_direction )
-                    continue;
-
-            // Check srv uid
-            if ( a_srv_uid.uint64 )
-                if ( l_order->srv_uid.uint64 != a_srv_uid.uint64 )
-                    continue;
-            // check price unit
-            if ( a_price_unit.uint32 )
-                if ( a_price_unit.uint32 != l_order->price_unit.uint32 )
-                    continue;
-            // Check price minimum
-            if (!IS_ZERO_256(a_price_min) && compare256(l_order->price, a_price_min) == -1)
-                    continue;
-            // Check price maximum
-            if (!IS_ZERO_256(a_price_max) && compare256(l_order->price, a_price_max) == 1)
-                    continue;
-            // Check ticker
-            if ( a_price_ticker )
-                if ( strcmp( l_order->price_ticker, a_price_ticker) != 0 )
-                    continue;
-
-            if( !l_order_pass_first ){
-                size_t l_order_size = dap_chain_net_srv_order_get_size(l_order);
-                memcpy((char*)*a_output_orders + l_orders_size, l_order, l_order_size);
-                l_orders_size += l_order_size;
-            }
-            else
-                // calc size of all orders
-                l_orders_size += dap_chain_net_srv_order_get_size(l_order);
-            l_order_passed_index++;
-
+    if (!a_net || !a_output_orders || !a_output_orders_count)
+        return -1;
+    char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
+    size_t l_orders_count = 0;
+    dap_global_db_obj_t *l_orders = dap_chain_global_db_gr_load(l_gdb_group_str, &l_orders_count);
+    log_it( L_DEBUG, "Loaded %zu orders", l_orders_count);
+    dap_chain_net_srv_order_t *l_order = NULL;
+    *a_output_orders = NULL;
+    *a_output_orders_count = 0;
+    size_t l_orders_size = 0;
+    for (size_t i = 0; i < l_orders_count; i++) {
+        DAP_DEL_Z(l_order);
+        l_order = dap_chain_net_srv_order_read(l_orders[i].value);
+        size_t l_order_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)l_orders[i].value);
+        if (l_order->version > 3 || l_order->direction > SERV_DIR_SELL ||
+                l_order_size != l_orders[i].value_len) {
+            dap_chain_global_db_gr_del(l_orders[i].key, l_gdb_group_str);
+            continue; // order is corrupted
         }
-        // Dirty goto usage ho ho ho
-        if (l_order_pass_first) {
-            l_order_pass_first = false;
-            *a_output_orders_count = l_order_passed_index;
-            if(l_orders_size)
-                *a_output_orders = DAP_NEW_Z_SIZE(dap_chain_net_srv_order_t, l_orders_size);
-            goto lb_order_pass;
+        dap_chain_hash_fast_t l_hash, l_hash_gdb;
+        dap_hash_fast(l_orders[i].value, l_order_size, &l_hash);
+        dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
+        if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
+            dap_chain_global_db_gr_del(l_orders[i].key, l_gdb_group_str);
+            continue; // order is corrupted
         }
-        // If we here - its the second pass through
-
-        dap_chain_global_db_objs_delete(l_orders, l_orders_count);
-        DAP_DELETE( l_gdb_group_str);
-        return 0;
+        // Check direction
+        if (a_direction != SERV_DIR_UNDEFINED && l_order->direction != a_direction)
+            continue;
+        // Check srv uid
+        if (a_srv_uid.uint64 && l_order->srv_uid.uint64 != a_srv_uid.uint64)
+            continue;
+        // check price unit
+        if (a_price_unit.uint32 && a_price_unit.uint32 != l_order->price_unit.uint32)
+            continue;
+        // Check price minimum
+        if (!IS_ZERO_256(a_price_min) && compare256(l_order->price, a_price_min) == -1)
+            continue;
+        // Check price maximum
+        if (!IS_ZERO_256(a_price_max) && compare256(l_order->price, a_price_max) == 1)
+            continue;
+        // Check ticker
+        if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker))
+            continue;
+        size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
+        *a_output_orders = DAP_REALLOC(*a_output_orders, l_orders_size + l_order_mem_size);
+        memcpy((byte_t *)*a_output_orders + l_orders_size, l_order, l_order_mem_size);
+        l_orders_size += l_order_mem_size;
+        a_output_orders_count++;
     }
-    return -1;
+    DAP_DEL_Z(l_order);
+    dap_chain_global_db_objs_delete(l_orders, l_orders_count);
+    DAP_DELETE(l_gdb_group_str);
+    return 0;
 }
 
 /**

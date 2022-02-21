@@ -77,7 +77,7 @@ int dap_datum_mempool_init(void)
  * @param a_datum
  * @return
  */
-char *dap_chain_mempool_datum_add(const dap_chain_datum_t * a_datum, const dap_chain_t * a_chain )
+char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain)
 {
     if( a_datum == NULL){
         log_it(L_ERROR, "NULL datum trying to add in mempool");
@@ -90,7 +90,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t * a_datum, const dap_c
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
 
-    if(dap_chain_global_db_gr_set( l_key_str, a_datum, dap_chain_datum_size(a_datum), l_gdb_group)) {
+    if (dap_chain_global_db_gr_set(l_key_str, a_datum, dap_chain_datum_size(a_datum), l_gdb_group)) {
         log_it(L_NOTICE, "Datum with data's hash %s was placed in mempool", l_key_str);
     } else {
         log_it(L_WARNING, "Can't place data's hash %s was placed in mempool", l_key_str);

@@ -417,16 +417,19 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
             l_group = (char *)a_group;
         }
         dap_store_obj_t *l_obj = (dap_store_obj_t *)dap_chain_global_db_obj_get(a_key, l_group);
-        if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
-            DAP_DELETE(l_group);
-        }
         if (!l_obj) {
+            if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
+                DAP_DELETE(l_group);
+            }
             log_it(L_DEBUG, "Notified GDB event does not exist");
             return;
         }
         l_obj->type = a_op_code;
-        DAP_DELETE(l_obj->group);
-        l_obj->group = dap_strdup(a_group);
+        DAP_DELETE((char *)l_obj->group);
+        l_obj->group = dap_strdup(l_group);
+        if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
+            DAP_DELETE(l_group);
+        }
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
         dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
@@ -1805,7 +1808,6 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     return -11;
                 }
                 ret = dap_chain_global_db_gr_del(l_hash_string, l_gdb_group_str);
-                DAP_DELETE(l_hash_string);
                 DAP_DELETE(l_gdb_group_str);
                 if (!ret) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Cant't find certificate public key hash in database");
