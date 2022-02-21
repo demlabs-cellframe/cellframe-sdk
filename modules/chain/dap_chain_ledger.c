@@ -297,6 +297,50 @@ void dap_chain_ledger_load_end(dap_ledger_t *a_ledger)
 
 
 /**
+ * @brief 
+ * 
+ * @param a_ledger 
+ * @param a_token_ticker 
+ * @param l_emission_value 
+ * @param stage 
+ * @return true 
+ * @return false 
+ */
+bool dap_chain_ledger_token_ticker_check_supply(dap_ledger_t * a_ledger, const char *a_token_ticker, uint64_t l_emission_value, dap_chain_total_supply_verification_stage stage)
+{
+    if ( !a_ledger){
+        if(s_debug_more)
+            log_it(L_WARNING, "NULL ledger, can't find token ticker");
+        return  false;
+    }
+
+    dap_chain_ledger_token_item_t *l_token_item;
+
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_ticker, l_token_item);
+
+    if (l_token_item->current_supply.lo >= l_emission_value)
+    {
+        if (stage == STAGE_VERIFICATION_EMISSION)        
+            l_token_item->current_supply.lo -= l_emission_value;
+        pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+        if(s_debug_more)
+            log_it(L_WARNING, "New current supply %lld for token = %s", 
+                                    l_token_item->current_supply, l_token_item->ticker);
+    } 
+    else 
+    {
+        pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+        if(s_debug_more)
+            log_it(L_WARNING, "Emission size %lld bigger, than current_supply = %lld", 
+                                    l_emission_value, l_token_item->current_supply);
+        return false;
+    }
+
+    return true;
+}
+
+/**
  * @brief dap_chain_ledger_token_check
  * @param a_ledger
  * @param a_token
@@ -1032,6 +1076,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
 
         if (l_token_item->datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE) {
             l_token_item->total_supply = GET_256_FROM_64(l_token_item->datum_token->header_private.total_supply);
+            l_token_item->current_supply = l_token_item->total_supply;
         }  else if (l_token_item->datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE) {
             l_token_item->total_supply = l_token_item->datum_token->header_private.total_supply_256;
             if (l_token_item->auth_signs_total) {
@@ -1062,8 +1107,12 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         // l_emission_item->datum_token_emission = l_token_item
         //                                                    ? dap_chain_datum_emission_read(l_objs[i].value, &l_emission_size)
         //                                                    : DAP_DUP_SIZE(l_objs[i].value, l_objs[i].value_len);
+
         l_emission_item->datum_token_emission = dap_chain_datum_emission_read(l_objs[i].value, &l_emission_size);
         l_emission_item->datum_token_emission_size = l_emission_size;
+
+        log_it(L_WARNING,"Ledger cache datum_token_emission %lld, ticker: %s", l_emission_item->datum_token_emission->hdr.value, c_token_ticker);
+
         if (l_token_item) {
             HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash,
                      sizeof(dap_chain_hash_fast_t), l_emission_item);
@@ -1297,6 +1346,29 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                                                                      : DAP_DUP_SIZE(a_token_emission, a_token_emission_size);
             memcpy(&l_token_emission_item->datum_token_emission_hash, &l_token_emission_hash, sizeof(l_token_emission_hash));
             l_token_emission_item->datum_token_emission_size = l_emission_size;
+
+            //  new__
+            //  check current_supply in ledger
+            //
+            if (!PVT(a_ledger)->load_mode && l_token_item)
+            {
+                if (l_token_item->current_supply.lo >= l_token_emission_item->datum_token_emission->hdr.value)
+                   {
+                       l_token_item->current_supply.lo -= l_token_emission_item->datum_token_emission->hdr.value;
+                       log_it(L_WARNING,"New current supply %lld for token %s", l_token_item->current_supply, l_token_item->ticker);
+                   }                
+                   else
+                   {
+                       log_it(L_WARNING,"Token current supply %lld lower, than emission value = %lld", l_token_item->current_supply, 
+                                                       l_token_emission_item->datum_token_emission->hdr.value);
+                       pthread_rwlock_unlock( l_token_item ? &l_token_item->token_emissions_rwlock
+                                                : &l_ledger_priv->treshold_emissions_rwlock);
+                       return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
+                       //check for variables free
+                   }   
+            }
+
+
             if (l_token_item) {
                 pthread_rwlock_wrlock(&l_token_item->token_emissions_rwlock);
                 HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash,
@@ -1375,6 +1447,21 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
             pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
             if (l_token_emission_item) {
                 pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+
+                if (l_token_item->current_supply.lo >= l_token_emission_item->datum_token_emission->hdr.value)
+                {
+                    l_token_item->current_supply.lo -= l_token_emission_item->datum_token_emission->hdr.value;
+                    log_it(L_WARNING,"New current supply %lld for token %s", l_token_item->current_supply, l_token_item->ticker);
+                }                
+                else
+                {
+                    log_it(L_WARNING,"Token current supply %lld lower, than emission value = %lld", l_token_item->current_supply, 
+                                                    l_token_emission_item->datum_token_emission->hdr.value);
+                    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);       
+                    return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
+                            //check for variables free
+                }   
+
                 return 0;
             }
         }
@@ -2455,6 +2542,13 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             default:
                 log_it(L_DEBUG, "Unknown item type %d", l_type);
                 break;
+        }
+
+        //need additional checking for object\locks free, because of FIN label removed in develop build
+        if (!dap_chain_ledger_token_ticker_check_supply(a_ledger, l_token_ticker, l_out_item->header.value, STAGE_VERIFICATION_TRANSACTION))
+        {
+            return -101;
+            //goto FIN;
         }
 
         if ((l_out_item||l_out_item_256||l_out_item_ext_256) && l_ticker_trl) {
