@@ -595,7 +595,7 @@ const char * dap_config_get_item_str_default(dap_config_t * a_config, const char
  */
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-char	*cp;
+    const char *cp;
 
     if ( !(cp = dap_config_get_item_str(a_config, a_section_path, a_item_name)) )
         return	false;

@@ -441,7 +441,7 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
  */
 size_t dap_sign_get_size(dap_sign_t * a_chain_sign)
 {
-    if(!a_chain_sign)
+    if(!a_chain_sign || a_chain_sign->header.type.type == SIG_TYPE_NULL)
         return 0;
     return (sizeof(dap_sign_t) + a_chain_sign->header.sign_size + a_chain_sign->header.sign_pkey_size);
 }

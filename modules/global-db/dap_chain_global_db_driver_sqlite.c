@@ -536,7 +536,7 @@ static bool dap_db_driver_sqlite_query_free(sqlite3_stmt *l_res)
  * @param len a length of byte array
  * @return Returns a hexadecimal string
  */
-static char* dap_db_driver_get_string_from_blob(uint8_t *blob, int len)
+static char* dap_db_driver_get_string_from_blob(const uint8_t *blob, int len)
 {
     char *str_out;
     int ret;
@@ -669,7 +669,6 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         if(!a_store_obj->key)
             return -1;
         char *l_blob_value = dap_db_driver_get_string_from_blob(a_store_obj->value, (int)a_store_obj->value_len);
-        DAP_DEL_Z(a_store_obj->value);
         //add one record
         l_query = sqlite3_mprintf("insert into '%s' values(NULL, '%s', x'', '%lld', x'%s')",
                                    l_table_name, a_store_obj->key, a_store_obj->timestamp, l_blob_value);
@@ -728,8 +727,6 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         l_ret = -1;
     }
     s_sqlite_free_connection(s_db);
-    if (a_store_obj->key)
-        DAP_DELETE(a_store_obj->key);
     dap_db_driver_sqlite_free(l_query);
     DAP_DELETE(l_table_name);
     return l_ret;
@@ -766,7 +763,7 @@ static void fill_one_item(const char *a_group, dap_store_obj_t *a_obj, SQLITE_RO
             {
                 a_obj->value_len = (size_t) l_cur_val->len;
                 a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
-                memcpy(a_obj->value, l_cur_val->val.val_blob, a_obj->value_len);
+                memcpy((byte_t *)a_obj->value, l_cur_val->val.val_blob, a_obj->value_len);
             }
             break; // value
         }

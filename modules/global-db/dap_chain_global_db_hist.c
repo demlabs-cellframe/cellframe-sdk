@@ -119,7 +119,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
     if(l_rec.keys_count >= 1)
         l_rec.group = a_store_obj->group;
     if(l_rec.keys_count == 1)
-        l_rec.keys = a_store_obj->key;
+        l_rec.keys = (char *)a_store_obj->key;
     else {
         // make keys vector
         char **l_keys = DAP_NEW_Z_SIZE(char*, sizeof(char*) * (((size_t ) a_dap_store_count) + 1));
@@ -128,14 +128,9 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
             // if it is marked, the data has not been saved
             if(a_store_obj[i].timestamp == (time_t) -1)
                 continue;
-            l_keys[i] = a_store_obj[i].key;
+            l_keys[i] = (char *)a_store_obj[i].key;
         }
-        l_keys[i] = NULL;
         l_rec.keys = dap_strjoinv(GLOBAL_DB_HIST_KEY_SEPARATOR, l_keys);
-        for(i = 0; i < a_dap_store_count; i++) {
-            DAP_DELETE(l_keys[i]);
-            DAP_DEL_Z(a_store_obj[i].value);
-        }
         DAP_DELETE(l_keys);
     }
 
@@ -221,8 +216,8 @@ static void *s_list_thread_proc(void *arg)
                 dap_store_obj_t *l_obj_cur = l_objs + i;
                 l_obj_cur->type = l_obj_type;
                 if (l_obj_type == 'd') {
-                    DAP_DELETE(l_obj_cur->group);
-                    l_obj_cur->group = dap_strdup(l_del_group_name_replace);
+                    DAP_DELETE((char *)l_obj_cur->group);
+                    l_obj_cur->group = l_del_group_name_replace;
                 }
                 dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
                 uint64_t l_cur_id = l_obj_cur->id;
@@ -244,9 +239,6 @@ static void *s_list_thread_proc(void *arg)
                 l_dap_db_log_list->list_read = l_list;
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         }
-
-        if (l_del_group_name_replace)
-            DAP_DELETE(l_del_group_name_replace);
     }
 
     pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
