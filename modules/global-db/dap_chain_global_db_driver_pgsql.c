@@ -89,7 +89,7 @@ static void s_pgsql_free_connection(PGconn *a_conn)
  * @param a_drv_callback a pointer to a structure of callback functions 
  * @return If successful returns 0, else a error code <0.
  */
-int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks_t *a_drv_callback)
+int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks_t *a_drv_callback, bool a_async_mode)
 {
     dap_hash_fast_t l_dir_hash;
     dap_hash_fast(a_filename_dir, strlen(a_filename_dir), &l_dir_hash);
@@ -304,8 +304,6 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
 
         // execute add request
         l_res = PQexecParams(l_conn, l_query_str, 2, NULL, l_param_vals, l_param_lens, l_param_formats, 0);
-        DAP_DELETE(a_store_obj->value);
-        DAP_DELETE(a_store_obj->key);
         if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {
             if (s_trans_conn) { //we shouldn't fail within a transaacion
                 dap_db_driver_pgsql_end_transaction();
@@ -329,7 +327,6 @@ int dap_db_driver_pgsql_apply_store_obj(dap_store_obj_t *a_store_obj)
         // remove all group
         else
             l_query_str = dap_strdup_printf("DROP TABLE \"%s\"", a_store_obj->group);
-        DAP_DELETE(a_store_obj->key);
         // execute delete request
         l_res = PQexec(l_conn, l_query_str);
         if (PQresultStatus(l_res) != PGRES_COMMAND_OK) {

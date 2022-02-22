@@ -4440,7 +4440,7 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
             dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
             l_group_store[j].value  = (uint8_t*)l_val;
         }
-        if (dap_chain_global_db_driver_appy(l_group_store, l_records_count)) {
+        if (dap_chain_global_db_driver_apply(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
         }
         //dap_store_obj_free(l_group_store, l_records_count);
