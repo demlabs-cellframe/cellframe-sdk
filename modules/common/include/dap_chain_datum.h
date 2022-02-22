@@ -141,9 +141,9 @@ typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t * 
  * @param a_datum
  * @return
  */
-static inline size_t dap_chain_datum_size(dap_chain_datum_t * a_datum)
+static inline size_t dap_chain_datum_size(const dap_chain_datum_t *a_datum)
 {
-    if(!a_datum)
+    if (!a_datum)
         return 0;
     return  sizeof(a_datum->header) + a_datum->header.data_size;
 }

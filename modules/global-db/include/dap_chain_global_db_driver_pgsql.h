@@ -9,7 +9,7 @@
 #define DAP_PGSQL_POOL_COUNT        16
 #define PGSQL_INVALID_TABLE         "42P01"
 
-int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks_t *a_drv_callback);
+int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks_t *a_drv_callback, bool a_async_mode);
 int dap_db_driver_pgsql_deinit();
 int dap_db_driver_pgsql_start_transaction(void);
 int dap_db_driver_pgsql_end_transaction(void);

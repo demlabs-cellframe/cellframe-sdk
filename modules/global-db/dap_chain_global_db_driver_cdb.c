@@ -28,6 +28,11 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <uthash.h>
+#include <pthread.h>
+#include <errno.h>
+#include <stdatomic.h>
+
+
 #define _GNU_SOURCE
 
 #include "dap_common.h"
@@ -62,6 +67,51 @@ static pcdb_instance s_cdb = NULL;
 static pthread_mutex_t cdb_mutex = PTHREAD_MUTEX_INITIALIZER;
 /** A read-write lock for working with a CDB instanse. */
 static pthread_rwlock_t cdb_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+/** Mode of request processing */
+static bool s_db_drvmode_async = false;
+
+/* A list of the request to be executed by processor thread */
+static struct __cuttdb_req_list__ {
+    struct __cuttdb_req_list__	*next;
+
+} s_req_list = {0};
+
+atomic_int	s_req_flag;
+
+static pthread_mutex_t s_req_list_lock = PTHREAD_MUTEX_INITIALIZER;		/* Coordinate access to the req_list */
+
+static pthread_mutex_t s_req_list_async_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t s_req_list_async_cond = PTHREAD_COND_INITIALIZER;
+
+static int s_req_async_proc_stop_flag = 0;
+
+
+static	void *	s_req_async_proc	(void *arg)
+{
+int	rc, flag;
+struct timespec tmo = {0};
+
+    log_it(L_NOTICE, "Run processor thread ...");
+
+    while ( !s_req_async_proc_stop_flag )
+        {
+        tmo.tv_sec = time (NULL) + 2;					/* Timeout is 2 seconds */
+
+        if ( ETIMEDOUT == (rc = pthread_mutex_timedlock (&s_req_list_async_lock, &tmo)) )
+            {
+            log_it(L_ERROR, "pthread_mutex_timedlock(req_mutex)->%d, errno=%d", rc, errno);
+            continue;
+            }
+
+        flag = atomic_load(&s_req_flag);
+
+
+        }
+
+    log_it(L_NOTICE, "Exiting processor thread");
+    pthread_exit(NULL);
+}
+
 
 /**
  * @brief Serialize key and val to a item
@@ -86,7 +136,7 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(uint64_t));
     offset += sizeof(uint64_t);
     a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
-    memcpy(a_obj->value, val + offset, a_obj->value_len);
+    memcpy((byte_t *)a_obj->value, val + offset, a_obj->value_len);
     offset += a_obj->value_len;
     a_obj->timestamp = dap_hex_to_uint(val + offset, sizeof(uint64_t));
 }
@@ -167,7 +217,7 @@ bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, cons
    CDB_PAGEWARMUP
  * @return A pointer to CDB, if success. NULL, if error.
  */
-pcdb_instance dap_cdb_init_group(char *a_group, int a_flags) {
+pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
     pcdb_instance l_cdb_i = NULL;
     pthread_mutex_lock(&cdb_mutex);
     char l_cdb_path[strlen(s_cdb_path) + strlen(a_group) + 2];
@@ -233,20 +283,26 @@ ERR:
  * @brief Initiates a CDB with callback fuctions.
  * @param a_cdb_path a path to CDB. Saved in s_cdb_path
  * @param a_drv_callback a struct for callback functions
+ * @param a_db_drvmode_async
  * @return 0 if success, -1 if сouldn't open db directory, -2 if dap_cdb_init_group() returns NULL.
  */
-int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_drv_callback) {
+int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_drv_callback,
+               bool a_db_drvmode_async)
+{
     s_cdb_path = dap_strdup(a_cdb_path);
     if(s_cdb_path[strlen(s_cdb_path)] == '/') {
         s_cdb_path[strlen(s_cdb_path)] = '\0';
     }
+
     dap_mkdir_with_parents(s_cdb_path);
+
     struct dirent *d;
     DIR *dir = opendir(s_cdb_path);
     if (!dir) {
         log_it(L_ERROR, "Couldn't open db directory");
         return -1;
     }
+
     for (d = readdir(dir); d; d = readdir(dir)) {
 #ifdef _DIRENT_HAVE_D_TYPE
         if (d->d_type != DT_DIR)
@@ -274,6 +330,9 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
             return -2;
         }
     }
+
+    s_db_drvmode_async = a_db_drvmode_async;	/* DB Driver mode: Async/Sync */
+
     a_drv_callback->read_last_store_obj = dap_db_driver_cdb_read_last_store_obj;
     a_drv_callback->apply_store_obj     = dap_db_driver_cdb_apply_store_obj;
     a_drv_callback->read_store_obj      = dap_db_driver_cdb_read_store_obj;
@@ -285,6 +344,10 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
     a_drv_callback->flush               = dap_db_driver_cdb_flush;
 
     closedir(dir);
+
+
+
+
     return CDB_SUCCESS;
 }
 
@@ -583,7 +646,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
     if (!l_cdb_i) {
         return -1;
     }
-    if(a_store_obj->type == 'a') {
+    if(a_store_obj->type == DAP_DB$K_OPTYPE_ADD) {
         if(!a_store_obj->key) {
             return -2;
         }
@@ -595,7 +658,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
             }
         }*/
         cdb_record l_rec;
-        l_rec.key = a_store_obj->key; //dap_strdup(a_store_obj->key);
+        l_rec.key = (char *)a_store_obj->key; //dap_strdup(a_store_obj->key);
         int offset = 0;
         char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(uint64_t) + a_store_obj->value_len + sizeof(uint64_t));
         dap_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
@@ -604,7 +667,6 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         offset += sizeof(uint64_t);
         if(a_store_obj->value && a_store_obj->value_len){
             memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
-            DAP_DELETE(a_store_obj->value);
         }
         offset += a_store_obj->value_len;
         dap_uint_to_hex(l_val + offset, a_store_obj->timestamp, sizeof(uint64_t));
@@ -614,13 +676,11 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
             log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
             ret = -1;
         }
-        DAP_DELETE(l_rec.key);
         DAP_DELETE(l_rec.val);
-    } else if(a_store_obj->type == 'd') {
+    } else if(a_store_obj->type == DAP_DB$K_OPTYPE_DEL) {
         if(a_store_obj->key) {
             if(cdb_del(l_cdb_i->cdb, a_store_obj->key, (int) strlen(a_store_obj->key)) == -3)
                 ret = 1;
-            DAP_DELETE(a_store_obj->key);
         } else {
             cdb_destroy(l_cdb_i->cdb);
             if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP)) {
