@@ -33,15 +33,15 @@ static dap_timerfd_t * s_session_cs_timer = NULL;
 int dap_chain_cs_blocks_session_init(dap_chain_t *a_chain, dap_enc_key_t *a_blocks_sign_key)
 {
 
-// HASH_ADD(chain); // список текущих консенсусов по чейнам (session)
+// HASH_ADD(chain); 
 // DL_APPEND(l_net->pub.chains, l_chain);
 
 	dap_chain_cs_blocks_session_items_t * l_session = DAP_NEW_Z(dap_chain_cs_blocks_session_items_t);
 // l_session->gdb_group_store = dap_strdup_printf("local.ton.setup");
 
-// time to session
-// attemps in round
-// attemp time
+// time session
+// attempts in round
+// attempt time
 // rounds count -> max round -> change validator
 
 	l_session->round_id.uint64 = 1;
@@ -78,15 +78,11 @@ int dap_chain_cs_blocks_session_init(dap_chain_t *a_chain, dap_enc_key_t *a_bloc
 }
 
 static bool s_session_timer() {
-printf("---!!! s_session_timer_start() 1 \n");
 	dap_chain_time_t l_time = (dap_chain_time_t)time(NULL);
-//printf("---!!! s_session_timer_start() 2 time:%llu, (t/100):%u ost:%d\n", l_time, ((l_time/10)%10)*10, (((l_time/10)%10)*10 % 20) );
 	dap_chain_cs_blocks_session_items_t * l_session = NULL;
 	DL_FOREACH(s_session_items, l_session) {
 		if ( ((l_time/10) % l_session->consensus_start) == 0 ) {
-printf("---!!! s_session_timer_start() 2 time:%llu state:%x\n", l_time, l_session->state);
 			if ( l_session->state == DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE ) {
-printf("---!!! s_session_timer_start() 3 DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START \n");
 				l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
 				dap_chain_cs_blocks_session_message_startsync_t * l_startsync =
 														DAP_NEW_Z(dap_chain_cs_blocks_session_message_startsync_t);
@@ -106,19 +102,14 @@ printf("---!!! s_session_timer_start() 3 DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_
 
 static bool s_session_block_submit(dap_chain_cs_blocks_session_items_t *a_session){
 
-printf("---!!! s_session_check() 1 \n");
 //	uint16_t l_net_list_size = 0;
 // 	dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_list_size);
 // 	for (int i=0; i<l_net_list_size; i++) {
-// printf("---!!! dap_chain_cs_blocks_session s_session_start 4 net_id:%llu, net_name:%s \n",
-// 				l_net_list[i]->pub.id.uint64, l_net_list[i]->pub.name);
 // 		dap_chain_t *l_chain;
 // 	    DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
 // 	        if (!l_chain) {
 // 	            continue;
 // 	        }
-// printf("---!!! dap_chain_cs_blocks_session s_session_start 5 chain_id:%llu, chain_name:%s\n", //cell_id:%llu\n",
-// 				a_chain->id.uint64, a_chain->name); //a_chain->cells->id.uint64);
 // 		}
 // 	}
 
@@ -126,13 +117,8 @@ printf("---!!! s_session_check() 1 \n");
 	// dap_chain_net_t * l_net = dap_chain_net_by_id(l_chain->net_id);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 
-printf("---!!! dap_chain_cs_blocks_session s_session_check 5 chain_id:%llu, chain_name:%s\n", //cell_id:%llu\n",
-				l_chain->id.uint64, l_chain->name); //a_chain->cells->id.uint64);
-
     if (!l_blocks->block_new)
     	return false; // for timer
-
-printf("---!!! s_session_packet_in() ~~~~ s_session_check() block_size:%d \n", l_blocks->block_new_size);  
 
 	size_t l_submit_size = sizeof(dap_chain_cs_blocks_session_message_submit_t)+l_blocks->block_new_size;
 	dap_chain_cs_blocks_session_message_submit_t * l_submit =
@@ -176,7 +162,6 @@ static int s_session_datums_validation(dap_chain_cs_blocks_t *a_blocks, dap_chai
     		case DAP_CHAIN_DATUM_TX: {
     			dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
     			int ret = dap_chain_ledger_tx_add_check(a_blocks->chain->ledger, l_tx);
-// printf("---!!! test_V s_session_datums_validation() ~~~ ret:%d\n", ret);
     			if (ret != 0) {
     				return -1;
     			}
@@ -189,7 +174,6 @@ static int s_session_datums_validation(dap_chain_cs_blocks_t *a_blocks, dap_chai
 
 static bool s_session_finish_notstart(dap_chain_cs_blocks_session_items_t *a_session) {
 	if ( a_session->state == DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START ) {
-printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START finish 1 \n");
 		s_session_finish(a_session);
 	}
 	return false;
@@ -198,9 +182,8 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_STAR
 static bool s_session_finish(dap_chain_cs_blocks_session_items_t *a_session) {
 
 	if ( a_session->state == DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC ){
-		// {...} if exists candidate then save to chain
+		// {...} if exists candidate check sign and save to chain
 	}
-	printf("---!!! s_session_packet_in() s_session_finish FINISH 1\n");
 
 	a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE;
 	a_session->last_message_hash = NULL;
@@ -248,24 +231,17 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
 
     dap_chain_hash_fast_t l_data_hash;
     dap_hash_fast(a_data, a_data_size, &l_data_hash);
-
-printf("---!!! s_session_packet_in() TEST PACKET 1 %d type:%x \n", DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE, l_message->hdr.type);
 	
     if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64 )
     	goto handler_finished;
 
-printf("---!!! s_session_packet_in() TEST PACKET 2\n");
-
 	if (memcmp(a_data_hash, &l_data_hash, sizeof(dap_chain_hash_fast_t)) != 0)
 		goto handler_finished;
 
-printf("---!!! s_session_packet_in() TEST PACKET 3\n");
 	if ( l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC ) {
-printf("---!!! s_session_packet_in() TEST PACKET 3-1\n");
 		// add check&save sender addr
 		l_session->startsync_count++;
 		if ( ((float)l_session->startsync_count/l_session->validators_count) >= ((float)2/3) ) {
-printf("---!!! s_session_packet_in() TEST PACKET 3-2\n");
 			l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC;
 			dap_timerfd_start(3*1000, // pause before candidate submit
                     (dap_timerfd_callback_t)s_session_block_submit, 
@@ -291,16 +267,11 @@ printf("---!!! s_session_packet_in() TEST PACKET 3-2\n");
 	if (l_message_item_temp)
 		goto handler_finished;
 
-printf("---!!! s_session_packet_in() TEST PACKET 4\n");
-
     uint32_t l_approve_count = 0, l_vote_count = 0, l_precommit_count = 0;
 	// check messages chain
     dap_chain_cs_blocks_session_message_item_t *l_message_item=NULL, *l_message_tmp=NULL;
     HASH_ITER(hh, l_session->messages_items, l_message_item, l_message_tmp) {
-printf("---!!! s_session_packet_in() TEST PACKET 5-0 %llu, %llu\n",
-	l_message_item->message->hdr.sender_node_addr.uint64, a_sender_node_addr->uint64);
     	if (l_message_item->message->hdr.sender_node_addr.uint64 == a_sender_node_addr->uint64) {
-printf("---!!! s_session_packet_in() TEST PACKET 5-1 \n");
     		dap_chain_hash_fast_t * l_candidate_hash_cur = 
     			&((dap_chain_cs_blocks_session_message_gethash_t *)l_message->message)->candidate_hash;
 
@@ -311,8 +282,6 @@ printf("---!!! s_session_packet_in() TEST PACKET 5-1 \n");
 															sizeof(dap_chain_hash_fast_t)) == 0);
 
     		uint8_t l_msg_type = l_message_item->message->hdr.type;
-
-printf("---!!! s_session_packet_in() TEST PACKET 5-2 bool:%d\n", l_candidate_hash_match);
 
     		// search & check messages from this validator 
     		switch (l_msg_type) {
@@ -334,13 +303,10 @@ printf("---!!! s_session_packet_in() TEST PACKET 5-2 bool:%d\n", l_candidate_has
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: 
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT:{
     				if ( l_msg_type == l_message->hdr.type ){
-printf("---!!! s_session_packet_in() TEST PACKET 5-6\n");
     					goto handler_finished;
     				}
     			}
     		}
-
-printf("---!!! s_session_packet_in() TEST PACKET 6\n");
 
     		// count messages in chain for this candidate
     		if (l_candidate_hash_match)
@@ -358,27 +324,21 @@ printf("---!!! s_session_packet_in() TEST PACKET 6\n");
     	}
     }
 
-printf("---!!! s_session_packet_in() TEST PACKET 7\n");
 	// check message chain is correct
 	switch (l_message->hdr.type) {
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE: {
-printf("---!!! s_session_packet_in() TEST TYPE_VOTE %d \n", l_approve_count);
 			if (!l_approve_count) // if this validator not sent Approve for this candidate
     			goto handler_finished;
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT: {
-printf("---!!! s_session_packet_in() TEST TYPE_PRE_COMMIT %d \n", l_vote_count);
 			if (!l_vote_count) // if this validator not sent Vote for this candidate
     			goto handler_finished;
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: {
-printf("---!!! s_session_packet_in() TEST TYPE_COMMIT_SIGN %d \n", l_precommit_count);
 			if (!l_precommit_count) // if this validator not sent PreCommit for this candidate
     			goto handler_finished;
 		} break;
 	}
-
-printf("---!!! s_session_packet_in() TEST PACKET 8\n");
 
 	// save to messages chain
 	dap_chain_hash_fast_t l_message_hash;
@@ -394,7 +354,6 @@ printf("---!!! s_session_packet_in() TEST PACKET 8\n");
 
 	switch (l_message->hdr.type) {
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT: {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT addr:%llu \n", a_sender_node_addr->uint64);
 			int ret = 0;
 			dap_chain_cs_blocks_session_message_submit_t * l_submit =
 										(dap_chain_cs_blocks_session_message_submit_t *)&l_message->message;
@@ -445,9 +404,6 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMI
 			    l_store->hdr.candidate_size = l_candidate_size;
 			    // l_store->hdr.approve_count = 1;
 
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT 1 approve_count:%u reject_count:%u vote_count:%u \n",
-										l_store->hdr.approve_count, l_store->hdr.reject_count, l_store->hdr.vote_count);
-
 			    memcpy( &l_store->candidate_n_signs, l_candidate, l_candidate_size);
 				if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
 														l_store_size, l_session->gdb_group_store) ) {
@@ -486,7 +442,6 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMI
 			DAP_DELETE(l_candidate_hash_str);
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT: {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT addr:%llu \n", a_sender_node_addr->uint64);
 
 			dap_chain_cs_blocks_session_message_reject_t * l_reject =
 										(dap_chain_cs_blocks_session_message_reject_t *)&l_message->message;
@@ -501,8 +456,6 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJEC
 			if (l_store) {
 				dap_chain_global_db_gr_del(dap_strdup(l_candidate_hash_str), l_session->gdb_group_store);
 				l_store->hdr.reject_count++;
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT approve_count:%u reject_count:%u vote_count:%u \n",
-										l_store->hdr.approve_count, l_store->hdr.reject_count, l_store->hdr.vote_count);
 				if ( ((float)l_store->hdr.reject_count/l_session->validators_count) < ((float)2/3) ) {
 					dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
 													l_store_size, l_session->gdb_group_store);
@@ -511,9 +464,7 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJEC
 			pthread_rwlock_unlock(&l_session->rwlock);
 			DAP_DELETE(l_candidate_hash_str);
 		} break;
-		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE: {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE addr:%llu \n", a_sender_node_addr->uint64);
-			
+		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE: {	
 			dap_chain_cs_blocks_session_message_approve_t * l_approve =
 										(dap_chain_cs_blocks_session_message_approve_t *)&l_message->message;
 			dap_chain_hash_fast_t * l_candidate_hash = &l_approve->candidate_hash;
@@ -534,9 +485,7 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPRO
 				if (l_store) {
 					dap_chain_global_db_gr_del(dap_strdup(l_candidate_hash_str), l_session->gdb_group_store);
 					l_store->hdr.approve_count++;
-	printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE approve_count:%u reject_count:%u vote_count:%u \n",
-											l_store->hdr.approve_count, l_store->hdr.reject_count, l_store->hdr.vote_count);
-					
+
 					dap_chain_cs_blocks_session_store_t * l_store_gdb = 
 									(dap_chain_cs_blocks_session_store_t *)DAP_DUP_SIZE(l_store, l_store_size);
 					if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store_gdb,
@@ -554,19 +503,14 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPRO
 				DAP_DELETE(l_store);
 				DAP_DELETE(l_candidate_hash_str);
 			} else {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE sign is incorrect: code %d ssize:%d\n", 
-	l_sign_verified, dap_sign_get_size( (dap_sign_t*)l_approve->candidate_hash_sign ) );
 				log_it(L_WARNING, "Candidate hash sign is incorrect: code %d", l_sign_verified);
 			}
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE: {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE addr:%llu \n", a_sender_node_addr->uint64);
 			dap_chain_cs_blocks_session_message_vote_t * l_vote =
 										(dap_chain_cs_blocks_session_message_vote_t *)&l_message->message;
 			dap_chain_hash_fast_t * l_candidate_hash = &l_vote->candidate_hash;
 			char * l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-
-//printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE hash:%s| \n", l_candidate_hash_str);
 			
 			pthread_rwlock_rdlock(&l_session->rwlock);
 			size_t l_store_size = 0;
@@ -576,20 +520,16 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE 
 			
 			size_t l_obj_size = 0;
  			dap_global_db_obj_t* l_obj = dap_chain_global_db_gr_load(l_session->gdb_group_store, &l_obj_size);
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE objs:%d| gdb:%s \n", l_obj_size, l_session->gdb_group_store);
 
 			if (l_store) {
 				dap_chain_global_db_gr_del(dap_strdup(l_candidate_hash_str), l_session->gdb_group_store);
 				l_store->hdr.vote_count++;
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE approve_count:%u reject_count:%u vote_count:%u \n",
-										l_store->hdr.approve_count, l_store->hdr.reject_count, l_store->hdr.vote_count);
 				dap_chain_cs_blocks_session_store_t * l_store_gdb = 
 									(dap_chain_cs_blocks_session_store_t *)DAP_DUP_SIZE(l_store, l_store_size);
 				dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store_gdb,
 												l_store_size, l_session->gdb_group_store);
 				
 				if ( ((float)l_store->hdr.vote_count/l_session->validators_count) >= ((float)2/3) ) {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE 2/3 PASSED\n");
 					// Delete other candidates - ? dont delete if multi-rounds
 	                size_t l_objs_size = 0;
 	                dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_session->gdb_group_store, &l_objs_size);
@@ -616,7 +556,6 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE 
 			DAP_DELETE(l_candidate_hash_str);
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT: {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT addr:%llu \n", a_sender_node_addr->uint64);
 			dap_chain_cs_blocks_session_message_precommit_t * l_precommit =
 										(dap_chain_cs_blocks_session_message_precommit_t *)&l_message->message;
 			dap_chain_hash_fast_t * l_candidate_hash = &l_precommit->candidate_hash;
@@ -630,15 +569,12 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_C
 			if (l_store) {
 				dap_chain_global_db_gr_del(dap_strdup(l_candidate_hash_str), l_session->gdb_group_store);
 				l_store->hdr.precommit_count++;
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT approve_count:%u reject_count:%u vote_count:%u precommit_count:%d \n",
-						l_store->hdr.approve_count, l_store->hdr.reject_count, l_store->hdr.vote_count, l_store->hdr.precommit_count );
 				
 				dap_chain_cs_blocks_session_store_t * l_store_gdb = 
 								(dap_chain_cs_blocks_session_store_t *)DAP_DUP_SIZE(l_store, l_store_size);
 				if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store_gdb,
 													l_store_size, l_session->gdb_group_store) ) {
 					if ( ((float)l_store->hdr.precommit_count/l_session->validators_count) >= ((float)2/3) ) {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT 2/3 PASSED\n");
 						// event CommitSign
 					    if (l_session->blocks_sign_key) {
 							size_t l_candidate_size = l_store->hdr.candidate_size;
@@ -671,7 +607,6 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_C
 
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN addr:%llu \n", a_sender_node_addr->uint64);
 			dap_chain_cs_blocks_session_message_commitsign_t * l_commitsign =
 										(dap_chain_cs_blocks_session_message_commitsign_t *)&l_message->message;
 			dap_chain_hash_fast_t * l_candidate_hash = &l_commitsign->candidate_hash;
@@ -706,16 +641,9 @@ printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMI
 					if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store_gdb,
 											l_store_size_new, l_session->gdb_group_store)){
 
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN sign_count:%d store_size:%d\n",
-						l_store->hdr.sign_count, l_store_size_new);
-
 					}
 
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN sign valid\n");
-
 				} else {
-printf("---!!! s_session_packet_in() ~~~~ DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN sign is incorrect: code %d ssize:%d\n", 
-		l_sign_verified, dap_sign_get_size(l_commitsign->candidate_sign) );
 					log_it(L_WARNING, "Candidate hash sign is incorrect: code %d", l_sign_verified);
 				}
 			}

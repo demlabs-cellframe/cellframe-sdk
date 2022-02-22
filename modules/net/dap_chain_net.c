@@ -2828,22 +2828,16 @@ bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr
  */
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum )
 {
-
-printf("---!!! dap_chain_net_verify_datum_for_add() 1 \n");
-
     if( ! a_datum)
         return -10;
     if( ! a_net )
         return -11;
-printf("---!!! dap_chain_net_verify_datum_for_add() 2 \n");
     switch ( a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TX:
-printf("---!!! dap_chain_net_verify_datum_for_add() 3 \n");
             return dap_chain_ledger_tx_add_check( a_net->pub.ledger, (dap_chain_datum_tx_t*)a_datum->data );
         case DAP_CHAIN_DATUM_TOKEN_DECL:
             return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data);
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-printf("---!!! dap_chain_net_verify_datum_for_add() 4 \n");
             return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size );
         default: return 0;
     }
