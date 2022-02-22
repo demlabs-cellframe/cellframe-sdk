@@ -242,7 +242,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             log_it(L_WARNING, "Block's sign #%zu size is incorrect", l_sig_pos);
             return -44;
         }
-        size_t l_block_data_size = dap_chain_block_get_sign_offset(a_block, a_block_size);
+        size_t l_block_data_size = dap_chain_block_get_sign_offset(a_block, a_block_size)+sizeof(a_block->hdr);
         if (l_block_data_size == a_block_size) {
             log_it(L_WARNING,"Block has nothing except sign, nothing to verify so I pass it (who knows why we have it?)");
             return 0;

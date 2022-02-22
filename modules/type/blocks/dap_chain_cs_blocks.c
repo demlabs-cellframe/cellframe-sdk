@@ -1160,11 +1160,11 @@ static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)
 
 static bool s_callback_datums_timer(void *a_arg)
 {
-    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT((dap_chain_cs_blocks_t *)a_arg);
-    pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
-    s_new_block_complete((dap_chain_cs_blocks_t *)a_arg);
-    pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
-    l_blocks_pvt->fill_timer = NULL;
+    // dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT((dap_chain_cs_blocks_t *)a_arg);
+    // pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
+    // s_new_block_complete((dap_chain_cs_blocks_t *)a_arg);
+    // pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+    // l_blocks_pvt->fill_timer = NULL;
     return false;
 }
 

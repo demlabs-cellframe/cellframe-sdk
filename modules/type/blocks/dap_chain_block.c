@@ -371,8 +371,8 @@ size_t dap_chain_block_get_signs_count(dap_chain_block_t * a_block, size_t a_blo
     assert(a_block_size);
     uint16_t l_sign_count = 0;
     size_t l_offset = dap_chain_block_get_sign_offset(a_block,a_block_size);
-    for ( ; l_offset < a_block_size; l_sign_count++) {
-        dap_sign_t *l_sign = (dap_sign_t *)a_block->meta_n_datum_n_sign + l_offset;
+    for ( ; l_offset+sizeof(a_block->hdr) < a_block_size; l_sign_count++) {
+        dap_sign_t *l_sign = (dap_sign_t *)(a_block->meta_n_datum_n_sign + l_offset);
         size_t l_sign_size = dap_sign_get_size(l_sign);
         if (!l_sign_size){
             log_it(L_WARNING, "Empty sign #%hu", l_sign_count);

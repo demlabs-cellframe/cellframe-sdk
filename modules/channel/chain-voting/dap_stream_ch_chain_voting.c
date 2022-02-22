@@ -162,8 +162,10 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net) {
             dap_chain_node_addr_t *l_remote_node_addr = l_tmp->data;
             char *l_key = dap_chain_node_addr_to_hash_str(l_remote_node_addr);
             size_t node_info_size = 0;
-            dap_chain_node_info_t *node_info = (dap_chain_node_info_t *)dap_chain_global_db_gr_get(l_key, &node_info_size, a_net->pub.gdb_nodes);
-            dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(a_net,node_info);
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)dap_chain_global_db_gr_get(l_key, &node_info_size, a_net->pub.gdb_nodes);
+            //dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect(a_net, l_node_info);
+            char l_channels[] = {dap_stream_ch_chain_voting_get_id(),0};
+            dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect_channels(a_net, l_node_info, l_channels);
             // if ( l_node_client->remote_node_addr.uint64 == dap_chain_net_get_cur_addr_int(a_net) )
             // 	continue;
 
@@ -174,6 +176,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net) {
             if (NULL == l_client_pvt) {
                 continue;
             }
+
             for (int i=0; i<l_pkts_count; i++) {
             	voting_pkt_addr_t * l_pkt_addr = ((dap_list_t *)dap_list_nth(s_pkt_items->pkts_out, i))->data;
             	//if (!l_pkt_addr->client) {
@@ -224,7 +227,13 @@ static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg){
 			}
 			// to remote
 			else if ( l_pkt_addr->node_addr.uint64 == l_node_client->remote_node_addr.uint64 ) {
-		    	dap_stream_ch_pkt_write_unsafe(l_ch_chain, l_voting_pkt->hdr.pkt_type , l_voting_pkt, l_voting_pkt_size);
+				if (l_ch_chain) {
+		    		dap_stream_ch_pkt_write_unsafe(l_ch_chain, 
+		    						l_voting_pkt->hdr.pkt_type, l_voting_pkt, l_voting_pkt_size);
+		    	}
+		    	else {
+					//printf("---!!! s_callback_send_all_unsafe() l_ch_chain in null \n");
+		    	}
 	    	}
 	    }
 		s_callback_channel_pkt_free_unsafe(l_node_client->remote_node_addr.uint64);

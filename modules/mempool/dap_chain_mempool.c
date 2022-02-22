@@ -122,10 +122,10 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     SUM_256_256(a_value, a_value_fee, &l_value_need);
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
-    if (!l_list_used_out) {
-        log_it(L_WARNING,"Not enough funds to transfer");
-        return NULL;
-    }
+    // if (!l_list_used_out) {
+    //     log_it(L_WARNING,"Not enough funds to transfer");
+    //     return NULL;
+    // }
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
     // add 'in' items

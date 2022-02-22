@@ -69,6 +69,7 @@
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
+#include "dap_stream_ch_chain_voting.h"
 #include "dap_stream_pkt.h"
 
 //#include "dap_chain_common.h"
@@ -987,6 +988,14 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                 }
                 l_node_client->ch_chain_net_srv = l_ch;
                 memcpy(&l_node_client->ch_chain_net_srv_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));
+            }
+            // V
+            if ( a_ch_id == dap_stream_ch_chain_voting_get_id() ) {
+                dap_stream_ch_chain_voting_t *l_ch_chain = DAP_STREAM_CH_CHAIN_VOTING(l_ch);
+                // l_ch_chain->callback_notify = s_ch_chain_callback_notify_voting_packet_in;
+                l_ch_chain->callback_notify_arg = l_node_client;
+                l_node_client->ch_chain_net = l_ch;
+                memcpy(&l_node_client->ch_chain_net_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));    
             }
             l_ret = 0;
         } else {

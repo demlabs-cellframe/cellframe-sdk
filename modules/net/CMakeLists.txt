@@ -37,16 +37,16 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRCS} ${DAP_CHAIN_NET_HEADERS} ${IPUTILS_SRCS} ${IPUTILS_HEADERS})
 
 if(WIN32)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_server_core dap_notify_srv dap_stream_ch_chain dap_stream_ch_chain_net dap_stream_ch_chain_net_srv dap_chain dap_chain_wallet dap_chain_net_srv
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_client dap_server_core dap_notify_srv dap_stream_ch_chain dap_stream_ch_chain_net dap_stream_ch_chain_net_srv dap_chain dap_chain_wallet dap_chain_net_srv dap_stream_ch_chain_voting
                             dap_chain_mempool dap_chain_global_db dap_chain_cs_none)
 endif()
 
 if(LINUX)
-    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_notify_srv dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_stream_ch_chain_net_srv dap_chain
+    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_notify_srv dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_stream_ch_chain_net_srv dap_stream_ch_chain_voting dap_chain
       dap_chain_wallet dap_chain_net_srv dap_chain_mempool dap_chain_global_db dap_chain_cs_none
       resolv )
 elseif(BSD)
-    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_notify_srv dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_stream_ch_chain_net_srv dap_chain
+    target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_notify_srv dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_stream_ch_chain_net_srv dap_stream_ch_chain_voting dap_chain
       dap_chain_wallet dap_chain_net_srv dap_chain_mempool dap_chain_global_db dap_chain_cs_none )
 endif()
 

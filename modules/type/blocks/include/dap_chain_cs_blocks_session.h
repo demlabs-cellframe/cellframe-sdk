@@ -12,7 +12,12 @@
 // in this round (even if the current process has another opinion)
 // • PreCommit(round,candidate)—a preliminary commitment to a block candidate (used in three-phase commit scheme)
 
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE			0x04
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START	0x08
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC		0x12
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS	0x16
 
+#define DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC		0x32
 
 #define DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT         0x04
 #define DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE        0x08
@@ -40,7 +45,14 @@ typedef struct dap_chain_cs_blocks_session_items {
 	dap_chain_cs_blocks_session_message_item_t * messages_items;
 	uint16_t messages_count;
 	uint16_t validators_count;
+	uint16_t startsync_count;
 
+	uint16_t consensus_start;
+
+	dap_chain_blocks_session_round_id_t round_id;
+	uint8_t state;
+
+	char * gdb_group_setup;
 	char * gdb_group_store;
 	char * gdb_group_message;
 
@@ -100,12 +112,56 @@ typedef struct dap_chain_cs_blocks_session_message_item {
 } DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_item_t;
 
 
+// struct for get hash from any messages
+typedef struct dap_chain_cs_blocks_session_message_gethash {
+	dap_chain_hash_fast_t candidate_hash;
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_gethash_t;
+
+// technical messages
+typedef struct dap_chain_cs_blocks_session_message_startsync {
+	dap_chain_time_t ts;
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_startsync_t;
+
+// consensus messages
+typedef struct dap_chain_cs_blocks_session_message_submit {
+	dap_chain_hash_fast_t candidate_hash;
+	size_t candidate_size;
+	uint8_t candidate[];
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_submit_t;
+
+typedef struct dap_chain_cs_blocks_session_message_approve {
+	dap_chain_hash_fast_t candidate_hash;
+	uint8_t candidate_hash_sign[];
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_approve_t;
+
+typedef struct dap_chain_cs_blocks_session_message_reject {
+	dap_chain_hash_fast_t candidate_hash;
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_reject_t;
+
+typedef struct dap_chain_cs_blocks_session_message_votefor {
+	dap_chain_hash_fast_t candidate_hash;
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_votefor_t;
+
+typedef struct dap_chain_cs_blocks_session_message_vote {
+	dap_chain_hash_fast_t candidate_hash;
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_vote_t;
+
+typedef struct dap_chain_cs_blocks_session_message_precommit {
+	dap_chain_hash_fast_t candidate_hash;
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_precommit_t;
+
+typedef struct dap_chain_cs_blocks_session_message_commitsign {
+	dap_chain_hash_fast_t candidate_hash;
+	uint8_t candidate_sign[];
+} DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_commitsign_t;
+
+
 typedef struct dap_chain_cs_blocks_session_store_hdr {
-	uint16_t signs_count;
-	uint16_t approves_count;
-	uint16_t rejects_count;
-	uint16_t votes_count;
-	uint16_t precommits_count;
+	uint16_t sign_count;
+	uint16_t approve_count;
+	uint16_t reject_count;
+	uint16_t vote_count;
+	uint16_t precommit_count;
 	size_t candidate_size;
 } DAP_ALIGN_PACKED dap_chain_cs_blocks_session_store_hdr_t;
 
@@ -113,6 +169,7 @@ typedef struct dap_chain_cs_blocks_session_store {
 	dap_chain_cs_blocks_session_store_hdr_t hdr;
     uint8_t candidate_n_signs[];
 } DAP_ALIGN_PACKED dap_chain_cs_blocks_session_store_t;
+
 
 
 int dap_chain_cs_blocks_session_init(dap_chain_t *a_chain, dap_enc_key_t *a_blocks_sign_key);

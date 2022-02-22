@@ -3205,6 +3205,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     const char * l_emission_hash_str = NULL;
     dap_chain_hash_fast_t l_emission_hash={0};
+    dap_chain_hash_fast_t l_token_emission_hash={0};
     dap_chain_datum_token_emission_t * l_emission = NULL;
     char * l_emission_hash_str_base58 = NULL;
 
@@ -3377,6 +3378,9 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
         // Calc datum emission's hash
         dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_emission_hash);
+        // Calc token's hash
+        dap_hash_fast(l_emission, l_emission_size, &l_token_emission_hash);
+        //dap_hash_fast(l_emission, l_datum_emission_size, &l_emission_hash);
         l_emission_hash_str = dap_chain_hash_fast_to_str_new(&l_emission_hash);
         l_emission_hash_str_base58 = dap_enc_base58_encode_hash_to_str(&l_emission_hash);
 
@@ -3405,9 +3409,12 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     l_tx->header.ts_created = time(NULL);
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     // create items
-    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(l_chain_emission->id, &l_emission_hash, l_ticker);
+
+    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(l_chain_emission->id, &l_token_emission_hash, l_ticker);
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
     dap_chain_256_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(l_addr, l_emission_value);
+
+printf("---!!! com_token_emit() 2 %s \n", dap_chain_hash_fast_to_str_new(&l_tx_token->header.token_emission_hash));
 
     // pack items to transaction
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);

@@ -344,6 +344,7 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             return dap_chain_ledger_token_emission_load(a_ledger, l_datum->data, l_datum->header.data_size);
+            //return dap_chain_ledger_token_emission_load(a_ledger, l_datum, l_datum->header.data_size+sizeof(l_datum->header));
         }
         break;
         case DAP_CHAIN_DATUM_TX: {
