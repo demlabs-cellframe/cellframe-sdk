@@ -693,7 +693,24 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 }
                 // Call callback if present
 
-                l_srv->callback_stream_ch_read( l_srv,l_usage->id, l_usage->client, l_pkt->data, l_pkt_size );
+                if (l_usage == NULL){
+                    size_t l_out_data_size = 0;
+                    void *l_out_data = l_srv->callback_stream_ch_read_with_out_data( l_srv, 0, NULL, l_pkt->data, l_pkt_size, &l_out_data_size);
+                    if (l_out_data != NULL && l_out_data_size == 0){
+                        dap_stream_ch_chain_net_srv_pkt_data_t *l_data = DAP_NEW_Z_SIZE(void*, sizeof(dap_stream_ch_chain_net_srv_pkt_data_t)+l_out_data_size);
+                        l_data->hdr.srv_uid = l_srv->uid;
+                        l_data->hdr.offset[0] = 0;
+                        l_data->hdr.offset[1] = 0;
+                        l_data->hdr.offset[2] = 0;
+                        l_data->hdr.usage_id = l_pkt->hdr.usage_id;
+                        l_data->hdr.version = 1;
+                        memcpy(l_data->data, l_out_data, l_out_data_size);
+                        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA, l_data, sizeof(dap_stream_ch_chain_net_srv_pkt_data_t)+l_out_data_size);
+                        DAP_FREE(l_data);
+                    }
+                } else {
+                    l_srv->callback_stream_ch_read( l_srv,l_usage->id, l_usage->client, l_pkt->data, l_pkt_size);
+                }
 
 
             } break;
