@@ -33,7 +33,7 @@ typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 
 typedef void (*dap_chain_net_srv_callback_t)(dap_chain_net_srv_t *, dap_chain_net_srv_client_remote_t *);
 typedef int (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t );
-typedef void* (*dap_chain_net_srv_callback_data_with_out_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t, size_t * );
+typedef void* (*dap_chain_net_srv_callback_data_with_out_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t, size_t *);
 typedef int (*dap_chain_net_srv_callback_sign_request_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, dap_chain_datum_tx_receipt_t **, size_t );
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
 
