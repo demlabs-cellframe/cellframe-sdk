@@ -1149,7 +1149,8 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         l_emission_item->datum_token_emission = dap_chain_datum_emission_read(l_objs[i].value, &l_emission_size);
         l_emission_item->datum_token_emission_size = l_emission_size;
 
-        log_it(L_WARNING,"Ledger cache datum_token_emission %lld, ticker: %s", l_emission_item->datum_token_emission->hdr.value, c_token_ticker);
+        // need to check after token emission will be working in develop build
+        //log_it(L_WARNING,"Ledger cache datum_token_emission %lld, ticker: %s", l_emission_item->datum_token_emission->hdr.value, c_token_ticker);
 
         if (l_token_item) {
             HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash,
