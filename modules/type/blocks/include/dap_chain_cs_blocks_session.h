@@ -44,10 +44,19 @@ typedef struct dap_chain_cs_blocks_session_items {
 	//dap_chain_cs_blocks_session_message_t * messages;
 	dap_chain_cs_blocks_session_message_item_t * messages_items;
 	uint16_t messages_count;
-	uint16_t validators_count;
-	uint16_t startsync_count;
 
-	uint16_t consensus_start;
+	dap_list_t *validators_list; // dap_chain_node_addr_t 
+	uint16_t validators_count;
+
+	//uint16_t startsync_count;
+	dap_list_t *validators_start; // dap_chain_node_addr_t
+	uint16_t consensus_start_period;
+
+	// dap_timerfd_t* timer_consensus_finish;
+	// dap_timerfd_t* timer_consensus_cancel;
+	dap_chain_time_t ts_consensus_start;
+	dap_chain_time_t ts_consensus_state_commit;
+	dap_chain_time_t ts_consensus_finish;
 
 	dap_chain_blocks_session_round_id_t round_id;
 	uint8_t state;

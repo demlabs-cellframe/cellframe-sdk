@@ -24,6 +24,8 @@ static bool s_session_finish(dap_chain_cs_blocks_session_items_t *a_session);
 static bool s_session_finish_notstart(dap_chain_cs_blocks_session_items_t *a_session);
 // static int s_message_block_sign_add(dap_chain_cs_blocks_session_items_t * a_session,
 // 										dap_chain_hash_fast_t *a_block_hash, dap_sign_t *a_sign);
+static dap_chain_node_addr_t * s_session_get_validator_by_addr(
+					dap_chain_cs_blocks_session_items_t * a_session, dap_chain_node_addr_t * a_addr);
 
 // static char * s_gdb_group_session_store;
 // dap_chain_hash_fast_t * s_prev_message_hash = NULL;
@@ -33,17 +35,18 @@ static dap_timerfd_t * s_session_cs_timer = NULL;
 int dap_chain_cs_blocks_session_init(dap_chain_t *a_chain, dap_enc_key_t *a_blocks_sign_key)
 {
 
-// HASH_ADD(chain); 
-// DL_APPEND(l_net->pub.chains, l_chain);
-
+	//dap_chain_net_t * l_net = dap_chain_net_by_id(a_chain->net_id);	
 	dap_chain_cs_blocks_session_items_t * l_session = DAP_NEW_Z(dap_chain_cs_blocks_session_items_t);
-// l_session->gdb_group_store = dap_strdup_printf("local.ton.setup");
+	
+	// l_session->validators_list = dap_chain_net_get_node_list(l_net);
+	// l_session->validators_count = dap_list_length(l_session->validators_list);
+
+//	l_session->gdb_group_store = dap_strdup_printf("local.ton.setup");
 
 // time session
 // attempts in round
 // attempt time
 // rounds count -> max round -> change validator
-
 	l_session->round_id.uint64 = 1;
 	l_session->gdb_group_store = dap_strdup_printf("local.ton.%s.%s.round.%llu.store", 
 										a_chain->net_name, a_chain->name, l_session->round_id.uint64);
@@ -53,13 +56,26 @@ int dap_chain_cs_blocks_session_init(dap_chain_t *a_chain, dap_enc_key_t *a_bloc
 	l_session->last_message_hash = NULL;
 	l_session->messages_count = 0;
 	
-	l_session->consensus_start = 2; // hint: if((time()/10) % consensus_start)==0
-	l_session->startsync_count = 0;
+	l_session->consensus_start_period = 20; // hint: if((time()/10) % consensus_start)==0
+	l_session->validators_start = NULL;
 	l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE;
 
-	
-	l_session->validators_count = 2; // conf
 	l_session->blocks_sign_key = a_blocks_sign_key;
+
+	// l_session->timer_consensus_finish = NULL;
+	// l_session->timer_consensus_cancel = NULL;
+	l_session->ts_consensus_start = 0;
+	l_session->ts_consensus_state_commit = 0;
+	
+	dap_chain_time_t l_time = (dap_chain_time_t)time(NULL);
+	//l_session->ts_consensus_finish = ((l_time/10)*10) + l_session->consensus_start_period;
+	while (true) {
+		l_time++;
+		if ( (l_time % l_session->consensus_start_period) == 0) {
+			l_session->ts_consensus_finish = l_time+l_session->consensus_start_period;
+			break;
+		}
+	}
 
 	// l_session->cs_timer = dap_timerfd_start(60*1000, 
 	// 					                        (dap_timerfd_callback_t)s_session_check, 
@@ -69,27 +85,58 @@ int dap_chain_cs_blocks_session_init(dap_chain_t *a_chain, dap_enc_key_t *a_bloc
 
 	DL_APPEND(s_session_items, l_session);
 	if (!s_session_cs_timer) {
-		s_session_cs_timer = dap_timerfd_start(10*1000, 
+		s_session_cs_timer = dap_timerfd_start(1*1000, 
                         (dap_timerfd_callback_t)s_session_timer, 
                         NULL);
 	}
+
 	dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in);
 	return 0;
+}
+
+static bool s_session_send_startsync(dap_chain_cs_blocks_session_items_t *a_session){
+	dap_chain_cs_blocks_session_message_startsync_t * l_startsync =
+											DAP_NEW_Z(dap_chain_cs_blocks_session_message_startsync_t);
+	l_startsync->ts = a_session->ts_consensus_start;
+	s_message_send(a_session, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC, 
+							(uint8_t*)l_startsync, sizeof(dap_chain_cs_blocks_session_message_startsync_t));
+	return false;
 }
 
 static bool s_session_timer() {
 	dap_chain_time_t l_time = (dap_chain_time_t)time(NULL);
 	dap_chain_cs_blocks_session_items_t * l_session = NULL;
 	DL_FOREACH(s_session_items, l_session) {
-		if ( ((l_time/10) % l_session->consensus_start) == 0 ) {
-			if ( l_session->state == DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE ) {
-				l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
-				dap_chain_cs_blocks_session_message_startsync_t * l_startsync =
-														DAP_NEW_Z(dap_chain_cs_blocks_session_message_startsync_t);
-				l_startsync->ts = (dap_chain_time_t)time(NULL);
-				s_message_send(l_session, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC, 
-										(uint8_t*)l_startsync, sizeof(dap_chain_cs_blocks_session_message_startsync_t));
-			}
+
+		switch (l_session->state) {
+			case DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE: {
+				if ( (((l_time/10)*10) % l_session->consensus_start_period) == 0 
+							&& l_time > l_session->ts_consensus_finish
+								&& (l_time-l_session->ts_consensus_finish) >= l_session->consensus_start_period ) {
+					l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
+					l_session->ts_consensus_start = (dap_chain_time_t)time(NULL);
+
+					dap_chain_net_t * l_net = dap_chain_net_by_id(l_session->chain->net_id);
+					l_session->validators_list = dap_chain_net_get_node_list(l_net);
+					l_session->validators_count = dap_list_length(l_session->validators_list);
+
+					dap_timerfd_start(3*1000, 
+						(dap_timerfd_callback_t)s_session_send_startsync, 
+							l_session);
+				}
+			} break;
+			case DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START: {
+				if ( (l_time-l_session->ts_consensus_start) >= 10 )
+					s_session_finish(l_session);
+			} break;
+			case DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC: {
+				if ( (l_time-l_session->ts_consensus_start) >= 30 )
+					s_session_finish(l_session);
+			} break;
+			case DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS: {
+				if ( (l_time-l_session->ts_consensus_state_commit) >= 10 )
+					s_session_finish(l_session);
+			} break;
 		}
 	}
 
@@ -172,12 +219,12 @@ static int s_session_datums_validation(dap_chain_cs_blocks_t *a_blocks, dap_chai
     return 0;
 }
 
-static bool s_session_finish_notstart(dap_chain_cs_blocks_session_items_t *a_session) {
-	if ( a_session->state == DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START ) {
-		s_session_finish(a_session);
-	}
-	return false;
-}
+// static bool s_session_finish_notstart(dap_chain_cs_blocks_session_items_t *a_session) {
+// 	if ( a_session->state == DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START ) {
+// 		s_session_finish(a_session);
+// 	}
+// 	return false;
+// }
 
 static bool s_session_finish(dap_chain_cs_blocks_session_items_t *a_session) {
 
@@ -188,7 +235,21 @@ static bool s_session_finish(dap_chain_cs_blocks_session_items_t *a_session) {
 	a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE;
 	a_session->last_message_hash = NULL;
 	a_session->messages_count = 0;
-	a_session->startsync_count = 0;
+
+	dap_list_free(a_session->validators_start);
+	a_session->validators_start = NULL;
+
+	a_session->ts_consensus_finish = (dap_chain_time_t)time(NULL);
+	a_session->ts_consensus_start = 0;
+	a_session->ts_consensus_state_commit = 0;
+
+	// if (a_session->timer_consensus_cancel)
+	// 	dap_timerfd_delete(a_session->timer_consensus_cancel);
+	// a_session->timer_consensus_cancel = NULL;
+
+	// if (a_session->timer_consensus_finish)
+	// 	dap_timerfd_delete(a_session->timer_consensus_finish);
+	// a_session->timer_consensus_finish = NULL;
 
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs;
@@ -221,51 +282,74 @@ static bool s_session_finish(dap_chain_cs_blocks_session_items_t *a_session) {
 	return false;
 }
 
+// must change to validator list 
+static dap_chain_node_addr_t * s_session_get_validator_by_addr(
+					dap_chain_cs_blocks_session_items_t * a_session, dap_chain_node_addr_t * a_addr) {
+	dap_list_t* l_list_validator = dap_list_first(a_session->validators_list);
+	while(l_list_validator) {
+		dap_list_t *l_list_validator_next = l_list_validator->next;
+		if ( ((dap_chain_node_addr_t *)l_list_validator->data)->uint64 == a_addr->uint64 )
+			return l_list_validator->data;
+		l_list_validator = l_list_validator_next;
+	}
+	return NULL;
+}
+
 static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_node_addr, 
 								dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size) {
 
+
 	dap_chain_cs_blocks_session_items_t * l_session = (dap_chain_cs_blocks_session_items_t *)a_arg;
+
+	dap_chain_node_addr_t * l_validator = s_session_get_validator_by_addr(l_session, a_sender_node_addr);
+	if (!l_validator) {
+		goto handler_finish;
+	}
 
 	dap_chain_cs_blocks_session_message_t * l_message = (dap_chain_cs_blocks_session_message_t *)a_data;
 	//char * l_message_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_message->hdr.message_hash);
 
     dap_chain_hash_fast_t l_data_hash;
     dap_hash_fast(a_data, a_data_size, &l_data_hash);
-	
+
     if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64 )
-    	goto handler_finished;
+    	goto handler_finish;
 
 	if (memcmp(a_data_hash, &l_data_hash, sizeof(dap_chain_hash_fast_t)) != 0)
-		goto handler_finished;
+		goto handler_finish;
 
 	if ( l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC ) {
 		// add check&save sender addr
-		l_session->startsync_count++;
-		if ( ((float)l_session->startsync_count/l_session->validators_count) >= ((float)2/3) ) {
+		dap_list_t* l_list_temp = dap_list_first(l_session->validators_start);
+		while(l_list_temp) {
+			dap_list_t *l_list_next = l_list_temp->next;
+			if (((dap_chain_node_addr_t *)l_list_temp->data)->uint64 == l_validator->uint64)
+				goto handler_finish;
+			l_list_temp = l_list_next;
+		}
+		l_session->validators_start = dap_list_append(l_session->validators_start, l_validator);
+		size_t startsync_count = dap_list_length(l_session->validators_start);
+		if ( ((float)startsync_count/l_session->validators_count) >= ((float)2/3) ) {
 			l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC;
 			dap_timerfd_start(3*1000, // pause before candidate submit
                     (dap_timerfd_callback_t)s_session_block_submit, 
                     	l_session);
-
-			dap_timerfd_start((3+30)*1000, // consensus timeout
-                    (dap_timerfd_callback_t)s_session_finish, 
-                    	l_session);
+			// l_session->timer_consensus_finish = dap_timerfd_start((3+30)*1000, // consensus timeout
+   //                  (dap_timerfd_callback_t)s_session_finish, 
+   //                  	l_session);
 		}
-		dap_timerfd_start( 10*1000, // timer chancel consensus 
-                (dap_timerfd_callback_t)s_session_finish_notstart, 
-                	l_session);
-		goto handler_finished;
+		goto handler_finish;
 	}
 
-
-	if ( l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC )
-		goto handler_finished;
+	if ( l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC
+			&& l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS )
+		goto handler_finish;
 
 	// check hash message dup
 	dap_chain_cs_blocks_session_message_item_t * l_message_item_temp = NULL;
 	HASH_FIND(hh, l_session->messages_items, a_data_hash, sizeof(dap_chain_hash_fast_t), l_message_item_temp);
 	if (l_message_item_temp)
-		goto handler_finished;
+		goto handler_finish;
 
     uint32_t l_approve_count = 0, l_vote_count = 0, l_precommit_count = 0;
 	// check messages chain
@@ -293,7 +377,7 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
 							l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT ) {
 						// check dup message APPROVE or REJECT for one candidate
 						if (l_candidate_hash_match) {
-							goto handler_finished;
+							goto handler_finish;
 						}
 					}
     			} break;
@@ -303,7 +387,7 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: 
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT:{
     				if ( l_msg_type == l_message->hdr.type ){
-    					goto handler_finished;
+    					goto handler_finish;
     				}
     			}
     		}
@@ -328,15 +412,15 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
 	switch (l_message->hdr.type) {
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE: {
 			if (!l_approve_count) // if this validator not sent Approve for this candidate
-    			goto handler_finished;
+    			goto handler_finish;
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT: {
 			if (!l_vote_count) // if this validator not sent Vote for this candidate
-    			goto handler_finished;
+    			goto handler_finish;
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: {
 			if (!l_precommit_count) // if this validator not sent PreCommit for this candidate
-    			goto handler_finished;
+    			goto handler_finish;
 		} break;
 	}
 
@@ -367,7 +451,7 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
 			// check candidate hash
 			if (memcmp(&l_submit->candidate_hash, &l_candidate_hash,
 											sizeof(dap_chain_hash_fast_t)) != 0) {
-				goto handler_finished;				
+				goto handler_finish;				
 			}
 
 			char * l_candidate_hash_str = dap_chain_hash_fast_to_str_new(&l_candidate_hash);
@@ -380,7 +464,7 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
 			if (l_store_temp) {
 				DAP_DELETE(l_store_temp);
 				DAP_DELETE(l_candidate_hash_str);
-				goto handler_finished;
+				goto handler_finish;
 			}
 
 			pthread_rwlock_rdlock(&l_session->rwlock);
@@ -595,6 +679,9 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
 							 					(uint8_t*)l_commitsign, l_commitsign_size);
 							DAP_DELETE(l_candidate);
 							DAP_DELETE(l_candidate_sign);
+							
+							l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS;
+							l_session->ts_consensus_state_commit = (dap_chain_time_t)time(NULL);
 						}
 						else
 							log_it(L_WARNING, "Can't sign block with blocks-sign-cert in [block-pos] section");	
@@ -640,7 +727,9 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
 
 					if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store_gdb,
 											l_store_size_new, l_session->gdb_group_store)){
-
+						// if ( ((float)l_store->hdr.sign_count/l_session->validators_count) >= ((float)2/3) ) {
+						// 	l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS;
+						// }
 					}
 
 				} else {
@@ -658,7 +747,7 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
 			break;
 	}
 
-handler_finished:
+handler_finish:
 	DAP_DELETE(a_sender_node_addr);
 	DAP_DELETE(a_data_hash);
 	DAP_DELETE(a_data);
@@ -702,7 +791,7 @@ static void s_message_send(dap_chain_cs_blocks_session_items_t * a_session,
 	dap_chain_hash_fast_t l_message_hash;
 	dap_hash_fast(l_message, l_message_size, &l_message_hash);
 
-	dap_stream_ch_chain_voting_message_write(l_net, &l_message_hash, l_message, l_message_size);
+	dap_stream_ch_chain_voting_message_write(l_net, a_session->validators_list, &l_message_hash, l_message, l_message_size);
 
 	DAP_DELETE(a_data);
 }
