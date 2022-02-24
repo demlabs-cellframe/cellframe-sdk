@@ -51,6 +51,7 @@ typedef struct dap_chain_net_srv_client {
     dap_stream_ch_uuid_t ch_uuid;
     dap_chain_node_client_t *node_client;
     dap_client_t *net_client;
+    void *_inheritor;
 } dap_chain_net_srv_client_t;
 
 dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_net_t *a_net, char *a_addr, uint16_t a_port,
