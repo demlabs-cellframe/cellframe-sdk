@@ -33,6 +33,7 @@ typedef struct dap_chain_net_srv dap_chain_net_srv_t;
 
 typedef void (*dap_chain_net_srv_callback_t)(dap_chain_net_srv_t *, dap_chain_net_srv_client_remote_t *);
 typedef int (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t );
+typedef void* (*dap_chain_net_srv_callback_data_with_out_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t, size_t *);
 typedef int (*dap_chain_net_srv_callback_sign_request_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, dap_chain_datum_tx_receipt_t **, size_t );
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
 
@@ -70,6 +71,7 @@ typedef struct dap_chain_net_srv
     // Stream CH callbacks - channed opened,ready for read, ready for write and closed
     dap_chain_net_srv_callback_ch_t      callback_stream_ch_opened;
     dap_chain_net_srv_callback_data_t callback_stream_ch_read;
+    dap_chain_net_srv_callback_data_with_out_data_t callback_stream_ch_read_with_out_data;
     dap_chain_net_srv_callback_ch_t callback_stream_ch_write;
     dap_chain_net_srv_callback_ch_t      callback_stream_ch_closed;
 
@@ -108,6 +110,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
 int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
                                        dap_chain_net_srv_callback_ch_t a_callback_stream_ch_opened,
                                        dap_chain_net_srv_callback_data_t a_callback_stream_ch_read,
+                                       dap_chain_net_srv_callback_data_with_out_data_t a_callback_stream_ch_read_with_out_data,
                                        dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write,
                                        dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed
                                        );

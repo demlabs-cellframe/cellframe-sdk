@@ -156,6 +156,7 @@ typedef struct dap_chain_net_pvt{
 
     dap_list_t *net_links;              // Links list
     size_t links_connected_count;
+    bool only_static_links;
 
     atomic_uint links_dns_requests;
 
@@ -409,7 +410,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     UNUSED(a_value);
     UNUSED(a_value_len);
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (PVT(l_net)->state == NET_STATE_ONLINE) {
+    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED) {
         char *l_group;
         if (a_op_code == 'd') {
             l_group = dap_strdup_printf("%s.del", a_group);
@@ -483,7 +484,7 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
     if (!a_arg)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (PVT(l_net)->state == NET_STATE_ONLINE) {
+    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED) {
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
@@ -736,6 +737,10 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
                 pthread_rwlock_unlock(&l_net_pvt->rwlock);
                 return;
             }
+        }
+        if (l_net_pvt->only_static_links) {
+            pthread_rwlock_unlock(&l_net_pvt->rwlock);
+            return;
         }
         dap_chain_node_info_t *l_link_node_info = s_get_dns_link_from_cfg(l_net);
         if (l_link_node_info) {
@@ -1085,66 +1090,57 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             } else {
                 log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, try to add links from root servers");
             }
-            switch (l_net_pvt->node_role.enums) {
-                case NODE_ROLE_ROOT:
-                case NODE_ROLE_ROOT_MASTER:
-                case NODE_ROLE_ARCHIVE:
-                case NODE_ROLE_CELL_MASTER: {
-                    if (l_net_pvt->seed_aliases_count) {
-                        // Add other root nodes as synchronization links
-                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
-                        s_fill_links_from_root_aliases(l_net);
-                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-                        l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
-                        l_repeat_after_exit = true;
-                        break;
-                    }
+            if (l_net_pvt->only_static_links) {
+                if (l_net_pvt->seed_aliases_count) {
+                    // Add other root nodes as synchronization links
+                    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+                    s_fill_links_from_root_aliases(l_net);
+                    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+                    l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+                    l_repeat_after_exit = true;
+                    break;
                 }
-                case NODE_ROLE_FULL:
-                case NODE_ROLE_MASTER:
-                case NODE_ROLE_LIGHT:
-                default: {
-                    if (!l_net_pvt->seed_aliases_count && ! l_net_pvt->bootstrap_nodes_count){
-                       log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
-                       if (l_net_pvt->net_links) { // We have other links
-                           l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
-                           l_repeat_after_exit = true;
-                       }
-                       break;
-                    }
-                    // Get DNS request result from root nodes as synchronization links
-                    bool l_sync_fill_root_nodes = false;
-                    uint32_t l_link_id = 0;
-                    if (!l_sync_fill_root_nodes) {
-                        for (size_t n = 0; l_net_pvt->links_dns_requests < s_max_links_count; n++) {
-                            dap_chain_node_info_t *l_link_node_info = s_get_dns_link_from_cfg(l_net);
-                            if (!l_link_node_info)
-                                continue;
-                            l_net_pvt->links_dns_requests++;
-                            struct link_dns_request *l_dns_request = DAP_NEW_Z(struct link_dns_request);
-                            l_dns_request->net = l_net;
-                            l_dns_request->link_id = l_link_id++;
-                            if (dap_chain_node_info_dns_request(l_link_node_info->hdr.ext_addr_v4,
-                                                                l_link_node_info->hdr.ext_port,
-                                                                l_net->pub.name,
-                                                                l_link_node_info,  // use it twice
-                                                                s_net_state_link_prepare_success,
-                                                                s_net_state_link_prepare_error,
-                                                                l_dns_request)) {
-                                log_it(L_ERROR, "Can't process node info dns request");
-                                DAP_DEL_Z(l_dns_request);
-                                DAP_DEL_Z(l_link_node_info);
-                            }
-                            if (n > 1000)   // It's a problem with link prepare
-                                break;
+            } else {
+                if (!l_net_pvt->seed_aliases_count && ! l_net_pvt->bootstrap_nodes_count){
+                   log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
+                   if (l_net_pvt->net_links) { // We have other links
+                       l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+                       l_repeat_after_exit = true;
+                   }
+                   break;
+                }
+                // Get DNS request result from root nodes as synchronization links
+                bool l_sync_fill_root_nodes = false;
+                uint32_t l_link_id = 0;
+                if (!l_sync_fill_root_nodes) {
+                    for (size_t n = 0; l_net_pvt->links_dns_requests < s_max_links_count; n++) {
+                        dap_chain_node_info_t *l_link_node_info = s_get_dns_link_from_cfg(l_net);
+                        if (!l_link_node_info)
+                            continue;
+                        l_net_pvt->links_dns_requests++;
+                        struct link_dns_request *l_dns_request = DAP_NEW_Z(struct link_dns_request);
+                        l_dns_request->net = l_net;
+                        l_dns_request->link_id = l_link_id++;
+                        if (dap_chain_node_info_dns_request(l_link_node_info->hdr.ext_addr_v4,
+                                                            l_link_node_info->hdr.ext_port,
+                                                            l_net->pub.name,
+                                                            l_link_node_info,  // use it twice
+                                                            s_net_state_link_prepare_success,
+                                                            s_net_state_link_prepare_error,
+                                                            l_dns_request)) {
+                            log_it(L_ERROR, "Can't process node info dns request");
+                            DAP_DEL_Z(l_dns_request);
+                            DAP_DEL_Z(l_link_node_info);
                         }
-                    } else {
-                        log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
-                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
-                        s_fill_links_from_root_aliases(l_net);
-                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+                        if (n > 1000)   // It's a problem with link prepare
+                            break;
                     }
-                } break;
+                } else {
+                    log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
+                    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+                    s_fill_links_from_root_aliases(l_net);
+                    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+                }
             }
         } break;
 
@@ -1210,11 +1206,11 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     if (l_found && !dap_list_find_custom(l_net_pvt->links_queue, &a_client->uuid, s_net_list_compare_uuids)) {
         dap_events_socket_uuid_t *l_uuid = DAP_DUP(&a_client->uuid);
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, l_uuid);
     }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     return !l_found;
 }
 
@@ -1226,10 +1222,11 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
     pthread_rwlock_rdlock(&l_net_pvt->rwlock);
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
         dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
+        pthread_rwlock_unlock(&l_net_pvt->rwlock);
         dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
+        pthread_rwlock_rdlock(&l_net_pvt->rwlock);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
             DAP_DELETE(l_uuid);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
@@ -1239,6 +1236,7 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
             break;
         }
     }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     return l_net_pvt->active_link;
 }
 /**
@@ -2329,6 +2327,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
         // Do specific role actions post-chain created
         l_net_pvt->state_target = NET_STATE_OFFLINE;
+        l_net_pvt->only_static_links = false;
         dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
         switch ( l_net_pvt->node_role.enums ) {
             case NODE_ROLE_ROOT_MASTER:{
@@ -2343,7 +2342,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id,l_chain_id);
                 if (l_chain )
                    l_chain->is_datum_pool_proc = true;
-
+                l_net_pvt->only_static_links = true;
                 l_target_state = NET_STATE_ONLINE;
                 log_it(L_INFO,"Root node role established");
             } break;
@@ -2351,7 +2350,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             case NODE_ROLE_MASTER:{
 
                 uint16_t l_proc_chains_count=0;
-                char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
+                char ** l_proc_chains = dap_config_get_array_str(l_cfg, "role-master", "proc_chains", &l_proc_chains_count);
                 for ( size_t i = 0; i< l_proc_chains_count ; i++){
                     dap_chain_id_t l_chain_id = {{0}};
                     if(dap_sscanf( l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_X,  &l_chain_id.uint64) ==1 || dap_scanf("0x%16"DAP_UINT64_FORMAT_x,  &l_chain_id.uint64) == 1){
@@ -2365,10 +2364,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     DAP_DELETE( l_proc_chains[i]);
                     l_proc_chains[i] = NULL;
                 }
-                //if ( l_proc_chains )
-                //    DAP_DELETE (l_proc_chains);
-                //l_proc_chains = NULL;
-
+                l_net_pvt->only_static_links = true;
                 l_target_state = NET_STATE_ONLINE;
                 log_it(L_INFO,"Master node role established");
             } break;

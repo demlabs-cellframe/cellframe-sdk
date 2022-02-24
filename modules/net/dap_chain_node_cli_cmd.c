@@ -1689,18 +1689,6 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
 
-    //
-    // Check if wallet name has only digits and English letters
-    //
-
-    size_t is_str = dap_isstralnum(l_wallet_name);
-
-    if (!is_str)
-    {
-        dap_chain_node_cli_set_reply_text(str_reply, "Wallet name must contain digits and alphabet symbols");
-        return -1;
-    }
-
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
 
     dap_string_t *l_string_ret = dap_string_new(NULL);
@@ -1837,12 +1825,12 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
 
         dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) l_net_name);
         if(!l_net_name && !l_addr ) {
-            dap_chain_node_cli_set_reply_text(str_reply, "wallet info requires parameter 'net'");
+            dap_chain_node_cli_set_reply_text(str_reply, "Subcommand info requires parameter '-net'");
             return -1;
         }
         else if (! l_addr){
             if((l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
-                dap_chain_node_cli_set_reply_text(str_reply, "not found net by name '%s'", l_net_name);
+                dap_chain_node_cli_set_reply_text(str_reply, "Not found net by name '%s'", l_net_name);
                 return -1;
             }
         }else{
@@ -1896,7 +1884,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
             if(l_wallet)
                 dap_chain_wallet_close(l_wallet);
             dap_string_free(l_string_ret, true);
-            dap_chain_node_cli_set_reply_text(str_reply, "wallet not found");
+            dap_chain_node_cli_set_reply_text(str_reply, "Wallet not found");
             return -1;
         }
     }
