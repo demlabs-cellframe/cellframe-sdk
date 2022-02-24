@@ -45,7 +45,7 @@ typedef struct dap_chain_block_hdr{
    uint32_t signature; /// @param signature @brief Magic number, always equels to DAP_CHAIN_BLOCK_SIGNATURE
    int32_t version; /// @param version @brief block version (be carefull, signed value, as Bitcoin has)
    dap_chain_cell_id_t cell_id; /// Cell id
-   dap_chain_cell_id_t chain_id; /// Chain id
+   dap_chain_id_t chain_id; /// Chain id
    dap_chain_time_t ts_created; /// @param timestamp @brief Block create time timestamp
    uint16_t meta_count; // Meta values number
    uint16_t datum_count; // Datums's count
