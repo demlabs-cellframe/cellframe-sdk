@@ -126,7 +126,7 @@ RET:
  */
 dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_name, const char * a_wallets_path,
         dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size)
-{
+{  
     dap_chain_wallet_t * l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
     l_wallet->name = strdup(a_wallet_name);

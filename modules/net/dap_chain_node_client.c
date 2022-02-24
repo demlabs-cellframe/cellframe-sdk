@@ -496,7 +496,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                                                      l_net->pub.id.uint64 ,
                                                      l_chain_id.uint64,l_cell_id.uint64,NULL,0);
             }else{ // If no - over with sync process
-                dap_chain_node_addr_t * l_node_addr = dap_chain_net_get_cur_addr(l_net);
+                dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(l_net);
                 log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
                 bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
                 l_node_client->state = NODE_CLIENT_STATE_SYNCED;

@@ -643,6 +643,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,dap_cha
 int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
                                        dap_chain_net_srv_callback_ch_t a_callback_stream_ch_opened,
                                        dap_chain_net_srv_callback_data_t a_callback_stream_ch_read,
+                                       dap_chain_net_srv_callback_data_with_out_data_t a_callback_stream_ch_read_with_out_data,
                                        dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write,
                                        dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed
                                        )
@@ -658,6 +659,7 @@ int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
         l_srv = l_sdata->srv;
         l_srv->callback_stream_ch_opened = a_callback_stream_ch_opened;
         l_srv->callback_stream_ch_read = a_callback_stream_ch_read;
+        l_srv->callback_stream_ch_read_with_out_data = a_callback_stream_ch_read_with_out_data;
         l_srv->callback_stream_ch_write = a_callback_stream_ch_write;
         l_srv->callback_stream_ch_closed = a_callback_stream_ch_closed;
     }else{
