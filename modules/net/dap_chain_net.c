@@ -2837,7 +2837,6 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
         return -10;
     if( ! a_net )
         return -11;
-
     switch ( a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TX:
             return dap_chain_ledger_tx_add_check( a_net->pub.ledger, (dap_chain_datum_tx_t*)a_datum->data );
