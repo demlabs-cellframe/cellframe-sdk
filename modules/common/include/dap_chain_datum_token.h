@@ -39,6 +39,7 @@ typedef struct dap_chain_datum_token{
         // Simple private token declaration. Useful for 100% premined emission without any plays with token and owners after that
         struct {
             uint64_t total_supply; // Could be zero if unlimited
+            uint64_t current_supply; // current size of free tokens
             uint16_t signs_valid; // Emission auth signs
             uint16_t signs_total; // Emission auth signs
         } DAP_ALIGN_PACKED header_private;
