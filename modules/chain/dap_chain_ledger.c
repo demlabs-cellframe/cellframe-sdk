@@ -224,6 +224,7 @@ static bool s_ledger_tps_callback(void *a_arg);
 static size_t s_treshold_emissions_max = 1000;
 static size_t s_treshold_txs_max = 10000;
 static bool s_debug_more = false;
+static bool s_token_supply_limit_disable = false;
 
 /**
  * @brief dap_chain_ledger_init
@@ -233,6 +234,7 @@ static bool s_debug_more = false;
 int dap_chain_ledger_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
+    s_token_supply_limit_disable = dap_config_get_item_bool_default(g_config,"ledger","token_supply_limit_disable",false);
     return 0;
 }
 
@@ -1414,10 +1416,15 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             //  update current_supply in ledger cache and ledger memory object
             //
 
-            if (!PVT(a_ledger)->load_mode && l_token_item)
+            if (!PVT(a_ledger)->load_mode && l_token_item && !s_token_supply_limit_disable)
             {
-                 if (!s_update_token_cache(a_ledger, l_token_item, l_token_emission_item->datum_token_emission->hdr.value_256))
-                    return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
+                if (!s_update_token_cache(a_ledger, l_token_item, l_token_emission_item->datum_token_emission->hdr.value_256))
+                   return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
+            }
+
+            if (s_token_supply_limit_disable)
+            {
+                log_it(L_WARNING,"s_token_supply_limit_disable is enabled in config, please fix it and disable");
             }
 
             if (l_token_item) {
