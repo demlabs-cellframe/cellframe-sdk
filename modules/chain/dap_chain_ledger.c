@@ -373,7 +373,6 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker), "%s", a_token->ticker);
     pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
     l_token_item->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
-    memcpy(l_token_item->datum_token, a_token, a_token_size);
 
     //
     // init current_supply value in token_declaration procedure (ledger cache and ledger memory object)
@@ -385,6 +384,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     l_token_item->current_supply = l_token_item->total_supply;
 
     a_token->header_private.current_supply_256 = l_token_item->total_supply;
+
+    memcpy(l_token_item->datum_token, a_token, a_token_size);
 
     pthread_rwlock_wrlock(&PVT(a_ledger)->tokens_rwlock);
     HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item);
