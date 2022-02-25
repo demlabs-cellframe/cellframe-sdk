@@ -56,6 +56,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_pvt.h"
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -1214,6 +1215,25 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     DAP_DELETE(l_gdb_group);
 }
 
+bool dap_chain_ledger_reload_cache_once(dap_chain_net_t *l_net)
+{
+    dap_chain_ledger_purge(l_net->pub.ledger, false);
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) 
+    {
+        if (l_chain->callback_purge) {
+            l_chain->callback_purge(l_chain);
+        }
+        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) {
+            dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
+        } 
+        else 
+        {
+            dap_chain_load_all(l_chain);
+        }
+    }
+}
+
 /**
  * @brief
  * create ledger for specific net
@@ -1244,6 +1264,9 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
         // load ledger cache from GDB
         dap_chain_ledger_load_cache(l_ledger);
     }
+
+    //dap_chain_ledger_reload_cache_once(l_ledger_priv->net);
+
     return l_ledger;
 }
 
