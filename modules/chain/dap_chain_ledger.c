@@ -1009,7 +1009,7 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
                 if (compare256(l_token_cache->header_private.current_supply_256, l_emission_value) >= 0)
                 {
                    SUBTRACT_256_256(l_token_cache->header_private.current_supply_256, l_emission_value, &l_token_cache->header_private.current_supply_256);
-                   log_it(L_WARNING,"New current supply %s for token %s", dap_chain_balance_print(l_token_cache->header_private.current_supply_256), l_token_item->ticker);
+                   log_it(L_DEBUG,"New current supply %s for token %s", dap_chain_balance_print(l_token_cache->header_private.current_supply_256), l_token_item->ticker);
 
                     //Update value in ledger memory object
 
