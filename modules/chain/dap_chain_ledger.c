@@ -371,7 +371,6 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     // Add it to cache
     dap_chain_datum_token_t *l_token_cache = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
-    memcpy(l_token_cache, a_token, a_token_size);
 
     //
     //  init current_supply when token is created
@@ -382,6 +381,8 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
 
     l_token_item->current_supply = l_token_item->total_supply;
     a_token->header_private.current_supply = l_token_item->total_supply;
+
+    memcpy(l_token_cache, a_token, a_token_size);
 
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
     if (!dap_chain_global_db_gr_set(dap_strdup(a_token->ticker), l_token_cache, a_token_size, l_gdb_group)) {

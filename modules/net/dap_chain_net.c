@@ -1511,6 +1511,8 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         }
     } 
 
+    fclose(s_cache_file);
+
     return true; 
 }
 
