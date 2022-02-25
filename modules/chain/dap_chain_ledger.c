@@ -1332,7 +1332,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             // update token current_supply_
             // 
 
-            if (l_token_item && !s_token_supply_limit_disable)
+            if (!PVT(a_ledger)->load_mode && l_token_item && !s_token_supply_limit_disable)
             {
                 if (!s_update_token_cache(a_ledger, l_token_item, l_token_emission_item->datum_token_emission->hdr.value))
                    return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
