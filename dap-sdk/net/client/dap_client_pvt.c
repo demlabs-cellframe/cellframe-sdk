@@ -82,7 +82,7 @@
 static int s_max_attempts = 3;
 static int s_timeout = 20;
 static bool s_debug_more = false;
-static time_t s_client_timeout_read_after_connect_seconds = 5;
+static time_t s_client_timeout_active_after_connect_seconds = 5;
 
 
 static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);
@@ -127,8 +127,8 @@ int dap_client_pvt_init()
     s_max_attempts = dap_config_get_item_int32_default(g_config, "dap_client", "max_tries", s_max_attempts);
     s_timeout = dap_config_get_item_int32_default(g_config, "dap_client", "timeout", s_timeout);
     s_debug_more = dap_config_get_item_bool_default(g_config, "dap_client", "debug_more", false);
-    s_client_timeout_read_after_connect_seconds = (time_t) dap_config_get_item_uint32_default(g_config,
-                                                  "dap_client","timeout_read_after_connect", s_client_timeout_read_after_connect_seconds);
+    s_client_timeout_active_after_connect_seconds = (time_t) dap_config_get_item_uint32_default(g_config,
+                                                  "dap_client","timeout_active_after_connect", s_client_timeout_active_after_connect_seconds);
 
     return 0;
 }
@@ -218,7 +218,7 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
     dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
     assert(a_client_pvt->stream_es);
     *l_es_uuid_ptr = a_client_pvt->stream_es->uuid;
-    if( dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_read_after_connect_seconds * 1000, s_stream_timer_timeout_after_connected_check ,l_es_uuid_ptr) == NULL ){
+    if( dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_active_after_connect_seconds * 1000, s_stream_timer_timeout_after_connected_check ,l_es_uuid_ptr) == NULL ){
         log_it(L_ERROR,"Can't run timer for stream after connect check for esocket uuid %"DAP_UINT64_FORMAT_U, *l_es_uuid_ptr);
         DAP_DEL_Z(l_es_uuid_ptr);
     }
@@ -282,7 +282,7 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
     if( l_es ){
         dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *)l_es->_inheritor;
         if (dap_client_pvt_find(l_client_pvt->uuid)) {
-            if ( time(NULL)- l_client_pvt->ts_last_read >= s_client_timeout_read_after_connect_seconds){
+            if ( time(NULL)- l_client_pvt->ts_last_active >= s_client_timeout_active_after_connect_seconds){
 
                 log_it(L_WARNING,"Activity timeout for streaming uplink http://%s:%u/, possible network problems or host is down",
                        l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
@@ -527,7 +527,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             assert(a_client_pvt->stream_es);
                             dap_events_socket_uuid_t * l_stream_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
                             *l_stream_es_uuid_ptr  = a_client_pvt->stream_es->uuid;
-                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_seconds * 1000,
+                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_active_after_connect_seconds * 1000,
                                                         s_stream_timer_timeout_check,l_stream_es_uuid_ptr);
                         }
                         else if (l_err != EINPROGRESS && l_err != -1){
@@ -556,7 +556,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                             dap_worker_add_events_socket( a_client_pvt->stream_es, l_worker);
                             dap_events_socket_uuid_t * l_stream_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
                             *l_stream_es_uuid_ptr = a_client_pvt->stream_es->uuid;
-                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_seconds * 1000,
+                            dap_timerfd_start_on_worker(a_client_pvt->worker, (unsigned long)s_client_timeout_active_after_connect_seconds * 1000,
                                                         s_stream_timer_timeout_check,l_stream_es_uuid_ptr);
                         }
                     }
@@ -1272,7 +1272,7 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
     (void) arg;
     dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) a_es->_inheritor;
 
-    l_client_pvt->ts_last_read = time(NULL);
+    l_client_pvt->ts_last_active = time(NULL);
     switch (l_client_pvt->stage) {
         case STAGE_STREAM_SESSION:
             dap_client_go_stage(l_client_pvt->client, STAGE_STREAM_STREAMING, s_stage_stream_streaming);
@@ -1317,7 +1317,7 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
 {
     (void) arg;
     dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
-
+    l_client_pvt->ts_last_active = time(NULL);
     if (l_client_pvt->stage_status == STAGE_STATUS_ERROR || !l_client_pvt->stream)
         return;
     switch (l_client_pvt->stage) {

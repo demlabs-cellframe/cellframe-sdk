@@ -554,7 +554,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
     dap_chain_net_srv_stream_session_t * l_srv_session =
             (dap_chain_net_srv_stream_session_t *) l_stream_session->_inheritor;
 
-    dap_chain_net_srv_vpn_t* l_srv_vpn = (dap_chain_net_srv_vpn_t*) a_srv->_inhertor;
+    //dap_chain_net_srv_vpn_t* l_srv_vpn = (dap_chain_net_srv_vpn_t*) a_srv->_internal;
     //a_srv_client->ch->
     dap_chain_net_t * l_net = dap_chain_net_by_id(l_success->hdr.net_id);
     dap_chain_net_srv_usage_t *l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, a_srv);
@@ -636,29 +636,29 @@ static int s_callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t 
 int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
     dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(l_uid);
-    dap_chain_net_srv_vpn_t* l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*) l_srv->_inhertor : NULL;
+    dap_chain_net_srv_vpn_t* l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*) l_srv->_internal : NULL;
     // if vpn server disabled
     if(!l_srv_vpn) {
         l_srv_vpn = DAP_NEW_Z(dap_chain_net_srv_vpn_t);
         if(l_srv)
-            l_srv->_inhertor = l_srv_vpn;
+            l_srv->_internal = l_srv_vpn;
         dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in, s_ch_packet_out);
         pthread_mutex_init(&s_sf_socks_mutex, NULL);
         pthread_cond_init(&s_sf_socks_cond, NULL);
     }
 
 
-    if(!dap_chain_net_srv_remote_init(l_uid, s_callback_requested,
+    /*if(!dap_chain_net_srv_remote_init(l_uid, s_callback_requested,
             s_callback_response_success, s_callback_response_error,
             s_callback_receipt_next_success,
             s_callback_client_success,
             s_callback_client_sign_request,
             l_srv_vpn)) {
         l_srv = dap_chain_net_srv_get(l_uid);
-        //l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*)l_srv->_inhertor : NULL;
+        //l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*)l_srv->_internal : NULL;
         //l_srv_vpn->parent = l_srv;
-        l_srv->_inhertor = l_srv_vpn;
-    }
+        l_srv->_internal = l_srv_vpn;
+    }*/
     l_srv_vpn->parent = (dap_chain_net_srv_t*) l_srv;
 
     return 0;
@@ -782,7 +782,7 @@ static int s_vpn_service_create(dap_config_t * g_config)
                                                         s_callback_receipt_next_success);
 
     dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z( dap_chain_net_srv_vpn_t);
-    l_srv->_inhertor = l_srv_vpn;
+    l_srv->_internal = l_srv_vpn;
     l_srv_vpn->parent = l_srv;
 
     // Read if we need to dump all pkt operations
@@ -1059,7 +1059,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
 {
     (void) arg;
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(a_ch);
-    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
+    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_internal;
 
 
     // So complicated to update usage client to be sure that nothing breaks it
@@ -1229,7 +1229,7 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
  */
 static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv_usage_t * a_usage){
     dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
-    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) a_usage->service->_inhertor;
+    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) a_usage->service->_internal;
     dap_chain_net_srv_stream_session_t * l_srv_session= DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
 
     if (! s_raw_server)
@@ -1412,7 +1412,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
 
     // TODO move address leasing to this structure
-    //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_inhertor;
+    //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_internal;
 
     ch_vpn_pkt_t * l_vpn_pkt = (ch_vpn_pkt_t *) l_pkt->data;
     size_t l_vpn_pkt_size = l_pkt->hdr.size - sizeof (l_vpn_pkt->header);

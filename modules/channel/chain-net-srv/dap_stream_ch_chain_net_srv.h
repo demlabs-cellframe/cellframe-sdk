@@ -24,7 +24,7 @@
 
 #pragma once
 
-#include "dap_chain_net_srv_common.h"
+#include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_net_srv_stream_session.h"
 
