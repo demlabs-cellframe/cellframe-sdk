@@ -37,7 +37,7 @@ static uint16_t s_size_white_list = 0;
 
 /**
  * @brief Packs members of a_rec structure into a single string.
- * 
+ *
  * @param a_rec a pointer to the structure
  * @return Returns the string.
  */
@@ -50,10 +50,10 @@ static char* dap_db_history_pack_hist(dap_global_db_hist_t *a_rec)
 
 /**
  * @brief Unpacks a single string into a structure.
- * 
+ *
  * @param l_str_in the string
  * @param a_rec_out the structure
- * @return Returns 1 if successful, otherwise -1. 
+ * @return Returns 1 if successful, otherwise -1.
  */
 static int dap_db_history_unpack_hist(char *l_str_in, dap_global_db_hist_t *a_rec_out)
 {
@@ -71,7 +71,7 @@ static int dap_db_history_unpack_hist(char *l_str_in, dap_global_db_hist_t *a_re
 
 /**
  * @brief Gets a current time with a suffix.
- * 
+ *
  * @return Returns a string containing a current time and a suffix.
  */
 static char* dap_db_new_history_timestamp()
@@ -101,18 +101,20 @@ static char* dap_db_new_history_timestamp()
 
 /**
  * @brief Adds data to the history log.
- * 
+ *
  * @param a_type a type of record
  * @param a_store_obj a pointer to the object structure
  * @param a_dap_store_count a number of objects
  * @param a_group a group name string
  * @return Returns true if successful, otherwise false.
  */
-bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_store_count, const char *a_group)
+bool dap_db_history_add(uint32_t a_type, dap_store_obj_t *a_store_obj, size_t a_dap_store_count, const char *a_group)
 {
     if(!a_store_obj || a_dap_store_count <= 0)
         return false;
+
     dap_global_db_hist_t l_rec;
+
     l_rec.keys_count = a_dap_store_count;
     l_rec.type = a_type;
     // group name should be always the same
@@ -154,7 +156,7 @@ bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_
 
 /**
  * @brief Gets last id of the log.
- * 
+ *
  * @param a_group_name a group name string
  * @return Returns id if succeessful.
  */
@@ -171,7 +173,7 @@ uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
 
 /**
  * @brief Gets last id of local.history group.
- * 
+ *
  * @return Returns id if succeess.
  */
 uint64_t dap_db_log_get_last_id(void)
@@ -181,7 +183,7 @@ uint64_t dap_db_log_get_last_id(void)
 
 /**
  * @brief A function for a thread for reading a log list
- * 
+ *
  * @param arg a pointer to the log list structure
  * @return Returns NULL.
  */
@@ -250,7 +252,7 @@ static void *s_list_thread_proc(void *arg)
 /**
  * @brief Starts a thread that readding a log list
  * @note instead dap_db_log_get_list()
- * 
+ *
  * @param a_addr a pointer to the structure
  * @param a_flags flags
  * @return Returns a pointer to the log list structure if successful, otherwise NULL pointer.
@@ -276,23 +278,23 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
     static uint16_t s_size_ban_list = 0;
     static char **s_ban_list = NULL;
 
-	static uint16_t s_size_white_list = 0;
-	static char **s_white_list = NULL;
+    static uint16_t s_size_white_list = 0;
+    static char **s_white_list = NULL;
 
     static bool l_try_read_ban_list = false;
-	static bool l_try_read_white_list = false;
+    static bool l_try_read_white_list = false;
 
     if (!l_try_read_ban_list) {
             s_ban_list = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_list);
             l_try_read_ban_list = true;
     }
-	if (!l_try_read_white_list) {
-			s_white_list = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_list);
-			l_try_read_white_list = true;
-	}
+    if (!l_try_read_white_list) {
+            s_white_list = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_list);
+            l_try_read_white_list = true;
+    }
 
-	/* delete if not condition */
-	if (s_size_white_list > 0) {
+    /* delete if not condition */
+    if (s_size_white_list > 0) {
         for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; ) {
             bool l_found = false;
             for (int i = 0; i < s_size_white_list; i++) {
@@ -305,10 +307,10 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
                     dap_list_t *l_tmp = l_groups->next;
                     l_dap_db_log_list->groups = dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
                     l_groups = l_tmp;
-			}
+            }
             l_groups = dap_list_next(l_groups);
         }
-	} else if (s_size_ban_list > 0) {
+    } else if (s_size_ban_list > 0) {
         for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; ) {
             bool l_found = false;
             for (int i = 0; i < s_size_ban_list; i++) {
@@ -349,7 +351,7 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
 
 /**
  * @brief Gets a number of objects from a log list.
- * 
+ *
  * @param a_db_log_list a pointer to the log list structure
  * @return Returns the number if successful, otherwise 0.
  */
@@ -366,7 +368,7 @@ size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list)
 
 /**
  * @brief Gets a number of rest objects from a log list.
- * 
+ *
  * @param a_db_log_list a pointer to the log list structure
  * @return Returns the number if successful, otherwise 0.
  */
@@ -383,7 +385,7 @@ size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
 
 /**
  * @brief Gets an object from a list.
- * 
+ *
  * @param a_db_log_list a pointer to the log list
  * @return Returns a pointer to the object.
  */
@@ -406,7 +408,7 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 
 /**
  * @brief Deallocates memory of a list item
- * 
+ *
  * @param a_item a pointer to the list item
  * @returns (none)
  */
@@ -419,7 +421,7 @@ void dap_db_log_list_delete_item(void *a_item)
 
 /**
  * @brief Deallocates memory of a log list.
- * 
+ *
  * @param a_db_log_list a pointer to the log list structure
  * @returns (none)
  */
