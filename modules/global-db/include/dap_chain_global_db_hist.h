@@ -19,7 +19,7 @@ typedef struct dap_global_db_hist {
 } dap_global_db_hist_t;
 
 //Add data to the history log
-bool dap_db_history_add(char a_type, pdap_store_obj_t a_store_obj, size_t a_dap_store_count, const char *a_group);
+bool dap_db_history_add(uint32_t a_type, dap_store_obj_t *a_store_obj, size_t a_dap_store_count, const char *a_group);
 
 // for dap_db_log_list_xxx()
 

@@ -59,8 +59,7 @@ bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name )
  */
 bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
 {
-    time_t l_cur_time = time(NULL);
-    return dap_db_set_cur_node_addr_common(a_address,a_net_name,l_cur_time);
+    return dap_db_set_cur_node_addr_common(a_address,a_net_name, time(NULL));
 }
 
 /**
@@ -73,7 +72,7 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 {
 char	l_key[DAP_DB_K_MAXKEYLEN], l_key_time[DAP_DB_K_MAXKEYLEN];
 uint8_t *l_node_addr_data, *l_node_time_data;
-    size_t l_node_addr_len = 0, l_node_time_len = 0;
+size_t l_node_addr_len = 0, l_node_time_len = 0;
 uint64_t l_node_addr_ret = 0;
 time_t l_node_time = 0;
 
@@ -86,10 +85,10 @@ time_t l_node_time = 0;
     l_node_addr_data = dap_chain_global_db_gr_get(l_key, &l_node_addr_len, GROUP_LOCAL_GENERAL);
     l_node_time_data = dap_chain_global_db_gr_get(l_key_time, &l_node_time_len, GROUP_LOCAL_GENERAL);
 
-    if(l_node_addr_data && l_node_addr_len == sizeof(uint64_t))
+    if(l_node_addr_data && (l_node_addr_len == sizeof(uint64_t)) )
         l_node_addr_ret = *( (uint64_t *) l_node_addr_data );
 
-    if(l_node_time_data && l_node_time_len == sizeof(time_t))
+    if(l_node_time_data && (l_node_time_len == sizeof(time_t)) )
         l_node_time = *( (time_t *) l_node_time_data );
 
     DAP_DELETE(l_node_addr_data);
@@ -252,38 +251,41 @@ void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
  * @param a_store_obj a pointer to the object to be serialized
  * @return Returns a pointer to the packed sructure if successful, otherwise NULL.
  */
-dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj)
+dap_store_obj_pkt_t *dap_store_packet_single(dap_store_obj_t *a_store_obj)
 {
+int len;
+unsigned char *pdata;
+
     if (!a_store_obj)
         return NULL;
 
     uint32_t l_data_size_out = dap_db_get_size_pdap_store_obj_t(a_store_obj);
     dap_store_obj_pkt_t *l_pkt = DAP_NEW_SIZE(dap_store_obj_pkt_t, l_data_size_out + sizeof(dap_store_obj_pkt_t));
+
+    /* Fill packet header */
     l_pkt->data_size = l_data_size_out;
     l_pkt->obj_count = 1;
     l_pkt->timestamp = 0;
-    uint32_t l_type = a_store_obj->type;
-    memcpy(l_pkt->data, &l_type, sizeof(uint32_t));
-    uint64_t l_offset = sizeof(uint32_t);
-    uint16_t l_group_size = (uint16_t) dap_strlen(a_store_obj->group);
-    memcpy(l_pkt->data + l_offset, &l_group_size, sizeof(uint16_t));
-    l_offset += sizeof(uint16_t);
-    memcpy(l_pkt->data + l_offset, a_store_obj->group, l_group_size);
-    l_offset += l_group_size;
-    memcpy(l_pkt->data + l_offset, &a_store_obj->id, sizeof(uint64_t));
-    l_offset += sizeof(uint64_t);
-    memcpy(l_pkt->data + l_offset, &a_store_obj->timestamp, sizeof(uint64_t));
-    l_offset += sizeof(uint64_t);
-    uint16_t l_key_size = (uint16_t) dap_strlen(a_store_obj->key);
-    memcpy(l_pkt->data + l_offset, &l_key_size, sizeof(uint16_t));
-    l_offset += sizeof(uint16_t);
-    memcpy(l_pkt->data + l_offset, a_store_obj->key, l_key_size);
-    l_offset += l_key_size;
-    memcpy(l_pkt->data + l_offset, &a_store_obj->value_len, sizeof(uint64_t));
-    l_offset += sizeof(uint64_t);
-    memcpy(l_pkt->data + l_offset, a_store_obj->value, a_store_obj->value_len);
-    l_offset += a_store_obj->value_len;
-    assert(l_offset == l_data_size_out);
+
+    /* Put serialized data into the payload part of the packet */
+    pdata = l_pkt->data;
+    *( (uint32_t *) pdata) =  a_store_obj->type;                pdata += sizeof(uint32_t);
+
+    len = dap_strlen(a_store_obj->group);
+    *( (uint16_t *) pdata) = (uint16_t) len;                    pdata += sizeof(uint16_t);
+    memcpy(pdata, a_store_obj->group, len);                     pdata += len;
+
+    *( (uint64_t *) pdata) = a_store_obj->id;                   pdata += sizeof(uint64_t);
+    *( (uint64_t *) pdata) = a_store_obj->timestamp;            pdata += sizeof(uint64_t);
+
+    len = dap_strlen(a_store_obj->key);
+    *( (uint16_t *) pdata) = (uint16_t) len;                    pdata += sizeof(uint16_t);
+    memcpy(pdata, a_store_obj->key, len);                       pdata += len;
+
+    *( (uint64_t *) pdata) = a_store_obj->value_len;            pdata += sizeof(uint64_t);
+    memcpy(pdata, a_store_obj->value, a_store_obj->value_len);  pdata += a_store_obj->value_len;
+
+    assert( (pdata - l_pkt->data) == l_data_size_out);
     return l_pkt;
 }
 
@@ -347,8 +349,11 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *pkt, siz
         memcpy((char *)obj->value, pkt->data + offset, obj->value_len);
         offset += obj->value_len;
     }
+
     assert(pkt->data_size == offset);
+
     if(store_obj_count)
         *store_obj_count = count;
+
     return store_obj;
 }

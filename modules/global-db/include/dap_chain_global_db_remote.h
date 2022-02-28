@@ -19,7 +19,7 @@ bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap
 // Get last hash for chain for remote node
 dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain);
 
-dap_store_obj_pkt_t *dap_store_packet_single(pdap_store_obj_t a_store_obj);
+dap_store_obj_pkt_t *dap_store_packet_single(dap_store_obj_t *a_store_obj);
 dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt);
 dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, size_t *a_store_obj_count);
 char *dap_store_packet_get_group(dap_store_obj_pkt_t *a_pkt);
