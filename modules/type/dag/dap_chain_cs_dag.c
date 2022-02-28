@@ -376,9 +376,12 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             return DAP_CHAIN_DATUM_CA;
         }
         break;
-	case DAP_CHAIN_DATUM_SIGNER: {
-		return 0;
+        case DAP_CHAIN_DATUM_SIGNER: {
+            return 0;
     	}
+        case DAP_CHAIN_DATUM_CUSTOM: {
+            return 0;
+        }
         default:
             return -1;
     }
@@ -487,6 +490,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         case DAP_CHAIN_DATUM_CA:
             if(s_debug_more)
                 log_it(L_DEBUG, "... DATUM_CA");
+            break;
+        case DAP_CHAIN_DATUM_CUSTOM:
+            if(s_debug_more)
+                log_it(L_DEBUG, "... DATUM_CUSTOM");
             break;
         default:
             if (s_debug_more)
