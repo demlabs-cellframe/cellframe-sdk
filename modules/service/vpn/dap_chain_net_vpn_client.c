@@ -136,6 +136,98 @@ dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void)
  }*/
 
 /**
+ * @brief s_callback_client_success
+ * @param a_srv
+ * @param a_usage_id
+ * @param a_srv_client
+ * @param a_success
+ * @param a_success_size
+ * @return
+ */
+static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
+                    const void * a_success, size_t a_success_size)
+{
+    if(!a_srv || !a_srv_client || !a_srv_client->stream_worker || !a_success || a_success_size < sizeof(dap_stream_ch_chain_net_srv_pkt_success_t))
+        return -1;
+    dap_stream_ch_chain_net_srv_pkt_success_t * l_success = (dap_stream_ch_chain_net_srv_pkt_success_t*) a_success;
+
+    dap_stream_session_lock();
+    dap_stream_session_t *l_stream_session = dap_stream_session_id_unsafe(a_srv_client->session_id);
+    dap_chain_net_srv_stream_session_t * l_srv_session =
+            (dap_chain_net_srv_stream_session_t *) l_stream_session->_inheritor;
+
+    //dap_chain_net_srv_vpn_t* l_srv_vpn = (dap_chain_net_srv_vpn_t*) a_srv->_internal;
+    //a_srv_client->ch->
+    dap_chain_net_t * l_net = dap_chain_net_by_id(l_success->hdr.net_id);
+    dap_chain_net_srv_usage_t *l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, a_srv);
+    if(!l_usage){
+        dap_stream_session_unlock();
+        return -2;
+    }
+
+    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =
+            (dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
+                    a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
+    if ( ! l_srv_ch_vpn ){
+        log_it(L_ERROR, "No VPN service stream channel, its closed?");
+        return -3;
+    }
+    l_srv_ch_vpn->usage_id = l_usage->id;
+    l_usage->is_active = true;
+    l_usage->is_free = true;
+
+    dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
+
+
+    if(l_ch) { // Is present in hash table such destination address
+        size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
+        ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
+
+        pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST;
+        //pkt_out->header.sock_id = l_stream->stream->events_socket->socket;
+        //pkt_out->header.op_connect.addr_size = l_ipv4_str_len; //remoteAddrBA.length();
+        //pkt_out->header.op_connect.port = a_port;
+        //memcpy(pkt_out->data, a_ipv4_str, l_ipv4_str_len);
+
+        dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+        dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
+        //DAP_DELETE(pkt_out);
+    }
+
+    // usage is present, we've accepted packets
+    dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
+    return 0;
+}
+
+/**
+ * @brief callback_client_sign_request
+ * @param a_srv
+ * @param a_usage_id
+ * @param a_srv_client
+ * @param a_receipt
+ * @param a_receipt_size
+ * @return
+ */
+static int s_callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
+                    dap_chain_datum_tx_receipt_t **a_receipt, size_t a_receipt_size)
+{
+    dap_chain_datum_tx_receipt_t *l_receipt = *a_receipt;
+    char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
+    char *l_wallet_name = (char*) dap_chain_global_db_gr_get(dap_strdup("wallet_name"), NULL, l_gdb_group);
+
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, dap_chain_wallet_get_path(g_config));
+    if(l_wallet) {
+        dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
+        *a_receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, l_enc_key);
+        dap_chain_wallet_close(l_wallet);
+    }
+    DAP_DELETE(l_gdb_group);
+    DAP_DELETE(l_wallet_name);
+    return 0;
+}
+
+/**
  * Get tx_cond_hash
  *
  * return: 0 Ok, 1 Already started, <0 Error
@@ -691,8 +783,19 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
             "vpn_client check result -net <net name> [-H hex|base58(default)]\n"
             );
 
-
-    return dap_chain_net_srv_client_vpn_init(g_config);
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
+    /*if(!dap_chain_net_srv_remote_init(l_uid, s_callback_requested,
+            s_callback_response_success, s_callback_response_error,
+            s_callback_receipt_next_success,
+            s_callback_client_success,
+            s_callback_client_sign_request,
+            l_srv_vpn)) {
+        l_srv = dap_chain_net_srv_get(l_uid);
+        //l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*)l_srv->_internal : NULL;
+        //l_srv_vpn->parent = l_srv;
+        l_srv->_internal = l_srv_vpn;
+    }*/
+    return 0;
 }
 
 void dap_chain_net_vpn_client_deinit()

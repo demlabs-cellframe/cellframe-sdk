@@ -35,23 +35,26 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 typedef struct dap_chain_net_srv_client dap_chain_net_srv_client_t;
 
-typedef void (*dap_chain_net_srv_client_callback_t)(dap_chain_net_srv_client_t *, void *);
-typedef int  (*dap_chain_net_srv_client_callback_sign_request_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, dap_chain_datum_tx_receipt_t **, size_t );
+typedef void   (*dap_chain_net_srv_client_callback_t)(dap_chain_net_srv_client_t *, void *);
+typedef void   (*dap_chain_net_srv_client_callback_test_t)(dap_chain_net_srv_client_t *, dap_stream_ch_chain_net_srv_pkt_test_t *, void *);
+typedef void   (*dap_chain_net_srv_client_callback_success_t)(dap_chain_net_srv_client_t *, dap_stream_ch_chain_net_srv_pkt_success_t *, size_t, void *);
+typedef void   (*dap_chain_net_srv_client_callback_error_t)(dap_chain_net_srv_client_t *, int, void *);
+typedef int    (*dap_chain_net_srv_client_callback_sign_t)(dap_chain_net_srv_client_t *, dap_chain_datum_tx_receipt_t **, void *);
+typedef void * (*dap_chain_net_srv_client_data_t)(dap_chain_net_srv_client_t *, void *, size_t *, void *);
 
 typedef struct dap_chain_net_srv_client_callbacks {
     dap_chain_net_srv_client_callback_t connected;
     dap_chain_net_srv_client_callback_t disconnected;
     dap_chain_net_srv_client_callback_t deleted;
-    dap_stream_ch_callback_packet_t pkt_in;
+    dap_chain_net_srv_client_callback_test_t test;          // Client has got response for test
+    dap_chain_net_srv_client_callback_success_t success;    // Client has started service
+    dap_chain_net_srv_client_callback_error_t error;        // Client recieved an error
+    dap_chain_net_srv_client_callback_sign_t sign;          // Cleint has got receipt for sign
+    dap_chain_net_srv_client_data_t data;                   // Client has got custom data response
 } dap_chain_net_srv_client_callbacks_t;
 
 typedef struct dap_chain_net_srv_client {
     dap_chain_net_srv_client_callbacks_t callbacks;
-
-    // Client have to start service
-    dap_chain_net_srv_callback_data_t callback_client_success;
-    // Client have to sign receipt
-    dap_chain_net_srv_client_callback_sign_request_t callback_client_sign_request;
     void *callbacks_arg;
     dap_stream_ch_uuid_t ch_uuid;
     dap_chain_node_client_t *node_client;

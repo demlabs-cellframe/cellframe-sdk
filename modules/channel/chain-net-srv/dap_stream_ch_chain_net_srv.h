@@ -36,6 +36,7 @@ typedef void (*dap_stream_ch_chain_net_srv_callback_packet_t)(dap_stream_ch_chai
 typedef struct dap_stream_ch_chain_net_srv {
     pthread_mutex_t mutex;
     dap_chain_net_srv_uid_t srv_uid;
+    dap_stream_ch_t *ch;
     dap_stream_ch_chain_net_srv_callback_packet_t notify_callback;
     void *notify_callback_arg;
 } dap_stream_ch_chain_net_srv_t;
