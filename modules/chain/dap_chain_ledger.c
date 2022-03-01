@@ -373,16 +373,16 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     dap_chain_datum_token_t *l_token_cache = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, a_token_size);
 
     //
-    //  init current_supply when token is created
+    // init current_supply value in token_declaration procedure (ledger cache and ledger memory object)
     //
 
     l_token_item->datum_token->header_private.current_supply = a_token->header_private.total_supply;
     l_token_item->total_supply = a_token->header_private.total_supply;
 
     l_token_item->current_supply = l_token_item->total_supply;
-    a_token->header_private.current_supply = l_token_item->total_supply;
 
     memcpy(l_token_cache, a_token, a_token_size);
+    l_token_cache->header_private.current_supply = l_token_item->total_supply;
 
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
     if (!dap_chain_global_db_gr_set(dap_strdup(a_token->ticker), l_token_cache, a_token_size, l_gdb_group)) {
@@ -991,9 +991,9 @@ static void s_treshold_txs_proc( dap_ledger_t *a_ledger)
 /**
  * @brief update current_supply in token cache
  * 
- * @param a_ledger 
- * @param l_token_item 
- * @param l_emission_value 
+ * @param a_ledger ledger object
+ * @param l_token_item token item object
+ * @param l_emission_value size of emission
  * @return true 
  * @return false 
  */
@@ -1003,61 +1003,52 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
 
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
     size_t l_objs_count = 0;
-    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
+    size_t token_len = sizeof(dap_chain_datum_token_t);
 
-    for (size_t i = 0; i < l_objs_count; i++) {
-        dap_chain_ledger_token_item_t *l_token_item_iter = DAP_NEW_Z(dap_chain_ledger_token_item_t);
+    //
+    // Get dap_chain_datum_token_t token object from GDB, key is token name
+    //
+    
+    dap_chain_datum_token_t *l_token_for_update = (dap_chain_datum_token_t *) dap_chain_global_db_gr_get(dap_strdup(l_token_item->ticker), &l_objs_count, l_gdb_group);
+    dap_chain_datum_token_t *l_token_cache = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, token_len);
 
-        strncpy(l_token_item_iter->ticker, l_objs[i].key, sizeof(l_token_item->ticker) - 1);
-        l_token_item_iter->ticker[sizeof(l_token_item->ticker) - 1] = '\0';        
+    memcpy(l_token_cache, l_token_for_update,  token_len);
 
-        if (strcmp(l_token_item->ticker, l_token_item_iter->ticker) == 0)
-        {
-                size_t token_len = l_objs[i].value_len;
+    //
+    // Update current_supply or stop operation
+    //
 
-                // load cache body in datum_token
-                l_token_item_iter->datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_objs[i].value_len);
-                memcpy(l_token_item_iter->datum_token, l_objs[i].value, l_objs[i].value_len);
+    if (l_token_cache->header_private.current_supply >= l_emission_value)
+    {
+       l_token_cache->header_private.current_supply -= l_emission_value;
+       log_it(L_DEBUG,"New current supply %lld for token %s", l_token_cache->header_private.current_supply, l_token_item->ticker);
 
-                // also we can copy l_token_item->datum token to l_token_cache
-                
-                dap_chain_datum_token_t *l_token_cache = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, token_len);
-                memcpy(l_token_cache, l_token_item->datum_token,  sizeof(dap_chain_datum_token_t));
+       // Update value in ledger memory object
 
-                l_token_cache->header_private.total_supply = l_token_item_iter->datum_token->header_private.total_supply;
-                l_token_cache->header_private.current_supply = l_token_item_iter->datum_token->header_private.current_supply;
+       l_token_item->current_supply = l_token_cache->header_private.current_supply;
+    }                
+    else
+    {
+       log_it(L_WARNING,"Token current supply %lld lower, than emission value = %lld", l_token_cache->header_private.current_supply, 
+                                        l_emission_value);
 
-                if (l_token_cache->header_private.current_supply >= l_emission_value)
-                {
-                   l_token_cache->header_private.current_supply -= l_emission_value;
-                   log_it(L_DEBUG,"New current supply %lld for token %s", l_token_cache->header_private.current_supply, l_token_item->ticker);
-
-                    //Update value in ledger memory object
-
-                   l_token_item->current_supply = l_token_cache->header_private.current_supply;
-                }                
-                else
-                {
-                   log_it(L_WARNING,"Token current supply %lld lower, than emission value = %lld", l_token_cache->header_private.current_supply, 
-                                                    l_emission_value);
-
-                   DAP_DELETE(l_gdb_group);
-                   DAP_DELETE(l_token_cache);
-                   return false;
-                }   
-                 
-                if (!dap_chain_global_db_gr_set(dap_strdup(l_token_item->ticker), l_token_cache, l_objs[i].value_len, l_gdb_group)) 
-                {
-                   if(s_debug_more)
-                      log_it(L_WARNING, "Ledger cache mismatch");
-                   DAP_DELETE(l_token_cache);
-                }
             DAP_DELETE(l_gdb_group);
-        }
+            DAP_DELETE(l_token_cache);
+            return false;
+    }   
+          
+    if (!dap_chain_global_db_gr_set(dap_strdup(l_token_item->ticker), l_token_cache, token_len, l_gdb_group)) 
+    {
+        if(s_debug_more)
+            log_it(L_WARNING, "Ledger cache mismatch");
+        DAP_DELETE(l_token_cache);
     }
+
+    DAP_DELETE(l_gdb_group);
 
     return true;
 }
+
 
 void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
 {
