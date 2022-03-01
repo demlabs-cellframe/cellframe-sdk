@@ -47,6 +47,7 @@ typedef struct dap_chain_cs_blocks_session_items {
 
 	dap_list_t *validators_list; // dap_chain_node_addr_t 
 	uint16_t validators_count;
+	dap_chain_node_addr_t * attempt_coordinator; // валидатор-координатор в текущей попытки
 
 	//uint16_t startsync_count;
 	dap_list_t *validators_start; // dap_chain_node_addr_t
@@ -54,9 +55,11 @@ typedef struct dap_chain_cs_blocks_session_items {
 
 	// dap_timerfd_t* timer_consensus_finish;
 	// dap_timerfd_t* timer_consensus_cancel;
-	dap_chain_time_t ts_consensus_start;
-	dap_chain_time_t ts_consensus_state_commit;
-	dap_chain_time_t ts_consensus_finish;
+
+	dap_chain_time_t ts_round_start_sync; // time in last sync message
+	dap_chain_time_t ts_round_start;
+	dap_chain_time_t ts_round_state_commit;
+	dap_chain_time_t ts_round_finish;
 
 	dap_chain_blocks_session_round_id_t round_id;
 	uint8_t state;
@@ -70,6 +73,12 @@ typedef struct dap_chain_cs_blocks_session_items {
 
     struct dap_chain_cs_blocks_session_items * next;
     struct dap_chain_cs_blocks_session_items * prev;
+
+	uint32_t session_idle_min; // время между раундами (минимальное в нашем случае + округление времени ) - заменить consensus_start_period
+	uint16_t round_candidates_max; // всего кандидатов участвующих в раунде
+	uint16_t next_candidate_delay; // задежка предложения следующего кандидата (в зависимости от приоритетов валидатора)
+	uint16_t round_attempts_max; // всего попыток в раунде
+	uint16_t round_attempt_duration; // длительность попытки
 
     pthread_rwlock_t rwlock;
 
