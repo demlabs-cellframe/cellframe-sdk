@@ -455,7 +455,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 {
 int  l_errno;
 char l_errbuf[128] = {0}, l_mq_name[64] = {0};
-struct mq_attr l_mq_attr = {0};
+struct mq_attr l_mq_attr;
 
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
@@ -485,6 +485,7 @@ struct mq_attr l_mq_attr = {0};
 
 #ifdef DAP_EVENTS_CAPS_QUEUE_MQUEUE
     l_es->mqd_id = a_es->mqd_id;
+    memset(&l_mq_attr, 0, sizeof(l_mq_attr));
     l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
     l_mq_attr.mq_msgsize = sizeof (void*);                                  // We send only pointer on memory (???!!!),
                                                                             // so use it with shared memory if you do access from another process
@@ -566,7 +567,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 {
 int  l_errno;
 char l_errbuf[128] = {0}, l_mq_name[64] = {0};
-struct mq_attr l_mq_attr = {0};
+struct mq_attr l_mq_attr;
 static atomic_uint l_mq_last_number = 0;
 
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
@@ -655,6 +656,7 @@ static atomic_uint l_mq_last_number = 0;
 #endif
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+    memset(&l_mq_attr, 0, sizeof(l_mq_attr));
     l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
     l_mq_attr.mq_msgsize = sizeof (void*);                                  // We send only pointer on memory (???!!!),
                                                                             // so use it with shared memory if you do access from another process
