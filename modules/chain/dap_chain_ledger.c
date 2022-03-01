@@ -1100,6 +1100,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         size_t l_token_size = l_objs[i].value_len;
         l_token_item->datum_token = dap_chain_datum_token_read(l_objs[i].value, &l_token_size);
         pthread_rwlock_init(&l_token_item->token_emissions_rwlock, NULL);
+        l_token_item->type = l_token_item->datum_token->type;
         // test tsd
         // size_t signs_total = 0, signs_valid = 0, l_token_size_test = l_token_size - sizeof(dap_chain_datum_token_t) + sizeof(dap_chain_datum_token_old_t);
         // dap_sign_t **sign = dap_chain_datum_token_simple_signs_parse( l_token_item->datum_token, l_token_size_test, &signs_total, &signs_valid);
