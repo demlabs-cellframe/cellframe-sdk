@@ -1445,6 +1445,41 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 }
 
 /**
+ * @brief 
+ * 
+ * @param l_net 
+ * @return true 
+ * @return false 
+ */
+bool s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
+{
+    dap_chain_ledger_purge(l_net->pub.ledger, false);
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) 
+    {
+        if (l_chain->callback_purge) 
+            l_chain->callback_purge(l_chain);
+
+        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) 
+            dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
+        else 
+            dap_chain_load_all(l_chain);
+        }
+    bool l_processed;
+        do {
+            l_processed = false;
+            DL_FOREACH(l_net->pub.chains, l_chain) {
+               if (l_chain->callback_atom_add_from_treshold) {
+                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                        log_it(L_DEBUG, "Added atom from treshold");
+                        l_processed = true;
+                    }
+                }
+            }
+        } while (l_processed);
+}
+
+/**
  * @brief update ledger cache at once
  * if you node build need ledger cache one time reload, uncomment this function
  * iat the end of s_net_load
@@ -1505,20 +1540,7 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
     //
 
     if (dap_file_simple_test(l_cache_file))
-    {
-        dap_chain_ledger_purge(l_net->pub.ledger, false);
-        dap_chain_t *l_chain = NULL;
-        DL_FOREACH(l_net->pub.chains, l_chain) 
-        {
-            if (l_chain->callback_purge) 
-                l_chain->callback_purge(l_chain);
-
-            if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) 
-                dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
-            else 
-                dap_chain_load_all(l_chain);
-        }
-    } 
+        s_chain_net_ledger_cache_reload(l_net);
 
     return true; 
 }
@@ -1898,31 +1920,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                                                   "Subcommand 'ca' requires one of parameter: add, list, del\n");
                 ret = -5;
             }
-        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
-            dap_chain_ledger_purge(l_net->pub.ledger, false);
-            dap_chain_t *l_chain;
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-                if (l_chain->callback_purge) {
-                    l_chain->callback_purge(l_chain);
-                }
-                if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) {
-                    dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
-                } else {
-                    dap_chain_load_all(l_chain);
-                }
-            }
-            bool l_processed;
-            do {
-                l_processed = false;
-                DL_FOREACH(l_net->pub.chains, l_chain) {
-                    if (l_chain->callback_atom_add_from_treshold) {
-                        while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                            log_it(L_DEBUG, "Added atom from treshold");
-                        }
-                    }
-                }
-            } while (l_processed);
-        } else {
+        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) 
+        {
+           s_chain_net_ledger_cache_reload(l_net);
+        } 
+        else 
+        {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                                               "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
             ret = -1;
