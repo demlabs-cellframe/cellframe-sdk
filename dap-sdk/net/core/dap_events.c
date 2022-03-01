@@ -106,8 +106,8 @@ static dap_events_t * s_events_default = NULL;
 
 /**
  * @brief dap_get_cpu_count
- * 
- * @return uint32_t 
+ *
+ * @return uint32_t
  */
 uint32_t dap_get_cpu_count( )
 {
@@ -123,7 +123,7 @@ uint32_t dap_get_cpu_count( )
   CPU_ZERO( &cs );
 #endif
 
-#if defined (DAP_OS_ANDROID) 
+#if defined (DAP_OS_ANDROID)
   sched_getaffinity( 0, sizeof(cs), &cs );
 #elif defined (DAP_OS_DARWIN)
   int count=0;
@@ -151,8 +151,8 @@ uint32_t dap_get_cpu_count( )
 
 /**
  * @brief dap_cpu_assign_thread_on
- * 
- * @param a_cpu_id 
+ *
+ * @param a_cpu_id
  */
 void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
 {
@@ -236,11 +236,11 @@ err:
  */
 void dap_events_deinit( )
 {
-	dap_proc_thread_deinit();
+    dap_proc_thread_deinit();
     dap_events_socket_deinit();
     dap_worker_deinit();
-	
-	dap_events_wait(s_events_default);
+
+    dap_events_wait(s_events_default);
     if ( s_threads )
         DAP_DELETE( s_threads );
 
@@ -267,7 +267,7 @@ dap_events_t * dap_events_new( )
 /**
  * @brief dap_events_get_default
  * simply return s_events_default
- * @return dap_events_t* 
+ * @return dap_events_t*
  */
 dap_events_t* dap_events_get_default( )
 {
@@ -291,9 +291,9 @@ void dap_events_delete( dap_events_t *a_events )
 /**
  * @brief dap_events_remove_and_delete_socket_unsafe
  * calls dap_events_socket_remove_and_delete_unsafe
- * @param a_events 
- * @param a_socket 
- * @param a_preserve_inheritor 
+ * @param a_events
+ * @param a_socket
+ * @param a_preserve_inheritor
  */
 void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
 {
@@ -349,10 +349,12 @@ int dap_events_start( dap_events_t *a_events )
         struct timespec l_timeout;
         clock_gettime(CLOCK_REALTIME, &l_timeout);
         l_timeout.tv_sec+=15;
+
         pthread_create( &s_threads[i].tid, NULL, dap_worker_thread, l_worker );
         int l_ret;
         l_ret=pthread_cond_timedwait(&l_worker->started_cond, &l_worker->started_mutex, &l_timeout);
         pthread_mutex_unlock(&l_worker->started_mutex);
+
         if ( l_ret== ETIMEDOUT ){
             log_it(L_CRITICAL, "Timeout 15 seconds is out: worker #%u thread don't respond", i);
             return -2;
@@ -361,13 +363,17 @@ int dap_events_start( dap_events_t *a_events )
             return -3;
         }
     }
+
+#if 0 // @RRL: Bugfix-5434
     // Link queues between
     for( uint32_t i = 0; i < s_threads_count; i++) {
         dap_worker_t * l_worker = s_workers[i];
+
         l_worker->queue_es_new_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
         l_worker->queue_es_delete_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
         l_worker->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
         l_worker->queue_es_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
+
         for( uint32_t n = 0; n < s_threads_count; n++) {
             l_worker->queue_es_new_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_new);
             l_worker->queue_es_delete_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_delete);
@@ -375,6 +381,7 @@ int dap_events_start( dap_events_t *a_events )
             l_worker->queue_es_io_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_io);
         }
     }
+#endif
 
     // Init callback processor
     if (dap_proc_thread_init(s_threads_count) != 0 ){
@@ -452,10 +459,7 @@ dap_worker_t *dap_events_worker_get_auto( )
  */
 dap_worker_t * dap_events_worker_get(uint8_t a_index)
 {
-    if (a_index < s_threads_count){
-        return   s_workers[a_index];
-    }else
-        return NULL;
+    return  (a_index < s_threads_count) ? s_workers[a_index] : NULL;
 }
 
 /**
@@ -463,8 +467,8 @@ dap_worker_t * dap_events_worker_get(uint8_t a_index)
  */
 void dap_events_worker_print_all( )
 {
-    uint32_t i;
-    for( i = 0; i < s_threads_count; i ++ ) {
+
+    for( int i = 0; i < s_threads_count; i ++ ) {
         log_it( L_INFO, "Worker: %d, count open connections: %d",
                 s_workers[i]->id, s_workers[i]->event_sockets_count );
     }
