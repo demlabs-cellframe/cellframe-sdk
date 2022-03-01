@@ -1445,8 +1445,8 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 }
 
 /**
- * @brief 
- * 
+ * @brief reload ledger
+ * command cellframe-node-cli net -net <network_name> ledger reload
  * @param l_net 
  * @return true 
  * @return false 
