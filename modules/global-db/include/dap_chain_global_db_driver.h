@@ -45,7 +45,9 @@ typedef struct dap_store_obj {
     const char *c_key;
     const uint8_t *value;
     uint64_t value_len;
-}DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
+
+
+} DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
 
 typedef struct dap_store_obj_pkt {
     uint64_t timestamp;
@@ -87,7 +89,7 @@ int dap_db_driver_flush(void);
 
 char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size);
 
-int dap_chain_global_db_driver_apply(pdap_store_obj_t a_store_obj, size_t a_store_count);
+int dap_chain_global_db_driver_apply(dap_store_obj_t *a_store_obj, size_t a_store_count);
 int dap_chain_global_db_driver_add(pdap_store_obj_t a_store_obj, size_t a_store_count);
 int dap_chain_global_db_driver_delete(pdap_store_obj_t a_store_obj, size_t a_store_count);
 dap_store_obj_t* dap_chain_global_db_driver_read_last(const char *a_group);

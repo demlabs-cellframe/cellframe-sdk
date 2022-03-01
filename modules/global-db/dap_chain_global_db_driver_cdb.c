@@ -70,49 +70,6 @@ static pthread_rwlock_t cdb_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 /** Mode of request processing */
 static bool s_db_drvmode_async = false;
 
-/* A list of the request to be executed by processor thread */
-static struct __cuttdb_req_list__ {
-    struct __cuttdb_req_list__	*next;
-
-} s_req_list = {0};
-
-atomic_int	s_req_flag;
-
-static pthread_mutex_t s_req_list_lock = PTHREAD_MUTEX_INITIALIZER;		/* Coordinate access to the req_list */
-
-static pthread_mutex_t s_req_list_async_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t s_req_list_async_cond = PTHREAD_COND_INITIALIZER;
-
-static int s_req_async_proc_stop_flag = 0;
-
-
-static	void *	s_req_async_proc	(void *arg)
-{
-int	rc, flag;
-struct timespec tmo = {0};
-
-    log_it(L_NOTICE, "Run processor thread ...");
-
-    while ( !s_req_async_proc_stop_flag )
-        {
-        tmo.tv_sec = time (NULL) + 2;					/* Timeout is 2 seconds */
-
-        if ( ETIMEDOUT == (rc = pthread_mutex_timedlock (&s_req_list_async_lock, &tmo)) )
-            {
-            log_it(L_ERROR, "pthread_mutex_timedlock(req_mutex)->%d, errno=%d", rc, errno);
-            continue;
-            }
-
-        flag = atomic_load(&s_req_flag);
-
-
-        }
-
-    log_it(L_NOTICE, "Exiting processor thread");
-    pthread_exit(NULL);
-}
-
-
 /**
  * @brief Serialize key and val to a item
  * key -> key

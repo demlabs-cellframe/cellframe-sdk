@@ -157,8 +157,10 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
 {
     if(!obj)
         return;
+
     DAP_DELETE(obj->key);
     DAP_DELETE(obj->value);
+
     obj->key = NULL;
     obj->value = NULL;
 }
@@ -180,12 +182,18 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
  * @param a_count a number of objects in the array
  * @return (none)
  */
-void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count)
+void dap_chain_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count)
 {
-    for(size_t i = 0; i < a_count; i++) {
-        dap_chain_global_db_obj_clean(objs + i);
-    }
-    DAP_DELETE(objs);
+dap_global_db_obj_t *l_objs;
+size_t i;
+
+    if ( !a_objs || !a_count )                              /* Sanity checks */
+        return;
+
+    for(l_objs = a_objs, i = a_count; i--; l_objs++)        /* Run over array's elements */
+        dap_chain_global_db_obj_clean(a_objs);
+
+    DAP_DELETE(a_objs);                                     /* Finaly kill the the array */
 }
 
 /**
@@ -517,10 +525,11 @@ static sync_group_item_t *find_item_by_mask(sync_group_item_t *a_items, const ch
  * @param a_store_data a pointer to an object
  * @return (none)
  */
-void dap_global_db_obj_track_history(void* a_store_data)
+void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data)
 {
-    dap_store_obj_t *l_obj = (dap_store_obj_t *)a_store_data;
+    dap_store_obj_t *l_obj = a_store_data;
     sync_group_item_t *l_sync_group_item = find_item_by_mask(s_sync_group_items, l_obj->group);
+
     if (l_sync_group_item) {
         if(l_sync_group_item->callback_notify) {
              l_sync_group_item->callback_notify(l_sync_group_item->callback_arg,

@@ -48,7 +48,7 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj);
 /**
  * Delete mass of struct dap_global_db_obj_t
  */
-void dap_chain_global_db_objs_delete(dap_global_db_obj_t *objs, size_t a_count);
+void dap_chain_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count);
 
 int dap_chain_global_db_init(dap_config_t * a_config);
 
@@ -61,7 +61,7 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
 void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
 dap_list_t *dap_chain_db_get_sync_groups();
 dap_list_t *dap_chain_db_get_sync_extra_groups();
-void dap_global_db_obj_track_history(void* a_store_data);
+void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data);
 /**
  * Get entry from base
  */

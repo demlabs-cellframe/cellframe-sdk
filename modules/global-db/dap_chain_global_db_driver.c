@@ -20,6 +20,10 @@
 
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *  MODIFICATION HISTORY:
+ *
+ *      24-FEB-2022 RRL Added Async I/O functionality for DB request processing
  */
 
 #include <stddef.h>
@@ -28,12 +32,15 @@
 #include <string.h>
 #include <pthread.h>
 #include <assert.h>
+#include <unistd.h>
 
 #include "dap_common.h"
 #include "dap_file_utils.h"
 #include "dap_strfuncs.h"
-#include "dap_list.h"
 #include "dap_hash.h"
+#include "dap_worker.h"
+#include "dap_proc_queue.h"
+#include "dap_events.h"
 
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"
@@ -44,10 +51,83 @@
 #define LOG_TAG "db_driver"
 
 // A selected database driver.
-static char *s_used_driver = NULL;
+static char s_used_driver [32];                                             /* Name of the driver */
 
-static dap_db_driver_callbacks_t s_drv_callback;
-static bool s_db_drvmode_async = false;
+
+static dap_db_driver_callbacks_t s_drv_callback;                            /* A set of interface routines for the selected
+                                                                            DB Driver at startup time */
+
+static int s_db_drvmode_async = 0;                                          /* Set a kind of processing requests to DB:
+                                                                            <> 0 - Async mode should be used */
+
+
+
+/*
+ * Nano API for Simple linked list - by BadAss SysMan
+ * Attention!!! No internaly locking is performed !
+ */
+typedef struct __dap_slist_elm__ {
+    struct __dap_slist_elm__ *flink;                                        /* Forward link */
+                    void    *data;                                          /* Pointer to carried data area */
+                    size_t     datasz;                                      /* A data portion size */
+} DAP_SLIST_ELM;
+
+typedef struct __dap_slist__ {
+            DAP_SLIST_ELM   *head,                                          /* An address of first element */
+                            *tail;                                          /* An address of last element */
+                    int     nr;                                             /* A number of elements in list  */
+} DAP_SLIST;
+
+
+static pthread_mutex_t s_db_reqs_list_lock = PTHREAD_MUTEX_INITIALIZER;    /* Lock to coordinate access to the <s_db_reqs_queue> */
+static DAP_SLIST s_db_reqs_list = {0};                                     /* A queue of request to DB - maintained in
+                                                                            the Async mode only  */
+
+static inline int    s_dap_insqtail    ( DAP_SLIST *q, dap_store_obj_t *data, int datasz)
+{
+DAP_SLIST_ELM *elm;
+
+    if ( !(elm = DAP_MALLOC(sizeof(DAP_SLIST_ELM))) )                       /* Allocate memory for new element */
+        return  -ENOMEM;
+
+    elm->flink = NULL;                                                      /* This element is terminal */
+    elm->data  = data;                                                      /* Store pointer to carried data */
+    elm->datasz= datasz;                                                    /* A size of daa metric */
+
+    if ( q->tail )                                                          /* Queue is not empty ? */
+        (q->tail)->flink = elm;                                             /* Correct forward link of "previous last" element
+                                                                               to point to new element */
+
+    q->tail = elm;                                                          /* Pointe list's tail to new element also */
+
+    if ( !q->head )                                                         /* This is a first element in the list  ? */
+        q->head = elm;                                                     /* point head to the new element */
+
+    q->nr++;                                                                /* Adjust entries counter */
+    log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
+    return  0;
+}
+
+static inline int    s_dap_remqhead    ( DAP_SLIST *q, dap_store_obj_t **data, size_t *datasz)
+{
+DAP_SLIST_ELM *elm;
+
+    if ( !(elm = q->head) )                                                 /* Queue is empty - just return error code */
+        return -ENOENT;
+
+    if ( !(q->head = elm->flink) )                                          /* Last element in the queue ? */
+        q->tail = NULL;                                                     /* Reset tail to NULL */
+
+    *data = elm->data;
+    *datasz = elm->datasz;
+
+    DAP_FREE(elm);                                                          /* Release memory has been allocated for the queue's element */
+
+    q->nr--;                                                                /* Adjust entries counter */
+    log_it(L_DEBUG, "Get data: %p, size: %d (qlen: %d)", *data, *datasz, q->nr);
+    return  0;
+}
+
 
 /**
  * @brief Initializes a database driver.
@@ -61,16 +141,22 @@ static bool s_db_drvmode_async = false;
 int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db,
                bool db_drvmode_async)
 {
-    int l_ret = -1;
-    if(s_used_driver)
+int l_ret = -1;
+
+    if (s_used_driver[0] )
         dap_db_driver_deinit();
 
     // Fill callbacks with zeros
     memset(&s_drv_callback, 0, sizeof(dap_db_driver_callbacks_t));
-    s_db_drvmode_async = db_drvmode_async;
+
+    if ( (s_db_drvmode_async = db_drvmode_async) )                          /* Set a kind of processing requests to DB: <> 0 - Async mode should be used */
+    {
+        s_db_reqs_list.head = s_db_reqs_list.tail = NULL;
+        s_db_reqs_list.nr = 0;
+    }
 
     // Setup driver name
-    s_used_driver = dap_strdup(a_driver_name);
+    strncpy( s_used_driver, a_driver_name, sizeof(s_used_driver) - 1);
 
     dap_mkdir_with_parents(a_filename_db);
 
@@ -82,19 +168,21 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db,
     if(!dap_strcmp(s_used_driver, "ldb"))
         l_ret = -1;
     else if(!dap_strcmp(s_used_driver, "sqlite") || !dap_strcmp(s_used_driver, "sqlite3") )
-    l_ret = dap_db_driver_sqlite_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_sqlite_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
     else if(!dap_strcmp(s_used_driver, "cdb"))
-    l_ret = dap_db_driver_cdb_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_cdb_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+
 #ifdef DAP_CHAIN_GDB_ENGINE_MDBX
     else if(!dap_strcmp(s_used_driver, "mdbx"))
-    l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
 #endif
 #ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
     else if(!dap_strcmp(s_used_driver, "pgsql"))
-    l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
 #endif
     else
         log_it(L_ERROR, "Unknown global_db driver \"%s\"", a_driver_name);
+
     return l_ret;
 }
 
@@ -105,13 +193,24 @@ int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db,
  */
 void dap_db_driver_deinit(void)
 {
+    log_it(L_NOTICE, "DeInit for %s ...", s_used_driver);
+
+    if ( s_db_drvmode_async )                   /* Let's finishing outstanding DB request ... */
+    {
+        for ( int i = 7; i-- && s_db_reqs_list.nr; )
+        {
+            log_it(L_WARNING, "Let's finished outstanding DB requests (%d) ... ",  s_db_reqs_list.nr);
+            for ( int j = 3; (j = sleep(j)); );   /* Hibernate for 3 seconds ... */
+        }
+
+        log_it(L_INFO, "Number of outstanding DB requests: %d",  s_db_reqs_list.nr);
+    }
+
     // deinit driver
     if(s_drv_callback.deinit)
         s_drv_callback.deinit();
-    if(s_used_driver){
-        DAP_DELETE(s_used_driver);
-        s_used_driver = NULL;
-    }
+
+    s_used_driver [ 0 ] = '\0';
 }
 
 /**
@@ -120,7 +219,7 @@ void dap_db_driver_deinit(void)
  */
 int dap_db_driver_flush(void)
 {
-    return s_drv_callback.flush();
+    return s_db_drvmode_async ? 0 : s_drv_callback.flush();
 }
 
 /**
@@ -131,17 +230,26 @@ int dap_db_driver_flush(void)
  */
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
+dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
+
     if(!a_store_obj || !a_store_count)
         return NULL;
-    dap_store_obj_t *l_store_obj = DAP_NEW_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * a_store_count);
-    for(size_t i = 0; i < a_store_count; i++) {
-        dap_store_obj_t *l_store_obj_dst = l_store_obj + i;
-        dap_store_obj_t *l_store_obj_src = a_store_obj + i;
-        memcpy(l_store_obj_dst, l_store_obj_src, sizeof(dap_store_obj_t));
+
+    if ( !(l_store_obj = DAP_NEW_SIZE(dap_store_obj_t, sizeof(dap_store_obj_t) * a_store_count)) )
+         return NULL;
+
+    l_store_obj_dst = l_store_obj;
+    l_store_obj_src = a_store_obj;
+
+    for( int i =  a_store_count; i--; l_store_obj_dst++, l_store_obj_src++)
+    {
+        *l_store_obj_dst = *l_store_obj_src;
+
         l_store_obj_dst->group = dap_strdup(l_store_obj_src->group);
         l_store_obj_dst->key = dap_strdup(l_store_obj_src->key);
         l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
     }
+
     return l_store_obj;
 }
 
@@ -153,14 +261,19 @@ dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store
  */
 void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
+dap_store_obj_t *l_store_obj_cur;
+
     if(!a_store_obj)
         return;
-    for(size_t i = 0; i < a_store_count; i++) {
-        dap_store_obj_t *l_store_obj_cur = a_store_obj + i;
+
+    l_store_obj_cur = a_store_obj;
+
+    for (int  i = a_store_count; i--; l_store_obj_cur++ ) {
         DAP_DELETE((char *)l_store_obj_cur->group);
         DAP_DELETE((char *)l_store_obj_cur->key);
         DAP_DELETE((char *)l_store_obj_cur->value);
     }
+
     DAP_DELETE(a_store_obj);
 }
 
@@ -188,13 +301,14 @@ char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size)
     return a_str;
 }
 
+
 /**
  * @brief Applies objects to database.
  * @param a_store an pointer to the objects
  * @param a_store_count a number of objectss
  * @return Returns 0, if successful.
  */
-int dap_chain_global_db_driver_apply(pdap_store_obj_t a_store_obj, size_t a_store_count)
+static inline  int s_dap_chain_global_db_driver_apply_do(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
 int l_ret;
 dap_store_obj_t *l_store_obj_cur;
@@ -202,28 +316,125 @@ dap_store_obj_t *l_store_obj_cur;
     if(!a_store_obj || !a_store_count)
         return -1;
 
-    // apply to database
-    if(a_store_count > 1 && s_drv_callback.transaction_start)
-        s_drv_callback.transaction_start();
+    log_it(L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
 
-    l_store_obj_cur = a_store_obj;                  /* We have to  use a power of the address's incremental arithmetic */
-    l_ret = 0;                                      /* Preset return code to OK */
+    l_store_obj_cur = a_store_obj;                                          /* We have to  use a power of the address's incremental arithmetic */
+    l_ret = 0;                                                              /* Preset return code to OK */
+
+    if (a_store_count > 1 && s_drv_callback.transaction_start)
+        s_drv_callback.transaction_start();
 
     if(s_drv_callback.apply_store_obj)
         for(int i = a_store_count; (!l_ret) && i--; l_store_obj_cur++) {
             assert(l_store_obj_cur);                /* Sanity check */
 
             if ( 1 == (l_ret = s_drv_callback.apply_store_obj(l_store_obj_cur)) )
-                log_it(L_INFO, "Item is missing (may be already deleted) %s/%s\n", l_store_obj_cur->group, l_store_obj_cur->key);
+                log_it(L_INFO, "[%p] Item is missing (may be already deleted) %s/%s", a_store_obj, l_store_obj_cur->group, l_store_obj_cur->key);
             else if (l_ret < 0)
-                log_it(L_ERROR, "Can't write item %s/%s (code %d)\n", l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
+                log_it(L_ERROR, "[%p] Can't write item %s/%s (code %d)", a_store_obj, l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
         }
 
     if(a_store_count > 1 && s_drv_callback.transaction_end)
         s_drv_callback.transaction_end();
 
+    log_it(L_DEBUG, "[%p] Finished DB Request (code %d)", a_store_obj, l_ret);
     return l_ret;
 }
+
+
+static bool s_dap_driver_req_exec_complete (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
+                                   void *arg)
+{
+    log_it(L_DEBUG, "[%p] Process callback on completion DB request ...", arg);
+
+    return  1;  /* 1 - Don't call it again */
+}
+
+static bool s_dap_driver_req_exec (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
+                                   void *arg __attribute__((unused)) )
+{
+int l_ret;
+dap_store_obj_t *l_store_obj_cur;
+dap_worker_t        *l_dap_worker;
+size_t l_store_obj_cnt;
+
+    log_it(L_DEBUG, "Entering, %d entries in the queue ...",  s_db_reqs_list.nr);
+
+    assert ( !pthread_mutex_lock(&s_db_reqs_list_lock) );                   /* Get exclusive access to the request list */
+
+    if ( !s_db_reqs_list.nr )                                               /* Nothing to do ?! Just exit */
+    {
+        assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
+        return  1;                                                          /* 1 - Don't call it again */
+    }
+
+    if ( (l_ret = s_dap_remqhead (&s_db_reqs_list, &l_store_obj_cur, &l_store_obj_cnt)) )
+    {
+        assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
+        log_it(L_ERROR, "DB Request list is in incosistence state (code %d)", l_ret);
+        return  1;                                                          /* 1 - Don't call it again */
+    }
+
+    /* So at this point we are ready to do work in the DB */
+    s_dap_chain_global_db_driver_apply_do(l_store_obj_cur, l_store_obj_cnt);
+
+    assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
+
+    /* Enqueue "Exec Complete" callback routine */
+    l_dap_worker = dap_events_worker_get_auto ();
+    if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, s_dap_driver_req_exec_complete, l_store_obj_cur)) )
+        log_it(L_ERROR, "Enqueue completion callback for item %s/%s (code %d)", l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
+
+    return  1;  /* 1 - Don't call it again */
+}
+
+
+/**
+ * @brief Applies objects to database.
+ * @param a_store an pointer to the objects
+ * @param a_store_count a number of objectss
+ * @return Returns 0, if successful.
+ */
+int dap_chain_global_db_driver_apply(dap_store_obj_t *a_store_obj, size_t a_store_count)
+{
+int l_ret;
+dap_store_obj_t *l_store_obj_cur;
+dap_worker_t        *l_dap_worker;
+
+    if(!a_store_obj || !a_store_count)
+        return -1;
+
+    if ( !s_db_drvmode_async )
+        s_dap_chain_global_db_driver_apply_do(a_store_obj, a_store_count);
+
+    /* Async mode - put request into the list for deffered processing */
+    l_ret = -ENOMEM;                                                    /* Preset return code to non-OK  */
+
+    assert ( !pthread_mutex_lock(&s_db_reqs_list_lock) );               /* Get exclusive access to the request list */
+
+    if ( !(l_store_obj_cur = dap_store_obj_copy(a_store_obj, a_store_count)) )
+        l_ret = - ENOMEM, log_it(L_ERROR, "[%p] No memory for DB Request for item %s/%s", a_store_obj, a_store_obj->group, a_store_obj->key);
+    else if ( (l_ret = s_dap_insqtail (&s_db_reqs_list, l_store_obj_cur, a_store_count)) )
+        log_it(L_ERROR, "[%p] Can't enqueue DB request for item %s/%s (code %d)", a_store_obj, a_store_obj->group, a_store_obj->key, l_ret);
+
+    assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
+
+    if ( !l_ret )
+        {                                                                /* So finaly enqueue an execution routine */
+        if ( !(l_dap_worker = dap_events_worker_get_auto ()) )
+            l_ret = -EBUSY, log_it(L_ERROR, "[%p] Error process DB request for %s/%s, dap_events_worker_get_auto()->NULL", a_store_obj, l_store_obj_cur->group, l_store_obj_cur->key);
+        else l_ret = dap_proc_queue_add_callback(l_dap_worker, s_dap_driver_req_exec, NULL);
+        }
+
+    log_it(L_DEBUG, "[%p DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
+
+    return  l_ret;
+}
+
+
+
+
+
 
 /**
  * @brief Adds objects to a database.
