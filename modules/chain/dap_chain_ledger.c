@@ -1065,6 +1065,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         pthread_rwlock_init(&l_token_item->token_emissions_rwlock, NULL);
         if (l_token_item->datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE) {
             l_token_item->total_supply = l_token_item->datum_token->header_private.total_supply;
+            l_token_item->type = l_token_item->datum_token->type;
             l_token_item->current_supply = l_token_item->datum_token->header_private.current_supply;
             log_it(L_DEBUG,"Ledger cache datum_token current_supply %lld, ticker: %s", l_token_item->current_supply, l_token_item->ticker);
             l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(l_token_item->datum_token, l_objs[i].value_len,
