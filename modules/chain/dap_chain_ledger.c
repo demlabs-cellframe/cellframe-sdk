@@ -983,20 +983,19 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
  */
 bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t * l_token_item, uint256_t l_emission_value)
 {
-     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
-    size_t l_objs_count = 0;
-    size_t token_len = sizeof(dap_chain_datum_token_t);
+    size_t l_obj_length = 0;
 
     //
     // Get dap_chain_datum_token_t token object from GDB, key is token name
     //
     
-    dap_chain_datum_token_t *l_token_for_update = (dap_chain_datum_token_t *) dap_chain_global_db_gr_get(dap_strdup(l_token_item->ticker), &l_objs_count, l_gdb_group);
-    dap_chain_datum_token_t *l_token_cache = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, token_len);
+    dap_chain_datum_token_t *l_token_for_update = (dap_chain_datum_token_t *) dap_chain_global_db_gr_get(l_token_item->ticker, &l_obj_length, l_gdb_group);
+    dap_chain_datum_token_t *l_token_cache = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_obj_length);
 
-    memcpy(l_token_cache, l_token_for_update,  token_len);
+    memcpy(l_token_cache, l_token_for_update,  sizeof(dap_chain_datum_token_t));
 
     if (compare256(l_token_cache->header_private.current_supply_256, l_emission_value) >= 0)
     {
@@ -1017,7 +1016,7 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
        return false;
     }   
      
-    if (!dap_chain_global_db_gr_set(dap_strdup(l_token_item->ticker), l_token_cache, token_len, l_gdb_group)) 
+    if (!dap_chain_global_db_gr_set(dap_strdup(l_token_item->ticker), l_token_cache, l_obj_length, l_gdb_group)) 
     {
        if(s_debug_more)
           log_it(L_WARNING, "Ledger cache mismatch");
