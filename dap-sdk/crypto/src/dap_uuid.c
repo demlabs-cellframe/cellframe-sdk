@@ -22,6 +22,7 @@
 */
 #include <time.h>
 #include <stdatomic.h>
+
 #include "KeccakHash.h"
 #include "SimpleFIPS202.h"
 #include "dap_uuid.h"
@@ -30,8 +31,7 @@
 
 #define LOG_TAG "dap_uuid"
 
-atomic_uint_fast32_t s_global_counter32=0;
-atomic_uint_fast16_t s_global_counter16=0;
+static atomic_uint_fast32_t s_global_counter = 0;
 
 /**
  * @brief dap_uuid_generate_ui64
@@ -41,10 +41,10 @@ atomic_uint_fast16_t s_global_counter16=0;
 uint128_t dap_uuid_generate_uint128()
 {
     uint32_t l_input[4] ={
-        [0]=random_uint32_t(UINT32_MAX),
-        [1]=time(NULL),
-        [2]=s_global_counter32++,
-        [3]=random_uint32_t(UINT32_MAX)
+        [0] = random_uint32_t(UINT32_MAX),
+        [1] = time(NULL),
+        [2] = atomic_fetch_add(&s_global_counter, 1),
+        [3] = random_uint32_t(UINT32_MAX)
     };
     uint128_t l_output;
     SHAKE128((unsigned char *) &l_output,sizeof (l_output), (unsigned char*) &l_input,sizeof (l_input));
@@ -61,11 +61,11 @@ uint128_t dap_uuid_generate_uint128()
 uint64_t dap_uuid_generate_uint64()
 {
     uint32_t l_ts = (uint32_t) time(NULL);
-    uint16_t l_input[4] ={
-        [0]=dap_random_uint16(),
-        [1]= l_ts % UINT16_MAX,
-        [2]= s_global_counter16++,
-        [3]= dap_random_uint16()
+    uint16_t l_input[4] = {
+        [0] = dap_random_uint16(),
+        [1] = time(NULL) & UINT16_MAX,      /*  time(NULL) % UINT16_MAX */
+        [2] = (uint16_t) atomic_fetch_add(&s_global_counter, 1),
+        [3] = dap_random_uint16()
     };
     uint64_t l_output;
     SHAKE128((unsigned char *) &l_output,sizeof (l_output), (unsigned char*) &l_input,sizeof (l_input));
