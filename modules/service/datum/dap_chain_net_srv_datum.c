@@ -38,9 +38,9 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply);
 int dap_chain_net_srv_datum_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_datum", s_srv_datum_cli, "Service Datum commands", 
-        "srv_datum -net <chain net name> -chain <chain name> datum save -datum <datum hash>\n",
-            "\tSaving datum from mempool to file.\n\n",
-        "srv_datum -net <chain net name> -chain <chain name> datum load -datum <datum hash>\n",
+        "srv_datum -net <chain net name> -chain <chain name> datum save -datum <datum hash>\n"
+            "\tSaving datum from mempool to file.\n\n"
+        "srv_datum -net <chain net name> -chain <chain name> datum load -datum <datum hash>\n"
             "\tLoad datum custum from file to mempool.\n\n");
 
     return 0;
