@@ -125,6 +125,9 @@ static int s_cli_dag(int argc, char ** argv, char **str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 static void s_dag_chain_cs_set_event_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
 
+static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
+static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page);
+
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 /**
@@ -237,6 +240,12 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
     a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
 */
+
+    // Get tx list
+    a_chain->callback_get_txs = s_dap_chain_callback_get_txs;
+    // Get tx count
+    a_chain->callback_count_tx = s_dap_chain_callback_get_count_tx;
+
     // Others
     a_chain->_inheritor = l_dag;
 
@@ -1791,3 +1800,31 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
     }
     return ret;
 }
+
+static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain){
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    size_t l_count = HASH_COUNT(PVT(l_dag)->tx_events);
+    return l_count;
+}
+static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page){
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    size_t l_count = s_dap_chain_callback_get_count_tx(a_chain);
+    size_t l_offset = a_count * a_page;
+    if (a_page < 2)
+        l_offset = 0;
+    if (l_offset > l_count){
+        return NULL;
+    }
+    dap_list_t *l_list = NULL;
+    size_t l_counter = 0;
+    size_t l_end = l_offset + a_count;
+    dap_chain_cs_dag_event_item_t *l_el, *l_tmp;
+    HASH_ITER(hh, PVT(l_dag)->tx_events, l_el, l_tmp){
+        if (l_counter >= l_offset && l_counter < l_end){
+            dap_list_prepend(l_list, l_el);
+            l_counter++;
+        }
+    }
+    return l_list;
+}
+
