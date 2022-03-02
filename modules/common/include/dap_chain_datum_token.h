@@ -72,6 +72,10 @@ typedef struct dap_chain_datum_token{
                 uint64_t total_supply; // Could be zero if unlimited
                 uint256_t total_supply_256;
             };
+            union {
+                uint64_t current_supply; // Could be zero if unlimited
+                uint256_t current_supply_256;
+            };
             uint16_t signs_valid; // Emission auth signs
             uint16_t signs_total; // Emission auth signs
         } DAP_ALIGN_PACKED header_private;
