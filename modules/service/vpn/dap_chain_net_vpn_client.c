@@ -209,22 +209,22 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
  * @param a_receipt_size
  * @return
  */
-static int s_callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
-                    dap_chain_datum_tx_receipt_t **a_receipt, size_t a_receipt_size)
+static dap_chain_datum_tx_receipt_t * s_callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
+                    dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size)
 {
-    dap_chain_datum_tx_receipt_t *l_receipt = *a_receipt;
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
     char *l_wallet_name = (char*) dap_chain_global_db_gr_get(dap_strdup("wallet_name"), NULL, l_gdb_group);
 
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, dap_chain_wallet_get_path(g_config));
+    dap_chain_datum_tx_receipt_t *l_ret = NULL;
     if(l_wallet) {
         dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-        *a_receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, l_enc_key);
+        l_ret = dap_chain_datum_tx_receipt_sign_add(a_receipt, l_enc_key);
         dap_chain_wallet_close(l_wallet);
     }
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_wallet_name);
-    return 0;
+    return l_ret;
 }
 
 /**
@@ -656,7 +656,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
                 DAP_DELETE(l_tx_cond);
             }
             // set srv id
-            dap_stream_ch_chain_net_srv_set_srv_uid(l_ch, l_request.hdr.srv_uid);
+            //dap_stream_ch_chain_net_srv_set_srv_uid(l_ch, l_request.hdr.srv_uid);
             //dap_chain_hash_fast_t l_request
             //.hdr.tx_cond = a_txCond.value();
 //    	    strncpy(l_request->hdr.token, a_token.toLatin1().constData(),sizeof (l_request->hdr.token)-1);

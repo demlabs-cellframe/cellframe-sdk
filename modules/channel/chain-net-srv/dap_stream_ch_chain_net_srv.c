@@ -92,7 +92,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
     (void ) arg;
     a_ch->internal=DAP_NEW_Z(dap_stream_ch_chain_net_srv_t);
     dap_stream_ch_chain_net_srv_t * l_ch_chain_net_srv = DAP_STREAM_CH_CHAIN_NET_SRV(a_ch);
-    pthread_mutex_init( &l_ch_chain_net_srv->mutex,NULL);
+    l_ch_chain_net_srv->ch_uuid = a_ch->uuid;
     l_ch_chain_net_srv->ch = a_ch;
     if (a_ch->stream->session && !a_ch->stream->session->_inheritor)
         dap_chain_net_srv_stream_session_create( a_ch->stream->session );
@@ -206,8 +206,8 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     if (!a_grace->usage) {
         l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, l_srv);
         if ( !l_usage ){ // Usage can't add
-            log_it( L_WARNING, "Usage can't add");
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_USAGE_CANT_ADD;
+            log_it( L_WARNING, "Can't add usage");
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE;
             goto free_exit;
         }
 
@@ -364,11 +364,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         switch (l_ch_pkt->hdr.type) {
             // for send test data
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST:{
-                int l_err_code = 0;
                 dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_test_t*) l_ch_pkt->data;
                 size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
-                if(l_ch_pkt->hdr.size != l_request_size) {
-                    log_it(L_WARNING, "Wrong request size, less or more than required");
+                if (l_ch_pkt->hdr.size != l_request_size) {
+                    log_it(L_WARNING, "Wrong response size %u, required %zu", l_ch_pkt->hdr.size, l_request_size);
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE;
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
                     break;
                 }
                 struct timeval l_recvtime2;
@@ -378,25 +379,24 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 dap_chain_hash_fast_t l_data_hash;
                 dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash);
                 if(l_request->data_size>0 && !dap_hash_fast_compare(&l_data_hash, &(l_request->data_hash))){
-                    l_err_code+=2;
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+                    break;
                 }
-
                 // create data to send back
                 dap_stream_ch_chain_net_srv_pkt_test_t *l_request_out = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + l_request->data_size_recv);
                 // copy info from recv message
                 memcpy(l_request_out,l_request, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t));
                 l_request_out->data_size = l_request->data_size_recv;
                 randombytes(l_request_out->data, l_request_out->data_size);
-                l_request_out->err_code = l_err_code;
+                l_request_out->err_code = 0;
                 dap_hash_fast(l_request_out->data, l_request_out->data_size, &l_request_out->data_hash);
                 strncpy(l_request_out->ip_send,a_ch->stream->esocket->hostaddr  , sizeof(l_request_out->ip_send)-1);
-
                 // Thats to prevent unaligned pointer
                 struct timeval l_tval;
                 gettimeofday(&l_tval, NULL);
                 l_request_out->send_time2.tv_sec = l_tval.tv_sec;
                 l_request_out->send_time2.tv_usec = l_tval.tv_usec;
-
                 // send response
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request_out,
                                                l_request_out->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t));
@@ -420,16 +420,16 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             } break;
 
             case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE:{
-                if (l_ch_pkt->hdr.size <= sizeof(dap_chain_receipt_info_t) + 1) {
+                if (l_ch_pkt->hdr.size < sizeof(dap_chain_receipt_info_t)) {
                     log_it(L_ERROR, "Wrong sign response size, %u when expected at least %zu with smth", l_ch_pkt->hdr.size,
-                           sizeof(dap_chain_receipt_info_t)+1 );
+                           sizeof(dap_chain_receipt_info_t));
                     break;
                 }
                 dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
                 size_t l_receipt_size = l_ch_pkt->hdr.size;
                 dap_chain_net_srv_usage_t * l_usage= NULL, *l_tmp= NULL;
                 bool l_is_found = false;
-                pthread_mutex_lock(& l_srv_session->parent->mutex );
+                pthread_mutex_lock(& l_srv_session->parent->mutex );    // TODO rework it with packet usage_id
                 HASH_ITER(hh, l_srv_session->usages, l_usage, l_tmp){
                     if ( l_usage->receipt_next ){ // If we have receipt next
                         if ( memcmp(&l_usage->receipt_next->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
