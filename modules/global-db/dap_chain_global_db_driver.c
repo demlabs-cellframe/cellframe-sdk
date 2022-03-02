@@ -41,6 +41,7 @@
 #include "dap_worker.h"
 #include "dap_proc_queue.h"
 #include "dap_events.h"
+#include "dap_list.h"
 
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"
@@ -60,73 +61,8 @@ static dap_db_driver_callbacks_t s_drv_callback;                            /* A
 static int s_db_drvmode_async = 0;                                          /* Set a kind of processing requests to DB:
                                                                             <> 0 - Async mode should be used */
 
-
-
-/*
- * Nano API for Simple linked list - by BadAss SysMan
- * Attention!!! No internaly locking is performed !
- */
-typedef struct __dap_slist_elm__ {
-    struct __dap_slist_elm__ *flink;                                        /* Forward link */
-                    void    *data;                                          /* Pointer to carried data area */
-                    size_t     datasz;                                      /* A data portion size */
-} DAP_SLIST_ELM;
-
-typedef struct __dap_slist__ {
-            DAP_SLIST_ELM   *head,                                          /* An address of first element */
-                            *tail;                                          /* An address of last element */
-                    int     nr;                                             /* A number of elements in list  */
-} DAP_SLIST;
-
-
 static pthread_mutex_t s_db_reqs_list_lock = PTHREAD_MUTEX_INITIALIZER;    /* Lock to coordinate access to the <s_db_reqs_queue> */
-static DAP_SLIST s_db_reqs_list = {0};                                     /* A queue of request to DB - maintained in
-                                                                            the Async mode only  */
-
-static inline int    s_dap_insqtail    ( DAP_SLIST *q, dap_store_obj_t *data, int datasz)
-{
-DAP_SLIST_ELM *elm;
-
-    if ( !(elm = DAP_MALLOC(sizeof(DAP_SLIST_ELM))) )                       /* Allocate memory for new element */
-        return  -ENOMEM;
-
-    elm->flink = NULL;                                                      /* This element is terminal */
-    elm->data  = data;                                                      /* Store pointer to carried data */
-    elm->datasz= datasz;                                                    /* A size of daa metric */
-
-    if ( q->tail )                                                          /* Queue is not empty ? */
-        (q->tail)->flink = elm;                                             /* Correct forward link of "previous last" element
-                                                                               to point to new element */
-
-    q->tail = elm;                                                          /* Pointe list's tail to new element also */
-
-    if ( !q->head )                                                         /* This is a first element in the list  ? */
-        q->head = elm;                                                     /* point head to the new element */
-
-    q->nr++;                                                                /* Adjust entries counter */
-    log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
-    return  0;
-}
-
-static inline int    s_dap_remqhead    ( DAP_SLIST *q, dap_store_obj_t **data, size_t *datasz)
-{
-DAP_SLIST_ELM *elm;
-
-    if ( !(elm = q->head) )                                                 /* Queue is empty - just return error code */
-        return -ENOENT;
-
-    if ( !(q->head = elm->flink) )                                          /* Last element in the queue ? */
-        q->tail = NULL;                                                     /* Reset tail to NULL */
-
-    *data = elm->data;
-    *datasz = elm->datasz;
-
-    DAP_FREE(elm);                                                          /* Release memory has been allocated for the queue's element */
-
-    q->nr--;                                                                /* Adjust entries counter */
-    log_it(L_DEBUG, "Get data: %p, size: %d (qlen: %d)", *data, *datasz, q->nr);
-    return  0;
-}
+static dap_slist_t s_db_reqs_list = {0};                                     /* A queue of request to DB - maintained in
 
 
 /**
