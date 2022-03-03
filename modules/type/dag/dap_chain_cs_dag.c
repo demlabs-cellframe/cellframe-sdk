@@ -1818,11 +1818,10 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    dap_chain_cs_dag_event_item_t *l_el, *l_tmp;
-    HASH_ITER(hh, PVT(l_dag)->tx_events, l_el, l_tmp){
-        if (l_counter >= l_offset && l_counter < l_end){
-            dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_el->event, l_el->event_size);
-            dap_chain_datum_tx_t  *l_tx = DAP_NEW_Z_SIZE(void*, l_datum->header.data_size);
+    for (dap_chain_cs_dag_event_item_t *ptr = PVT(l_dag)->tx_events; ptr != NULL && l_counter < l_end; ptr = ptr->hh.next){
+        if (l_counter >= l_offset){
+            dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(ptr->event, ptr->event_size);
+            dap_chain_datum_tx_t  *l_tx = (dap_chain_datum_tx_t*)DAP_NEW_Z_SIZE(void*, l_datum->header.data_size);
             memcpy(l_tx, l_datum->data, l_datum->header.data_size);
             l_list = dap_list_append(l_list, l_tx);
             l_counter++;
