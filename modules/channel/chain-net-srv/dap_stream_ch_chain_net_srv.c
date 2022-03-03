@@ -270,10 +270,9 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 l_price->value_datoshi = 0;
             }
             l_usage->price = l_price;
-            // TODO extend callback to pass ext and ext size from service callbacks
-            l_receipt = dap_chain_net_srv_issue_receipt( l_usage->service, l_usage, l_usage->price,NULL,0 );
-            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST, l_receipt, l_receipt->size);
-            DAP_DELETE(l_receipt);
+            l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                                           l_usage->receipt, l_usage->receipt->size);
         }else{
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND ;
             goto free_exit;
@@ -520,14 +519,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if (! l_usage->receipt_next && l_usage->receipt){
                     DAP_DELETE(l_usage->receipt);
                     l_usage->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
-                    l_usage->receipt_size = l_receipt_size;
                     l_is_first_sign = true;
                     l_usage->is_active = true;
                     memcpy( l_usage->receipt, l_receipt, l_receipt_size);
                 } else if (l_usage->receipt_next ){
                     DAP_DELETE(l_usage->receipt_next);
                     l_usage->receipt_next = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
-                    l_usage->receipt_next_size = l_receipt_size;
                     l_usage->is_active = true;
                     memcpy( l_usage->receipt_next, l_receipt, l_receipt_size);
                 }
@@ -542,9 +539,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 dap_chain_hash_fast_t *l_tx_in_hash  = NULL;
                 if (!l_usage->is_grace) {
                     // Form input transaction
-                    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_usage->wallet, l_usage->net->pub.id);
+                    dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_usage->price->wallet, l_usage->net->pub.id);
                     l_tx_in_hash = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_wallet_addr,
-                                                                          dap_chain_wallet_get_key(l_usage->wallet, 0),
+                                                                          dap_chain_wallet_get_key(l_usage->price->wallet, 0),
                                                                           l_receipt, l_receipt_size);
                     if ( l_tx_in_hash){
                         char * l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(l_tx_in_hash);
@@ -583,13 +580,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_usage->is_active = false;
                     }
                     // issue receipt next
-                    l_usage->receipt_next = dap_chain_net_srv_issue_receipt( l_usage->service, l_usage, l_usage->price ,NULL,0);
-                    l_usage->receipt_next_size = l_usage->receipt_next->size;
-                    dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
-                                             l_usage->receipt_next, l_usage->receipt_next->size);
+                    l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                                                   l_usage->receipt_next, l_usage->receipt_next->size);
 
                 }else if ( l_usage->service->callback_receipt_next_success){
-                    if (l_usage->service->callback_receipt_next_success(l_usage->service,l_usage->id,  l_usage->client,
+                    if (l_usage->service->callback_receipt_next_success(l_usage->service, l_usage->id, l_usage->client,
                                                                 l_receipt, l_receipt_size ) != 0 ){
                         log_it(L_NOTICE, "No success by service callback, inactivating service usage");
                         l_usage->is_active = false;

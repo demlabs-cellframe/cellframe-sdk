@@ -565,7 +565,7 @@ void *dap_worker_thread(void *arg)
                     default:{}
                 }
                 //if(s_debug_reactor)
-                    log_it(L_INFO,"RDHUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
+                    log_it(L_WARNING, "RDHUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
             }
 
             // If its outgoing connection

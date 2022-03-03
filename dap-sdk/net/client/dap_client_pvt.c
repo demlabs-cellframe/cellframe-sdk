@@ -82,7 +82,7 @@
 static int s_max_attempts = 3;
 static int s_timeout = 20;
 static bool s_debug_more = false;
-static time_t s_client_timeout_active_after_connect_seconds = 5;
+static time_t s_client_timeout_active_after_connect_seconds = 15;
 
 
 static bool s_stage_status_after(dap_client_pvt_t * a_client_internal);

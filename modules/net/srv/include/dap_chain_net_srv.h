@@ -278,8 +278,8 @@ dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid);
 size_t dap_chain_net_srv_count(void);
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
-                dap_chain_net_srv_usage_t * a_usage,
-                dap_chain_net_srv_price_t * a_price, const void * a_ext, size_t a_ext_size);
+                                                               dap_chain_net_srv_price_t * a_price,
+                                                               const void * a_ext, size_t a_ext_size);
 uint8_t dap_stream_ch_chain_net_srv_get_id();
 
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )

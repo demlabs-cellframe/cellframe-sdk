@@ -138,7 +138,7 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
         log_it(L_NOTICE, "Requested receipt to sign");
         dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)a_pkt->data;
         if (a_pkt->hdr.size != l_receipt->size) {
-            log_it(L_WARNING, "Wrong response size %u, required %d", a_pkt->hdr.size, l_receipt->size);
+            log_it(L_WARNING, "Wrong response size %u, required %"DAP_UINT64_FORMAT_U, a_pkt->hdr.size, l_receipt->size);
             if (l_srv_client->callbacks.error)
                 l_srv_client->callbacks.error(l_srv_client,
                                               DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE,
@@ -163,7 +163,7 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR: {
        if (a_pkt->hdr.size == sizeof (dap_stream_ch_chain_net_srv_pkt_error_t)) {
             dap_stream_ch_chain_net_srv_pkt_error_t *l_err = (dap_stream_ch_chain_net_srv_pkt_error_t *)a_pkt->data;
-            log_it(L_NOTICE, "Remote responsed with error code 0x%08X", l_err->code);
+            log_it(L_WARNING, "Remote responsed with error code 0x%08X", l_err->code);
             if (l_srv_client->callbacks.error)
                 l_srv_client->callbacks.error(l_srv_client, l_err->code, l_srv_client->callbacks_arg);
         } else {
@@ -173,7 +173,7 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_DATA: {
         dap_stream_ch_chain_net_srv_pkt_data_t *l_response = (dap_stream_ch_chain_net_srv_pkt_data_t *)a_pkt->data;
-        log_it(L_INFO, "Service client respose with data '%s'", l_response->data);
+        log_it(L_DEBUG, "Service client got custom data response");
         if (l_srv_client->callbacks.data)
             l_srv_client->callbacks.data(l_srv_client, l_response->data, l_response->hdr.data_size, l_srv_client->callbacks_arg);
     }

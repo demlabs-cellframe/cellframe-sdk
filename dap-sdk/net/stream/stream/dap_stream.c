@@ -814,7 +814,7 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
         DAP_DELETE(srv_pkt);
     } break;
     case STREAM_PKT_TYPE_KEEPALIVE: {
-        //log_it(L_DEBUG, "Keep alive check recieved");
+        log_it(L_DEBUG, "Keep alive check recieved");
         dap_stream_pkt_hdr_t l_ret_pkt = {};
         l_ret_pkt.type = STREAM_PKT_TYPE_ALIVE;
         memcpy(l_ret_pkt.sig, c_dap_stream_sig, sizeof(l_ret_pkt.sig));
@@ -825,7 +825,7 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
         }
     } break;
     case STREAM_PKT_TYPE_ALIVE:
-        //log_it(L_DEBUG, "Keep alive response recieved");
+        log_it(L_DEBUG, "Keep alive response recieved");
         break;
     default:
         log_it(L_WARNING, "Unknown header type");
@@ -876,7 +876,7 @@ static bool s_callback_keepalive( void * a_arg)
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid);
     if( l_es){
-        if(s_debug)
+        //if(s_debug)
             log_it(L_DEBUG,"Keepalive for sock fd %"DAP_FORMAT_SOCKET" uuid 0x%016"DAP_UINT64_FORMAT_x, l_es->socket, *l_es_uuid);
         dap_stream_pkt_hdr_t l_pkt = {};
         l_pkt.type = STREAM_PKT_TYPE_KEEPALIVE;
@@ -884,7 +884,7 @@ static bool s_callback_keepalive( void * a_arg)
         dap_events_socket_write_unsafe( l_es, &l_pkt, sizeof(l_pkt));
         return true;
     }else{
-        if(s_debug)
+        //if(s_debug)
             log_it(L_INFO,"Keepalive for sock uuid %016"DAP_UINT64_FORMAT_x" removed", *l_es_uuid);
         DAP_DELETE(l_es_uuid);
         return false; // Socket is removed from worker

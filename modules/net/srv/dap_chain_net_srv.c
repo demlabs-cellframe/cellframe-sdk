@@ -828,23 +828,13 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
  * @return
  */
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
-                dap_chain_net_srv_usage_t * a_usage,
-                dap_chain_net_srv_price_t * a_price,
-                const void * a_ext, size_t a_ext_size
-                )
+                                                               dap_chain_net_srv_price_t * a_price,
+                                                               const void * a_ext, size_t a_ext_size)
 {
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
-    size_t l_receipt_size = l_receipt->size; // nested receipt plus 8 bits for type
-
     // Sign with our wallet
-    a_usage->receipt = dap_chain_datum_tx_receipt_sign_add(l_receipt, dap_chain_wallet_get_key(a_price->wallet, 0));
-
-    a_usage->receipt = l_receipt;
-    a_usage->receipt_size = l_receipt_size;
-    a_usage->wallet = a_price->wallet;
-
-    return  l_receipt;
+    return dap_chain_datum_tx_receipt_sign_add(l_receipt, dap_chain_wallet_get_key(a_price->wallet, 0));
 }
 
 
