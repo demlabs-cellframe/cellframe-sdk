@@ -1821,8 +1821,7 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     for (dap_chain_cs_dag_event_item_t *ptr = PVT(l_dag)->tx_events; ptr != NULL && l_counter < l_end; ptr = ptr->hh.next){
         if (l_counter >= l_offset){
             dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(ptr->event, ptr->event_size);
-            dap_chain_datum_tx_t  *l_tx = (dap_chain_datum_tx_t*)DAP_NEW_Z_SIZE(void*, l_datum->header.data_size);
-            memcpy(l_tx, l_datum->data, l_datum->header.data_size);
+            dap_chain_datum_tx_t  *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
             l_list = dap_list_append(l_list, l_tx);
             l_counter++;
         }
