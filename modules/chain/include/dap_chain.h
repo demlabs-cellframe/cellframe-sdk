@@ -87,6 +87,9 @@ typedef size_t (*dap_chain_callback_add_datums_with_group_t)(dap_chain_t * , dap
 
 typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size); //change in chain happened
 
+typedef size_t(*dap_chain_callback_get_count_tx)(dap_chain_t *a_chain);
+typedef dap_list_t *(*dap_chain_callback_get_txs)(dap_chain_t *a_chain, size_t a_count, size_t a_page);
+
 typedef  enum dap_chain_type
 {
     CHAIN_TYPE_FIRST,
@@ -145,6 +148,9 @@ typedef struct dap_chain{
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_lasts;
     dap_chain_callback_atom_iter_delete_t callback_atom_iter_delete;
+
+    dap_chain_callback_get_count_tx callback_count_tx;
+    dap_chain_callback_get_txs callback_get_txs;
 
     dap_chain_callback_notify_t callback_notify;
     void *callback_notify_arg;
