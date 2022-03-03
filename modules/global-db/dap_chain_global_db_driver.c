@@ -61,8 +61,8 @@ static dap_db_driver_callbacks_t s_drv_callback;                            /* A
 static int s_db_drvmode_async = 0;                                          /* Set a kind of processing requests to DB:
                                                                             <> 0 - Async mode should be used */
 
-static pthread_mutex_t s_db_reqs_list_lock = PTHREAD_MUTEX_INITIALIZER;    /* Lock to coordinate access to the <s_db_reqs_queue> */
-static dap_slist_t s_db_reqs_list = {0};                                     /* A queue of request to DB - maintained in
+static pthread_mutex_t s_db_reqs_list_lock = PTHREAD_MUTEX_INITIALIZER;     /* Lock to coordinate access to the <s_db_reqs_queue> */
+static dap_slist_t s_db_reqs_list = {0};                                    /* A queue of request to DB - maintained in */
 
 
 /**
@@ -304,7 +304,7 @@ size_t l_store_obj_cnt;
         return  1;                                                          /* 1 - Don't call it again */
     }
 
-    if ( (l_ret = s_dap_remqhead (&s_db_reqs_list, &l_store_obj_cur, &l_store_obj_cnt)) )
+    if ( (l_ret = s_dap_remqhead (&s_db_reqs_list, (void **)  &l_store_obj_cur, &l_store_obj_cnt)) )
     {
         assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
         log_it(L_ERROR, "DB Request list is in incosistence state (code %d)", l_ret);
