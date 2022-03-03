@@ -46,15 +46,7 @@ enum    {
         DAP_QUE$K_PRIMAX = 4                                                /* End-of-list marker */
 };
 
-/**
- * @brief s_dap_queue_prio_2_mask   - Convert a priority number to internaly used bitmask
- * @param pri   - priority , see DAP_QUE$K_PRI* constants
- */
-static inline   unsigned s_dap_queue_prio_2_mask (unsigned pri )
-{
-    return ( 0x4UL >> pri );
-}
-
+#define DAP_QUE$K_ITER_NR   7
 
 typedef struct dap_proc_queue_item{
     dap_proc_queue_callback_t callback;                                     /* An address of the action routine */

@@ -163,7 +163,7 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t __at
 {
 dap_proc_thread_t   *l_thread;
 dap_proc_queue_item_t *l_item, *l_item_old;
-int l_is_anybody_for_repeat, l_is_finished;
+int l_is_anybody_for_repeat, l_is_finished, l_iter_cnt, l_cur_pri;
 dap_proc_queue_t    *l_queue;
 
     if (s_debug_reactor)
@@ -176,16 +176,20 @@ dap_proc_queue_t    *l_queue;
         }
 
     l_is_anybody_for_repeat = 0;
+    l_iter_cnt = DAP_QUE$K_ITER_NR;
+    l_cur_pri = (DAP_QUE$K_PRIMAX - 1);
     l_queue = l_thread->proc_queue;
 
-    for (int i = DAP_QUE$K_PRIMAX; i--; )                                   /* Run from higest to lowest ... */
+    for ( ; l_iter_cnt && l_cur_pri--; )                                    /* Run from higest to lowest ... */
     {
-        l_item = l_queue->items[i].item_first;
-        l_item_old = NULL;
+        if ( !(l_item = l_queue->items[l_cur_pri].item_first) )             /* Is there something to do at all ? */
+            continue;
 
-        while(l_item) {
+        for ( l_item_old = NULL ; l_item;  )
+        {
             if(s_debug_reactor)
-                log_it(L_INFO, "Proc event callback: %p/%p", l_item->callback, l_item->callback_arg);
+                log_it(L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
+                       l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
             l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
 
@@ -197,24 +201,25 @@ dap_proc_queue_t    *l_queue;
                     l_item_old->prev = l_item->prev;
 
                     if ( ! l_item->prev )  // We deleted tail
-                        l_queue->items[i].item_last = l_item_old;
+                        l_queue->items[l_cur_pri].item_last = l_item_old;
 
                     DAP_DELETE(l_item);
                     l_item = l_item_old->prev;
                 } else  {
-                    l_queue->items[i].item_first = l_item->prev;
+                    l_queue->items[l_cur_pri].item_first = l_item->prev;
 
                     if ( l_item->prev)
                         l_item->prev->next = NULL; // Prev if it was - now its NULL
                     else
-                        l_queue->items[i].item_last = NULL; // NULL last item
+                        l_queue->items[l_cur_pri].item_last = NULL; // NULL last item
 
                     DAP_DELETE(l_item);
-                    l_item = l_queue->items[i].item_first;
+                    l_item = l_queue->items[l_cur_pri].item_first;
                 } /* if (l_is_finished) */
 
-                if ( s_debug_reactor )
+                if ( s_debug_reactor ) {
                     log_it(L_DEBUG, "Proc event finished");
+                }
             } else {
                 if ( s_debug_reactor )
                     log_it(L_DEBUG, "Proc event not finished");
@@ -224,8 +229,13 @@ dap_proc_queue_t    *l_queue;
             }
 
             l_is_anybody_for_repeat += (!l_is_finished);
+
+            if ( (l_iter_cnt -= 1) == 1 )                                   /* Rest a last iteration to get a chance to  */
+                break;                                                      /* execute callback with the <l_cur_pri> - 1 */
         }
     }
+
+    l_is_anybody_for_repeat += (!l_iter_cnt);                               /* All iterations is used - the set "say what again" */
 
     if ( l_is_anybody_for_repeat )                                          /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
