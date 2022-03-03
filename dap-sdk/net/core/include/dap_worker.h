@@ -23,12 +23,13 @@
 #pragma once
 
 #include "dap_events_socket.h"
+#include "dap_proc_queue.h"
 #include <pthread.h>
 #include "dap_common.h"
 
 
 
-typedef struct dap_proc_queue dap_proc_queue_t;
+//typedef struct dap_proc_queue dap_proc_queue_t;
 typedef struct dap_timerfd dap_timerfd_t;
 typedef struct dap_worker
 {
@@ -42,7 +43,7 @@ typedef struct dap_worker
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
     // Signal to exit
-    bool signal_exit;
+    int signal_exit;
 
     // worker control queues
     dap_events_socket_t * queue_es_new; // Queue socket for new socket
