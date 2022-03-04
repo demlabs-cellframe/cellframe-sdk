@@ -300,13 +300,14 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
     return l_store_data;
 }
 
+
 /**
  * @brief Gets an object value from database by a_key and a_group.
+ * 
  * @param a_key an object key string
- * @param a_data_out[in] a number of objects to be gotten, if NULL - no limits
- * @param a_data_out[out] a length of values that were gotten
+ * @param a_data_len_out a length of values that were gotten
  * @param a_group a group name string
- * @return If successful, returns a pointer to the object value.
+ * @return If successful, returns a pointer to the object value. 
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {

@@ -72,6 +72,30 @@ bool dap_valid_ascii_symbols(const char *a_string)
  * @a_file_path filename pathname
  * @return true, if file exists
  */
+bool dap_file_simple_test(const char * a_file_path)
+{
+    if(!a_file_path)
+        return false;
+#ifdef _WIN32
+    int attr = GetFileAttributesA(a_file_path);
+    if(attr != -1)
+        return true;
+#else
+    struct stat st;
+    if (!stat(a_file_path, &st)) {
+        if (S_ISREG(st.st_mode))
+        return true;
+    }
+#endif
+    return false;
+}
+
+/**
+ * Check the file for exists
+ *
+ * @a_file_path filename pathname
+ * @return true, if file exists
+ */
 bool dap_file_test(const char * a_file_path)
 {
     if(!a_file_path)

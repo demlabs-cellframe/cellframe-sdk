@@ -152,58 +152,94 @@ unsigned l_id_min = 0, l_size_min = UINT32_MAX, l_queue_size;
 }
 
 /**
- * @brief s_proc_event_callback
+ * @brief s_proc_event_callback - get from queue next element and execute action routine,
+ *  repeat execution depending on status is returned by action routine.
+ *
  * @param a_esocket
  * @param a_value
+ *
  */
-static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t a_value)
+static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t __attribute__((unused))  a_value)
 {
-    (void) a_value;
-    if(s_debug_reactor)
+dap_proc_thread_t   *l_thread;
+dap_proc_queue_item_t *l_item, *l_item_old;
+int l_is_anybody_for_repeat, l_is_finished, l_iter_cnt, l_cur_pri;
+dap_proc_queue_t    *l_queue;
+
+    if (s_debug_reactor)
         log_it(L_DEBUG, "--> Proc event callback start");
-    dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_esocket->_inheritor;
-    dap_proc_queue_item_t * l_item = l_thread->proc_queue->item_first;
-    dap_proc_queue_item_t * l_item_old = NULL;
-    bool l_is_anybody_for_repeat=false;
-    while(l_item){
-        if(s_debug_reactor)
-            log_it(L_INFO, "Proc event callback: %p/%p", l_item->callback, l_item->callback_arg);
-        bool l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
-        if (l_is_finished){
-            if ( l_item->prev ){
-                l_item->prev->next = l_item_old;
-            }
-            if(l_item_old){
-                l_item_old->prev = l_item->prev;
 
-                if ( ! l_item->prev ) { // We deleted tail
-                    l_thread->proc_queue->item_last = l_item_old;
-                }
-
-                DAP_DELETE(l_item);
-                l_item = l_item_old->prev;
-            }else{
-                l_thread->proc_queue->item_first = l_item->prev;
-                if ( l_item->prev){
-                    l_item->prev->next = NULL; // Prev if it was - now its NULL
-                }else
-                    l_thread->proc_queue->item_last = NULL; // NULL last item
-
-                DAP_DELETE(l_item);
-                l_item = l_thread->proc_queue->item_first;
-            }
-            if(s_debug_reactor)
-                log_it(L_DEBUG, "Proc event finished");
-        }else{
-            if(s_debug_reactor)
-                log_it(L_DEBUG, "Proc event not finished");
-            l_item_old = l_item;
-            l_item=l_item->prev;
+    if ( !(l_thread = (dap_proc_thread_t *) a_esocket->_inheritor) )
+        {
+        log_it(L_ERROR, "NULL <dap_proc_thread_t> context is detected");
+        return;
         }
-        l_is_anybody_for_repeat = !l_is_finished;
+
+    l_is_anybody_for_repeat = 0;
+    l_iter_cnt = DAP_QUE$K_ITER_NR;
+    l_cur_pri = (DAP_QUE$K_PRIMAX - 1);
+    l_queue = l_thread->proc_queue;
+
+    for ( ; l_iter_cnt && l_cur_pri--; )                                    /* Run from higest to lowest ... */
+    {
+        if ( !(l_item = l_queue->items[l_cur_pri].item_first) )             /* Is there something to do at all ? */
+            continue;
+
+        for ( l_item_old = NULL ; l_item;  )
+        {
+            if(s_debug_reactor)
+                log_it(L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
+                       l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
+
+            l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
+
+            if (l_is_finished) {
+                if ( l_item->prev )
+                    l_item->prev->next = l_item_old;
+
+                if(l_item_old){
+                    l_item_old->prev = l_item->prev;
+
+                    if ( ! l_item->prev )  // We deleted tail
+                        l_queue->items[l_cur_pri].item_last = l_item_old;
+
+                    DAP_DELETE(l_item);
+                    l_item = l_item_old->prev;
+                } else  {
+                    l_queue->items[l_cur_pri].item_first = l_item->prev;
+
+                    if ( l_item->prev)
+                        l_item->prev->next = NULL; // Prev if it was - now its NULL
+                    else
+                        l_queue->items[l_cur_pri].item_last = NULL; // NULL last item
+
+                    DAP_DELETE(l_item);
+                    l_item = l_queue->items[l_cur_pri].item_first;
+                } /* if (l_is_finished) */
+
+                if ( s_debug_reactor ) {
+                    log_it(L_DEBUG, "Proc event finished");
+                }
+            } else {
+                if ( s_debug_reactor )
+                    log_it(L_DEBUG, "Proc event not finished");
+
+                l_item_old = l_item;
+                l_item = l_item->prev;
+            }
+
+            l_is_anybody_for_repeat += (!l_is_finished);
+
+            if ( (l_iter_cnt -= 1) == 1 )                                   /* Rest a last iteration to get a chance to  */
+                break;                                                      /* execute callback with the <l_cur_pri> - 1 */
+        }
     }
-    if(l_is_anybody_for_repeat) // Arm event if we have smth to proc again
-        dap_events_socket_event_signal(a_esocket,1);
+
+    l_is_anybody_for_repeat += (!l_iter_cnt);                               /* All iterations is used - the set "say what again" */
+
+    if ( l_is_anybody_for_repeat )                                          /* Arm event if we have something to proc again */
+        dap_events_socket_event_signal(a_esocket, 1);
+
     if(s_debug_reactor)
         log_it(L_DEBUG, "<-- Proc event callback end");
 }
@@ -318,7 +354,7 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
     }
     struct kevent * l_event = &a_esocket->kqueue_event;
     // Check & add
-    bool l_is_error=false;
+    int l_is_error=false;
     int l_errno=0;
     if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
         EV_SET(l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
@@ -507,7 +543,7 @@ static void * s_proc_thread_function(void * a_arg)
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_thread->poll_count_max = DAP_EVENTS_SOCKET_MAX;
     l_thread->poll_count = 0;
-    bool l_poll_compress = false;
+    int l_poll_compress = false;
     l_thread->poll = DAP_NEW_Z_SIZE(struct pollfd,l_thread->poll_count_max *sizeof (*l_thread->poll));
     l_thread->esockets = DAP_NEW_Z_SIZE(dap_events_socket_t*,l_thread->poll_count_max *sizeof (*l_thread->esockets));
 
@@ -620,7 +656,7 @@ static void * s_proc_thread_function(void * a_arg)
         }
         for(size_t n = 0; n < l_sockets_max; n++) {
             dap_events_socket_t * l_cur;
-            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error,
+            int l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error,
                     l_flag_nval,l_flag_pri,l_flag_msg;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
