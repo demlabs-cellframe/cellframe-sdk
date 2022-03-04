@@ -40,24 +40,27 @@ typedef union dap_chain_blocks_session_round_id {
 
 typedef struct dap_chain_cs_blocks_session_items {
 	dap_chain_t *chain;
-	dap_chain_hash_fast_t * last_message_hash;
+	dap_chain_hash_fast_t *last_message_hash;
 	//dap_chain_cs_blocks_session_message_t * messages;
 	dap_chain_cs_blocks_session_message_item_t * messages_items;
 	uint16_t messages_count;
 
+	dap_chain_node_addr_t *my_addr;
+
 	dap_list_t *validators_list; // dap_chain_node_addr_t 
 	uint16_t validators_count;
-	dap_chain_node_addr_t * attempt_coordinator; // валидатор-координатор в текущей попытки
 
 	//uint16_t startsync_count;
 	dap_list_t *validators_start; // dap_chain_node_addr_t
-	uint16_t consensus_start_period;
+	dap_chain_node_addr_t * attempt_coordinator; // validator-coordinator in current attempt
+	uint16_t attempt_current_number;
 
 	// dap_timerfd_t* timer_consensus_finish;
 	// dap_timerfd_t* timer_consensus_cancel;
 
-	dap_chain_time_t ts_round_start_sync; // time in last sync message
-	dap_chain_time_t ts_round_start;
+	dap_chain_time_t ts_round_sync_start; // time start sync
+	dap_chain_time_t ts_round_start; // time round-start
+	//dap_chain_time_t ts_round_start_pub; // this synced time of round-start (time got from last sync message)
 	dap_chain_time_t ts_round_state_commit;
 	dap_chain_time_t ts_round_finish;
 
@@ -74,11 +77,15 @@ typedef struct dap_chain_cs_blocks_session_items {
     struct dap_chain_cs_blocks_session_items * next;
     struct dap_chain_cs_blocks_session_items * prev;
 
+	uint16_t consensus_start_period;
+	uint32_t allowed_clock_offset; // допустимое расхождение времени между валидаторами
 	uint32_t session_idle_min; // время между раундами (минимальное в нашем случае + округление времени ) - заменить consensus_start_period
 	uint16_t round_candidates_max; // всего кандидатов участвующих в раунде
 	uint16_t next_candidate_delay; // задежка предложения следующего кандидата (в зависимости от приоритетов валидатора)
 	uint16_t round_attempts_max; // всего попыток в раунде
 	uint16_t round_attempt_duration; // длительность попытки
+
+	bool time_proc_lock; // flag - skip check if prev check is not finish
 
     pthread_rwlock_t rwlock;
 
@@ -158,14 +165,17 @@ typedef struct dap_chain_cs_blocks_session_message_reject {
 
 typedef struct dap_chain_cs_blocks_session_message_votefor {
 	dap_chain_hash_fast_t candidate_hash;
+	uint16_t attempt_number;
 } DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_votefor_t;
 
 typedef struct dap_chain_cs_blocks_session_message_vote {
 	dap_chain_hash_fast_t candidate_hash;
+	uint16_t attempt_number;
 } DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_vote_t;
 
 typedef struct dap_chain_cs_blocks_session_message_precommit {
 	dap_chain_hash_fast_t candidate_hash;
+	uint16_t attempt_number;
 } DAP_ALIGN_PACKED dap_chain_cs_blocks_session_message_precommit_t;
 
 typedef struct dap_chain_cs_blocks_session_message_commitsign {
@@ -181,6 +191,8 @@ typedef struct dap_chain_cs_blocks_session_store_hdr {
 	uint16_t vote_count;
 	uint16_t precommit_count;
 	size_t candidate_size;
+	dap_chain_hash_fast_t candidate_hash;
+	dap_chain_time_t ts_candidate_submit;
 } DAP_ALIGN_PACKED dap_chain_cs_blocks_session_store_hdr_t;
 
 typedef struct dap_chain_cs_blocks_session_store {
