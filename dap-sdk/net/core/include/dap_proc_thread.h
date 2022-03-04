@@ -29,18 +29,20 @@
 #include "dap_worker.h"
 
 typedef struct dap_proc_thread{
-    uint32_t cpu_id;
-    pthread_t thread_id;
-    dap_proc_queue_t * proc_queue;
+    uint32_t    cpu_id;
+    pthread_t   thread_id;                              /* TID has been returned by pthread_create() */
+
+    dap_proc_queue_t *proc_queue;                       /* Queues  */
+    atomic_uint proc_queue_size;                        /* Thread's load factor - is not supported at the moment  */
+
     dap_events_socket_t * proc_event;                   // Should be armed if we have to deal with it
 
     dap_events_socket_t ** queue_assign_input;          // Inputs for assign queues
     dap_events_socket_t ** queue_io_input;              // Inputs for assign queues
     dap_events_socket_t ** queue_callback_input;        // Inputs for worker context callback queues
-    atomic_uint proc_queue_size;                        /* Thread's load factor */
 
-    bool signal_kill;
-    bool signal_exit;
+    int signal_kill;
+    int signal_exit;
 
     dap_events_socket_t * event_exit;
 
