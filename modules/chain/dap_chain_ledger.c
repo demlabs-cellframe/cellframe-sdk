@@ -995,7 +995,7 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
     dap_chain_datum_token_t *l_token_for_update = (dap_chain_datum_token_t *) dap_chain_global_db_gr_get(l_token_item->ticker, &l_obj_length, l_gdb_group);
     dap_chain_datum_token_t *l_token_cache = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_obj_length);
 
-    memcpy(l_token_cache, l_token_for_update,  sizeof(dap_chain_datum_token_t));
+    memcpy(l_token_cache, l_token_for_update, l_obj_length);
 
     if (compare256(l_token_cache->header_private.current_supply_256, l_emission_value) >= 0)
     {
