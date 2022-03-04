@@ -241,7 +241,7 @@ dap_proc_queue_t    *l_queue;
         dap_events_socket_event_signal(a_esocket, 1);
 
     if(s_debug_reactor)
-        log_it(L_DEBUG, "<-- Proc event callback end");
+        log_it(L_DEBUG, "<-- Proc event callback end, repeat flag is: %d, iterations: %d", l_is_anybody_for_repeat, l_iter_cnt);
 }
 
 
