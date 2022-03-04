@@ -81,6 +81,16 @@ bool dap_valid_ascii_symbols(const char *a_dir_path);
 bool dap_file_test(const char * a_file_path);
 
 /**
+ * @brief dap_file_simple_test
+ * test if file presented without specific file system attributic
+ * 
+ * @param a_file_path 
+ * @return true 
+ * @return false 
+ */
+bool dap_file_simple_test(const char * a_file_path);
+
+/**
  * Check the directory for exists
  *
  * @a_dir_path directory pathname
