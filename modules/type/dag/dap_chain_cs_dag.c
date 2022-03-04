@@ -1823,8 +1823,8 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
             dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(ptr->event, ptr->event_size);
             dap_chain_datum_tx_t  *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
             l_list = dap_list_append(l_list, l_tx);
-            l_counter++;
         }
+        l_counter++;
     }
     return l_list;
 }
