@@ -611,10 +611,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
                     break;
                 }
-                if (!l_srv->callback_stream_ch_read_with_out_data)
+                if (!l_srv->callback_custom_data)
                         break;
                 size_t l_out_data_size = 0;
-                void *l_out_data = l_srv->callback_stream_ch_read_with_out_data(l_srv, l_usage, l_pkt->data, l_pkt_size, &l_out_data_size);
+                void *l_out_data = l_srv->callback_custom_data(l_srv, l_usage, l_pkt->data, l_pkt_size, &l_out_data_size);
                 if (l_out_data && l_out_data_size) {
                     dap_stream_ch_chain_net_srv_pkt_data_t *l_data = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_data_t,
                                                                                     sizeof(dap_stream_ch_chain_net_srv_pkt_data_t) + l_out_data_size);

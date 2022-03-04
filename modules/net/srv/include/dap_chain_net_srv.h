@@ -205,9 +205,8 @@ typedef struct dap_chain_net_srv_client_remote
 } dap_chain_net_srv_client_remote_t;
 
 typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t);
-typedef void* (*dap_chain_net_srv_callback_ch_with_out_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_usage_t *, const void *, size_t, size_t *);
+typedef void* (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_usage_t *, const void *, size_t, size_t *);
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
-typedef void (*dap_chain_net_srv_callback_new_t)(dap_chain_net_srv_t *, dap_config_t *);
 
 typedef struct dap_chain_net_srv_banlist_item {
     dap_chain_hash_fast_t client_pkey_hash;
@@ -240,12 +239,13 @@ typedef struct dap_chain_net_srv
     // Receipt next sign succesfull
     dap_chain_net_srv_callback_data_t callback_receipt_next_success;
 
-    // Stream CH callbacks - channed opened,ready for read, ready for write and closed
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_opened;
-    dap_chain_net_srv_callback_ch_with_out_data_t callback_stream_ch_read_with_out_data;
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_write;
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_closed;
+    // Custom data processing
+    dap_chain_net_srv_callback_custom_data_t callback_custom_data;
 
+    // Stream CH callbacks - channel opened, closed and write
+    dap_chain_net_srv_callback_ch_t callback_stream_ch_opened;
+    dap_chain_net_srv_callback_ch_t callback_stream_ch_closed;
+    dap_chain_net_srv_callback_ch_t callback_stream_ch_write;
     // Pointer to inheritor object
     void *_inheritor;
     // Pointer to internal server structure
@@ -254,17 +254,19 @@ typedef struct dap_chain_net_srv
 
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
-dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid, dap_chain_net_srv_callback_data_t a_callback_requested,
+dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
+                                           const char *a_config_section,
+                                           dap_chain_net_srv_callback_data_t a_callback_requested,
                                            dap_chain_net_srv_callback_data_t a_callback_response_success,
                                            dap_chain_net_srv_callback_data_t a_callback_response_error,
-                                           dap_chain_net_srv_callback_data_t a_callback_receipt_next_success
+                                           dap_chain_net_srv_callback_data_t a_callback_receipt_next_success,
+                                           dap_chain_net_srv_callback_custom_data_t a_callback_custom_data
                                            );
 
 int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
                                        dap_chain_net_srv_callback_ch_t a_callback_stream_ch_opened,
-                                       dap_chain_net_srv_callback_ch_with_out_data_t a_callback_stream_ch_read_with_out_data,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed
+                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed,
+                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write
                                        );
 
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);
