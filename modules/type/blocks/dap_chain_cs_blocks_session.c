@@ -62,6 +62,7 @@ int dap_chain_cs_blocks_session_init(dap_chain_t *a_chain, dap_enc_key_t *a_bloc
 	l_session->last_message_hash = NULL;
 	l_session->messages_count = 0;
 	l_session->validators_start = NULL;
+	l_session->validators_start_count = 0;
 	
 	// cfg
 	l_session->session_idle_min = 10;
@@ -172,8 +173,8 @@ printf("---!!! s_session_timer() DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE \n");
 			case DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START: {
 printf("---!!! s_session_timer() DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START \n");
 				if ( (l_time-l_session->ts_round_sync_start) >= 10 ) { // timeout start sync
-					size_t startsync_count = dap_list_length(l_session->validators_start);
-					if ( ((float)startsync_count/l_session->validators_count) >= ((float)2/3) ) {
+					uint16_t l_startsync_count = l_session->validators_start_count;// dap_list_length(l_session->validators_start);
+					if ( ((float)l_startsync_count/l_session->validators_count) >= ((float)2/3) ) {
 						l_session->ts_round_start = l_time;
 						// if sync 2/3 validators then start round and submit candidate
 						l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC;
@@ -196,7 +197,7 @@ printf("---!!! s_session_timer() DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC \n");
 					if ( l_session->attempt_current_number > l_session->round_attempts_max ) {
 						s_session_round_finish(l_session); // attempts is out
 					}
-					unsigned int l_validators_count = dap_list_length(l_session->validators_start);
+					uint16_t l_validators_count = l_session->validators_start_count;// dap_list_length(l_session->validators_start);
 					if ( l_validators_count < l_session->attempt_current_number ) {
 						s_session_round_finish(l_session); // validators is out
 					}
@@ -355,6 +356,7 @@ static bool s_session_round_finish(dap_chain_cs_blocks_session_items_t *a_sessio
 
 	dap_list_free(a_session->validators_start);
 	a_session->validators_start = NULL;
+	a_session->validators_start_count = 0;
 
 	a_session->ts_round_sync_start = 0;
 	a_session->ts_round_start = 0;
@@ -488,6 +490,7 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC
 		}
 
 		l_session->validators_start = dap_list_append(l_session->validators_start, l_validator);
+		l_session->validators_start_count = dap_list_length(l_session->validators_start);
 		// if ( l_session->ts_round_start_pub < l_startsync->ts )
 		// 	l_session->ts_round_start_pub = l_startsync->ts;
 		// l_session->ts_round_start = (dap_chain_time_t)time(NULL); // l_startsync->ts; // set max time of start consensus
@@ -528,20 +531,30 @@ printf("---!!! s_session_packet_in() TEST PACKET 8 \n");
 
     		// search & check messages from this validator 
     		switch (l_msg_type) {
+    			// check dup messages VOTE, APPROVE, REJECT for one candidate
+    			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE:
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE:
     				// if (l_candidate_hash_match)
     				// 	l_approve_count++;
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT: {
-					if ( l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE ||
-							l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT ) {
-						// check dup message APPROVE or REJECT for one candidate
-						if (l_candidate_hash_match) {
-							goto handler_finish;
-						}
-					}
+    				switch (l_message->hdr.type) {
+    					case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE:
+    					case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE:
+    					case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT:
+	    					if (l_candidate_hash_match) {
+								goto handler_finish;
+							}
+    				}
+					// if ( l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE
+					// 		|| l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE
+					// 		|| l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT ) {
+					// 	if (l_candidate_hash_match) {
+					// 		goto handler_finish;
+					// 	}
+					// }
     			} break;
-    			// this messages should only appear once per attempt
-    			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE:
+    			// this messages should only appear once per round //attempt
+    			// case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE:
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT:
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: 
     			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT:{

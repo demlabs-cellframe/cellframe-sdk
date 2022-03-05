@@ -52,6 +52,7 @@ typedef struct dap_chain_cs_blocks_session_items {
 
 	//uint16_t startsync_count;
 	dap_list_t *validators_start; // dap_chain_node_addr_t
+	uint16_t validators_start_count;
 	dap_chain_node_addr_t * attempt_coordinator; // validator-coordinator in current attempt
 	uint16_t attempt_current_number;
 
