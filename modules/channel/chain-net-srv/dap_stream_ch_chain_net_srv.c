@@ -227,7 +227,6 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
         l_usage->tx_cond = l_tx;
     }
     dap_chain_net_srv_price_t * l_price = NULL;
-    dap_chain_datum_tx_receipt_t * l_receipt = NULL;
     const char * l_ticker = NULL;
     if (l_srv->pricelist && !l_grace_start) {
         l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_request->hdr.tx_cond );
@@ -377,7 +376,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 //printf("\n%lu.%06lu \n", (unsigned long) l_request->recv_time2.tv_sec, (unsigned long) l_request->recv_time2.tv_usec);
                 dap_chain_hash_fast_t l_data_hash;
                 dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash);
-                if(l_request->data_size>0 && !dap_hash_fast_compare(&l_data_hash, &(l_request->data_hash))){
+                if (l_request->data_size > 0 && !dap_hash_fast_compare(&l_data_hash, &l_request->data_hash)) {
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
                     break;
@@ -386,10 +385,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 dap_stream_ch_chain_net_srv_pkt_test_t *l_request_out = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + l_request->data_size_recv);
                 // copy info from recv message
                 memcpy(l_request_out,l_request, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t));
-                l_request_out->data_size = l_request->data_size_recv;
-                randombytes(l_request_out->data, l_request_out->data_size);
+                if (l_request->data_size_recv) {
+                    l_request_out->data_size = l_request->data_size_recv;
+                    randombytes(l_request_out->data, l_request_out->data_size);
+                    dap_hash_fast(l_request_out->data, l_request_out->data_size, &l_request_out->data_hash);
+                }
                 l_request_out->err_code = 0;
-                dap_hash_fast(l_request_out->data, l_request_out->data_size, &l_request_out->data_hash);
                 strncpy(l_request_out->ip_send,a_ch->stream->esocket->hostaddr  , sizeof(l_request_out->ip_send)-1);
                 // Thats to prevent unaligned pointer
                 struct timeval l_tval;
@@ -542,7 +543,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_usage->price->wallet, l_usage->net->pub.id);
                     l_tx_in_hash = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_wallet_addr,
                                                                           dap_chain_wallet_get_key(l_usage->price->wallet, 0),
-                                                                          l_receipt, l_receipt_size);
+                                                                          l_receipt);
                     if ( l_tx_in_hash){
                         char * l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(l_tx_in_hash);
                         log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
