@@ -69,7 +69,7 @@ static void s_http_simple_delete( dap_http_simple_t *a_http_simple);
 static void s_http_client_headers_read( dap_http_client_t *cl_ht, void *arg );
 static void s_http_client_data_read( dap_http_client_t * cl_ht, void *arg );
 static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a_arg );
-static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void *a_arg );
+static int  s_proc_queue_callback(dap_proc_thread_t * a_thread, void *a_arg );
 
 typedef struct dap_http_simple_url_proc {
 
@@ -96,7 +96,7 @@ typedef struct user_agents_item {
 } user_agents_item_t;
 
 static user_agents_item_t *user_agents_list = NULL;
-static bool is_unknown_user_agents_pass = false;
+static int is_unknown_user_agents_pass = 0;
 
 #define DAP_HTTP_SIMPLE_URL_PROC(a) ((dap_http_simple_url_proc_t*) (a)->_inheritor)
 
@@ -145,15 +145,13 @@ static void _free_user_agents_list()
   }
 }
 
-static bool _is_user_agent_supported( const char *user_agent )
+static int s_is_user_agent_supported( const char *user_agent )
 {
-  bool result = is_unknown_user_agents_pass;
-
+  int result = is_unknown_user_agents_pass;
   dap_http_user_agent_ptr_t find_agent = dap_http_user_agent_new_from_str( user_agent );
 
-  if ( find_agent == NULL ) {
+  if ( find_agent == NULL )
     return result;
-  }
 
   const char* find_agent_name = dap_http_user_agent_get_name( find_agent );
 
@@ -166,7 +164,7 @@ static bool _is_user_agent_supported( const char *user_agent )
       if(dap_http_user_agent_versions_compare(find_agent, elt->user_agent) >= 0) {
         result = true;
         goto END;
-      } 
+      }
       else {
         result = false;
         goto END;
@@ -180,7 +178,7 @@ END:
 }
 
 
-bool dap_http_simple_set_supported_user_agents( const char *user_agents, ... )
+int dap_http_simple_set_supported_user_agents( const char *user_agents, ... )
 {
   va_list argptr;
   va_start( argptr, user_agents );
@@ -198,7 +196,7 @@ bool dap_http_simple_set_supported_user_agents( const char *user_agents, ... )
       log_it(L_ERROR, "Can't parse user agent string");
       va_end(argptr);
        _free_user_agents_list();
-       return NULL;
+       return 0;
     }
 
     user_agents_item_t *item = calloc( 1, sizeof (user_agents_item_t) );
@@ -211,17 +209,17 @@ bool dap_http_simple_set_supported_user_agents( const char *user_agents, ... )
 
   va_end( argptr );
 
-  return true;
+  return 1;
 }
 
 // if this function was called. We checking version only supported user-agents
 // other will pass automatically ( and request with without user-agents field too )
-void dap_http_simple_set_pass_unknown_user_agents(bool pass)
+void dap_http_simple_set_pass_unknown_user_agents(int pass)
 {
     is_unknown_user_agents_pass = pass;
 }
 
-inline static bool _is_supported_user_agents_list_setted()
+inline static bool s_is_supported_user_agents_list_setted()
 {
   user_agents_item_t * tmp;
   int cnt = 0;
@@ -238,7 +236,7 @@ inline static void s_set_writable_flags(dap_http_simple_t * a_simple)
 
 }
 
-static void _copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
+static void s_copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
 {
 //  log_it(L_DEBUG,"_copy_reply_and_mime_to_response");
 //  Sleep(300);
@@ -254,7 +252,7 @@ static void _copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
   return;
 }
 
-inline static void _write_response_bad_request( dap_http_simple_t * a_http_simple,
+inline static void s_write_response_bad_request( dap_http_simple_t * a_http_simple,
                                                const char* error_msg )
 {
 //  log_it(L_DEBUG,"_write_response_bad_request");
@@ -272,7 +270,7 @@ inline static void _write_response_bad_request( dap_http_simple_t * a_http_simpl
 
   strcpy( a_http_simple->reply_mime, "application/json" );
 
-  _copy_reply_and_mime_to_response( a_http_simple );
+  s_copy_reply_and_mime_to_response( a_http_simple );
 
   json_object_put( jobj ); // free obj
 }
@@ -281,7 +279,7 @@ inline static void _write_response_bad_request( dap_http_simple_t * a_http_simpl
  * @brief dap_http_simple_proc Execute procession callback and switch to write state
  * @param cl_sh HTTP simple client instance
  */
-bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
+static int  s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
 {
     (void) a_thread;
      dap_http_simple_t *l_http_simple = (dap_http_simple_t*) a_arg;
@@ -290,21 +288,21 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
 
     http_status_code_t return_code = (http_status_code_t)0;
 
-    if(_is_supported_user_agents_list_setted() == true) {
+    if(s_is_supported_user_agents_list_setted() == true) {
         dap_http_header_t *header = dap_http_header_find(l_http_simple->http_client->in_headers, "User-Agent");
-        if(header == NULL && is_unknown_user_agents_pass == false) {
+        if (!header && !is_unknown_user_agents_pass) {
             const char error_msg[] = "Not found User-Agent HTTP header";
-            _write_response_bad_request(l_http_simple, error_msg);
+            s_write_response_bad_request(l_http_simple, error_msg);
             s_set_writable_flags( l_http_simple);
             dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
             return true;
         }
 
         if(header)
-            if(_is_user_agent_supported(header->value) == false) {
+            if(s_is_user_agent_supported(header->value) == false) {
                 log_it(L_DEBUG, "Not supported user agent in request: %s", header->value);
                 const char* error_msg = "User-Agent version not supported. Update your software";
-                _write_response_bad_request(l_http_simple, error_msg);
+                s_write_response_bad_request(l_http_simple, error_msg);
                 s_set_writable_flags( l_http_simple);
                 dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
                 return true;
@@ -316,7 +314,7 @@ bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
     if(return_code) {
         log_it(L_DEBUG, "Request was processed well return_code=%d", return_code);
         l_http_simple->http_client->reply_status_code = (uint16_t)return_code;
-        _copy_reply_and_mime_to_response(l_http_simple);
+        s_copy_reply_and_mime_to_response(l_http_simple);
     } else {
         log_it(L_ERROR, "Request was processed with ERROR");
         l_http_simple->http_client->reply_status_code = Http_Status_InternalServerError;
@@ -477,7 +475,7 @@ size_t dap_http_simple_reply(dap_http_simple_t *a_http_simple, void *a_data, siz
 dap_http_cache_t * dap_http_simple_make_cache_from_reply(dap_http_simple_t * a_http_simple, time_t a_ts_expire  )
 {
     // Because we call it from callback, we have no headers ready for output
-    _copy_reply_and_mime_to_response(a_http_simple);
+    s_copy_reply_and_mime_to_response(a_http_simple);
     a_http_simple->http_client->reply_status_code = 200;
     dap_http_client_out_header_generate(a_http_simple->http_client);
     return dap_http_cache_update(a_http_simple->http_client->proc,
