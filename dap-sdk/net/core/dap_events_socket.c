@@ -1638,7 +1638,7 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool
         if( l_kqueue_fd>0 ){
             int l_kevent_ret = kevent(l_kqueue_fd,&l_event,1,NULL,0,NULL);
             int l_errno = errno;
-            if ( l_kevent_ret !=1 && l_errno != EINPROGRESS ){
+            if (l_kevent_ret == -1){
                 char l_errbuf[128];
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
@@ -1706,7 +1706,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
         if( l_kqueue_fd>0 ){
             int l_kevent_ret=kevent(l_kqueue_fd,&l_event,1,NULL,0,NULL);
             int l_errno = errno;
-            if ( l_kevent_ret!=l_expected_reply && l_errno != EINPROGRESS && l_errno != ENOENT ){
+            if (l_kevent_ret == -1){
                 char l_errbuf[128];
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
