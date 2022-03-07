@@ -828,6 +828,7 @@ dap_string_t* dap_string_up(dap_string_t *string)
  */
 void dap_string_append_vprintf(dap_string_t *string, const char *format, va_list args)
 {
+    const char l_oom [] = "Out of memory!";
     char *buf;
     int len;
 
@@ -842,11 +843,8 @@ void dap_string_append_vprintf(dap_string_t *string, const char *format, va_list
             memcpy(string->str + string->len, buf, len + 1);
             string->len += len;
         } else {
-            const char *l_mem_out = "Out of memory!";
-            const int l_fail_len = strlen(l_mem_out) + 1;
-            string->str = DAP_NEW_SIZE(char, l_fail_len);
-            strcpy(string->str, l_mem_out);
-            string->len = string->allocated_len = l_fail_len;
+            string->str = DAP_NEW_SIZE(char, sizeof(l_oom ) );
+            memcpy(string->str, l_oom , sizeof(l_oom ));
         }
         DAP_DELETE(buf);
     }
