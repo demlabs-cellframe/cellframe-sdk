@@ -98,7 +98,7 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 
 #define LOG_TAG "dap_events"
 
-static bool s_workers_init = false;
+static int s_workers_init = 0;
 static uint32_t s_threads_count = 1;
 static dap_worker_t **s_workers = NULL;
 static dap_thread_t *s_threads = NULL;
@@ -214,14 +214,15 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
     if ( !s_workers || !s_threads )
         return -1;
 
-    s_workers_init = true;
-
     dap_worker_init(a_conn_timeout);
     if ( dap_events_socket_init() != 0 ) {
         log_it( L_CRITICAL, "Can't init client submodule dap_events_socket_init( )" );
         goto err;
     }
+
     log_it( L_NOTICE, "Initialized event socket reactor for %u threads", s_threads_count );
+
+    s_workers_init = 1;
 
     return 0;
 
@@ -246,6 +247,8 @@ void dap_events_deinit( )
 
     if ( s_workers )
         DAP_DELETE( s_workers );
+
+    s_workers_init = 0;
 }
 
 /**
@@ -312,6 +315,9 @@ void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_even
  */
 int dap_events_start( dap_events_t *a_events )
 {
+
+    if ( !s_workers_init )
+        log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
     for( uint32_t i = 0; i < s_threads_count; i++) {
         dap_worker_t * l_worker = DAP_NEW_Z(dap_worker_t);
@@ -413,6 +419,9 @@ int dap_events_wait( dap_events_t *a_events )
  */
 void dap_events_stop_all( )
 {
+    if ( !s_workers_init )
+        log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
+
     for( uint32_t i = 0; i < s_threads_count; i ++ ) {
         dap_events_socket_event_signal( s_workers[i]->event_exit, 1);
     }
@@ -427,12 +436,13 @@ void dap_events_stop_all( )
 uint32_t dap_events_worker_get_index_min( )
 {
     uint32_t min = 0;
-    uint32_t i;
 
-    for( i = 1; i < s_threads_count; i++ ) {
+    if ( !s_workers_init )
+        log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
-    if ( s_workers[min]->event_sockets_count > s_workers[i]->event_sockets_count )
-        min = i;
+    for( int i = 1; i < s_threads_count; i++ ) {
+        if ( s_workers[min]->event_sockets_count > s_workers[i]->event_sockets_count )
+            min = i;
     }
 
     return min;
@@ -449,6 +459,9 @@ uint32_t dap_events_worker_get_count()
  */
 dap_worker_t *dap_events_worker_get_auto( )
 {
+    if ( !s_workers_init )
+        log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
+
     return s_workers[dap_events_worker_get_index_min()];
 }
 
@@ -459,6 +472,9 @@ dap_worker_t *dap_events_worker_get_auto( )
  */
 dap_worker_t * dap_events_worker_get(uint8_t a_index)
 {
+    if ( !s_workers_init )
+        log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
+
     return  (a_index < s_threads_count) ? s_workers[a_index] : NULL;
 }
 
@@ -467,9 +483,10 @@ dap_worker_t * dap_events_worker_get(uint8_t a_index)
  */
 void dap_events_worker_print_all( )
 {
+    if ( !s_workers_init )
+        log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
     for( int i = 0; i < s_threads_count; i ++ ) {
-        log_it( L_INFO, "Worker: %d, count open connections: %d",
-                s_workers[i]->id, s_workers[i]->event_sockets_count );
+        log_it( L_INFO, "Worker: %d, count open connections: %d", s_workers[i]->id, s_workers[i]->event_sockets_count );
     }
 }
