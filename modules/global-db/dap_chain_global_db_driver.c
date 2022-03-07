@@ -184,6 +184,8 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
         l_store_obj_dst->group = dap_strdup(l_store_obj_src->group);
         l_store_obj_dst->key = dap_strdup(l_store_obj_src->key);
         l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
+        l_store_obj_dst->cb = l_store_obj_src->cb;
+        l_store_obj_dst->cb = l_store_obj_src->cb_arg;
     }
 
     return l_store_obj;
