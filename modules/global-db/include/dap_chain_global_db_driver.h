@@ -39,13 +39,16 @@ enum    {
 typedef struct dap_store_obj {
     uint64_t id;
     uint64_t timestamp;
-    uint32_t type;                               /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
+    uint32_t type;                              /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
     const char *group;
     const char *key;
     const char *c_key;
     const uint8_t *value;
     uint64_t value_len;
 
+
+    void (*cb) (const void *a_arg);             /* (Async mode only!) A call back to be called on request completion */
+    const void *cb_arg;                         /* (Async mode only!) An argument of the callback rotine */
 
 } DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
 

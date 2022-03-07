@@ -277,16 +277,7 @@ dap_store_obj_t *l_store_obj_cur;
     return l_ret;
 }
 
-
-static bool s_dap_driver_req_exec_complete (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
-                                   void *arg)
-{
-    log_it(L_DEBUG, "[%p] Process callback on completion DB request ...", arg);
-
-    return  1;  /* 1 - Don't call it again */
-}
-
-static bool s_dap_driver_req_exec (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
+static int s_dap_driver_req_exec (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
                                    void *arg __attribute__((unused)) )
 {
 int l_ret;
@@ -316,10 +307,19 @@ size_t l_store_obj_cnt;
 
     assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
 
-    /* Enqueue "Exec Complete" callback routine */
-    l_dap_worker = dap_events_worker_get_auto ();
-    if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, s_dap_driver_req_exec_complete, l_store_obj_cur)) )
-        log_it(L_ERROR, "Enqueue completion callback for item %s/%s (code %d)", l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
+
+    /* Is there a callback  ? */
+    if ( l_store_obj_cur->cb )
+        {
+        /* Enqueue "Exec Complete" callback routine */
+        l_dap_worker = dap_events_worker_get_auto ();
+
+        if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, l_store_obj_cur->cb, l_store_obj_cur->cb_arg)) )
+            log_it(L_ERROR, "[%p] Enqueue completion callback for item %s/%s (code %d)", l_store_obj_cur,
+                   l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
+        }
+
+    dap_store_obj_free (l_store_obj_cur, l_store_obj_cnt);                  /* Release a memory !!! */
 
     return  1;  /* 1 - Don't call it again */
 }
@@ -341,7 +341,11 @@ dap_worker_t        *l_dap_worker;
         return -1;
 
     if ( !s_db_drvmode_async )
-        s_dap_chain_global_db_driver_apply_do(a_store_obj, a_store_count);
+        return s_dap_chain_global_db_driver_apply_do(a_store_obj, a_store_count);
+
+
+
+
 
     /* Async mode - put request into the list for deffered processing */
     l_ret = -ENOMEM;                                                    /* Preset return code to non-OK  */
@@ -362,7 +366,7 @@ dap_worker_t        *l_dap_worker;
         else l_ret = dap_proc_queue_add_callback(l_dap_worker, s_dap_driver_req_exec, NULL);
         }
 
-    log_it(L_DEBUG, "[%p DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
+    log_it(L_DEBUG, "[%p] DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
 
     return  l_ret;
 }
