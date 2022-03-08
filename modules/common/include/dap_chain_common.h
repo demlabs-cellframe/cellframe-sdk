@@ -207,7 +207,7 @@ enum dap_chain_tx_item_type {
 typedef byte_t dap_chain_tx_item_type_t;
 
 
-typedef struct dap_chain_receipt {
+typedef struct dap_chain_receipt_info {
     dap_chain_net_srv_uid_t srv_uid; // Service UID
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     uint64_t addition;

@@ -29,7 +29,7 @@ bool dap_isstralnum(const char *c)
 
     for (size_t i = 0; i < str_len; i++)
     {
-        if (!isalnum(c[i]))
+        if (!isalnum(c[i]) && c[i] != '_' && c[i] != '-')
             return false;
     }
 

@@ -2384,9 +2384,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         // If debug mode dump the UTXO
         if (dap_log_level_get() == L_DEBUG && s_debug_more) {
             for (size_t i =0; i < (size_t) l_item_tmp->cache_data.n_outs; i++){
-                dap_chain_tx_out_t * l_tx_out = l_tist_tmp->data;
+                dap_chain_tx_out_t *l_tx_out = l_tist_tmp->data;
+                if (l_tx_out->header.type != TX_ITEM_TYPE_OUT)
+                    continue;
                 char * l_tx_out_addr_str = dap_chain_addr_to_str( &l_tx_out->addr );
-                log_it(L_DEBUG,"Added tx out to %s",l_tx_out_addr_str );
+                log_it(L_DEBUG, "Added tx out to %s", l_tx_out_addr_str);
                 DAP_DELETE (l_tx_out_addr_str);
             }
         }

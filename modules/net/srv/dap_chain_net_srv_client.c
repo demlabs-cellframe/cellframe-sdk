@@ -146,10 +146,17 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
             break;
         }
         if (l_srv_client->callbacks.sign) {
+            // Duplicate receipt for realloc can be applied
+            dap_chain_datum_tx_receipt_t *l_rec_cpy = DAP_DUP_SIZE(l_receipt, l_receipt->size);
             // Sign receipt     
-            l_receipt = l_srv_client->callbacks.sign(l_srv_client, l_receipt, l_srv_client->callbacks_arg);
-            dap_stream_ch_pkt_write_unsafe(a_ch_chain->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE,
-                                           l_receipt, l_receipt->size);
+            l_rec_cpy = l_srv_client->callbacks.sign(l_srv_client, l_rec_cpy, l_srv_client->callbacks_arg);
+            if (l_rec_cpy) {
+                dap_stream_ch_pkt_write_unsafe(a_ch_chain->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE,
+                                               l_rec_cpy, l_rec_cpy->size);
+                DAP_DELETE(l_rec_cpy);
+            } else {
+                log_it(L_ERROR, "Problem with receipt signing, callback.sign returned NULL");
+            }
         }
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS: {

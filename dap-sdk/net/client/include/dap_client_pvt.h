@@ -100,6 +100,7 @@ typedef struct dap_client_internal
 } dap_client_pvt_t;
 
 #define DAP_CLIENT_PVT(a) (a ? (dap_client_pvt_t*) a->_internal : NULL)
+#define ESOCKET_CLIENT_PVT(a) (a ? (dap_client_pvt_t *) a->_inheritor : NULL)
 
 int dap_client_pvt_init();
 void dap_client_pvt_deinit();

@@ -33,6 +33,7 @@
  */
 typedef struct dap_chain_datum_tx_receipt {
     dap_chain_tx_item_type_t type; // Transaction item type
+    byte_t padding[3];
     dap_chain_receipt_info_t receipt_info; // Receipt itself
     uint64_t size;
     uint64_t exts_size;
@@ -43,8 +44,6 @@ typedef struct dap_chain_datum_tx_receipt {
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-static inline size_t dap_chain_datum_tx_receipt_get_size_hdr(){ return 1+sizeof (dap_chain_receipt_info_t)+sizeof (uint16_t) +sizeof (uint16_t); }
 
 dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_srv_uid_t srv_uid,
                                                                   dap_chain_net_srv_price_unit_uid_t units_type,

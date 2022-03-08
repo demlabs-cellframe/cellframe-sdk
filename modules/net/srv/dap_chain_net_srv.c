@@ -593,6 +593,23 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
     return ret;
 }
 
+bool dap_chain_net_srv_pay_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+{
+    if (!a_owner)
+        return false;
+    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
+                                               dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
+    if (!l_receipt)
+        return false;
+    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
+    if (!l_sign)
+        return false;
+    dap_hash_fast_t l_pkey_hash;
+    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash))
+        return false;
+    return dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash);
+}
+
 /**
  * @brief dap_chain_net_srv_add
  * @param a_uid
@@ -648,7 +665,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
                         }
                         continue;
                     case 1:
-                        l_price->value_datoshi = dap_chain_coins_to_datoshi(strtold(l_price_token, NULL));
+                        l_price->value_datoshi = dap_chain_uint128_to(dap_chain_coins_to_balance(l_price_token));
                         if (!l_price->value_datoshi) {
                             log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
                             l_iter = 0;

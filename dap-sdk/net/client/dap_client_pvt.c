@@ -239,7 +239,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
     dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid_ptr);
     if(l_es){
         if (l_es->flags & DAP_SOCK_CONNECTING ){
-            dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *)l_es->_inheritor;
+            dap_client_pvt_t * l_client_pvt = ESOCKET_CLIENT_PVT(l_es);
             if (dap_client_pvt_find(l_client_pvt->uuid)) {
                 log_it(L_WARNING,"Connecting timeout for stream uplink request http://%s:%u/, possible network problems or host is down",
                        l_client_pvt->uplink_addr, l_client_pvt->uplink_port);
@@ -280,7 +280,7 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
 
     dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid_ptr);
     if( l_es ){
-        dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t *)l_es->_inheritor;
+        dap_client_pvt_t * l_client_pvt = ESOCKET_CLIENT_PVT(l_es);
         if (dap_client_pvt_find(l_client_pvt->uuid)) {
             if ( time(NULL)- l_client_pvt->ts_last_active >= s_client_timeout_active_after_connect_seconds){
 
@@ -321,7 +321,7 @@ static bool s_enc_init_delay_before_request_timer_callback(void * a_arg)
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
     dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid_ptr);
     if(l_es){
-        dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) l_es->_inheritor;
+        dap_client_pvt_t *l_client_pvt = ESOCKET_CLIENT_PVT(l_es);
         s_stage_status_after(l_client_pvt);
     }
     DAP_DEL_Z(l_es_uuid_ptr);
@@ -1220,7 +1220,7 @@ static void s_stage_stream_streaming(dap_client_t * a_client, void* arg)
  */
 static void s_stream_es_callback_connected(dap_events_socket_t * a_es)
 {
-    dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t*) a_es->_inheritor;
+    dap_client_pvt_t *l_client_pvt = ESOCKET_CLIENT_PVT(a_es);
     s_stream_connected(l_client_pvt);
 }
 
@@ -1234,7 +1234,7 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
     (void) arg;
     log_it(L_INFO, "Stream delete callback");
 
-    dap_client_pvt_t *l_client_pvt = (dap_client_pvt_t *)a_es->_inheritor;
+    dap_client_pvt_t *l_client_pvt = ESOCKET_CLIENT_PVT(a_es);
     a_es->_inheritor = NULL; // To prevent delete in reactor
 
     if(l_client_pvt == NULL) {
@@ -1270,7 +1270,7 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
 static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
 {
     (void) arg;
-    dap_client_pvt_t * l_client_pvt =(dap_client_pvt_t *) a_es->_inheritor;
+    dap_client_pvt_t *l_client_pvt = ESOCKET_CLIENT_PVT(a_es);
 
     l_client_pvt->ts_last_active = time(NULL);
     switch (l_client_pvt->stage) {
@@ -1316,7 +1316,7 @@ static void s_stream_es_callback_read(dap_events_socket_t * a_es, void * arg)
 static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
 {
     (void) arg;
-    dap_client_pvt_t * l_client_pvt = a_es->_inheritor;
+    dap_client_pvt_t *l_client_pvt = ESOCKET_CLIENT_PVT(a_es);
     l_client_pvt->ts_last_active = time(NULL);
     if (l_client_pvt->stage_status == STAGE_STATUS_ERROR || !l_client_pvt->stream)
         return;
@@ -1351,7 +1351,7 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
  */
 static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
 {
-    dap_client_pvt_t *l_client_pvt = (dap_client_pvt_t *) a_es->_inheritor;
+    dap_client_pvt_t *l_client_pvt = ESOCKET_CLIENT_PVT(a_es);
     if (!l_client_pvt)
         return;
     l_client_pvt = dap_client_pvt_find(l_client_pvt->uuid);

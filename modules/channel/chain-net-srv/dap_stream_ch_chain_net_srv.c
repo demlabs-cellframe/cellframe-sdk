@@ -134,6 +134,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
     memset(&l_err, 0, sizeof(l_err));
     dap_chain_net_srv_t * l_srv = NULL;
+    dap_chain_net_srv_usage_t *l_usage = NULL;
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
 
     if (l_ch== NULL )
@@ -202,7 +203,6 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
             }
         }
     }
-    dap_chain_net_srv_usage_t *l_usage = NULL;
     if (!a_grace->usage) {
         l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, l_srv);
         if ( !l_usage ){ // Usage can't add
@@ -533,8 +533,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 // Store receipt if any problems with transactions
                 dap_chain_hash_fast_t l_receipt_hash={0};
                 dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
-                char * l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
-                dap_chain_global_db_gr_set( l_receipt_hash_str,l_receipt,l_receipt_size,"local.receipts");
+                char * l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);   
+                dap_chain_global_db_gr_set(l_receipt_hash_str, DAP_DUP_SIZE(l_receipt, l_receipt_size),
+                                           l_receipt_size, "local.receipts");
                 l_receipt_hash_str = NULL; // To prevent usage of this pointer when it will be free by GDB processor
                 size_t l_success_size;
                 dap_chain_hash_fast_t *l_tx_in_hash  = NULL;
@@ -577,18 +578,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if ( l_is_first_sign && l_usage->service->callback_response_success){
                     if( l_usage->service->callback_response_success(l_usage->service,l_usage->id,  l_usage->client,
                                                                 l_receipt, l_receipt_size ) !=0 ){
-                        log_it(L_NOTICE, "No success by service callback, inactivating service usage");
+                        log_it(L_NOTICE, "No success by service success callback, inactivating service usage");
                         l_usage->is_active = false;
                     }
-                    // issue receipt next
-                    l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
-                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-                                                   l_usage->receipt_next, l_usage->receipt_next->size);
-
                 }else if ( l_usage->service->callback_receipt_next_success){
                     if (l_usage->service->callback_receipt_next_success(l_usage->service, l_usage->id, l_usage->client,
                                                                 l_receipt, l_receipt_size ) != 0 ){
-                        log_it(L_NOTICE, "No success by service callback, inactivating service usage");
+                        log_it(L_NOTICE, "No success by service receipt_next callback, inactivating service usage");
                         l_usage->is_active = false;
                     }
                 }
