@@ -591,12 +591,12 @@ static void s_net_state_link_replace_error(dap_worker_t *a_worker, dap_chain_nod
     log_it(L_WARNING,"Link " NODE_ADDR_FP_STR " (%s) replace error with code %d", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
                                                                                  l_node_addr_str,a_errno );
     dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkReplaceError\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\","
-                            "error: %d"
-                            "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
+                                "\"class\":\"NetLinkReplaceError\","
+                                "\"net_id\":\"0x%016" DAP_UINT64_FORMAT_X "\","
+                                "\"cell_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                "\"address\":\""NODE_ADDR_FP_STR"\","
+                                "\"error\": %d"
+                                "}", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address), a_errno);
     DAP_DELETE(a_node_info);
     dap_chain_node_info_t *l_link_node_info = NULL;
@@ -653,11 +653,11 @@ static void s_net_state_link_replace_success(dap_worker_t *a_worker, dap_chain_n
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 
     dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkReplaceSuccess\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\""
-                        "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
+                                "\"class\":\"NetLinkReplaceSuccess\","
+                                "\"net_id\":\"0x%016" DAP_UINT64_FORMAT_X "\","
+                                "\"cell_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                "\"address\":\""NODE_ADDR_FP_STR"\""
+                                "}", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
     DAP_DELETE(l_dns_request);
 }
@@ -778,12 +778,12 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
         log_it(L_INFO,"%s."NODE_ADDR_FP_STR" stage %s",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
                                                         dap_client_stage_str(a_stage));
     dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkStage\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\","
-                            "state:\"%s\""
-                        "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
+                                "\"class\":\"NetLinkStage\","
+                                "\"net_id\":\"0x%016" DAP_UINT64_FORMAT_X "\","
+                                "\"cell_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                "\"address\":\""NODE_ADDR_FP_STR"\","
+                                "\"state\":\"%s\""
+                                "}", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
                                 dap_chain_node_client_state_to_str(a_node_client->state) );
 }
@@ -800,12 +800,12 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
     log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
     dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkError\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\","
-                            "error:\%d"
-                        "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
+                                "\"class\":\"NetLinkError\","
+                                "\"net_id\":\"0x%016" DAP_UINT64_FORMAT_X "\","
+                                "\"cell_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                "\"address\":\""NODE_ADDR_FP_STR"\","
+                                "\"error\":\%d"
+                                "}", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
                                 a_error);
 }
@@ -821,11 +821,11 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     if (!a_node_client->keep_connection) {
         dap_notify_server_send_f_mt("{"
-                                "class:\"NetLinkDelete\","
-                                "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                                "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                                "address:\""NODE_ADDR_FP_STR"\""
-                                "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
+                                    "\"class\":\"NetLinkDelete\","
+                                    "\"net_id\":\"0x%016" DAP_UINT64_FORMAT_X "\","
+                                    "\"cell_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                    "\"address\":\""NODE_ADDR_FP_STR"\""
+                                    "}", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                     NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
         return;
     } else if (a_node_client->is_connected){
@@ -845,11 +845,11 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
     dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkRestart\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\""
-                            "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
+                                "\"class\":\"NetLinkRestart\","
+                                "\"net_id\":\"0x%016" DAP_UINT64_FORMAT_X "\","
+                                "\"cell_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                "\"address\":\""NODE_ADDR_FP_STR"\""
+                                "}", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
     // Then a_alient wiil be destroyed in a right way
 }
@@ -893,11 +893,11 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
     dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkPrepareSuccess\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\""
-                        "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
+                                "\"class\":\"NetLinkPrepareSuccess\","
+                                "\"net_id\":\"0x%016" DAP_UINT64_FORMAT_X "\","
+                                "\"cell_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                "\"address\":\""NODE_ADDR_FP_STR"\""
+                                "}", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
     DAP_DELETE(l_dns_request);
 }
@@ -920,12 +920,12 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
                                                                                  l_node_addr_str,a_errno );
 
     dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkPrepareError\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\","
-                            "error: %d"
-                        "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
+                                "\"class\":\"NetLinkPrepareError\","
+                                "\"net_id\":\"0x%016" DAP_UINT64_FORMAT_X "\","
+                                "\"cell_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                "\"address\":\""NODE_ADDR_FP_STR"\","
+                                "\"error\": %d"
+                                "}", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
                                 NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),a_errno);
 
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
@@ -954,11 +954,11 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
 static void s_net_states_notify(dap_chain_net_t * l_net )
 {
     dap_notify_server_send_f_mt("{"
-                                    "class:\"NetStates\","
-                                    "net_id: 0x%016" DAP_UINT64_FORMAT_X ","
-                                    "state: \"%s\","
-                                    "state_target:\"%s\""
-                                "}\n", l_net->pub.id.uint64,
+                                "\"class\":\"NetStates\","
+                                "\"net_id\": \"0x%016" DAP_UINT64_FORMAT_X "\","
+                                "\"state\": \"%s\","
+                                "\"state_target\":\"%s\""
+                                "}", l_net->pub.id.uint64,
                                        dap_chain_net_state_to_str( PVT(l_net)->state),
                                        dap_chain_net_state_to_str(PVT(l_net)->state_target));
 
@@ -1002,10 +1002,10 @@ static void s_net_links_notify(dap_chain_net_t * a_net )
 
 
     dap_notify_server_send_f_mt("{"
-                                    "class:\"NetLinks\","
-                                    "net_id:0x%016"DAP_UINT64_FORMAT_X","
-                                    "links:%s]"
-                                "}\n", a_net->pub.id.uint64,
+                                "\"class\":\"NetLinks\","
+                                "\"net_id\":\"0x%016"DAP_UINT64_FORMAT_X"\","
+                                "\"links\":\"%s\"]"
+                            "}", a_net->pub.id.uint64,
                                        l_str_reply->str);
     dap_string_free(l_str_reply,true);
 
@@ -1436,6 +1436,109 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 }
 
 /**
+ * @brief reload ledger
+ * command cellframe-node-cli net -net <network_name> ledger reload
+ * @param l_net 
+ * @return true 
+ * @return false 
+ */
+bool s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
+{
+    dap_chain_ledger_purge(l_net->pub.ledger, false);
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (l_chain->callback_purge) {
+            l_chain->callback_purge(l_chain);
+        }
+        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) {
+            dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
+        } else {
+            dap_chain_load_all(l_chain);
+        }
+    }
+    bool l_processed;
+    do {
+        l_processed = false;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            if (l_chain->callback_atom_add_from_treshold) {
+                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                    log_it(L_DEBUG, "Added atom from treshold");
+                    l_processed = true;
+                }
+            }
+        }
+    } while (l_processed);
+}
+
+/**
+ * @brief update ledger cache at once
+ * if you node build need ledger cache one time reload, uncomment this function
+ * iat the end of s_net_load
+ * @param l_net network object
+ * @return true 
+ * @return false 
+ */
+bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
+{
+    if (!l_net)
+        return false;
+    
+    //
+    // create directory for cache checking file (cellframe-node/cache)
+    //
+    
+    char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
+
+    if (dap_mkdir_with_parents(l_cache_dir) != 0)
+    {
+        log_it(L_WARNING,"Error during one time cache reloading check file creation");
+        return false;
+    }
+
+    //
+    // create file, if it not presented. If file exists, ledger cache operation is stopped
+    //
+
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "4CFB3928-1A9A-467D-BB5E-3FDB35014E8A");
+
+    if (dap_file_simple_test(l_cache_file))
+    {
+        log_it(L_DEBUG,"Ledger cache was already reloaded");
+        return false;
+    }
+
+    log_it(L_WARNING,"Start one time ledger cache reloading");
+
+    static FILE *s_cache_file = NULL;
+
+    s_cache_file = fopen(l_cache_file, "a");
+
+    if(!s_cache_file)
+    {
+        s_cache_file = fopen(l_cache_file, "w");
+
+        if (!s_cache_file) 
+        {
+            dap_fprintf(stderr, "Can't open cache file %s for one time ledger cache reloading.\
+                Please, do it manually using command\
+                cellframe-node-cli net -net <network_name>> ledger reload'\n", l_cache_file);
+            return -1;   
+        }
+    }
+
+    //
+    // reload ledger cache (same as net -net <network_name>> ledger reload command)
+    //
+
+    if (dap_file_simple_test(l_cache_file))
+        s_chain_net_ledger_cache_reload(l_net);
+
+    fclose(s_cache_file);
+
+    return true; 
+}
+
+/**
  * @brief
  * register net* command in cellframe-node-cli interface
  * @param argc arguments count
@@ -1813,32 +1916,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                                                   "Subcommand 'ca' requires one of parameter: add, list, del\n");
                 ret = -5;
             }
-        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
-            dap_chain_ledger_purge(l_net->pub.ledger, false);
-            dap_chain_t *l_chain;
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-                if (l_chain->callback_purge) {
-                    l_chain->callback_purge(l_chain);
-                }
-                if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) {
-                    dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
-                } else {
-                    dap_chain_load_all(l_chain);
-                }
-            }
-            bool l_processed;
-            do {
-                l_processed = false;
-                DL_FOREACH(l_net->pub.chains, l_chain) {
-                    if (l_chain->callback_atom_add_from_treshold) {
-                        while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                            log_it(L_DEBUG, "Added atom from treshold");
-                            l_processed = true;
-                        }
-                    }
-                }
-            } while (l_processed);
-        } else {
+        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) 
+        {
+           s_chain_net_ledger_cache_reload(l_net);
+        } 
+        else 
+        {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                                               "Command 'net' requires one of subcomand: sync, link, go, get, stats, ca, ledger");
             ret = -1;
@@ -2383,6 +2466,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
         l_net_pvt->load_mode = false;
         dap_chain_ledger_load_end(l_net->pub.ledger);
+        // made one time ledger cache reloading
+        s_chain_net_reload_ledger_cache_once(l_net);
         dap_chain_net_add_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast);
         if (l_target_state != l_net_pvt->state_target)
             dap_chain_net_state_go_to(l_net, l_target_state);
