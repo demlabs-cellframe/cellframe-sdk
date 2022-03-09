@@ -76,9 +76,9 @@ static size_t dap_chain_tx_pkey_get_size(const dap_chain_tx_pkey_t *a_item)
     return size;
 }
 
-static size_t dap_chain_tx_sig_get_size(const dap_chain_tx_sig_t *item)
+static size_t dap_chain_tx_sig_get_size(const dap_chain_tx_sig_t *a_item)
 {
-    size_t size = sizeof(dap_chain_tx_sig_t) + item->header.sig_size;
+    size_t size = sizeof(dap_chain_tx_sig_t) + a_item->header.sig_size;
     return size;
 }
 
@@ -86,6 +86,12 @@ static size_t dap_chain_tx_token_get_size(const dap_chain_tx_token_t *a_item)
 {
     (void) a_item;
     size_t size = sizeof(dap_chain_tx_token_t);
+    return size;
+}
+
+static size_t dap_chain_datum_tx_receipt_get_size(const dap_chain_datum_tx_receipt_t *a_item)
+{
+    size_t size = a_item->size;
     return size;
 }
 
@@ -121,7 +127,8 @@ size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
         size = dap_chain_tx_out_ext_get_size((const dap_chain_tx_out_ext_t*) a_item);
         break;
     case TX_ITEM_TYPE_RECEIPT: // Receipt
-        size = dap_chain_datum_tx_receipt_get_size((const dap_chain_datum_tx_receipt_t*) a_item);
+        size = dap_chain_datum_tx_receipt_get_size((const dap_chain_datum_tx_receipt_t *)a_item);
+        break;
     case TX_ITEM_TYPE_IN_COND: // Transaction inputs with condition
         size = dap_chain_tx_in_cond_get_size((const dap_chain_tx_in_cond_t*) a_item);
         break;

@@ -546,6 +546,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                                                           dap_chain_wallet_get_key(l_usage->price->wallet, 0),
                                                                           l_receipt);
                     if ( l_tx_in_hash){
+                        memcpy(&l_usage->tx_cond_hash, l_tx_in_hash, sizeof(dap_chain_hash_fast_t));
                         char * l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(l_tx_in_hash);
                         log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
                         DAP_DELETE(l_tx_in_hash_str);
