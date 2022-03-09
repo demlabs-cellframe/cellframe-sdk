@@ -185,7 +185,7 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
         l_store_obj_dst->key = dap_strdup(l_store_obj_src->key);
         l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
         l_store_obj_dst->cb = l_store_obj_src->cb;
-        l_store_obj_dst->cb = l_store_obj_src->cb_arg;
+        l_store_obj_dst->cb_arg = l_store_obj_src->cb_arg;
     }
 
     return l_store_obj;
@@ -311,7 +311,7 @@ size_t l_store_obj_cnt;
 
 
     /* Is there a callback  ? */
-    if ( l_store_obj_cur->cb )
+    if ( s_db_drvmode_async && l_store_obj_cur->cb )
         {
         /* Enqueue "Exec Complete" callback routine */
         l_dap_worker = dap_events_worker_get_auto ();
