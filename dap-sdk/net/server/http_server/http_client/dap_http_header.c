@@ -138,17 +138,14 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
  * @param value Header's value
  * @return Pointer to the new HTTP header's structure
  */
-dap_http_header_t* dap_http_header_add(dap_http_header_t ** top, const char*name, const char * value)
-{
-    dap_http_header_t * nh = (dap_http_header_t*) calloc(1,sizeof(dap_http_header_t));
-  //  log_it(L_DEBUG,"Added header %s",name);
-    nh->name=strdup(name);
-    nh->value=strdup(value);
-    nh->next=*top;
-    if(*top)
-        (*top)->prev=nh;
-    *top=nh;
-    return nh;
+dap_http_header_t *dap_http_header_add(dap_http_header_t **a_top, const char *a_name, const char *a_value)
+{ 
+    dap_http_header_t *l_new_header = DAP_NEW_Z(dap_http_header_t);
+    l_new_header->name = dap_strdup(a_name);
+    l_new_header->value = dap_strdup(a_value);
+    DL_APPEND(*a_top, l_new_header);
+    return l_new_header;
+
 }
 
 
@@ -182,17 +179,13 @@ dap_http_header_t * dap_http_out_header_add_f(dap_http_client_t * ht, const char
  * @brief dap_http_header_remove Removes header from the list
  * @param dap_hdr HTTP header
  */
-void dap_http_header_remove(dap_http_header_t ** top, dap_http_header_t * hdr )
+void dap_http_header_remove(dap_http_header_t **a_top, dap_http_header_t *a_hdr)
 {
-    if(hdr->prev)
-        hdr->prev=hdr->next;
-    else
-        *top=hdr->next;
+    DL_DELETE(*a_top, a_hdr);
+    DAP_DELETE(a_hdr->name);
+    DAP_DELETE(a_hdr->value);
+    DAP_DELETE(a_hdr);
 
-    if(hdr->next)
-        hdr->next->prev=hdr->prev;
-    free(hdr->name);
-    free(hdr->value);
 }
 
 void print_dap_http_headers(dap_http_header_t * top)
