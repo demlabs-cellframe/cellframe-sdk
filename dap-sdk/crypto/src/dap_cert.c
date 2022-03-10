@@ -318,7 +318,7 @@ dap_cert_t * dap_cert_find_by_name(const char * a_cert_name)
         l_ret = l_cert;
     }
     if (!l_ret)
-        log_it(L_DEBUG, "Can't load cert '%s'");
+        log_it(L_DEBUG, "Can't load cert '%s'", a_cert_name);
     return l_ret;
 }
 
