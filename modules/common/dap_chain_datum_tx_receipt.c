@@ -65,13 +65,13 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
 {
     if (!a_receipt) {
         log_it( L_ERROR, "NULL receipt, can't add sign");
-        return 0;
+        return NULL;
     }
     dap_sign_t * l_sign = dap_sign_create(a_key, &a_receipt->receipt_info, sizeof(a_receipt->receipt_info), 0);
     size_t l_sign_size = l_sign? dap_sign_get_size( l_sign ) : 0;
     if ( ! l_sign || ! l_sign_size ){
         log_it( L_ERROR, "Can't sign the receipt, may be smth with key?");
-        return 0;
+        return NULL;
     }
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
                                                 DAP_REALLOC(a_receipt, a_receipt->size + l_sign_size);
