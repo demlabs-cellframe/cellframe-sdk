@@ -2639,10 +2639,12 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_item_tmp->cache_data.n_outs);
         // If debug mode dump the UTXO
         if (dap_log_level_get() == L_DEBUG && s_debug_more) {
-            for (size_t i =0; i < (size_t) l_item_tmp->cache_data.n_outs; i++){
-                dap_chain_tx_out_t * l_tx_out = l_tist_tmp->data;
+            for (size_t i =0; i < (size_t) l_item_tmp->cache_data.n_outs; i++){               
+                dap_chain_tx_out_t *l_tx_out = l_tist_tmp->data;
+                if (l_tx_out->header.type != TX_ITEM_TYPE_OUT)
+                    continue;
                 char * l_tx_out_addr_str = dap_chain_addr_to_str( &l_tx_out->addr );
-                log_it(L_DEBUG,"Added tx out to %s",l_tx_out_addr_str );
+                log_it(L_DEBUG, "Added tx out to %s", l_tx_out_addr_str);
                 DAP_DELETE (l_tx_out_addr_str);
             }
         }
@@ -2661,7 +2663,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 
         size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
         memcpy(l_item_tmp->tx, a_tx, l_tx_size);
-        pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
+        pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
         HASH_ADD(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash_fast: name of key field
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
         // Count TPS
@@ -3184,10 +3186,7 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
     bool is_search_enable = is_null_hash;
     dap_chain_ledger_tx_item_t *l_iter_current, *l_item_tmp;
     pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
-    HASH_ITER(hh, l_ledger_priv->ledger_items , l_iter_current, l_item_tmp)
-    {
-        pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
-
+    HASH_ITER(hh, l_ledger_priv->ledger_items , l_iter_current, l_item_tmp) {
         dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
         dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
         // start searching from the next hash after a_tx_first_hash
@@ -3210,7 +3209,6 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
                 break;
             }
         }
-        pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
     }
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     return l_cur_tx;
@@ -3234,9 +3232,7 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
     int l_tx_out_cond_idx;
     pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
-    HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp)
-    {
-        pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
+    HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp) {
         dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
         dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
         // start searching from the next hash after a_tx_first_hash
@@ -3256,7 +3252,6 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
             }
             break;
         }
-        pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
     }
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     if (a_out_cond) {
