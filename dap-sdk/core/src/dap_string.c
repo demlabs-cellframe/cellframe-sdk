@@ -31,16 +31,21 @@ static inline size_t nearest_power(size_t a_base, size_t a_num)
 
 static void dap_string_maybe_expand(dap_string_t *a_string, size_t a_len)
 {
-    if(a_string->len + a_len >= a_string->allocated_len) {
-        a_string->allocated_len = nearest_power(1, a_string->len + a_len + 1);
+size_t  l_len;
+void    *l_str;
 
-        /*char *l_str = DAP_NEW_Z_SIZE(char, a_string->allocated_len);
-        if(a_string->str)
-            strcpy(l_str, a_string->str);
-        DAP_DELETE(a_string->str);
-        a_string->str = l_str;*/
-        a_string->str = DAP_REALLOC(a_string->str, (uint32_t)a_string->allocated_len);
-    }
+    if ( !(a_string->len + a_len >= a_string->allocated_len) )              /* Is there free space in the current area */
+        return;                                                             /* Nothing to do - just return */
+
+    l_len = nearest_power(1, a_string->len + a_len + 1);                    /* Compute a size of the new memory area */
+    l_str = DAP_REALLOC(a_string->str, l_len );                             /* Try to realloc" */
+
+    if ( !l_str )                                                           /* In case of error - don't touch an original descriptor */
+        return;
+
+    a_string->str = l_str;                                                  /* Update <string> descriptor with actual data */
+    a_string->allocated_len = l_len;
+
 }
 
 /**
@@ -828,26 +833,31 @@ dap_string_t* dap_string_up(dap_string_t *string)
  */
 void dap_string_append_vprintf(dap_string_t *string, const char *format, va_list args)
 {
-    const char l_oom [] = "Out of memory!";
+    const char l_oom [] = { "Out of memory@%s!" }, l_buf[128];
     char *buf;
     int len;
 
     dap_return_if_fail(string != NULL);
     dap_return_if_fail(format != NULL);
 
-    len = dap_vasprintf(&buf, format, args);
+    if ( 0 > (len = dap_vasprintf(&buf, format, args)) )                    /* Got negative/error ? Return to caller */
+        return;
 
-    if (len >= 0) {
-        dap_string_maybe_expand(string, len);
-        if (string->str) {
-            memcpy(string->str + string->len, buf, len + 1);
-            string->len += len;
-        } else {
-            string->str = DAP_NEW_SIZE(char, sizeof(l_oom ) );
-            memcpy(string->str, l_oom , sizeof(l_oom ));
-        }
-        DAP_DELETE(buf);
+    dap_string_maybe_expand(string, len);                                   /* Try to expand an area for new append */
+
+    if ( (string->allocated_len - string->len) < len )                      /* Is there real space for new append ? */
+        return;
+
+    if (string->str) {
+        memcpy(string->str + string->len, buf, len + 1);
+        string->len += len;
+    } else {
+        len = sprintf(l_buf, l_oom, __func__ );
+        if ( (string->str = DAP_NEW_SIZE(char, sizeof(l_buf ))) )
+            memcpy(string->str, l_buf , len);
     }
+
+    DAP_DELETE(buf);
 }
 
 /**
@@ -866,7 +876,7 @@ void dap_string_vprintf(dap_string_t *string, const char *format, va_list args)
     dap_string_append_vprintf(string, format, args);
 }
 
-/**
+/*
  * dap_string_sprintf:
  * @a_string: a #dap_string_t
  * @a_format: the string format. See the sprintf() documentation
