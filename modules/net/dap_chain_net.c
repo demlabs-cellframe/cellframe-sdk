@@ -1442,7 +1442,7 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
  * @return true 
  * @return false 
  */
-bool s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
+void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain;

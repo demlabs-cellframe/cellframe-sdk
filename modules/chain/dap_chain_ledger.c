@@ -1020,7 +1020,7 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
     if (l_token_cache->header_private.current_supply >= l_emission_value)
     {
        l_token_cache->header_private.current_supply -= l_emission_value;
-       log_it(L_DEBUG,"New current supply %lld for token %s", l_token_cache->header_private.current_supply, l_token_item->ticker);
+       log_it(L_DEBUG,"New current supply %"DAP_UINT64_FORMAT_U" for token %s", l_token_cache->header_private.current_supply, l_token_item->ticker);
 
        // Update value in ledger memory object
 
@@ -1028,7 +1028,7 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
     }                
     else
     {
-       log_it(L_WARNING,"Token current supply %lld lower, than emission value = %lld", l_token_cache->header_private.current_supply, 
+       log_it(L_WARNING,"Token current supply %"DAP_UINT64_FORMAT_U" lower, than emission value = %"DAP_UINT64_FORMAT_U, l_token_cache->header_private.current_supply,
                                         l_emission_value);
 
             DAP_DELETE(l_gdb_group);
@@ -1067,7 +1067,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
             l_token_item->total_supply = l_token_item->datum_token->header_private.total_supply;
             l_token_item->type = l_token_item->datum_token->type;
             l_token_item->current_supply = l_token_item->datum_token->header_private.current_supply;
-            log_it(L_DEBUG,"Ledger cache datum_token current_supply %lld, ticker: %s", l_token_item->current_supply, l_token_item->ticker);
+            log_it(L_DEBUG,"Ledger cache datum_token current_supply %"DAP_UINT64_FORMAT_U", ticker: %s", l_token_item->current_supply, l_token_item->ticker);
             l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(l_token_item->datum_token, l_objs[i].value_len,
                                                                                        &l_token_item->auth_signs_total,
                                                                                        &l_token_item->auth_signs_valid );
