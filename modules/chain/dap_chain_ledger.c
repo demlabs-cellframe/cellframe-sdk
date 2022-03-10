@@ -1824,11 +1824,9 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         if (l_is_blank){
             if(s_debug_more)
                 log_it(L_DEBUG, "Tx check: blank prev hash ");
-           dap_snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
+            dap_snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
         }else{
             dap_chain_hash_fast_to_str(&l_tx_prev_hash,l_tx_prev_hash_str,sizeof(l_tx_prev_hash_str));
-            if(s_debug_more)
-                log_it(L_DEBUG, "Tx check:  tx prev hash %s",l_tx_prev_hash_str);
         }
 
         if(l_is_blank || l_is_first_transaction) {
@@ -1855,9 +1853,9 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         dap_chain_datum_tx_t *l_tx_prev =
                 s_find_datum_tx_by_hash(a_ledger, &l_tx_prev_hash, &l_item_out); // dap_chain_datum_tx_t *l_tx_prev = (dap_chain_datum_tx_t*) dap_chain_node_datum_tx_cache_find(&tx_prev_hash);
         bound_item->item_out = l_item_out;
-        if(!l_tx_prev) { // First transaction
-            if(s_debug_more)
-                log_it(L_DEBUG,"No previous transaction was found for hash %s",l_tx_prev_hash_str);
+        if(!l_tx_prev) { // Unchained transaction
+            //if(s_debug_more)  // Too many messages with thresholds processing
+            //    log_it(L_DEBUG,"No previous transaction was found for hash %s",l_tx_prev_hash_str);
             l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
             break;
         }
@@ -1969,11 +1967,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         } else { // TX_ITEM_TYPE_IN_COND
             if(*(uint8_t *)l_tx_prev_out != TX_ITEM_TYPE_OUT_256_COND) {
                 l_err_num = -8;
-                break;
-            }
-            if (! l_token_item){
-                l_err_num = -16;
-                log_it(L_ERROR,"Can't find token item for conditioned tx out");
                 break;
             }
             // 5a. Check for condition owner
