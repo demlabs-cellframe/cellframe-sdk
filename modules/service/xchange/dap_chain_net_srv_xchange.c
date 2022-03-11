@@ -27,7 +27,7 @@
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_net_srv_common.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_xchange.h"
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
@@ -70,10 +70,11 @@ int dap_chain_net_srv_xchange_init()
          "\tDisable eXchange service\n"
     );
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
-    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, s_callback_requested, s_callback_response_success,
-                                                       s_callback_response_error, s_callback_receipt_next_success);
+    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", s_callback_requested,
+                                                       s_callback_response_success, s_callback_response_error,
+                                                       s_callback_receipt_next_success, NULL);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
-    l_srv->_inhertor = s_srv_xchange;
+    l_srv->_internal = s_srv_xchange;
     s_srv_xchange->parent = l_srv;
     s_srv_xchange->enabled = false;
     size_t l_prices_count = 0;

@@ -25,7 +25,7 @@
 #pragma once
 
 #include <pthread.h>
-#include "dap_stream_ch.h"
+#include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_common.h"
 
@@ -35,14 +35,14 @@ typedef void (*dap_stream_ch_chain_net_srv_callback_packet_t)(dap_stream_ch_chai
         dap_stream_ch_pkt_t *, void *);
 
 typedef struct dap_stream_ch_chain_net_srv {
-    pthread_mutex_t mutex;
     dap_chain_net_srv_uid_t srv_uid;
+    dap_stream_ch_t *ch;
+    dap_stream_ch_uuid_t ch_uuid;
     dap_stream_ch_chain_net_srv_callback_packet_t notify_callback;
     void *notify_callback_arg;
 } dap_stream_ch_chain_net_srv_t;
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV(a) ((dap_stream_ch_chain_net_srv_t *) ((a)->internal) )
 
-void dap_stream_ch_chain_net_srv_set_srv_uid(dap_stream_ch_t* a_ch, dap_chain_net_srv_uid_t a_srv_uid);
 uint8_t dap_stream_ch_chain_net_srv_get_id();
 int dap_stream_ch_chain_net_srv_init(void);

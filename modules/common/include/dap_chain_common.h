@@ -211,14 +211,19 @@ enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff
 };
-typedef uint32_t dap_chain_tx_item_type_t;
+typedef byte_t dap_chain_tx_item_type_t;
 
-
-typedef struct dap_chain_receipt{
+typedef struct dap_chain_receipt_info {
     dap_chain_net_srv_uid_t srv_uid; // Service UID
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    uint64_t addition;
+#endif
     dap_chain_net_srv_price_unit_uid_t units_type;
     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    uint256_t value_datoshi; // Receipt value
+    union {
+        uint256_t value_datoshi; // Receipt value
+        uint64_t value_64;       // Old receipts compliance
+    };
 } dap_chain_receipt_info_t;
 
 #ifdef __cplusplus

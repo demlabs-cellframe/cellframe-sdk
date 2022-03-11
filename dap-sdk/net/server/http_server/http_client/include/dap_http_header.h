@@ -37,7 +37,7 @@ void dap_http_header_deinit(); // Deinit module
 
 int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str);
 
-dap_http_header_t * dap_http_header_add(dap_http_header_t ** top, const char*name, const char * value);
+dap_http_header_t *dap_http_header_add(dap_http_header_t **a_top, const char *a_name, const char *a_value);
 
 dap_http_header_t * dap_http_out_header_add(struct dap_http_client * ht, const char*name, const char * value);
 dap_http_header_t * dap_http_out_header_add_f(struct dap_http_client * ht, const char*name, const char * value,...);
@@ -46,7 +46,7 @@ dap_http_header_t * dap_http_header_find(dap_http_header_t * top, const char*nam
 
 dap_http_header_t * dap_http_headers_dup(dap_http_header_t * a_top);
 
-void dap_http_header_remove(dap_http_header_t ** top,dap_http_header_t * hdr );
+void dap_http_header_remove(dap_http_header_t **a_top,dap_http_header_t *a_hdr);
 
 // For debug output
 void print_dap_http_headers(dap_http_header_t * top);
