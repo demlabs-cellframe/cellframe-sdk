@@ -2458,7 +2458,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             case NODE_ROLE_LIGHT:
             default:
                 log_it(L_INFO,"Light node role established");
-
+            if (!l_net_pvt->only_static_links)
+                l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "static_links_only", false);
         }
 
         if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
