@@ -640,6 +640,39 @@ static void s_gdb_sync_tsd_worker_callback(dap_worker_t *a_worker, void *a_arg)
 }
 
 /**
+ * @brief 
+ * 
+ * @param net_id 
+ * @param group_name 
+ * @return dap_chain_t* 
+ */
+dap_chain_t *s_chain_get_chain_from_group_name(dap_chain_net_id_t net_id, char *group_name)
+{
+    dap_chain_t *l_chain;
+
+    if (!group_name)
+    {
+        log_it(L_ERROR, "s_chain_get_chain_id_from_group. GDB group name is NULL");
+        return NULL;
+    }
+    
+    dap_chain_net_t *l_net = dap_chain_net_by_id(net_id); 
+
+    if (!l_net)
+        return false;
+
+    DL_FOREACH(l_net->pub.chains, l_chain) 
+    {
+        char *s_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);    
+
+        if (!strcmp(group_name,s_chain_group_name))
+            return l_chain;
+    }    
+    
+    return NULL;
+}
+
+/**
  * @brief s_gdb_in_pkt_callback
  * @param a_thread
  * @param a_arg
@@ -738,11 +771,18 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
             // apply received transaction
             dap_chain_t *l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
+
+            //
+            // if chain is zero, it can be on of GDB group
+            // 
+            if (!l_chain)
+                 l_chain = s_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
+
             if(l_chain) {
                 if(l_chain->callback_add_datums_with_group){
                     const void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
-                            (dap_chain_datum_t** restrict) l_store_obj_value, 1,
+                            (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
                 }
             }

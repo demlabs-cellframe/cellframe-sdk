@@ -501,13 +501,17 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE) {
                     dap_timerfd_reset(l_node_client->sync_timer);
                     dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
-                } else if (!l_have_waiting)
+                } 
+                else if (!l_have_waiting)
+                {
+                    #ifndef _WIN32
+                        pthread_cond_broadcast(&l_node_client->wait_cond);
+                    #else
+                        SetEvent( l_node_client->wait_cond );
+                    #endif
+                    // l_node_client object is not presented after dap_chain_net_state_go_to with NET_STATE_OFFLINE
                     dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
-#ifndef _WIN32
-                pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-                SetEvent( l_node_client->wait_cond );
-#endif
+                }
             }
         } break;
         default: break;
@@ -790,6 +794,10 @@ void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
     dap_chain_node_client_handle_t * l_client_found = NULL;
     HASH_FIND(hh,s_clients,&a_client->uuid,sizeof(a_client->uuid),l_client_found);
     if (l_client_found) {
+
+        if (l_client_found->client->sync_timer)
+            dap_timerfd_delete(l_client_found->client->sync_timer);
+
         HASH_DEL(s_clients,l_client_found);
         DAP_DELETE(l_client_found);
         if (a_client->callbacks.delete)
