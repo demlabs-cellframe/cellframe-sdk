@@ -344,7 +344,6 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             return dap_chain_ledger_token_emission_load(a_ledger, l_datum->data, l_datum->header.data_size);
-            //return dap_chain_ledger_token_emission_load(a_ledger, l_datum, l_datum->header.data_size+sizeof(l_datum->header));
         }
         break;
         case DAP_CHAIN_DATUM_TX: {
@@ -369,19 +368,15 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             }
             if (l_err != EDEADLK)
                 pthread_rwlock_unlock(l_events_rwlock);
+            return l_ret == 1 ? 0 : l_ret;
         }
         break;
-        case DAP_CHAIN_DATUM_CA: {
+        case DAP_CHAIN_DATUM_CA:
             dap_cert_chain_file_save(l_datum, a_dag->chain->net_name);
             return DAP_CHAIN_DATUM_CA;
-        }
-        break;
-        case DAP_CHAIN_DATUM_SIGNER: {
+        case DAP_CHAIN_DATUM_SIGNER:
+        case DAP_CHAIN_DATUM_CUSTOM:
             return 0;
-    	}
-        case DAP_CHAIN_DATUM_CUSTOM: {
-            return 0;
-        }
         default:
             return -1;
     }
@@ -1790,9 +1785,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 }else if (l_from_events_str && (strcmp(l_from_events_str,"events") == 0) ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-                    size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
-                    dap_string_append_printf(l_str_tmp,"%s.%s: Have %zu events :\n",
-                                             l_net->pub.name,l_chain->name,l_events_count);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
                         char buf[50];
@@ -1802,7 +1794,10 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                  l_event_item_hash_str, dap_ctime_r( &l_ts_create,buf ) );
                         DAP_DELETE(l_event_item_hash_str);
                     }
+                    size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
                     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+                    dap_string_append_printf(l_str_tmp,"%s.%s have total %zu events :\n",
+                                             l_net->pub.name, l_chain->name, l_events_count);
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
 

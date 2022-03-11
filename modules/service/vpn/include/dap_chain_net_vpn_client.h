@@ -26,7 +26,9 @@
 
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_stream_session.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_vpn.h"
 
 typedef enum dap_chain_net_vpn_client_status_enum{
