@@ -532,9 +532,8 @@ static dap_config_item_t * dap_config_get_item(dap_config_t * a_config, const ch
 const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
     dap_config_item_t * item = dap_config_get_item(a_config, a_section_path, a_item_name);
-    if (item == NULL)
-        return NULL;
-    return item->data_str;
+
+    return  (!item) ?  NULL : item->data_str;
 }
 
 
@@ -595,15 +594,15 @@ const char * dap_config_get_item_str_default(dap_config_t * a_config, const char
  */
 bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-    const char *cp;
+const char *l_str_ret;
 
-    if ( !(cp = dap_config_get_item_str(a_config, a_section_path, a_item_name)) )
+    if ( !(l_str_ret = dap_config_get_item_str(a_config, a_section_path, a_item_name)) )
         return	false;
 
 #ifdef	WIN32
     return	!strnicmp (cp, "true", 4);
 #else
-    return	!strncasecmp (cp, "true", 4);	/* 0 == True */
+    return	!strncasecmp (l_str_ret, "true", 4);	/* 0 == True */
 #endif
 }
 
@@ -619,8 +618,12 @@ bool dap_config_get_item_bool(dap_config_t * a_config, const char * a_section_pa
 bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_section_path,
                                       const char * a_item_name, bool a_default)
 {
-    return strcmp(dap_config_get_item_str_default(a_config,a_section_path,a_item_name,
-                                                  a_default?"true":"false"),"true") == 0;
+const char *l_str_ret;
+
+    if ( !(l_str_ret = dap_config_get_item_str_default(a_config,a_section_path, a_item_name, a_default ? "true" : "false")) )
+        return  a_default;
+
+    return !strcmp(l_str_ret, "true" );
 }
 
 /**
@@ -632,7 +635,10 @@ bool dap_config_get_item_bool_default(dap_config_t * a_config, const char * a_se
  */
 double dap_config_get_item_double(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
-    return atof(dap_config_get_item_str(a_config,a_section_path,a_item_name));
+const char *l_str_ret;
+
+    l_str_ret = dap_config_get_item_str(a_config,a_section_path,a_item_name);
+    return l_str_ret ? atof(l_str_ret) : 0.0;
 }
 
 /**
