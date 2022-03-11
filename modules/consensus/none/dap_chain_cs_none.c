@@ -303,7 +303,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         size_t a_datums_count)
 {
     for(size_t i = 0; i < a_datums_count; i++) {
-        dap_chain_datum_t * l_datum = a_datums[i];
+        dap_chain_datum_t * l_datum = &a_datums[i];
         s_chain_callback_atom_add(a_chain, l_datum,dap_chain_datum_size(l_datum) );
     }
     return a_datums_count;
