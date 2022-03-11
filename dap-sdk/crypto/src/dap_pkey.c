@@ -35,58 +35,38 @@
  * @param a_key dap_enc_key_t encryption key
  * @return dap_pkey_t* 
  */
-dap_pkey_t* dap_pkey_from_enc_key(dap_enc_key_t *a_key)
+dap_pkey_t *dap_pkey_from_enc_key(dap_enc_key_t *a_key)
 {
-    if (a_key->pub_key_data_size > 0 ){
-        dap_pkey_t * l_ret = NULL;
-        l_ret = DAP_NEW_Z_SIZE(dap_pkey_t,dap_pkey_from_enc_key_output_calc(a_key));
-        if( dap_pkey_from_enc_key_output(a_key,l_ret) != 0 ) {
-            DAP_DELETE(l_ret);
-            return NULL;
-        }else
-            return l_ret;
-    }
-
-    return NULL;
-}
-
-/**
- * @brief dap_pkey_from_enc_key_output
- * convert encryption key to public key and placed it in output buffer
- * @param a_key dap_enc_key_t encryption key object
- * @param a_output output data
- * @return result
- */
-int dap_pkey_from_enc_key_output(dap_enc_key_t *a_key, void * a_output)
-{
-    dap_pkey_t * l_output = (dap_pkey_t *) a_output;
+    dap_pkey_type_t l_type;
     if (a_key->pub_key_data_size > 0 ){
         switch (a_key->type) {
             case DAP_ENC_KEY_TYPE_SIG_BLISS:
-                l_output->header.type.type = PKEY_TYPE_SIGN_BLISS ;
-            break;
+                l_type.type = PKEY_TYPE_SIGN_BLISS; break;
             case DAP_ENC_KEY_TYPE_SIG_TESLA:
-                l_output->header.type.type = PKEY_TYPE_SIGN_TESLA ;
-            break;
+                l_type.type = PKEY_TYPE_SIGN_TESLA; break;
             case DAP_ENC_KEY_TYPE_SIG_PICNIC:
-                l_output->header.type.type = PKEY_TYPE_SIGN_PICNIC ;
-            break;
+                l_type.type = PKEY_TYPE_SIGN_PICNIC; break;
             case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-                l_output->header.type.type = PKEY_TYPE_SIGN_DILITHIUM;
-            break;
-
+                l_type.type = PKEY_TYPE_SIGN_DILITHIUM; break;
             default:
                 log_it(L_WARNING,"No serialization preset");
-                return -1;
+                return NULL;
         }
-        l_output->header.size = a_key->pub_key_data_size;
-        memcpy(l_output->pkey,a_key->pub_key_data,a_key->pub_key_data_size);
-        return 0;
+        size_t l_pub_key_size;
+        uint8_t *l_pkey = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+        if (!l_pkey) {
+            log_it(L_WARNING,"Serialization failed");
+            return NULL;
+        }
+        dap_pkey_t *l_ret = DAP_NEW_SIZE(dap_pkey_t, sizeof(dap_pkey_t) + l_pub_key_size);
+        l_ret->header.type = l_type;
+        l_ret->header.size = (uint32_t)l_pub_key_size;
+        memcpy(&l_ret->pkey, l_pkey, l_pub_key_size);
+        DAP_DELETE(l_pkey);
+        return l_ret;
     }else{
         log_it(L_WARNING, "No public key in the input enc_key object");
-        return -2;
+        return NULL;
     }
-    return -3;
+    return NULL;
 }
-
-

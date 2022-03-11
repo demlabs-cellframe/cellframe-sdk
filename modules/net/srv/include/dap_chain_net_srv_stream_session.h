@@ -31,7 +31,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_receipt.h"
-#include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_wallet.h"
 
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
@@ -42,14 +42,11 @@ typedef struct dap_chain_net_srv_usage{
     pthread_rwlock_t rwlock;
     time_t ts_created; // Created timpestamp
     dap_chain_net_t * net; // Chain network where everything happens
-    dap_chain_wallet_t * wallet;
     dap_chain_net_srv_t * service; // Service that used
 
     dap_chain_datum_tx_receipt_t* receipt;
     dap_chain_datum_tx_receipt_t* receipt_next; // Receipt on the next units amount
     dap_chain_net_srv_price_t * price; // Price for issue next receipt
-    size_t receipt_size;
-    size_t receipt_next_size;
     dap_chain_net_srv_client_remote_t *client;
     dap_chain_datum_tx_t * tx_cond;
     dap_chain_hash_fast_t tx_cond_hash;

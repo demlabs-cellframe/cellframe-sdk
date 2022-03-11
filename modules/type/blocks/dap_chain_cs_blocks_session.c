@@ -164,9 +164,9 @@ static bool s_session_block_submit(dap_chain_cs_blocks_session_items_t *a_sessio
 	// dap_chain_net_t * l_net = dap_chain_net_by_id(l_chain->net_id);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 
-    if (!l_blocks->block_new)
+    if (!l_blocks->block_new) {
     	return false; // for timer
-
+    }
 	size_t l_submit_size = sizeof(dap_chain_cs_blocks_session_message_submit_t)+l_blocks->block_new_size;
 	dap_chain_cs_blocks_session_message_submit_t * l_submit =
 							DAP_NEW_SIZE(dap_chain_cs_blocks_session_message_submit_t, l_submit_size);
@@ -312,8 +312,9 @@ static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_n
     dap_chain_hash_fast_t l_data_hash;
     dap_hash_fast(a_data, a_data_size, &l_data_hash);
 
-    if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64 )
+    if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64 ) {
     	goto handler_finish;
+    }
 
 	if (memcmp(a_data_hash, &l_data_hash, sizeof(dap_chain_hash_fast_t)) != 0)
 		goto handler_finish;

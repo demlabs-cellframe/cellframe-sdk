@@ -57,11 +57,9 @@
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
-
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
-
-#include "dap_chain_net_srv_common.h"
+#include "dap_chain_net_srv.h"
 #include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_chain.h"
@@ -71,8 +69,6 @@
 #include "dap_stream_ch_chain_net_srv.h"
 #include "dap_stream_ch_chain_voting.h"
 #include "dap_stream_pkt.h"
-
-//#include "dap_chain_common.h"
 #include "dap_chain_node_client.h"
 
 #define LOG_TAG "dap_chain_node_client"
@@ -99,7 +95,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
 static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels);
 
 bool s_stream_ch_chain_debug_more = false;
-uint32_t s_timer_update_states=60;
+uint32_t s_timer_update_states = 600;
 
 /**
  * @brief dap_chain_node_client_init
@@ -107,8 +103,8 @@ uint32_t s_timer_update_states=60;
  */
 int dap_chain_node_client_init(void)
 {
-    s_stream_ch_chain_debug_more = dap_config_get_item_bool_default(g_config,"stream_ch_chain","debug_more",false);
-    s_timer_update_states = dap_config_get_item_uint32_default(g_config,"node_client","timer_update_states",60);
+    s_stream_ch_chain_debug_more = dap_config_get_item_bool_default(g_config, "stream_ch_chain", "debug_more", false);
+    s_timer_update_states = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", s_timer_update_states);
     return 0;
 }
 
@@ -483,19 +479,19 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             if (l_node_client->cur_cell)
                 l_cell_id = l_node_client->cur_cell->id;
             // Check if we have some more chains and cells in it to sync
+            dap_chain_node_addr_t l_node_addr;
+            l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
             if( l_node_client->cur_chain ){
                 l_chain_id=l_node_client->cur_chain->id;
                 if (s_stream_ch_chain_debug_more) {
-                    dap_chain_node_addr_t * l_node_addr = dap_chain_net_get_cur_addr(l_net);
                     log_it(L_INFO,"In: Link %s."NODE_ADDR_FP_STR" started to sync %s chain",l_net->pub.name,
-                           NODE_ADDR_FP_ARGS(l_node_addr), l_node_client->cur_chain->name );
+                           NODE_ADDR_FP_ARGS_S(l_node_addr), l_node_client->cur_chain->name );
                 }
                 dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,
                                                      l_net->pub.id.uint64 ,
                                                      l_chain_id.uint64,l_cell_id.uint64,NULL,0);
             }else{ // If no - over with sync process
-                dap_chain_node_addr_t * l_node_addr = dap_chain_net_get_cur_addr(l_net);
-                log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr) );
+                log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS_S(l_node_addr) );
                 bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
                 l_node_client->state = NODE_CLIENT_STATE_SYNCED;
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE) {

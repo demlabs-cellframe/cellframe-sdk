@@ -138,6 +138,7 @@ size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a
 
 size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data, size_t a_data_size)
 {
+    a_stream->is_active = true;
     size_t ret=0;
     dap_stream_pkt_hdr_t pkt_hdr;
 
