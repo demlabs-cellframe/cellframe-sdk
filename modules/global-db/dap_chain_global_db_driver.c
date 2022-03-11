@@ -279,7 +279,7 @@ dap_store_obj_t *l_store_obj_cur;
     return l_ret;
 }
 
-static int s_dap_driver_req_exec (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
+static bool s_dap_driver_req_exec (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
                                    void *arg __attribute__((unused)) )
 {
 int l_ret;
@@ -316,7 +316,7 @@ size_t l_store_obj_cnt;
         /* Enqueue "Exec Complete" callback routine */
         l_dap_worker = dap_events_worker_get_auto ();
 
-        if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, l_store_obj_cur->cb, l_store_obj_cur->cb_arg)) )
+        if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, l_store_obj_cur->cb, (void *)l_store_obj_cur->cb_arg)) )
             log_it(L_ERROR, "[%p] Enqueue completion callback for item %s/%s (code %d)", l_store_obj_cur,
                    l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
         }

@@ -132,7 +132,6 @@ int dap_stream_ch_chain_init()
     s_update_pack_size = dap_config_get_item_int16_default(g_config,"stream_ch_chain","update_pack_size",100);
     s_list_ban_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_groups);
     s_list_white_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_groups);
-
     return 0;
 }
 
@@ -184,20 +183,9 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
 static bool s_stream_ch_delete_in_proc(dap_proc_thread_t * a_thread, void * a_arg)
 {
     (void) a_thread;
-    dap_stream_ch_chain_t * l_ch_chain=(dap_stream_ch_chain_t*) a_arg;
-    dap_stream_ch_chain_hash_item_t * l_item = NULL, *l_tmp = NULL;
-
-    // Clear remote atoms
-    HASH_ITER(hh, l_ch_chain->remote_atoms, l_item, l_tmp){
-        HASH_DEL(l_ch_chain->remote_atoms, l_item);
-        DAP_DELETE(l_item);
-    }
-    // Clear remote gdbs
-    HASH_ITER(hh, l_ch_chain->remote_gdbs, l_item, l_tmp){
-        HASH_DEL(l_ch_chain->remote_gdbs, l_item);
-        DAP_DELETE(l_item);
-    }
-    DAP_DELETE(l_ch_chain);
+    dap_stream_ch_chain_go_idle((dap_stream_ch_chain_t *)a_arg);
+    s_free_log_list_gdb((dap_stream_ch_chain_t *)a_arg);
+    DAP_DELETE(a_arg);
     return true;
 }
 
@@ -700,9 +688,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         const char *l_last_group = l_store_obj->group;
         int l_last_type = l_store_obj->type;
         bool l_group_changed = false;
-
-
-
+        uint32_t l_time_store_lim = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
+        uint64_t l_limit_time = l_time_store_lim ? (uint64_t)time(NULL) - l_time_store_lim * 3600 : 0;
 
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
@@ -754,7 +741,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             // check the applied object newer that we have stored or erased
             if (l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
-                    l_obj->timestamp > l_timestamp_cur) {
+                    l_obj->timestamp > l_timestamp_cur &&
+                    (l_obj->type != 'd' || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
             }
             if (s_debug_more){
@@ -844,7 +832,7 @@ static bool s_chain_timer_callback(void *a_arg)
         return false;
     }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-    if (!l_ch_chain->was_active) {
+    if (l_ch_chain->timer_shots++ >= 3) {
         if (l_ch_chain->state != CHAIN_STATE_IDLE) {
             dap_stream_ch_chain_go_idle(l_ch_chain);
         }
@@ -856,7 +844,6 @@ static bool s_chain_timer_callback(void *a_arg)
         l_ch_chain->activity_timer = NULL;
         return false;
     }
-    l_ch_chain->was_active = false;
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
     if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS)
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
@@ -882,8 +869,8 @@ static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
         dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
         a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
                                                                  3000, s_chain_timer_callback, (void *)l_uuid);
-    } else
-        a_ch_chain->was_active = true;
+    }
+    a_ch_chain->timer_shots = 0;
 }
 
 /**
@@ -1294,14 +1281,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                HASH_COUNT(l_ch_chain->remote_atoms));
                     else
                         log_it(L_INFO, "In: SYNC_CHAINS pkt");
-                }
-                if ((l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END) &&
-                        HASH_COUNT(l_ch_chain->remote_atoms) > 5000) {
-                    // TODO remove this after chains will come in order
-                    s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
-                                                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
-                                                        "ERROR_SYNC_REQUEST_IS_TOO_LARGE");
-                    break;
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->stats_request_atoms_processed = 0;

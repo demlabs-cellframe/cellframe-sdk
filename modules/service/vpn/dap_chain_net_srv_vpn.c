@@ -534,138 +534,6 @@ static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, 
 }
 
 /**
- * @brief s_callback_client_success
- * @param a_srv
- * @param a_usage_id
- * @param a_srv_client
- * @param a_success
- * @param a_success_size
- * @return
- */
-static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
-                    const void * a_success, size_t a_success_size)
-{
-    if(!a_srv || !a_srv_client || !a_srv_client->stream_worker || !a_success || a_success_size < sizeof(dap_stream_ch_chain_net_srv_pkt_success_t))
-        return -1;
-    dap_stream_ch_chain_net_srv_pkt_success_t * l_success = (dap_stream_ch_chain_net_srv_pkt_success_t*) a_success;
-
-    dap_stream_session_lock();
-    dap_stream_session_t *l_stream_session = dap_stream_session_id_unsafe(a_srv_client->session_id);
-    dap_chain_net_srv_stream_session_t * l_srv_session =
-            (dap_chain_net_srv_stream_session_t *) l_stream_session->_inheritor;
-
-    dap_chain_net_srv_vpn_t* l_srv_vpn = (dap_chain_net_srv_vpn_t*) a_srv->_inhertor;
-    //a_srv_client->ch->
-    dap_chain_net_t * l_net = dap_chain_net_by_id(l_success->hdr.net_id);
-    dap_chain_net_srv_usage_t *l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, a_srv);
-    if(!l_usage){
-        dap_stream_session_unlock();
-        return -2;
-    }
-
-    dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =
-            (dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
-                    a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
-    if ( ! l_srv_ch_vpn ){
-        log_it(L_ERROR, "No VPN service stream channel, its closed?");
-        return -3;
-    }
-    l_srv_ch_vpn->usage_id = l_usage->id;
-    l_usage->is_active = true;
-    l_usage->is_free = true;
-
-    dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
-
-
-    if(l_ch) { // Is present in hash table such destination address
-        size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
-        ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
-
-        pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST;
-        //pkt_out->header.sock_id = l_stream->stream->events_socket->socket;
-        //pkt_out->header.op_connect.addr_size = l_ipv4_str_len; //remoteAddrBA.length();
-        //pkt_out->header.op_connect.port = a_port;
-        //memcpy(pkt_out->data, a_ipv4_str, l_ipv4_str_len);
-
-        dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
-                pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-        dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-        //DAP_DELETE(pkt_out);
-    }
-
-    // usage is present, we've accepted packets
-    dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
-    return 0;
-}
-
-/**
- * @brief callback_client_sign_request
- * @param a_srv
- * @param a_usage_id
- * @param a_srv_client
- * @param a_receipt
- * @param a_receipt_size
- * @return
- */
-static int s_callback_client_sign_request(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
-                    dap_chain_datum_tx_receipt_t **a_receipt, size_t a_receipt_size)
-{
-    dap_chain_datum_tx_receipt_t *l_receipt = *a_receipt;
-    char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    char *l_wallet_name = (char*) dap_chain_global_db_gr_get(dap_strdup("wallet_name"), NULL, l_gdb_group);
-
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, dap_chain_wallet_get_path(g_config));
-    if(l_wallet) {
-        dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-        dap_chain_datum_tx_receipt_sign_add(&l_receipt, dap_chain_datum_tx_receipt_get_size(l_receipt), l_enc_key);
-        dap_chain_wallet_close(l_wallet);
-        *a_receipt = l_receipt;
-    }
-    DAP_DELETE(l_gdb_group);
-    DAP_DELETE(l_wallet_name);
-    return 0;
-}
-
-
-/**
- * @brief dap_chain_net_srv_client_vpn_init
- * @details  Client VPN init (call after dap_chain_net_srv_vpn_init!)
- * @param l_config
- * @return
- */
-int dap_chain_net_srv_client_vpn_init(dap_config_t * l_config) {
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
-    dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(l_uid);
-    dap_chain_net_srv_vpn_t* l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*) l_srv->_inhertor : NULL;
-    // if vpn server disabled
-    if(!l_srv_vpn) {
-        l_srv_vpn = DAP_NEW_Z(dap_chain_net_srv_vpn_t);
-        if(l_srv)
-            l_srv->_inhertor = l_srv_vpn;
-        dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in, s_ch_packet_out);
-        pthread_mutex_init(&s_sf_socks_mutex, NULL);
-        pthread_cond_init(&s_sf_socks_cond, NULL);
-    }
-
-
-    if(!dap_chain_net_srv_remote_init(l_uid, s_callback_requested,
-            s_callback_response_success, s_callback_response_error,
-            s_callback_receipt_next_success,
-            s_callback_client_success,
-            s_callback_client_sign_request,
-            l_srv_vpn)) {
-        l_srv = dap_chain_net_srv_get(l_uid);
-        //l_srv_vpn = l_srv ? (dap_chain_net_srv_vpn_t*)l_srv->_inhertor : NULL;
-        //l_srv_vpn->parent = l_srv;
-        l_srv->_inhertor = l_srv_vpn;
-    }
-    l_srv_vpn->parent = (dap_chain_net_srv_t*) l_srv;
-
-    return 0;
-}
-
-
-/**
  * @brief s_vpn_tun_create
  * @param g_config
  * @return
@@ -777,91 +645,16 @@ static int s_vpn_tun_init()
 static int s_vpn_service_create(dap_config_t * g_config)
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
-    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add( l_uid, s_callback_requested,
-                                                        s_callback_response_success, s_callback_response_error,
-                                                        s_callback_receipt_next_success);
+    dap_chain_net_srv_t *l_srv = dap_chain_net_srv_add(l_uid, "srv_vpn", s_callback_requested,
+                                                       s_callback_response_success, s_callback_response_error,
+                                                       s_callback_receipt_next_success, NULL);
 
     dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z( dap_chain_net_srv_vpn_t);
-    l_srv->_inhertor = l_srv_vpn;
+    l_srv->_internal = l_srv_vpn;
     l_srv_vpn->parent = l_srv;
 
     // Read if we need to dump all pkt operations
     s_debug_more= dap_config_get_item_bool_default(g_config,"srv_vpn", "debug_more",false);
-
-    l_srv->grace_period = dap_config_get_item_uint32_default(g_config, "srv_vpn", "grace_period", 60);
-    //! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
-    //! it also must NOT be freed within this module !
-    uint16_t l_pricelist_count = 0;
-    char **l_pricelist = dap_config_get_array_str(g_config, "srv_vpn", "pricelist", &l_pricelist_count); // must not be freed!
-    for (uint16_t i = 0; i < l_pricelist_count; i++) {
-        dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
-        short l_iter = 0;
-        char *l_ctx;
-        for (char *l_price_token = strtok_r(l_pricelist[i], ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
-            //log_it(L_DEBUG, "Tokenizer: %s", l_price_token);
-            switch (l_iter) {
-            case 0:
-                l_price->net_name = l_price_token;
-                if (!(l_price->net = dap_chain_net_by_name(l_price->net_name))) {
-                    log_it(L_ERROR, "Error parsing pricelist: can't find network \"%s\"", l_price_token);
-                    DAP_DELETE(l_price);
-                    break;
-                }
-                continue;
-            case 1:
-                l_price->value_datoshi = dap_chain_coins_to_datoshi(strtold(l_price_token, NULL));
-                if (!l_price->value_datoshi) {
-                    log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
-                    l_iter = 0;
-                    DAP_DELETE(l_price);
-                    break;
-                }
-                continue;
-            case 2:
-                dap_stpcpy(l_price->token, l_price_token);
-                continue;
-            case 3:
-                l_price->units = strtoul(l_price_token, NULL, 10);
-                if (!l_price->units) {
-                    log_it(L_ERROR, "Error parsing pricelist: text on 4th position \"%s\" is not unsigned integer", l_price_token);
-                    l_iter = 0;
-                    DAP_DELETE(l_price);
-                    break;
-                }
-                continue;
-            case 4:
-                if (!strcmp(l_price_token,      "SEC"))
-                    l_price->units_uid.enm = SERV_UNIT_SEC;
-                else if (!strcmp(l_price_token, "DAY"))
-                    l_price->units_uid.enm = SERV_UNIT_DAY;
-                else if (!strcmp(l_price_token, "MB"))
-                    l_price->units_uid.enm = SERV_UNIT_MB;
-                else {
-                    log_it(L_ERROR, "Error parsing pricelist: wrong unit type \"%s\"", l_price_token);
-                    l_iter = 0;
-                    DAP_DELETE(l_price);
-                    break;
-                }
-                continue;
-            case 5:
-                if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
-                    log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
-                    l_iter = 0;
-                    DAP_DELETE(l_price);
-                    break;
-                }
-                continue;
-            case 6:
-                log_it(L_INFO, "Price item correct, added to service");
-                DL_APPEND(l_srv->pricelist, l_price);
-                break;
-            default:
-                break;
-            }
-            log_it(L_DEBUG, "Done with price item %d", i);
-            break; // double break exits tokenizer loop and steps to next price item
-        }
-    }
     return 0;
 
 }
@@ -1059,7 +852,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
 {
     (void) arg;
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(a_ch);
-    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_inhertor;
+    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_internal;
 
 
     // So complicated to update usage client to be sure that nothing breaks it
@@ -1200,10 +993,9 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     // If issue new receipt
     if ( l_issue_new_receipt ) {
         if ( a_usage->receipt){
-            dap_chain_datum_tx_receipt_t * l_receipt =dap_chain_net_srv_issue_receipt(a_usage->service, a_usage,a_usage->price,NULL,0 );
-            a_usage->receipt_next = l_receipt;
-            dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST ,
-                                     l_receipt, l_receipt->size);
+            a_usage->receipt_next = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);
+            dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                                           a_usage->receipt_next, a_usage->receipt_next->size);
         }
     }
 
@@ -1229,7 +1021,7 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
  */
 static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_net_srv_usage_t * a_usage){
     dap_chain_net_srv_ch_vpn_t *l_ch_vpn = CH_VPN(a_ch);
-    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) a_usage->service->_inhertor;
+    dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) a_usage->service->_internal;
     dap_chain_net_srv_stream_session_t * l_srv_session= DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
 
     if (! s_raw_server)
@@ -1412,7 +1204,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
 
     // TODO move address leasing to this structure
-    //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_inhertor;
+    //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_internal;
 
     ch_vpn_pkt_t * l_vpn_pkt = (ch_vpn_pkt_t *) l_pkt->data;
     size_t l_vpn_pkt_size = l_pkt->hdr.size - sizeof (l_vpn_pkt->header);

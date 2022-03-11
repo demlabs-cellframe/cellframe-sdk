@@ -1073,8 +1073,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
             "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
-            "tx_cond_create -net <net name> -token <token_ticker> -wallet_f <wallet_from> -wallet_t <wallet_to>"
-                                        "-value <value_datoshi> -unit <mb|kb|b|sec|day> -service <vpn>\n" );
+                                        "tx_cond_create -net <net name> -token <token ticker> -wallet <from wallet> -cert <public cert>"
+                                        "-value <value datoshi> -unit <mb | kb | b | sec | day> -srv_uid <numeric uid>\n" );
+
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
             "tx_verify -net <net name> -chain <chain name> -tx <tx_hash>\n" );
 

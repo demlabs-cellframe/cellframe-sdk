@@ -538,7 +538,7 @@ void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data)
                         l_obj->group, l_obj->key,
                         l_obj->value, l_obj->value_len);
         }
-        if (!s_track_history) {
+        if (s_track_history) {
             lock();
             dap_db_history_add(l_obj->type, l_obj, 1, l_sync_group_item->group_name_for_history);
             unlock();
@@ -551,7 +551,7 @@ void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data)
                         l_obj->type, l_obj->group, l_obj->key,
                         l_obj->value, l_obj->value_len);
             }
-            if (!s_track_history) {
+            if (s_track_history) {
                 lock();
                 dap_db_history_add(l_obj->type, l_obj, 1, l_sync_extra_group_item->group_name_for_history);
                 unlock();

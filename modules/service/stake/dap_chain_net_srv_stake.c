@@ -28,7 +28,7 @@
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_net_srv_common.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_cs_block_poa.h"
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_net_srv_stake.h"

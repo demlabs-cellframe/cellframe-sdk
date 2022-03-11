@@ -59,7 +59,6 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
 {
     if ( a_srv_session && a_net && a_srv ){
         dap_chain_net_srv_usage_t * l_ret = DAP_NEW_Z(dap_chain_net_srv_usage_t);
-        //l_ret->id = 666;
         randombytes(&l_ret->id, sizeof(l_ret->id));
         l_ret->net = a_net;
         l_ret->service = a_srv;
