@@ -197,8 +197,8 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             break;
         case TX_ITEM_TYPE_RECEIPT:
             dap_string_append_printf(a_str_out, "\t Receipt:\n"
-                                                "\t\t size: %u\n"
-                                                "\t\t ext size:%u\n"
+                                                "\t\t size: %"DAP_UINT64_FORMAT_U"\n"
+                                                "\t\t ext size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t Info:"
                                                 "\t\t\t   units: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                 "\t\t\t   uid: 0x%016"DAP_UINT64_FORMAT_x"\n"

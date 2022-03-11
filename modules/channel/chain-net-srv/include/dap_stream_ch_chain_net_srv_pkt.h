@@ -31,7 +31,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <stddef.h>
 #include <stdint.h>
 
-#include "dap_chain_net_srv_common.h"
 #include "dap_chain_net_srv_stream_session.h"
 
 

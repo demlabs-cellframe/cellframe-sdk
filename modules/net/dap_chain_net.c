@@ -1442,7 +1442,7 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
  * @return true 
  * @return false 
  */
-bool s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
+void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain;
@@ -2458,9 +2458,9 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             case NODE_ROLE_LIGHT:
             default:
                 log_it(L_INFO,"Light node role established");
-
         }
-
+        if (!l_net_pvt->only_static_links)
+            l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "static_links_only", false);
         if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
             l_target_state = NET_STATE_OFFLINE;
         }

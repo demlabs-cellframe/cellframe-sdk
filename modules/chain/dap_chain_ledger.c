@@ -1020,7 +1020,7 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
     if (l_token_cache->header_private.current_supply >= l_emission_value)
     {
        l_token_cache->header_private.current_supply -= l_emission_value;
-       log_it(L_DEBUG,"New current supply %lld for token %s", l_token_cache->header_private.current_supply, l_token_item->ticker);
+       log_it(L_DEBUG,"New current supply %"DAP_UINT64_FORMAT_U" for token %s", l_token_cache->header_private.current_supply, l_token_item->ticker);
 
        // Update value in ledger memory object
 
@@ -1028,7 +1028,7 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
     }                
     else
     {
-       log_it(L_WARNING,"Token current supply %lld lower, than emission value = %lld", l_token_cache->header_private.current_supply, 
+       log_it(L_WARNING,"Token current supply %"DAP_UINT64_FORMAT_U" lower, than emission value = %"DAP_UINT64_FORMAT_U, l_token_cache->header_private.current_supply,
                                         l_emission_value);
 
             DAP_DELETE(l_gdb_group);
@@ -1067,7 +1067,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
             l_token_item->total_supply = l_token_item->datum_token->header_private.total_supply;
             l_token_item->type = l_token_item->datum_token->type;
             l_token_item->current_supply = l_token_item->datum_token->header_private.current_supply;
-            log_it(L_DEBUG,"Ledger cache datum_token current_supply %lld, ticker: %s", l_token_item->current_supply, l_token_item->ticker);
+            log_it(L_DEBUG,"Ledger cache datum_token current_supply %"DAP_UINT64_FORMAT_U", ticker: %s", l_token_item->current_supply, l_token_item->ticker);
             l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(l_token_item->datum_token, l_objs[i].value_len,
                                                                                        &l_token_item->auth_signs_total,
                                                                                        &l_token_item->auth_signs_valid );
@@ -1864,11 +1864,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -8;
                 break;
             }
-            if (! l_token_item){
-                l_err_num = -16;
-                log_it(L_ERROR,"Can't find token item for conditioned tx out");
-                break;
-            }
             // 5a. Check for condition owner
             dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx_prev, NULL, TX_ITEM_TYPE_SIG, NULL);
             dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
@@ -2477,9 +2472,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         // If debug mode dump the UTXO
         if (dap_log_level_get() == L_DEBUG && s_debug_more) {
             for (size_t i =0; i < (size_t) l_item_tmp->cache_data.n_outs; i++){
-                dap_chain_tx_out_t * l_tx_out = l_tist_tmp->data;
+                dap_chain_tx_out_t *l_tx_out = l_tist_tmp->data;
+                if (l_tx_out->header.type != TX_ITEM_TYPE_OUT)
+                    continue;
                 char * l_tx_out_addr_str = dap_chain_addr_to_str( &l_tx_out->addr );
-                log_it(L_DEBUG,"Added tx out to %s",l_tx_out_addr_str );
+                log_it(L_DEBUG, "Added tx out to %s", l_tx_out_addr_str);
                 DAP_DELETE (l_tx_out_addr_str);
             }
         }
@@ -2504,7 +2501,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 
         size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
         memcpy(l_item_tmp->tx, a_tx, l_tx_size);
-        pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
+        pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
         HASH_ADD(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_item_tmp); // tx_hash_fast: name of key field
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
         // Count TPS
@@ -3021,10 +3018,7 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
     bool is_search_enable = is_null_hash;
     dap_chain_ledger_tx_item_t *l_iter_current, *l_item_tmp;
     pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
-    HASH_ITER(hh, l_ledger_priv->ledger_items , l_iter_current, l_item_tmp)
-    {
-        pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
-
+    HASH_ITER(hh, l_ledger_priv->ledger_items , l_iter_current, l_item_tmp) {
         dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
         dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
         // start searching from the next hash after a_tx_first_hash
@@ -3047,7 +3041,6 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
                 break;
             }
         }
-        pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
     }
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     return l_cur_tx;
@@ -3071,9 +3064,7 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
     int l_tx_out_cond_idx;
     pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
-    HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp)
-    {
-        pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
+    HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp) {
         dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
         dap_chain_hash_fast_t *l_tx_hash_tmp = &l_iter_current->tx_hash_fast;
         // start searching from the next hash after a_tx_first_hash
@@ -3093,7 +3084,6 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
             }
             break;
         }
-        pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
     }
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     if (a_out_cond) {
