@@ -93,62 +93,55 @@ static dap_chain_node_cmd_item_t * s_commands = NULL;
  * return zero if the time limit expired
  * return: >0 if data is present to read
  * return: -1 if error
- * @param socket 
- * @param timeout 
- * @return int 
+ * @param socket
+ * @param timeout
+ * @return int
  */
-static int s_poll( int socket, int timeout )
+static int s_poll( int sd, int timeout )
 {
-    struct pollfd fds;
-    int res;
-    fds.fd = socket;
-    // POLLIN - received data
-    // POLLNVAL - closed the socket on our side
-    // POLLHUP - closed the socket on another side (does not work! Received POLLIN and the next reading returns 0 bytes)
-    fds.events = POLLIN; // | | POLLNVAL | POLLHUP | POLLERR | POLLPRI
+struct pollfd fds = {.fd = sd, .events = POLLIN};
+int res;
+
     res = poll(&fds, 1, timeout);
 
-    // since POLLIN=(POLLRDNORM | POLLRDBAND), then maybe revents=POLLRDNORM
-    if(res == 1 && !(fds.revents & POLLIN)) //if(res==1 && fds.revents!=POLLIN)
-        return -1;
-    return res;
+    return  (res == 1 && !(fds.revents & POLLIN)) ? -1 : res;
 }
 
 
 /**
  * @brief is_valid_socket
  * Check socket for validity
- * @param sock 
- * @return true 
- * @return false 
+ * @param sock
+ * @return true
+ * @return false
  */
-static bool is_valid_socket(SOCKET sock)
+static int is_valid_socket(SOCKET sd)
 {
-    struct pollfd fds;
-    fds.fd = sock;
-    fds.events = POLLIN;
-    // return: -1 err, 0 timeout, 1 waited
-    int count_desc = poll(&fds, 1, 0);
-    // error
-    if(count_desc == -1)
+struct pollfd fds = {.fd = sd, .events = POLLIN};
+int res;
+
+    if ( 0 > (res = poll(&fds, 1, 0)) )
         return false;
+
     // event with an error code
-    if(count_desc > 0)
-            {
+    if(res > 0)
+    {
         // feature of disconnection under Windows
         // under Windows, with socket closed fds.revents=POLLHUP, in Unix fds.events = POLLIN
         if(fds.revents & (POLLERR | POLLHUP | POLLNVAL))
             return false;
+
         // feature of disconnection under Unix (QNX)
         // under Windows, with socket closed res = 0, in Unix res = -1
         char buf[2];
-        long res = recv(sock, buf, 1, MSG_PEEK); // MSG_PEEK  The data is treated as unread and the next recv() function shall still return this data.
-        if(res < 0)
+        if ( 0 > (res = recv(sd, buf, 1, MSG_PEEK)) ) // MSG_PEEK  The data is treated as unread and the next recv() function shall still return this data.
             return false;
+
         // data in the buffer must be(count_desc>0), but read 0 bytes(res=0)
         if(!res && (fds.revents & POLLIN))
             return false;
     }
+
     return true;
 }
 
@@ -156,31 +149,29 @@ static bool is_valid_socket(SOCKET sock)
  * @brief s_recv
  * timeout in milliseconds
  * return the number of read bytes (-1 err or -2 timeout)
- * @param sock 
- * @param buf 
- * @param bufsize 
- * @param timeout 
- * @return long 
+ * @param sock
+ * @param buf
+ * @param bufsize
+ * @param timeout
+ * @return long
  */
-long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
+long s_recv(SOCKET sd, unsigned char *buf, size_t bufsize, int timeout)
 {
-    struct pollfd fds;
-    long res;
-    fds.fd = sock;
-    fds.events = POLLIN; // | POLLNVAL | POLLHUP | POLLERR | POLLPRI;// | POLLRDNORM;//POLLOUT |
-    res = poll(&fds, 1, timeout);
-    if(res == 1 && !(fds.revents & POLLIN))
-        return -1;
-    if(!res) // timeout
+struct pollfd fds = {.fd = sd, .events = POLLIN};
+int res;
+
+    if ( !(res = poll(&fds, 1, timeout)) )
         return -2;
-    if(res < 1) {
+
+    if ( (res == 1) && !(fds.revents & POLLIN))
         return -1;
-    }
-    //    res = read(sock, (char*) buf, bufsize);
-    res = recv(sock, (char*) buf, bufsize, 0); //MSG_WAITALL
-    if(res <= 0) { //EINTR=4  ENOENT=2 EINVAL=22 ECONNRESET=254
-        printf("[s_recv] recv()=%ld errno=%d\n", res, errno);
-    }
+
+    if(res < 1)
+        return -1;
+
+    if ( 0 >= (res = recv(sd, buf, bufsize, 0)) )
+        printf("[s_recv] recv()->%d, errno: %d\n", res, errno);
+
     return res;
 }
 
@@ -193,12 +184,12 @@ long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout)
  * del_stop_str - удалять ли строку для поиска в конце
  * timeout - in ms
  * return: string (if waited for final characters) or NULL, if the string requires deletion
- * @param nSocket 
- * @param dwLen 
- * @param stop_str 
- * @param del_stop_str 
- * @param timeout 
- * @return char* 
+ * @param nSocket
+ * @param dwLen
+ * @param stop_str
+ * @param del_stop_str
+ * @param timeout
+ * @return char*
  */
 char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
 {
@@ -273,42 +264,35 @@ char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del
  */
 static void* thread_one_client_func(void *args)
 {
-    SOCKET newsockfd = (SOCKET) (intptr_t) args;
+SOCKET  newsockfd = (SOCKET) (intptr_t) args;
+int     str_len, marker = 0, timeout = 5000, argc = 0, is_data;
+dap_list_t *cmd_param_list = NULL;
+char    *str_header;
+
     if(s_debug_cli)
         log_it(L_DEBUG, "new connection sockfd=%"DAP_FORMAT_SOCKET, newsockfd);
 
-    int str_len, marker = 0;
-    int timeout = 5000; // 5 sec
-    int argc = 0;
-    dap_list_t *cmd_param_list = NULL;
-    while(1)
+
+    while ( !(0 > (is_data = s_poll(newsockfd, timeout))) )                 // wait data from client
     {
-        // wait data from client
-        int is_data = s_poll(newsockfd, timeout);
-        // timeout
-        if(!is_data)
+        if ( !(is_data) )                                                   // timeout
             continue;
-        // error (may be socket closed)
-        if(is_data < 0)
+
+        if ( !is_valid_socket(newsockfd) )
             break;
 
-        int is_valid = is_valid_socket(newsockfd);
-        if(!is_valid)
-        {
-            break;
-        }
         // receiving http header
-        char *str_header = s_get_next_str(newsockfd, &str_len, "\r\n", true, timeout);
-        // bad format
-        if(!str_header)
-            break;
-        if(str_header && strlen(str_header) == 0) {
+        if ( !(str_header = s_get_next_str(newsockfd, &str_len, "\r\n", true, timeout)) )
+            break;                                                          // bad format
+
+        if(str_header && !strlen(str_header) ) {
             marker++;
             if(marker == 1){
                 DAP_DELETE(str_header);
                 continue;
             }
         }
+
         // filling parameters of command
         if(marker == 1) {
             cmd_param_list = dap_list_append(cmd_param_list, str_header);
@@ -317,10 +301,11 @@ static void* thread_one_client_func(void *args)
         }
         else
             DAP_DEL_Z(str_header);
+
         if(marker == 2 &&  cmd_param_list) {
             dap_list_t *list = cmd_param_list;
             // form command
-            unsigned int argc = dap_list_length(list);
+            argc = dap_list_length(list);
             // command is found
             if(argc >= 1) {
               int l_verbose = 0;
@@ -372,11 +357,11 @@ static void* thread_one_client_func(void *args)
                 // return the result of the command function
                 char *reply_str = dap_strdup_printf("HTTP/1.1 200 OK\r\n"
                                                     "Content-Length: %d\r\n\r\n"
-                                                    "%s",
-                        strlen(reply_body), reply_body);
+                                                    "%s", strlen(reply_body), reply_body);
                 size_t l_reply_step = 32768;
                 size_t l_reply_len = strlen(reply_str);
                 size_t l_reply_rest = l_reply_len;
+
                 while(l_reply_rest) {
                     size_t l_send_bytes = min(l_reply_step, l_reply_rest);
                     int ret = send(newsockfd, reply_str + l_reply_len - l_reply_rest, l_send_bytes, 0);
@@ -384,6 +369,7 @@ static void* thread_one_client_func(void *args)
                         break;
                     l_reply_rest-=l_send_bytes;
                 };
+
                 DAP_DELETE(str_reply);
                 DAP_DELETE(reply_str);
                 DAP_DELETE(reply_body);
@@ -398,6 +384,7 @@ static void* thread_one_client_func(void *args)
     int cs = closesocket(newsockfd);
     if (s_debug_cli)
         log_it(L_DEBUG, "close connection=%d sockfd=%"DAP_FORMAT_SOCKET, cs, newsockfd);
+
     return NULL;
 }
 
@@ -405,13 +392,13 @@ static void* thread_one_client_func(void *args)
 
 /**
  * @brief p_get_next_str
- * 
- * @param hPipe 
- * @param dwLen 
- * @param stop_str 
- * @param del_stop_str 
- * @param timeout 
- * @return char* 
+ *
+ * @param hPipe
+ * @param dwLen
+ * @param stop_str
+ * @param del_stop_str
+ * @param timeout
+ * @return char*
  */
 char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
 {
@@ -491,8 +478,8 @@ char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_s
 /**
  * @brief thread_pipe_client_func
  * threading function for processing a request from a client
- * @param args 
- * @return void* 
+ * @param args
+ * @return void*
  */
 static void *thread_pipe_client_func( void *args )
 {
@@ -647,8 +634,8 @@ static void *thread_pipe_client_func( void *args )
 /**
  * @brief thread_pipe_func
  * main threading server function pipe win32
- * @param args 
- * @return void* 
+ * @param args
+ * @return void*
  */
 static void* thread_pipe_func( void *args )
 {
@@ -700,8 +687,8 @@ static void* thread_pipe_func( void *args )
 /**
  * @brief thread_main_func
  * main threading server function
- * @param args 
- * @return void* 
+ * @param args
+ * @return void*
  */
 static void* thread_main_func(void *args)
 {
@@ -735,9 +722,9 @@ static void* thread_main_func(void *args)
 /**
  * @brief dap_chain_node_cli_set_reply_text
  * Write text to reply string
- * @param str_reply 
- * @param str 
- * @param ... 
+ * @param str_reply
+ * @param str
+ * @param ...
  */
 void dap_chain_node_cli_set_reply_text(char **str_reply, const char *str, ...)
 {
@@ -784,12 +771,12 @@ int dap_chain_node_cli_check_option( char** argv, int arg_start, int arg_end, co
 /**
  * @brief dap_chain_node_cli_find_option_val
  * return index of string in argv, or 0 if not found
- * @param argv 
- * @param arg_start 
- * @param arg_end 
- * @param opt_name 
- * @param opt_value 
- * @return int 
+ * @param argv
+ * @param arg_start
+ * @param arg_end
+ * @param opt_name
+ * @param opt_value
+ * @return int
  */
 int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end, const char *opt_name, const char **opt_value)
 {
@@ -851,9 +838,9 @@ void dap_chain_node_cli_cmd_item_create_ex(const char * a_name, cmdfunc_ex_t *a_
 
 /**
  * @brief dap_chain_node_cli_cmd_item_apply_overrides
- * 
- * @param a_name 
- * @param a_overrides 
+ *
+ * @param a_name
+ * @param a_overrides
  */
 void dap_chain_node_cli_cmd_item_apply_overrides(const char * a_name, const dap_chain_node_cmd_item_func_overrides_t * a_overrides){
     dap_chain_node_cmd_item_t *l_cmd_item = dap_chain_node_cli_cmd_find(a_name);
@@ -889,8 +876,8 @@ dap_chain_node_cmd_item_t* dap_chain_node_cli_cmd_find(const char *a_name)
  * with the console kelvin-node-cli
  * init commands description
  * return 0 if OK, -1 error
- * @param g_config 
- * @return int 
+ * @param g_config
+ * @return int
  */
 int dap_chain_node_cli_init(dap_config_t * g_config)
 {
