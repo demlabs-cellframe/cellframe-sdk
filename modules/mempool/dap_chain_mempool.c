@@ -356,11 +356,10 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
 }
 
-dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net,dap_chain_hash_fast_t *a_tx_prev_hash,
-                                                              const dap_chain_addr_t* a_addr_to, dap_enc_key_t *l_key_tx_sign,
-                                                              dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size)
+dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+                                                              const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,
+                                                              dap_chain_datum_tx_receipt_t * a_receipt)
 {
-    UNUSED(l_receipt_size);
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     if ( ! a_net || ! l_ledger || ! a_addr_to )
         return NULL;
@@ -378,10 +377,11 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     uint256_t l_value_send = l_receipt->receipt_info.value_datoshi;
 
     // add 'in_cond' items
-    dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_prev_hash);
+    dap_chain_hash_fast_t *l_tx_prev_hash = a_tx_prev_hash;
+    dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_prev_hash);
     int l_prev_cond_idx;
-    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, &l_prev_cond_idx);
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_prev_hash, l_prev_cond_idx)) {
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, &l_prev_cond_idx);  
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, l_tx_prev_hash, l_prev_cond_idx)) { // TX already spent
         dap_chain_datum_tx_t *l_tx_tmp;
         dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
         dap_chain_tx_out_cond_t *l_tmp_cond;
@@ -411,8 +411,11 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
             log_it(L_WARNING, "Requested conditional transaction is already used out");
             return NULL;
         }
+        l_prev_cond_idx = l_tmp_cond_idx;
+        l_out_cond = l_tmp_cond;
+        l_tx_prev_hash = dap_chain_node_datum_tx_calc_hash(l_tx_tmp);
     }
-    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_prev_hash, l_prev_cond_idx, pos - 1) != 0 ){
+    if (dap_chain_datum_tx_add_in_cond_item(&l_tx, l_tx_prev_hash, l_prev_cond_idx, pos - 1)) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Cant add tx cond input");
         return NULL;
@@ -425,17 +428,14 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
         return NULL;
     }
 
-    //add 'out_cond' item
-    size_t l_size = dap_chain_datum_item_tx_get_size((uint8_t *)l_out_cond);
-    dap_chain_tx_out_cond_t *l_out_cond_new = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, l_size);
-    memcpy(l_out_cond_new, l_out_cond, l_size);
-    SUBTRACT_256_256(l_out_cond_new->header.value, l_value_send, &l_out_cond_new->header.value);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond_new);
-    DAP_DELETE(l_out_cond_new);
+    uint256_t l_old_val = l_out_cond->header.value;
+    SUBTRACT_256_256(l_out_cond->header.value, l_value_send, &l_out_cond->header.value);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_out_cond);
+    l_out_cond->header.value = l_old_val;
 
     // add 'sign' items
-    if (l_key_tx_sign){
-        if(dap_chain_datum_tx_add_sign_item(&l_tx, l_key_tx_sign) != 1) {
+    if (a_key_tx_sign){
+        if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_tx_sign) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it( L_ERROR, "Can't add sign output");
             return NULL;
@@ -474,29 +474,30 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
  *
  * return dap_chain_datum_t, NULL if Error
  */
-static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t * a_net,
-        dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
-        const dap_chain_addr_t* a_addr_from,
+static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t *a_net,
+        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
         dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size)
 {
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     // check valid param
-    if(!a_net || ! l_ledger || !a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            !dap_chain_addr_check_sum(a_addr_from) ||
-            IS_ZERO_256(a_value))
+    if (!a_net || !l_ledger || !a_key_from || !a_key_cond ||
+            !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value))
         return NULL;
 
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need = {};
     SUM_256_256(a_value, a_value_fee, &l_value_need);
+    // where to take coins for service
+    dap_chain_addr_t l_addr_from;
+    dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_net->pub.id);
     // list of transaction with 'out' items
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                             a_addr_from, l_value_need, &l_value_transfer);
+                                                                             l_addr_from, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
-        log_it( L_ERROR, "nothing to tranfer (not enough funds)");
+        log_it( L_ERROR, "Nothing to tranfer (not enough funds)");
         return NULL;
     }
 
@@ -523,7 +524,7 @@ static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t * a_net,
         uint256_t l_value_back = {};
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_item(&l_tx, l_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 log_it( L_ERROR, "Cant add coin back output");
                 return NULL;
@@ -542,62 +543,6 @@ static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t * a_net,
     dap_chain_datum_t *l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_TX, l_tx, l_tx_size );
 
     return l_datum;
-    /*dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
-    dap_hash_fast( l_tx, l_tx_size, l_key_hash );
-    DAP_DELETE( l_tx );
-
-    char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
-    if( dap_chain_global_db_gr_set( dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
-                                   , l_gdb_group ) ) {
-        log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
-    }
-    DAP_DELETE(l_gdb_group);
-    DAP_DELETE(l_key_str);
-
-    return l_key_hash;*/
-}
-
-/**
- * Make transfer transaction & insert to database
- *
- * return 0 Ok, -2 not enough funds to transfer, -1 other Error
- */
-dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
-        dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
-        const dap_chain_addr_t* a_addr_from,
-        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
-        dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size)
-{
-
-    dap_chain_t *l_chain = NULL;
-    if(a_net->pub.default_chain)
-        l_chain = a_net->pub.default_chain;
-    else
-        l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
-
-    if(!l_chain)
-            return NULL;
-    // Make transfer transaction
-    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net,a_key_from, a_key_cond, a_addr_from,
-                                                          a_token_ticker, a_value, a_value_per_unit_max, a_unit,
-                                                          a_srv_uid, a_value_fee, a_cond, a_cond_size);
-
-    if(!l_datum)
-        return NULL;
-    size_t l_datums_number = l_chain->callback_add_datums(l_chain, &l_datum, 1);
-    if(!l_datums_number)
-            return NULL;
-
-    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)&(l_datum->data);
-    size_t l_tx_size = l_datum->header.data_size;
-
-    dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
-    dap_hash_fast( l_tx, l_tx_size, l_key_hash );
-    //DAP_DELETE( l_tx );
-
-    return l_key_hash;
 }
 
 /**
@@ -606,16 +551,15 @@ dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error
  */
 dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
-        dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
-        const dap_chain_addr_t* a_addr_from,
+        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
         dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size)
 {
     // Make transfer transaction
-    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net, a_key_from, a_key_cond, a_addr_from,
-                                                          a_token_ticker,a_value,a_value_per_unit_max, a_unit,
-                                                          a_srv_uid, a_value_fee, a_cond, a_cond_size);
+    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net, a_key_from, a_key_cond,
+                                                          a_token_ticker, a_value, a_value_per_unit_max,
+                                                          a_unit, a_srv_uid, a_value_fee, a_cond, a_cond_size);
 
     if(!l_datum)
         return NULL;
@@ -631,147 +575,13 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
 
     if( dap_chain_global_db_gr_set( l_key_str, l_datum, dap_chain_datum_size(l_datum), l_gdb_group ) ) {
-        log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
+                log_it(L_NOTICE, "Transaction %s placed in mempool group %s", l_key_str, l_gdb_group);
     }
 
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_key_str);
 
     return l_key_hash;
-}
-
-/**
- * Make receipt transaction & insert to cache
- *
- * return 0 Ok, -2 not enough funds to transfer, -1 other Error
- */
-int dap_chain_mempool_tx_create_receipt(uint64_t a_value)
-//(dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
-//        const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_cond,
-//        const dap_chain_addr_t* a_addr_fee, const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-//        uint64_t a_value, uint64_t a_value_fee, const void *a_cond, size_t a_cond_size)
-{
-    // check valid param
-/*    if(!a_key_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_cond) ||
-            (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || !a_value)
-        return -1;*/
-/*
-    // find the transactions from which to take away coins
-    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
-    uint64_t l_value_transfer = 0; // how many coins to transfer
-    {
-        dap_chain_hash_fast_t l_tx_cur_hash = { 0 };
-        uint64_t l_value_need = a_value + a_value_fee;
-        while(l_value_transfer < l_value_need)
-        {
-            // Get the transaction in the cache by the addr in out item
-            const dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_addr_from,
-                    &l_tx_cur_hash);
-            if(!l_tx)
-                break;
-            // Get all item from transaction by type
-            int l_item_count = 0;
-            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) l_tx, TX_ITEM_TYPE_OUT,
-                    &l_item_count);
-            dap_list_t *l_list_tmp = l_list_out_items;
-            int l_out_idx_tmp = 0; // current index of 'out' item
-            while(l_list_tmp) {
-                dap_chain_tx_out_t *out_item = l_list_tmp->data;
-                // if 'out' item has addr = a_addr_from
-                if(out_item && &out_item->addr && !memcmp(a_addr_from, &out_item->addr, sizeof(dap_chain_addr_t))) {
-
-                    // Check whether used 'out' items
-                    if(!dap_chain_ledger_tx_hash_is_used_out_item(&l_tx_cur_hash, l_out_idx_tmp)) {
-
-                        list_used_item_t *item = DAP_NEW(list_used_item_t);
-                        memcpy(&item->tx_hash_fast, &l_tx_cur_hash, sizeof(dap_chain_hash_fast_t));
-                        item->num_idx_out = l_out_idx_tmp;
-                        item->value = out_item->header.value;
-                        l_list_used_out = dap_list_append(l_list_used_out, item);
-                        l_value_transfer += item->value;
-                        // already accumulated the required value, finish the search for 'out' items
-                        if(l_value_transfer >= l_value_need) {
-                            break;
-                        }
-                    }
-                }
-                // go to the next 'out' item in l_tx transaction
-                l_out_idx_tmp++;
-                l_list_tmp = dap_list_next(l_list_tmp);
-            }
-            dap_list_free(l_list_out_items);
-        }
-
-        // nothing to tranfer (not enough funds)
-        if(!l_list_used_out || l_value_transfer < l_value_need) {
-            dap_list_free_full(l_list_used_out, free);
-            return -2;
-        }
-    }
-
-    // create empty transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-    // add 'in' items
-    {
-        dap_list_t *l_list_tmp = l_list_used_out;
-        uint64_t l_value_to_items = 0; // how many coins to transfer
-        while(l_list_tmp) {
-            list_used_item_t *item = l_list_tmp->data;
-            if(dap_chain_datum_tx_add_in_item(&l_tx, &item->tx_hash_fast, item->num_idx_out) == 1) {
-                l_value_to_items += item->value;
-            }
-            l_list_tmp = dap_list_next(l_list_tmp);
-        }
-        assert(l_value_to_items == l_value_transfer);
-        dap_list_free_full(l_list_used_out, free);
-    }
-    // add 'out_cond' and 'out' items
-    {
-        uint64_t l_value_pack = 0; // how much coin add to 'out' items
-        if(dap_chain_datum_tx_add_out_cond_item(&l_tx, a_key_cond, (dap_chain_addr_t*) a_addr_cond, a_value, a_cond,
-                a_cond_size) == 1) {
-            l_value_pack += a_value;
-            // transaction fee
-            if(a_addr_fee) {
-                if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_fee, a_value_fee) == 1)
-                    l_value_pack += a_value_fee;
-            }
-        }
-        // coin back
-        uint64_t l_value_back = l_value_transfer - l_value_pack;
-        if(l_value_back) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
-                dap_chain_datum_tx_delete(l_tx);
-                return -1;
-            }
-        }
-    }
-
-    // add 'sign' items
-    if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
-        dap_chain_datum_tx_delete(l_tx);
-        return -1;
-    }
-
-    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
-
-    dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_tx, l_tx_size, &l_key_hash);
-    DAP_DELETE(l_tx);
-
-    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, dap_chain_datum_size(l_datum)
-            , c_dap_datum_mempool_gdb_group)) {
-        log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
-        // add transaction to ledger
-        if(dap_chain_ledger_tx_add((dap_chain_datum_tx_t*) l_datum->data) < 0)
-            log_it(L_ERROR, "Transaction %s not placed in LEDGER", l_key_str);
-    }
-    DAP_DELETE(l_key_str);*/
-
-    return 0;
 }
 
 uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size)

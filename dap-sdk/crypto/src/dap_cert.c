@@ -295,29 +295,28 @@ void dap_cert_delete_by_name(const char * a_cert_name)
  */
 dap_cert_t * dap_cert_find_by_name(const char * a_cert_name)
 {
-	if (!a_cert_name) return NULL;
-    dap_cert_item_t * l_cert_item = NULL;
-    HASH_FIND_STR(s_certs,a_cert_name,l_cert_item);
-    if ( l_cert_item ){
-        return l_cert_item->cert ;
+    dap_cert_item_t *l_cert_item = NULL;
+    dap_cert_t *l_ret = NULL;
+    HASH_FIND_STR(s_certs, a_cert_name, l_cert_item);
+    if (l_cert_item ) {
+        l_ret = l_cert_item->cert ;
     } else {
-            dap_cert_t *l_cert = NULL;
-            uint16_t l_ca_folders_size = 0;
-            char **l_ca_folders;
-            char *l_cert_path = NULL;
-            l_ca_folders = dap_config_get_array_str(g_config, "resources", "ca_folders", &l_ca_folders_size);
-            for (uint16_t i = 0; i < l_ca_folders_size; ++i) {
-                l_cert_path = dap_strjoin("", l_ca_folders[i], "/", a_cert_name, ".dcert", (char*)NULL);
-                l_cert = dap_cert_file_load(l_cert_path);
-                if (l_cert) {
-                    goto ret;
-                }
-            }
-    ret:
-            if (l_cert_path)
-                DAP_DELETE(l_cert_path);
-            return l_cert;
+        uint16_t l_ca_folders_size = 0;
+        char **l_ca_folders;
+        char *l_cert_path = NULL;
+        l_ca_folders = dap_config_get_array_str(g_config, "resources", "ca_folders", &l_ca_folders_size);
+        for (uint16_t i = 0; i < l_ca_folders_size; ++i) {
+            l_cert_path = dap_strjoin("", l_ca_folders[i], "/", a_cert_name, ".dcert", (char *)NULL);
+            l_ret = dap_cert_file_load(l_cert_path);
+            DAP_DELETE(l_cert_path);
+            if (l_ret)
+                break;
         }
+    }
+    if (!l_ret)
+        log_it(L_DEBUG, "Can't load cert '%s'", a_cert_name);
+    return l_ret;
+
 }
 
 dap_list_t *dap_cert_get_all_mem()
