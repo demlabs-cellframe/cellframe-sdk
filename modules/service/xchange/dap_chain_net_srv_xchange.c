@@ -27,7 +27,7 @@
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_net_srv_common.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_xchange.h"
 
 #define LOG_TAG "dap_chain_net_srv_xchange"

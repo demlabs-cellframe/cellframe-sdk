@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_list.h"
+#include "dap_proc_thread.h"
 
 enum    {
     DAP_DB$K_OPTYPE_ADD  = 'a',                 /* Operation Type = INSERT/ADD */
@@ -46,8 +47,7 @@ typedef struct dap_store_obj {
     const uint8_t *value;
     uint64_t value_len;
 
-
-    void (*cb) (const void *a_arg);             /* (Async mode only!) A call back to be called on request completion */
+    dap_proc_queue_callback_t cb;               /* (Async mode only!) A call back to be called on request completion */
     const void *cb_arg;                         /* (Async mode only!) An argument of the callback rotine */
 
 } DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;

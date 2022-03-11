@@ -64,21 +64,20 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create( dap_chain_net_
 
 dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t *a_receipt, dap_enc_key_t *a_key)
 {
-    dap_chain_datum_tx_receipt_t *l_receipt = *a_receipt;
-    if (!*a_receipt) {
+    if (!a_receipt) {
         log_it(L_ERROR, "NULL receipt, can't add sign");
         return NULL;
     }
-    dap_sign_t *l_sign = dap_sign_create(a_key, &l_receipt->receipt_info, sizeof(l_receipt->receipt_info), 0);
+    dap_sign_t *l_sign = dap_sign_create(a_key, &a_receipt->receipt_info, sizeof(a_receipt->receipt_info), 0);
     size_t l_sign_size = l_sign ? dap_sign_get_size(l_sign) : 0;
     if (!l_sign || !l_sign_size) {
         log_it(L_ERROR, "Can't sign the receipt, may be smth with key?");
         return NULL;
     }
-    l_receipt = (dap_chain_datum_tx_receipt_t *)DAP_REALLOC(l_receipt, a_receipt_size + l_sign_size);
-    memcpy(l_receipt->exts_n_signs + l_receipt->exts_size, l_sign, l_sign_size);
+    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
+                                                DAP_REALLOC(a_receipt, a_receipt->size + l_sign_size);
+    memcpy((byte_t *)l_receipt + l_receipt->size, l_sign, l_sign_size);
     l_receipt->size += l_sign_size;
-    l_receipt->exts_size += l_sign_size;
     DAP_DELETE(l_sign);
     return l_receipt;
 }
@@ -91,17 +90,21 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
  */
 dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size, uint16_t a_sign_position)
 {
-    if ( !l_receipt ||  l_receipt_size != l_receipt->size || l_receipt_size <= sizeof (l_receipt->receipt_info)+1)
+    if (!l_receipt ||  l_receipt_size != l_receipt->size ||
+            l_receipt->size == sizeof(dap_chain_datum_tx_receipt_t) + l_receipt->exts_size)
         return NULL;
-    dap_sign_t * l_sign = (dap_sign_t *)l_receipt->exts_n_signs;//+l_receipt->exts_size);
-    for ( ; a_sign_position && l_receipt_size > (size_t) ( (byte_t *) l_sign - (byte_t *) l_receipt ) ; a_sign_position-- ){
-        l_sign =(dap_sign_t *) (((byte_t*) l_sign)+  dap_sign_get_size( l_sign ));
+    dap_sign_t *l_sign = (dap_sign_t *)l_receipt->exts_n_signs + l_receipt->exts_size;
+    uint16_t l_sign_position;
+    for (l_sign_position = a_sign_position;
+             l_sign_position && l_receipt_size > (size_t)((byte_t *)l_sign - (byte_t *)l_receipt);
+             l_sign_position--) {
+        l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));
     }
     // not enough signs in receipt
-    if(a_sign_position>0)
+    if (l_sign_position > 0)
         return NULL;
     // too big sign size
-    if((l_sign->header.sign_size + ((byte_t*) l_sign - (byte_t*) l_receipt->exts_n_signs)) >= l_receipt->exts_size)
+    if((l_sign->header.sign_size + ((byte_t*) l_sign - (byte_t*) l_receipt->exts_n_signs)) >= l_receipt->size)
         return NULL;
     return l_sign;
 }

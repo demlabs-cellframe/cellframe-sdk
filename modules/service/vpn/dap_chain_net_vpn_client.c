@@ -49,20 +49,19 @@
 
 #include "dap_client.h"
 #include "dap_enc_base58.h"
-#include "dap_chain_node_client.h"
 
+#include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
-//#include "dap_stream_ch_chain_net_srv.h"
+#include "dap_stream_ch_chain_net_srv.h"
 
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_node_client.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_vpn_client.h"
-
-#include "dap_stream_ch_pkt.h"
-#include "dap_stream_ch_chain_net_srv.h"
+#include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
 #include "dap_modules_dynamic_cdb.h"
@@ -786,6 +785,7 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
         //l_srv_vpn->parent = l_srv;
         l_srv->_internal = l_srv_vpn;
     }*/
+    return 0;
 }
 
 void dap_chain_net_vpn_client_deinit()

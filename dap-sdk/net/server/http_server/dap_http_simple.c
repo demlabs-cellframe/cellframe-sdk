@@ -69,7 +69,7 @@ static void s_http_simple_delete( dap_http_simple_t *a_http_simple);
 static void s_http_client_headers_read( dap_http_client_t *cl_ht, void *arg );
 static void s_http_client_data_read( dap_http_client_t * cl_ht, void *arg );
 static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a_arg );
-static int  s_proc_queue_callback(dap_proc_thread_t * a_thread, void *a_arg );
+static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void *a_arg );
 
 typedef struct dap_http_simple_url_proc {
 
@@ -279,7 +279,7 @@ inline static void s_write_response_bad_request( dap_http_simple_t * a_http_simp
  * @brief dap_http_simple_proc Execute procession callback and switch to write state
  * @param cl_sh HTTP simple client instance
  */
-static int  s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
+static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
 {
     (void) a_thread;
      dap_http_simple_t *l_http_simple = (dap_http_simple_t*) a_arg;

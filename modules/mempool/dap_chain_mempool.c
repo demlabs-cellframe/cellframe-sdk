@@ -372,9 +372,9 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
     uint16_t pos = 0;
-    dap_chain_datum_tx_add_item(&l_tx, (byte_t*) l_receipt);
+    dap_chain_datum_tx_add_item(&l_tx, (byte_t*)a_receipt);
     pos++;
-    uint256_t l_value_send = l_receipt->receipt_info.value_datoshi;
+    uint256_t l_value_send = a_receipt->receipt_info.value_datoshi;
 
     // add 'in_cond' items
     dap_chain_hash_fast_t *l_tx_prev_hash = a_tx_prev_hash;
@@ -495,7 +495,7 @@ static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t *a_net,
     dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_net->pub.id);
     // list of transaction with 'out' items
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_token_ticker,
-                                                                             l_addr_from, l_value_need, &l_value_transfer);
+                                                                             &l_addr_from, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it( L_ERROR, "Nothing to tranfer (not enough funds)");
         return NULL;
@@ -524,7 +524,7 @@ static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t *a_net,
         uint256_t l_value_back = {};
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, l_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 log_it( L_ERROR, "Cant add coin back output");
                 return NULL;

@@ -897,7 +897,7 @@ static bool s_callback_keepalive(void *a_arg, bool a_server_side)
             assert(l_http_client);
             l_stream = DAP_STREAM(l_http_client);
         } else {
-            dap_client_pvt_t *l_client_pvt = ESOCKET_CLIENT_PVT(l_es);
+            dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(l_es);
             assert(l_client_pvt);
             l_stream = l_client_pvt->stream;
         }

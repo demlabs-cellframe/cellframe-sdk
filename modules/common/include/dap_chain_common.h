@@ -211,7 +211,7 @@ enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff
 };
-typedef uint32_t dap_chain_tx_item_type_t;
+typedef byte_t dap_chain_tx_item_type_t;
 
 typedef struct dap_chain_receipt_info {
     dap_chain_net_srv_uid_t srv_uid; // Service UID

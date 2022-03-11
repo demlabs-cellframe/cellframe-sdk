@@ -3583,9 +3583,9 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find net '%s'", l_net_name);
         return -11;
     }
-    dap_chain_wallet_t *l_wallet_from = dap_chain_wallet_open(l_wallet_from_str, c_wallets_path);
-    if(!l_wallet_from) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open wallet '%s'", l_wallet_from);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
+    if(!l_wallet) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open wallet '%s'", l_wallet);
         return -12;
     }
 
