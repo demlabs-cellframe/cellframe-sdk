@@ -782,7 +782,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 if(l_chain->callback_add_datums_with_group){
                     const void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
-                            (dap_chain_datum_t** restrict) l_store_obj_value, 1,
+                            (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
                 }
             }
