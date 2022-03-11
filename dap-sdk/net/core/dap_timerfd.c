@@ -328,6 +328,9 @@ void dap_timerfd_reset(dap_timerfd_t *a_timerfd)
  */
 void dap_timerfd_delete(dap_timerfd_t *a_timerfd)
 {
+    #ifdef _WIN32
+        DeleteTimerQueueTimer(hTimerQueue, (HANDLE)a_timerfd->th, NULL);
+    #endif
     if (a_timerfd->events_socket->worker)
         dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->worker, a_timerfd->esocket_uuid);
 }
