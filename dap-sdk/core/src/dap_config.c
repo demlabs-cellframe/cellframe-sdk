@@ -600,7 +600,7 @@ const char *l_str_ret;
         return	false;
 
 #ifdef	WIN32
-    return	!strnicmp (cp, "true", 4);
+    return	!strnicmp (l_str_ret, "true", 4);
 #else
     return	!strncasecmp (l_str_ret, "true", 4);	/* 0 == True */
 #endif
@@ -623,7 +623,12 @@ const char *l_str_ret;
     if ( !(l_str_ret = dap_config_get_item_str_default(a_config,a_section_path, a_item_name, a_default ? "true" : "false")) )
         return  a_default;
 
-    return !strcmp(l_str_ret, "true" );
+#ifdef	WIN32
+    return	!strnicmp (l_str_ret, "true", 4);
+#else
+    return	!strncasecmp (l_str_ret, "true", 4);	/* 0 == True */
+#endif
+
 }
 
 /**
