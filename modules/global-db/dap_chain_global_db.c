@@ -211,7 +211,7 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     s_track_history = dap_config_get_item_bool_default(g_config, "resources", "dap_global_db_track_history", s_track_history);
 
     s_db_drvmode_async = dap_config_get_item_bool(g_config, "resources", "dap_global_db_drvmode_async");
-    log_it(L_NOTICE,"DB Driver Async mode: %s", s_db_drvmode_async ? "ON": "Off");
+    log_it(L_NOTICE,"DB Driver Async mode: %s", s_db_drvmode_async ? "ON": "OFF");
 
     lock();
     int res = dap_db_driver_init(l_driver_name, l_storage_path, s_db_drvmode_async);

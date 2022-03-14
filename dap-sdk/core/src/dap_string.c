@@ -833,8 +833,8 @@ dap_string_t* dap_string_up(dap_string_t *string)
  */
 void dap_string_append_vprintf(dap_string_t *string, const char *format, va_list args)
 {
-    const char l_oom [] = { "Out of memory@%s!" }, l_buf[128];
-    char *buf;
+    const char l_oom [] = { "Out of memory@%s!" };
+    char *buf, l_buf[128];
     int len;
 
     dap_return_if_fail(string != NULL);
@@ -852,7 +852,7 @@ void dap_string_append_vprintf(dap_string_t *string, const char *format, va_list
         memcpy(string->str + string->len, buf, len + 1);
         string->len += len;
     } else {
-        len = sprintf(l_buf, l_oom, __func__ );
+        len = dap_sprintf(l_buf, l_oom, __func__ );
         if ( (string->str = DAP_NEW_SIZE(char, sizeof(l_buf ))) )
             memcpy(string->str, l_buf , len);
     }

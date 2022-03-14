@@ -59,7 +59,9 @@ char *s_server_continents[]={
 struct dap_order_notify {
     dap_chain_net_t *net;
     dap_global_db_obj_callback_notify_t callback;
+    void *cb_arg;
 };
+
 static dap_list_t *s_order_notify_callbacks = NULL;
 static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
                                    const char *a_key, const void *a_value, const size_t a_value_len);
@@ -73,7 +75,7 @@ int dap_chain_net_srv_order_init(void)
     uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
-        dap_chain_net_add_notify_callback(l_net_list[i], s_srv_order_callback_notify);
+        dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_srv_order_callback_notify, l_net_list[i]);
     }
     //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
     return 0;
@@ -583,17 +585,20 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
             struct dap_order_notify *l_notifier = (struct dap_order_notify *)it->data;
             if ((l_notifier->net == NULL || l_notifier->net == l_net) &&
                         l_notifier->callback) {
-                l_notifier->callback(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+                l_notifier->callback(l_notifier->cb_arg, a_op_code, a_group,
+                                     a_key, a_value, a_value_len);
             }
         }
-        if (a_value && a_op_code != 'a' && dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+        if (a_value && a_op_code == DAP_DB$K_OPTYPE_ADD &&
+                dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
             if (l_order->version != 2) {
                 dap_chain_global_db_gr_del( a_key, a_group);
             } else {
                 dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext_n_sign[l_order->ext_size];
                 if (!dap_sign_verify_size(l_sign, a_value_len) ||
-                        dap_sign_verify(l_sign, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
+                        dap_sign_verify(l_sign, l_order,
+                                        sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
                     dap_chain_global_db_gr_del( a_key, a_group);
                     DAP_DELETE(l_gdb_group_str);
                     return;
@@ -617,10 +622,11 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
     DAP_DELETE(l_gdb_group_str);
 }
 
-void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback)
+void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
     struct dap_order_notify *l_notifier = DAP_NEW(struct dap_order_notify);
     l_notifier->net = a_net;
     l_notifier->callback = a_callback;
+    l_notifier->cb_arg = a_cb_arg;
     s_order_notify_callbacks = dap_list_append(s_order_notify_callbacks, l_notifier);
 }
