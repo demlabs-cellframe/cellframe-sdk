@@ -634,26 +634,26 @@ static void s_gdb_sync_tsd_worker_callback(dap_worker_t *a_worker, void *a_arg)
  * @param group_name 
  * @return dap_chain_t* 
  */
-dap_chain_t *s_chain_get_chain_from_group_name(dap_chain_net_id_t net_id, char *group_name)
+static dap_chain_t *s_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name)
 {
     dap_chain_t *l_chain;
 
-    if (!group_name)
+    if (!a_group_name)
     {
         log_it(L_ERROR, "s_chain_get_chain_id_from_group. GDB group name is NULL");
         return NULL;
     }
     
-    dap_chain_net_t *l_net = dap_chain_net_by_id(net_id); 
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
 
     if (!l_net)
         return false;
 
     DL_FOREACH(l_net->pub.chains, l_chain) 
     {
-        char *s_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);    
+        char *l_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);
 
-        if (!strcmp(group_name,s_chain_group_name))
+        if (dap_strcmp(a_group_name, l_chain_group_name))
             return l_chain;
     }    
     

@@ -186,7 +186,7 @@ typedef struct dap_chain_net_pvt{
     // General rwlock for structure
     pthread_rwlock_t rwlock;
 
-    dap_list_t *notify_callbacks;
+    dap_list_t *gdb_notifiers;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -388,11 +388,13 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
  *
  * @param a_callback dap_global_db_obj_callback_notify_t callback function
  */
-void dap_chain_net_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback)
+void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
-   PVT(a_net)->notify_callbacks = dap_list_append(PVT(a_net)->notify_callbacks, a_callback);
+    dap_chain_gdb_notifier_t *l_notifier = DAP_NEW(dap_chain_gdb_notifier_t);
+    l_notifier->callback = a_callback;
+    l_notifier->cb_arg = a_cb_arg;
+    PVT(a_net)->gdb_notifiers = dap_list_append(PVT(a_net)->gdb_notifiers, l_notifier);
 }
-
 
 /**
  * @brief if current network in ONLINE state send to all connected node
@@ -470,10 +472,31 @@ static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, con
         return;
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    for (dap_list_t *it = PVT(l_net)->notify_callbacks; it; it = it->next) {
-        dap_global_db_obj_callback_notify_t l_callback = (dap_global_db_obj_callback_notify_t)it->data;
+    for (dap_list_t *it = PVT(l_net)->gdb_notifiers; it; it = it->next) {
+        dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
+        if (!el)
+            continue;
+        dap_global_db_obj_callback_notify_t l_callback = el->callback;
         if (l_callback)
-            l_callback(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+            l_callback(el->cb_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+    }
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (!l_chain) {
+            continue;
+        }
+        char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool(l_chain);
+        if (!strcmp(a_group, l_gdb_group_str)) {
+            for (dap_list_t *it = DAP_CHAIN_PVT(l_chain)->mempool_notifires; it; it = it->next) {
+                dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
+                if (!el)
+                    continue;
+                dap_global_db_obj_callback_notify_t l_callback = el->callback;
+                if (l_callback)
+                    l_callback(el->cb_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+            }
+        }
+        DAP_DELETE(l_gdb_group_str);
     }
 }
 
@@ -2468,7 +2491,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         // reload ledger cache at once
         s_chain_net_reload_ledger_cache_once(l_net);
 
-        dap_chain_net_add_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast);
+        dap_chain_net_add_gdb_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast, l_net);
         if (l_target_state != l_net_pvt->state_target)
             dap_chain_net_state_go_to(l_net, l_target_state);
 
@@ -2777,7 +2800,6 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
  */
 void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
 {
-
     dap_string_t * l_str_tmp = dap_string_new(NULL);
     dap_chain_t *l_chain;
     DL_FOREACH(a_net->pub.chains, l_chain) {
