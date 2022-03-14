@@ -433,7 +433,15 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         }
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
-        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
+        dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
+
+        if (!l_chain)
+        {
+            log_it(L_WARNING, "chain object is not found for group %s", a_group);
+            DAP_DELETE(l_group);
+            return;
+        }
+
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
         dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);

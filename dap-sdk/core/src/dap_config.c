@@ -600,7 +600,7 @@ const char *l_str_ret;
         return	false;
 
 #ifdef	WIN32
-    return	!strnicmp (cp, "true", 4);
+    return	!strnicmp (l_str_ret, "true", 4);
 #else
     return	!strncasecmp (l_str_ret, "true", 4);	/* 0 == True */
 #endif

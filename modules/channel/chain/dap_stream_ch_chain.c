@@ -634,13 +634,11 @@ static void s_gdb_sync_tsd_worker_callback(dap_worker_t *a_worker, void *a_arg)
  * @param group_name 
  * @return dap_chain_t* 
  */
-dap_chain_t *s_chain_get_chain_from_group_name(dap_chain_net_id_t net_id, char *group_name)
+dap_chain_t * dap_chain_get_chain_from_group_name(dap_chain_net_id_t net_id, const char *group_name)
 {
-    dap_chain_t *l_chain;
-
     if (!group_name)
     {
-        log_it(L_ERROR, "s_chain_get_chain_id_from_group. GDB group name is NULL");
+        log_it(L_ERROR, "GDB group name is NULL ");
         return NULL;
     }
     
@@ -649,12 +647,19 @@ dap_chain_t *s_chain_get_chain_from_group_name(dap_chain_net_id_t net_id, char *
     if (!l_net)
         return false;
 
+    dap_chain_t *l_chain;
+
     DL_FOREACH(l_net->pub.chains, l_chain) 
     {
-        char *s_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);    
+        char *s_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);      
 
         if (!strcmp(group_name,s_chain_group_name))
+        {
+            DAP_DELETE(s_chain_group_name);
             return l_chain;
+        }
+               
+        DAP_DELETE(s_chain_group_name);
     }    
     
     return NULL;
@@ -764,7 +769,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             // if chain is zero, it can be on of GDB group
             // 
             if (!l_chain)
-                 l_chain = s_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
+                 l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
             if(l_chain) {
                 if(l_chain->callback_add_datums_with_group){
