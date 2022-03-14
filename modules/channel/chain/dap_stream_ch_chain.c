@@ -647,7 +647,7 @@ dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, co
     DL_FOREACH(l_net->pub.chains, l_chain) {
         char *l_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);
         if (!strcmp(a_group_name, l_chain_group_name)) {
-            DAP_DELETE(s_chain_group_name);
+            DAP_DELETE(l_chain_group_name);
             return l_chain;
         }
         DAP_DELETE(l_chain_group_name);
