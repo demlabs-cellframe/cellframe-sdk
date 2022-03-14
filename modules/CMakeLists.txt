@@ -68,6 +68,11 @@ if (CELLFRAME_MODULES MATCHES "cs-block-pos")
     add_subdirectory(consensus/block-pos)
 endif()
 
+# Block TON
+if (CELLFRAME_MODULES MATCHES "cs-block-ton")
+    add_subdirectory(consensus/block-ton)
+endif()
+
 # Block PoW
 if (CELLFRAME_MODULES MATCHES "cs-block-pow")
     add_subdirectory(consensus/block-pow)

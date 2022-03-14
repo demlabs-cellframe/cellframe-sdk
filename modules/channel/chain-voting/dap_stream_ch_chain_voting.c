@@ -108,15 +108,17 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t * a_net, dap_list_
 	pthread_rwlock_rdlock(&s_pkt_items->rwlock_out);
     dap_stream_ch_chain_voting_pkt_t * l_voting_pkt;
     size_t l_voting_pkt_size = sizeof(l_voting_pkt->hdr) + a_data_size;
-    l_voting_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_voting_pkt_t, l_voting_pkt_size );
+    //l_voting_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_voting_pkt_t, l_voting_pkt_size );
+    l_voting_pkt = DAP_NEW_SIZE(dap_stream_ch_chain_voting_pkt_t, l_voting_pkt_size );
     l_voting_pkt->hdr.data_size = a_data_size;
     //dap_hash_fast(a_data, a_data_size, &l_voting_pkt->hdr.data_hash);
     memcpy( &l_voting_pkt->hdr.data_hash, a_data_hash, sizeof(dap_chain_hash_fast_t));
     l_voting_pkt->hdr.pkt_type = DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_TEST;
     l_voting_pkt->hdr.version = 1;
     l_voting_pkt->hdr.net_id.uint64 = a_net->pub.id.uint64;
-    if (a_data_size && a_data)
+    if (a_data_size && a_data) {
         memcpy( l_voting_pkt->data, a_data, a_data_size);
+    }
     voting_pkt_addr_t * l_pkt_addr = DAP_NEW_Z(voting_pkt_addr_t);
     // l_pkt_addr->client = NULL;
     l_pkt_addr->node_addr.uint64 = 0;
@@ -322,6 +324,9 @@ static bool s_packet_in_callback_handler() {
 					memcpy(l_data, &l_voting_pkt->data, l_voting_pkt->hdr.data_size);
 					l_callback->packet_in_callback(l_callback->arg, l_sender_node_addr, 
 										l_data_hash, l_data, l_voting_pkt->hdr.data_size);
+					DAP_DELETE(l_sender_node_addr);
+					DAP_DELETE(l_data_hash);
+					DAP_DELETE(l_data);
 				}
 			}
 			l_list_temp = l_list_next;
