@@ -436,9 +436,9 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
 
         if (!l_chain)
-        {
+        {     
             log_it(L_WARNING, "chain object is not found for group %s", a_group);
-            DAP_DELETE(l_group);
+            DAP_DELETE(l_data_out);
             return;
         }
 

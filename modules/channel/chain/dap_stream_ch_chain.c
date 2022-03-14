@@ -634,7 +634,7 @@ static void s_gdb_sync_tsd_worker_callback(dap_worker_t *a_worker, void *a_arg)
  * @param group_name 
  * @return dap_chain_t* 
  */
-dap_chain_t * dap_chain_get_chain_from_group_name(dap_chain_net_id_t net_id, const char *group_name)
+dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t net_id, const char *group_name)
 {
     if (!group_name)
     {
@@ -651,14 +651,27 @@ dap_chain_t * dap_chain_get_chain_from_group_name(dap_chain_net_id_t net_id, con
 
     DL_FOREACH(l_net->pub.chains, l_chain) 
     {
-        char *s_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);      
+        char *s_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);    
+
+        if (!strcmp(group_name,s_chain_group_name))
+        {
+            DAP_DELETE(s_chain_group_name);
+            return l_chain;
+        }             
+        DAP_DELETE(s_chain_group_name);
+
+        //
+        // if we don't get GDB group name, we get it from mempool group
+        //
+
+        s_chain_group_name = dap_chain_net_get_gdb_group_mempool(l_chain);
 
         if (!strcmp(group_name,s_chain_group_name))
         {
             DAP_DELETE(s_chain_group_name);
             return l_chain;
         }
-               
+
         DAP_DELETE(s_chain_group_name);
     }    
     
