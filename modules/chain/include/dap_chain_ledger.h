@@ -129,7 +129,8 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 /**
  * Add token emission datum
  */
-int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
+int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size,
+                                        dap_hash_fast_t *a_emission_hash, bool a_from_threshold);
 int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 
 // Check if it addable

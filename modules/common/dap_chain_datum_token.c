@@ -114,8 +114,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size
 
     uint16_t l_token_type = ((dap_chain_datum_token_t *)a_token_serial)->type;
     if ( dap_chain_datum_token_is_old(l_token_type) ) {
-        dap_chain_datum_token_old_t * l_token_old = DAP_NEW_Z_SIZE(dap_chain_datum_token_old_t, (*a_token_size));
-        memcpy(l_token_old, a_token_serial, (*a_token_size));
+        dap_chain_datum_token_old_t *l_token_old = (dap_chain_datum_token_old_t *)a_token_serial;
         size_t l_token_size = (*a_token_size) - sizeof(*l_token_old) + sizeof(dap_chain_datum_token_t);
         dap_chain_datum_token_t * l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
         memcpy(l_token->ticker, l_token_old->ticker, sizeof(l_token_old->ticker));
@@ -148,15 +147,11 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size
                     memcpy(&l_token->header_public.premine_address, &l_token_old->header_public.premine_address, sizeof(l_token_old->header_public.premine_address));
                 break;
             default:
-                DAP_DELETE(l_token_old);
                 return NULL;
         }
-        DAP_DELETE(l_token_old);
         return l_token;
     } else {
-        dap_chain_datum_token_t * l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, (*a_token_size));
-        memcpy(l_token, a_token_serial, (*a_token_size));
-        return l_token;
+        return DAP_DUP_SIZE(a_token_serial, *a_token_size);
     }
     return NULL;
 }
@@ -276,7 +271,6 @@ size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
         l_ret = sizeof(l_emission->hdr);
     }
     switch (l_emission->hdr.type) {
-        // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH:
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH: {
             uint16_t l_sign_count = *(uint16_t *)(a_emission_serial + l_ret);
             l_ret += sizeof(l_emission->data.type_auth);
@@ -285,19 +279,15 @@ size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
                 l_ret += dap_sign_get_size(l_sign);
             }
         } break;
-        // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO:
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
             l_ret += sizeof(l_emission->data.type_algo);
             break;
-        // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER:
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
             l_ret += sizeof(l_emission->data.type_atom_owner);
             break;
-        // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT:
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT:
             l_ret += sizeof(l_emission->data.type_presale);
             break;
-        // case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED:
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
         default:
             break;
@@ -315,16 +305,20 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         size_t l_old_hdr_size = sizeof(struct dap_chain_emission_header_v0);
         size_t l_add_size = sizeof(l_emission->hdr) - l_old_hdr_size;
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size + l_add_size);
-        l_emission->hdr.version = 1;
-        // l_emission->hdr.type_256 = false;
+        l_emission->hdr.version = 2;
         memcpy(l_emission, a_emission_serial, l_old_hdr_size);
         memcpy((byte_t *)l_emission + sizeof(l_emission->hdr),
                a_emission_serial + l_old_hdr_size,
                l_emission_size - l_old_hdr_size);
+        l_emission->hdr.value_256 = dap_chain_uint256_from(
+                    ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);
         l_emission_size += l_add_size;
         (*a_emission_size) = l_emission_size;
     } else {
         l_emission = DAP_DUP_SIZE(a_emission_serial, (*a_emission_size));
+        if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 1)
+            l_emission->hdr.value_256 = dap_chain_uint256_from(
+                        ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);
     }
     return l_emission;
 }

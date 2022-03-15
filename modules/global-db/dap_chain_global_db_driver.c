@@ -254,7 +254,7 @@ dap_store_obj_t *l_store_obj_cur;
     if(!a_store_obj || !a_store_count)
         return -1;
 
-    log_it(L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
+    //log_it(L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
 
     l_store_obj_cur = a_store_obj;                                          /* We have to  use a power of the address's incremental arithmetic */
     l_ret = 0;                                                              /* Preset return code to OK */
@@ -275,7 +275,7 @@ dap_store_obj_t *l_store_obj_cur;
     if(a_store_count > 1 && s_drv_callback.transaction_end)
         s_drv_callback.transaction_end();
 
-    log_it(L_DEBUG, "[%p] Finished DB Request (code %d)", a_store_obj, l_ret);
+    //log_it(L_DEBUG, "[%p] Finished DB Request (code %d)", a_store_obj, l_ret);
     return l_ret;
 }
 
