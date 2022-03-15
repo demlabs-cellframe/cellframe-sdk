@@ -76,9 +76,12 @@ typedef struct sync_group_item
 // Tacked group callbacks
 static sync_group_item_t *s_sync_group_items = NULL;
 static sync_group_item_t *s_sync_group_extra_items = NULL;
-static bool s_track_history = false;
-static bool s_db_drvmode_async = false;
 
+static int s_track_history = 0;
+
+int     s_db_drvmode_async ,                                                /* Set a kind of processing requests to DB:
+                                                                            <> 0 - Async mode should be used */
+        s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
 
 /**
  * @brief Adds a group name for synchronization.
@@ -153,16 +156,16 @@ dap_list_t *dap_chain_db_get_sync_extra_groups()
  * @param obj a pointer to the structure
  * @return (none)
  */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
+void dap_chain_global_db_obj_clean(dap_global_db_obj_t *a_obj)
 {
-    if(!obj)
+    if(!a_obj)
         return;
 
-    DAP_DELETE(obj->key);
-    DAP_DELETE(obj->value);
+    DAP_DELETE(a_obj->key);
+    DAP_DELETE(a_obj->value);
 
-    obj->key = NULL;
-    obj->value = NULL;
+    a_obj->key = NULL;
+    a_obj->value = NULL;
 }
 
 /**
@@ -170,10 +173,10 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj)
  * @param obj a pointer to the object
  * @return (none)
  */
-void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj)
+void dap_chain_global_db_obj_delete(dap_global_db_obj_t *a_obj)
 {
-    dap_chain_global_db_obj_clean(obj);
-    DAP_DELETE(obj);
+    dap_chain_global_db_obj_clean(a_obj);
+    DAP_DELETE(a_obj);
 }
 
 /**
@@ -213,14 +216,18 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     s_db_drvmode_async = dap_config_get_item_bool(g_config, "resources", "dap_global_db_drvmode_async");
     log_it(L_NOTICE,"DB Driver Async mode: %s", s_db_drvmode_async ? "ON": "OFF");
 
+    s_dap_global_db_debug_more = dap_config_get_item_bool(g_config, "resources", "dap_global_db_drvmode_async");
+
+    //debug_if(s_dap_global_db_debug_more, L_DEBUG, "Just a test for %d", 135);
+
     lock();
-    int res = dap_db_driver_init(l_driver_name, l_storage_path, s_db_drvmode_async);
+    int res = dap_db_driver_init(l_driver_name, l_storage_path);
     unlock();
 
     if( res != 0 )
         log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, l_storage_path);
     else
-        log_it(L_NOTICE,"GlobalDB initialized");
+        log_it(L_NOTICE, "GlobalDB initialized");
 
     return res;
 }
@@ -232,35 +239,39 @@ int dap_chain_global_db_init(dap_config_t * g_config)
  */
 void dap_chain_global_db_deinit(void)
 {
+sync_group_item_t *l_item = NULL, *l_item_tmp = NULL,
+        *l_add_item = NULL, *l_add_item_tmp = NULL;
+
     lock();
     dap_db_driver_deinit();
-    //dap_db_deinit();
     unlock();
-    sync_group_item_t * l_item = NULL, *l_item_tmp = NULL;
+
     HASH_ITER(hh, s_sync_group_items, l_item, l_item_tmp)
     {
         DAP_DELETE(l_item->group_name_for_history);
         DAP_DELETE(l_item);
     }
-    sync_group_item_t * l_add_item = NULL, *l_add_item_tmp = NULL;
+
     HASH_ITER(hh, s_sync_group_extra_items, l_add_item, l_add_item_tmp)
     {
         DAP_DELETE(l_add_item->group_mask);
         DAP_DELETE(l_add_item->group_name_for_history);
         DAP_DELETE(l_add_item);
     }
-    s_sync_group_items = NULL;
 
+    s_sync_group_items = NULL;
 }
 
 /**
  * @brief Flushes a database cahce to disk.
  * @return 0
  */
-int dap_chain_global_db_flush(void){
+int dap_chain_global_db_flush(void)
+{
     lock();
     int res = dap_db_driver_flush();
     unlock();
+
     return res;
 }
 
@@ -303,11 +314,11 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
 
 /**
  * @brief Gets an object value from database by a_key and a_group.
- * 
+ *
  * @param a_key an object key string
  * @param a_data_len_out a length of values that were gotten
  * @param a_group a group name string
- * @return If successful, returns a pointer to the object value. 
+ * @return If successful, returns a pointer to the object value.
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
@@ -346,7 +357,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
  * @param a_timestamp an object time stamp
  * @return True if successful, false otherwise.
  */
-static bool global_db_gr_del_add(const char *a_key, const char *a_group, time_t a_timestamp)
+static int global_db_gr_del_add(const char *a_key, const char *a_group, time_t a_timestamp)
 {
 dap_store_obj_t store_data = {0};
 char	l_group[DAP_DB_K_MAXGRPLEN];
@@ -372,7 +383,7 @@ int l_res = 0;
  * @param a_group a group name string, for example "kelvin-testnet.nodes"
  * @return If successful, returns true; otherwise, false.
  */
-static bool global_db_gr_del_del(const char *a_key, const char *a_group)
+static int global_db_gr_del_del(const char *a_key, const char *a_group)
 {
 dap_store_obj_t store_data = {0};
 char	l_group[DAP_DB_K_MAXGRPLEN];
@@ -386,7 +397,7 @@ int	l_res = 0;
     store_data.group = l_group;
 
     lock();
-    if(dap_chain_global_db_driver_is(store_data.group, store_data.key))
+    if ( dap_chain_global_db_driver_is(store_data.group, store_data.key) )
         l_res = dap_chain_global_db_driver_delete(&store_data, 1);
     unlock();
 

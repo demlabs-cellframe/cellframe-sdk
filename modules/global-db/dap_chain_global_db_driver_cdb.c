@@ -67,8 +67,6 @@ static pcdb_instance s_cdb = NULL;
 static pthread_mutex_t cdb_mutex = PTHREAD_MUTEX_INITIALIZER;
 /** A read-write lock for working with a CDB instanse. */
 static pthread_rwlock_t cdb_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-/** Mode of request processing */
-static bool s_db_drvmode_async = false;
 
 /**
  * @brief Serialize key and val to a item
@@ -243,8 +241,7 @@ ERR:
  * @param a_db_drvmode_async
  * @return 0 if success, -1 if сouldn't open db directory, -2 if dap_cdb_init_group() returns NULL.
  */
-int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_drv_callback,
-               bool a_db_drvmode_async)
+int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_drv_callback)
 {
     s_cdb_path = dap_strdup(a_cdb_path);
     if(s_cdb_path[strlen(s_cdb_path)] == '/') {
@@ -287,8 +284,6 @@ int dap_db_driver_cdb_init(const char *a_cdb_path, dap_db_driver_callbacks_t *a_
             return -2;
         }
     }
-
-    s_db_drvmode_async = a_db_drvmode_async;	/* DB Driver mode: Async/Sync */
 
     a_drv_callback->read_last_store_obj = dap_db_driver_cdb_read_last_store_obj;
     a_drv_callback->apply_store_obj     = dap_db_driver_cdb_apply_store_obj;
