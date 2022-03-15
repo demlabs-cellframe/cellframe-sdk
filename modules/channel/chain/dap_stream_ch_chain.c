@@ -705,11 +705,15 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             // apply received transaction
             dap_chain_t *l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
+            // if chain is zero, it can be on of GDB group
+            if (!l_chain)
+                 l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
+
             if(l_chain) {
                 if(l_chain->callback_add_datums_with_group){
                     void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
-                            (dap_chain_datum_t** restrict) l_store_obj_value, 1,
+                            (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
                 }
             }

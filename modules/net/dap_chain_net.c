@@ -430,7 +430,17 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         l_obj->group = dap_strdup(a_group);
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
-        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
+        dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
+        if (!l_chain)
+        {     
+              l_chain = dap_chain_get_chain_from_mempool_group(l_net->pub.id, a_group);
+              if (!l_chain)
+              {
+                    log_it(L_WARNING, "Chain object is not found for group %s", a_group);
+                    DAP_DELETE(l_data_out);
+                    return;
+              }
+        }
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
@@ -438,7 +448,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
             if (!l_node_client)
                 continue;
             dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(l_node_client->client);
-            if (l_stream_worker)
+            if (!l_stream_worker)
                 continue;
             dap_stream_ch_chain_pkt_write_mt(l_stream_worker, l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                  l_chain_id.uint64, l_net->pub.cell_id.uint64, l_data_out,
@@ -2549,6 +2559,62 @@ uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_id);
     return l_net ? PVT(l_net)->acl_idx : (uint16_t)-1;
+}
+
+/**
+ * @brief 
+ * 
+ * @param net_id 
+ * @param group_name 
+ * @return dap_chain_t* 
+ */
+dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name)
+{
+    if (!a_group_name) {
+        log_it(L_ERROR, "GDB group name is NULL ");
+        return NULL;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (!l_net)
+        return false;
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        char *l_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);
+        if (!strcmp(a_group_name, l_chain_group_name)) {
+            DAP_DELETE(l_chain_group_name);
+            return l_chain;
+        }
+        DAP_DELETE(l_chain_group_name);
+    }
+    return NULL;
+}
+
+/**
+ * @brief 
+ * 
+ * @param net_id 
+ * @param group_name 
+ * @return dap_chain_t* 
+ */
+dap_chain_t *dap_chain_get_chain_from_mempool_group(dap_chain_net_id_t a_net_id, const char *a_group_name)
+{
+    if (!a_group_name) {
+        log_it(L_ERROR, "GDB group name is NULL ");
+        return NULL;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (!l_net)
+        return false;
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        char *l_chain_group_name = dap_chain_net_get_gdb_group_mempool(l_chain);
+        if (!strcmp(a_group_name, l_chain_group_name)) {
+            DAP_DELETE(l_chain_group_name);
+            return l_chain;
+        }
+        DAP_DELETE(l_chain_group_name);
+    }
+    return NULL;
 }
 
 
