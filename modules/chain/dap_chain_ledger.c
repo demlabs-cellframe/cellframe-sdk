@@ -1040,11 +1040,11 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
     {
         if(s_debug_more)
             log_it(L_WARNING, "Ledger cache mismatch");
-        DAP_DELETE(l_token_cache);
+        DAP_DELETE(l_gdb_group);
+        return false;
     }
 
     DAP_DELETE(l_gdb_group);
-
     return true;
 }
 

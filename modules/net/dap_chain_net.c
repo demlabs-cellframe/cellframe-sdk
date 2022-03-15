@@ -430,18 +430,6 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         l_obj->group = dap_strdup(a_group);
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
-        dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
-        if (!l_chain)
-        {     
-              l_chain = dap_chain_get_chain_from_mempool_group(l_net->pub.id, a_group);
-              if (!l_chain)
-              {
-                    log_it(L_WARNING, "Chain object is not found for group %s", a_group);
-                    DAP_DELETE(l_data_out);
-                    return;
-              }
-        }
-        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
@@ -451,7 +439,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
             if (!l_stream_worker)
                 continue;
             dap_stream_ch_chain_pkt_write_mt(l_stream_worker, l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
-                                                 l_chain_id.uint64, l_net->pub.cell_id.uint64, l_data_out,
+                                                 0, l_net->pub.cell_id.uint64, l_data_out,
                                                  sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
