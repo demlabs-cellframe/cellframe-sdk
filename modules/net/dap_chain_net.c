@@ -1480,43 +1480,26 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 {
     if (!l_net)
         return false;
-    
-    //
-    // create directory for cache checking file (cellframe-node/cache)
-    //
-    
-    char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
 
-    if (dap_mkdir_with_parents(l_cache_dir) != 0)
-    {
+    // create directory for cache checking file (cellframe-node/cache)
+    char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
+    if (dap_mkdir_with_parents(l_cache_dir) != 0){
         log_it(L_WARNING,"Error during one time cache reloading check file creation");
         return false;
     }
 
-    //
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    //
-
     char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "4CFB3928-1A9A-467D-BB5E-3FDB35014E8A");
-
-    if (dap_file_simple_test(l_cache_file))
-    {
+    if (dap_file_simple_test(l_cache_file)){
         log_it(L_DEBUG,"Ledger cache was already reloaded");
         return false;
     }
-
     log_it(L_WARNING,"Start one time ledger cache reloading");
-
     static FILE *s_cache_file = NULL;
-
     s_cache_file = fopen(l_cache_file, "a");
-
-    if(!s_cache_file)
-    {
+    if(!s_cache_file){
         s_cache_file = fopen(l_cache_file, "w");
-
-        if (!s_cache_file) 
-        {
+        if (!s_cache_file){
             dap_fprintf(stderr, "Can't open cache file %s for one time ledger cache reloading.\
                 Please, do it manually using command\
                 cellframe-node-cli net -net <network_name>> ledger reload'\n", l_cache_file);
@@ -1524,15 +1507,10 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         }
     }
 
-    //
     // reload ledger cache (same as net -net <network_name>> ledger reload command)
-    //
-
     if (dap_file_simple_test(l_cache_file))
         s_chain_net_ledger_cache_reload(l_net);
-
     fclose(s_cache_file);
-
     return true; 
 }
 
