@@ -111,11 +111,11 @@ int l_ret = -1;
 
 #ifdef DAP_CHAIN_GDB_ENGINE_MDBX
     else if(!dap_strcmp(s_used_driver, "mdbx"))
-        l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback);
 #endif
 #ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
     else if(!dap_strcmp(s_used_driver, "pgsql"))
-        l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback);
 #endif
     else
         log_it(L_ERROR, "Unknown global_db driver \"%s\"", a_driver_name);
