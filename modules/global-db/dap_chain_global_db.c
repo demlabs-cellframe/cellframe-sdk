@@ -390,7 +390,7 @@ char	l_group[DAP_DB_K_MAXGRPLEN];
 int	l_res = 0;
 
     if(!a_key)
-        return NULL;
+        return false;
 
     store_data.key = a_key;
     dap_snprintf(l_group, sizeof(l_group) - 1, "%s.del", a_group);

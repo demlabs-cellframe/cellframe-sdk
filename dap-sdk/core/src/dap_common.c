@@ -378,7 +378,8 @@ static int s_check_and_fill_buffer_log(char **m, struct tm *a_tm_st, char *a_tmp
 			a_tm_st->tm_min >= l_tm.tm_min &&
 			a_tm_st->tm_sec >= l_tm.tm_sec) {
 			size_t l_len = strlen(a_tmp);
-			strncpy(s, a_tmp, l_len);
+            memcpy(s, a_tmp, l_len);
+            s[l_len] = '\0';
 			s += l_len;
 			//*s++ = '\n';
 			*m = s;
