@@ -1475,7 +1475,7 @@ const char* dap_chain_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,
     HASH_FIND(hh, l_ledger_priv->ledger_items, a_tx_hash, sizeof (*a_tx_hash), l_item);
     if (l_item) {
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
-        return l_item->cache_data.token_ticker;
+            return l_item->cache_data.token_ticker;
     }
     dap_chain_ledger_tx_spent_item_t *l_spent_item;
     HASH_FIND(hh, l_ledger_priv->spent_items, a_tx_hash, sizeof (*a_tx_hash), l_spent_item);
@@ -3234,4 +3234,29 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
 
 int dap_chain_ledger_verificator_rwlock_init(void) {
     return pthread_rwlock_init(&s_verificators_rwlock, NULL);
+}
+
+dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page){
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+    size_t l_offset = a_count * a_page;
+    size_t l_count = HASH_COUNT(l_ledger_priv->ledger_items);
+    if (a_page < 2)
+        l_offset = 0;
+    if (l_offset > l_count){
+        return NULL;
+    }
+    dap_list_t *l_list = NULL;
+    size_t l_counter = 0;
+    size_t l_end = l_offset + a_count;
+    for (dap_chain_ledger_tx_item_t *ptr = l_ledger_priv->ledger_items; ptr != NULL; ptr = ptr->hh.next){
+        if (l_counter >= l_offset){
+            dap_chain_datum_tx_t *l_tx = ptr->tx;
+            l_list = dap_list_append(l_list, l_tx);
+        }
+        if(l_counter >= l_end){
+            break;
+        }
+        l_counter++;
+    }
+    return l_list;
 }
