@@ -580,8 +580,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             do{
                 int l_index = rand() % (int) l_events_round_new_size;
                 dap_chain_hash_fast_t l_hash;
-                // dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_events_round_new[l_index].value;
-                // size_t l_event_size = l_events_round_new[l_index].value_len;
                 dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                                 ((dap_chain_cs_dag_event_round_item_t *)l_events_round_new[l_index].value)->event_n_signs;
                 size_t l_event_size = ((dap_chain_cs_dag_event_round_item_t *)l_events_round_new[l_index].value)->event_size;
@@ -673,9 +671,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                     dap_chain_hash_fast_t l_event_hash;
                     dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
                     char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
-                    // if(dap_chain_global_db_gr_set(dap_strdup(l_event_hash_str), (uint8_t *)l_event,
-                    //         l_event_size,
-                    //         l_dag->gdb_group_events_round_new)) {
                     dap_chain_cs_dag_event_round_info_t l_event_round_info;
                     if ( l_dag->callback_cs_get_round_info ) {
                         l_dag->callback_cs_get_round_info(l_dag, &l_event_round_info);
@@ -1409,8 +1404,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
             // Check if its ready or not
             for (size_t i = 0; i< l_objs_size; i++ ){
-                // dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t*) l_objs[i].value;
-                // size_t l_event_size = l_objs[i].value_len;
                 dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                                 ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                 size_t l_event_size = ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_size;
@@ -1613,7 +1606,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 }
                 DAP_DELETE(l_event_hash_hex_str);
                 DAP_DELETE(l_event_hash_base58_str);
-                // DAP_DELETE( l_gdb_group_events );
                 // dap_chain_net_sync_gdb(l_net);
             }break;
             case SUBCMD_EVENT_DUMP:{
@@ -1624,18 +1616,13 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 if ( l_from_events_str ){
                     if ( strcmp(l_from_events_str,"round.new") == 0 ){
                         const char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
-                        // l_event = (dap_chain_cs_dag_event_t *)  dap_chain_global_db_gr_get
-                        //                       ( l_event_hash_str ,&l_event_size,l_gdb_group_events );
-                        // l_event = dap_chain_cs_dag_event_gdb_get(l_event_hash_str, &l_event_size,
-                        //                                         l_gdb_group_events, &l_event_round_info);
                         size_t l_round_item_size = 0;
                         l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_chain_global_db_gr_get(
                                                         l_event_hash_str, &l_round_item_size, l_gdb_group_events);
-                        l_event_size = l_round_item->event_size;
-                        l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
-
-                        // l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
-                        // l_event_size = l_round_item->event_size;
+                        if (l_round_item) {
+                            l_event_size = l_round_item->event_size;
+                            l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+                        }
                     }else if ( strncmp(l_from_events_str,"round.",6) == 0){
 
                     }else if ( strcmp(l_from_events_str,"events_lasts") == 0){
@@ -1783,7 +1770,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         dap_string_append_printf(l_str_tmp,"%s.%s: Found %zu records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
                         for (size_t i = 0; i< l_objs_count; i++){
-                            // dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_objs[i].value;
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[50];
@@ -1792,8 +1778,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                      l_objs[i].key, dap_ctime_r( &l_ts_create,buf ) );
 
                         }
-                        // bugs-3932
-                        //DAP_DELETE( l_gdb_group_events);
                         if (l_objs && l_objs_count )
                             dap_chain_global_db_objs_delete(l_objs, l_objs_count);
                         ret = 0;

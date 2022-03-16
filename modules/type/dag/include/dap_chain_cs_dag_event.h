@@ -91,6 +91,8 @@ size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t
                                         dap_chain_net_t * a_net, dap_enc_key_t * a_key);
 bool dap_chain_cs_dag_event_sign_exists(dap_chain_cs_dag_event_t *a_event, size_t a_event_size,
                                                             dap_chain_net_t * a_net, dap_enc_key_t * a_key);
+bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_t *a_round_item,
+                                                        dap_chain_net_t * a_net, dap_enc_key_t * a_key);
 dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, uint16_t a_sign_number);
 
 /**
@@ -152,11 +154,9 @@ static inline size_t dap_chain_cs_dag_event_round_item_get_size(dap_chain_cs_dag
     return sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_round_item->data_size;
 }
 
-// bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-//                                         const char *a_group, dap_chain_cs_dag_event_round_info_t * a_event_round_info);
 bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-                                    dap_chain_cs_dag_event_round_item_t * a_round_item, // size a_round_item_size,
-                                    const char *a_group);
+                                    dap_chain_cs_dag_event_round_item_t * a_round_item,
+                                        const char *a_group);
 
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(const char *a_event_hash_str, size_t *a_event_size,
                                                         const char *a_group, dap_chain_cs_dag_event_round_info_t * a_event_round_info);
