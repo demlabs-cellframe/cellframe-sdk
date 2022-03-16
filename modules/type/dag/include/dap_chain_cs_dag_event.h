@@ -47,18 +47,20 @@ typedef struct dap_chain_cs_dag_event {
     uint8_t hashes_n_datum_n_signs[]; // Hashes, signes and datum
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_t;
 
-typedef struct dap_chain_cs_dag_event_round_cfg {
+typedef struct dap_chain_cs_dag_event_round_info {
     uint16_t confirmations_minimum; // param auth_certs_count_verify in PoA
     uint32_t confirmations_timeout; // wait confirmations over minimum value (confirmations_minimum)
     uint64_t ts_confirmations_minimum_completed;
     uint64_t ts_update;
+    uint16_t reject_count;
     dap_chain_hash_fast_t first_event_hash; // first event hash in round
-} DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_cfg_t;
+} DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_info_t;
 
 typedef struct dap_chain_cs_dag_event_round_item {
-    dap_chain_cs_dag_event_round_cfg_t cfg;
+    dap_chain_cs_dag_event_round_info_t round_info;// cfg;
     uint32_t event_size;
-    uint8_t event[]; // event // dap_chain_cs_dag_event_t
+    uint32_t data_size;
+    uint8_t event_n_signs[]; // event // dap_chain_cs_dag_event_t
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_item_t;
 
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum,
@@ -80,9 +82,17 @@ static inline dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_d
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src, size_t a_event_size);
 
 // Important: returns new deep copy of event
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy_with_sign_add( dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-                                                size_t * a_event_size_new,
-                                                dap_chain_net_t * a_net, dap_enc_key_t * a_key);
+// dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_sign_add( dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
+//                                                 size_t * a_event_size_new,
+//                                                 dap_chain_net_t * a_net, dap_enc_key_t * a_key);
+size_t dap_chain_cs_dag_event_sign_add( dap_chain_cs_dag_event_t **a_event_ptr, size_t a_event_size,
+                                                            dap_chain_net_t * a_net, dap_enc_key_t * a_key);
+size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t **a_round_item_ptr, size_t a_round_item_size,
+                                        dap_chain_net_t * a_net, dap_enc_key_t * a_key);
+bool dap_chain_cs_dag_event_sign_exists(dap_chain_cs_dag_event_t *a_event, size_t a_event_size,
+                                                            dap_chain_net_t * a_net, dap_enc_key_t * a_key);
+bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_t *a_round_item,
+                                                        dap_chain_net_t * a_net, dap_enc_key_t * a_key);
 dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, uint16_t a_sign_number);
 
 /**
@@ -141,12 +151,13 @@ static inline void dap_chain_cs_dag_event_calc_hash(dap_chain_cs_dag_event_t * a
 }
 
 static inline size_t dap_chain_cs_dag_event_round_item_get_size(dap_chain_cs_dag_event_round_item_t * a_event_round_item){
-    return sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_round_item->event_size;
+    return sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_round_item->data_size;
 }
 
 bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-                                        const char *a_group, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
+                                    dap_chain_cs_dag_event_round_item_t * a_round_item,
+                                        const char *a_group);
 
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(const char *a_event_hash_str, size_t *a_event_size,
-                                                        const char *a_group, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
+                                                        const char *a_group, dap_chain_cs_dag_event_round_info_t * a_event_round_info);
 

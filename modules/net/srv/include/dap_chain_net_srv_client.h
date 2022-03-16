@@ -24,7 +24,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #pragma once
 
 #include <stdint.h>
-#include <time.h>
+#include <sys/time.h>
 
 
 #include "dap_enc_key.h"
