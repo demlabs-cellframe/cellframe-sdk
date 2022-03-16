@@ -32,19 +32,19 @@
   * @struct dap_chain_tx_out
   * @brief Transaction item outout
   */
-typedef struct dap_chain_tx_out{
+typedef struct dap_chain_tx_out_old {
     struct {
         dap_chain_tx_item_type_t type; ///           @param    type            @brief  Transaction item type
         uint64_t value; ///                       @param    value           @brief  Number of Datoshis ( DAP/10^9 ) to be transfered
     } header; /// Only header's hash is used for verification
     dap_chain_addr_t addr; ////
-} DAP_ALIGN_PACKED dap_chain_tx_out_t;
+} DAP_ALIGN_PACKED dap_chain_tx_out_old_t;
 
 //256
-typedef struct dap_chain_256_tx_out{
+typedef struct dap_chain_tx_out {
     struct {
         dap_chain_tx_item_type_t type; ///           @param    type            @brief  Transaction item type
         uint256_t value; ///                       @param    value           @brief  Number of Datoshis ( DAP/10^9 ) to be transfered
     } header; /// Only header's hash is used for verification
     dap_chain_addr_t addr; ////
-} DAP_ALIGN_PACKED dap_chain_256_tx_out_t;
+} DAP_ALIGN_PACKED dap_chain_tx_out_t;

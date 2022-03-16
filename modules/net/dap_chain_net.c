@@ -3208,19 +3208,19 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str, sizeof (l_tx_prev_hash_str)-1);
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
-                                case TX_ITEM_TYPE_OUT_256: { // 256
+                                case TX_ITEM_TYPE_OUT: { // 256
                                     dap_string_append_printf(a_str_out,"\tvalue: %s\n",
-                                                dap_chain_balance_print(((dap_chain_256_tx_out_t *)l_cur->data)->header.value)
+                                                dap_chain_balance_print(((dap_chain_tx_out_t *)l_cur->data)->header.value)
                                             );
-                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_256_tx_out_t *)l_cur->data)->addr );
+                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_tx_out_t *)l_cur->data)->addr );
                                     dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
                                     DAP_DELETE(l_addr_str);
                                 } break;
-                                case TX_ITEM_TYPE_OUT:{
+                                case TX_ITEM_TYPE_OUT_OLD:{
                                     dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n",
-                                                ((dap_chain_tx_out_t *)l_cur->data)->header.value
+                                                ((dap_chain_tx_out_old_t *)l_cur->data)->header.value
                                             );
-                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_tx_out_t *)l_cur->data)->addr );
+                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_tx_out_old_t *)l_cur->data)->addr );
                                     dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
                                     DAP_DELETE(l_addr_str);
                                 } break;
@@ -3273,7 +3273,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str,sizeof (l_tx_prev_hash_str)-1);
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
-                                case TX_ITEM_TYPE_OUT_256_COND: { // 256
+                                case TX_ITEM_TYPE_OUT_COND: { // 256
                                     dap_chain_tx_out_cond_t * l_out = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\tvalue: %s\n", dap_chain_balance_print(l_out->header.value) );
                                     switch ( l_out->header.subtype){
@@ -3308,7 +3308,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     }
                                     dap_string_append_printf(a_str_out,"\tparams_size : %u\n", l_out->params_size );
                                 } break;
-                                case TX_ITEM_TYPE_OUT_COND:{
+                                case TX_ITEM_TYPE_OUT_COND_OLD:{
                                     dap_chain_tx_out_cond_old_t * l_out = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out->header.value );
                                     switch ( l_out->header.subtype){
