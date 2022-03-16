@@ -378,9 +378,6 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_poa_pvt->callback_pre_sign = NULL;
     l_poa_pvt->prev_callback_created = l_dag->chain->callback_created;
     l_dag->chain->callback_created = s_callback_created;
-    
-dap_chain_cs_dag_poa_presign_callback_set(l_dag->chain,
-           (dap_chain_cs_dag_poa_callback_t)s_callback_presign_test, "Presign callback test");
 
     return 0;
 }
@@ -685,9 +682,9 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         // if my sign exists
         if (PVT(l_poa)->auto_round_complete) {
             if ( s_round_event_ready_minimum_check(a_dag, l_event, l_event_size,
-                                                            a_key,  &l_round_item->round_info) ) {
+                                                            (char *)a_key,  &l_round_item->round_info) ) {
                 // cs done (minimum signs & verify passed)
-                s_round_event_cs_done(a_dag, l_event, a_key, &l_round_item->round_info);
+                s_round_event_cs_done(a_dag, l_event, (char *)a_key, &l_round_item->round_info);
             }
         }
         DAP_DELETE(l_round_item);
@@ -715,7 +712,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             if ( l_round_item->round_info.reject_count // check reject count
                             <= (PVT(l_poa)->auth_certs_count - l_round_item->round_info.confirmations_minimum) ) {
                 // update reject_count
-                dap_chain_cs_dag_event_gdb_set(a_key, l_event, l_event_size,
+                dap_chain_cs_dag_event_gdb_set((char *)a_key, l_event, l_event_size,
                                                         l_round_item, a_group);
             }
             else {
