@@ -3412,7 +3412,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(l_chain_emission->id, &l_token_emission_hash, l_ticker);
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
-    dap_chain_256_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(l_addr, l_emission_value);
+    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(l_addr, l_emission_value);
 
     // pack items to transaction
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);

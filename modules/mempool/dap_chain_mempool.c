@@ -252,9 +252,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 break;
         }
         if (compare256(l_value_to_items, l_single_val) == -1) {
-            log_it(L_ERROR, "Not enought values on output %s to produce enought ins %s when need %s",
-                   dap_chain_balance_print(l_value_to_items), dap_chain_balance_print(l_value_transfer),
-                   dap_chain_balance_print(l_value_need));
+            log_it(L_ERROR, "Not enough values on output to produce enough inputs: %s when need %s",
+                   dap_chain_balance_print(l_value_to_items), dap_chain_balance_print(l_single_val));
             DAP_DELETE(l_objs);
             return -5;
         }
@@ -299,7 +298,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             int l_out_idx_tmp = 0; // current index of 'out' item
             //log_it(L_DEBUG,"We have %d outputs in new TX", l_item_count);
             while(l_list_tmp) {
-                dap_chain_tx_out_t * l_out = l_list_tmp->data ;
+                dap_chain_tx_out_t *l_out = l_list_tmp->data;
                 if( ! l_out){
                     log_it(L_WARNING, "Output is NULL, continue check outputs...");
                     l_out_idx_tmp++;

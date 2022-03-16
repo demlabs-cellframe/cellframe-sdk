@@ -156,7 +156,7 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
     else
         l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
     assert(l_stake);
-    dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
+    dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND_OLD, NULL);
     if (!l_out_cond || l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE) {
         // Stake tx is used out
         HASH_DEL(s_srv_stake->itemlist, l_stake);
@@ -194,7 +194,7 @@ static bool s_stake_conditions_calc(dap_chain_tx_out_cond_t *a_cond, dap_chain_d
     dap_chain_tx_out_cond_t *l_out_cond = NULL;
     if (!a_cond) {
         // New stake tx
-        l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
+        l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND_OLD, NULL);
     } else
         l_out_cond = a_cond;
     dap_chain_net_id_t l_cur_net_id = l_out_cond->subtype.srv_stake.hldr_addr.net_id;
@@ -300,16 +300,16 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
     uint32_t l_out_idx_tmp = 0; // current index of 'out' item
     for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_out_idx_tmp++) {
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
-        if (l_type == TX_ITEM_TYPE_OUT) {
-            dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_list_tmp->data;
+        if (l_type == TX_ITEM_TYPE_OUT_OLD) {
+            dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_list_tmp->data;
             if (!memcmp(&l_stake->addr_fee, &l_out->addr, sizeof(dap_chain_addr_t))) {
                 SUM_256_256(l_fee_sum, dap_chain_uint256_from(l_out->header.value), &l_fee_sum);
             } else if (memcmp(&l_owner_addr, &l_out->addr, sizeof(dap_chain_addr_t))) {
                 SUM_256_256(l_outs_sum, dap_chain_uint256_from(l_out->header.value), &l_outs_sum);
             }
         }
-        if (l_type == TX_ITEM_TYPE_OUT_256) {
-            dap_chain_256_tx_out_t *l_out = (dap_chain_256_tx_out_t *)l_list_tmp->data;
+        if (l_type == TX_ITEM_TYPE_OUT) {
+            dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_list_tmp->data;
             if (!memcmp(&l_stake->addr_fee, &l_out->addr, sizeof(dap_chain_addr_t))) {
                 SUM_256_256(l_fee_sum, l_out->header.value, &l_fee_sum);
             } else if (memcmp(&l_owner_addr, &l_out->addr, sizeof(dap_chain_addr_t))) {
