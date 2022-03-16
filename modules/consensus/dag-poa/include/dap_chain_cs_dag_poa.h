@@ -25,6 +25,8 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_cert.h"
 
+typedef int (*dap_chain_cs_dag_poa_callback_t)(dap_chain_t *, dap_chain_cs_dag_event_t*, size_t, void *);
+
 typedef struct dap_chain_cs_dag_poa
 {
     dap_chain_t * chain;
@@ -39,3 +41,5 @@ typedef struct dap_chain_cs_dag_poa
 int dap_chain_cs_dag_poa_init(void);
 void dap_chain_cs_dag_poa_deinit(void);
 dap_cert_t **dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count);
+void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain,
+                  dap_chain_cs_dag_poa_callback_t a_callback, void *a_arg);
