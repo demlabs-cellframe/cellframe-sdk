@@ -253,7 +253,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
     l_item->subtype.srv_pay.srv_uid = a_srv_uid;
     l_item->subtype.srv_pay.unit = a_unit;
     l_item->subtype.srv_pay.unit_price_max_datoshi = a_value_max_per_unit;
-    dap_hash_fast(a_key->pkey,a_key->header.size, &l_item->subtype.srv_pay.pkey_hash);
+    dap_hash_fast(a_key->pkey, a_key->header.size, &l_item->subtype.srv_pay.pkey_hash);
     if (a_params && a_params_size) {
         l_item->params_size = (uint32_t)a_params_size;
         memcpy(l_item->params, a_params, a_params_size);
