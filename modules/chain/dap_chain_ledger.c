@@ -1594,6 +1594,15 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, d
     return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL);
 }
 
+bool dap_chain_ledger_tx_spent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
+{
+    dap_chain_ledger_tx_spent_item_t *l_tx_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
+    HASH_FIND(hh, PVT(a_ledger)->spent_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_tx_item);
+    pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
+    return l_tx_item;
+}
+
 /**
  * Check whether used 'out' items (local function)
  */
