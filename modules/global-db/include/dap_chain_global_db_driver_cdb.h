@@ -38,7 +38,7 @@ typedef struct _cdb_record {
     char *val;
 } cdb_record, *pcdb_record;
 
-int dap_db_driver_cdb_init(const char *, dap_db_driver_callbacks_t *, bool);
+int dap_db_driver_cdb_init(const char *, dap_db_driver_callbacks_t *);
 int dap_db_driver_cdb_deinit();
 int dap_db_driver_cdb_flush(void);
 
