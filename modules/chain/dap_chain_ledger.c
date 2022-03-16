@@ -3238,7 +3238,7 @@ int dap_chain_ledger_verificator_rwlock_init(void) {
 
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page){
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
-    size_t l_offset = a_count * a_page;
+    size_t l_offset = a_count * (a_page - 1);
     size_t l_count = HASH_COUNT(l_ledger_priv->ledger_items);
     if (a_page < 2)
         l_offset = 0;
@@ -3248,13 +3248,10 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    for (dap_chain_ledger_tx_item_t *ptr = l_ledger_priv->ledger_items; ptr != NULL; ptr = ptr->hh.next){
+    for (dap_chain_ledger_tx_item_t *ptr = l_ledger_priv->ledger_items; ptr != NULL && l_counter < l_end; ptr = ptr->hh.next){
         if (l_counter >= l_offset){
             dap_chain_datum_tx_t *l_tx = ptr->tx;
             l_list = dap_list_append(l_list, l_tx);
-        }
-        if(l_counter >= l_end){
-            break;
         }
         l_counter++;
     }
