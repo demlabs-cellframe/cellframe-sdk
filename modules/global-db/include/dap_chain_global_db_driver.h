@@ -83,7 +83,7 @@ typedef struct dap_db_driver_callbacks {
 } dap_db_driver_callbacks_t;
 
 
-int dap_db_driver_init(const char *driver_name, const char *a_filename_db, bool a_db_drvmode_async);
+int dap_db_driver_init(const char *driver_name, const char *a_filename_db);
 void dap_db_driver_deinit(void);
 
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count);

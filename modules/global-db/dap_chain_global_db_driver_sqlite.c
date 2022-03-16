@@ -126,8 +126,7 @@ static void s_sqlite_free_connection(sqlite3 *a_conn)
  * @param a_drv_callback a pointer to a structure of callback functions
  * @return If successful returns 0, else a code < 0.
  */
-int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks_t *a_drv_callback,
-                  bool db_drvmode_async)
+int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks_t *a_drv_callback)
 {
     int l_ret = -1;
 

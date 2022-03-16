@@ -280,7 +280,7 @@ typedef int dap_spinlock_t;
  * @brief The log_level enum
  */
 
-typedef enum dap_log_level { 
+typedef enum dap_log_level {
 
   L_DEBUG     = 0,
   L_INFO      = 1,
@@ -289,7 +289,7 @@ typedef enum dap_log_level {
   L_DAP       = 4,
   L_WARNING   = 5,
   L_ATT       = 6,
-  L_ERROR     = 7, 
+  L_ERROR     = 7,
   L_CRITICAL  = 8,
   L_TOTAL,
 
@@ -454,6 +454,8 @@ char *dap_log_get_item(time_t a_start_time, int a_limit);
 
 DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
 #define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
+#define debug_if( flg, lvl, ...) _log_it( ((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
+
 
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);
