@@ -501,6 +501,9 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
             }
         }
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
+    }else{
+        if (s_debug_more)    
+             log_it(L_WARNING,"Node current state is %d. Real-time syncing is possible when you in NET_STATE_LINKS_ESTABLISHED and above state", PVT(l_net)->state);     
     }
 }
 
