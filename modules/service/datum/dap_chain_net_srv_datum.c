@@ -75,24 +75,17 @@ uint8_t * dap_chain_net_srv_file_datum_data_read(char * a_path, size_t *a_data_s
     return l_datum_data;
 }
 
-int dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, uint8_t *a_data, size_t a_data_size) {
+char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a_data, size_t a_data_size) {
 
     dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CUSTOM, a_data, a_data_size);
     if( l_datum == NULL){
-        DAP_DELETE(a_data);
-        return -7;
+        log_it(L_ERROR, "Failed to create custom datum.");
+        return NULL;
     }
 
     // Finaly add datum to mempool
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum, a_chain);
-    DAP_DELETE(a_data);
-    if (l_hash_str) {
-        DAP_DELETE(l_hash_str);
-        return 0;
-    } else {
-        DAP_DELETE(l_datum);
-        return -8;
-    }
+    return l_hash_str;
 }
 
 static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
@@ -141,7 +134,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
                     }
                     fclose(l_file);
                     DAP_DELETE(l_datum);
-                    return 0;
+                    return -5;
                 }else{
                     log_it(L_ERROR,"Can't serialize certificate in memory");
                     fclose(l_file);
@@ -161,15 +154,18 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
             size_t l_datum_data_size = 0;
             uint8_t *l_datum_data = dap_chain_net_srv_file_datum_data_read(l_path, &l_datum_data_size);
 
-            int ret;
-            if ( (ret=dap_chain_net_srv_datum_custom_add(l_chain, l_datum_data, l_datum_data_size)) != 0 ) {
+            char *l_ret;
+            if ((l_ret = dap_chain_net_srv_datum_custom_add(l_chain, l_datum_data, l_datum_data_size)) == NULL) {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "Can't place datum custom \"%s\" to mempool, code=%d", l_datum_hash_str, ret);
+                        "Can't place datum custom \"%s\" to mempool", l_datum_hash_str);
             }
             else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                         "Datum custom %s was successfully placed to mempool", l_datum_hash_str); 
+                DAP_DELETE(l_ret);
+                return 0;
             }
         }
     }
+    return -1;
 }

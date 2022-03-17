@@ -155,7 +155,7 @@ static void s_callback_channel_pkt_free_unsafe(uint64_t node_addr_uint64) {
 
 void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net, dap_list_t *a_sendto_nodes) {
     //if (dap_chain_net_get_state(a_net) == NET_STATE_ONLINE) {
-        pthread_rwlock_unlock(&s_pkt_items->rwlock_out);        
+        pthread_rwlock_rdlock(&s_pkt_items->rwlock_out);        
 
         // dap_list_t *l_node_list = dap_chain_net_get_node_list(a_net);
         //size_t l_nodes_count = dap_list_length(a_sendto_nodes); 

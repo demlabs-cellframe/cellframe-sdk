@@ -155,6 +155,7 @@ typedef struct dap_chain_net_pvt{
 
     dap_list_t *net_links;              // Links list
     size_t links_connected_count;
+    bool only_static_links;
 
     atomic_uint links_dns_requests;
 
@@ -185,7 +186,7 @@ typedef struct dap_chain_net_pvt{
     // General rwlock for structure
     pthread_rwlock_t rwlock;
 
-    dap_list_t *notify_callbacks;
+    dap_list_t *gdb_notifiers;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -387,11 +388,13 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
  *
  * @param a_callback dap_global_db_obj_callback_notify_t callback function
  */
-void dap_chain_net_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback)
+void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
-   PVT(a_net)->notify_callbacks = dap_list_append(PVT(a_net)->notify_callbacks, a_callback);
+    dap_chain_gdb_notifier_t *l_notifier = DAP_NEW(dap_chain_gdb_notifier_t);
+    l_notifier->callback = a_callback;
+    l_notifier->cb_arg = a_cb_arg;
+    PVT(a_net)->gdb_notifiers = dap_list_append(PVT(a_net)->gdb_notifiers, l_notifier);
 }
-
 
 /**
  * @brief if current network in ONLINE state send to all connected node
@@ -409,7 +412,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     UNUSED(a_value);
     UNUSED(a_value_len);
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (PVT(l_net)->state == NET_STATE_ONLINE) {
+    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED) {
         char *l_group;
         if (a_op_code == DAP_DB$K_OPTYPE_DEL ) {
             l_group = dap_strdup_printf("%s.del", a_group);
@@ -432,7 +435,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         }
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
-        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
+        dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
         dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
         dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
@@ -469,10 +472,31 @@ static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, con
         return;
     }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    for (dap_list_t *it = PVT(l_net)->notify_callbacks; it; it = it->next) {
-        dap_global_db_obj_callback_notify_t l_callback = (dap_global_db_obj_callback_notify_t)it->data;
+    for (dap_list_t *it = PVT(l_net)->gdb_notifiers; it; it = it->next) {
+        dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
+        if (!el)
+            continue;
+        dap_global_db_obj_callback_notify_t l_callback = el->callback;
         if (l_callback)
-            l_callback(a_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+            l_callback(el->cb_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+    }
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (!l_chain) {
+            continue;
+        }
+        char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool(l_chain);
+        if (!strcmp(a_group, l_gdb_group_str)) {
+            for (dap_list_t *it = DAP_CHAIN_PVT(l_chain)->mempool_notifires; it; it = it->next) {
+                dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
+                if (!el)
+                    continue;
+                dap_global_db_obj_callback_notify_t l_callback = el->callback;
+                if (l_callback)
+                    l_callback(el->cb_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+            }
+        }
+        DAP_DELETE(l_gdb_group_str);
     }
 }
 
@@ -487,7 +511,7 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
     if (!a_arg)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (PVT(l_net)->state == NET_STATE_ONLINE) {
+    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED) {
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
@@ -741,6 +765,10 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
                 pthread_rwlock_unlock(&l_net_pvt->rwlock);
                 return;
             }
+        }
+        if (l_net_pvt->only_static_links) {
+            pthread_rwlock_unlock(&l_net_pvt->rwlock);
+            return;
         }
         dap_chain_node_info_t *l_link_node_info = s_get_dns_link_from_cfg(l_net);
         if (l_link_node_info) {
@@ -1091,67 +1119,57 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             } else {
                 log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, try to add links from root servers");
             }
-            switch (l_net_pvt->node_role.enums) {
-                case NODE_ROLE_ROOT:
-                case NODE_ROLE_ROOT_MASTER:
-                case NODE_ROLE_ARCHIVE:
-                case NODE_ROLE_CELL_MASTER: {
-                    if (l_net_pvt->seed_aliases_count) {
-                        // Add other root nodes as synchronization links
-                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
-                        s_fill_links_from_root_aliases(l_net);
-                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-                        l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
-                        l_repeat_after_exit = true;
-                        break;
-                    }
+            if (l_net_pvt->only_static_links) {
+                if (l_net_pvt->seed_aliases_count) {
+                    // Add other root nodes as synchronization links
+                    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+                    s_fill_links_from_root_aliases(l_net);
+                    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+                    l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+                    l_repeat_after_exit = true;
+                    break;
                 }
-                case NODE_ROLE_FULL:
-                case NODE_ROLE_MASTER:
-                case NODE_ROLE_LIGHT:
-                default: {
-                    if (!l_net_pvt->seed_aliases_count && ! l_net_pvt->bootstrap_nodes_count) {
-                       log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
-                       if (l_net_pvt->net_links) { // We have other links
-                           l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
-                           l_repeat_after_exit = true;
-                       }
-                       break;
-                    }
-                    // Get DNS request result from root nodes as synchronization links
-                    bool l_sync_fill_root_nodes = false;
-                    uint32_t l_link_id = 0;
-                    if (!l_sync_fill_root_nodes) {
-                        for (size_t n = 0; l_net_pvt->links_dns_requests < s_max_links_count; n++) {
-                            dap_chain_node_info_t *l_link_node_info = s_get_dns_link_from_cfg(l_net);
-                            if (!l_link_node_info)
-                                continue;
-                            l_net_pvt->links_dns_requests++;
-                            struct link_dns_request *l_dns_request = DAP_NEW_Z(struct link_dns_request);
-                            l_dns_request->net = l_net;
-                            l_dns_request->link_id = l_link_id++;
-                            if (dap_chain_node_info_dns_request(l_link_node_info->hdr.ext_addr_v4,
-                                                                l_link_node_info->hdr.ext_port,
-                                                                l_net->pub.name,
-                                                                l_link_node_info,  // use it twice
-                                                                s_net_state_link_prepare_success,
-                                                                s_net_state_link_prepare_error,
-                                                                l_dns_request)) {
-                                log_it(L_ERROR, "Can't process node info dns request");
-                                DAP_DEL_Z(l_dns_request);
-                                DAP_DEL_Z(l_link_node_info);
-                            }
-                            if (n > 1000)   // It's a problem with link prepare
-                                break;
+            } else {
+                if (!l_net_pvt->seed_aliases_count && ! l_net_pvt->bootstrap_nodes_count){
+                   log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
+                   if (l_net_pvt->net_links) { // We have other links
+                       l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+                       l_repeat_after_exit = true;
+                   }
+                   break;
+                }
+                // Get DNS request result from root nodes as synchronization links
+                bool l_sync_fill_root_nodes = false;
+                uint32_t l_link_id = 0;
+                if (!l_sync_fill_root_nodes) {
+                    for (size_t n = 0; l_net_pvt->links_dns_requests < s_max_links_count; n++) {
+                        dap_chain_node_info_t *l_link_node_info = s_get_dns_link_from_cfg(l_net);
+                        if (!l_link_node_info)
+                            continue;
+                        l_net_pvt->links_dns_requests++;
+                        struct link_dns_request *l_dns_request = DAP_NEW_Z(struct link_dns_request);
+                        l_dns_request->net = l_net;
+                        l_dns_request->link_id = l_link_id++;
+                        if (dap_chain_node_info_dns_request(l_link_node_info->hdr.ext_addr_v4,
+                                                            l_link_node_info->hdr.ext_port,
+                                                            l_net->pub.name,
+                                                            l_link_node_info,  // use it twice
+                                                            s_net_state_link_prepare_success,
+                                                            s_net_state_link_prepare_error,
+                                                            l_dns_request)) {
+                            log_it(L_ERROR, "Can't process node info dns request");
+                            DAP_DEL_Z(l_dns_request);
+                            DAP_DEL_Z(l_link_node_info);
                         }
+                        if (n > 1000)   // It's a problem with link prepare
+                            break;
                     }
-                    if (l_sync_fill_root_nodes) {
-                        log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
-                        pthread_rwlock_unlock(&l_net_pvt->rwlock);
-                        s_fill_links_from_root_aliases(l_net);
-                        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-                    }
-                } break;
+                } else {
+                    log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
+                    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+                    s_fill_links_from_root_aliases(l_net);
+                    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+                }
             }
         } break;
 
@@ -1217,11 +1235,11 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     if (l_found && !dap_list_find_custom(l_net_pvt->links_queue, &a_client->uuid, s_net_list_compare_uuids)) {
         dap_events_socket_uuid_t *l_uuid = DAP_DUP(&a_client->uuid);
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, l_uuid);
     }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     return !l_found;
 }
 
@@ -1233,10 +1251,11 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
     pthread_rwlock_rdlock(&l_net_pvt->rwlock);
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
         dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
+        pthread_rwlock_unlock(&l_net_pvt->rwlock);
         dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
+        pthread_rwlock_rdlock(&l_net_pvt->rwlock);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
             DAP_DELETE(l_uuid);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
@@ -1246,6 +1265,7 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
             break;
         }
     }
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     return l_net_pvt->active_link;
 }
 /**
@@ -1451,7 +1471,7 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
  * @return true 
  * @return false 
  */
-bool s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
+void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
@@ -2413,6 +2433,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         // Do specific role actions post-chain created
         l_net_pvt->state_target = NET_STATE_OFFLINE;
         dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
+        l_net_pvt->only_static_links = false;
         switch ( l_net_pvt->node_role.enums ) {
             case NODE_ROLE_ROOT_MASTER:{
                 // Set to process everything in datum pool
@@ -2426,8 +2447,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id,l_chain_id);
                 if (l_chain )
                    l_chain->is_datum_pool_proc = true;
-
-                l_target_state = NET_STATE_ONLINE;
+                l_net_pvt->only_static_links = true;
+                l_target_state = NET_STATE_ONLINE;     
                 log_it(L_INFO,"Root node role established");
             } break;
             case NODE_ROLE_CELL_MASTER:
@@ -2445,13 +2466,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             log_it( L_WARNING, "Can't find chain id " );
                         }
                     }
-                    DAP_DELETE( l_proc_chains[i]);
-                    l_proc_chains[i] = NULL;
                 }
-                //if ( l_proc_chains )
-                //    DAP_DELETE (l_proc_chains);
-                //l_proc_chains = NULL;
-
+                l_net_pvt->only_static_links = true;
                 l_target_state = NET_STATE_ONLINE;
                 log_it(L_INFO,"Master node role established");
             } break;
@@ -2464,7 +2480,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 log_it(L_INFO,"Light node role established");
 
         }
-
+        if (!l_net_pvt->only_static_links)
+            l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "static_links_only", false);
         if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
             l_target_state = NET_STATE_OFFLINE;
         }
@@ -2474,7 +2491,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         // reload ledger cache at once
         s_chain_net_reload_ledger_cache_once(l_net);
 
-        dap_chain_net_add_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast);
+        dap_chain_net_add_gdb_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast, l_net);
         if (l_target_state != l_net_pvt->state_target)
             dap_chain_net_state_go_to(l_net, l_target_state);
 
@@ -2783,7 +2800,6 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
  */
 void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
 {
-
     dap_string_t * l_str_tmp = dap_string_new(NULL);
     dap_chain_t *l_chain;
     DL_FOREACH(a_net->pub.chains, l_chain) {
@@ -2867,24 +2883,32 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
     switch (a_search_type) {
         case TX_SEARCH_TYPE_NET:
         case TX_SEARCH_TYPE_CELL:
-        case TX_SEARCH_TYPE_LOCAL:{
+        case TX_SEARCH_TYPE_LOCAL:
+        case TX_SEARCH_TYPE_CELL_SPENT:
+        case TX_SEARCH_TYPE_NET_SPENT: {
+
             if ( ! l_tx ){
                 // pass all chains
                 for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
                     if ( l_chain->callback_tx_find_by_hash ){
                         // try to find transaction in chain ( inside shard )
                         l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_hash);
-                        if (l_tx)
+                        if (l_tx) {
+                            if ((a_search_type == TX_SEARCH_TYPE_CELL_SPENT ||
+                                    a_search_type == TX_SEARCH_TYPE_NET_SPENT) &&
+                                    (!dap_chain_ledger_tx_spent_find_by_hash(l_ledger, a_tx_hash)))
+                                return NULL;
                             break;
+                        }
                     }
                 }
             }
-        }break;
+        } break;
 
         case TX_SEARCH_TYPE_NET_UNSPENT:
-        case TX_SEARCH_TYPE_CELL_UNSPENT:{
+        case TX_SEARCH_TYPE_CELL_UNSPENT:
             l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
-        }break;
+            break;
     }
     return l_tx;
 }
@@ -3184,19 +3208,19 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str, sizeof (l_tx_prev_hash_str)-1);
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
-                                case TX_ITEM_TYPE_OUT_256: { // 256
+                                case TX_ITEM_TYPE_OUT: { // 256
                                     dap_string_append_printf(a_str_out,"\tvalue: %s\n",
-                                                dap_chain_balance_print(((dap_chain_256_tx_out_t *)l_cur->data)->header.value)
+                                                dap_chain_balance_print(((dap_chain_tx_out_t *)l_cur->data)->header.value)
                                             );
-                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_256_tx_out_t *)l_cur->data)->addr );
+                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_tx_out_t *)l_cur->data)->addr );
                                     dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
                                     DAP_DELETE(l_addr_str);
                                 } break;
-                                case TX_ITEM_TYPE_OUT:{
+                                case TX_ITEM_TYPE_OUT_OLD:{
                                     dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n",
-                                                ((dap_chain_tx_out_t *)l_cur->data)->header.value
+                                                ((dap_chain_tx_out_old_t *)l_cur->data)->header.value
                                             );
-                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_tx_out_t *)l_cur->data)->addr );
+                                    char * l_addr_str = dap_chain_addr_to_str( &((dap_chain_tx_out_old_t *)l_cur->data)->addr );
                                     dap_string_append_printf(a_str_out,"\taddr : %s\n", l_addr_str );
                                     DAP_DELETE(l_addr_str);
                                 } break;
@@ -3249,7 +3273,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     dap_hash_fast_to_str(&l_in->header.tx_prev_hash, l_tx_prev_hash_str,sizeof (l_tx_prev_hash_str)-1);
                                     dap_string_append_printf(a_str_out,"\ttx_prev_hash : %s\n", l_tx_prev_hash_str );
                                 } break;
-                                case TX_ITEM_TYPE_OUT_256_COND: { // 256
+                                case TX_ITEM_TYPE_OUT_COND: { // 256
                                     dap_chain_tx_out_cond_t * l_out = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\tvalue: %s\n", dap_chain_balance_print(l_out->header.value) );
                                     switch ( l_out->header.subtype){
@@ -3284,7 +3308,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     }
                                     dap_string_append_printf(a_str_out,"\tparams_size : %u\n", l_out->params_size );
                                 } break;
-                                case TX_ITEM_TYPE_OUT_COND:{
+                                case TX_ITEM_TYPE_OUT_COND_OLD:{
                                     dap_chain_tx_out_cond_old_t * l_out = l_cur->data;
                                     dap_string_append_printf(a_str_out,"\tvalue: %"DAP_UINT64_FORMAT_U"\n", l_out->header.value );
                                     switch ( l_out->header.subtype){

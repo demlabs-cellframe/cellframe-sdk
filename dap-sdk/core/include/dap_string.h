@@ -9,14 +9,12 @@
 #include <sys/types.h>
 #include "dap_common.h"
 
-typedef struct _dap_string dap_string_t;
-
-struct _dap_string
+typedef struct _dap_string
 {
     char *str;
     size_t len;
     size_t allocated_len;
-};
+} dap_string_t;
 
 dap_string_t* dap_string_new(const char *init);
 dap_string_t* dap_string_new_len(const char *init, ssize_t len);

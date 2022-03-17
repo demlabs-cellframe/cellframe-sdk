@@ -91,7 +91,7 @@ typedef struct dap_client_internal
     bool is_encrypted_headers;
     bool is_close_session;// the last request in session, in the header will be added "SessionCloseAfterRequest: true"
     bool is_closed_by_timeout;
-    time_t ts_last_read;
+    time_t ts_last_active;
 
     bool is_always_reconnect; // Always reconnect ever number of tries are over
     dap_client_callback_data_size_t request_response_callback;
@@ -100,6 +100,7 @@ typedef struct dap_client_internal
 } dap_client_pvt_t;
 
 #define DAP_CLIENT_PVT(a) (a ? (dap_client_pvt_t*) a->_internal : NULL)
+#define DAP_ESOCKET_CLIENT_PVT(a) (a ? (dap_client_pvt_t *)a->_inheritor : NULL)
 
 int dap_client_pvt_init();
 void dap_client_pvt_deinit();

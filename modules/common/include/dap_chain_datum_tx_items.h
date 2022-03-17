@@ -52,17 +52,17 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
 {
     switch(a_item_type){
         case TX_ITEM_TYPE_IN: return "TX_ITEM_TYPE_IN";
-        case TX_ITEM_TYPE_OUT: return "TX_ITEM_TYPE_OUT";
-        case TX_ITEM_TYPE_OUT_256: return "TX_ITEM_TYPE_OUT_256"; // 256
+        case TX_ITEM_TYPE_OUT_OLD: return "TX_ITEM_TYPE_OUT_OLD";
+        case TX_ITEM_TYPE_OUT: return "TX_ITEM_TYPE_OUT"; // 256
         case TX_ITEM_TYPE_OUT_EXT: return "TX_ITEM_TYPE_OUT_EXT"; // 256
         case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
         case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
         case TX_ITEM_TYPE_TOKEN: return "TX_ITEM_TYPE_TOKEN";
         case TX_ITEM_TYPE_TOKEN_EXT: return "TX_ITEM_TYPE_TOKEN_EXT";
         case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
-        case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
+        case TX_ITEM_TYPE_OUT_COND_OLD: return "TX_ITEM_TYPE_OUT_COND_OLD"; // 256
         case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
-        case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_ALL";
+        case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_OLDALL";
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         default: return "UNDEFINED";
     }
@@ -83,7 +83,7 @@ size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item);
 dap_chain_tx_token_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
 
 /**
- * Create item dap_chain_tx_out_t
+ * Create item dap_chain_tx_out_old_t
  *
  * return item, NULL Error
  */
@@ -93,11 +93,11 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
 dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx,
                                                                uint32_t a_receipt_idx);
 /**
- * Create item dap_chain_tx_out_t
+ * Create item dap_chain_tx_out_old_t
  *
  * return item, NULL Error
  */
-dap_chain_256_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint256_t a_value);
+dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint256_t a_value);
 
 /**
  * Create item dap_chain_tx_out_ext_t
@@ -111,7 +111,7 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_enc_key_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
+dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
                                                                              uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size);

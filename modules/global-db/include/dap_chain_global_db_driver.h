@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_list.h"
+#include "dap_proc_thread.h"
 
 enum    {
     DAP_DB$K_OPTYPE_ADD  = 'a',                 /* Operation Type = INSERT/ADD */
@@ -39,13 +40,15 @@ enum    {
 typedef struct dap_store_obj {
     uint64_t id;
     uint64_t timestamp;
-    uint32_t type;                               /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
+    uint32_t type;                              /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
     const char *group;
     const char *key;
     const char *c_key;
     const uint8_t *value;
     uint64_t value_len;
 
+    dap_proc_queue_callback_t cb;               /* (Async mode only!) A call back to be called on request completion */
+    const void *cb_arg;                         /* (Async mode only!) An argument of the callback rotine */
 
 } DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
 
@@ -80,7 +83,7 @@ typedef struct dap_db_driver_callbacks {
 } dap_db_driver_callbacks_t;
 
 
-int dap_db_driver_init(const char *driver_name, const char *a_filename_db, bool a_db_drvmode_async);
+int dap_db_driver_init(const char *driver_name, const char *a_filename_db);
 void dap_db_driver_deinit(void);
 
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count);

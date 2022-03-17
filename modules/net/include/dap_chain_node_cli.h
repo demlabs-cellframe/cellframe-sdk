@@ -55,7 +55,7 @@ typedef struct dap_chain_node_cmd_item{
 
 
 // Read from socket
-long s_recv(SOCKET sock, unsigned char *buf, size_t bufsize, int timeout);
+long s_recv(SOCKET sd, unsigned char *buf, size_t bufsize, int timeout);
 
 /**
  *  Look up NAME as the name of a command, and return a pointer to that

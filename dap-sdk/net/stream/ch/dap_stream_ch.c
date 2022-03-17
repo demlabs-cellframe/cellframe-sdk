@@ -149,17 +149,21 @@ void dap_stream_ch_delete(dap_stream_ch_t *a_ch)
  */
 dap_stream_ch_t * dap_stream_ch_find_by_uuid_unsafe(dap_stream_worker_t * a_worker, dap_stream_ch_uuid_t a_ch_uuid)
 {
+dap_stream_ch_t *l_ch;
+
     if( a_worker == NULL ){
         log_it(L_WARNING,"Attempt to search for uuid 0x%016"DAP_UINT64_FORMAT_U" in NULL worker", a_ch_uuid);
         return NULL;
-    } else if ( a_worker->channels){
-        dap_stream_ch_t * l_ch = NULL;
-        pthread_rwlock_rdlock(&a_worker->channels_rwlock);
-        HASH_FIND(hh_worker,a_worker->channels ,&a_ch_uuid, sizeof(a_ch_uuid), l_ch );
-        pthread_rwlock_unlock(&a_worker->channels_rwlock);
-        return l_ch;
-    }else
+    }
+
+    if ( !a_worker->channels)
         return NULL;
+
+    pthread_rwlock_rdlock(&a_worker->channels_rwlock);
+    HASH_FIND(hh_worker,a_worker->channels ,&a_ch_uuid, sizeof(a_ch_uuid), l_ch );
+    pthread_rwlock_unlock(&a_worker->channels_rwlock);
+    return l_ch;
+
 }
 
 

@@ -89,7 +89,7 @@ static void s_pgsql_free_connection(PGconn *a_conn)
  * @param a_drv_callback a pointer to a structure of callback functions 
  * @return If successful returns 0, else a error code <0.
  */
-int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks_t *a_drv_callback, bool a_async_mode)
+int dap_db_driver_pgsql_init(const char *a_filename_dir, dap_db_driver_callbacks_t *a_drv_callback)
 {
     dap_hash_fast_t l_dir_hash;
     dap_hash_fast(a_filename_dir, strlen(a_filename_dir), &l_dir_hash);

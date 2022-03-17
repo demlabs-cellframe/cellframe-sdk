@@ -44,28 +44,21 @@ void dap_datum_mempool_free(dap_datum_mempool_t *datum);
 void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url);
 
 char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain);
-dap_hash_fast_t*  dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
-        const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
-        const dap_chain_addr_t* a_addr_fee,
+dap_hash_fast_t*  dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
+        const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t *a_addr_to,
+        const dap_chain_addr_t *a_addr_fee,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_fee);
 
 // Make transfer transaction & insert to cache
-dap_chain_hash_fast_t* dap_chain_proc_tx_create_cond(dap_chain_net_t * a_net,
-        dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
-        const dap_chain_addr_t* a_addr_from,
-        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
-        dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size);
 dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
-        dap_enc_key_t *a_key_from, dap_enc_key_t *a_key_cond,
-        const dap_chain_addr_t* a_addr_from,
+        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
         dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size);
 
-dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net,dap_chain_hash_fast_t *a_tx_prev_hash,
-        const dap_chain_addr_t* a_addr_to, dap_enc_key_t * l_key_tx_sign, dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size);
+dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+        const dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_tx_sign, dap_chain_datum_tx_receipt_t *a_receipt);
 
 int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,

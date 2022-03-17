@@ -234,6 +234,22 @@ int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_da
     return (int)a_chain->callback_add_datums(a_chain, &a_datum, 1);
 }
 
+static void s_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, const char *a_group,
+                                             const char *a_key, const void *a_value, const size_t a_value_len)
+{
+    UNUSED(a_value_len);
+    if (!a_arg || !a_value || a_op_code != 'a') {
+        return;
+    }
+    dap_chain_t *l_chain =(dap_chain_t *)a_arg;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
+    if (!l_net->pub.mempool_autoproc)
+        return;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
+    if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
+        dap_chain_global_db_gr_del(a_key, a_group);
+    }
+}
 
 /**
  * @brief
@@ -285,8 +301,8 @@ bool dap_chain_node_mempool_autoproc_init()
                     dap_chain_global_db_objs_delete(l_objs, l_objs_size);
                 }
                 DAP_DELETE(l_gdb_group_mempool);
+                dap_chain_add_mempool_notify_callback(l_chain, s_chain_node_mempool_autoproc_notify, l_chain);
             }
-            dap_chain_net_add_notify_callback(l_net_list[i], dap_chain_node_mempool_autoproc_notify);
         }
     }
     DAP_DELETE(l_net_list);
@@ -298,30 +314,4 @@ bool dap_chain_node_mempool_autoproc_init()
  */
 void dap_chain_node_mempool_autoproc_deinit()
 {
-}
-
-void dap_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, const char *a_group,
-                                             const char *a_key, const void *a_value, const size_t a_value_len)
-{
-    UNUSED(a_value_len);
-    if (!a_arg || !a_value || a_op_code != 'a') {
-        return;
-    }
-    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (!l_net->pub.mempool_autoproc)
-        return;
-    dap_chain_t *l_chain;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        if (!l_chain) {
-            continue;
-        }
-        char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool(l_chain);
-        if (!strcmp(a_group, l_gdb_group_str)) {
-            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
-            if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
-                dap_chain_global_db_gr_del( a_key, l_gdb_group_str);
-            }
-        }
-        DAP_DELETE(l_gdb_group_str);
-    }
 }

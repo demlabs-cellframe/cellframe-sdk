@@ -24,6 +24,8 @@
  *  MODIFICATION HISTORY:
  *
  *      24-FEB-2022 RRL Added Async I/O functionality for DB request processing
+ *
+ *      15-MAR-2022 RRL Some cosmetic changes to reduce a diagnostic output.
  */
 
 #include <stddef.h>
@@ -58,8 +60,9 @@ static char s_used_driver [32];                                             /* N
 static dap_db_driver_callbacks_t s_drv_callback;                            /* A set of interface routines for the selected
                                                                             DB Driver at startup time */
 
-static int s_db_drvmode_async = 0;                                          /* Set a kind of processing requests to DB:
+extern  int s_db_drvmode_async ,                                            /* Set a kind of processing requests to DB:
                                                                             <> 0 - Async mode should be used */
+        s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
 
 static pthread_mutex_t s_db_reqs_list_lock = PTHREAD_MUTEX_INITIALIZER;     /* Lock to coordinate access to the <s_db_reqs_queue> */
 static dap_slist_t s_db_reqs_list = {0};                                    /* A queue of request to DB - maintained in */
@@ -71,11 +74,9 @@ static dap_slist_t s_db_reqs_list = {0};                                    /* A
  * @param driver_name a string determining a type of database driver:
  * "сdb", "sqlite" ("sqlite3") or "pgsql"
  * @param a_filename_db a path to a database file
- * @param db_drvmode_async a flag to switch DB Engine to "Async"  mode
  * @return Returns 0, if successful; otherwise <0.
  */
-int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db,
-               bool db_drvmode_async)
+int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
 {
 int l_ret = -1;
 
@@ -85,7 +86,7 @@ int l_ret = -1;
     // Fill callbacks with zeros
     memset(&s_drv_callback, 0, sizeof(dap_db_driver_callbacks_t));
 
-    if ( (s_db_drvmode_async = db_drvmode_async) )                          /* Set a kind of processing requests to DB: <> 0 - Async mode should be used */
+    if ( s_db_drvmode_async )                                               /* Set a kind of processing requests to DB: <> 0 - Async mode should be used */
     {
         s_db_reqs_list.head = s_db_reqs_list.tail = NULL;
         s_db_reqs_list.nr = 0;
@@ -104,17 +105,17 @@ int l_ret = -1;
     if(!dap_strcmp(s_used_driver, "ldb"))
         l_ret = -1;
     else if(!dap_strcmp(s_used_driver, "sqlite") || !dap_strcmp(s_used_driver, "sqlite3") )
-        l_ret = dap_db_driver_sqlite_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_sqlite_init(l_db_path_ext, &s_drv_callback);
     else if(!dap_strcmp(s_used_driver, "cdb"))
-        l_ret = dap_db_driver_cdb_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_cdb_init(l_db_path_ext, &s_drv_callback);
 
 #ifdef DAP_CHAIN_GDB_ENGINE_MDBX
     else if(!dap_strcmp(s_used_driver, "mdbx"))
-        l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback);
 #endif
 #ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
     else if(!dap_strcmp(s_used_driver, "pgsql"))
-        l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback, db_drvmode_async);
+        l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback);
 #endif
     else
         log_it(L_ERROR, "Unknown global_db driver \"%s\"", a_driver_name);
@@ -131,12 +132,12 @@ void dap_db_driver_deinit(void)
 {
     log_it(L_NOTICE, "DeInit for %s ...", s_used_driver);
 
-    if ( s_db_drvmode_async )                   /* Let's finishing outstanding DB request ... */
+    if ( s_db_drvmode_async )                                               /* Let's finishing outstanding DB request ... */
     {
         for ( int i = 7; i-- && s_db_reqs_list.nr; )
         {
             log_it(L_WARNING, "Let's finished outstanding DB requests (%d) ... ",  s_db_reqs_list.nr);
-            for ( int j = 3; (j = sleep(j)); );   /* Hibernate for 3 seconds ... */
+            for ( int j = 3; (j = sleep(j)); );                             /* Hibernate for 3 seconds ... */
         }
 
         log_it(L_INFO, "Number of outstanding DB requests: %d",  s_db_reqs_list.nr);
@@ -184,6 +185,8 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
         l_store_obj_dst->group = dap_strdup(l_store_obj_src->group);
         l_store_obj_dst->key = dap_strdup(l_store_obj_src->key);
         l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
+        l_store_obj_dst->cb = l_store_obj_src->cb;
+        l_store_obj_dst->cb_arg = l_store_obj_src->cb_arg;
     }
 
     return l_store_obj;
@@ -252,7 +255,7 @@ dap_store_obj_t *l_store_obj_cur;
     if(!a_store_obj || !a_store_count)
         return -1;
 
-    log_it(L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
+    debug_if(s_dap_global_db_debug_more,  L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
 
     l_store_obj_cur = a_store_obj;                                          /* We have to  use a power of the address's incremental arithmetic */
     l_ret = 0;                                                              /* Preset return code to OK */
@@ -273,17 +276,8 @@ dap_store_obj_t *l_store_obj_cur;
     if(a_store_count > 1 && s_drv_callback.transaction_end)
         s_drv_callback.transaction_end();
 
-    log_it(L_DEBUG, "[%p] Finished DB Request (code %d)", a_store_obj, l_ret);
+    debug_if(s_dap_global_db_debug_more, L_DEBUG, "[%p] Finished DB Request (code %d)", a_store_obj, l_ret);
     return l_ret;
-}
-
-
-static bool s_dap_driver_req_exec_complete (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
-                                   void *arg)
-{
-    log_it(L_DEBUG, "[%p] Process callback on completion DB request ...", arg);
-
-    return  1;  /* 1 - Don't call it again */
 }
 
 static bool s_dap_driver_req_exec (struct dap_proc_thread *a_dap_thd __attribute__((unused)),
@@ -294,7 +288,7 @@ dap_store_obj_t *l_store_obj_cur;
 dap_worker_t        *l_dap_worker;
 size_t l_store_obj_cnt;
 
-    log_it(L_DEBUG, "Entering, %d entries in the queue ...",  s_db_reqs_list.nr);
+    debug_if(s_dap_global_db_debug_more, L_DEBUG, "Entering, %d entries in the queue ...",  s_db_reqs_list.nr);
 
     assert ( !pthread_mutex_lock(&s_db_reqs_list_lock) );                   /* Get exclusive access to the request list */
 
@@ -316,10 +310,19 @@ size_t l_store_obj_cnt;
 
     assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
 
-    /* Enqueue "Exec Complete" callback routine */
-    l_dap_worker = dap_events_worker_get_auto ();
-    if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, s_dap_driver_req_exec_complete, l_store_obj_cur)) )
-        log_it(L_ERROR, "Enqueue completion callback for item %s/%s (code %d)", l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
+
+    /* Is there a callback  ? */
+    if ( s_db_drvmode_async && l_store_obj_cur->cb )
+        {
+        /* Enqueue "Exec Complete" callback routine */
+        l_dap_worker = dap_events_worker_get_auto ();
+
+        if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, l_store_obj_cur->cb, (void *)l_store_obj_cur->cb_arg)) )
+            log_it(L_ERROR, "[%p] Enqueue completion callback for item %s/%s (code %d)", l_store_obj_cur,
+                   l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
+        }
+
+    dap_store_obj_free (l_store_obj_cur, l_store_obj_cnt);                  /* Release a memory !!! */
 
     return  1;  /* 1 - Don't call it again */
 }
@@ -341,7 +344,11 @@ dap_worker_t        *l_dap_worker;
         return -1;
 
     if ( !s_db_drvmode_async )
-        s_dap_chain_global_db_driver_apply_do(a_store_obj, a_store_count);
+        return s_dap_chain_global_db_driver_apply_do(a_store_obj, a_store_count);
+
+
+
+
 
     /* Async mode - put request into the list for deffered processing */
     l_ret = -ENOMEM;                                                    /* Preset return code to non-OK  */
@@ -362,7 +369,7 @@ dap_worker_t        *l_dap_worker;
         else l_ret = dap_proc_queue_add_callback(l_dap_worker, s_dap_driver_req_exec, NULL);
         }
 
-    log_it(L_DEBUG, "[%p DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
+    debug_if(s_dap_global_db_debug_more, L_DEBUG, "[%p] DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
 
     return  l_ret;
 }

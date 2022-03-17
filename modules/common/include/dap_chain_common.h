@@ -192,9 +192,9 @@ typedef union {
 enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
 
-    TX_ITEM_TYPE_OUT = 0x10, /// @brief  Transaction: outputs
+    TX_ITEM_TYPE_OUT_OLD = 0x10, /// @brief  Transaction: outputs
     TX_ITEM_TYPE_OUT_EXT = 0x11,
-    TX_ITEM_TYPE_OUT_256 = 0x12, // 256
+    TX_ITEM_TYPE_OUT = 0x12, // 256
 
     TX_ITEM_TYPE_PKEY = 0x20,
     TX_ITEM_TYPE_SIG = 0x30,
@@ -203,22 +203,27 @@ enum dap_chain_tx_item_type {
 
     TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
 
-    TX_ITEM_TYPE_OUT_COND = 0x60, // Obsolete
-    TX_ITEM_TYPE_OUT_256_COND = 0x61, /// @brief  Transaction: 256 bit conditon outputs
+    TX_ITEM_TYPE_OUT_COND_OLD = 0x60, // Obsolete
+    TX_ITEM_TYPE_OUT_COND = 0x61, /// @brief  Transaction: 256 bit conditon outputs
 
     TX_ITEM_TYPE_RECEIPT = 0x70,
 
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff
 };
-typedef uint32_t dap_chain_tx_item_type_t;
+typedef byte_t dap_chain_tx_item_type_t;
 
-
-typedef struct dap_chain_receipt{
+typedef struct dap_chain_receipt_info {
     dap_chain_net_srv_uid_t srv_uid; // Service UID
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    uint64_t addition;
+#endif
     dap_chain_net_srv_price_unit_uid_t units_type;
     uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    uint256_t value_datoshi; // Receipt value
+    union {
+        uint256_t value_datoshi; // Receipt value
+        uint64_t value_64;       // Old receipts compliance
+    };
 } dap_chain_receipt_info_t;
 
 #ifdef __cplusplus

@@ -53,16 +53,14 @@ typedef struct dap_stream {
     int id;
     dap_stream_session_t * session;
     dap_events_socket_t * esocket; // Connection
-    // uint128_t esocket_uuid;
-    uint64_t esocket_uuid;
+    dap_events_socket_uuid_t esocket_uuid;
     dap_stream_worker_t * stream_worker;
     struct dap_http_client * conn_http; // HTTP-specific
 
     dap_timerfd_t *keepalive_timer;
+    bool is_active;
 
     char * service_key;
-
-    bool is_live;
     bool is_client_to_uplink ;
 
     struct dap_stream_pkt * in_pkt;

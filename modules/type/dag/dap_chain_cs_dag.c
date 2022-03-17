@@ -121,7 +121,7 @@ static dap_chain_datum_t* s_chain_callback_datum_iter_get_next( dap_chain_datum_
 
 static int s_cli_dag(int argc, char ** argv, char **str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
-static void s_dag_chain_cs_set_event_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg);
+static void s_dag_chain_cs_set_event_round_info(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_info_t * a_event_round_info);
 
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
@@ -248,8 +248,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->is_celled = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_celled",false);
     l_dag->is_add_directly = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_add_directly",false);
     l_dag->datum_add_hashes_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag","datum_add_hashes_count",1);
-    l_dag->use_event_round_cfg = false;
-    l_dag->callback_cs_set_event_round_cfg = s_dag_chain_cs_set_event_round_cfg;
+    l_dag->use_event_round_info = false;
+    l_dag->callback_cs_set_event_round_info = s_dag_chain_cs_set_event_round_info;
     char * l_round_new_str = dap_strdup( dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new", "new"));
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if(!l_dag->is_celled){
@@ -273,11 +273,11 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     return 0;
 }
 
-static void s_dag_chain_cs_set_event_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg){
-    memcpy(&a_dag->event_round_cfg, 
-                a_event_round_cfg, 
-                sizeof(dap_chain_cs_dag_event_round_cfg_t));
-    a_dag->use_event_round_cfg = true;
+static void s_dag_chain_cs_set_event_round_info(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_info_t * a_event_round_info){
+    memcpy(&a_dag->event_round_info, 
+                a_event_round_info, 
+                sizeof(dap_chain_cs_dag_event_round_info_t));
+    a_dag->use_event_round_info = true;
 }
 
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
@@ -344,7 +344,6 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
         break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             return dap_chain_ledger_token_emission_load(a_ledger, l_datum->data, l_datum->header.data_size);
-            //return dap_chain_ledger_token_emission_load(a_ledger, l_datum, l_datum->header.data_size+sizeof(l_datum->header));
         }
         break;
         case DAP_CHAIN_DATUM_TX: {
@@ -369,19 +368,15 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
             }
             if (l_err != EDEADLK)
                 pthread_rwlock_unlock(l_events_rwlock);
+            return l_ret == 1 ? 0 : l_ret;
         }
         break;
-        case DAP_CHAIN_DATUM_CA: {
+        case DAP_CHAIN_DATUM_CA:
             dap_cert_chain_file_save(l_datum, a_dag->chain->net_name);
             return DAP_CHAIN_DATUM_CA;
-        }
-        break;
-        case DAP_CHAIN_DATUM_SIGNER: {
+        case DAP_CHAIN_DATUM_SIGNER:
+        case DAP_CHAIN_DATUM_CUSTOM:
             return 0;
-    	}
-        case DAP_CHAIN_DATUM_CUSTOM: {
-            return 0;
-        }
         default:
             return -1;
     }
@@ -585,10 +580,8 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             do{
                 int l_index = rand() % (int) l_events_round_new_size;
                 dap_chain_hash_fast_t l_hash;
-                // dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_events_round_new[l_index].value;
-                // size_t l_event_size = l_events_round_new[l_index].value_len;
                 dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
-                                ((dap_chain_cs_dag_event_round_item_t *)l_events_round_new[l_index].value)->event;
+                                ((dap_chain_cs_dag_event_round_item_t *)l_events_round_new[l_index].value)->event_n_signs;
                 size_t l_event_size = ((dap_chain_cs_dag_event_round_item_t *)l_events_round_new[l_index].value)->event_size;
                 dap_hash_fast(l_event, l_event_size,&l_hash);
 
@@ -678,16 +671,22 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                     dap_chain_hash_fast_t l_event_hash;
                     dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
                     char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
-                    // if(dap_chain_global_db_gr_set(dap_strdup(l_event_hash_str), (uint8_t *)l_event,
-                    //         l_event_size,
-                    //         l_dag->gdb_group_events_round_new)) {
-                    dap_chain_cs_dag_event_round_cfg_t l_event_round_cfg;
-                    if ( l_dag->callback_cs_get_round_cfg ) {
-                        l_dag->callback_cs_get_round_cfg(l_dag, &l_event_round_cfg);
+                    dap_chain_cs_dag_event_round_info_t l_event_round_info;
+                    if ( l_dag->callback_cs_get_round_info ) {
+                        l_dag->callback_cs_get_round_info(l_dag, &l_event_round_info);
                     }
+
+                    // set first event hash for round
+                    memcpy(&l_event_round_info.first_event_hash, &l_event_hash, sizeof(dap_chain_hash_fast_t));
+                    dap_chain_cs_dag_event_round_item_t * l_round_item = 
+                                DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t, 
+                                                sizeof(dap_chain_cs_dag_event_round_item_t)+l_event_size);
+                    memcpy(&l_round_item->round_info, &l_event_round_info, sizeof(dap_chain_cs_dag_event_round_info_t));
+                    l_round_item->data_size = l_round_item->event_size = 0; 
+
                     if(dap_chain_cs_dag_event_gdb_set(l_event_hash_str, l_event,
-                                l_event_size, l_dag->gdb_group_events_round_new,
-                                &l_event_round_cfg)) {
+                                l_event_size, l_round_item, l_dag->gdb_group_events_round_new)) {
+                                //&l_event_round_info)) {
                         log_it(L_INFO, "Event %s placed in the new forming round", l_event_hash_str);
                         DAP_DELETE(l_event_hash_str);
                         l_event_hash_str = NULL;
@@ -1405,12 +1404,10 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
             // Check if its ready or not
             for (size_t i = 0; i< l_objs_size; i++ ){
-                // dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t*) l_objs[i].value;
-                // size_t l_event_size = l_objs[i].value_len;
                 dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
-                                ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event;
+                                ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                 size_t l_event_size = ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_size;
-                l_dag->callback_cs_set_event_round_cfg(l_dag, &((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->cfg);
+                l_dag->callback_cs_set_event_round_info(l_dag, &((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->round_info);
                 int l_ret_event_verify;
                 if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event,l_event_size) ) !=0 ){// if consensus accept the event
                     dap_string_append_printf( l_str_ret_tmp,
@@ -1609,20 +1606,23 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 }
                 DAP_DELETE(l_event_hash_hex_str);
                 DAP_DELETE(l_event_hash_base58_str);
-                // DAP_DELETE( l_gdb_group_events );
                 // dap_chain_net_sync_gdb(l_net);
             }break;
             case SUBCMD_EVENT_DUMP:{
+                dap_chain_cs_dag_event_round_item_t * l_round_item = NULL;
                 dap_chain_cs_dag_event_t * l_event = NULL;
-                dap_chain_cs_dag_event_round_cfg_t l_event_round_cfg;
+                // dap_chain_cs_dag_event_round_info_t l_event_round_info;
                 size_t l_event_size = 0;
                 if ( l_from_events_str ){
                     if ( strcmp(l_from_events_str,"round.new") == 0 ){
                         const char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
-                        // l_event = (dap_chain_cs_dag_event_t *)  dap_chain_global_db_gr_get
-                        //                       ( l_event_hash_str ,&l_event_size,l_gdb_group_events );
-                        l_event = dap_chain_cs_dag_event_gdb_get(l_event_hash_str, &l_event_size,
-                                                                l_gdb_group_events, &l_event_round_cfg);
+                        size_t l_round_item_size = 0;
+                        l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_chain_global_db_gr_get(
+                                                        l_event_hash_str, &l_round_item_size, l_gdb_group_events);
+                        if (l_round_item) {
+                            l_event_size = l_round_item->event_size;
+                            l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+                        }
                     }else if ( strncmp(l_from_events_str,"round.",6) == 0){
 
                     }else if ( strcmp(l_from_events_str,"events_lasts") == 0){
@@ -1673,22 +1673,24 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
                     dap_string_append_printf(l_str_tmp,"\nEvent %s:\n", l_event_hash_str);
 
-                    // Round cfg
+                    // Round info
                     if ( strcmp(l_from_events_str,"round.new") == 0 ){
                         dap_string_append_printf(l_str_tmp,
-                            "\t\tRound cfg:\n\t\t\t\tconfirmations_minimum: %d\n\t\t\t\tconfirmations_timeout: %d\n", 
-                            l_event_round_cfg.confirmations_minimum,
-                            l_event_round_cfg.confirmations_timeout);
-                        char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_event_round_cfg.first_event_hash);
+                            "\t\tRound info:\n\t\t\t\tconfirmations_minimum: %d\n\t\t\t\tconfirmations_timeout: %d\n"
+                            "\t\t\t\tsigns reject: %d\n", 
+                            l_round_item->round_info.confirmations_minimum,
+                            l_round_item->round_info.confirmations_timeout,
+                            l_round_item->round_info.reject_count);
+                        char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_round_item->round_info.first_event_hash);
                         dap_string_append_printf(l_str_tmp, "\t\t\t\tfirst_event_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
                         dap_string_append_printf(l_str_tmp,
                             "\t\t\t\tts_update: %s", 
-                            dap_ctime_r((time_t *)&l_event_round_cfg.ts_update, buf) );
-                        if (l_event_round_cfg.ts_confirmations_minimum_completed != 0)
+                            dap_ctime_r((time_t *)&l_round_item->round_info.ts_update, buf) );
+                        if (l_round_item->round_info.ts_confirmations_minimum_completed != 0)
                             dap_string_append_printf(l_str_tmp,
                                 "\t\t\t\tts_confirmations_minimum_completed: %s", 
-                                dap_ctime_r((time_t *)&l_event_round_cfg.ts_confirmations_minimum_completed, buf) );
+                                dap_ctime_r((time_t *)&l_round_item->round_info.ts_confirmations_minimum_completed, buf) );
                     }
 
                      // Header
@@ -1753,6 +1755,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                       l_event_hash_str);
                     ret=-10;
                 }
+                DAP_DELETE(l_round_item);
+                DAP_DELETE(l_event);
             }break;
             case SUBCMD_EVENT_LIST:{
                 if( (l_from_events_str == NULL) ||
@@ -1766,17 +1770,14 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         dap_string_append_printf(l_str_tmp,"%s.%s: Found %zu records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
                         for (size_t i = 0; i< l_objs_count; i++){
-                            // dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) l_objs[i].value;
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
-                                            ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event;
+                                            ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[50];
                             time_t l_ts_create = (time_t) l_event->header.ts_created;
                             dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
                                                      l_objs[i].key, dap_ctime_r( &l_ts_create,buf ) );
 
                         }
-                        // bugs-3932
-                        //DAP_DELETE( l_gdb_group_events);
                         if (l_objs && l_objs_count )
                             dap_chain_global_db_objs_delete(l_objs, l_objs_count);
                         ret = 0;
@@ -1790,9 +1791,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 }else if (l_from_events_str && (strcmp(l_from_events_str,"events") == 0) ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-                    size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
-                    dap_string_append_printf(l_str_tmp,"%s.%s: Have %zu events :\n",
-                                             l_net->pub.name,l_chain->name,l_events_count);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
                         char buf[50];
@@ -1802,7 +1800,10 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                  l_event_item_hash_str, dap_ctime_r( &l_ts_create,buf ) );
                         DAP_DELETE(l_event_item_hash_str);
                     }
+                    size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
                     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+                    dap_string_append_printf(l_str_tmp,"%s.%s have total %zu events :\n",
+                                             l_net->pub.name, l_chain->name, l_events_count);
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
 

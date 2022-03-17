@@ -36,8 +36,8 @@ typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(d
                                                                                dap_chain_hash_fast_t *,
                                                                                size_t, size_t*);
 
-typedef void (*dap_chain_cs_dag_callback_get_round_cfg_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_round_cfg_t *);
-typedef void (*dap_chain_cs_dag_callback_set_event_round_cfg_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_round_cfg_t *);
+typedef void (*dap_chain_cs_dag_callback_get_round_info_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_round_info_t *);
+typedef void (*dap_chain_cs_dag_callback_set_event_round_info_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_round_info_t *);
 
 typedef int (*dap_chain_cs_dag_callback_event_round_sync_t)(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
                                                 const char *a_key, const void *a_value, const size_t a_value_size);
@@ -57,8 +57,8 @@ typedef struct dap_chain_cs_dag
     dap_chain_hash_fast_t static_genesis_event_hash;
     dap_chain_cs_dag_hal_item_t *hal;
 
-    dap_chain_cs_dag_event_round_cfg_t event_round_cfg; // for verify function
-    bool use_event_round_cfg;
+    dap_chain_cs_dag_event_round_info_t event_round_info; // for verify function
+    bool use_event_round_info;
 
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;
@@ -66,8 +66,8 @@ typedef struct dap_chain_cs_dag
     dap_chain_cs_dag_callback_t callback_delete;
     dap_chain_cs_dag_callback_event_create_t callback_cs_event_create;
     dap_chain_cs_dag_callback_event_t callback_cs_verify;
-    dap_chain_cs_dag_callback_get_round_cfg_t callback_cs_get_round_cfg;
-    dap_chain_cs_dag_callback_set_event_round_cfg_t callback_cs_set_event_round_cfg;
+    dap_chain_cs_dag_callback_get_round_info_t callback_cs_get_round_info;
+    dap_chain_cs_dag_callback_set_event_round_info_t callback_cs_set_event_round_info;
     dap_chain_cs_dag_callback_event_round_sync_t callback_cs_event_round_sync;
 
     void * _pvt;

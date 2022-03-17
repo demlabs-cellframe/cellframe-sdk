@@ -83,7 +83,6 @@ typedef struct dap_chain_net{
     uint8_t pvt[];
 } dap_chain_net_t;
 
-
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
 
@@ -146,7 +145,11 @@ typedef enum dap_chain_net_tx_search_type {
     /// Do the search in whole network and request tx from others cells if need
     TX_SEARCH_TYPE_NET,
     /// Do the search in whole network but search only unspent
-    TX_SEARCH_TYPE_NET_UNSPENT
+    TX_SEARCH_TYPE_NET_UNSPENT,
+    /// Do the request for spent txs in cell
+    TX_SEARCH_TYPE_CELL_SPENT,
+    /// Do the search in whole
+    TX_SEARCH_TYPE_NET_SPENT
 }dap_chain_net_tx_search_type_t;
 
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
@@ -169,6 +172,15 @@ DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_cha
     return NULL;
 }
 
+DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_from_chain(dap_chain_t * l_chain)
+{
+    dap_chain_net_t * l_net = l_chain ? dap_chain_net_by_id(l_chain->net_id) : NULL;
+    if ( l_net )
+		return dap_strdup_printf( "chain-gdb.%s.chain-%016llX",l_net->pub.name, l_chain->id.uint64);
+
+    return NULL;
+}
+
 dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
 char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
@@ -176,7 +188,7 @@ bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
 void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
-void dap_chain_net_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback);
+void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg);
 void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_group,
                                       const char *a_key, const void *a_value, const size_t a_value_len);
 
