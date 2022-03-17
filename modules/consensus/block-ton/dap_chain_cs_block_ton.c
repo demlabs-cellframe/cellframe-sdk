@@ -563,14 +563,15 @@ printf("---!!! s_session_timer() s_session_candidate_to_chain() CHAIN 6666\n");
 			DAP_DELETE(a_session->old_round.my_candidate_hash);
 			a_session->old_round.my_candidate_hash=NULL;
 		}
+
+printf("---!!! s_session_timer() s_session_candidate_to_chain() 1\n");
+printf("---!!! s_session_timer() s_session_candidate_to_chain() 2\n");
 		// block move to chain
-
-
-
-printf("---!!! s_session_timer() s_session_candidate_to_chain() \n");
-printf("---!!! s_session_timer() s_session_candidate_to_chain() \n");
-printf("---!!! s_session_timer() s_session_candidate_to_chain() \n");
-printf("---!!! s_session_timer() s_session_candidate_to_chain() \n");
+        if (dap_chain_atom_save(a_session->chain, (uint8_t *)a_candidate, a_candidate_size, a_session->chain->cells->id) < 0) {
+            log_it(L_ERROR, "Can't add new block to the file");
+        }
+printf("---!!! s_session_timer() s_session_candidate_to_chain() 3\n");
+printf("---!!! s_session_timer() s_session_candidate_to_chain() 4\n");
 	}
 
 	DAP_DELETE(l_candidate);
@@ -686,8 +687,9 @@ printf("---!!! s_session_timer() s_session_block_new_delete() BLOCK_NEW_DEL 1111
 	dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 	if ( l_blocks->block_new ) {
 printf("---!!! s_session_timer() s_session_block_new_delete() BLOCK_NEW_DEL 2222\n");
-		DAP_DELETE(l_blocks->block_new);
-		l_blocks->block_new = NULL;
+		//DAP_DELETE(l_blocks->block_new);
+		//l_blocks->block_new = NULL;
+		DAP_DEL_Z(l_blocks->block_new);
 		l_blocks->block_new_size = 0;
 	}
 }
