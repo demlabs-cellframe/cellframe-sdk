@@ -504,8 +504,9 @@ printf("---!!! s_session_timer() s_session_candidate_to_chain() CHAIN 1111 \n");
 
 printf("---!!! s_session_timer() s_session_candidate_to_chain() CHAIN 2222\n");
 
-    if (!l_submit_list)
+    if (!l_submit_list) {
     	return;
+    }
 
 printf("---!!! s_session_timer() s_session_candidate_to_chain() CHAIN 3333\n");
 
@@ -565,9 +566,10 @@ printf("---!!! s_session_timer() s_session_candidate_to_chain() CHAIN 6666\n");
 		}
 
 printf("---!!! s_session_timer() s_session_candidate_to_chain() 1\n");
-printf("---!!! s_session_timer() s_session_candidate_to_chain() 2\n");
-		// block move to chain
-        if (dap_chain_atom_save(a_session->chain, (uint8_t *)a_candidate, a_candidate_size, a_session->chain->cells->id) < 0) {
+printf("---!!! s_session_timer() s_session_candidate_to_chain() 2 hash:%s, size:%d\n", a_candidate_hash, a_candidate_size);
+		// block save to chain
+        if (dap_chain_atom_save(a_session->chain, (uint8_t *)l_candidate, a_candidate_size, a_session->chain->cells->id) < 0) {
+printf("---!!! s_session_timer() s_session_candidate_to_chain() 2-1\n");
             log_it(L_ERROR, "Can't add new block to the file");
         }
 printf("---!!! s_session_timer() s_session_candidate_to_chain() 3\n");
@@ -867,8 +869,9 @@ printf("---!!! s_session_packet_in() TEST PACKET 2 \n");
 		switch (l_message->hdr.type) { // this types allow only in first attempt
 			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT:
 			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE:
-			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT:
+			case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT: {
 				goto handler_finish;
+			}
 		}
 	}
 
@@ -877,13 +880,15 @@ printf("---!!! s_session_packet_in() TEST PACKET 3 \n");
     dap_chain_hash_fast_t l_data_hash;
     dap_hash_fast(a_data, a_data_size, &l_data_hash);
 
-    if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64 )
+    if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64 ) {
     	goto handler_finish;
+    }
 
 printf("---!!! s_session_packet_in() TEST PACKET 4 \n");
 
-    if (memcmp(a_data_hash, &l_data_hash, sizeof(dap_chain_hash_fast_t)) != 0)
+    if (memcmp(a_data_hash, &l_data_hash, sizeof(dap_chain_hash_fast_t)) != 0) {
 		goto handler_finish;
+    }
 
 printf("---!!! s_session_packet_in() TEST PACKET 5 \n");
 
@@ -898,7 +903,7 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC
 		if ( 
 			(l_time>l_startsync->ts && (l_time-l_startsync->ts) > l_session->allowed_clock_offset )
 				|| (l_time<l_startsync->ts && (l_startsync->ts-l_time) > l_session->allowed_clock_offset )
-			) {
+					) {
 			// offset is more than allowed_clock_offset
 			// skip this validator 
 			goto handler_finish;
@@ -930,8 +935,9 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC
 printf("---!!! s_session_packet_in() TEST PACKET 6 \n");
 
 	if ( l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC
-			&& l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS )
+			&& l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS ) {
 		goto handler_finish;
+	}
 
 printf("---!!! s_session_packet_in() TEST PACKET 7 \n");
 
@@ -940,12 +946,14 @@ printf("---!!! s_session_packet_in() TEST PACKET 7 \n");
 	uint64_t l_round_id =
 				((dap_chain_cs_block_ton_message_getinfo_t *)l_message->message)->round_id.uint64;
 	if ( l_message->hdr.type != DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN ) {
-		if ( l_round_id != l_session->cur_round.id.uint64)
+		if ( l_round_id != l_session->cur_round.id.uint64) {
 			goto handler_finish;
+		}
 	} else {
 		if ( l_round_id != l_session->cur_round.id.uint64
-					&& l_round_id != l_session->old_round.id.uint64 )
+					&& l_round_id != l_session->old_round.id.uint64 ) {
 			goto handler_finish;
+		}
 	}
 
 	dap_chain_cs_block_ton_message_item_t * l_messages_items = NULL;
@@ -955,8 +963,9 @@ printf("---!!! s_session_packet_in() TEST PACKET 7 \n");
 	// check hash message dup
 	dap_chain_cs_block_ton_message_item_t * l_message_item_temp = NULL;
 	HASH_FIND(hh, l_messages_items, a_data_hash, sizeof(dap_chain_hash_fast_t), l_message_item_temp);
-	if (l_message_item_temp)
+	if (l_message_item_temp) {
 		goto handler_finish;
+	}
 
 	// check validator index in queue for event Submit
 	if ( l_message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT ) {
@@ -979,8 +988,9 @@ printf("---!!! s_session_packet_in() TEST PACKET 7 \n");
     			if ( l_chain_message->message->hdr.type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT )
     				l_submit_count++;
     		}
-    		if ( l_validator_number < l_submit_count )
+    		if ( l_validator_number < l_submit_count ) {
     			goto handler_finish; // Skip this SUBMIT. Validator must wait its queue.
+    		}
 		}
 	}
 
@@ -1075,16 +1085,19 @@ printf("---!!! s_session_packet_in() TEST PACKET 9 \n");
 	// check message chain is correct
 	switch (l_message->hdr.type) {
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE: {
-			if (!l_approve_count) // if this validator not sent Approve for this candidate
+			if (!l_approve_count) { // if this validator not sent Approve for this candidate
     			goto handler_finish;
+    		}
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT: {
-			if (!l_vote_count) // if this validator not sent Vote for this candidate
+			if (!l_vote_count) { // if this validator not sent Vote for this candidate
     			goto handler_finish;
+    		}
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: {
-			if (!l_precommit_count) // if this validator not sent PreCommit for this candidate
+			if (!l_precommit_count) { // if this validator not sent PreCommit for this candidate
     			goto handler_finish;
+    		}
 		} break;
 	}
 
@@ -1110,8 +1123,9 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT \n"
 										(dap_chain_cs_block_ton_message_submit_t *)&l_message->message;
 
 			size_t l_candidate_size = l_submit->candidate_size;
-			if (!l_candidate_size) // null candidate - save chain and exit
+			if (!l_candidate_size) { // null candidate - save chain and exit
 				goto handler_finish;
+			}
 
 
 			dap_chain_block_t * l_candidate = (dap_chain_block_t *)l_submit->candidate;
@@ -1288,8 +1302,9 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE_FOR \
 										(dap_chain_cs_block_ton_message_votefor_t *)&l_message->message;
 			dap_chain_hash_fast_t * l_candidate_hash = &l_votefor->candidate_hash;
 			
-			if ( l_votefor->attempt_number != l_session->attempt_current_number) 
+			if ( l_votefor->attempt_number != l_session->attempt_current_number) {
 				goto handler_finish; // wrong attempt number in message
+			}
 
 char * l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
 printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE_FOR 1 mes_hash:%s\n", l_candidate_hash_str);
@@ -1298,8 +1313,9 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE_FOR 1
 			// 		(dap_chain_node_addr_t *)dap_list_nth_data(l_session->validators_start,
 			// 											(l_session->attempt_current_number-1));
 
-			if ( a_sender_node_addr->uint64 != l_session->attempt_coordinator->uint64 )
+			if ( a_sender_node_addr->uint64 != l_session->attempt_coordinator->uint64 ) {
 				goto handler_finish; // wrong coordinator addr
+			}
 
 printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE_FOR 2 \n");
 
@@ -1392,8 +1408,9 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE \n");
 			dap_chain_cs_block_ton_message_vote_t * l_vote =
 										(dap_chain_cs_block_ton_message_vote_t *)&l_message->message;
 
-			if ( l_vote->attempt_number != l_session->attempt_current_number) 
+			if ( l_vote->attempt_number != l_session->attempt_current_number) {
 				goto handler_finish;
+			}
 
 			dap_chain_hash_fast_t * l_candidate_hash = &l_vote->candidate_hash;
 			char * l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
@@ -1452,8 +1469,9 @@ printf("---!!! s_session_packet_in() DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT
 			dap_chain_cs_block_ton_message_precommit_t * l_precommit =
 										(dap_chain_cs_block_ton_message_precommit_t *)&l_message->message;
 
-			if ( l_precommit->attempt_number != l_session->attempt_current_number) 
+			if ( l_precommit->attempt_number != l_session->attempt_current_number) {
 				goto handler_finish;
+			}
 
 			dap_chain_hash_fast_t * l_candidate_hash = &l_precommit->candidate_hash;
 			char * l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
