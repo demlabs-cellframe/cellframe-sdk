@@ -435,8 +435,12 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         }
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
+        dap_chain_id_t l_chain_id;
+        l_chain_id.uint64 = 0;
         dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
-        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
+        if (l_chain)  
+            l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
+
         dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
@@ -523,6 +527,9 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
             }
         }
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
+    }else{
+        if (s_debug_more)    
+             log_it(L_WARNING,"Node current state is %d. Real-time syncing is possible when you in NET_STATE_LINKS_ESTABLISHED (and above) state", PVT(l_net)->state);     
     }
 }
 
