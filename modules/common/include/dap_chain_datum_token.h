@@ -131,69 +131,70 @@ typedef struct dap_chain_datum_token{
 // Macros for token flags
 /// ------- Global section flags --------
 // No any flags
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_NONE                                    0x0000
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_NONE                                           0x0000
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED                             0x0001
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED                             1 << 1
 // Allowed all permissions if not blocked them. Be careful with this mode
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED                             0x0002
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED                             1 << 2
 // All permissions are temprorary frozen
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN                              0x0003
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN                              1 << 3
 // Unfrozen permissions
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN                            0x0004
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN                            1 << 4
 
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED                             0x0011
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED                             1 << 5
 // Allowed all permissions if not blocked them. Be careful with this mode
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED                             0x0012
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED                             1 << 6
 // All permissions are temprorary frozen
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN                              0x0013
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN                              1 << 7
 // Unfrozen permissions
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN                            0x0014
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN                            1 << 8
+
+/// ------ Static configured flags
+// No token manipulations after declarations at all. Token declares staticly and can't variabed after
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL                              1 << 9
+
+// No token manipulations after declarations with flags.
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS                            1 << 10
+
+// No all permissions lists manipulations after declarations
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL                  1 << 11
+
+// No datum type permissions lists manipulations after declarations
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE           1 << 12
+
+// No tx sender permissions lists manipulations after declarations
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER            1 << 13
+
+// No tx receiver permissions lists manipulations after declarations
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER          1 << 14
 
 //  Maximal flag
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     0x0014
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     1 << 15
 
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                               0xffff
 
 extern const char *c_dap_chain_datum_token_flag_str[];
 
-#define dap_chain_datum_token_flag_to_str(a) (if (a<=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX) c_dap_chain_datum_token_flag_str[a]; else "OUT_OF_RANGE")
+#define dap_chain_datum_token_flag_to_str(a) ((a<=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX) ? c_dap_chain_datum_token_flag_str[a] : "OUT_OF_RANGE")
 
-/**
- * @brief dap_chain_datum_token_flag_from_str
- * @param a_str
- * @return
- */
-static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
-{
-    if (a_str == NULL)
-        return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
 
-    for (uint16_t i = DAP_CHAIN_DATUM_TOKEN_FLAG_NONE; i <=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++ ){
-        if ( strcmp( a_str, c_dap_chain_datum_token_flag_str[i]) == 0 )
-            return i;
-    }
-    return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
-}
+// /**
+//  * @brief dap_chain_datum_token_flag_from_str
+//  * @param a_str
+//  * @return
+//  */
+// static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
+// {
+//     if (a_str == NULL)
+//         return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
 
-/// ------ Static configured flags
-// No token manipulations after declarations at all. Token declares staticly and can't variabed after
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL                              0x0010
-
-// No token manipulations after declarations with flags.
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS                            0x0011
-
-// No all permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL                  0x0012
-
-// No datum type permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE           0x0013
-
-// No tx sender permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER            0x0014
-
-// No tx receiver permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER          0x0015
+//     for (uint16_t i = DAP_CHAIN_DATUM_TOKEN_FLAG_NONE; i <=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++ ){
+//         if ( strcmp( a_str, c_dap_chain_datum_token_flag_str[i]) == 0 )
+//             return i;
+//     }
+//     return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
+// }
 
 /// -------- General tsd types ----
 // Flags set/unsed
@@ -251,6 +252,104 @@ static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_CLEAR        0x0025
 
 #define DAP_CHAIN_DATUM_NONCE_SIZE                                    64
+
+typedef struct { char *key; uint64_t val; } t_datum_token_flag_struct;
+
+// new__
+static t_datum_token_flag_struct s_flags_table[] = {
+    { "NO_FLAGS", DAP_CHAIN_DATUM_TOKEN_FLAG_NONE}, 
+    { "ALL_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED}, 
+    { "ALL_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN }, 
+    { "ALL_ALLOWED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED},
+    { "ALL_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN }, 
+    { "STATIC_ALL", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL},
+    { "STATIC_FLAGS", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS }, 
+    { "STATIC_PERMISSIONS_ALL", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL }, 
+    { "STATIC_PERMISSIONS_DATUM_TYPE", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE }, 
+    { "STATIC_PERMISSIONS_TX_SENDER", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER },
+    { "STATIC_PERMISSIONS_TX_RECEIVER", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER },
+    { "ALL_SENDER_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED}, 
+    { "ALL_SENDER_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN}, 
+    { "ALL_SENDER_ALLOWED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED},
+    { "ALL_SENDER_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN}, 
+    { "ALL_RECEIVER_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED}, 
+    { "ALL_RECEIVER_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN }, 
+    { "ALL_RECEIVER_ALLOWED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED},
+    { "ALL_RECEIVER_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN }, 
+};
+
+
+#define NKEYS (sizeof(s_flags_table)/sizeof(t_datum_token_flag_struct))
+
+static inline int s_flag_code_from_str(const char *key)
+{
+    uint64_t i;
+    for (i=0; i < NKEYS; i++) {
+        t_datum_token_flag_struct sym = s_flags_table[i];
+        if (strcmp(s_flags_table[i].key, key) == 0)
+            return s_flags_table[i].val;
+    }
+
+    return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
+}
+
+static inline char* s_flag_str_from_code(uint64_t code)
+{
+    uint64_t i;
+    uint64_t flags_count = 0;
+
+    for (i=0; i < NKEYS; i++) {
+        t_datum_token_flag_struct sym = s_flags_table[i];
+        if (s_flags_table[i].val == code)
+            return s_flags_table[i].key;
+    }
+
+    // split multiple flags in string
+
+    char* s_multiple_flag = "";
+
+    for (i=0; i < NKEYS; i++) {
+        t_datum_token_flag_struct sym = s_flags_table[i];
+        if ((s_flags_table[i].val & code) > 0)
+        {
+            flags_count += 1;
+            if (flags_count > 1)
+                s_multiple_flag = dap_strjoin(";", s_multiple_flag, s_flags_table[i].key, (char*)NULL);
+            else
+                s_multiple_flag = dap_strjoin(NULL, s_multiple_flag, s_flags_table[i].key, (char*)NULL);
+        }         
+    }
+
+    char* s_no_flags = "NO FLAGS";
+
+    if (flags_count > 0)
+        return s_multiple_flag;
+    else
+        return s_no_flags;
+}
+
+/**
+ * @brief dap_chain_datum_token_flag_from_str
+ * @param a_str
+ * @return
+ */
+static inline char* dap_chain_datum_str_token_flag_from_code(uint64_t code)
+{   
+    return s_flag_str_from_code(code);
+}
+
+/**
+ * @brief dap_chain_datum_token_flag_from_str
+ * @param a_str
+ * @return
+ */
+static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
+{
+    if (a_str == NULL)
+        return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
+    
+    return s_flag_code_from_str(a_str);
+}
 
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
     uint8_t version;

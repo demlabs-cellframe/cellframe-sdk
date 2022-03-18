@@ -12,6 +12,8 @@
 
 
 ## an example of session with  build and run steps follows:
+
+```
 root@devuan4-sysman:~/Works/cellframe-node-dev-bugfix5461/cellframe-sdk/test# mkdir build ; cd build
 root@devuan4-sysman:~/Works/cellframe-node-dev-bugfix5461/cellframe-sdk/test/build# cmake ../ -Wno-dev
 -- The C compiler identification is GNU 10.2.1
@@ -202,3 +204,4 @@ rm: cannot remove '/dev/mqueue/dap_global_db_test-queue_ptr*': No such file or d
 [03/09/22-13:41:49] [ * ] [db_driver] DeInit for sqlite ...
 root@devuan4-sysman:~/Works/cellframe-node-dev-bugfix5461/cellframe-sdk/test/build#
 
+```
