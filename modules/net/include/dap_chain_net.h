@@ -147,7 +147,11 @@ typedef enum dap_chain_net_tx_search_type {
     /// Do the search in whole network and request tx from others cells if need
     TX_SEARCH_TYPE_NET,
     /// Do the search in whole network but search only unspent
-    TX_SEARCH_TYPE_NET_UNSPENT
+    TX_SEARCH_TYPE_NET_UNSPENT,
+    /// Do the request for spent txs in cell
+    TX_SEARCH_TYPE_CELL_SPENT,
+    /// Do the search in whole network but search only spent
+    TX_SEARCH_TYPE_NET_SPENT
 }dap_chain_net_tx_search_type_t;
 
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
