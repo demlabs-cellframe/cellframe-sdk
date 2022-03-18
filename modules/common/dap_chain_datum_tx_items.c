@@ -111,8 +111,7 @@ static size_t dap_chain_datum_tx_receipt_get_size(const dap_chain_datum_tx_recei
  */
 dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item)
 {
-    const dap_chain_tx_in_t *l_item_tx_in = (const dap_chain_tx_in_t*) a_item;
-    dap_chain_tx_item_type_t type = (l_item_tx_in) ? l_item_tx_in->header.type : TX_ITEM_TYPE_ANY;
+    dap_chain_tx_item_type_t type = a_item ? *(dap_chain_tx_item_type_t *)a_item : TX_ITEM_TYPE_ANY;
     return type;
 }
 
@@ -366,8 +365,8 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
         return NULL;
     uint32_t l_tx_items_pos = 0, l_tx_items_size = a_tx->header.tx_items_size;
     int l_item_idx = 0;
-    while(l_tx_items_pos < l_tx_items_size) {
-         uint8_t *l_item = a_tx->tx_items + l_tx_items_pos;
+    while (l_tx_items_pos < l_tx_items_size) {
+        uint8_t *l_item = a_tx->tx_items + l_tx_items_pos;
         int l_item_size = dap_chain_datum_item_tx_get_size(l_item);
         if(!l_item_size)
             return NULL;
@@ -426,7 +425,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
     int l_prev_cond_idx = l_list_out_items ? 0 : -1;
     dap_chain_tx_out_cond_t *l_res = NULL;
     for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_prev_cond_idx++) {
-        if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT_COND_OLD) {
+        if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT_COND) {
             l_res = l_list_tmp->data;
             break;
         }

@@ -379,7 +379,11 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     dap_chain_hash_fast_t *l_tx_prev_hash = a_tx_prev_hash;
     dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_prev_hash);
     int l_prev_cond_idx;
-    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, &l_prev_cond_idx);  
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, &l_prev_cond_idx);
+    if (!l_out_cond) {
+        log_it(L_WARNING, "Requested conditioned transaction have no conditioned output");
+        return NULL;
+    }
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, l_tx_prev_hash, l_prev_cond_idx)) { // TX already spent
         dap_chain_datum_tx_t *l_tx_tmp;
         dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
@@ -429,7 +433,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
 
     uint256_t l_old_val = l_out_cond->header.value;
     SUBTRACT_256_256(l_out_cond->header.value, l_value_send, &l_out_cond->header.value);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)&l_out_cond);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
     l_out_cond->header.value = l_old_val;
 
     // add 'sign' items

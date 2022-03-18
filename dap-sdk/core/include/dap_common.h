@@ -138,12 +138,12 @@ typedef uint8_t byte_t;
   #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, calloc(1,sizeof(a)))
   #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, calloc(1,b))
   #define DAP_REALLOC(a, b)     realloc(a,b)
-  #define DAP_DELETE(a)         free(a)
+  #define DAP_DELETE(a)         free((void *)a)
   #define DAP_DUP(a)            memcpy(malloc(sizeof(*a)), a, sizeof(*a))
   #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
 #endif
 
-#define DAP_DEL_Z(a)            if (a) { DAP_DELETE(a); (a) = NULL; }
+#define DAP_DEL_Z(a)            if (a) { DAP_DELETE((void *)a); (a) = NULL; }
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {

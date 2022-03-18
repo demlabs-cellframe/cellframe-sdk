@@ -156,7 +156,7 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
     else
         l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
     assert(l_stake);
-    dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND_OLD, NULL);
+    dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
     if (!l_out_cond || l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE) {
         // Stake tx is used out
         HASH_DEL(s_srv_stake->itemlist, l_stake);
@@ -194,7 +194,7 @@ static bool s_stake_conditions_calc(dap_chain_tx_out_cond_t *a_cond, dap_chain_d
     dap_chain_tx_out_cond_t *l_out_cond = NULL;
     if (!a_cond) {
         // New stake tx
-        l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND_OLD, NULL);
+        l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
     } else
         l_out_cond = a_cond;
     dap_chain_net_id_t l_cur_net_id = l_out_cond->subtype.srv_stake.hldr_addr.net_id;
