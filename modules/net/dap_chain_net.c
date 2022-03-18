@@ -412,7 +412,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     UNUSED(a_value);
     UNUSED(a_value_len);
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED) {
+    if (PVT(l_net)->state == NET_STATE_ONLINE) {
         char *l_group;
         if (a_op_code == DAP_DB$K_OPTYPE_DEL ) {
             l_group = dap_strdup_printf("%s.del", a_group);
@@ -511,7 +511,7 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
     if (!a_arg)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED) {
+    if (PVT(l_net)->state == NET_STATE_ONLINE) {
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
@@ -632,7 +632,7 @@ static void s_net_state_link_replace_error(dap_worker_t *a_worker, dap_chain_nod
         if (l_link_node_info)
             break;
     }
-    if (!l_link_node_info) { // We have lost this link forever
+    if (!l_link_node_info || PVT(l_net)->state == NET_STATE_OFFLINE) { // We have lost this link forever
         DAP_DELETE(l_dns_request);
         return;
     }
@@ -668,6 +668,10 @@ static void s_net_state_link_replace_success(dap_worker_t *a_worker, dap_chain_n
     struct link_dns_request *l_dns_request = (struct link_dns_request *)a_arg;
     dap_chain_net_t *l_net = l_dns_request->net;
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    if (l_net_pvt->state == NET_STATE_OFFLINE) {
+        DAP_DELETE(l_dns_request);
+        return;
+    }
     uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(l_net);
     if (a_node_info->hdr.address.uint64 == l_own_addr) {
         s_net_state_link_replace_error(a_worker, a_node_info, a_arg, EWOULDBLOCK);
@@ -1511,54 +1515,31 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 {
     if (!l_net)
         return false;
-
-    log_it(L_WARNING,"Start one time ledger cache reloading");
-    
-    //
     // create directory for cache checking file (cellframe-node/cache)
-    //
-    
     char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
-
-    if (dap_mkdir_with_parents(l_cache_dir) != 0)
-    {
+    if (dap_mkdir_with_parents(l_cache_dir) != 0) {
         log_it(L_WARNING,"Error during disposable cache check file creation");
         return false;
     }
-
-    //
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    //
-
     char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "4CFB3928-1A9A-467D-BB5E-3FDB35014E8A");
-
-    if (dap_file_simple_test(l_cache_file))
-    {
-        log_it(L_DEBUG,"Ledger cache was already reloaded");
+    if (dap_file_simple_test(l_cache_file)) {
         return false;
     }
 
+    log_it(L_WARNING,"Start one time ledger cache reloading");
     static FILE *s_cache_file = NULL;
-
     s_cache_file = fopen(l_cache_file, "a");
-
-    if(!s_cache_file)
-    {
+    if(!s_cache_file) {
         s_cache_file = fopen(l_cache_file, "w");
-
-        if (!s_cache_file) 
-        {
+        if (!s_cache_file) {
             dap_fprintf(stderr, "Can't open cache file %s for one time ledger cache reloading.\
                 Please, do it manually using command\
                 cellframe-node-cli net -net <network_name>> ledger reload'\n", l_cache_file);
             return -1;   
         }
     }
-
-    //
     // reload ledger cache (same as net -net <network_name>> ledger reload command)
-    //
-
     if (dap_file_simple_test(l_cache_file))
         s_chain_net_ledger_cache_reload(l_net);
 

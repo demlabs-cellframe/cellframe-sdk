@@ -81,7 +81,7 @@ void dap_cert_add_folder(const char *a_folder_path);
 void dap_cert_dump(dap_cert_t * a_cert);
 dap_pkey_t * dap_cert_to_pkey(dap_cert_t * a_cert);
 
-dap_cert_t * dap_cert_find_by_name(const char * a_cert_name);
+dap_cert_t *dap_cert_find_by_name(const char *a_cert_name);
 dap_list_t *dap_cert_get_all_mem();
 
 dap_sign_t * dap_cert_sign(dap_cert_t * a_cert, const void * a_data, size_t a_data_size, size_t a_output_size_wished );
