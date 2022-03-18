@@ -1712,9 +1712,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
         // Check if wallet name has only digits and English letters
         //
 
-        size_t is_str = dap_isstralnum(l_wallet_name);
-
-        if (!is_str)
+        if (!dap_isstralnum(l_wallet_name))
         {
             dap_chain_node_cli_set_reply_text(str_reply, "Wallet name must contains digits and aplhabetical symbols");
             return -1;
