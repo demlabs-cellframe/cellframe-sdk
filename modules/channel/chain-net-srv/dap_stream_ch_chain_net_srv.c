@@ -186,7 +186,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
         if (!l_grace_start) {
             int l_tx_out_cond_size =0;
             l_tx_out_cond = (dap_chain_tx_out_cond_t *)
-                    dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_OUT_COND_OLD, &l_tx_out_cond_size );
+                    dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size );
 
             if ( ! l_tx_out_cond ) { // No conditioned output
                 log_it( L_WARNING, "No conditioned output");
@@ -470,7 +470,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     }
                     int l_tx_out_cond_size =0;
                     l_tx_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(l_usage->tx_cond, NULL,
-                                                                                           TX_ITEM_TYPE_OUT_COND_OLD, &l_tx_out_cond_size );
+                                                                                           TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size );
                     if ( ! l_tx_out_cond ){ // No conditioned output
                         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
                         dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );

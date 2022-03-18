@@ -177,14 +177,18 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
     pthread_mutex_lock(&cdb_mutex);
     char l_cdb_path[strlen(s_cdb_path) + strlen(a_group) + 2];
     HASH_FIND_STR(s_cdb, a_group, l_cdb_i);
+    if (a_flags & CDB_TRUNC) {
+        if (!l_cdb_i)
+            goto FIN;
+        cdb_close(l_cdb_i->cdb);
+    }
     if (!(a_flags & CDB_TRUNC)) {
         if (l_cdb_i)
             goto FIN;
         l_cdb_i = DAP_NEW(cdb_instance);
+        l_cdb_i->local_group = dap_strdup(a_group);
+        l_cdb_i->cdb = cdb_new();
     }
-    l_cdb_i = DAP_NEW(cdb_instance);
-    l_cdb_i->local_group = dap_strdup(a_group);
-    l_cdb_i->cdb = cdb_new();
     memset(l_cdb_path, '\0', sizeof(l_cdb_path));
     dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, a_group);
     cdb_options l_opts = { 1000000, 128, 1024 };
@@ -214,13 +218,16 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
             //log_it(L_INFO, "Last id: %-24u"                 , l_cdb_i->id);
             DAP_DELETE(l_arg.o);
         } else {
-            log_it(L_INFO, "Group \"%s\" created"           , l_cdb_i->local_group);
+            log_it(L_INFO, "Group \"%s\" created", l_cdb_i->local_group);
             l_cdb_i->id = 0;
         }
         HASH_ADD_KEYPTR(hh, s_cdb, l_cdb_i->local_group, strlen(l_cdb_i->local_group), l_cdb_i);
     } else {
-        log_it(L_INFO, "Group \"%s\" truncated"             , l_cdb_i->local_group);
-        l_cdb_i->id = 0;
+        log_it(L_INFO, "Group \"%s\" truncated", l_cdb_i->local_group);
+        DAP_DELETE(l_cdb_i->local_group);
+        cdb_destroy(l_cdb_i->cdb);
+        HASH_DEL(s_cdb, l_cdb_i);
+        DAP_DELETE(l_cdb_i);
     }
 
 FIN:
@@ -602,13 +609,6 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         if(!a_store_obj->key) {
             return -2;
         }
-        /*if (dap_fnmatch("*.del", a_store_obj->group, 0)) {
-            char *l_del_group = dap_strdup_printf("%s.del", a_store_obj->group);
-            pcdb_instance l_cdb_d = dap_cdb_get_db_by_group(l_del_group);
-            if (l_cdb_d) {
-                l_cdb_i->id = max(l_cdb_d->id, l_cdb_i->id);
-            }
-        }*/
         cdb_record l_rec;
         l_rec.key = (char *)a_store_obj->key; //dap_strdup(a_store_obj->key);
         int offset = 0;
@@ -633,12 +633,8 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         if(a_store_obj->key) {
             if(cdb_del(l_cdb_i->cdb, a_store_obj->key, (int) strlen(a_store_obj->key)) == -3)
                 ret = 1;
-        } else {
-            cdb_destroy(l_cdb_i->cdb);
-            if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP)) {
-                ret = -1;
-            }
-        }
+        } else if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP))
+            ret = -1;
     }
     return ret;
 }
