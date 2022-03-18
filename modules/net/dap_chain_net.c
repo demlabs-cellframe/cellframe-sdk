@@ -430,15 +430,20 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         l_obj->group = dap_strdup(a_group);
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
-        dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, "gdb");
-        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
+        // get chain id for transfering to client side
+        dap_chain_id_t l_chain_id;
+        l_chain_id.uint64 = 0;
+        dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
+        if (l_chain)  
+            l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
+
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
             if (!l_node_client)
                 continue;
             dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(l_node_client->client);
-            if (l_stream_worker)
+            if (!l_stream_worker)
                 continue;
             dap_stream_ch_chain_pkt_write_mt(l_stream_worker, l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                  l_chain_id.uint64, l_net->pub.cell_id.uint64, l_data_out,
@@ -496,6 +501,9 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
             }
         }
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
+    }else{
+        if (s_debug_more)    
+             log_it(L_WARNING,"Node current state is %d. Real-time syncing is possible when you in NET_STATE_LINKS_ESTABLISHED (and above) state", PVT(l_net)->state);     
     }
 }
 
@@ -1482,43 +1490,26 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 {
     if (!l_net)
         return false;
-    
-    //
-    // create directory for cache checking file (cellframe-node/cache)
-    //
-    
-    char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
 
-    if (dap_mkdir_with_parents(l_cache_dir) != 0)
-    {
+    // create directory for cache checking file (cellframe-node/cache)
+    char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
+    if (dap_mkdir_with_parents(l_cache_dir) != 0){
         log_it(L_WARNING,"Error during one time cache reloading check file creation");
         return false;
     }
 
-    //
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    //
-
     char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "4CFB3928-1A9A-467D-BB5E-3FDB35014E8A");
-
-    if (dap_file_simple_test(l_cache_file))
-    {
+    if (dap_file_simple_test(l_cache_file)){
         log_it(L_DEBUG,"Ledger cache was already reloaded");
         return false;
     }
-
     log_it(L_WARNING,"Start one time ledger cache reloading");
-
     static FILE *s_cache_file = NULL;
-
     s_cache_file = fopen(l_cache_file, "a");
-
-    if(!s_cache_file)
-    {
+    if(!s_cache_file){
         s_cache_file = fopen(l_cache_file, "w");
-
-        if (!s_cache_file) 
-        {
+        if (!s_cache_file){
             dap_fprintf(stderr, "Can't open cache file %s for one time ledger cache reloading.\
                 Please, do it manually using command\
                 cellframe-node-cli net -net <network_name>> ledger reload'\n", l_cache_file);
@@ -1526,15 +1517,10 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         }
     }
 
-    //
     // reload ledger cache (same as net -net <network_name>> ledger reload command)
-    //
-
     if (dap_file_simple_test(l_cache_file))
         s_chain_net_ledger_cache_reload(l_net);
-
     fclose(s_cache_file);
-
     return true; 
 }
 
@@ -2549,6 +2535,62 @@ uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_id);
     return l_net ? PVT(l_net)->acl_idx : (uint16_t)-1;
+}
+
+/**
+ * @brief 
+ * 
+ * @param net_id 
+ * @param group_name 
+ * @return dap_chain_t* 
+ */
+dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name)
+{
+    if (!a_group_name) {
+        log_it(L_ERROR, "GDB group name is NULL ");
+        return NULL;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (!l_net)
+        return false;
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        char *l_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);
+        if (!strcmp(a_group_name, l_chain_group_name)) {
+            DAP_DELETE(l_chain_group_name);
+            return l_chain;
+        }
+        DAP_DELETE(l_chain_group_name);
+    }
+    return NULL;
+}
+
+/**
+ * @brief 
+ * 
+ * @param net_id 
+ * @param group_name 
+ * @return dap_chain_t* 
+ */
+dap_chain_t *dap_chain_get_chain_from_mempool_group(dap_chain_net_id_t a_net_id, const char *a_group_name)
+{
+    if (!a_group_name) {
+        log_it(L_ERROR, "GDB group name is NULL ");
+        return NULL;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (!l_net)
+        return false;
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        char *l_chain_group_name = dap_chain_net_get_gdb_group_mempool(l_chain);
+        if (!strcmp(a_group_name, l_chain_group_name)) {
+            DAP_DELETE(l_chain_group_name);
+            return l_chain;
+        }
+        DAP_DELETE(l_chain_group_name);
+    }
+    return NULL;
 }
 
 
