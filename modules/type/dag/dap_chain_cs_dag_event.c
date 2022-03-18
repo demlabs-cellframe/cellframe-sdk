@@ -200,7 +200,7 @@ bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_eve
     bool ret = dap_chain_global_db_gr_set(dap_strdup(a_event_hash_str), (uint8_t *)l_event_round_item,
             dap_chain_cs_dag_event_round_item_get_size(l_event_round_item),
             a_group);
-    DAP_DELETE(l_event_round_item);
+    //DAP_DELETE(l_event_round_item);
     return ret;
 }
 
