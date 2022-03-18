@@ -1020,20 +1020,25 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
                                         dap_chain_balance_print(l_emission_value));
        return false;
     }   
-    // Get dap_chain_datum_token_t token object from GDB, key is token name
-    char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
-    size_t l_obj_length = 0;
-    dap_chain_datum_token_t *l_token_cache = (dap_chain_datum_token_t *)
-            dap_chain_global_db_gr_get(l_token_item->ticker, &l_obj_length, l_gdb_group);
-    l_token_cache->header_private.current_supply_256 = l_token_item->current_supply;
-    if (!dap_chain_global_db_gr_set(l_token_item->ticker, l_token_cache, l_obj_length, l_gdb_group)) {
-       if(s_debug_more)
-          log_it(L_WARNING, "Ledger cache mismatch");
+
+    if (dap_config_get_item_bool_default(g_config, "ledger", "cached", true)) {
+        // load ledger cache from GDB
+            // Get dap_chain_datum_token_t token object from GDB, key is token name
+        char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
+        size_t l_obj_length = 0;
+        dap_chain_datum_token_t *l_token_cache = (dap_chain_datum_token_t *)
+                dap_chain_global_db_gr_get(l_token_item->ticker, &l_obj_length, l_gdb_group);
+        l_token_cache->header_private.current_supply_256 = l_token_item->current_supply;
+        if (!dap_chain_global_db_gr_set(l_token_item->ticker, l_token_cache, l_obj_length, l_gdb_group)) {
+            if(s_debug_more)
+                log_it(L_WARNING, "Ledger cache mismatch");
+            DAP_DELETE(l_gdb_group);
+            return false;
+        }
+        DAP_DELETE(l_token_cache);
         DAP_DELETE(l_gdb_group);
-        return false;
     }
-    DAP_DELETE(l_token_cache);
-    DAP_DELETE(l_gdb_group);
+
     return true;
 }
 
