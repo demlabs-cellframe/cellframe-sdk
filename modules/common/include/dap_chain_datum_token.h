@@ -178,24 +178,6 @@ extern const char *c_dap_chain_datum_token_flag_str[];
 
 #define dap_chain_datum_token_flag_to_str(a) ((a<=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX) ? c_dap_chain_datum_token_flag_str[a] : "OUT_OF_RANGE")
 
-
-// /**
-//  * @brief dap_chain_datum_token_flag_from_str
-//  * @param a_str
-//  * @return
-//  */
-// static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
-// {
-//     if (a_str == NULL)
-//         return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
-
-//     for (uint16_t i = DAP_CHAIN_DATUM_TOKEN_FLAG_NONE; i <=DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++ ){
-//         if ( strcmp( a_str, c_dap_chain_datum_token_flag_str[i]) == 0 )
-//             return i;
-//     }
-//     return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
-// }
-
 /// -------- General tsd types ----
 // Flags set/unsed
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS           0x0001
