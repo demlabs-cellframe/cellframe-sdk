@@ -3254,11 +3254,8 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items;
-    do {
-        l_ptr = l_ptr->hh.next;
-    }while(l_ptr->hh.next != NULL);
-//    l_ledger_priv->ledger_items->hh.hh_prev;
+    dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items->hh.tbl->tail->prev;
+    l_ptr = l_ptr->hh.next;
     for (dap_chain_ledger_tx_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev){
         if (l_counter >= l_offset){
             dap_chain_datum_tx_t *l_tx = ptr->tx;
