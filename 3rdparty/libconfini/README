@@ -1,0 +1,211 @@
+libconfini {#readme}
+====================
+
+**libconfini** is the ultimate and most consistent INI file parser library
+written in C. Originally designed for parsing configuration files written by
+other programs, it focuses on standardization and parsing exactness and is at
+ease with almost every type of file containing key/value pairs.
+
+The library is fast and suitable for embedded systems. Its algorithms are
+written from scratch and do not depend on any external library, except for the
+C standard headers **stdio.h**, **stdlib.h**, **stdbool.h** and **stdint.h**
+(and for extreme platforms the code [can be also compiled as “bare metal”][1],
+with few or no strings attached to the C Standard Library).
+
+Rather than storing the parsed data, **libconfini** gives the developer the
+freedom to choose what to do with them through a custom callback invoked for
+each INI node read. The API has been designed to be powerful, flexible and
+simple to use.
+
+With **libconfini** you will find in INI files the same serialization power
+that you would normally find in other heavily structured formats (such as JSON,
+YAML, TOML), but with the advantage of using the most human-friendly
+configuration format ever invented (thanks to their informal status, INI files
+are indeed more fluid, expressive and human-friendly than formats explicitly
+designed with the same purpose, such as YAML and TOML). The library's main goal
+is to be uncommonly powerful in the most tedious and error-prone task when
+parsing a text file in C: string handling. Thanks to this, the programmer is
+left free to organize the content parsed as (s)he pleases, assisted by a rich
+set of fine-tuning tools.
+
+
+Features
+--------
+
+* Typed data support (each value can be parsed as a boolean, a number, a
+  string, an array)
+* Single/double quotes support in _Bash style_ (i.e. quotes can be opened and
+  closed multiple times within the same value)
+* Multi-line support
+* Comment support
+* Disabled entry support
+* INI sectioning support (single-level sectioning, as in `[foo]`; absolute
+  nesting, as in `[foo.bar]`; relative nesting, as in `[.bar]`)
+* Automatic sanitization of values, key names and section paths
+* Comparison functions designed just for INI source code (capable, for example,
+  to recognize the equality between <code>"Hello world"</code> and
+  <code>"He"l'lo' world</code>, or between <code>foo bar</code> and
+  <code>foo&nbsp;&nbsp;&nbsp;&nbsp;bar</code>)
+* Callback pattern
+* Thread-safety (each parsing process is fully reentrant)
+* Highly optimized code (single memory allocation for each parsing, heuristic
+  programming, optimization flags)
+* Function modularity (each public function is independent from all other
+  public functions)
+* K.I.S.S. (no public functions are automatically invoked during the parsing --
+  for example, not even single/double quotes are automatically removed from
+  values unless the developer explicitly decides to use the formatting
+  functions provided by the API)
+* Robust and cross-platform file access (UTF-8 support; protection against null
+  byte injection; support of all code representations of new lines -- i.e.
+  ubiquitous support of Classic Mac OS' `CR`, Unix' `LF`, Windows' `CR`+`LF`,
+  RISC OS Open's `LF`+`CR`)
+
+
+Sample usage
+------------
+
+log.ini:
+
+`````````````````````````````````````` ini
+[users]
+have_visited = ronnie, lilly82, robrob
+
+[last_update]
+date = 12.03.2017
+``````````````````````````````````````
+
+example.c:
+
+``````````````````````````````````````````````````````````````````````````` c
+#include <confini.h>
+
+static int callback (IniDispatch * disp, void * v_other) {
+
+  #define IS_KEY(SECTION, KEY) \
+    (ini_array_match(SECTION, disp->append_to, '.', disp->format) && \
+    ini_string_match_ii(KEY, disp->data, disp->format))
+
+  if (disp->type == INI_KEY) {
+
+    if (IS_KEY("users", "have_visited")) {
+
+      /* No need to parse this field as an array right now */
+      printf("People who have visited: %s\n", disp->value);
+
+    } else if (IS_KEY("last_update", "date")) {
+
+      printf("Last update: %s\n", disp->value);
+
+    }
+
+  }
+
+  #undef IS_KEY
+
+  return 0;
+
+}
+
+int main () {
+
+  if (load_ini_path("log.ini", INI_DEFAULT_FORMAT, NULL, callback, NULL)) {
+
+    fprintf(stderr, "Sorry, something went wrong :-(\n");
+    return 1;
+
+  }
+
+  return 0;
+
+}
+```````````````````````````````````````````````````````````````````````````
+
+Output:
+
+````````````````````````````````````````````````
+People who have visited: ronnie, lilly82, robrob
+Last update: 12.03.2017
+````````````````````````````````````````````````
+
+If you are using C++, under `examples/cplusplus/map.cpp` you can find a snippet
+for storing an INI file into a class that relies on a `std::unordered_map`
+object.
+
+For more details, please read the [Library Functions Manual][2] (`man
+libconfini`) -- a standalone HTML version is available [here][3] -- and the
+manual of the header file (`man confini.h`). The code is available on
+[GitHub][4] under [madmurphy/libconfini][5]).
+
+
+Installation
+------------
+
+Despite the small footprint, **libconfini** has been conceived as a shared
+library (but it can be used as a static library as well). An automatic list of
+the distributions that ship the library already compiled is available [here][6].
+
+If a pre-compiled package for your platform is not available, on most Unix-like
+systems it is possible to install **libconfini** using the following common
+steps:
+
+`````````````````` sh
+./configure
+make
+make install-strip
+``````````````````
+
+If the `strip` utility is not available on your machine, use `make install`
+instead (it will produce larger binaries)
+
+For a minimum installation without development files (i.e. static libraries,
+headers, documentation, examples, etc.) use `./configure --disable-devel`.
+
+If the `configure` script is missing you need to generate it by running the
+`bootstrap` script. By default, `bootstrap` will also run the `configure`
+script immediately after having generated it, so you may type the `make`
+command directly after `bootstrap`. To list different options use `./bootstrap
+--help`.
+
+If you are using **Microsoft Windows**, a batch script for compiling
+**libconfini** with [**MinGW**][7] without **Bash** is available
+(`mgwmake.bat`). If you are interested in using **GNU Make** for compiling
+**libconfini**, you can integrate **MinGW** with [**MSYS**][8], or you can
+directly use [**MSYS2**][9] and [its official port][10] of the library.
+Alternatively, [an unofficial port][11] of **libconfini** for [**Cygwin**][12]
+is available.
+
+For further information, see [INSTALL][13].
+
+
+Bindings
+--------
+
+[Danilo Spinella][14] maintains [a D binding package][15] of **libconfini**.
+
+
+Free software
+-------------
+
+This library is free software. You can redistribute it and/or modify it under
+the terms of the GPL license version 3 or any later version. See [COPYING][16]
+for details.
+
+
+  [1]: https://madmurphy.github.io/libconfini/html/baremetal.html
+  [2]: https://madmurphy.github.io/libconfini/html/libconfini.html
+  [3]: https://madmurphy.github.io/libconfini/manual.html
+  [4]: https://github.com/
+  [5]: https://github.com/madmurphy/libconfini
+  [6]: https://repology.org/project/libconfini/versions
+  [7]: http://www.mingw.org/
+  [8]: http://www.mingw.org/wiki/MSYS
+  [9]: https://www.msys2.org/
+  [10]: https://packages.msys2.org/base/mingw-w64-libconfini
+  [11]: https://github.com/fd00/yacp/tree/master/libconfini
+  [12]: https://www.cygwin.com/
+  [13]: https://madmurphy.github.io/libconfini/html/install.html
+  [14]: https://danyspin97.org/
+  [15]: https://github.com/DanySpin97/libconfini-d
+  [16]: https://github.com/madmurphy/libconfini/blob/master/COPYING
+
