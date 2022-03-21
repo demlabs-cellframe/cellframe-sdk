@@ -4,7 +4,7 @@ project(dap_global_db_test)
 
 IF (NOT DEFINED DAP_SDK_ROOT)
     SET(DAP_SDK_ROOT    "${CMAKE_CURRENT_SOURCE_DIR}/../../cellframe-sdk")
-    SET(DAP_LIBSDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../build/cellframe-sdk")
+    SET(DAP_LIBSDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../build")
 ENDIF()
 
 ADD_DEFINITIONS(-DDAP_SDK_ROOT=${DAP_SDK_ROOT})
