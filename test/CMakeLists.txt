@@ -25,6 +25,7 @@ include_directories(
 	${DAP_SDK_ROOT}/dap-sdk/core/include/
 	${DAP_SDK_ROOT}/dap-sdk/core/src/unix/
 	${DAP_SDK_ROOT}/dap-sdk/crypto/src/XKCP/lib/common
+	${DAP_SDK_ROOT}/3rdparty/uthash/src/
 	)
 
 link_directories(
