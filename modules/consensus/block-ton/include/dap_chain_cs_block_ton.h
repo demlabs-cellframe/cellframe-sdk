@@ -101,8 +101,8 @@ typedef struct dap_chain_cs_block_ton_items {
 	dap_enc_key_t *blocks_sign_key;
 	// dap_timerfd_t *cs_timer;
 
-    struct dap_chain_cs_block_ton_items * next;
-    struct dap_chain_cs_block_ton_items * prev;
+    struct dap_chain_cs_block_ton_items *next;
+    struct dap_chain_cs_block_ton_items *prev;
 
 	uint16_t round_start_sync_timeout;
 	uint16_t consensus_start_period;
@@ -112,6 +112,8 @@ typedef struct dap_chain_cs_block_ton_items {
 	uint16_t next_candidate_delay; // задежка предложения следующего кандидата (в зависимости от приоритетов валидатора)
 	uint16_t round_attempts_max; // всего попыток в раунде
 	uint16_t round_attempt_duration; // длительность попытки
+	uint16_t first_event_in_attempt_delay;
+	uint16_t first_message_delay;
 
 	bool time_proc_lock; // flag - skip check if prev check is not finish
 
@@ -166,10 +168,11 @@ typedef struct dap_chain_cs_block_ton_message_item {
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_item_t;
 
 
-// struct for get hash from any messages
+// struct for get info from any messages
 typedef struct dap_chain_cs_block_ton_message_getinfo {
 	dap_chain_hash_fast_t candidate_hash;
 	dap_chain_cs_block_ton_round_id_t round_id;
+	uint16_t attempt_number;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_getinfo_t;
 
 // technical messages
@@ -222,11 +225,16 @@ typedef struct dap_chain_cs_block_ton_message_commitsign {
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_commitsign_t;
 
 typedef struct dap_chain_cs_block_ton_store_hdr {
-	uint16_t sign_count;
-	uint16_t approve_count;
-	uint16_t reject_count;
-	uint16_t vote_count;
-	uint16_t precommit_count;
+	bool sign_collected; // cellect 2/3 min 
+	bool approve_collected;
+	// bool reject_done;
+	bool vote_collected;
+	bool precommit_collected;
+	// uint16_t sign_count;
+	// uint16_t approve_count;
+	// uint16_t reject_count;
+	// uint16_t vote_count;
+	// uint16_t precommit_count;
 	size_t candidate_size;
 	dap_chain_cs_block_ton_round_id_t round_id;
 	dap_chain_hash_fast_t candidate_hash;
