@@ -1241,6 +1241,29 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     return l_ledger;
 }
 
+bool s_chain_ledger_token_tsd_check(dap_chain_ledger_token_item_t * l_token_item, dap_chain_datum_token_emission_t *a_token_emission)
+{
+    // for multiple tsd we need to parse every tsd in cycle
+    if (!l_token_item){
+        log_it(L_WARNING, "Token object is null. Probably, you set unknown token ticker in -token parameter");
+        return false;
+    }
+    dap_tsd_t *l_tsd = dap_chain_datum_token_tsd_get(l_token_item->datum_token, l_token_item->datum_token_size);
+    if (!l_tsd)
+        return false;
+    switch(l_tsd->type){
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
+            if (memcmp(&a_token_emission->hdr.address, (dap_chain_addr_t *)l_tsd->data, sizeof(dap_chain_addr_t))) {
+                log_it(L_WARNING, "Address %s is not allowed for emission for token %s",
+                       dap_chain_addr_to_str(&a_token_emission->hdr.address), l_token_item->ticker);
+                return false;
+            }
+        default: break;
+    }
+    log_it(L_WARNING, "Private tokens limitations were checked successful");
+    return true;
+}
+
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size)
 {
     int l_ret = 0;
@@ -1290,6 +1313,12 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
     if (compare256(l_token_item->current_supply, l_emission->hdr.value_256) < 0)
         return -4;
+    //additional check for private tokens
+    if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
+            (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)) {
+        if (!s_chain_ledger_token_tsd_check(l_token_item, l_emission))
+                return -5;
+    }
     switch (l_emission->hdr.type){
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
             dap_chain_ledger_token_item_t *l_token_item=NULL;
@@ -1340,46 +1369,6 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     return l_ret;
 }
 
-bool s_chain_compare_token_addresses(dap_chain_addr_t * l_add_addr01, dap_chain_addr_t * l_add_addr02)
-{
-    char *l_addr_str01 = dap_chain_addr_to_str(l_add_addr01);
-    char *l_addr_str02 = dap_chain_addr_to_str(l_add_addr02);
-    if (strcmp(l_addr_str01, l_addr_str02) == 0)
-        return true;
-    else
-        return false;
-}
-
-// new__
-// s_chain_ledger_token_tsd_check
-//
-
-bool s_chain_ledger_token_tsd_check(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t * l_token_item, dap_chain_datum_token_emission_t *a_token_emission)
-{   
-    // for multiple tsd we need to parse every tsd in cycle
-    if (!l_token_item){
-        log_it(L_WARNING, "Token object is null. Probably, you set unknown token ticker in -token parameter");
-        return false;
-    }
-    dap_tsd_t *l_tsd = dap_chain_datum_token_tsd_get(l_token_item->datum_token, l_token_item->datum_token_size);
-    if (!l_tsd)
-        return false;
-    switch(l_tsd->type){
-        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD: {
-            //s_token_tsd_parse(a_ledger, l_token_item , l_token_item->datum_token, l_token_item->datum_token_size);
-            dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-            if (!s_chain_compare_token_addresses(&a_token_emission->hdr.address, l_add_addr)){
-                log_it(L_WARNING, "Address %s is not allowed for emission for token %s",
-                       dap_chain_addr_to_str(&a_token_emission->hdr.address), l_token_item->ticker);
-                return false;
-            }
-        } break;
-        default: break;
-    }
-    log_it(L_WARNING, "Private tokens limitations were checked successful");
-    return true;
-}
-
 /**
  * @brief dap_chain_ledger_token_emission_add
  * @param a_token_emission
@@ -1396,14 +1385,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
     pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
     HASH_FIND_STR(l_ledger_priv->tokens, c_token_ticker, l_token_item);
     pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
-    dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
-    //additional check for private tokens
-    if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) | (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE))
-    {
-        if (!s_chain_ledger_token_tsd_check(a_ledger, l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
-                return -1;
-    }
-   
+    dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL; 
     if (!l_token_item && a_from_threshold)
         return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN;
     // check if such emission is already present in table
