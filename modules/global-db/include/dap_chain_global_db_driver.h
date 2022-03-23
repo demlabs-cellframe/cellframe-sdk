@@ -29,10 +29,16 @@
 #include "dap_common.h"
 #include "dap_list.h"
 
+enum RECORD_FLAGS {
+	RECORD_COMMON = 0,    // 0000
+	RECORD_PINNED = 1,    // 0001
+};
+
 typedef struct dap_store_obj {
     uint64_t id;
     uint64_t timestamp;
     uint8_t type;
+    uint8_t flags;// RECORD_FLAGS
     char *group;
     char *key;
     const char *c_key;

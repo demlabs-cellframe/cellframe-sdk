@@ -283,6 +283,35 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
     return l_store_data;
 }
 
+/**
+ * @brief Gets an object value with parameters from database by a_key and a_group.
+ *
+ * @param a_key an object key string
+ * @param a_data_len_out a length of values that were gotten
+ * @param a_flags_out record flags that were gotten
+ * @param a_group a group name string
+ * @return If successful, returns a pointer to the object value.
+ */
+uint8_t* dap_chain_global_db_gr_flags_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group)
+{
+    uint8_t *l_ret_value = NULL;
+    // read several items, 0 - no limits
+    size_t l_data_len_out = 0;
+    if(a_data_len_out)
+        l_data_len_out = *a_data_len_out;
+    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_data_len_out);
+    if(l_store_data) {
+        l_ret_value = (l_store_data->value) ? DAP_NEW_SIZE(uint8_t, l_store_data->value_len) : NULL; //ret_value = (store_data->value) ? strdup(store_data->value) : NULL;
+        if(l_ret_value && l_store_data->value && l_store_data->value_len)
+            memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
+        if(a_data_len_out)
+            *a_data_len_out = l_store_data->value_len;
+        if(a_flags_out)
+            *a_flags_out = l_store_data->flags;
+        dap_store_obj_free(l_store_data, l_data_len_out);
+    }
+    return l_ret_value;
+}
 
 /**
  * @brief Gets an object value from database by a_key and a_group.
@@ -294,21 +323,8 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
-    uint8_t *l_ret_value = NULL;
-    // read several items, 0 - no limits
-    size_t l_data_len_out = 0;
-    if(a_data_len_out)
-        l_data_len_out = *a_data_len_out;
-    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_data_len_out);
-    if(l_store_data) {
-        l_ret_value = (l_store_data->value) ? DAP_NEW_SIZE(uint8_t, l_store_data->value_len) : NULL; //ret_value = (store_data->value) ? strdup(store_data->value) : NULL;
-        if(l_ret_value && l_store_data->value&& l_store_data->value_len)
-            memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
-        if(a_data_len_out)
-            *a_data_len_out = l_store_data->value_len;
-        dap_store_obj_free(l_store_data, l_data_len_out);
-    }
-    return l_ret_value;
+    uint8_t l_flags_out = RECORD_COMMON;
+    return dap_chain_global_db_gr_flags_get(a_key, a_data_len_out, &l_flags_out, a_group);
 }
 
 /**
@@ -551,18 +567,65 @@ void dap_global_db_obj_track_history(void* a_store_data)
 }
 
 /**
- * @brief Adds a value to a database.
+ * @brief Set/Reset key as pinned in the database
+ * @param a_key a object key string
+ * @param a_group a group name string
+ * @details Save/Remove one entry to/from pinned GROUP_PINNED group
+ * @return True if successful, false otherwise.
+ */
+//bool dap_chain_global_db_gr_set_pinned(char *a_key, const char *a_group, bool state)
+//{
+//	if (a_key && a_group) {
+//		char *l_key = dap_strdup_printf("%s-%s", a_group, a_key);
+//		// Put group and key into the group for pinned records GROUP_PINNED
+//		if (state) {
+//			int l_res = dap_chain_global_db_gr_set(dap_strdup(l_key), dap_strdup("true"), dap_strlen("true"), GROUP_PINNED);
+//			return l_res;
+//		}
+//		// Remove group and key from pinned GROUP_PINNED group
+//		else {
+//			int l_res = dap_chain_global_db_gr_del(a_key, a_group);
+//			return l_res;
+//		}
+//	}
+//	return false;
+//}
+//
+///**
+// * @brief Check if the record is pinned or not
+// * @param a_key a object key string
+// * @param a_group a group name string
+// * @details Read one entry from pinned GROUP_PINNED group
+// * @return True if successful, false otherwise.
+// */
+//bool dap_chain_global_db_gr_get_pinned(char *a_key, const char *a_group)
+//{
+//	char *l_key = dap_strdup_printf("%s-%s", a_group, a_key);
+//	// Get group and key from for pinned GROUP_PINNED group
+//	size_t l_key_length = 0;
+//	char *l_value = dap_chain_global_db_gr_get(l_key, &l_key_length, GROUP_PINNED);
+//	DAP_DELETE(l_key);
+//	if (l_key_length > 0 && !dap_strcmp(l_value, "true")) {
+//		return true;
+//	}
+//	return false;
+//}
+
+/**
+ * @brief Adds a value with parameters to a database.
  * @param a_key a object key string
  * @param a_value a value to be added
  * @param a_value_len length of value. If a_value_len=-1, the function calculates length.
  * @param a_group a group name string
+ * @param a_flags flags for record (RECORD_COMMON, RECORD_PINNED)
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
  * @return True if successful, false otherwise.
  */
-bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, const char *a_group)
+bool dap_chain_global_db_gr_flags_set(char *a_key, void *a_value, size_t a_value_len, const char *a_group, uint8_t a_flags)
 {
     dap_store_obj_t store_data;
     memset(&store_data, 0, sizeof(dap_store_obj_t));
+    store_data.flags = a_flags;
     store_data.key = dap_strdup(a_key);
     store_data.value_len = (a_value_len == (size_t) -1) ? dap_strlen((const char*) a_value) : a_value_len;
     store_data.value = store_data.value_len ? DAP_DUP_SIZE(a_value, store_data.value_len) : NULL;
@@ -586,6 +649,27 @@ bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, 
     }
 
     return !l_res;
+}
+
+/**
+ * @brief Adds a value to a database.
+ * @param a_key a object key string
+ * @param a_value a value to be added
+ * @param a_value_len length of value. If a_value_len=-1, the function calculates length.
+ * @param a_group a group name string
+ * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
+ * @return True if successful, false otherwise.
+ */
+bool dap_chain_global_db_gr_set(char *a_key, void *a_value, size_t a_value_len, const char *a_group)
+{
+	uint8_t l_flags = RECORD_COMMON;
+	return dap_chain_global_db_gr_flags_set(a_key, a_value, a_value_len, a_group, l_flags);
+}
+
+bool dap_chain_global_db_gr_pinned_set(char *a_key, void *a_value, size_t a_value_len, const char *a_group)
+{
+	uint8_t l_flags = RECORD_PINNED;
+	return dap_chain_global_db_gr_flags_set(a_key, a_value, a_value_len, a_group, l_flags);
 }
 
 /**
