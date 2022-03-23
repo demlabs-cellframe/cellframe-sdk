@@ -123,7 +123,7 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         size_t l_enc_key_size = 32;
         int l_enc_headers = 0;
         bool l_is_legacy=true;
-        char * l_tok_tmp = NULL;
+        char * l_tok_tmp = l_dg->url_path;
         char * l_tok = strtok_r(l_dg->url_path, ",",&l_tok_tmp)   ;
         do {
             char * l_subtok_tmp = NULL;
