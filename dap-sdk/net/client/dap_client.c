@@ -211,7 +211,9 @@ void dap_client_set_auth_cert(dap_client_t *a_client, const char *a_chain_net_na
         return;
     }
     const char *l_cert_name = dap_config_get_item_str(l_cfg, "general", "auth_cert");
-    dap_cert_t *l_cert = l_cert_name ? dap_cert_find_by_name(l_cert_name) : NULL;
+    if (!l_cert_name)
+        return;
+    dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
     if (!l_cert) {
         dap_config_close(l_cfg);
         log_it(L_ERROR,"l_cert is NULL by dap_cert_find_by_name");
