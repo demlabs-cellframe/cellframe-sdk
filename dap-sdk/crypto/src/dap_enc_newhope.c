@@ -26,6 +26,8 @@
 #include <string.h>
 #include <assert.h>
 #include <inttypes.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "dap_enc_newhope.h"
 #include "dap_common.h"
@@ -82,16 +84,39 @@ void dap_enc_newhope_kem_key_new_generate(struct dap_enc_key * a_key, const void
     return;
 }
 
+/**
+ * @brief Сheck whether a memory address is writable or not
+ * @param a_p Pointer
+ * @param a_len Checked memory size
+ * @return True if the memory is writable, otherwise false
+ */
+bool is_writeable_memory(void *a_p, size_t a_len)
+{
+    int l_fd = open("/dev/zero", O_RDONLY);
+    bool l_writeable;
+    if (l_fd < 0)
+        return FALSE; // Should not happen
+    l_writeable = read(l_fd, a_p, a_len) == a_len;
+    close(l_fd);
+    return l_writeable;
+}
+
 size_t dap_enc_newhope_pbk_enc(struct dap_enc_key * a_key, const void * a_pub,
         size_t a_pub_size, void ** a_sendb)
 {
+    // Check size of the public key
     if(a_pub_size != sizeof (newhope_public_key_t))
     {
         log_it(L_ERROR, "newhope wrong a_pub_size");
         return 0;
     }
     newhope_public_key_t *pk = (newhope_public_key_t*)a_pub;
-
+    // Check the validity of the public key
+    if(!pk || (pk->kind != NEWHOPE_1024 && pk->kind != NEWHOPE_TOY) || !is_writeable_memory(pk->data, NEWHOPE_CPAPKE_PUBLICKEYBYTES))
+    {
+        log_it(L_ERROR, "newhope wrong public key");
+        return 0;
+    }
     *a_sendb = DAP_NEW_SIZE(uint8_t, NEWHOPE_CPAKEM_CIPHERTEXTBYTES);
             //Bob derives a secret key and creates a response
     uint8_t key_b[NEWHOPE_SYMBYTES];
