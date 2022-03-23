@@ -65,7 +65,7 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t *a_token, size_
 {
     // Check if token type could have tsd section
     size_t l_tsd_size;
-    size_t l_hdr_size = sizeof(dap_chain_datum_token_old_t);
+    size_t l_hdr_size = sizeof(dap_chain_datum_token_t);
     if (l_hdr_size > a_token_size){
         log_it(L_WARNING, "Token size smaller then header, corrupted data");
         return NULL;

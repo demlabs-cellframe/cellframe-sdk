@@ -4,7 +4,7 @@ project(dap_global_db_test)
 
 IF (NOT DEFINED DAP_SDK_ROOT)
     SET(DAP_SDK_ROOT    "${CMAKE_CURRENT_SOURCE_DIR}/../../cellframe-sdk")
-    SET(DAP_LIBSDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../build/cellframe-sdk")
+    SET(DAP_LIBSDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../build")
 ENDIF()
 
 ADD_DEFINITIONS(-DDAP_SDK_ROOT=${DAP_SDK_ROOT})
@@ -25,6 +25,7 @@ include_directories(
 	${DAP_SDK_ROOT}/dap-sdk/core/include/
 	${DAP_SDK_ROOT}/dap-sdk/core/src/unix/
 	${DAP_SDK_ROOT}/dap-sdk/crypto/src/XKCP/lib/common
+	${DAP_SDK_ROOT}/3rdparty/uthash/src/
 	)
 
 link_directories(

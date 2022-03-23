@@ -197,13 +197,13 @@ static void *s_list_thread_proc(void *arg)
         char *l_del_group_name_replace = NULL;
         char l_obj_type;
         if (!dap_fnmatch("*.del", l_group_cur->name, 0)) {
-            l_obj_type = 'd';
+            l_obj_type = DAP_DB$K_OPTYPE_DEL;
             size_t l_del_name_len = strlen(l_group_cur->name) - 4; //strlen(".del");
             l_del_group_name_replace = DAP_NEW_SIZE(char, l_del_name_len + 1);
             memcpy(l_del_group_name_replace, l_group_cur->name, l_del_name_len);
             l_del_group_name_replace[l_del_name_len] = '\0';
         } else {
-            l_obj_type = 'a';
+            l_obj_type = DAP_DB$K_OPTYPE_ADD;
         }
         uint64_t l_item_start = l_group_cur->last_id_synced + 1;
         while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
@@ -219,15 +219,13 @@ static void *s_list_thread_proc(void *arg)
             for (size_t i = 0; i < l_item_count; i++) {
                 dap_store_obj_t *l_obj_cur = l_objs + i;
                 l_obj_cur->type = l_obj_type;
-                if (l_obj_type == 'd') {
+                if (l_obj_type == DAP_DB$K_OPTYPE_DEL) {
                     if (l_limit_time && l_obj_cur->timestamp < l_limit_time) {
-                        char *l_key_dup = dap_strdup(l_obj_cur->key);
                         dap_chain_global_db_driver_delete(l_obj_cur, 1);
-                        l_obj_cur->key = l_key_dup;
                         continue;
                     }
                     DAP_DELETE((char *)l_obj_cur->group);
-                    l_obj_cur->group = l_del_group_name_replace;
+                    l_obj_cur->group = dap_strdup(l_del_group_name_replace);
                 }
                 dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
                 uint64_t l_cur_id = l_obj_cur->id;
@@ -249,6 +247,7 @@ static void *s_list_thread_proc(void *arg)
                 l_dap_db_log_list->list_read = l_list;
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         }
+        DAP_DEL_Z(l_del_group_name_replace);
     }
 
     pthread_mutex_lock(&l_dap_db_log_list->list_mutex);

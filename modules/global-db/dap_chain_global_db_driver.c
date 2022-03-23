@@ -76,12 +76,14 @@ static dap_slist_t s_db_reqs_list = {0};                                    /* A
  * @param a_filename_db a path to a database file
  * @return Returns 0, if successful; otherwise <0.
  */
-int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db)
+int dap_db_driver_init(const char *a_driver_name, const char *a_filename_db, int a_mode_async)
 {
 int l_ret = -1;
 
     if (s_used_driver[0] )
         dap_db_driver_deinit();
+
+    s_db_drvmode_async = a_mode_async;
 
     // Fill callbacks with zeros
     memset(&s_drv_callback, 0, sizeof(dap_db_driver_callbacks_t));
@@ -255,7 +257,7 @@ dap_store_obj_t *l_store_obj_cur;
     if(!a_store_obj || !a_store_count)
         return -1;
 
-    debug_if(s_dap_global_db_debug_more,  L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
+    debug_if(s_dap_global_db_debug_more, L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
 
     l_store_obj_cur = a_store_obj;                                          /* We have to  use a power of the address's incremental arithmetic */
     l_ret = 0;                                                              /* Preset return code to OK */
