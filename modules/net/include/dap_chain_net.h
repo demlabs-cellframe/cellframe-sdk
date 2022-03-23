@@ -136,6 +136,8 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 
 dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell);
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net);
+dap_chain_t * dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name);
+dap_chain_t * dap_chain_get_chain_from_mempool_group(dap_chain_net_id_t a_net_id, const char *a_group_name);
 
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
@@ -171,6 +173,15 @@ DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_cha
         const char c_mempool_group_str[]="mempool";
 		return dap_strdup_printf("%s.chain-%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
     }
+    return NULL;
+}
+
+DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_from_chain(dap_chain_t * l_chain)
+{
+    dap_chain_net_t * l_net = l_chain ? dap_chain_net_by_id(l_chain->net_id) : NULL;
+    if ( l_net )
+		return dap_strdup_printf( "chain-gdb.%s.chain-%016llX",l_net->pub.name, l_chain->id.uint64);
+
     return NULL;
 }
 

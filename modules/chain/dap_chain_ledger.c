@@ -415,7 +415,7 @@ int dap_chain_ledger_token_add(dap_ledger_t * a_ledger,  dap_chain_datum_token_t
     if (!dap_chain_global_db_gr_set(dap_strdup(a_token->ticker), l_token_cache, a_token_size, l_gdb_group)) {
         if(s_debug_more)
             log_it(L_WARNING, "Ledger cache mismatch");
-        DAP_DELETE(l_token_cache);
+        //DAP_DELETE(l_token_cache);
     }
     DAP_DELETE(l_gdb_group);
     l_token_item->type = a_token->type;
@@ -1067,11 +1067,11 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
     {
         if(s_debug_more)
             log_it(L_WARNING, "Ledger cache mismatch");
-        DAP_DELETE(l_token_cache);
+        //DAP_DELETE(l_gdb_group);
+        return false;
     }
 
     DAP_DELETE(l_gdb_group);
-
     return true;
 }
 
@@ -1355,16 +1355,13 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             // update token current_supply_
             // 
 
-            if (!PVT(a_ledger)->load_mode && l_token_item && !s_token_supply_limit_disable)
-            {
+            if (!PVT(a_ledger)->load_mode && l_token_item && !s_token_supply_limit_disable){
                 if (!s_update_token_cache(a_ledger, l_token_item, l_token_emission_item->datum_token_emission->hdr.value))
                    return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
             }
 
             if (s_token_supply_limit_disable)
-            {
                 log_it(L_WARNING,"s_token_supply_limit_disable is enabled in config, please fix it and disable");
-            }
 
             l_token_emission_item->datum_token_emission_size = a_token_emission_size;
             pthread_rwlock_wrlock( l_token_item ? &l_token_item->token_emissions_rwlock
@@ -1385,7 +1382,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                 char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_EMISSIONS_STR);
                 if (!dap_chain_global_db_gr_set(dap_strdup(l_hash_str), l_emission_cache, a_token_emission_size, l_gdb_group)) {
                     log_it(L_WARNING, "Ledger cache mismatch");
-                    DAP_DELETE(l_emission_cache);
+                   // DAP_DELETE(l_emission_cache);
                 }
                 DAP_DELETE(l_gdb_group);
             }            char * l_token_emission_address_str = dap_chain_addr_to_str(&(l_token_emission_item->datum_token_emission->hdr.address) );
@@ -1506,7 +1503,7 @@ const char* dap_chain_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,
     HASH_FIND(hh, l_ledger_priv->ledger_items, a_tx_hash, sizeof (*a_tx_hash), l_item);
     if (l_item) {
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
-        return l_item->cache_data.token_ticker;
+            return l_item->cache_data.token_ticker;
     }
     dap_chain_ledger_tx_spent_item_t *l_spent_item;
     HASH_FIND(hh, l_ledger_priv->spent_items, a_tx_hash, sizeof (*a_tx_hash), l_spent_item);
@@ -2206,7 +2203,7 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
     if (!dap_chain_global_db_gr_set(dap_strdup(a_balance->key), l_balance_value, sizeof(uint128_t), l_gdb_group)) {
         if(s_debug_more)
             log_it(L_WARNING, "Ledger cache mismatch");
-        DAP_DELETE(l_balance_value);
+        //DAP_DELETE(l_balance_value);
         return -1;
     }
     DAP_DELETE(l_gdb_group);
@@ -2228,7 +2225,7 @@ static int s_tx_cache_update(dap_ledger_t *a_ledger, dap_chain_ledger_tx_item_t 
     if (!dap_chain_global_db_gr_set(l_tx_hash_str, l_tx_cache, l_tx_size + sizeof(a_item->cache_data), l_gdb_group)) {
         if(s_debug_more)
             log_it(L_WARNING, "Ledger cache mismatch");
-        DAP_DELETE(l_tx_cache);
+        //DAP_DELETE(l_tx_cache);
         return -1;
     }
     DAP_DELETE(l_gdb_group);
@@ -2559,7 +2556,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         if (!dap_chain_global_db_gr_set(dap_strdup(l_tx_hash_str), l_tx_cache, l_tx_size + sizeof(l_item_tmp->cache_data), l_gdb_group)) {
             if(s_debug_more)
                 log_it(L_WARNING, "Ledger cache mismatch");
-            DAP_DELETE(l_tx_cache);
+           // DAP_DELETE(l_tx_cache);
         }
         DAP_DELETE(l_gdb_group);
         if (!l_from_threshold)
@@ -2648,7 +2645,7 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
             if (!dap_chain_global_db_gr_set(l_tx_hash_str, l_cache_data, -1, l_gdb_group)) {
                 if(s_debug_more)
                     log_it(L_WARNING, "Ledger cache mismatch");
-                DAP_DELETE(l_cache_data);
+               // DAP_DELETE(l_cache_data);
             }
             DAP_DELETE(l_gdb_group);
         }
@@ -3278,4 +3275,31 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
 
 int dap_chain_ledger_verificator_rwlock_init(void) {
     return pthread_rwlock_init(&s_verificators_rwlock, NULL);
+}
+
+dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page){
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+    size_t l_offset = a_count * (a_page - 1);
+    size_t l_count = HASH_COUNT(l_ledger_priv->ledger_items);
+    if (a_page < 2)
+        l_offset = 0;
+    if (l_offset > l_count){
+        return NULL;
+    }
+    dap_list_t *l_list = NULL;
+    size_t l_counter = 0;
+    size_t l_end = l_offset + a_count;
+    dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items;
+    do {
+        l_ptr = l_ptr->hh.next;
+    }while(l_ptr->hh.next != NULL);
+//    l_ledger_priv->ledger_items->hh.hh_prev;
+    for (dap_chain_ledger_tx_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev){
+        if (l_counter >= l_offset){
+            dap_chain_datum_tx_t *l_tx = ptr->tx;
+            l_list = dap_list_append(l_list, l_tx);
+        }
+        l_counter++;
+    }
+    return l_list;
 }

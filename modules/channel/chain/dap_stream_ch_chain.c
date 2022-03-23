@@ -705,26 +705,32 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             // apply received transaction
             dap_chain_t *l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
-            if(l_chain) {
+            // if chain is zero, it can be on of GDB group
+            if (!l_chain)
+                 l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
+
+            if (l_chain) {
                 if(l_chain->callback_add_datums_with_group){
                     void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
-                            (dap_chain_datum_t** restrict) l_store_obj_value, 1,
+                            (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
                 }
             }
-            // save data to global_db
-            dap_store_obj_t *l_obj_copy = dap_store_obj_copy(l_obj, 1);
-            if(!dap_chain_global_db_obj_save(l_obj_copy, 1)) {
-                struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
-                dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
-                                                  s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
-            } else {
-                if (s_debug_more)
-                    log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
-            }
-            DAP_DELETE(l_obj_copy->group);
-            DAP_DELETE(l_obj_copy);
+            else{
+                // save data to global_db
+                dap_store_obj_t *l_obj_copy = dap_store_obj_copy(l_obj, 1);
+                if(!dap_chain_global_db_obj_save(l_obj_copy, 1)) {
+                    struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
+                    dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
+                                                    s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
+                } else {
+                    if (s_debug_more)
+                        log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
+                }
+                DAP_DELETE(l_obj_copy->group);
+                DAP_DELETE(l_obj_copy);
+             }
         }
         if(l_store_obj) {
             dap_store_obj_free(l_store_obj, l_data_obj_count);
