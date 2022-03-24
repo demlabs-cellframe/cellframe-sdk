@@ -96,7 +96,6 @@ size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a
 
     uint8_t *bob_tmp_pub = NULL;
 
-    *b_pub = NULL;
     if(b_key->priv_key_data_size == 0) { // need allocate mamory for priv key
         b_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
         b_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
@@ -105,7 +104,9 @@ size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a
 
     if(a_pub_size != MSRLN_PKA_BYTES) {
         ret = 0;
-        DAP_DELETE(b_pub);
+        if(*b_pub) {
+            DAP_DELETE(b_pub);
+        }
         b_pub = NULL;
         DAP_DELETE(b_key->priv_key_data);
         b_key->priv_key_data = NULL;
