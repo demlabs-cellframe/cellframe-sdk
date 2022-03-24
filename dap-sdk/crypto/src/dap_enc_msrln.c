@@ -83,11 +83,11 @@ void dap_enc_msrln_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
 
 
 /**
- * @brief dap_enc_msrln16_encode
- * @param k
- * @param alice_priv
- * @param alice_msg
- * @param alice_msg_len
+ * @brief dap_enc_msrln_gen_bob_shared_key
+ * @param b_key
+ * @param a_pub
+ * @param a_pub_size
+ * @param b_pub
  * @return
  */
 size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a_pub, size_t a_pub_size, void ** b_pub)
@@ -96,7 +96,7 @@ size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a
 
     uint8_t *bob_tmp_pub = NULL;
 
-    if(b_key->priv_key_data_size == 0) { // need allocate mamory for priv key
+    if(b_key->priv_key_data_size == 0) { // need allocate memory for priv key
         b_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
         b_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
     }
