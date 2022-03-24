@@ -360,7 +360,7 @@ dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block, size_t a_blo
         }
         l_offset += l_sign_size;
         l_sign_cur++;
-        l_sign = (dap_sign_t*) a_block->meta_n_datum_n_sign+l_offset;
+        l_sign = (dap_sign_t*)(a_block->meta_n_datum_n_sign+l_offset);
     }
     return l_sign_cur == a_sign_num ? l_sign : NULL;
 }
