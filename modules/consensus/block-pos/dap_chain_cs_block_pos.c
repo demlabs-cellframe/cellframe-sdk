@@ -29,7 +29,7 @@
 #include "dap_strfuncs.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
-#include "dap_chain_cs_blocks_session.h"
+// #include "dap_chain_cs_blocks_session.h"
 #include "dap_chain_cs_block_pos.h"
 #include "dap_chain_net_srv_stake.h"
 #include "dap_chain_ledger.h"
@@ -160,7 +160,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     } else {
         log_it(L_ERROR, "No sign certificate provided, can't sign any blocks");
     }
-    dap_chain_cs_blocks_session_init(a_chain, PVT(l_pos)->blocks_sign_key );
+    //dap_chain_cs_blocks_session_init(a_chain, PVT(l_pos)->blocks_sign_key );
     return 0;
 }
 
