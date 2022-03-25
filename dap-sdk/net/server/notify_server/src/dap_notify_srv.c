@@ -82,7 +82,7 @@ int dap_notify_server_init()
     s_notify_server_queue_inter = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof (dap_events_socket_t*)*l_workers_count );
     for(uint32_t i = 0; i < l_workers_count; i++){
         s_notify_server_queue_inter[i] = dap_events_socket_queue_ptr_create_input(s_notify_server_queue);
-        dap_events_socket_assign_on_worker_mt(s_notify_server_queue_inter[i], dap_events_worker_get(i));
+        //dap_events_socket_assign_on_worker_mt(s_notify_server_queue_inter[i], dap_events_worker_get(i));
     }
 
     log_it(L_NOTICE,"Notify server initalized");
