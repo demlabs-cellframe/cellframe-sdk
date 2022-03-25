@@ -141,7 +141,7 @@ int dap_notify_server_send_mt(const char *a_data)
 {
     if(!s_notify_server_queue) // If not initialized - nothing to notify
         return 0;
-    return dap_events_socket_queue_ptr_send(s_notify_server_queue, dap_strdup(a_data));
+    return dap_events_socket_queue_ptr_send(s_notify_server_queue, dap_strdup_printf("%s\r\n", a_data));
 }
 
 

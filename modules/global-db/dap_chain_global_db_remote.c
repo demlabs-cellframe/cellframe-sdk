@@ -40,7 +40,7 @@ static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name
 
 /**
  * @brief Sets an adress of a current node and no expire time.
- * 
+ *
  * @param a_address an adress of a current node
  * @param a_net_name a net name string
  * @return Returns true if siccessful, otherwise false
@@ -52,7 +52,7 @@ bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name )
 
 /**
  * @brief Sets an adress of a current node and expire time.
- * 
+ *
  * @param a_address an adress of a current node
  * @param a_net_name a net name string
  * @return Returns true if siccessful, otherwise false
@@ -65,7 +65,7 @@ bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
 
 /**
  * @brief Gets an adress of current node by a net name.
- * 
+ *
  * @param a_net_name a net name string
  * @return Returns an adress if successful, otherwise 0.
  */
@@ -115,7 +115,7 @@ uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 
 /**
  * @brief Sets last id of a remote node.
- * 
+ *
  * @param a_node_addr a node adress
  * @param a_id id
  * @param a_group a group name string
@@ -134,7 +134,7 @@ bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_grou
 
 /**
  * @brief Gets last id of a remote node.
- * 
+ *
  * @param a_node_addr a node adress
  * @param a_group a group name string
  * @return Returns id if successful, otherwise 0.
@@ -157,39 +157,53 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 
 /**
  * @brief Sets the last hash of a remote node.
- * 
+ *
  * @param a_node_addr a node adress
  * @param a_chain a pointer to the chain stucture
- * @param a_hash a 
- * @return true 
- * @return false 
+ * @param a_hash a
+ * @return true
+ * @return false
  */
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
+char l_hash_str [128] = {0};
+
+    dap_chain_hash_fast_to_str(a_hash, l_hash_str, sizeof(l_hash_str) - 1);
+
+    log_it(L_INFO, "Save last atom with hash %s for %s:%s (node: %#llx)", l_hash_str, a_chain->net_name, a_chain->name, a_node_addr);
+
+
     return dap_chain_global_db_gr_set(dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name),
                                       DAP_DUP(a_hash), sizeof(*a_hash), GROUP_LOCAL_NODE_LAST_ID);
 }
 
 /**
  * @brief Gets the last hash of a remote node.
- * 
+ *
  * @param a_node_addr a node adress
  * @param a_chain a pointer to a chain structure
  * @return Returns a hash if successful.
  */
 dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain)
 {
+    char l_hash_str [128] = {0};
     char *l_node_chain_str = dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
     size_t l_hash_len = 0;
     uint8_t *l_hash = dap_chain_global_db_gr_get((const char*)l_node_chain_str, &l_hash_len,
                                                  GROUP_LOCAL_NODE_LAST_ID);
     DAP_DELETE(l_node_chain_str);
+
+    dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str) - 1);
+
+    log_it(L_INFO, "Load last atom with hash %s for %s:%s (node: %#llx)", l_hash_str, a_chain->net_name, a_chain->name, a_node_addr);
+
+
     return (dap_chain_hash_fast_t *)l_hash;
 }
 
 /**
  * @brief Gets a size of an object.
- * 
+ *
  * @param store_obj a pointer to the object
  * @return Returns the size.
  */
@@ -204,7 +218,7 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 /**
  * @brief Multiples data into a_old_pkt structure from a_new_pkt structure.
  * @param a_old_pkt a pointer to the old object
- * @param a_new_pkt a pointer to the new object 
+ * @param a_new_pkt a pointer to the new object
  * @return Returns a pointer to the multiple object
  */
 dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt)
@@ -224,7 +238,7 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, d
 
 /**
  * @brief Changes id in a packed structure.
- * 
+ *
  * @param a_pkt a pointer to the packed structure
  * @param a_id id
  * @return (none)
