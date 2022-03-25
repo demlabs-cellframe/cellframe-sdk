@@ -170,12 +170,12 @@ void dap_chain_cs_dag_deinit(void)
 
 /**
  * @brief callback during round verification, calling from dap_global_db_obj_track_history (l_sync_group_item->callback_notify)
- * 
+ *
  * @param a_arg callabck function arguments (dap_chain_cs_dag_t)
  * @param a_op_code opcode letter (f.e. "a","d")
  * @param a_group group name, f.e. "home21-network-poa-0000000000000000-round.new"
  * @param a_key key in hex format, f.e. "0x9AE0BDCE677D3B7CBE836B2C1E76F63B9130F5A7E1C941B61A5221859C0ADA31"
- * @param a_value 
+ * @param a_value
  * @param a_value_size size of value
  */
 static void s_history_callback_round_notify(void * a_arg, const char a_op_code, const char * a_group,
@@ -295,8 +295,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 }
 
 static void s_dag_chain_cs_set_event_round_cfg(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_cfg_t * a_event_round_cfg){
-    memcpy(&a_dag->event_round_cfg, 
-                a_event_round_cfg, 
+    memcpy(&a_dag->event_round_cfg,
+                a_event_round_cfg,
                 sizeof(dap_chain_cs_dag_event_round_cfg_t));
     a_dag->use_event_round_cfg = true;
 }
@@ -1128,7 +1128,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
             l_ret[i] = l_event_item->event;
             (*a_lasts_size_array)[i] = l_event_item->event_size;
             i++;
-        }    
+        }
     }
     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
     return l_ret;
@@ -1348,7 +1348,10 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                           l_chain_name, l_net_name);
         return -4;
     }
-    l_dag = DAP_CHAIN_CS_DAG(l_chain);
+
+    if ( !(l_dag = DAP_CHAIN_CS_DAG(l_chain)) )
+        return  dap_chain_node_cli_set_reply_text(a_str_reply, "DAG does not exist for chain \"%s\" in network \"%s\"",
+                                          l_chain_name, l_net_name), (-ENOENT);
 
     int ret = 0;
     if ( l_round_cmd_str ) {
@@ -1649,18 +1652,18 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     // Round cfg
                     if ( strcmp(l_from_events_str,"round.new") == 0 ) {
                         dap_string_append_printf(l_str_tmp,
-                            "\t\tRound cfg:\n\t\t\t\tconfirmations_minimum: %d\n\t\t\t\tconfirmations_timeout: %d\n", 
+                            "\t\tRound cfg:\n\t\t\t\tconfirmations_minimum: %d\n\t\t\t\tconfirmations_timeout: %d\n",
                             l_event_round_cfg.confirmations_minimum,
                             l_event_round_cfg.confirmations_timeout);
                         char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_event_round_cfg.first_event_hash);
                         dap_string_append_printf(l_str_tmp, "\t\t\t\tfirst_event_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
                         dap_string_append_printf(l_str_tmp,
-                            "\t\t\t\tts_update: %s", 
+                            "\t\t\t\tts_update: %s",
                             dap_ctime_r((time_t *)&l_event_round_cfg.ts_update, buf) );
                         if (l_event_round_cfg.ts_confirmations_minimum_completed != 0)
                             dap_string_append_printf(l_str_tmp,
-                                "\t\t\t\tts_confirmations_minimum_completed: %s", 
+                                "\t\t\t\tts_confirmations_minimum_completed: %s",
                                 dap_ctime_r((time_t *)&l_event_round_cfg.ts_confirmations_minimum_completed, buf) );
                     }
 
