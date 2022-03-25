@@ -381,7 +381,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                         }
 
                         if ( strstr(l_query_string, "HTTP/1.1") ){
-                            strncpy( l_http_client->in_query_string, l_query_string + 1, len_after - 11 );
+                            strncpy( l_http_client->in_query_string, l_query_string + 1, len_after - 8 );
                         }else{
                             strncpy( l_http_client->in_query_string,l_query_string + 1, len_after );
                         }
