@@ -191,7 +191,7 @@ typedef struct dap_chain_net_pvt{
     pthread_rwlock_t rwlock;
 
     dap_list_t *notify_callbacks;
-} dap_chain_net_pvt_t;
+} DAP_ALIGN_PACKED dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
     char name [DAP_CHAIN_NET_NAME_MAX];
@@ -1014,9 +1014,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     dap_chain_node_client_close(l_link);
                 }
                 DAP_DEL_Z(((struct net_link *)l_tmp->data)->link_info);
-                DAP_DELETE(l_tmp);
                 l_tmp = l_next;
             }
+            dap_list_free_full(l_net_pvt->net_links, free);
             l_net_pvt->net_links = NULL;
             if ( l_net_pvt->state_target != NET_STATE_OFFLINE ){
                 l_net_pvt->state = NET_STATE_LINKS_PREPARE;
