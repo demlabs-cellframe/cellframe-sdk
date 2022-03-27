@@ -27,6 +27,7 @@
 #include "dap_string.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
+#include "dap_chain_pvt.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_cs_block_poa.h"
@@ -259,12 +260,11 @@ bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr)
 }
 
 bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_t *a_datum)
-{
+{  
     if (!s_srv_stake) { // Drop all atoms if stake service inactivated
         return false;
-    }
+    } 
     while (!s_srv_stake->initialized);
-
     if (!a_addr || !a_datum) {
         return false;
     }
@@ -307,7 +307,7 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
     dap_list_free(l_list_out_items);
     if (l_fee_sum < l_outs_sum * l_stake->fee_value / 100.0) {
         return false;
-    }
+    } 
     return true;
 }
 
@@ -391,11 +391,27 @@ static bool s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
     // Put the transaction to mempool or directly to chains
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
-    DAP_DELETE(a_tx);
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
-    if (!l_chain) {
-        return false;
+    //DAP_DELETE(a_tx);
+
+    dap_chain_t *l_chain = NULL;
+    dap_chain_t * l_chain_temp;
+    DL_FOREACH(a_net->pub.chains, l_chain_temp) {
+        dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(l_chain_temp);
+        if (strcmp(l_chain_pvt->cs_name, "block_poa")) {
+            for(uint16_t i = 0; i < l_chain_temp->datum_types_count; i++) {
+                if(l_chain_temp->datum_types[i] == CHAIN_TYPE_TX)
+                    l_chain = l_chain_temp;
+            }
+        }
     }
+
+    if (!l_chain) {
+        dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+        if (!l_chain) {
+            return false;
+        }
+    }
+
     // Processing will be made according to autoprocess policy
     if (!dap_chain_mempool_datum_add(l_datum, l_chain)) {
         DAP_DELETE(l_datum);
@@ -538,7 +554,9 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     }
     dap_srv_stake_order_ext_t *l_ext = (dap_srv_stake_order_ext_t *)a_order->ext;
     dap_sign_t *l_sign = (dap_sign_t *)(&a_order->ext[a_order->ext_size]);
-    if (dap_sign_verify(l_sign, a_order, dap_chain_net_srv_order_get_size(a_order)) != 1) {
+
+//    if (dap_sign_verify(l_sign, a_order, dap_chain_net_srv_order_get_size(a_order)) != 1) {
+    if (dap_sign_verify(l_sign, a_order, sizeof(dap_chain_net_srv_order_t)+a_order->ext_size ) != 1) {
         log_it(L_WARNING, "Order sign is invalid");
         return NULL;
     }
@@ -1061,13 +1079,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_stake, l_wallet);
                 dap_chain_wallet_close(l_wallet);
                 if (l_tx && s_stake_tx_put(l_tx, l_net)) {
-                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);         
+                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);  
                     // TODO send request to order owner to delete it
                     dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
                 }
                 DAP_DELETE(l_order);
-                dap_chain_node_cli_set_reply_text(a_str_reply, l_tx ? "Stake transaction has done" :
-                                                                      "Stake transaction error");
+                char *l_stake_hash_str = dap_chain_hash_fast_to_str_new(&l_stake->tx_hash);
+                dap_chain_node_cli_set_reply_text(a_str_reply, l_tx ? "Stake %s transaction has done" :
+                                                                      "Stake %s transaction error", l_stake_hash_str);
+                DAP_DELETE(l_stake_hash_str);
                 if (!l_tx) {
                     DAP_DELETE(l_stake);
                     return -19;
@@ -1210,9 +1230,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             bool l_success = s_stake_tx_invalidate(l_stake, l_wallet);
             dap_chain_wallet_close(l_wallet);
-            if (l_success) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Stake successfully returned to owner");
-                HASH_DEL(s_srv_stake->itemlist, l_stake);
+                // HASH_DEL(s_srv_stake->itemlist, l_stake);
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't invalidate transaction %s", l_tx_hash_str);
                 return -21;
