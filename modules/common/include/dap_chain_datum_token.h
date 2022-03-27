@@ -42,16 +42,22 @@ typedef struct dap_chain_datum_token{
             uint64_t current_supply; // current size of free tokens
             uint16_t signs_valid; // Emission auth signs
             uint16_t signs_total; // Emission auth signs
+            uint16_t padding01; // Token declaration flags
+            uint64_t padding02; 
         } DAP_ALIGN_PACKED header_private;
         // Private token declarations, with flags, manipulations and updates
         struct {
+            uint64_t padding01;
+            uint64_t padding02; 
+            uint16_t padding03; 
+            uint16_t padding04;
             uint16_t flags; // Token declaration flags
-            size_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
         } DAP_ALIGN_PACKED header_private_decl;
         // Private token update
         struct {
             uint16_t padding;
-            size_t tsd_total_size; // Data size section with extended values in key-length-value list.
+            uint64_t tsd_total_size; // Data size section with extended values in key-length-value list.
         } DAP_ALIGN_PACKED header_private_update;
         // Public token declaration
         struct {
@@ -80,44 +86,44 @@ typedef struct dap_chain_datum_token{
 // No any flags
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_NONE                                           0x0000
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED                             1 << 1
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED                             BIT(1)
 // Allowed all permissions if not blocked them. Be careful with this mode
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED                             1 << 2
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED                             BIT(2)
 // All permissions are temprorary frozen
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN                              1 << 3
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN                              BIT(3)
 // Unfrozen permissions
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN                            1 << 4
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN                            BIT(4)
 
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED                             1 << 5
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED                           BIT(5)
 // Allowed all permissions if not blocked them. Be careful with this mode
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED                             1 << 6
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED                           BIT(6)
 // All permissions are temprorary frozen
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN                              1 << 7
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN                            BIT(7)
 // Unfrozen permissions
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN                            1 << 8
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN                          BIT(8)
 
 /// ------ Static configured flags
 // No token manipulations after declarations at all. Token declares staticly and can't variabed after
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL                              1 << 9
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL                              BIT(9)
 
 // No token manipulations after declarations with flags.
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS                            1 << 10
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS                            BIT(10)
 
 // No all permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL                  1 << 11
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL                  BIT(11)
 
 // No datum type permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE           1 << 12
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE           BIT(12)
 
 // No tx sender permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER            1 << 13
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER            BIT(13)
 
 // No tx receiver permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER          1 << 14
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER          BIT(14)
 
 //  Maximal flag
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     1 << 15
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     BIT(15)
 
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                               0xffff
 

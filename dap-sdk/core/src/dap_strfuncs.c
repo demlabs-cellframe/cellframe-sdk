@@ -698,6 +698,24 @@ size_t dap_str_countv(char **a_str_array)
     return l_i;
 }
 
+size_t dap_str_symbol_count(const char *a_str, char a_sym)
+{
+   const char *p = a_str;
+   uint32_t l_count = 0;
+   uint32_t l_str_len = strlen(a_str);
+
+    if (!a_str)
+        return 0;
+
+    for (uint32_t i=0; i < l_str_len; i++)
+    {
+        if (a_str[i] == a_sym)
+            l_count +=1;
+    }
+
+    return l_count;
+}
+
 /**
  * @brief  dap_strdupv:
  * 
@@ -852,6 +870,20 @@ char* dap_strup(const char *a_str, ssize_t a_len)
 
     return l_result;
 }
+
+// bool dap_str_remove_spaces(char *a_str)
+// {
+//     if (!a_str)
+//         return false;
+//     int l_count = 0;
+
+//     for (uint32_t i = 0; a_str[i]; i++){
+//         if (a_str[i] != ' ')
+//             a_str[l_count++] = a_str[i];
+//     }
+//     a_str[l_count] = '\0';
+//     return true;
+// }
 
 /**
  * @brief  dap_strdown

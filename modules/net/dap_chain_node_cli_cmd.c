@@ -956,7 +956,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         // handler of command 'node add'
         int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
                 a_str_reply);
-        //DAP_DELETE(l_node_info);
         return l_ret;
         //break;
 
@@ -2906,6 +2905,20 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             uint16_t l_flags = 0;
             char ** l_str_flags = NULL;
             dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-signs_total", &l_signs_total_str);
+
+            dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-total_supply", &l_total_supply_str);
+
+            if(!l_total_supply_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "token_create requires parameter '-total_supply'");
+                return -3;
+            } else {
+                char * l_tmp = NULL;
+                if((l_total_supply = strtoull(l_total_supply_str, &l_tmp, 10)) == 0) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply,
+                            "token_create requires parameter '-total_supply' to be unsigned integer value that fits in 8 bytes");
+                    return -4;
+                }
+            }
             // Certificates thats will be used to sign currend datum token
             dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-certs", &l_certs_str);
 
@@ -2983,9 +2996,28 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed" )==0){
                     const char *a_tx_receiver_allowed_base58 = NULL;
                     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_tx_receiver_allowed_base58);
-                    dap_chain_addr_t *addr_to = dap_chain_addr_from_str(a_tx_receiver_allowed_base58);
-                    dap_tsd_t * l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD, addr_to, sizeof(dap_chain_addr_t));
-                    l_tsd_list = dap_list_append( l_tsd_list, l_tsd);
+                       
+                    char ** l_str_wallet_addr = NULL;
+                    l_str_wallet_addr = dap_strsplit( a_tx_receiver_allowed_base58,",",0xffff );
+
+                    if (!l_str_wallet_addr){
+                       log_it(L_DEBUG,"Error in wallet addresses array parsing in tx_receiver_allowed parameter");
+                       return -10;
+                    }
+
+                    while (l_str_wallet_addr && *l_str_wallet_addr){
+                        log_it(L_DEBUG,"Processing wallet address: %s", *l_str_wallet_addr);
+                        dap_chain_addr_t *addr_to = dap_chain_addr_from_str(*l_str_wallet_addr);
+                        if (addr_to){
+                            dap_tsd_t * l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD, addr_to, sizeof(dap_chain_addr_t));
+                            l_tsd_list = dap_list_append( l_tsd_list, l_tsd);
+                            l_tsd_total_size+= dap_tsd_size( l_tsd);
+                        } else{
+                            log_it(L_DEBUG,"Error in wallet address parsing");
+                        }
+                        l_str_wallet_addr++;
+                     }
+
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked" )==0){
                     dap_tsd_t * l_tsd = dap_tsd_create_string(
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD, l_arg_param);
@@ -3014,11 +3046,14 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_certs_count = l_signs_total;
 
             log_it(L_DEBUG,"Prepeared TSD sections on %zd total size", l_tsd_total_size);
-            // Create new datum token
-            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)+l_tsd_total_size ) ;
+            // Create new datum token. We create only token, tsd data will be added later
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)) ;
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL;
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->header_private_decl.flags = l_flags;
+            l_datum_token->header_private.total_supply = l_total_supply;
+            l_datum_token->header_private.signs_total = l_signs_total;
+            l_datum_token->header_private.signs_valid = l_signs_emission;
             log_it(L_DEBUG,"Token declaration '%s' initialized", l_datum_token->ticker);
 
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
