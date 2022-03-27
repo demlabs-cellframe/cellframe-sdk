@@ -370,7 +370,7 @@ typedef struct dap_chain_datum_token_emission{
             uint64_t value;
             uint256_t value_256;
         };
-        uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
+        uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];       
     } DAP_ALIGN_PACKED hdr;
     union {
         struct {
@@ -387,6 +387,7 @@ typedef struct dap_chain_datum_token_emission{
         } DAP_ALIGN_PACKED type_algo;
         struct {
             uint16_t signs_count;
+            uint64_t size;
             byte_t  signs[];
         } DAP_ALIGN_PACKED type_auth;// Signs if exists
     } data;
@@ -414,6 +415,6 @@ dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t *
 dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size_t *a_token_size);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size);
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
-
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_chain_datum_token_emission_t *a_emission, dap_enc_key_t *a_sign_key);
 // 256 TYPE
 bool dap_chain_datum_token_is_old(uint8_t a_type);
