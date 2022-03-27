@@ -144,7 +144,10 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
             *return_code = Http_Status_BadRequest;
             return;
         }
-        l_pkey_exchange_key->gen_bob_shared_key(l_pkey_exchange_key, alice_msg, l_pkey_exchange_size, (void**)&l_pkey_exchange_key->pub_key_data);
+        if(l_pkey_exchange_key->gen_bob_shared_key) {
+            l_pkey_exchange_key->gen_bob_shared_key(l_pkey_exchange_key, alice_msg, l_pkey_exchange_size,
+                    (void**) &l_pkey_exchange_key->pub_key_data);
+        }
 
         dap_enc_ks_key_t * l_enc_key_ks = dap_enc_ks_new();
         if (s_acl_callback) {
