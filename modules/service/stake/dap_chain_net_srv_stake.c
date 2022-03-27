@@ -1230,6 +1230,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             bool l_success = s_stake_tx_invalidate(l_stake, l_wallet);
             dap_chain_wallet_close(l_wallet);
+            if (l_success) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Stake successfully returned to owner");
                 // HASH_DEL(s_srv_stake->itemlist, l_stake);
             } else {
