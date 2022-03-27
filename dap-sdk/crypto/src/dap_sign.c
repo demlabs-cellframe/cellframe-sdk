@@ -347,7 +347,7 @@ bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_key_size)
         return false;
     if (a_sign->header.sign_pkey_size > a_max_key_size)
         return false;
-    if (a_sign->header.sign_size > a_max_key_size)
+    if (a_sign->header.sign_size == 0 || a_sign->header.sign_size > a_max_key_size)
         return false;
     return true;
 }
