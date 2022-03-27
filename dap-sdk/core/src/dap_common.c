@@ -233,6 +233,9 @@ int dap_common_init( const char *a_console_title, const char *a_log_file_path, c
     strncpy( s_log_tag_fmt_str, "[%s]\t",sizeof (s_log_tag_fmt_str));
     for (int i = 0; i < 16; ++i)
             s_ansi_seq_color_len[i] =(unsigned int) strlen(s_ansi_seq_color[i]);
+    if (!dap_file_test(a_log_file_path)) {
+        dap_mkdir_with_parents(a_log_dirpath);
+    }
     if ( a_log_file_path ) {
         s_log_file = fopen( a_log_file_path , "a" );
         if( s_log_file == NULL)

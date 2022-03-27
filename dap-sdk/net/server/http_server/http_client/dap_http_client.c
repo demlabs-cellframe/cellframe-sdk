@@ -352,6 +352,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                     eol = a_esocket->buf_in_size - 2;
                 }
 
+                // Check the number of bytes preparing to be copied to l_buf_line
                 if ( eol + 3 >= sizeof(l_buf_line) ) {
                     log_it( L_WARNING,"Too big line in request, more than %"DAP_UINT64_FORMAT_U" symbols - thats very strange", sizeof(l_buf_line) - 3 );
                     s_report_error_and_restart( a_esocket, l_http_client );
@@ -380,7 +381,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                         }
 
                         if ( strstr(l_query_string, "HTTP/1.1") ){
-                            strncpy( l_http_client->in_query_string, l_query_string + 1, len_after - 11 );
+                            strncpy( l_http_client->in_query_string, l_query_string + 1, len_after - 8 );
                         }else{
                             strncpy( l_http_client->in_query_string,l_query_string + 1, len_after );
                         }
@@ -456,7 +457,10 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                 }
 
                 l_eol_pos = l_str_eol - (char*)a_esocket->buf_in;
-
+                // Check the number of bytes preparing to be copied to l_buf_line
+                if(l_eol_pos >= sizeof(l_buf_line)) {
+                    l_eol_pos = sizeof(l_buf_line) - 1;
+                }
                 int parse_ret;
                 memcpy( l_buf_line, a_esocket->buf_in, l_eol_pos + 1 );
                 l_buf_line[l_eol_pos-1] = 0;

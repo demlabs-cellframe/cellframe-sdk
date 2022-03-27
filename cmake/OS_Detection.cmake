@@ -151,5 +151,6 @@ if(WIN32)
 
     include_directories(3rdparty/uthash/src/)
     include_directories(3rdparty/wepoll/)
+    include_directories(3rdparty/libconfini/)
     #include_directories(libdap-chain-net-srv-vpn/)
 endif()

@@ -82,7 +82,7 @@ int dap_notify_server_init()
     s_notify_server_queue_inter = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof (dap_events_socket_t*)*l_workers_count );
     for(uint32_t i = 0; i < l_workers_count; i++){
         s_notify_server_queue_inter[i] = dap_events_socket_queue_ptr_create_input(s_notify_server_queue);
-        dap_events_socket_assign_on_worker_mt(s_notify_server_queue_inter[i], dap_events_worker_get(i));
+        //dap_events_socket_assign_on_worker_mt(s_notify_server_queue_inter[i], dap_events_worker_get(i));
     }
 
     log_it(L_NOTICE,"Notify server initalized");
@@ -131,6 +131,19 @@ int dap_notify_server_send_f_inter(uint32_t a_worker_id, const char * a_format,.
     va_end(va);
     return dap_events_socket_queue_ptr_send_to_input(l_input,l_str);
 }
+
+/**
+ * @brief dap_notify_server_send_fmt_mt
+ * @param a_format
+ * @return
+ */
+int dap_notify_server_send_mt(const char *a_data)
+{
+    if(!s_notify_server_queue) // If not initialized - nothing to notify
+        return 0;
+    return dap_events_socket_queue_ptr_send(s_notify_server_queue, dap_strdup_printf("%s\r\n", a_data));
+}
+
 
 /**
  * @brief dap_notify_server_send_fmt_mt
