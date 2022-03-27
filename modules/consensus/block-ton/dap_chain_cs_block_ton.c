@@ -73,6 +73,7 @@ typedef struct dap_chain_cs_block_ton_pvt
 #define PVT(a) ((dap_chain_cs_block_ton_pvt_t *)a->_pvt)
 
 int dap_chain_cs_block_ton_init() {
+	dap_stream_ch_chain_voting_init();
 	dap_chain_cs_add("block_ton", s_callback_new);
     return 0;
 }
