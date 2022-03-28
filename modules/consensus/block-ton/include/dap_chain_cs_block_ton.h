@@ -72,7 +72,7 @@ typedef struct dap_chain_cs_block_ton_items {
 	bool debug;
 
 	uint16_t round_start_sync_timeout;
-	uint16_t consensus_start_period;
+	uint16_t round_start_multiple_of;
 	uint32_t allowed_clock_offset;
 	uint32_t session_idle_min;
 	uint16_t round_candidates_max;

@@ -61,6 +61,7 @@ typedef struct dap_chain_cs_block_ton_pvt
 	bool debug;
 	bool validators_list_by_stake;
 	uint16_t round_start_sync_timeout;
+	uint16_t round_start_multiple_of;
 	uint32_t allowed_clock_offset;
 	uint32_t session_idle_min;
 	uint16_t round_candidates_max;
@@ -114,6 +115,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
 
 	l_ton_pvt->validators_list_by_stake = dap_config_get_item_bool_default(a_chain_cfg,"block-ton","validators_list_by_stake", false);
 	l_ton_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "round_start_sync_timeout", 10);
+	l_ton_pvt->round_start_multiple_of = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "round_start_multiple_of", 30);
 	l_ton_pvt->allowed_clock_offset = dap_config_get_item_uint32_default(a_chain_cfg,"block-ton", "allowed_clock_offset", 5);
 	l_ton_pvt->session_idle_min = dap_config_get_item_uint32_default(a_chain_cfg,"block-ton", "session_idle_min", 15);
 	l_ton_pvt->round_candidates_max = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "round_candidates_max", 3);
@@ -235,7 +237,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
 	l_session->debug = l_ton_pvt->debug;
 	l_session->round_start_sync_timeout = l_ton_pvt->round_start_sync_timeout;
-	l_session->consensus_start_period = 20; // hint: if((time()/10) % consensus_start)==0
+	l_session->round_start_multiple_of = l_ton_pvt->round_start_multiple_of; // hint: if((time()/10) % consensus_start)==0
 	l_session->allowed_clock_offset = l_ton_pvt->allowed_clock_offset;
 	l_session->session_idle_min = l_ton_pvt->session_idle_min;
 	l_session->round_candidates_max = l_ton_pvt->round_candidates_max;
@@ -264,7 +266,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 	dap_chain_time_t l_time = (dap_chain_time_t)time(NULL);
 	while (true) {
 		l_time++;
-		if ( (l_time % l_session->consensus_start_period) == 0) {
+		if ( (l_time % l_session->round_start_multiple_of) == 0) {
 			l_session->ts_round_sync_start = l_time;
 			break;
 		}
@@ -349,7 +351,7 @@ static bool s_session_timer() {
 		l_session->time_proc_lock = true; // lock - skip check by reasons: prev check is not finish
 		switch (l_session->state) {
 			case DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE: {
-				if ( (((l_time/10)*10) % l_session->consensus_start_period) == 0 
+				if ( (((l_time/10)*10) % l_session->round_start_multiple_of) == 0 
 							&& (l_time - ((l_time/10)*10)) <= 3
 							&& l_time > l_session->ts_round_finish
 							&& (l_time-l_session->ts_round_finish) >= l_session->session_idle_min) {
