@@ -47,6 +47,7 @@ typedef struct dap_chain_cs_block_ton_items {
 	dap_chain_t *chain;
 
 	dap_chain_node_addr_t *my_addr;
+	dap_list_t *seed_nodes_addrs; // dap_chain_node_addr_t
 
 	uint8_t state; // session state
 	dap_chain_cs_block_ton_round_t cur_round;

@@ -28,7 +28,7 @@ static void s_message_chain_add(dap_chain_cs_block_ton_items_t * a_session, dap_
 									dap_chain_cs_block_ton_message_t * a_message,
 									size_t a_message_size, dap_chain_hash_fast_t *a_message_hash);
 static void s_session_round_start(dap_chain_cs_block_ton_items_t *a_session);
-static void s_session_block_new_delete(dap_chain_cs_block_ton_items_t *a_sessio);
+static void s_session_block_new_delete(dap_chain_cs_block_ton_items_t *a_session);
 static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session);
 
 static dap_chain_node_addr_t * s_session_get_validator_by_addr(
@@ -41,7 +41,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 
 static int s_compare_validators_list_stake(const void * a_item1, const void * a_item2, void *a_unused);
 static int s_compare_validators_list_addr(const void * a_item1, const void * a_item2, void *a_unused);
-static dap_list_t *s_get_validators_addr_list(dap_chain_t *a_chain);
+static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_items_t *a_session); //(dap_chain_t *a_chain);
 
 static bool s_hash_is_null(dap_chain_hash_fast_t *a_hash);
 
@@ -179,9 +179,9 @@ static int s_compare_validators_list_addr(const void * a_item1, const void * a_i
     return -1;
 }
 
-static dap_list_t *s_get_validators_addr_list(dap_chain_t *a_chain) {
+static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_items_t *a_session) {//(dap_chain_t *a_chain) {
 
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_session->chain);
     dap_chain_cs_block_ton_t *l_ton = DAP_CHAIN_CS_BLOCK_TON(l_blocks);
     dap_chain_cs_block_ton_pvt_t *l_ton_pvt = PVT(l_ton);
 	dap_list_t *l_ret = NULL;
@@ -203,8 +203,15 @@ static dap_list_t *s_get_validators_addr_list(dap_chain_t *a_chain) {
 	    dap_list_free(l_list);
 	}
 	else {
-		dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-		l_ret = dap_chain_net_get_node_list(l_net);
+		dap_chain_net_t *l_net = dap_chain_net_by_id(a_session->chain->net_id);
+		dap_list_t *l_list = dap_list_first(a_session->seed_nodes_addrs);
+		while (l_list) {
+			dap_chain_node_addr_t *l_addr =
+					(dap_chain_node_addr_t *)DAP_DUP_SIZE(
+							l_list->data, sizeof(dap_chain_node_addr_t));
+			l_ret = dap_list_append(l_ret, l_addr);
+			l_list = l_list->next;
+		}
 		l_ret = dap_list_sort(l_ret, s_compare_validators_list_addr);
 	}
    	return l_ret;
@@ -231,9 +238,23 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "No sign certificate provided, can't sign any blocks");
     }
 
-	dap_chain_cs_block_ton_items_t *l_session = DAP_NEW_Z(dap_chain_cs_block_ton_items_t);
 
 	dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+	dap_chain_cs_block_ton_items_t *l_session = DAP_NEW_Z(dap_chain_cs_block_ton_items_t);
+	l_session->chain = a_chain;
+	l_session->seed_nodes_addrs = NULL;
+
+    uint16_t seed_aliases_count;
+    char **l_seed_aliases = dap_config_get_array_str(a_chain_net_cfg, "general", "seed_nodes_aliases", &seed_aliases_count);
+    // l_net_pvt->seed_aliases = l_net_pvt->seed_aliases_count>0 ?
+    //                            (char **)DAP_NEW_SIZE(char**, sizeof(char*)*PVT(l_net)->seed_aliases_count) : NULL;
+    for(size_t i = 0; i < seed_aliases_count; i++) {
+        // l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
+        dap_chain_node_addr_t *l_seed_node_addr = dap_chain_node_alias_find(l_net, l_seed_aliases[i] );
+        if (l_seed_node_addr) {
+        	l_session->seed_nodes_addrs = dap_list_append(l_session->seed_nodes_addrs, l_seed_node_addr);
+        }
+    }
 
 	l_session->debug = l_ton_pvt->debug;
 	l_session->round_start_sync_timeout = l_ton_pvt->round_start_sync_timeout;
@@ -246,7 +267,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 	l_session->round_attempt_duration = l_ton_pvt->round_attempt_duration;
 	l_session->first_message_delay = l_ton_pvt->first_message_delay;
 
-	l_session->cur_round.validators_list = s_get_validators_addr_list(a_chain);
+	l_session->cur_round.validators_list = s_get_validators_addr_list(l_session);
 	l_session->cur_round.validators_count = dap_list_length(l_session->cur_round.validators_list);
 
     l_session->my_addr = DAP_NEW(dap_chain_node_addr_t);
@@ -258,7 +279,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 										a_chain->net_name, a_chain->name);
 	l_session->gdb_group_message = dap_strdup_printf("local.ton.%s.%s.message",
 										a_chain->net_name, a_chain->name);
-	l_session->chain = a_chain;	
 	l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE;
 	l_session->blocks_sign_key = PVT(l_ton)->blocks_sign_key;
 	l_session->time_proc_lock = false;
@@ -360,7 +380,8 @@ static bool s_session_timer() {
 					l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
 					s_session_round_start(l_session);
 
-					l_session->cur_round.validators_list = s_get_validators_addr_list(l_session->chain);
+					dap_list_free_full(l_session->cur_round.validators_list, free);
+					l_session->cur_round.validators_list = s_get_validators_addr_list(l_session);
 					l_session->cur_round.validators_count = dap_list_length(l_session->cur_round.validators_list);
 
 					dap_timerfd_start(l_session->first_message_delay*1000, 
