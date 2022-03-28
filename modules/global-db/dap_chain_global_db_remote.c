@@ -170,7 +170,7 @@ char l_hash_str [128] = {0};
 
     dap_chain_hash_fast_to_str(a_hash, l_hash_str, sizeof(l_hash_str) - 1);
 
-    log_it(L_INFO, "Save last atom with hash %s for %s:%s (node: %#llx)", l_hash_str, a_chain->net_name, a_chain->name, a_node_addr);
+    log_it(L_INFO, "Save last atom with hash %s for %s:%s (node: %"DAP_UINT64_FORMAT_U")", l_hash_str, a_chain->net_name, a_chain->name, a_node_addr);
 
 
     return dap_chain_global_db_gr_set(dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name),
@@ -189,14 +189,14 @@ dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_cha
     char l_hash_str [128] = {0};
     char *l_node_chain_str = dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
     size_t l_hash_len = 0;
-    uint8_t *l_hash = dap_chain_global_db_gr_get((const char*)l_node_chain_str, &l_hash_len,
+    dap_chain_hash_fast_t *l_hash = (dap_chain_hash_fast_t *)dap_chain_global_db_gr_get(
+                                                (const char*)l_node_chain_str, &l_hash_len,
                                                  GROUP_LOCAL_NODE_LAST_ID);
     DAP_DELETE(l_node_chain_str);
 
     dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str) - 1);
 
-    log_it(L_INFO, "Load last atom with hash %s for %s:%s (node: %#llx)", l_hash_str, a_chain->net_name, a_chain->name, a_node_addr);
-
+    log_it(L_INFO, "Load last atom with hash %s for %s:%s (node: %"DAP_UINT64_FORMAT_U")", l_hash_str, a_chain->net_name, a_chain->name, a_node_addr);
 
     return (dap_chain_hash_fast_t *)l_hash;
 }
