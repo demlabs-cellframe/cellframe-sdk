@@ -246,10 +246,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     uint16_t seed_aliases_count;
     char **l_seed_aliases = dap_config_get_array_str(a_chain_net_cfg, "general", "seed_nodes_aliases", &seed_aliases_count);
-    // l_net_pvt->seed_aliases = l_net_pvt->seed_aliases_count>0 ?
-    //                            (char **)DAP_NEW_SIZE(char**, sizeof(char*)*PVT(l_net)->seed_aliases_count) : NULL;
     for(size_t i = 0; i < seed_aliases_count; i++) {
-        // l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
         dap_chain_node_addr_t *l_seed_node_addr = dap_chain_node_alias_find(l_net, l_seed_aliases[i] );
         if (l_seed_node_addr) {
         	l_session->seed_nodes_addrs = dap_list_append(l_session->seed_nodes_addrs, l_seed_node_addr);
@@ -258,7 +255,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
 	l_session->debug = l_ton_pvt->debug;
 	l_session->round_start_sync_timeout = l_ton_pvt->round_start_sync_timeout;
-	l_session->round_start_multiple_of = l_ton_pvt->round_start_multiple_of; // hint: if((time()/10) % consensus_start)==0
+	l_session->round_start_multiple_of = l_ton_pvt->round_start_multiple_of; // hint: if((time()/30) % consensus_start)==0
 	l_session->allowed_clock_offset = l_ton_pvt->allowed_clock_offset;
 	l_session->session_idle_min = l_ton_pvt->session_idle_min;
 	l_session->round_candidates_max = l_ton_pvt->round_candidates_max;
@@ -684,7 +681,8 @@ static int s_session_datums_validation(dap_chain_cs_blocks_t *a_blocks, dap_chai
     		}
     	}
     }
-    return 0;
+    // it's temporary (reject other datums type)
+    return -3;
 }
 
 static void s_session_block_new_delete(dap_chain_cs_block_ton_items_t *a_session) {
@@ -1768,6 +1766,7 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_ton_pvt->blocks_sign_key);
 }
 
+// not used 
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size)
 {
     dap_chain_cs_block_ton_t *l_ton = DAP_CHAIN_CS_BLOCK_TON(a_blocks);
