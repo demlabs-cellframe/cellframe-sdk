@@ -1372,6 +1372,7 @@ bool s_chain_ledger_token_tsd_check(dap_ledger_t *a_ledger, dap_chain_ledger_tok
     if (!l_tsd)
         return false;
     
+    dap_chain_addr_t *l_add_addr = NULL;
     size_t l_tsd_size=0;
     size_t l_tsd_total_size = l_token_item->datum_token->header_private_decl.tsd_total_size;
 
@@ -1390,7 +1391,7 @@ bool s_chain_ledger_token_tsd_check(dap_ledger_t *a_ledger, dap_chain_ledger_tok
 
         switch(l_tsd->type){
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
-                dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
+                l_add_addr = (dap_chain_addr_t *) l_tsd->data;
                 if (s_chain_compare_token_addresses(&a_token_emission->hdr.address, l_add_addr)){
                     log_it(L_DEBUG, "Private tokens limitations for DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD flag were checked successfully");
                     return true;
@@ -1399,8 +1400,7 @@ bool s_chain_ledger_token_tsd_check(dap_ledger_t *a_ledger, dap_chain_ledger_tok
             default:
                 break;
         }
-    }
-   
+    } 
     log_it(L_WARNING, "Address %s is not allowed for emission for token %s", dap_chain_addr_to_str(&a_token_emission->hdr.address), l_token_item->ticker);
     return false;
 }
