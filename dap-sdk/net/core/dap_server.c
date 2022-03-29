@@ -381,7 +381,7 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
     assert(l_server);
 
     dap_events_socket_t * l_es_new = NULL;
-    log_it(L_DEBUG, "Listening sd:%d (binded on %s:%u) got new incomming connection", a_es->socket, l_server->address,l_server->port);
+    log_it(L_DEBUG, "Listening sd:%"DAP_FORMAT_SOCKET "(binded on %s:%u) got new incomming connection", a_es->socket, l_server->address,l_server->port);
     log_it(L_DEBUG, "Accepted new connection sd: %"DAP_FORMAT_SOCKET"", a_es->socket);
     l_es_new = s_es_server_create(a_es->events,a_remote_socket,&l_server->client_callbacks,l_server);
     //l_es_new->is_dont_reset_write_flag = true; // By default all income connection has this flag
