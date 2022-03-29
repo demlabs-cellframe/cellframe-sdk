@@ -64,11 +64,15 @@ static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
 
 static dap_timerfd_t * s_packet_in_callback_timer = NULL; 
+static bool s_is_inited = false;
 
 //static int s_cli_voting(int argc, char ** argv, char **a_str_reply);
 
 int dap_stream_ch_chain_voting_init() {
 	log_it(L_NOTICE, "Chains voting channel initialized");
+	if (s_is_inited) {
+		return 0;
+	}
 
     if (!s_pkt_items) {
 		s_pkt_items = DAP_NEW_Z(voting_pkt_items_t);
@@ -89,7 +93,7 @@ int dap_stream_ch_chain_voting_init() {
                         (dap_timerfd_callback_t)s_packet_in_callback_handler, 
                         NULL);
 	}
-
+	s_is_inited = true;
 	// s_packet_in_callback_handler();
 	return 0;
 }
