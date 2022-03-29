@@ -301,16 +301,11 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
     json_object_object_add(l_json, "class", json_object_new_string("Wallet"));
     struct json_object *l_network = json_object_new_object();
     json_object_object_add(l_network, "name", json_object_new_string(a_ledger->net_name));
-    char *pos = strrchr(a_bal->key, ' ');
-    if (pos) {
-        char *l_addr_str = DAP_NEW_S_SIZE(char, pos - a_bal->key + 1);
-        memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
-        json_object_object_add(l_network, "address", json_object_new_string(l_addr_str));
-    } else {
-        json_object_object_add(l_network, "address", json_object_new_string("Unknown"));
-    }
+    char **l_keys = dap_strsplit(a_bal->key, " ", -1);
+    json_object_object_add(l_network, "address", json_object_new_string(l_keys[0]));
     struct json_object *l_token = json_object_new_object();
-    json_object_object_add(l_token, "name", json_object_new_string(a_bal->token_ticker));
+    json_object_object_add(l_token, "name", json_object_new_string(l_keys[1]));
+    dap_strfreev(l_keys);
     char *l_balance_coins = dap_chain_balance_to_coins(a_bal->balance);
     char *l_balance_datoshi = dap_chain_balance_print(a_bal->balance);
     json_object_object_add(l_token, "full_balance", json_object_new_string(l_balance_coins));
@@ -3294,11 +3289,8 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items;
-    do {
-        l_ptr = l_ptr->hh.next;
-    }while(l_ptr->hh.next != NULL);
-//    l_ledger_priv->ledger_items->hh.hh_prev;
+    dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items->hh.tbl->tail->prev;
+    l_ptr = l_ptr->hh.next;
     for (dap_chain_ledger_tx_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev){
         if (l_counter >= l_offset){
             dap_chain_datum_tx_t *l_tx = ptr->tx;

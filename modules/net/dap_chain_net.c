@@ -191,7 +191,7 @@ typedef struct dap_chain_net_pvt{
     pthread_rwlock_t rwlock;
 
     dap_list_t *notify_callbacks;
-} dap_chain_net_pvt_t;
+} DAP_ALIGN_PACKED dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
     char name [DAP_CHAIN_NET_NAME_MAX];
@@ -965,7 +965,7 @@ struct json_object *net_states_json_collect(dap_chain_net_t * l_net) {
     json_object_object_add(l_json, "linksCount"       , json_object_new_int(dap_list_length(PVT(l_net)->net_links)));
     json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(PVT(l_net)->links_connected_count));
     char l_node_addr_str[24] = {'\0'};
-    dap_snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(PVT(l_net)->node_addr));
+    dap_snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(l_net)->node_addr));
     json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_node_addr_str));
     return l_json;
 }
@@ -1014,9 +1014,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     dap_chain_node_client_close(l_link);
                 }
                 DAP_DEL_Z(((struct net_link *)l_tmp->data)->link_info);
-                DAP_DELETE(l_tmp);
                 l_tmp = l_next;
             }
+            dap_list_free_full(l_net_pvt->net_links, free);
             l_net_pvt->net_links = NULL;
             if ( l_net_pvt->state_target != NET_STATE_OFFLINE ){
                 l_net_pvt->state = NET_STATE_LINKS_PREPARE;
