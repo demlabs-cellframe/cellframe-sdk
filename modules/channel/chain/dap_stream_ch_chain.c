@@ -1067,7 +1067,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         } break;
         // first packet of data with source node address
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB: {
-            if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t)){
+            if(l_chain_pkt_data_size == (size_t)sizeof(dap_chain_node_addr_t)){
                memcpy(&l_ch_chain->request.node_addr, l_chain_pkt->data, l_chain_pkt_data_size);
                l_ch_chain->stats_request_gdb_processed = 0;
                log_it(L_INFO, "In: FIRST_GLOBAL_DB data_size=%zu net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x
