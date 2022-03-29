@@ -5,6 +5,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_ledger.h"
 #include "dap_http.h"
+#include "dap_cert.h"
 /*
  // datum mempool structure
  typedef struct dap_datum_mempool {
@@ -65,3 +66,7 @@ int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_
         const dap_chain_addr_t* a_addr_fee,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_fee, size_t a_tx_num);
+
+dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
+                                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value,
+                                                        dap_chain_addr_t *a_addr_to, dap_cert_t *a_certs, size_t a_certs_count);

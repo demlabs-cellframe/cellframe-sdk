@@ -277,7 +277,7 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, cha
     const char *l_datum_hash_str = NULL;
     dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, a_param, &l_datum_hash_str);
 
-    return dap_enc_base58_hex_to_hash(l_datum_hash_str, a_datum_hash);
+    return dap_chain_hash_fast_from_str(l_datum_hash_str, a_datum_hash);
 }
 
 /**
@@ -455,7 +455,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_block_t  * l_block;
             size_t l_block_size = 0;
             dap_chain_hash_fast_t l_block_hash={0};
-            dap_enc_base58_hex_to_hash( l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
+            dap_chain_hash_fast_from_str( l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
             l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hash, &l_block_size);
             if ( l_block){
                 dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);

@@ -587,6 +587,63 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
     return l_key_hash;
 }
 
+dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
+                                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value,
+                                                        dap_chain_addr_t *a_addr_to, dap_cert_t *a_certs, size_t a_certs_count)
+{
+    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool(a_chain);
+    // create first transaction (with tx_token)
+    dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
+    l_tx->header.ts_created = time(NULL);
+    dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
+    // create items
+
+    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, l_ticker);
+    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
+    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_emission_value);
+
+    // pack items to transaction
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
+    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
+
+    if (a_certs){
+        // Sign all that we have with certs
+        for(size_t i = 0; i < a_certs_count; i++) {
+            if(dap_chain_datum_tx_add_sign_item(&l_tx, a_certs[i]->enc_key) < 0) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "No private key for certificate=%s",
+                        a_certs[i]->name);
+                DAP_DELETE(l_addr);
+                return NULL;
+            }
+        }
+    }
+
+    DAP_DEL_Z(l_tx_token);
+    DAP_DEL_Z(l_in);
+    DAP_DEL_Z(l_out);
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+
+    // Pack transaction into the datum
+    dap_chain_datum_t * l_datum_tx = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    size_t l_datum_tx_size = dap_chain_datum_size(l_datum_tx);
+    DAP_DEL_Z(l_tx);
+    // calc datum hash
+    dap_chain_hash_fast_t *l_datum_tx_hash = DAP_NEW(dap_hash_fast_t);
+    dap_hash_fast(l_datum_tx, l_datum_tx_size, l_datum_tx_hash);
+    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
+    // Add to mempool tx token
+    bool l_placed = dap_chain_global_db_gr_set(l_tx_hash_str, l_datum_tx,
+                                               l_datum_tx_size, l_gdb_group_mempool_base_tx);
+    DAP_DEL_Z(l_tx_hash_str);
+    DAP_DELETE(l_datum_tx);
+    if (!l_placed) {
+        return NULL;
+    }
+    return l_datum_tx_hash;
+}
+
 uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size)
 {
     size_t a_request_size = 2 * sizeof(uint16_t), shift_size = 0;

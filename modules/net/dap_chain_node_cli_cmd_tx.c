@@ -1316,8 +1316,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         //const char *l_chain_group = dap_chain_gdb_get_group(l_chain);
         dap_chain_hash_fast_t l_tx_hash;
         if(l_tx_hash_str) {
-            if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) &&
-                    dap_enc_base58_hex_to_hash(l_tx_hash_str, &l_tx_hash)) {
+            if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
                 l_tx_hash_str = NULL;
                 dap_chain_node_cli_set_reply_text(a_str_reply, "tx hash not recognized");
                 return -1;
@@ -1458,8 +1457,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             return -2;
         }
         dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
-        if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash) &&
-                dap_enc_base58_hex_to_hash(l_tx_hash_str, l_tx_hash)) {
+        if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash)) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get hash_fast from %s", l_tx_hash_str);
             return -4;
         }
