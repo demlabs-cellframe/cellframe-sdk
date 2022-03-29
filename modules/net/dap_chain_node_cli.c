@@ -379,7 +379,7 @@ static void* thread_one_client_func(void *args)
                 size_t l_reply_rest = l_reply_len;
                 while(l_reply_rest) {
                     size_t l_send_bytes = min(l_reply_step, l_reply_rest);
-                    int ret = send(newsockfd, reply_str + l_reply_len - l_reply_rest, l_send_bytes, 0);
+                    int ret = send(newsockfd, reply_str + l_reply_len - l_reply_rest, l_send_bytes, MSG_NOSIGNAL);
                     if(ret<=0)
                         break;
                     l_reply_rest-=l_send_bytes;

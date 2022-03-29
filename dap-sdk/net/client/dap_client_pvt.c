@@ -537,7 +537,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                 strerror_r(l_err,l_errbuf,sizeof (l_errbuf));
                             else
                                 strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
-                            log_it(L_ERROR, "Remote address can't connect (%s:%hu) with sock_id %"DAP_FORMAT_SOCKET": \"%s\" (code %d)", a_client_pvt->uplink_addr,
+                            log_it(L_ERROR, "Remote address can't connect (%s:%hu) with sd %"DAP_FORMAT_SOCKET": \"%s\" (code %d)", a_client_pvt->uplink_addr,
                                     a_client_pvt->uplink_port, a_client_pvt->stream_es->socket, l_errbuf, l_err);
 #ifdef DAP_OS_WINDOWS
                             closesocket(a_client_pvt->stream_socket);
