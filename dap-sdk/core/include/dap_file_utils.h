@@ -126,10 +126,6 @@ dap_list_name_directories_t *dap_get_subs(const char *a_path_name);
  */
 bool dap_file_get_contents(const char *filename, char **contents, size_t *length);
 
-#ifdef __cplusplus
-}
-#endif
-
 /*
  * Creates a path from a series of elements using @separator as the
  * separator between elements. At the boundary between two elements,
@@ -173,5 +169,9 @@ char* dap_canonicalize_filename(const char *filename, const char *relative_to);
  * Returns: (type filename) (transfer full): the current directory
  */
 char* dap_get_current_dir(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // _FILE_UTILS_H_
