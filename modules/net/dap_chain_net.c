@@ -3169,6 +3169,72 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                     size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
                     dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
                 }break;
+                case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:{
+                    dap_string_append_printf(a_str_out,"type: NATIVE\n");
+                    dap_string_append_printf(a_str_out,"flags: ");
+                    dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
+                    dap_tsd_t * l_tsd_first = dap_chain_datum_token_tsd_get(l_token, l_token_size);
+                    if (l_tsd_first == NULL)
+                        dap_string_append_printf(a_str_out,"<CORRUPTED TSD SECTION>\n");
+                    else{
+                        size_t l_offset = 0;
+                        size_t l_offset_max = l_token->header_native_decl.tsd_total_size;
+                        while( l_offset< l_offset_max){
+                            dap_tsd_t * l_tsd = (void*)l_tsd_first + l_offset;
+                            if ( (l_tsd->size+l_offset) >l_offset_max){
+                                log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
+                                       l_tsd->size, l_offset_max - l_offset);
+                                return;
+                            }
+                            switch( l_tsd->type){
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256: // 256
+                                    dap_string_append_printf(a_str_out,"total_supply: %s\n",
+                                                            dap_chain_balance_print(
+                                                                    dap_tsd_get_scalar(l_tsd, uint256_t)));
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: // 128
+                                        dap_string_append_printf(a_str_out,"total_supply: %s\n",
+                                                            dap_chain_balance_print(GET_256_FROM_128(
+                                                                                        dap_tsd_get_scalar(l_tsd, uint128_t))));
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
+                                    dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",
+                                                             dap_tsd_get_scalar(l_tsd, uint16_t) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD  :
+                                    dap_string_append_printf(a_str_out,"datum_type_allowed: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD  :
+                                    dap_string_append_printf(a_str_out,"datum_type_blocked: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
+                                    dap_string_append_printf(a_str_out,"tx_sender_allowed: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
+                                    dap_string_append_printf(a_str_out,"tx_sender_blocked: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
+                                    dap_string_append_printf(a_str_out,"tx_receiver_allowed: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
+                                    dap_string_append_printf(a_str_out, "tx_receiver_blocked: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                default: dap_string_append_printf(a_str_out, "<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
+                            }
+                            l_offset += dap_tsd_size(l_tsd);
+
+                        }
+                    }
+
+                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
+                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
+                }break;
                 case DAP_CHAIN_DATUM_TX:{
                     dap_chain_datum_tx_t * l_tx =(dap_chain_datum_tx_t *) a_datum->data;
                     char buf[50];
