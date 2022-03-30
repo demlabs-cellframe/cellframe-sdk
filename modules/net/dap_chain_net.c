@@ -3104,7 +3104,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                     }
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:{
-                    dap_string_append_printf(a_str_out,"type: PRIVATE_DECL\n");
+                    dap_string_append_printf(a_str_out,"type: PRIVATE\n");
                     dap_string_append_printf(a_str_out,"flags: ");
                     dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_decl.flags);
                     dap_tsd_t * l_tsd_first = dap_chain_datum_token_tsd_get(l_token, l_token_size);

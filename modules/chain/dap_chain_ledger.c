@@ -1422,7 +1422,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
 
     if (!l_token_item){
-        log_it(L_WARNING,"emission_add_check. tiken ticker %s was not found",c_token_ticker);
+        log_it(L_WARNING,"Ledger_token_emission_add_check. Token ticker %s was not found",c_token_ticker);
         return -5;
     }
 

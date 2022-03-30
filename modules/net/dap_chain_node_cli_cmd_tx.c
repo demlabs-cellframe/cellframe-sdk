@@ -914,9 +914,18 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                                     l_token->header_private_decl.tsd_total_size,
                                     l_token->header_private_decl.flags);
                             break;
+                        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: // 256
+                            dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
+                                    l_token->header_native_decl.tsd_total_size,
+                                    l_token->header_native_decl.flags);
+                            break;
                         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
                             dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U"\n",
                                     l_token->header_private_update.tsd_total_size);
+                            break;
+                        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE: // 256
+                            dap_string_append_printf(l_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U"\n",
+                                    l_token->header_native_update.tsd_total_size);
                             break;
                         case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: { // 256
                             char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);
@@ -1049,9 +1058,18 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                                         l_token->header_private_decl.tsd_total_size,
                                         l_token->header_private_decl.flags);
                                 break;
+                            case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: // 256
+                                dap_string_append_printf(l_str_out, "256bit  tsd_total_size: %"DAP_UINT64_FORMAT_U", flags: 0x%x \n",
+                                        l_token->header_private_decl.tsd_total_size,
+                                        l_token->header_private_decl.flags);
+                                break;
                             case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
                                 dap_string_append_printf(l_str_out, "256bit  tsd_total_size: %"DAP_UINT64_FORMAT_U"\n",
                                         l_token->header_private_update.tsd_total_size);
+                                break;
+                            case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE: // 256
+                                dap_string_append_printf(l_str_out, "256bit  tsd_total_size: %"DAP_UINT64_FORMAT_U"\n",
+                                        l_token->header_native_update.tsd_total_size);
                                 break;
                             case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: { // 256
                                 char *l_addr = dap_chain_addr_to_str(&l_token->header_public.premine_address);

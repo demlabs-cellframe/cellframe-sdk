@@ -3256,7 +3256,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)) ;
             
-            l_datum_token->type = l_type; //DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL;
+            l_datum_token->type = l_type; //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL;
             
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->header_native_decl.flags = l_flags;   
