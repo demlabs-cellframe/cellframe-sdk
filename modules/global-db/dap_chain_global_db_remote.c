@@ -352,7 +352,8 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
         l_offset += l_obj->value_len;
     }
     assert(a_pkt->data_size == l_offset);
-    // l_cur_count may be less than l_count due to too little memory
+    // Return the number of completely filled dap_store_obj_t structures
+    // because l_cur_count may be less than l_count due to too little memory
     if(a_store_obj_count)
         *a_store_obj_count = l_cur_count;
     return l_store_obj;
