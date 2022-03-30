@@ -1529,7 +1529,7 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         return false;
     }
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "4CFB3928-1A9A-467D-BB5E-3FDB35014E8A");
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "5B0FEEF6-B0D5-48A9-BFA2-32E8B294366D");
     if (dap_file_simple_test(l_cache_file)) {
         return false;
     }
@@ -2977,15 +2977,14 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:{
                     dap_string_append_printf(a_str_out, "type: SIMPLE\n");
-                    dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->header_private.signs_total );
-                    dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->header_private.signs_valid );
+                    dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->header_simple.signs_total );
+                    dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->header_simple.signs_valid );
                     if ( dap_chain_datum_token_is_old(l_token->type) )
-                        dap_string_append_printf(a_str_out, "total_supply: %"DAP_UINT64_FORMAT_U"\n", l_token->header_private.total_supply );
+                        dap_string_append_printf(a_str_out, "total_supply: %"DAP_UINT64_FORMAT_U"\n", l_token->header_simple.total_supply );
                     else
                         dap_string_append_printf(a_str_out, "total_supply: %s\n",
-                                                dap_chain_balance_print(l_token->header_private.total_supply_256));
+                                                dap_chain_balance_print(l_token->header_simple.total_supply_256));
                 }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE:
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
                     dap_string_append_printf(a_str_out,"type: PRIVATE_UPDATE\n");
                     dap_tsd_t * l_tsd = dap_chain_datum_token_tsd_get(l_token, l_token_size);
@@ -3104,7 +3103,6 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                         }
                     }
                 }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL:
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:{
                     dap_string_append_printf(a_str_out,"type: PRIVATE_DECL\n");
                     dap_string_append_printf(a_str_out,"flags: ");
