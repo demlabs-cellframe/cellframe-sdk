@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <limits.h>
 #if (OS_TARGET == OS_MACOS)
     #include <stdio.h>
 #else
@@ -37,6 +38,7 @@
 #endif
 #include <string.h>
 #include <sys/stat.h>
+#include <stdarg.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -44,6 +46,7 @@
 #endif
 
 #include "dap_common.h"
+#include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 
@@ -72,13 +75,13 @@ bool dap_valid_ascii_symbols(const char *a_string)
  * @a_file_path filename pathname
  * @return true, if file exists
  */
-bool dap_file_simple_test(const char * a_file_path)
+bool dap_file_test(const char * a_file_path)
 {
     if(!a_file_path)
         return false;
 #ifdef _WIN32
     int attr = GetFileAttributesA(a_file_path);
-    if(attr != -1)
+    if(attr != -1 && (attr & FILE_ATTRIBUTE_NORMAL))
         return true;
 #else
     struct stat st;
@@ -96,13 +99,13 @@ bool dap_file_simple_test(const char * a_file_path)
  * @a_file_path filename pathname
  * @return true, if file exists
  */
-bool dap_file_test(const char * a_file_path)
+bool dap_file_simple_test(const char * a_file_path)
 {
     if(!a_file_path)
         return false;
 #ifdef _WIN32
     int attr = GetFileAttributesA(a_file_path);
-    if(attr != -1 && (attr & FILE_ATTRIBUTE_NORMAL))
+    if(attr != -1)
         return true;
 #else
     struct stat st;
@@ -288,7 +291,7 @@ bool dap_path_is_absolute(const char *a_file_name)
         return true;
 
 #ifdef _WIN32
-    /* Recognize drive letter on native Windows */
+    // Recognize drive letter on native Windows
     if (dap_ascii_isalpha(a_file_name[0]) &&
             a_file_name[1] == ':' && DAP_IS_DIR_SEPARATOR (a_file_name[2]))
     return true;
@@ -296,6 +299,74 @@ bool dap_path_is_absolute(const char *a_file_name)
 
     return false;
 }
+
+/**
+ * dap_path_skip_root:
+ * @file_name: (type filename): a file name
+ *
+ * Returns a pointer into @file_name after the root component,
+ * i.e. after the "/" in UNIX or "C:\" under Windows. If @file_name
+ * is not an absolute path it returns %NULL.
+ *
+ * Returns: (type filename) (nullable): a pointer into @file_name after the
+ *     root component
+ */
+const char *dap_path_skip_root (const char *file_name)
+{
+    dap_return_val_if_fail(file_name != NULL, NULL);
+
+    // Skip \\server\share or //server/share
+    if(DAP_IS_DIR_SEPARATOR (file_name[0]) &&
+            DAP_IS_DIR_SEPARATOR(file_name[1]) &&
+            file_name[2] &&
+            !DAP_IS_DIR_SEPARATOR(file_name[2]))
+    {
+        char *p;
+        p = strchr(file_name + 2, DAP_DIR_SEPARATOR);
+
+#ifdef _WIN32
+      {
+        char *q;
+        q = strchr (file_name + 2, '/');
+        if (p == NULL || (q != NULL && q < p))
+        p = q;
+      }
+#endif
+
+        if(p && p > file_name + 2 && p[1])
+                {
+            file_name = p + 1;
+
+            while(file_name[0] && !DAP_IS_DIR_SEPARATOR(file_name[0]))
+                file_name++;
+
+            // Possibly skip a backslash after the share name
+            if(DAP_IS_DIR_SEPARATOR(file_name[0]))
+                file_name++;
+
+            return (char*) file_name;
+        }
+    }
+
+    // Skip initial slashes
+    if(DAP_IS_DIR_SEPARATOR(file_name[0]))
+            {
+        while(DAP_IS_DIR_SEPARATOR(file_name[0]))
+            file_name++;
+        return (char*) file_name;
+    }
+
+#ifdef _WIN32
+  /* Skip X:\ */
+  if (dap_ascii_isalpha (file_name[0]) &&
+      file_name[1] == ':' &&
+      DAP_IS_DIR_SEPARATOR (file_name[2]))
+    return (char *)file_name + 3;
+#endif
+
+    return NULL;
+}
+
 
 /**
  * dap_path_get_dirname:
@@ -666,3 +737,564 @@ bool dap_file_get_contents(const char *filename, char **contents, size_t *length
 #endif
 }
 
+
+
+
+static char* dap_build_path_va(const char *separator, const char *first_element, va_list *args, char **str_array)
+{
+    dap_string_t *result;
+    int separator_len = dap_strlen(separator);
+    bool is_first = TRUE;
+    bool have_leading = FALSE;
+    const char *single_element = NULL;
+    const char *next_element;
+    const char *last_trailing = NULL;
+    int i = 0;
+
+    result = dap_string_new(NULL);
+
+    if(str_array)
+        next_element = str_array[i++];
+    else
+        next_element = first_element;
+
+    while(TRUE)
+    {
+        const char *element;
+        const char *start;
+        const char *end;
+
+        if(next_element)
+        {
+            element = next_element;
+            if(str_array)
+                next_element = str_array[i++];
+            else
+                next_element = va_arg(*args, char*);
+        }
+        else
+            break;
+
+        // Ignore empty elements
+        if(!*element)
+            continue;
+
+        start = element;
+
+        if(separator_len)
+        {
+            while(dap_strncmp(start, separator, separator_len) == 0)
+                start += separator_len;
+        }
+
+        end = start + dap_strlen(start);
+
+        if(separator_len)
+        {
+            while(end >= start + separator_len &&
+                    dap_strncmp(end - separator_len, separator, separator_len) == 0)
+                end -= separator_len;
+
+            last_trailing = end;
+            while(last_trailing >= element + separator_len &&
+                    dap_strncmp(last_trailing - separator_len, separator, separator_len) == 0)
+                last_trailing -= separator_len;
+
+            if(!have_leading)
+            {
+                // If the leading and trailing separator strings are in the same element and overlap, the result is exactly that element
+                if(last_trailing <= start)
+                    single_element = element;
+
+                dap_string_append_len(result, element, start - element);
+                have_leading = TRUE;
+            }
+            else
+                single_element = NULL;
+        }
+
+        if(end == start)
+            continue;
+
+        if(!is_first)
+            dap_string_append(result, separator);
+
+        dap_string_append_len(result, start, end - start);
+        is_first = FALSE;
+    }
+
+    if(single_element)
+    {
+        dap_string_free(result, TRUE);
+        return dap_strdup(single_element);
+    }
+    else
+    {
+        if(last_trailing)
+            dap_string_append(result, last_trailing);
+
+        return dap_string_free(result, FALSE);
+    }
+}
+
+/**
+ * dap_build_pathv:
+ * @separator: a string used to separator the elements of the path.
+ * @args: (array zero-terminated=1) (element-type filename): %NULL-terminated
+ *     array of strings containing the path elements.
+ *
+ * Behaves exactly like g_build_path(), but takes the path elements
+ * as a string array, instead of varargs. This function is mainly
+ * meant for language bindings.
+ *
+ * Returns: (type filename) (transfer full): a newly-allocated string that
+ *     must be freed with DAP_DELETE().
+ *
+ */
+char* dap_build_pathv(const char *separator, char **args)
+{
+    if(!args)
+        return NULL;
+
+    return dap_build_path_va(separator, NULL, NULL, args);
+}
+
+/**
+ * dap_build_path:
+ * @separator: (type filename): a string used to separator the elements of the path.
+ * @first_element: (type filename): the first element in the path
+ * @...: remaining elements in path, terminated by %NULL
+ *
+ * Creates a path from a series of elements using @separator as the
+ * separator between elements. At the boundary between two elements,
+ * any trailing occurrences of separator in the first element, or
+ * leading occurrences of separator in the second element are removed
+ * and exactly one copy of the separator is inserted.
+ *
+ * Empty elements are ignored.
+ *
+ * The number of leading copies of the separator on the result is
+ * the same as the number of leading copies of the separator on
+ * the first non-empty element.
+ *
+ * The number of trailing copies of the separator on the result is
+ * the same as the number of trailing copies of the separator on
+ * the last non-empty element. (Determination of the number of
+ * trailing copies is done without stripping leading copies, so
+ * if the separator is `ABA`, then `ABABA` has 1 trailing copy.)
+ *
+ * However, if there is only a single non-empty element, and there
+ * are no characters in that element not part of the leading or
+ * trailing separators, then the result is exactly the original value
+ * of that element.
+ *
+ * Other than for determination of the number of leading and trailing
+ * copies of the separator, elements consisting only of copies
+ * of the separator are ignored.
+ *
+ * Returns: (type filename) (transfer full): a newly-allocated string that
+ *     must be freed with DAP_DELETE().
+ **/
+char* dap_build_path(const char *separator, const char *first_element, ...)
+{
+    char *str;
+    va_list args;
+
+    dap_return_val_if_fail(separator != NULL, NULL);
+
+    va_start(args, first_element);
+    str = dap_build_path_va(separator, first_element, &args, NULL);
+    va_end(args);
+
+    return str;
+}
+
+#ifdef _WIN32
+
+static char* dap_build_pathname_va(const char *first_element, va_list *args, char **str_array)
+{
+    /* Code copied from g_build_pathv(), and modified to use two
+     * alternative single-character separators.
+     */
+    dap_string_t *result;
+    bool is_first = TRUE;
+    bool have_leading = FALSE;
+    const char *single_element = NULL;
+    const char *next_element;
+    const char *last_trailing = NULL;
+    char current_separator = '\\';
+    int i = 0;
+
+    result = dap_string_new(NULL);
+
+    if(str_array)
+        next_element = str_array[i++];
+    else
+        next_element = first_element;
+
+    while(TRUE)
+    {
+        const char *element;
+        const char *start;
+        const char *end;
+
+        if(next_element)
+        {
+            element = next_element;
+            if(str_array)
+                next_element = str_array[i++];
+            else
+                next_element = va_arg(*args, char*);
+        }
+        else
+            break;
+
+        /* Ignore empty elements */
+        if(!*element)
+            continue;
+
+        start = element;
+
+        if(TRUE)
+        {
+            while(start &&
+                    (*start == '\\' || *start == '/'))
+            {
+                current_separator = *start;
+                start++;
+            }
+        }
+
+        end = start + strlen(start);
+
+        if(TRUE)
+        {
+            while(end >= start + 1 &&
+                    (end[-1] == '\\' || end[-1] == '/'))
+            {
+                current_separator = end[-1];
+                end--;
+            }
+
+            last_trailing = end;
+            while(last_trailing >= element + 1 &&
+                    (last_trailing[-1] == '\\' || last_trailing[-1] == '/'))
+                last_trailing--;
+
+            if(!have_leading)
+            {
+                // If the leading and trailing separator strings are in the same element and overlap, the result is exactly that element
+                if(last_trailing <= start)
+                    single_element = element;
+
+                dap_string_append_len(result, element, start - element);
+                have_leading = TRUE;
+            }
+            else
+                single_element = NULL;
+        }
+
+        if(end == start)
+            continue;
+
+        if(!is_first)
+            dap_string_append_len(result, &current_separator, 1);
+
+        dap_string_append_len(result, start, end - start);
+        is_first = FALSE;
+    }
+
+    if(single_element)
+    {
+        dap_string_free(result, TRUE);
+        return dap_strdup(single_element);
+    }
+    else
+    {
+        if(last_trailing)
+            dap_string_append(result, last_trailing);
+
+        return dap_string_free(result, FALSE);
+    }
+}
+
+#endif
+
+static char* dap_build_filename_va(const char *first_argument, va_list *args, char **str_array)
+{
+    char *str;
+
+#ifndef _WIN32
+    str = dap_build_path_va(DAP_DIR_SEPARATOR_S, first_argument, args, str_array);
+#else
+    str = dap_build_pathname_va(first_argument, args, str_array);
+#endif
+
+    return str;
+}
+
+/**
+ * dap_build_filename:
+ * @first_element: (type filename): the first element in the path
+ * @...: remaining elements in path, terminated by %NULL
+ *
+ * Creates a filename from a series of elements using the correct
+ * separator for filenames.
+ *
+ * On Unix, this function behaves identically to `g_build_path
+ * (G_DIR_SEPARATOR_S, first_element, ....)`.
+ *
+ * On Windows, it takes into account that either the backslash
+ * (`\` or slash (`/`) can be used as separator in filenames, but
+ * otherwise behaves as on UNIX. When file pathname separators need
+ * to be inserted, the one that last previously occurred in the
+ * parameters (reading from left to right) is used.
+ *
+ * No attempt is made to force the resulting filename to be an absolute
+ * path. If the first element is a relative path, the result will
+ * be a relative path.
+ *
+ * Returns: (type filename) (transfer full): a newly-allocated string that
+ *     must be freed with DAP_DELETE().
+ **/
+char* dap_build_filename(const char *first_element, ...)
+{
+    char *str;
+    va_list args;
+
+    va_start(args, first_element);
+    str = dap_build_filename_va(first_element, &args, NULL);
+    va_end(args);
+
+    return str;
+}
+
+/**
+ * dap_canonicalize_filename:
+ * @filename: (type filename): the name of the file
+ * @relative_to: (type filename) (nullable): the relative directory, or %NULL
+ * to use the current working directory
+ *
+ * Gets the canonical file name from @filename. All triple slashes are turned into
+ * single slashes, and all `..` and `.`s resolved against @relative_to.
+ *
+ * Symlinks are not followed, and the returned path is guaranteed to be absolute.
+ *
+ * If @filename is an absolute path, @relative_to is ignored. Otherwise,
+ * @relative_to will be prepended to @filename to make it absolute. @relative_to
+ * must be an absolute path, or %NULL. If @relative_to is %NULL, it'll fallback
+ * to g_get_current_dir().
+ *
+ * This function never fails, and will canonicalize file paths even if they don't
+ * exist.
+ *
+ * No file system I/O is done.
+ *
+ * Returns: (type filename) (transfer full): a newly allocated string with the
+ * canonical file path
+ */
+char* dap_canonicalize_filename(const char *filename, const char *relative_to)
+{
+    char *canon, *input, *output, *after_root, *output_start;
+
+    dap_return_val_if_fail(relative_to == NULL || dap_path_is_absolute (relative_to), NULL);
+
+    if(!dap_path_is_absolute(filename)) {
+        char *cwd_allocated = NULL;
+        const char *cwd;
+        if(relative_to != NULL)
+            cwd = relative_to;
+        else
+            cwd = cwd_allocated = dap_get_current_dir();
+
+        canon = dap_build_filename(cwd, filename, NULL);
+        DAP_DELETE(cwd_allocated);
+    }
+    else
+    {
+        canon = dap_strdup(filename);
+    }
+
+    after_root = (char*) dap_path_skip_root(canon);
+
+    if(after_root == NULL)
+    {
+        // This shouldn't really happen
+        DAP_DELETE(canon);
+        return dap_build_filename(DAP_DIR_SEPARATOR_S, filename, NULL);
+    }
+
+    // Find the first dir separator and use the canonical dir separator.
+    for(output = after_root - 1;
+            (output >= canon) && DAP_IS_DIR_SEPARATOR(*output);
+            output--)
+        *output = DAP_DIR_SEPARATOR;
+
+    /* 1 to re-increment after the final decrement above (so that output >= canon),
+     * and 1 to skip the first `/`. There might not be a first `/` if
+     * the @canon is a Windows `//server/share` style path with no
+     * trailing directories. @after_root will be '\0' in that case. */
+    output++;
+    if(*output == DAP_DIR_SEPARATOR)
+        output++;
+
+    /* POSIX allows double slashes at the start to mean something special
+     * (as does windows too). So, "//" != "/", but more than two slashes
+     * is treated as "/".
+     */
+    if(after_root - output == 1)
+        output++;
+
+    input = after_root;
+    output_start = output;
+    while(*input)
+    {
+        /* input points to the next non-separator to be processed. */
+        /* output points to the next location to write to. */
+        assert(input > canon && DAP_IS_DIR_SEPARATOR(input[-1]));
+        assert(output > canon && DAP_IS_DIR_SEPARATOR(output[-1]));
+        assert(input >= output);
+
+        /* Ignore repeated dir separators. */
+        while(DAP_IS_DIR_SEPARATOR(input[0]))
+            input++;
+
+        /* Ignore single dot directory components. */
+        if(input[0] == '.' && (input[1] == 0 || DAP_IS_DIR_SEPARATOR(input[1])))
+                {
+            if(input[1] == 0)
+                break;
+            input += 2;
+        }
+        /* Remove double-dot directory components along with the preceding
+         * path component. */
+        else if(input[0] == '.' && input[1] == '.' &&
+                (input[2] == 0 || DAP_IS_DIR_SEPARATOR(input[2])))
+                {
+            if(output > output_start)
+                    {
+                do
+                {
+                    output--;
+                }
+                while(!DAP_IS_DIR_SEPARATOR(output[-1]) && output > output_start);
+            }
+            if(input[2] == 0)
+                break;
+            input += 3;
+        }
+        /* Copy the input to the output until the next separator,
+         * while converting it to canonical separator */
+        else
+        {
+            while(*input && !DAP_IS_DIR_SEPARATOR(*input))
+                *output++ = *input++;
+            if(input[0] == 0)
+                break;
+            input++;
+            *output++ = DAP_DIR_SEPARATOR;
+        }
+    }
+
+    /* Remove a potentially trailing dir separator */
+    if(output > output_start && DAP_IS_DIR_SEPARATOR(output[-1]))
+        output--;
+
+    *output = '\0';
+
+    return canon;
+}
+
+
+#if defined(MAXPATHLEN)
+#define DAP_PATH_LENGTH MAXPATHLEN
+#elif defined(PATH_MAX)
+#define DAP_PATH_LENGTH PATH_MAX
+#elif defined(_PC_PATH_MAX)
+#define DAP_PATH_LENGTH sysconf(_PC_PATH_MAX)
+#else
+#define DAP_PATH_LENGTH 2048
+#endif
+
+/**
+ * dap_get_current_dir:
+ *
+ * Gets the current directory.
+ *
+ * The returned string should be freed when no longer needed.
+ * The encoding of the returned string is system defined.
+ * On Windows, it is always UTF-8.
+ *
+ * Since GLib 2.40, this function will return the value of the "PWD"
+ * environment variable if it is set and it happens to be the same as
+ * the current directory.  This can make a difference in the case that
+ * the current directory is the target of a symbolic link.
+ *
+ * Returns: (type filename) (transfer full): the current directory
+ */
+char* dap_get_current_dir(void)
+{
+#ifdef _WIN32
+
+  gchar *dir = NULL;
+  wchar_t dummy[2], *wdir;
+  DWORD len;
+
+  len = GetCurrentDirectoryW (2, dummy);
+  wdir = g_new (wchar_t, len);
+
+  if (GetCurrentDirectoryW (len, wdir) == len - 1)
+    dir = g_utf16_to_utf8 (wdir, -1, NULL, NULL, NULL);
+
+  g_free (wdir);
+
+  if (dir == NULL)
+    dir = g_strdup ("\\");
+
+  return dir;
+
+#else
+    const char *pwd;
+    char *buffer = NULL;
+    char *dir = NULL;
+    static ulong max_len = 0;
+    struct stat pwdbuf, dotbuf;
+
+    pwd = getenv("PWD");
+    if(pwd != NULL &&
+            stat(".", &dotbuf) == 0 && stat(pwd, &pwdbuf) == 0 &&
+            dotbuf.st_dev == pwdbuf.st_dev && dotbuf.st_ino == pwdbuf.st_ino)
+        return dap_strdup(pwd);
+
+    if(max_len == 0)
+        max_len = (DAP_PATH_LENGTH == -1) ? 2048 : DAP_PATH_LENGTH;
+
+    while(max_len < ULONG_MAX / 2)
+    {
+        DAP_DELETE(buffer);
+        buffer = DAP_NEW_SIZE(char, max_len + 1);
+        *buffer = 0;
+        dir = getcwd(buffer, max_len);
+
+        if(dir || errno != ERANGE)
+            break;
+
+        max_len *= 2;
+    }
+
+    if(!dir || !*buffer)
+            {
+        /* hm, should we g_error() out here?
+         * this can happen if e.g. "./" has mode \0000
+         */
+        buffer[0] = DAP_DIR_SEPARATOR;
+        buffer[1] = 0;
+    }
+
+    dir = dap_strdup(buffer);
+    DAP_DELETE(buffer);
+
+    return dir;
+
+#endif
+}
