@@ -64,7 +64,7 @@ static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
 
 static dap_timerfd_t * s_packet_in_callback_timer = NULL; 
-static s_is_inited = false;
+static bool s_is_inited = false;
 
 //static int s_cli_voting(int argc, char ** argv, char **a_str_reply);
 

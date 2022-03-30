@@ -363,7 +363,7 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
 
     if (s_debug_more )
         log_it(L_INFO,"Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB");
-    dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB,
+    dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                          l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                          l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
     l_ch_chain->state = CHAIN_STATE_IDLE;
@@ -734,8 +734,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     dap_store_obj_free(l_read_obj, 1);
                 }
             }
+            time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
             // check the applied object newer that we have stored or erased
-            if (l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
+            if (l_obj->timestamp > l_timestamp_del &&
                     l_obj->timestamp > l_timestamp_cur &&
                     (l_obj->type != 'd' || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
@@ -744,32 +745,35 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 char l_ts_str[50];
                 dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_store_obj[i].timestamp);
                 log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
-                        " timestamp=\"%s\" value_len=%zu  ",
-                        (char ) l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
+                        " timestamp=\"%s\" value_len=%zu",
+                        (char )l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
                         l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);
             }
             if (!l_apply) {
+                if (l_obj->timestamp <= l_timestamp_cur)
+                    log_it(L_WARNING, "New data not applied, because newly object exists");
+                if (l_obj->timestamp <= l_timestamp_del)
+                    log_it(L_WARNING, "New data not applied, because newly object is deleted");
+                if ((l_obj->type == 'd' && l_obj->timestamp <= l_limit_time))
+                    log_it(L_WARNING, "New data not applied, because object is too old");
                 continue;
             }
-
             // apply received transaction
             dap_chain_t *l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
 
-            //
-            // if chain is zero, it can be on of GDB group
-            // 
+            // if chain is zero, it's name can be part of GDB group name
             if (!l_chain)
                  l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
             if(l_chain) {
+                log_it(L_WARNING, "New data goes to GDB chain");
                 if(l_chain->callback_add_datums_with_group){
                     const void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
                             (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
                 }
-            } else 
-            {
+            } else {
                 // save data to global_db
                 if(!dap_chain_global_db_obj_save(l_obj, 1)) {
                     struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
@@ -940,7 +944,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             log_it(L_INFO, "In:  UPDATE_GLOBAL_DB_REQ pkt: net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
                             l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
-            if (l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t))
+            if (l_chain_pkt_data_size == (size_t)sizeof(dap_stream_ch_chain_sync_request_t))
                 memcpy(&l_ch_chain->request, l_chain_pkt->data, sizeof(dap_stream_ch_chain_sync_request_t));
             dap_chain_node_client_t *l_client = (dap_chain_node_client_t *)l_ch_chain->callback_notify_arg;
             if (l_client && l_client->resync_gdb)
@@ -1067,7 +1071,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         } break;
         // first packet of data with source node address
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB: {
-            if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t)){
+            if(l_chain_pkt_data_size == (size_t)sizeof(dap_chain_node_addr_t)){
                memcpy(&l_ch_chain->request.node_addr, l_chain_pkt->data, l_chain_pkt_data_size);
                l_ch_chain->stats_request_gdb_processed = 0;
                log_it(L_INFO, "In: FIRST_GLOBAL_DB data_size=%zu net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x
@@ -1302,7 +1306,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         } break;
         // first packet of data with source node address
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN: {
-            if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t)){
+            if(l_chain_pkt_data_size == (size_t)sizeof(dap_chain_node_addr_t)){
                 memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_stream_ch_chain_pkt_hdr_t));
                 memcpy(&l_ch_chain->request.node_addr, l_chain_pkt->data, sizeof(dap_chain_node_addr_t));
                 log_it(L_INFO, "From "NODE_ADDR_FP_STR": FIRST_CHAIN data_size=%zu net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
