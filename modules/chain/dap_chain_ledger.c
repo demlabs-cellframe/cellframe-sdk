@@ -978,11 +978,11 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
                 l_type_str = "SIMPLE"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL: // 256
-                l_type_str = "PRIVATE_DECL"; break;
+                l_type_str = "PRIVATE"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
                 l_type_str = "PRIVATE_UPDATE"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: // 256
-                l_type_str = "NATIVE_DECL"; break;
+                l_type_str = "NATIVE"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE: // 256
                 l_type_str = "NATIVE_UPDATE"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: // 256
