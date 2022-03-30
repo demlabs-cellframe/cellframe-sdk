@@ -773,15 +773,16 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                             (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
                 }
-            } else {
-                // save data to global_db
-                if(!dap_chain_global_db_obj_save(l_obj, 1)) {
-                    struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
-                    dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
-                                                    s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
-                } else {
-                    if (s_debug_more)
-                        log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
+                else {
+                    // save data to global_db
+                    if(!dap_chain_global_db_obj_save(l_obj, 1)) {
+                        struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
+                        dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
+                                                        s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
+                    } else {
+                        if (s_debug_more)
+                            log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
+                    }
                 }
             }
 
