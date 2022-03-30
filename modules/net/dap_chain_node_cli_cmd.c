@@ -3238,7 +3238,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     const char * l_addr_str = NULL;
 
     const char * l_emission_hash_str = NULL;
-    dap_chain_hash_fast_t l_emission_hash;
+    dap_chain_hash_fast_t l_emission_hash, l_datum_emission_hash;
     dap_chain_datum_token_emission_t *l_emission = NULL;
     size_t l_emission_size;
 
@@ -3337,15 +3337,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         }
     } else {
         if (l_emission_hash_str) {
-            char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(l_emission_hash_str);
-            DL_FOREACH(l_net->pub.chains, l_chain_emission) {
-
-                l_emission = (dap_chain_datum_token_emission_t *)dap_chain_global_db_gr_get(
-                            l_emission_hash_str, &l_emission_size, dap_chain_net_get_gdb_group_mempool(l_chain_emission));
-                if (l_emission)
-                    break;
-                l_emission = (dap_chain_datum_token_emission_t *)dap_chain_global_db_gr_get(
-                            l_emission_hash_str_from_base58, &l_emission_size, dap_chain_net_get_gdb_group_mempool(l_chain_emission));
+            DL_FOREACH(a_net->pub.chains, l_chain_emission) {
+                l_emission = dap_chain_mempool_emission_get(l_chain_emission, l_emission_hash_str);
                 if (l_emission)
                     break;
             }
@@ -3369,54 +3362,42 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
             DAP_DELETE(l_addr);
             return -47;
         }
+        if(!l_ticker) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
+            return -3;
+        }
     }
 
+    //dap_chain_mempool_emission_create(l_emission, DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH, l_ticker, l_emission_value);
     if (!l_add_sign) {
-        // Create emission datum
-        if (!l_chain_emission) {
+        if (!l_chain_emission)
             l_chain_emission = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
-        }
-        l_emission = DAP_NEW_Z(dap_chain_datum_token_emission_t);
-        l_emission->hdr.version = 2;
-        l_emission->hdr.value_256 = l_emission_value;
-        strncpy(l_emission->hdr.ticker, l_ticker, sizeof(l_emission->hdr.ticker) - 1);
-        l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
-        memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
-        time_t l_time = time(NULL);
-        memcpy(&l_emission->hdr.nonce, &l_time, sizeof(time_t));
-        l_emission_size = sizeof(l_emission->hdr) + sizeof(l_emission->data.type_auth);
+        // Create emission datum
+        l_emission = dap_chain_datum_emission_create(l_emission_value, l_ticker, l_addr);
     }
     l_emission->data.type_auth.signs_count += l_certs_size;
     // Then add signs
-    for(size_t i = 0; i < l_certs_size; i++) {
-        dap_sign_t *l_sign = dap_cert_sign(l_certs[i], &l_emission->hdr,
-                sizeof(l_emission->hdr), 0);
-        size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_emission_size += l_sign_size;
-        l_emission->data.type_auth.size += l_sign_size;
-        l_emission = DAP_REALLOC(l_emission, l_emission_size);
-        memcpy(l_emission->data.type_auth.signs + l_emission->data.type_auth.size, l_sign, l_sign_size);
-        DAP_DELETE(l_sign);
-    }
-
+    for(size_t i = 0; i < l_certs_size; i++)
+        l_emission = dap_chain_datum_emission_add_sign(l_certs[i]->enc_key, l_emission);
+    // Calc emission's hash
+    l_emission_size = dap_chain_datum_emission_get_size(l_emission);
+    dap_hash_fast(l_emission, l_emission_size, &l_emission_hash);
     // Produce datum
     dap_chain_datum_t *l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,
             l_emission,
             l_emission_size);
+    // Delete token emission
+    DAP_DEL_Z(l_emission);
     size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
     // Calc datum emission's hash
-    dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_emission_hash);
-    // Calc token's hash
-    dap_hash_fast(l_emission, l_emission_size, &l_token_emission_hash);
-
+    dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_datum_emission_hash);
     bool l_hex_format = dap_strcmp(l_hash_out_type, "hex");
-    l_emission_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(&l_emission_hash)
-                                       : dap_enc_base58_encode_hash_to_str(&l_emission_hash);
-    // Delete token emission
-    DAP_DEL_Z(l_emission);
+    l_emission_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(&l_datum_emission_hash)
+                                       : dap_enc_base58_encode_hash_to_str(&l_datum_emission_hash);
     // Add token emission datum to mempool
-    bool l_placed = dap_chain_global_db_gr_set(dap_strdup(l_emission_hash_str),
+    char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
+    bool l_placed = dap_chain_global_db_gr_set(l_emission_hash_str,
                                                (uint8_t *)l_datum_emission,
                                                l_datum_emission_size,
                                                l_gdb_group_mempool_emission);
@@ -3431,7 +3412,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     if(l_chain_base_tx) {
         dap_chain_hash_fast_t *l_datum_tx_hash = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
-                                                                l_chain_emission->id, l_emission_value,
+                                                                l_chain_emission->id, l_emission_value, l_ticker,
                                                                 l_addr, l_certs, l_certs_size);
         char *l_tx_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(l_datum_tx_hash)
                                            : dap_enc_base58_encode_hash_to_str(l_datum_tx_hash);
@@ -3826,8 +3807,12 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     const char * l_token_ticker = NULL;
     const char * l_net_name = NULL;
     const char * l_chain_name = NULL;
+    const char * l_emission_chain_name = NULL;
     const char * l_tx_num_str = NULL;
     const char *l_emission_hash_str = NULL;
+    const char *l_certs_str = NULL;
+    dap_cert_t **l_certs = NULL;
+    size_t l_certs_count = 0;
     dap_chain_hash_fast_t l_emission_hash = {};
     size_t l_tx_num = 0;
 
@@ -3835,11 +3820,13 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     uint256_t l_value_fee = {};
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from_wallet", &l_from_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-from_emission", &l_emission_hash_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-emission_chain", &l_emission_chain_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-to_addr", &addr_base58_to);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-token", &l_token_ticker);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-chain", &l_chain_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-tx_num", &l_tx_num_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-certs", &l_certs_str);
 
     if(l_tx_num_str)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
@@ -3860,23 +3847,6 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-to_addr'");
         return -2;
     }
-    if (l_emission_hash_str) {
-        if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
-            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_hash' "
-                                                         "to be valid string containing hash in hex or base58 format");
-            return -3;
-        }
-    } else {
-        if(IS_ZERO_256(l_value)) {
-            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-value' to be valid uint256 value");
-            return -4;
-        }
-    }
-    if(addr_base58_fee && IS_ZERO_256(l_value_fee)) {
-        dap_chain_node_cli_set_reply_text(str_reply,
-                "tx_create requires parameter '-value_fee' to be valid uint256 value if '-fee' is specified");
-        return -5;
-    }
 
     if(!l_net_name) {
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-net'");
@@ -3887,6 +3857,40 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     if(l_net == NULL || (l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
         dap_chain_node_cli_set_reply_text(str_reply, "not found net by name '%s'", l_net_name);
         return -7;
+    }
+
+    dap_chain_t *l_emission_chain;
+    if (l_emission_hash_str) {
+        if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
+            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_hash' "
+                                                         "to be valid string containing hash in hex or base58 format");
+            return -3;
+        }
+        if (!l_emission_chain_name ||
+                (l_emission_chain = dap_chain_net_get_chain_by_name(l_net, l_emission_chain_name)) == NULL) {
+            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_chain' "
+                                                         "to be a valid chain name");
+            return -9;
+        }
+        if(!l_certs_str) {
+            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-certs'");
+            return -4;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        if(!l_certs_count) {
+            dap_chain_node_cli_set_reply_text(str_reply,
+                    "tx_create requires at least one valid certificate to sign the basic transaction of emission");
+            return -5;
+        }
+    }
+    if(IS_ZERO_256(l_value)) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-value' to be valid uint256 value");
+        return -4;
+    }
+    if(addr_base58_fee && IS_ZERO_256(l_value_fee)) {
+        dap_chain_node_cli_set_reply_text(str_reply,
+                "tx_create requires parameter '-value_fee' to be valid uint256 value if '-fee' is specified");
+        return -5;
     }
 
     dap_chain_t * l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
@@ -3908,7 +3912,8 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     dap_string_t *string_ret = dap_string_new(NULL);
     int res = 0;
     if (l_emission_hash_str) {
-        dap_hash_fast_t *l_tx_hash = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_addr_to);
+        dap_hash_fast_t *l_tx_hash = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
+                                                                      l_value, l_token_ticker, l_addr_to, l_certs, l_certs_count);
         if (l_tx_hash){
             char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof (l_tx_hash_str)-1);
@@ -4013,20 +4018,26 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
         *a_str_reply = NULL;
     }
     dap_hash_fast_t l_tx_hash;
-    if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid tx hash format, need hex or base58");
-        return -3;
+    char *l_hex_str_from58 = NULL;
+    if (dap_chain_hash_fast_from_hex_str(l_tx_hash_str, &l_tx_hash)) {
+        l_hex_str_from58 = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str);
+        if (dap_chain_hash_fast_from_hex_str(l_hex_str_from58, &l_tx_hash)) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid tx hash format, need hex or base58");
+            return -3;
+        }
     }
     size_t l_tx_size = 0;
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)
             dap_chain_global_db_gr_get(l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_tx_size, l_gdb_group);
+    DAP_DEL_Z(l_hex_str_from58);
     if (!l_tx) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "Specified tx not found");
         return -3;
     }
-    if (dap_chain_ledger_tx_add_check(l_net->pub.ledger, l_tx)) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Specified tx verify fail!");
+    int l_ret = dap_chain_ledger_tx_add_check(l_net->pub.ledger, l_tx);
+    if (l_ret) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Specified tx verify fail with return code=%d", l_ret);
         return -4;
     }
     dap_chain_node_cli_set_reply_text(a_str_reply, "Specified tx verified successfully");

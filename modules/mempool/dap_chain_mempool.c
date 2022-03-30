@@ -93,8 +93,8 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     if (dap_chain_global_db_gr_set(l_key_str, a_datum, dap_chain_datum_size(a_datum), l_gdb_group)) {
         log_it(L_NOTICE, "Datum with data's hash %s was placed in mempool", l_key_str);
     } else {
-        log_it(L_WARNING, "Can't place data's hash %s was placed in mempool", l_key_str);
-        DAP_DELETE(l_key_str);
+        log_it(L_WARNING, "Can't place data's hash %s in mempool", l_key_str);
+        DAP_DEL_Z(l_key_str);
     }
 
     DAP_DELETE(l_gdb_group);
@@ -588,8 +588,8 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
 }
 
 dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
-                                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value,
-                                                        dap_chain_addr_t *a_addr_to, dap_cert_t *a_certs, size_t a_certs_count)
+                                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
+                                                        dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count)
 {
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool(a_chain);
     // create first transaction (with tx_token)
@@ -598,7 +598,7 @@ dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, da
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     // create items
 
-    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, l_ticker);
+    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, a_ticker);
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
     dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_emission_value);
 
@@ -607,13 +607,11 @@ dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, da
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
 
-    if (a_certs){
+    if (a_certs) {
         // Sign all that we have with certs
         for(size_t i = 0; i < a_certs_count; i++) {
             if(dap_chain_datum_tx_add_sign_item(&l_tx, a_certs[i]->enc_key) < 0) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "No private key for certificate=%s",
-                        a_certs[i]->name);
-                DAP_DELETE(l_addr);
+                log_it(L_WARNING, "No private key for certificate '%s'", a_certs[i]->name);
                 return NULL;
             }
         }
@@ -642,6 +640,26 @@ dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, da
         return NULL;
     }
     return l_datum_tx_hash;
+}
+
+dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_chain, const char *a_emission_hash_str)
+{
+    size_t l_emission_size;
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
+    dap_chain_datum_t *l_emission = (dap_chain_datum_t *)dap_chain_global_db_gr_get(
+                                                    l_emission_hash_str, &l_emission_size, l_gdb_group);
+    if (!l_emission) {
+        char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(a_emission_hash_str);
+        l_emission = (dap_chain_datum_t *)dap_chain_global_db_gr_get(
+                                    l_emission_hash_str_from_base58, &l_emission_size, l_gdb_group);
+        DAP_DELETE(l_emission_hash_str_from_base58);
+    }
+    DAP_DELETE(l_gdb_group);
+    if (!l_emission)
+        return NULL;
+    dap_chain_datum_token_emission_t *l_ret = dap_chain_datum_emission_read(l_emission->data, &l_emission_size);
+    DAP_DELETE(l_emission);
+    return l_ret;
 }
 
 uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size)
