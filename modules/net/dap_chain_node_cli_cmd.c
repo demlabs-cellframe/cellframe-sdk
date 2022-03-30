@@ -3238,7 +3238,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     const char * l_addr_str = NULL;
 
     const char * l_emission_hash_str = NULL;
-    dap_chain_hash_fast_t l_token_emission_hash={0};
+    dap_chain_hash_fast_t l_emission_hash;
     dap_chain_datum_token_emission_t *l_emission = NULL;
     size_t l_emission_size;
 
@@ -3296,6 +3296,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     }
 
     const char *l_add_sign = NULL;
+    dap_chain_addr_t *l_addr = NULL;
     dap_chain_node_cli_find_option_val(a_argv, arg_index, arg_index + 1, "sign", &l_add_sign);
     if (!l_add_sign) {      //Create the emission
         // Emission value
@@ -3318,7 +3319,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
             return -3;
         }
 
-        dap_chain_addr_t * l_addr = dap_chain_addr_from_str(l_addr_str);
+        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
 
         if(!l_addr) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "address \"%s\" is invalid", l_addr_str);
@@ -3337,12 +3338,14 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     } else {
         if (l_emission_hash_str) {
             char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(l_emission_hash_str);
-            dap_chain_t *l_chain;
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-                l_emission = dap_chain_global_db_gr_get(l_emission_hash_str, &l_emission_size, dap_chain_net_get_gdb_group_mempool(l_chain));
+            DL_FOREACH(l_net->pub.chains, l_chain_emission) {
+
+                l_emission = (dap_chain_datum_token_emission_t *)dap_chain_global_db_gr_get(
+                            l_emission_hash_str, &l_emission_size, dap_chain_net_get_gdb_group_mempool(l_chain_emission));
                 if (l_emission)
                     break;
-                l_emission = dap_chain_global_db_gr_get(l_emission_hash_str_from_base58, &l_emission_size, dap_chain_net_get_gdb_group_mempool(l_chain));
+                l_emission = (dap_chain_datum_token_emission_t *)dap_chain_global_db_gr_get(
+                            l_emission_hash_str_from_base58, &l_emission_size, dap_chain_net_get_gdb_group_mempool(l_chain_emission));
                 if (l_emission)
                     break;
             }
@@ -3381,20 +3384,18 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         memcpy(&l_emission->hdr.address, l_addr, sizeof(l_emission->hdr.address));
         time_t l_time = time(NULL);
         memcpy(&l_emission->hdr.nonce, &l_time, sizeof(time_t));
-        l_emission_size = l_input_emission;
+        l_emission_size = sizeof(l_emission->hdr) + sizeof(l_emission->data.type_auth);
     }
     l_emission->data.type_auth.signs_count += l_certs_size;
     // Then add signs
-    size_t l_offset = 0;
     for(size_t i = 0; i < l_certs_size; i++) {
         dap_sign_t *l_sign = dap_cert_sign(l_certs[i], &l_emission->hdr,
                 sizeof(l_emission->hdr), 0);
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_emission_size += l_sign_size;
-        l_offset += l_sign_size;
         l_emission->data.type_auth.size += l_sign_size;
         l_emission = DAP_REALLOC(l_emission, l_emission_size);
-        memcpy(l_emission->data.type_auth.signs + l_offset, l_sign, l_sign_size);
+        memcpy(l_emission->data.type_auth.signs + l_emission->data.type_auth.size, l_sign, l_sign_size);
         DAP_DELETE(l_sign);
     }
 
@@ -3414,7 +3415,6 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
                                        : dap_enc_base58_encode_hash_to_str(&l_emission_hash);
     // Delete token emission
     DAP_DEL_Z(l_emission);
-
     // Add token emission datum to mempool
     bool l_placed = dap_chain_global_db_gr_set(dap_strdup(l_emission_hash_str),
                                                (uint8_t *)l_datum_emission,
@@ -3435,10 +3435,9 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
                                                                 l_addr, l_certs, l_certs_size);
         char *l_tx_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(l_datum_tx_hash)
                                            : dap_enc_base58_encode_hash_to_str(l_datum_tx_hash);
-        = dap_enc_base58_encode_hash_to_str(l_datum_tx_hash);
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is%s placed in datum pool",
                                           str_reply_tmp, l_tx_hash_str, l_placed ? "" : " not");
-        DAP_DEL_Z(l_tx_hash_str_base58);
+        DAP_DEL_Z(l_tx_hash_str);
         DAP_DELETE(str_reply_tmp);
     }
     DAP_DELETE(l_addr);

@@ -23,6 +23,7 @@
 */
 #include <stdio.h>
 #include <stdlib.h>
+#include "dap_strfuncs.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_enc_base58.h"
@@ -77,7 +78,7 @@ int dap_chain_hash_fast_from_base58_str(const char *a_base58_str,  dap_chain_has
         return -3;
     // from base58 to binary
     byte_t l_out[DAP_ENC_BASE58_DECODE_SIZE(DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_hash_fast_t)))];
-    size_t l_out_size = dap_enc_base58_decode(a_in_str, l_out);
+    size_t l_out_size = dap_enc_base58_decode(a_base58_str, l_out);
     if (l_out_size != sizeof(dap_hash_fast_t))
         return -4;
     memcpy(a_hash, l_out, sizeof(dap_hash_fast_t));

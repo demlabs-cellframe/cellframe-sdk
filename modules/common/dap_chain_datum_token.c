@@ -273,7 +273,7 @@ size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
     switch (l_emission->hdr.type) {
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH: {
             uint64_t l_size = *(uint64_t *)(a_emission_serial + l_ret);
-    `       l_ret += l_size;
+            l_ret += l_size;
         } break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
             l_ret += sizeof(l_emission->data.type_algo);
@@ -321,15 +321,14 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_chain_datum_token_emission_t *a_emission, dap_enc_key_t *a_sign_key)
 {
-    size_t l_emission_size = dap_chain_datum_emission_get_size(a_emission);
-    dap_chain_datum_token_emission_t *l_ret = dap_chain_datum_emission_read(a_emission, l_emission_size);
-    l_emission_size = dap_chain_datum_emission_get_size(l_ret); // If format was changed
-    dap_sign_t *l_sign = dap_sign_create(l_ret, l_emission_size, a_sign_key, 0);
+    size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
+    dap_chain_datum_token_emission_t *l_ret = dap_chain_datum_emission_read((uint8_t *)a_emission, &l_emission_size);
+    dap_sign_t *l_sign = dap_sign_create(a_sign_key, l_ret, l_emission_size, 0);
     if (!l_sign)
         return NULL;
     l_ret = DAP_REALLOC(l_ret, l_emission_size + dap_sign_get_size(l_sign));
     size_t l_sign_size = dap_sign_get_size(l_sign);
-    memcpy((byte_t *)l_ret->data + l_ret->data.type_auth.size, l_sign, l_sign_size);
+    memcpy((byte_t *)&l_ret->data + l_ret->data.type_auth.size, l_sign, l_sign_size);
     DAP_DELETE(l_sign);
     l_ret->data.type_auth.size += l_sign_size;
     return l_ret;
