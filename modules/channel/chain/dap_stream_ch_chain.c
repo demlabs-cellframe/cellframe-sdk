@@ -734,8 +734,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     dap_store_obj_free(l_read_obj, 1);
                 }
             }
+            time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
             // check the applied object newer that we have stored or erased
-            if (l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
+            if (l_obj->timestamp > l_timestamp_del &&
                     l_obj->timestamp > l_timestamp_cur &&
                     (l_obj->type != 'd' || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
@@ -749,7 +750,12 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);
             }
             if (!l_apply) {
-                log_it(L_WARNING, "New data not applied");
+                if (l_obj->timestamp <= l_timestamp_cur)
+                    log_it(L_WARNING, "New data not applied, because newly object exists");
+                if (l_obj->timestamp <= l_timestamp_del)
+                    log_it(L_WARNING, "New data not applied, because newly object is deleted");
+                if ((l_obj->type == 'd' && l_obj->timestamp <= l_limit_time))
+                    log_it(L_WARNING, "New data not applied, because object is too old");
                 continue;
             }
             // apply received transaction
