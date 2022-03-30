@@ -734,8 +734,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     dap_store_obj_free(l_read_obj, 1);
                 }
             }
+            time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
             // check the applied object newer that we have stored or erased
-            if (l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
+            if (l_obj->timestamp > l_timestamp_del &&
                     l_obj->timestamp > l_timestamp_cur &&
                     (l_obj->type != 'd' || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
@@ -744,32 +745,35 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 char l_ts_str[50];
                 dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_store_obj[i].timestamp);
                 log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
-                        " timestamp=\"%s\" value_len=%zu  ",
-                        (char ) l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
+                        " timestamp=\"%s\" value_len=%zu",
+                        (char )l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
                         l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);
             }
             if (!l_apply) {
+                if (l_obj->timestamp <= l_timestamp_cur)
+                    log_it(L_WARNING, "New data not applied, because newly object exists");
+                if (l_obj->timestamp <= l_timestamp_del)
+                    log_it(L_WARNING, "New data not applied, because newly object is deleted");
+                if ((l_obj->type == 'd' && l_obj->timestamp <= l_limit_time))
+                    log_it(L_WARNING, "New data not applied, because object is too old");
                 continue;
             }
-
             // apply received transaction
             dap_chain_t *l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
 
-            //
-            // if chain is zero, it can be on of GDB group
-            // 
+            // if chain is zero, it's name can be part of GDB group name
             if (!l_chain)
                  l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
             if(l_chain) {
+                log_it(L_WARNING, "New data goes to GDB chain");
                 if(l_chain->callback_add_datums_with_group){
                     const void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
                             (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
                 }
-            } else 
-            {
+            } else {
                 // save data to global_db
                 if(!dap_chain_global_db_obj_save(l_obj, 1)) {
                     struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
