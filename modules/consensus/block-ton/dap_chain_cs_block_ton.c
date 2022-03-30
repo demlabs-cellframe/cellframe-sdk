@@ -681,7 +681,8 @@ static int s_session_datums_validation(dap_chain_cs_blocks_t *a_blocks, dap_chai
     		}
     	}
     }
-    return 0;
+    // it's temporary (reject other datums type)
+    return -3;
 }
 
 static void s_session_block_new_delete(dap_chain_cs_block_ton_items_t *a_session) {
