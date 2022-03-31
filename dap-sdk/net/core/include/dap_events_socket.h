@@ -100,7 +100,6 @@ typedef int SOCKET;
 #include <poll.h>
 #endif
 
-#define BIT( x ) ( 1 << x )
 #define DAP_SOCK_READY_TO_READ     BIT( 0 )
 #define DAP_SOCK_READY_TO_WRITE    BIT( 1 )
 #define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )

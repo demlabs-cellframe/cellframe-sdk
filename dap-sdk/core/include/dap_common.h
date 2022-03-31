@@ -58,6 +58,8 @@
 #include "portable_endian.h"
 typedef uint8_t byte_t;
 
+#define BIT( x ) ( 1 << x )
+
 // Stuffs an integer into a pointer type
 #define DAP_INT_TO_POINTER(i) ((void*) (ssize_t) (i))
 // Extracts an integer from a pointer
