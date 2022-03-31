@@ -70,6 +70,7 @@
 #include "dap_server.h"
 #include "dap_worker.h"
 #include "dap_events.h"
+#include "dap_strfuncs.h"
 
 #define LOG_TAG "dap_server"
 
