@@ -169,6 +169,9 @@ void *dap_worker_thread(void *arg)
     pthread_cond_broadcast(&l_worker->started_cond);
     pthread_mutex_unlock(&l_worker->started_mutex);
     bool s_loop_is_active = true;
+
+    log_it(L_NOTICE, "Worker thread %d is running ... ", l_worker->id);
+
     while(s_loop_is_active) {
 	int l_selected_sockets;
 	size_t l_sockets_max;
@@ -222,6 +225,7 @@ void *dap_worker_thread(void *arg)
 
             if (!l_cur_flags) // No events for this socket
                 continue;
+
             l_flag_hup =  l_cur_flags& POLLHUP;
             l_flag_rdhup = l_cur_flags & POLLRDHUP;
             l_flag_write = (l_cur_flags & POLLOUT) || (l_cur_flags &POLLWRNORM)|| (l_cur_flags &POLLWRBAND ) ;
@@ -231,6 +235,7 @@ void *dap_worker_thread(void *arg)
             l_flag_pri = l_cur_flags & POLLPRI;
             l_flag_msg = l_cur_flags & POLLMSG;
             l_cur = l_worker->poll_esocket[n];
+
             //log_it(L_DEBUG, "flags: returned events 0x%0X requested events 0x%0X",l_worker->poll[n].revents,l_worker->poll[n].events );
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
         l_flag_hup=l_flag_rdhup=l_flag_read=l_flag_write=l_flag_error=l_flag_nval=l_flag_msg =l_flag_pri = false;
@@ -319,12 +324,12 @@ void *dap_worker_thread(void *arg)
                 }
                 default:
                     if(s_debug_reactor)
-                        log_it(L_INFO,"RDHUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
+                        log_it(L_INFO,"RDHUP event on esocket %p (sd=%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
                 }
             }
 
             if(l_flag_nval ){
-                log_it(L_WARNING, "NVAL flag armed for socket %p (%"DAP_FORMAT_SOCKET")", l_cur, l_cur->socket);
+                log_it(L_WARNING, "NVAL flag armed for socket %p (sd=%"DAP_FORMAT_SOCKET")", l_cur, l_cur->socket);
                 l_cur->buf_out_size = 0;
                 l_cur->buf_in_size = 0;
                 l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
@@ -374,7 +379,7 @@ void *dap_worker_thread(void *arg)
 
                 //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
                 if(l_cur->buf_in_size_max && l_cur->buf_in_size >= l_cur->buf_in_size_max ) {
-                    log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped! esocket %p (%"DAP_FORMAT_SOCKET")", l_cur, l_cur->socket);
+                    log_it(L_WARNING, "Buffer is full when there is smth to read. Its dropped! esocket %p (sd=%"DAP_FORMAT_SOCKET")", l_cur, l_cur->socket);
                     l_cur->buf_in_size = 0;
                 }
 
