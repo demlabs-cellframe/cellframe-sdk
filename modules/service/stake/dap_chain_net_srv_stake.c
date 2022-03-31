@@ -58,7 +58,7 @@ int dap_chain_net_srv_stake_init()
          "\tRemove order with specified hash\n"
     "srv_stake order update -net <net name> -order <order hash> {-cert <name> | -wallet <name>} [-H <hex | base58(default)>]"
                             "{[-addr_hldr <addr>] [-token <ticker>] [-coins <value>] [-fee_percent <value>] |"
-                            " | [-token <ticker>] [-coins <value>] -fee_percent <value>]\n"
+                            " | [-token <ticker>] [-coins <value>] [-fee_percent <value>]\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net name>\n"
          "\tGet the stake orders list within specified net name\n"
