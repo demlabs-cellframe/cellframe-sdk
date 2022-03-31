@@ -1127,6 +1127,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
             l_token_item->current_supply = l_token_item->total_supply;
         }  else if (l_token_item->datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE) {
             l_token_item->total_supply = l_token_item->datum_token->header_private.total_supply_256;
+            l_token_item->current_supply = l_token_item->total_supply;
             if (l_token_item->auth_signs_total) {
                 l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
                                                                     sizeof(dap_chain_hash_fast_t) * l_token_item->auth_signs_total);

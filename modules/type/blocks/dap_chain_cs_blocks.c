@@ -607,7 +607,7 @@ static void s_callback_delete(dap_chain_t * a_chain)
  * @param a_block_cache
  * @return
  */
-static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t * a_ledger, dap_chain_block_cache_t * a_block_cache)
+static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t * a_ledger, dap_chain_block_cache_t * a_block_cache)
 {
     if (! a_block_cache->datum_count){
         log_it(L_WARNING,"Block %s has no datums at all, can't add anything to ledger", a_block_cache->block_hash_str);
@@ -635,7 +635,7 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
                     break;
                 }
                 // don't save bad transactions to base
-                int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx, NULL);
+                l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx, NULL);
                 if( l_ret != 1 )
                     break;
 
@@ -651,7 +651,7 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
             default:
                 l_ret=-1;
         }
-        if (l_ret != 0 ){
+        if (l_ret != 1 ){
             log_it(L_WARNING, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                    dap_chain_datum_type_id_to_str(l_datum->header.type_id),
                                       a_block_cache->block_hash_str, l_ret);
@@ -679,7 +679,7 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         log_it(L_DEBUG,"Block %s checked, add it to ledger", a_block_cache->block_hash_str );
         pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
         res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
-        if (res) {
+        if (res != 1) {
             log_it(L_INFO,"Block %s checked, but ledger declined", a_block_cache->block_hash_str );
             return res;
         }
