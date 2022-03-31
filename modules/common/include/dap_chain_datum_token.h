@@ -41,7 +41,7 @@ typedef struct dap_chain_datum_token_old {
             uint64_t total_supply;
             uint16_t signs_valid;
             uint16_t signs_total;
-        } DAP_ALIGN_PACKED header_private;
+        } DAP_ALIGN_PACKED header_simple;
         struct {
             uint16_t flags;
             size_t tsd_total_size;
@@ -66,7 +66,7 @@ typedef struct dap_chain_datum_token{
     uint16_t type;
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     union {
-        // Simple private token declaration. Useful for 100% premined emission without any plays with token and owners after that
+        // Simple token declaration. Useful for 100% premined emission without any plays with token and owners after that
         struct {
             union {
                 uint64_t total_supply; // Could be zero if unlimited
@@ -78,17 +78,47 @@ typedef struct dap_chain_datum_token{
             };
             uint16_t signs_valid; // Emission auth signs
             uint16_t signs_total; // Emission auth signs
-        } DAP_ALIGN_PACKED header_private;
+        } DAP_ALIGN_PACKED header_simple;
         // Private token declarations, with flags, manipulations and updates
         struct {
+            union {
+                uint64_t total_supply; // Could be zero if unlimited
+                uint256_t total_supply_256;
+            };
+            union {
+                uint64_t current_supply; // Could be zero if unlimited
+                uint256_t current_supply_256;
+            };
+            uint16_t signs_valid; // Emission auth signs
+            uint16_t signs_total; // Emission auth signs
             uint16_t flags; // Token declaration flags
             size_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
         } DAP_ALIGN_PACKED header_private_decl;
+        //native tokens
+        struct {
+            union {
+                uint64_t total_supply; // Could be zero if unlimited
+                uint256_t total_supply_256;
+            };
+            union {
+                uint64_t current_supply; // Could be zero if unlimited
+                uint256_t current_supply_256;
+            };
+            uint16_t signs_valid; // Emission auth signs
+            uint16_t signs_total; // Emission auth signs
+            uint16_t flags; // Token declaration flags
+            size_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+        } DAP_ALIGN_PACKED header_native_decl;
         // Private token update
         struct {
             uint16_t padding;
             size_t tsd_total_size; // Data size section with extended values in key-length-value list.
         } DAP_ALIGN_PACKED header_private_update;
+        // native token update
+        struct {
+            uint16_t padding;
+            size_t tsd_total_size; // Data size section with extended values in key-length-value list.
+        } DAP_ALIGN_PACKED header_native_update;
         // Public token declaration
         struct {
             union {
@@ -111,9 +141,9 @@ typedef struct dap_chain_datum_token{
 // Simple private token decl
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE           0x0001
 // Extended declaration of privatetoken with in-time control
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL     0x0002
+//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL     0x0002
 // Token update
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE   0x0003
+//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE   0x0003
 // Open token with now ownership
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC           0x0004
 
@@ -126,6 +156,11 @@ typedef struct dap_chain_datum_token{
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE       0x0007
 // Open token with now ownership
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC               0x0008
+// Native token type
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL          0x0009
+// Token update
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE        0x000A
+// Open token with now ownership
 
 
 // Macros for token flags
@@ -133,44 +168,44 @@ typedef struct dap_chain_datum_token{
 // No any flags
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_NONE                                           0x0000
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED                             1 << 1
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED                             BIT(1)
 // Allowed all permissions if not blocked them. Be careful with this mode
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED                             1 << 2
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED                             BIT(2)
 // All permissions are temprorary frozen
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN                              1 << 3
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN                              BIT(3)
 // Unfrozen permissions
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN                            1 << 4
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN                            BIT(4)
 
 // Blocked all permissions, usefull issue it by default and then allow what you want to allow
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED                             1 << 5
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED                             BIT(5)
 // Allowed all permissions if not blocked them. Be careful with this mode
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED                             1 << 6
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED                             BIT(6)
 // All permissions are temprorary frozen
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN                              1 << 7
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN                              BIT(7)
 // Unfrozen permissions
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN                            1 << 8
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN                            BIT(8)
 
 /// ------ Static configured flags
 // No token manipulations after declarations at all. Token declares staticly and can't variabed after
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL                              1 << 9
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL                              BIT(9)
 
 // No token manipulations after declarations with flags.
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS                            1 << 10
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS                            BIT(10)
 
 // No all permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL                  1 << 11
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL                  BIT(11)
 
 // No datum type permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE           1 << 12
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE           BIT(12)
 
 // No tx sender permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER            1 << 13
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER            BIT(13)
 
 // No tx receiver permissions lists manipulations after declarations
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER          1 << 14
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER          BIT(14)
 
 //  Maximal flag
-#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     1 << 15
+#define DAP_CHAIN_DATUM_TOKEN_FLAG_MAX                                     BIT(15)
 
 #define DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED                               0xffff
 

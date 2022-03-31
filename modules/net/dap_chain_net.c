@@ -1529,7 +1529,7 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         return false;
     }
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "4CFB3928-1A9A-467D-BB5E-3FDB35014E8A");
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "5B0FEEF6-B0D5-48A9-BFA2-32E8B294366D");
     if (dap_file_simple_test(l_cache_file)) {
         return false;
     }
@@ -2977,15 +2977,14 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:{
                     dap_string_append_printf(a_str_out, "type: SIMPLE\n");
-                    dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->header_private.signs_total );
-                    dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->header_private.signs_valid );
+                    dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->header_simple.signs_total );
+                    dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->header_simple.signs_valid );
                     if ( dap_chain_datum_token_is_old(l_token->type) )
-                        dap_string_append_printf(a_str_out, "total_supply: %"DAP_UINT64_FORMAT_U"\n", l_token->header_private.total_supply );
+                        dap_string_append_printf(a_str_out, "total_supply: %"DAP_UINT64_FORMAT_U"\n", l_token->header_simple.total_supply );
                     else
                         dap_string_append_printf(a_str_out, "total_supply: %s\n",
-                                                dap_chain_balance_print(l_token->header_private.total_supply_256));
+                                                dap_chain_balance_print(l_token->header_simple.total_supply_256));
                 }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE:
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
                     dap_string_append_printf(a_str_out,"type: PRIVATE_UPDATE\n");
                     dap_tsd_t * l_tsd = dap_chain_datum_token_tsd_get(l_token, l_token_size);
@@ -3104,9 +3103,8 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                         }
                     }
                 }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL:
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:{
-                    dap_string_append_printf(a_str_out,"type: PRIVATE_DECL\n");
+                    dap_string_append_printf(a_str_out,"type: PRIVATE\n");
                     dap_string_append_printf(a_str_out,"flags: ");
                     dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_decl.flags);
                     dap_tsd_t * l_tsd_first = dap_chain_datum_token_tsd_get(l_token, l_token_size);
@@ -3169,6 +3167,72 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                     }
 
                     size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
+                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
+                }break;
+                case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:{
+                    dap_string_append_printf(a_str_out,"type: NATIVE\n");
+                    dap_string_append_printf(a_str_out,"flags: ");
+                    dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
+                    dap_tsd_t * l_tsd_first = dap_chain_datum_token_tsd_get(l_token, l_token_size);
+                    if (l_tsd_first == NULL)
+                        dap_string_append_printf(a_str_out,"<CORRUPTED TSD SECTION>\n");
+                    else{
+                        size_t l_offset = 0;
+                        size_t l_offset_max = l_token->header_native_decl.tsd_total_size;
+                        while( l_offset< l_offset_max){
+                            dap_tsd_t * l_tsd = (void*)l_tsd_first + l_offset;
+                            if ( (l_tsd->size+l_offset) >l_offset_max){
+                                log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
+                                       l_tsd->size, l_offset_max - l_offset);
+                                return;
+                            }
+                            switch( l_tsd->type){
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256: // 256
+                                    dap_string_append_printf(a_str_out,"total_supply: %s\n",
+                                                            dap_chain_balance_print(
+                                                                    dap_tsd_get_scalar(l_tsd, uint256_t)));
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: // 128
+                                        dap_string_append_printf(a_str_out,"total_supply: %s\n",
+                                                            dap_chain_balance_print(GET_256_FROM_128(
+                                                                                        dap_tsd_get_scalar(l_tsd, uint128_t))));
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
+                                    dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",
+                                                             dap_tsd_get_scalar(l_tsd, uint16_t) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD  :
+                                    dap_string_append_printf(a_str_out,"datum_type_allowed: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD  :
+                                    dap_string_append_printf(a_str_out,"datum_type_blocked: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
+                                    dap_string_append_printf(a_str_out,"tx_sender_allowed: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
+                                    dap_string_append_printf(a_str_out,"tx_sender_blocked: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
+                                    dap_string_append_printf(a_str_out,"tx_receiver_allowed: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
+                                    dap_string_append_printf(a_str_out, "tx_receiver_blocked: %s\n",
+                                                             dap_tsd_get_string_const(l_tsd) );
+                                break;
+                                default: dap_string_append_printf(a_str_out, "<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
+                            }
+                            l_offset += dap_tsd_size(l_tsd);
+
+                        }
+                    }
+
+                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
                     dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TX:{
@@ -3444,21 +3508,35 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
  * @brief dap_cert_chain_file_save
  * @param datum
  */
-int dap_cert_chain_file_save(dap_chain_datum_t * datum, char * net_name)
+int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
 {
-    const char * s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
-
-    dap_cert_t * cert = dap_cert_mem_load(datum->data, datum->header.data_size);
-    const char * cert_name = cert->name;
-
-    size_t cert_path_length = strlen(net_name)+strlen(cert_name)+9+strlen(s_system_chain_ca_dir);
-    char *cert_path = DAP_NEW_Z_SIZE(char,cert_path_length);
-
-    snprintf(cert_path,cert_path_length,"%s/%s/%s.dcert",s_system_chain_ca_dir,net_name,cert_name);
-
+    const char *s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
+    if(dap_strlen(s_system_chain_ca_dir) == 0) {
+        log_it(L_ERROR, "Not found 'chain_ca_folder' in .cfg file");
+        return -1;
+    }
+    dap_cert_t *cert = dap_cert_mem_load(datum->data, datum->header.data_size);
+    if(!cert) {
+        log_it(L_ERROR, "Can't load cert, size: %d", datum->header.data_size);
+        return -1;
+    }
+    const char *cert_name = cert->name;
+    size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
+    char *cert_path = DAP_NEW_Z_SIZE(char, cert_path_length);
+    snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
+    // In cert_path resolve all `..` and `.`s
+    char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
+    DAP_DELETE(cert_path);
+    // Protect the ca folder from using "/.." in cert_name
+    if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
+        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
+        return -1;
+    }
+    int l_ret = dap_cert_file_save(cert, cert_path_c);
+    DAP_DELETE(cert_path_c);
 //  if ( access( l_cert_path, F_OK ) != -1 ) {
 //      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
 //      return -1;
 //  } else
-    return dap_cert_file_save(cert, cert_path);
+    return l_ret;
 }

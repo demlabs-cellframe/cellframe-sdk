@@ -263,6 +263,9 @@ bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr)
 dap_list_t *dap_chain_net_srv_stake_get_validators()
 {
     dap_list_t *l_ret = NULL;
+    if (!s_srv_stake || !s_srv_stake->itemlist) {
+        return l_ret;
+    }
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
         if (l_stake->is_active)
