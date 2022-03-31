@@ -3337,7 +3337,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         }
     } else {
         if (l_emission_hash_str) {
-            DL_FOREACH(a_net->pub.chains, l_chain_emission) {
+            DL_FOREACH(l_net->pub.chains, l_chain_emission) {
                 l_emission = dap_chain_mempool_emission_get(l_chain_emission, l_emission_hash_str);
                 if (l_emission)
                     break;
@@ -3380,7 +3380,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     for(size_t i = 0; i < l_certs_size; i++)
         l_emission = dap_chain_datum_emission_add_sign(l_certs[i]->enc_key, l_emission);
     // Calc emission's hash
-    l_emission_size = dap_chain_datum_emission_get_size(l_emission);
+    l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)l_emission);
     dap_hash_fast(l_emission, l_emission_size, &l_emission_hash);
     // Produce datum
     dap_chain_datum_t *l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION,

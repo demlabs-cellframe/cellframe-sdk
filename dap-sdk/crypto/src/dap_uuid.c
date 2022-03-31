@@ -76,7 +76,7 @@ uint64_t dap_uuid_generate_uint64()
 
 void dap_uuid_generate_nonce(void *a_nonce, size_t a_nonce_size)
 {
-    if (!a_nonce || !a_none_size)
+    if (!a_nonce || !a_nonce_size)
         return;
     uint32_t l_input[4] ={
         [0] = random_uint32_t(UINT32_MAX),

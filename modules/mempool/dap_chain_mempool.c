@@ -43,9 +43,8 @@
 #include "dap_hash.h"
 #include "dap_http_client.h"
 #include "dap_http_simple.h"
-//#include "dap_enc_http.h"
+#include "dap_enc_base58.h"
 #include "dap_enc_http.h"
-//#include "dap_http.h"
 #include "http_status_code.h"
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
@@ -647,7 +646,7 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
     size_t l_emission_size;
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
     dap_chain_datum_t *l_emission = (dap_chain_datum_t *)dap_chain_global_db_gr_get(
-                                                    l_emission_hash_str, &l_emission_size, l_gdb_group);
+                                                    a_emission_hash_str, &l_emission_size, l_gdb_group);
     if (!l_emission) {
         char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(a_emission_hash_str);
         l_emission = (dap_chain_datum_t *)dap_chain_global_db_gr_get(

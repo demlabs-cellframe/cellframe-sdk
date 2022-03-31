@@ -1327,7 +1327,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
             pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
             if (l_token_item){
                 assert(l_token_item->datum_token);
-                dap_sign_t *l_sign = (dap_sign_t *)l_emission->data.type_auth.signs;
+                dap_sign_t *l_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
                 size_t l_offset = (byte_t *)l_sign - (byte_t *)l_emission;
                 uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
                 for (uint16_t i = 0; i < l_emission->data.type_auth.signs_count && l_offset < l_emission_size; i++) {
