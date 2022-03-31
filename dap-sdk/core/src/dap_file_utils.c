@@ -1234,7 +1234,7 @@ char* dap_canonicalize_filename(const char *filename, const char *relative_to)
  */
 char* dap_get_current_dir(void)
 {
-#ifndef _WIN32
+#ifdef _WIN32
 
   char *dir = NULL;
   wchar_t dummy[2], *wdir;
