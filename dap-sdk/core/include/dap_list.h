@@ -17,14 +17,13 @@ typedef void* (*dap_callback_copy_t)(const void * src, void* data);
 typedef int (*dap_callback_compare_t)(const void * a, const void * b);
 typedef int (*dap_callback_compare_data_t)(const void * a, const void * b, void* user_data);
 
-typedef struct _dap_list dap_list_t;
 
-struct _dap_list
+typedef struct _dap_list
 {
     void* data;
-    dap_list_t *next;
-    dap_list_t *prev;
-};
+    struct _dap_list *next;
+    struct _dap_list *prev;
+} dap_list_t;
 
 /* Doubly linked lists
  */
