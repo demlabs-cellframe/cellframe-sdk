@@ -965,3 +965,214 @@ char *_strndup(const char *str, unsigned long len) {
 }
 #endif
 
+#define SURROGATE_VALUE(h,l) (((h) - 0xd800) * 0x400 + (l) - 0xdc00 + 0x10000)
+
+#define UTF8_LENGTH(char)              \
+  ((char) < 0x80 ? 1 :                 \
+   ((char) < 0x800 ? 2 :               \
+    ((char) < 0x10000 ? 3 :            \
+     ((char) < 0x200000 ? 4 :          \
+      ((char) < 0x4000000 ? 5 : 6)))))
+
+/**
+ * dap_unichar_to_utf8:
+ * @c: a Unicode character code
+ * @outbuf: (out caller-allocates) (optional): output buffer, must have at
+ *       least 6 bytes of space. If %NULL, the length will be computed and
+ *       returned and nothing will be written to @outbuf.
+ *
+ * Converts a single character to UTF-8.
+ *
+ * Returns: number of bytes written
+ */
+int dap_unichar_to_utf8 (unichar c, char   *outbuf)
+{
+  uint len = 0;
+  int first;
+  int i;
+
+  if (c < 0x80)
+    {
+      first = 0;
+      len = 1;
+    }
+  else if (c < 0x800)
+    {
+      first = 0xc0;
+      len = 2;
+    }
+  else if (c < 0x10000)
+    {
+      first = 0xe0;
+      len = 3;
+    }
+   else if (c < 0x200000)
+    {
+      first = 0xf0;
+      len = 4;
+    }
+  else if (c < 0x4000000)
+    {
+      first = 0xf8;
+      len = 5;
+    }
+  else
+    {
+      first = 0xfc;
+      len = 6;
+    }
+
+  if (outbuf)
+    {
+      for (i = len - 1; i > 0; --i)
+    {
+      outbuf[i] = (c & 0x3f) | 0x80;
+      c >>= 6;
+    }
+      outbuf[0] = c | first;
+    }
+
+  return len;
+}
+
+/**
+ * dap_utf16_to_utf8:
+ * @str: a UTF-16 encoded string
+ * @len: the maximum length (number of #gunichar2) of @str to use.
+ *     If @len < 0, then the string is nul-terminated.
+ * @items_read: (out) (optional): location to store number of
+ *     words read, or %NULL. If %NULL, then %G_CONVERT_ERROR_PARTIAL_INPUT will
+ *     be returned in case @str contains a trailing partial character. If
+ *     an error occurs then the index of the invalid input is stored here.
+ *     It’s guaranteed to be non-negative.
+ * @items_written: (out) (optional): location to store number
+ *     of bytes written, or %NULL. The value stored here does not include the
+ *     trailing 0 byte. It’s guaranteed to be non-negative.
+ *
+ * Convert a string from UTF-16 to UTF-8. The result will be
+ * terminated with a 0 byte.
+ *
+ * Note that the input is expected to be already in native endianness,
+ * an initial byte-order-mark character is not handled specially.
+ * g_convert() can be used to convert a byte buffer of UTF-16 data of
+ * ambiguous endianness.
+ *
+ * Further note that this function does not validate the result
+ * string; it may e.g. include embedded NUL characters. The only
+ * validation done by this function is to ensure that the input can
+ * be correctly interpreted as UTF-16, i.e. it doesn't contain
+ * unpaired surrogates or partial character sequences.
+ *
+ * Returns: (transfer full): a pointer to a newly allocated UTF-8 string.
+ *     This value must be freed with g_free(). If an error occurs,
+ *     %NULL will be returned and @error set.
+ **/
+char* dap_utf16_to_utf8(const unichar2 *str, long len, long *items_read, long *items_written)
+{
+    const unichar2 *in;
+    char *out;
+    char *result = NULL;
+    int n_bytes;
+    unichar high_surrogate;
+
+    dap_return_val_if_fail(str != NULL, NULL);
+
+    n_bytes = 0;
+    in = str;
+    high_surrogate = 0;
+    while((len < 0 || in - str < len) && *in)
+    {
+        unichar2 c = *in;
+        unichar wc;
+
+        if(c >= 0xdc00 && c < 0xe000) /* low surrogate */
+        {
+            if(high_surrogate)
+            {
+                wc = SURROGATE_VALUE(high_surrogate, c);
+                high_surrogate = 0;
+            }
+            else
+            {
+                // Invalid sequence in conversion input
+                goto err_out;
+            }
+        }
+        else
+        {
+            if(high_surrogate)
+            {
+                // Invalid sequence in conversion input
+                goto err_out;
+            }
+
+            if(c >= 0xd800 && c < 0xdc00) // high surrogate
+                    {
+                high_surrogate = c;
+                goto next1;
+            }
+            else
+                wc = c;
+        }
+
+        /********** DIFFERENT for UTF8/UCS4 **********/
+        n_bytes += UTF8_LENGTH(wc);
+
+        next1:
+        in++;
+    }
+
+    if(high_surrogate && !items_read)
+            {
+        // Partial character sequence at end of input
+        goto err_out;
+    }
+
+    /* At this point, everything is valid, and we just need to convert
+     */
+    /********** DIFFERENT for UTF8/UCS4 **********/
+    result = DAP_NEW_SIZE(char, n_bytes + 1);
+    if(result == NULL)
+        goto err_out;
+
+    high_surrogate = 0;
+    out = result;
+    in = str;
+    while(out < result + n_bytes)
+    {
+        unichar2 c = *in;
+        unichar wc;
+
+        if(c >= 0xdc00 && c < 0xe000) /* low surrogate */
+        {
+            wc = SURROGATE_VALUE(high_surrogate, c);
+            high_surrogate = 0;
+        }
+        else if(c >= 0xd800 && c < 0xdc00) /* high surrogate */
+        {
+            high_surrogate = c;
+            goto next2;
+        }
+        else
+            wc = c;
+
+        /********** DIFFERENT for UTF8/UCS4 **********/
+        out += dap_unichar_to_utf8(wc, out);
+
+        next2:
+        in++;
+    }
+
+    /********** DIFFERENT for UTF8/UCS4 **********/
+    *out = '\0';
+
+    if(items_written)
+        /********** DIFFERENT for UTF8/UCS4 **********/
+        *items_written = out - result;
+
+    err_out:
+    if(items_read)
+        *items_read = in - str;
+
+    return result;
+}
