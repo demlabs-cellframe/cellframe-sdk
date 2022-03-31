@@ -59,8 +59,6 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -112
 // Error code for no token for an emission (candidate to threshold)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN     -113
-// Error code for private token verification failed
-#define DAP_CHAIN_CS_VERIFY_CODE_TSD_FAILED      -114
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"

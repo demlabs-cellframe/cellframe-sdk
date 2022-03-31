@@ -1058,31 +1058,36 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
+    if (s_token_supply_limit_disable){
+        log_it(L_WARNING,"s_token_supply_limit_disable is enabled in config, please fix it and disable");
+        return false;
+    }
+
+    // Update current_supply or stop operation
+    if (l_token_item->current_supply >= l_emission_value){
+       l_token_item->current_supply -= l_emission_value;
+       log_it(L_DEBUG,"New current supply %"DAP_UINT64_FORMAT_U" for token %s", l_token_item->current_supply, l_token_item->ticker);
+       // Update value in ledger memory object
+    }                
+    else{
+       log_it(L_WARNING,"Token current supply %"DAP_UINT64_FORMAT_U" lower, than emission value = %"DAP_UINT64_FORMAT_U, l_token_item->current_supply,
+                                        l_emission_value);
+            return false;
+    }
+
+    //if load mode, we don't save anything
+    if (PVT(a_ledger)->load_mode)
+        return true;
+    // if cache mode disable we can't read something from GDB
+    if (!dap_config_get_item_bool_default(g_config, "ledger", "cached", true)) 
+        return true;   
+    
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
     size_t l_obj_length = 0;
 
     // Get dap_chain_datum_token_t token object from GDB, key is token name    
-    dap_chain_datum_token_t *l_token_for_update = (dap_chain_datum_token_t *) dap_chain_global_db_gr_get(l_token_item->ticker, &l_obj_length, l_gdb_group);
-    dap_chain_datum_token_t *l_token_cache = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_obj_length);
-
-    memcpy(l_token_cache, l_token_for_update, l_obj_length);
-
-    // Update current_supply or stop operation
-    if (l_token_cache->header_private.current_supply >= l_emission_value){
-       l_token_cache->header_private.current_supply -= l_emission_value;
-       log_it(L_DEBUG,"New current supply %"DAP_UINT64_FORMAT_U" for token %s", l_token_cache->header_private.current_supply, l_token_item->ticker);
-       // Update value in ledger memory object
-       l_token_item->current_supply = l_token_cache->header_private.current_supply;
-    }                
-    else{
-       log_it(L_WARNING,"Token current supply %"DAP_UINT64_FORMAT_U" lower, than emission value = %"DAP_UINT64_FORMAT_U, l_token_cache->header_private.current_supply,
-                                        l_emission_value);
-
-            DAP_DELETE(l_gdb_group);
-            DAP_DELETE(l_token_cache);
-            return false;
-    }   
-          
+    dap_chain_datum_token_t *l_token_cache = (dap_chain_datum_token_t *) dap_chain_global_db_gr_get(l_token_item->ticker, &l_obj_length, l_gdb_group);
+    l_token_cache->header_private.current_supply = l_token_item->current_supply;
     if (!dap_chain_global_db_gr_set(dap_strdup(l_token_item->ticker), l_token_cache,  l_obj_length, l_gdb_group)) 
     {
         if(s_debug_more)
@@ -1343,12 +1348,14 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
  */
 bool s_chain_compare_token_addresses(dap_chain_addr_t * l_add_addr01, dap_chain_addr_t * l_add_addr02)
 {
-    char *l_addr_str01 = dap_chain_addr_to_str(l_add_addr01);
-    char *l_addr_str02 = dap_chain_addr_to_str(l_add_addr02);
-    if (strcmp(l_addr_str01, l_addr_str02) == 0)
-        return true;
-    else
+    if (!l_add_addr01 || !l_add_addr01)
         return false;
+
+    //0 if equal
+    if (!memcmp(l_add_addr01,l_add_addr01,sizeof(dap_chain_addr_t)))
+        return true;
+    
+    return false;
 }
 
 /**
@@ -1422,14 +1429,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
     HASH_FIND_STR(l_ledger_priv->tokens, c_token_ticker, l_token_item);
     pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
     dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
-    if (!l_token_item)
-        return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN;
 
-    //additional check for private tokens
-    if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) | (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)){
-        if (!s_chain_ledger_token_tsd_check(a_ledger, l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
-            return DAP_CHAIN_CS_VERIFY_CODE_TSD_FAILED;
-    }
     // check if such emission is already present in table
     dap_chain_hash_fast_t l_token_emission_hash = {};
     dap_hash_fast(a_token_emission, a_token_emission_size, &l_token_emission_hash);
@@ -1451,32 +1451,17 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             memcpy(l_token_emission_item->datum_token_emission, a_token_emission, a_token_emission_size);
             memcpy(&l_token_emission_item->datum_token_emission_hash,
                    &l_token_emission_hash, sizeof(l_token_emission_hash));
+            
+            //additional check for private tokens
+            if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) | (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)){
+                if (!s_chain_ledger_token_tsd_check(a_ledger, l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
+                    return -114;
+            }
 
             // update token current_supply
-            if (!PVT(a_ledger)->load_mode && l_token_item && !s_token_supply_limit_disable){
-                if (!s_update_token_cache(a_ledger, l_token_item, l_token_emission_item->datum_token_emission->hdr.value))
-                   return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
-            }
-              // if cache is disabled, we need calc tokens manually
-            if (PVT(a_ledger)->load_mode){
-                if (!dap_config_get_item_bool_default(g_config, "ledger", "cached", true)) {
-
-                        if (l_token_item->current_supply >= l_token_emission_item->datum_token_emission->hdr.value){
-                            l_token_item->current_supply -= l_token_emission_item->datum_token_emission->hdr.value;
-                            log_it(L_DEBUG,"New current supply %"DAP_UINT64_FORMAT_U" for token %s", l_token_item->current_supply, l_token_item->ticker);
-                            // Update value in ledger memory object
-                        }                
-                        else{
-                        log_it(L_WARNING,"Token current supply %"DAP_UINT64_FORMAT_U" lower, than emission value = %"DAP_UINT64_FORMAT_U, l_token_item->current_supply,
-                                                            l_token_emission_item->datum_token_emission->hdr.value);
-                                return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
-                        }
-                } 
-            }   
-
-            if (s_token_supply_limit_disable)
-                log_it(L_WARNING,"s_token_supply_limit_disable is enabled in config, please fix it and disable");
-
+            if (!s_update_token_cache(a_ledger, l_token_item, l_token_emission_item->datum_token_emission->hdr.value))
+                return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
+             
             l_token_emission_item->datum_token_emission_size = a_token_emission_size;
             pthread_rwlock_wrlock( l_token_item ? &l_token_item->token_emissions_rwlock
                                                 : &l_ledger_priv->treshold_emissions_rwlock);
