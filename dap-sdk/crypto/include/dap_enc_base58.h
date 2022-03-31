@@ -47,7 +47,6 @@ char* dap_enc_base58_encode_hash_to_str(dap_chain_hash_fast_t *a_in_hash);
 char* dap_enc_base58_from_hex_str_to_str(const char *a_in_str);
 // convert from "Bura1HFrKsqbdytEXQVrxpbovtvLhR1VbrJs65JBx3gc" to "0xA21F1E865B6740A28E8708798ECF25D2C0AA596DF5EB1FD724186B6AD7FF2199"
 char* dap_enc_base58_to_hex_str_from_str(const char *a_in_str);
-int dap_enc_base58_hex_to_hash(const char * a_hex_str,  dap_chain_hash_fast_t * a_datum_hash);
 
 #ifdef __cplusplus
 }

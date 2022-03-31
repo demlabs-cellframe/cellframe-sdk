@@ -582,12 +582,12 @@ void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data)
  */
 bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
 {
-dap_store_obj_t store_data = {0};
+    dap_store_obj_t store_data = {0};
 
     store_data.key = a_key;
     store_data.value_len = (a_value_len == (size_t) -1) ? dap_strlen(a_value) : a_value_len;
-    store_data.value = store_data.value_len ? a_value : NULL;
-    store_data.group = a_group;
+    store_data.value = store_data.value_len ? (void *)a_value : NULL;
+    store_data.group = (char *)a_group;
     store_data.timestamp = time(NULL);
 
     lock();
@@ -599,7 +599,7 @@ dap_store_obj_t store_data = {0};
         // delete info about the deleted entry from the base if one present
         global_db_gr_del_del( a_key, a_group);
 
-        store_data.value = a_value;
+        store_data.value = (void *)a_value;
         store_data.key = a_key;
 
         dap_global_db_obj_track_history(&store_data);

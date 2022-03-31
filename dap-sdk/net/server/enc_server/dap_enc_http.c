@@ -114,7 +114,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
             return;
         } else if (l_decode_len > l_pkey_exchange_size+ sizeof (dap_sign_hdr_t)) {
             dap_sign_t *l_sign = (dap_sign_t *)&alice_msg[l_pkey_exchange_size];
-            if (l_sign->header.sign_size == 0 || l_sign->header.sign_size > (l_decode_len - l_pkey_exchange_size)  ){
+            if(!dap_sign_verify_size(l_sign, l_decode_len - l_pkey_exchange_size)) {
                 log_it(L_WARNING,"Wrong signature size %u (decoded length %zu)",l_sign->header.sign_size, l_decode_len);
                 *return_code = Http_Status_BadRequest;
                 return;

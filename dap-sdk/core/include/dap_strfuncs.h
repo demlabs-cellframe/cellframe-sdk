@@ -63,6 +63,8 @@ char* dap_strjoin(const char *a_separator, ...);
 // split up string into max_tokens tokens at delimiter and return a newly allocated string array
 char** dap_strsplit(const char *a_string, const char *a_delimiter, int a_max_tokens);
 size_t dap_str_countv(char **a_str_array);
+size_t dap_str_symbol_count(const char *a_str, char a_sym);
+bool dap_str_remove_spaces(char *a_str);
 // copies a NULL-terminated array of strings
 char** dap_strdupv(const char **a_str_array);
 // frees the array itself and all of its strings.
@@ -117,6 +119,41 @@ char *dap_itoa128(char *a_str, int128_t a_value, int a_base);
 #endif
 char *_strndup(const char *str, unsigned long len);
 #endif
+
+
+typedef uint32_t unichar;
+typedef uint16_t unichar2;
+
+/**
+ * Converts a single character to UTF-8.
+ * @c: a Unicode character code
+ * @outbuf: (out caller-allocates) (optional): output buffer, must have at
+ *       least 6 bytes of space. If %NULL, the length will be computed and
+ *       returned and nothing will be written to @outbuf.
+  * Returns: number of bytes written
+ */
+int dap_unichar_to_utf8 (unichar c, char   *outbuf);
+
+/**
+ * Convert a string from UTF-16 to UTF-8. The result will be
+ * terminated with a 0 byte.
+ * @str: a UTF-16 encoded string
+ * @len: the maximum length (number of #gunichar2) of @str to use.
+ *     If @len < 0, then the string is nul-terminated.
+ * @items_read: (out) (optional): location to store number of
+ *     words read, or %NULL. If %NULL, then %G_CONVERT_ERROR_PARTIAL_INPUT will
+ *     be returned in case @str contains a trailing partial character. If
+ *     an error occurs then the index of the invalid input is stored here.
+ *     It’s guaranteed to be non-negative.
+ * @items_written: (out) (optional): location to store number
+ *     of bytes written, or %NULL. The value stored here does not include the
+ *     trailing 0 byte. It’s guaranteed to be non-negative.
+ *
+ * Returns: (transfer full): a pointer to a newly allocated UTF-8 string.
+ *     This value must be freed with g_free(). If an error occurs,
+ *     %NULL will be returned and @error set.
+ **/
+char* dap_utf16_to_utf8(const unichar2 *str, long len, long *items_read, long *items_written);
 
 #ifdef __cplusplus
 }

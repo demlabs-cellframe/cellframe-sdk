@@ -226,34 +226,6 @@ char* dap_enc_base58_encode_hash_to_str(dap_chain_hash_fast_t *a_in_hash)
     return dap_enc_base58_encode_to_str(a_in_hash->raw, sizeof(dap_chain_hash_fast_t));
 }
 
-/**
- * @brief dap_enc_base58_hex_to_hash
- * @param a_hex_str
- * @param a_datum_hash
- * @return
- */
-int dap_enc_base58_hex_to_hash(const char * a_hex_str,  dap_chain_hash_fast_t * a_datum_hash)
-{
-    assert(a_datum_hash);
-
-    if (a_hex_str){
-        char* l_datum_base58 = dap_enc_base58_from_hex_str_to_str(a_hex_str);
-        void * l_decoded = DAP_NEW_Z_SIZE(void,strlen(l_datum_base58));
-        size_t l_decoded_size;
-        if (( l_decoded_size = dap_enc_base58_decode(l_datum_base58, l_decoded))!= sizeof (*a_datum_hash) ){
-            memcpy( a_datum_hash, l_decoded, l_decoded_size);
-            return 0;
-        }else{
-            log_it(L_ERROR,"Wrong hash format: can't parse \"%s\", decoded size %zd when expected %zd", a_hex_str, l_decoded_size,
-                                                                                                       sizeof (*a_datum_hash));
-            return -1;
-        }
-
-    }else
-        return -1;
-}
-
-
 // convert from "0xA21F1E865B6740A28E8708798ECF25D2C0AA596DF5EB1FD724186B6AD7FF2199" to "Bura1HFrKsqbdytEXQVrxpbovtvLhR1VbrJs65JBx3gc"
 char* dap_enc_base58_from_hex_str_to_str(const char *a_in_str)
 {
