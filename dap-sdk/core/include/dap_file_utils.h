@@ -126,6 +126,50 @@ dap_list_name_directories_t *dap_get_subs(const char *a_path_name);
  */
 bool dap_file_get_contents(const char *filename, char **contents, size_t *length);
 
+/*
+ * Creates a path from a series of elements using @separator as the
+ * separator between elements. At the boundary between two elements,
+ * any trailing occurrences of separator in the first element, or
+ * leading occurrences of separator in the second element are removed
+ * and exactly one copy of the separator is inserted.
+ *
+ * @separator: (type filename): a string used to separator the elements of the path.
+ * @first_element: (type filename): the first element in the path
+ * @...: remaining elements in path, terminated by %NULL
+ *
+ * Returns: (type filename) (transfer full): a newly-allocated string that
+ *     must be freed with DAP_DELETE().
+ */
+char* dap_build_path(const char *separator, const char *first_element, ...);
+
+/*
+ * Creates a filename from a series of elements using the correct
+ * separator for filenames.
+ *
+ * @first_element: (type filename): the first element in the path
+ * @...: remaining elements in path, terminated by %NULL
+ *
+ * Returns: (type filename) (transfer full): a newly-allocated string that must be freed with DAP_DELETE().
+ */
+char *dap_build_filename (const char *first_element, ...);
+
+/*
+ * Gets the canonical file name from @filename. All triple slashes are turned into
+ * single slashes, and all `..` and `.`s resolved against @relative_to.
+ *
+ * @filename: (type filename): the name of the file
+ * @relative_to: (type filename) (nullable): the relative directory, or %NULL to use the current working directory
+ *
+ * Returns: (type filename) (transfer full): a newly allocated string with the canonical file path
+ */
+char* dap_canonicalize_filename(const char *filename, const char *relative_to);
+
+/*
+ * Gets the current directory
+ * Returns: (type filename) (transfer full): the current directory
+ */
+char* dap_get_current_dir(void);
+
 #ifdef __cplusplus
 }
 #endif
