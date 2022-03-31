@@ -73,3 +73,16 @@ uint64_t dap_uuid_generate_uint64()
    //         l_input[0],l_input[1],l_input[2],l_input[3]);
     return l_output;
 }
+
+void dap_uuid_generate_nonce(void *a_nonce, size_t a_nonce_size)
+{
+    if (!a_nonce || !a_nonce_size)
+        return;
+    uint32_t l_input[4] ={
+        [0] = random_uint32_t(UINT32_MAX),
+        [1] = time(NULL),
+        [2] = atomic_fetch_add(&s_global_counter, 1),
+        [3] = random_uint32_t(UINT32_MAX)
+    };
+    SHAKE128((unsigned char *)a_nonce, a_nonce_size, (unsigned char *)l_input, sizeof(l_input));
+}

@@ -78,8 +78,6 @@ typedef struct dap_chain_datum_token{
             };
             uint16_t signs_valid; // Emission auth signs
             uint16_t signs_total; // Emission auth signs
-            uint16_t padding01; // Token declaration flags
-            uint64_t padding02; 
         } DAP_ALIGN_PACKED header_simple;
         // Private token declarations, with flags, manipulations and updates
         struct {
@@ -134,7 +132,7 @@ typedef struct dap_chain_datum_token{
             dap_chain_addr_t premine_address;
             uint32_t flags;
         } DAP_ALIGN_PACKED header_public;
-        byte_t free_space[152]; // For future changes
+        byte_t free_space[256]; // For future changes
     };
     byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
@@ -407,7 +405,7 @@ typedef struct dap_chain_datum_token_emission{
             uint64_t value;
             uint256_t value_256;
         };
-        uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
+        uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];       
     } DAP_ALIGN_PACKED hdr;
     union {
         struct {
@@ -423,10 +421,13 @@ typedef struct dap_chain_datum_token_emission{
             char codename[32];
         } DAP_ALIGN_PACKED type_algo;
         struct {
+            uint64_t size;
+            uint64_t tsd_total_size;
             uint16_t signs_count;
-            byte_t  signs[];
         } DAP_ALIGN_PACKED type_auth;// Signs if exists
+        byte_t free_space[128];     // For future changes
     } data;
+    byte_t tsd_n_signs[];
 } DAP_ALIGN_PACKED dap_chain_datum_token_emission_t;
 
 // Different emissions type
@@ -435,12 +436,17 @@ typedef struct dap_chain_datum_token_emission{
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO              0x02
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER        0x03
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT    0x04
-// 256
-// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED         0x05
-// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH              0x06
-// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO              0x07
-// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER        0x08
-// #define DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT    0x09
+
+// TSD sections with emission additional params for AUTH type
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_UNKNOWN           0x0000
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TIMESTAMP         0x0001
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_ADDRESS           0x0002
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_VALUE             0x0003
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_CONTRACT          0x0004
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_NET_ID            0x0005
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_BLOCK_NUM         0x0006
+#define DAP_CHAIN_DATUM_EMISSION_TSD_TYPE_TOKEN_SYM         0x0007
+
 extern const char *c_dap_chain_datum_token_emission_type_str[];
 
 /// TDS op funcs
@@ -449,8 +455,11 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size);
 dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
 dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size_t *a_token_size);
+
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_value, const char *a_ticker, dap_chain_addr_t *a_addr);
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_datum_token_emission_t *a_emission, int a_type, size_t a_size, void *a_data);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size);
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
-
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_t *a_sign_key, dap_chain_datum_token_emission_t *a_emission);
 // 256 TYPE
 bool dap_chain_datum_token_is_old(uint8_t a_type);

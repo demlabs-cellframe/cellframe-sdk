@@ -610,7 +610,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                         return -12;
                     }
                     // Check if its already present
-                    if (a_token_item->tx_recv_allow)
+                    if (a_token_item->tx_recv_allow) {
                         for( size_t i=0; i < a_token_item->tx_recv_allow_size; i++){ // Check for all the list
                             if ( memcmp(&a_token_item->tx_recv_allow[i], l_tsd->data, l_tsd->size) == 0 ){ // Found
                                 char * l_addr_str= dap_chain_addr_to_str((dap_chain_addr_t*) l_tsd->data );
@@ -626,6 +626,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                         if(a_token_item->tx_recv_allow){
                             memcpy(&a_token_item->tx_recv_allow[a_token_item->tx_recv_allow_size], l_tsd->data,l_tsd->size);
                             a_token_item->tx_recv_allow_size++;
+                        }
 
                     }else{
                         log_it(L_ERROR,"Out of memory! Can't extend TX_RECEIVER_ALLOWED array");
@@ -1444,7 +1445,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
             pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
             if (l_token_item){
                 assert(l_token_item->datum_token);
-                dap_sign_t *l_sign = (dap_sign_t *)l_emission->data.type_auth.signs;
+                dap_sign_t *l_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
                 size_t l_offset = (byte_t *)l_sign - (byte_t *)l_emission;
                 uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
                 for (uint16_t i = 0; i < l_emission->data.type_auth.signs_count && l_offset < l_emission_size; i++) {

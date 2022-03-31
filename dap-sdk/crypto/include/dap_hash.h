@@ -53,8 +53,9 @@ typedef dap_chain_hash_fast_t dap_hash_fast_t;
 extern "C" {
 #endif
 
-int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_hash_fast_t * a_hash);
-
+int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_hash_fast_t *a_hash);
+int dap_chain_hash_fast_from_hex_str( const char *a_hex_str, dap_chain_hash_fast_t *a_hash);
+int dap_chain_hash_fast_from_base58_str(const char *a_base58_str,  dap_chain_hash_fast_t *a_hash);
 /**
  * @brief 
  * get SHA3_256 hash for specific data
