@@ -736,15 +736,20 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 switch (action)
                 {
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
+                {
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if(dap_chain_global_db_gr_set(dap_strdup(a_key), request_str,(size_t) request_size,
+                    // request_str_copy will be freed inside dap_chain_global_db_gr_set()
+                    char *request_str_copy = DAP_NEW_Z_SIZE(char, request_size + 1);
+                    memcpy(request_str_copy, request_str, request_size);
+                    if(dap_chain_global_db_gr_set(dap_strdup(a_key), request_str_copy, (size_t) request_size,
                             dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
                         *return_code = Http_Status_OK;
                     }
                     log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
                             (*return_code == Http_Status_OK) ? "OK" : "False!");
                     DAP_DEL_Z(a_key);
+                }
                     break;
 
                 case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
