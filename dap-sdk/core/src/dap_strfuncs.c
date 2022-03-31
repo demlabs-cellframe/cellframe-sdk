@@ -698,6 +698,21 @@ size_t dap_str_countv(char **a_str_array)
     return l_i;
 }
 
+size_t dap_str_symbol_count(const char *a_str, const char *a_sym)
+{
+    if (!a_str || !a_sym)
+        return false;
+    
+    uint32_t l_count = 0;
+    do {
+        if (*a_str == *a_sym)
+            l_count++;
+    } 
+    while (*(a_str++));
+
+    return l_count;
+}
+
 /**
  * @brief  dap_strdupv:
  * 
@@ -852,6 +867,7 @@ char* dap_strup(const char *a_str, ssize_t a_len)
 
     return l_result;
 }
+
 
 /**
  * @brief  dap_strdown

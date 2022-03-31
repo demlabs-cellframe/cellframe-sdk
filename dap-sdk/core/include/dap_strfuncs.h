@@ -63,6 +63,7 @@ char* dap_strjoin(const char *a_separator, ...);
 // split up string into max_tokens tokens at delimiter and return a newly allocated string array
 char** dap_strsplit(const char *a_string, const char *a_delimiter, int a_max_tokens);
 size_t dap_str_countv(char **a_str_array);
+size_t dap_str_symbol_count(const char *a_str, const char *a_sym);
 // copies a NULL-terminated array of strings
 char** dap_strdupv(const char **a_str_array);
 // frees the array itself and all of its strings.
