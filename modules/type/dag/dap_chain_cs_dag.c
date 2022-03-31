@@ -109,6 +109,9 @@ static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_links( dap_chain_ato
 static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
                                                                   size_t ** a_lasts_size_ptr );  //    Get list of linked events
 
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_set_nlast (dap_chain_atom_iter_t * a_atom_iter, size_t *a_ret_size, size_t a_count);
+
+
 // Delete iterator
 static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt event from dag
 
@@ -232,6 +235,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
 
     a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
+
+    a_chain->callback_atom_iter_set_nlast = s_chain_callback_atom_iter_set_nlast;
 
     // Datum operations callbacks
 /*
@@ -1832,3 +1837,48 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     return l_list;
 }
 
+
+static dap_chain_atom_ptr_t s_chain_callback_atom_iter_set_nlast (
+        dap_chain_atom_iter_t * a_atom_iter,
+                    size_t * a_ret_size,
+                    size_t a_count)
+{
+const char    *l_func = __FUNCTION__;
+dap_chain_cs_dag_event_item_t *l_event_item;
+dap_chain_cs_dag_t * l_dag;
+dap_chain_cs_dag_pvt_t *l_dag_pvt;
+
+    if ( !a_atom_iter )
+        return   log_it(L_ERROR, "NULL iterator on input for %s() function", l_func), NULL;
+
+    assert ( (l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain)) );
+    assert ( (l_dag_pvt = PVT(l_dag)) );
+
+                                                                            /* Point <l_event_item> to first element in table */
+    if ( !(l_event_item = (dap_chain_cs_dag_event_item_t *) l_dag_pvt->events) )
+        return  NULL;
+
+    while ( l_event_item->hh.next )                                         /* Run over records to end of list */
+        l_event_item = l_event_item->hh.next;
+
+
+    for (int i = a_count; i; i--)                                           /* Rewind <l_event_item> to <a-count> elements */
+        {
+        if ( !l_event_item->hh.prev )                                       /* Stop is no previous element */
+            break;
+
+        l_event_item = (dap_chain_cs_dag_event_item_t*) l_event_item->hh.prev;/* Point <l_event_item> to previous element */
+        }
+
+
+    a_atom_iter->cur_item = l_event_item;                                   /* So , reconstruct the iterator */
+
+    a_atom_iter->cur = l_event_item->event;
+    a_atom_iter->cur_size = a_atom_iter->cur ? l_event_item->event_size : 0;
+    a_atom_iter->cur_hash = &l_event_item->hash;
+
+    if (a_ret_size)
+        *a_ret_size = a_atom_iter->cur_size;
+
+    return a_atom_iter->cur;
+}

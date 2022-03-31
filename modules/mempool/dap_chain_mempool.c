@@ -796,6 +796,8 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
             } else{
                 *return_code = Http_Status_BadRequest;
             }
+
+            DAP_DELETE(request_str);
         }
         else
             *return_code = Http_Status_BadRequest;

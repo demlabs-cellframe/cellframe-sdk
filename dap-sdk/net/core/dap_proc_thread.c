@@ -578,6 +578,9 @@ static void * s_proc_thread_function(void * a_arg)
 	
 	l_thread->signal_exit = false;
 	
+
+    log_it(L_NOTICE, "Worker thread is running on CPU #%d... ", l_thread->cpu_id);
+
     // Main loop
     while (!l_thread->signal_kill && !l_thread->signal_exit){
 
