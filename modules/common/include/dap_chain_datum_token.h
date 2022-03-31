@@ -47,10 +47,10 @@ typedef struct dap_chain_datum_token{
         } DAP_ALIGN_PACKED header_private;
         // Private token declarations, with flags, manipulations and updates
         struct {
-            uint64_t padding01;
-            uint64_t padding02; 
-            uint16_t padding03; 
-            uint16_t padding04;
+            uint64_t total_supply; // Could be zero if unlimited
+            uint64_t current_supply; // current size of free tokens
+            uint16_t signs_valid; // Emission auth signs
+            uint16_t signs_total; // Emission auth signs
             uint16_t flags; // Token declaration flags
             uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
         } DAP_ALIGN_PACKED header_private_decl;
