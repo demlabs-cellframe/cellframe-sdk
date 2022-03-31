@@ -381,6 +381,14 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
                     break;
                 }
+                // The size of the received data is too large (> 4.294.967.295 bytes)
+                if(l_request->data_size_recv > UINT_MAX) {
+                    log_it(L_WARNING, "Too large size of data_size_recv=%zu", l_request->data_size_recv);
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err,
+                            sizeof(l_err));
+                    break;
+                }
                 // create data to send back
                 dap_stream_ch_chain_net_srv_pkt_test_t *l_request_out = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + l_request->data_size_recv);
                 // copy info from recv message
