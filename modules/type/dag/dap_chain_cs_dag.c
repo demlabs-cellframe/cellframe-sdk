@@ -758,9 +758,15 @@ static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_even
     size_t l_sign_offset = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_event_size);
     if (l_sign_offset >= a_event_size)
         return false;
+    if (a_event->header.signs_count > UINT16_MAX)
+        return false;
     for (int i = 0; i < a_event->header.signs_count; i++) {
         dap_sign_t *l_sign = (dap_sign_t *)((uint8_t *)a_event + l_sign_offset);
         l_sign_offset += dap_sign_get_size(l_sign);
+        if (l_sign_offset > a_event_size) {
+            log_it(L_ERROR, "%d of atom signes don't fit in the atom size %zd", a_event->header.signs_count, a_event_size);
+            return false;
+        }
     }
     return l_sign_offset == a_event_size;
 }

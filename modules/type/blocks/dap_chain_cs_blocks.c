@@ -607,7 +607,7 @@ static void s_callback_delete(dap_chain_t * a_chain)
  * @param a_block_cache
  * @return
  */
-static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t * a_ledger, dap_chain_block_cache_t * a_block_cache)
+static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t * a_ledger, dap_chain_block_cache_t * a_block_cache)
 {
     if (! a_block_cache->datum_count){
         log_it(L_WARNING,"Block %s has no datums at all, can't add anything to ledger", a_block_cache->block_hash_str);
@@ -635,7 +635,7 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
                     break;
                 }
                 // don't save bad transactions to base
-                int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx, NULL);
+                l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx, NULL);
                 if( l_ret != 1 )
                     break;
 
@@ -651,7 +651,7 @@ static int  s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t 
             default:
                 l_ret=-1;
         }
-        if (l_ret != 0 ){
+        if (l_ret != 1 ){
             log_it(L_WARNING, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                    dap_chain_datum_type_id_to_str(l_datum->header.type_id),
                                       a_block_cache->block_hash_str, l_ret);
@@ -679,7 +679,7 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         log_it(L_DEBUG,"Block %s checked, add it to ledger", a_block_cache->block_hash_str );
         pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
         res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
-        if (res) {
+        if (res != 1) {
             log_it(L_INFO,"Block %s checked, but ledger declined", a_block_cache->block_hash_str );
             return res;
         }
@@ -800,7 +800,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_add_atom_to_blocks(l_blocks, a_chain->ledger, l_block_cache);
-        if(!l_consensus_check){
+        if(l_consensus_check == 1){
              log_it(L_DEBUG, "... added");
         }else if (l_consensus_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS){
             pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
@@ -1010,9 +1010,15 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = l_blocks ? PVT(l_blocks) : NULL;
     assert(l_blocks_pvt);
-    a_atom_iter->cur_item = l_blocks_pvt->block_cache_last ;
-    a_atom_iter->cur = l_blocks_pvt->block_cache_last ?  l_blocks_pvt->block_cache_last->block : NULL  ;
+    // a_atom_iter->cur_item = l_blocks_pvt->block_cache_last ;
+    // a_atom_iter->cur = l_blocks_pvt->block_cache_last ?  l_blocks_pvt->block_cache_last->block : NULL  ;
+    // a_atom_iter->cur_size = l_blocks_pvt->block_cache_last ? l_blocks_pvt->block_cache_last->block_size : 0;
+    // a_atom_iter->cur_hash = l_blocks_pvt->block_cache_last ? &l_blocks_pvt->block_cache_last->block_hash : NULL;
+
+    a_atom_iter->cur_item = l_blocks_pvt->block_cache_first;
+    a_atom_iter->cur = l_blocks_pvt->block_cache_first ?  l_blocks_pvt->block_cache_first->block : NULL;
     a_atom_iter->cur_size = l_blocks_pvt->block_cache_first ? l_blocks_pvt->block_cache_first->block_size : 0;
+    a_atom_iter->cur_hash = l_blocks_pvt->block_cache_first ? &l_blocks_pvt->block_cache_first->block_hash : NULL;
 
 //    a_atom_iter->cur =  a_atom_iter->cur ?
 //                (dap_chain_cs_dag_event_t*) PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events->event : NULL;
@@ -1031,16 +1037,22 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size )
 {
     assert(a_atom_iter);
-    assert(a_atom_size);
+    // assert(a_atom_size);
     assert(a_atom_iter->cur_item);
     dap_chain_block_cache_t * l_cur_cache =(dap_chain_block_cache_t *) a_atom_iter->cur_item;
     a_atom_iter->cur_item = l_cur_cache = l_cur_cache->next;
     if (l_cur_cache){
         a_atom_iter->cur = l_cur_cache->block;
-        *a_atom_size=a_atom_iter->cur_size = l_cur_cache->block_size;
+        if(a_atom_size)
+            *a_atom_size=a_atom_iter->cur_size = l_cur_cache->block_size;
         return l_cur_cache->block;
-    }else
+    }
+    else {
+        a_atom_iter->cur = NULL;
+        a_atom_iter->cur_size = 0;
+        a_atom_iter->cur_hash = NULL;
         return NULL;
+    }
 }
 
 /**
