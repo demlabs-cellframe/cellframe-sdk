@@ -1453,13 +1453,13 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                    &l_token_emission_hash, sizeof(l_token_emission_hash));
             
             //additional check for private tokens
-            if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) | (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)){
+            if (l_token_item && (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) | (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)){
                 if (!s_chain_ledger_token_tsd_check(a_ledger, l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
                     return -114;
             }
 
             // update token current_supply
-            if (!s_update_token_cache(a_ledger, l_token_item, l_token_emission_item->datum_token_emission->hdr.value))
+            if (l_token_item && !s_update_token_cache(a_ledger, l_token_item, l_token_emission_item->datum_token_emission->hdr.value))
                 return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
              
             l_token_emission_item->datum_token_emission_size = a_token_emission_size;
