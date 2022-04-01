@@ -2034,8 +2034,6 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
                 size_t l_datum_token_size = l_datum->header.data_size;
 
-                
-
                 if (l_datum_token->header_simple.signs_valid == l_datum_token->header_simple.signs_total) {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Datum %s with datum token has all signs on board. Can't add anything to it", l_datum_hash_out_str);
@@ -2066,10 +2064,18 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
                 if (l_datum_token->header_simple.signs_total >= l_datum_token->header_simple.signs_valid + l_certs_count) {
                     // Copy TSD sections to new location
-                    size_t l_tsd_size = l_datum_token_size - l_signs_size;
-                    uint8_t *l_token_tsd = DAP_NEW_SIZE(uint8_t, l_tsd_size);
-                    memcpy(l_token_tsd, l_datum_token->data_n_tsd + l_signs_size, l_tsd_size);
-                    size_t l_offset = l_signs_size;
+                    // rewrite to separate l_datum_token->header_private and l_datum_token->header_native 
+                    size_t l_offset = 0;
+                    size_t l_tsd_size = 0 ;
+                    uint8_t *l_token_tsd = NULL;
+                    if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL || l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+                    {
+                        l_tsd_size = l_datum_token->header_private_decl.tsd_total_size;
+                        l_token_tsd = DAP_NEW_SIZE(uint8_t, l_tsd_size);
+                        memcpy(l_token_tsd, l_datum_token->data_n_tsd + l_signs_size, l_tsd_size);
+                        l_offset = l_signs_size;
+                    }
+
                     for(size_t i = 0; i < l_certs_count; i++) {
                         // Add signs to token
                         dap_sign_t * l_sign = dap_sign_create(l_certs[i]->enc_key,
@@ -2097,8 +2103,11 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                         }
                     }
                     // Return TSD sections to its place
-                    memcpy(l_datum_token->data_n_tsd + l_signs_size, l_token_tsd, l_tsd_size);
-                    DAP_DELETE(l_token_tsd);
+                    if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL || l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+                    {
+                        memcpy(l_datum_token->data_n_tsd + l_signs_size, l_token_tsd, l_tsd_size);
+                        DAP_DELETE(l_token_tsd);
+                    }
 
                     // Recalc hash, string and place new datum
 
