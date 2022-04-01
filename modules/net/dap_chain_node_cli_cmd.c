@@ -3467,7 +3467,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
             return -3;
         }
 
-        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
+        l_addr = dap_chain_addr_from_str(l_addr_str);
 
         if(!l_addr) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "address \"%s\" is invalid", l_addr_str);
@@ -3540,7 +3540,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     // Calc datum emission's hash
     dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_datum_emission_hash);
-    bool l_hex_format = dap_strcmp(l_hash_out_type, "hex");
+    bool l_hex_format = !dap_strcmp(l_hash_out_type, "hex");
     l_emission_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(&l_datum_emission_hash)
                                        : dap_enc_base58_encode_hash_to_str(&l_datum_emission_hash);
     // Add token emission datum to mempool

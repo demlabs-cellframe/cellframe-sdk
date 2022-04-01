@@ -601,16 +601,20 @@ static void s_session_candidate_to_chain(
 	}
 
 	if ( ((float)l_signs_count/a_session->old_round.validators_count) >= ((float)2/3) ) {
-		// delete my new block if it passed consensus
-		char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
-		// block save to chain
-        if (dap_chain_atom_save(a_session->chain, (uint8_t *)l_candidate, a_candidate_size, a_session->chain->cells->id) < 0) {
-            log_it(L_ERROR, "TON: Can't add block %s to the file", l_candidate_hash_str);
-        }
-        else {
-			log_it(L_NOTICE, "TON: Block %s added in chain successfully", l_candidate_hash_str);
-        }
-        DAP_DELETE(l_candidate_hash_str);
+		dap_chain_t *l_chain = a_session->chain;
+		dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+		dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
+		if (l_res == ATOM_ACCEPT) {
+			char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
+			// block save to chain
+	        if (dap_chain_atom_save(a_session->chain, (uint8_t *)l_candidate, a_candidate_size, a_session->chain->cells->id) < 0) {
+	            log_it(L_ERROR, "TON: Can't add block %s to the file", l_candidate_hash_str);
+	        }
+	        else {
+				log_it(L_NOTICE, "TON: Block %s added in chain successfully", l_candidate_hash_str);
+	        }
+	        DAP_DELETE(l_candidate_hash_str);
+	    }
 	}
 	DAP_DELETE(l_candidate);
 }
@@ -681,8 +685,7 @@ static int s_session_datums_validation(dap_chain_cs_blocks_t *a_blocks, dap_chai
     		}
     	}
     }
-    // it's temporary (reject other datums type)
-    return -3;
+    return 0;
 }
 
 static void s_session_block_new_delete(dap_chain_cs_block_ton_items_t *a_session) {
@@ -1766,83 +1769,19 @@ static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_b
     return dap_chain_block_sign_add(a_block_ptr, a_block_size, l_ton_pvt->blocks_sign_key);
 }
 
-// not used 
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size)
 {
-    dap_chain_cs_block_ton_t *l_ton = DAP_CHAIN_CS_BLOCK_TON(a_blocks);
-    dap_chain_cs_block_ton_pvt_t *l_ton_pvt = PVT(l_ton);
-
+    // dap_chain_cs_block_ton_t *l_ton = DAP_CHAIN_CS_BLOCK_TON(a_blocks);
+    // dap_chain_cs_block_ton_pvt_t *l_ton_pvt = PVT(l_ton);
     if (a_blocks->chain->ledger == NULL) {
-        log_it(L_CRITICAL,"Ledger is NULL can't check PoS on this chain %s", a_blocks->chain->name);
+        log_it(L_CRITICAL,"Ledger is NULL can't check TON on this chain %s", a_blocks->chain->name);
         return -3;
     }
-
     if (sizeof(a_block->hdr) >= a_block_size) {
         log_it(L_WARNING,"Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);
         return  -7;
     }
-
-    size_t l_signs_count = dap_chain_block_get_signs_count(a_block, a_block_size);
-    if (l_signs_count < l_ton_pvt->confirmations_minimum) {
-        log_it(L_WARNING,"Wrong signature number with block %p on chain %s", a_block, a_blocks->chain->name);
-        return -2; // Wrong signatures number
-    }
-
-    uint16_t l_verified_num = 0;
-    for (size_t l_sig_ton = 0; l_sig_ton < l_signs_count; l_sig_ton++) {
-        dap_sign_t *l_sign = dap_chain_block_sign_get(a_block, a_block_size, l_sig_ton);
-        if (l_sign == NULL) {
-            log_it(L_WARNING, "Block isn't signed with anything: sig ton %zu, event size %zu", l_sig_ton, a_block_size);
-            return -4;
-        }
-
-        bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_block_size);
-        if (!l_sign_size_correct) {
-            log_it(L_WARNING, "Block's sign #%zu size is incorrect", l_sig_ton);
-            return -44;
-        }
-        size_t l_block_data_size = dap_chain_block_get_sign_offset(a_block, a_block_size)+sizeof(a_block->hdr);
-        if (l_block_data_size == a_block_size) {
-            log_it(L_WARNING,"Block has nothing except sign, nothing to verify so I pass it (who knows why we have it?)");
-            return 0;
-        }
-
-        int l_sign_verified = dap_sign_verify(l_sign, a_block, l_block_data_size);
-        if (l_sign_verified != 1) {
-            log_it(L_WARNING, "Block's sign is incorrect: code %d", l_sign_verified);
-            return -41;
-        }
-
-        if (l_sig_ton == 0) {
-            dap_chain_addr_t l_addr = {};
-            dap_chain_hash_fast_t l_pkey_hash;
-            dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-            dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_blocks->chain->net_id);
-            size_t l_datums_count = 0;
-            dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
-            if (!l_datums || !l_datums_count) {
-                log_it(L_WARNING, "No datums in block %p on chain %s", a_block, a_blocks->chain->name);
-                return -7;
-            }
-            for (size_t i = 0; i < l_datums_count; i++) {
-                if (!dap_chain_net_srv_stake_validator(&l_addr, l_datums[i])) {
-                    log_it(L_WARNING, "Not passed stake validator datum %zu with block %p on chain %s", i, a_block, a_blocks->chain->name);
-                    DAP_DELETE(l_datums);
-                    return -6;
-                }
-            }
-            DAP_DELETE(l_datums);
-        }
-    }
-
-    // Check number
-    if (l_verified_num >= l_ton_pvt->confirmations_minimum) {
-        // Passed all checks
-        return 0;
-    } else {
-        log_it(L_WARNING, "Wrong block: only %hu/%hu signs are valid", l_verified_num, l_ton_pvt->confirmations_minimum);
-        return -2;
-    }
+    return 0;
 }
 
 
