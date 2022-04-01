@@ -2033,6 +2033,8 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
                 dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
                 size_t l_datum_token_size = l_datum->header.data_size;
+                log_it(L_DEBUG,"size of l_datum_token_size :0x%llx ", l_datum_token_size);
+                log_it(L_DEBUG,"size of dap_chain_datum_token_t :0x%llx ", sizeof(dap_chain_datum_token_t));
 
                 if (l_datum_token->header_simple.signs_valid == l_datum_token->header_simple.signs_total) {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -2044,7 +2046,8 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
                 for (i = 1; i <= l_datum_token->header_simple.signs_current; i++){
-                    dap_sign_t *l_sign = (dap_sign_t *)l_datum_token->data_n_tsd + l_signs_size;
+                    dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_signs_size);
+                    log_it(L_DEBUG,"size of l_sign 0x%llx:", sizeof(dap_sign_t));
                     if( dap_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header_simple)) != 1) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -2057,10 +2060,11 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                         log_it(L_DEBUG,"Sign %zu passed", i);
                     }
                     l_signs_size += dap_sign_get_size(l_sign);
+                    log_it(L_DEBUG,"new l_signs_size: 0x%llx", l_signs_size);
                 }
 
                 log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
-                                 l_datum_hash_out_str, l_datum_token->header_simple.signs_valid, l_signs_size);
+                                 l_datum_hash_out_str, l_datum_token->header_simple.signs_current, l_signs_size);
 
                 if (l_datum_token->header_simple.signs_total >= l_datum_token->header_simple.signs_valid + l_certs_count) {
                     // Copy TSD sections to new location
@@ -2068,12 +2072,12 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                     size_t l_offset = 0;
                     size_t l_tsd_size = 0 ;
                     uint8_t *l_token_tsd = NULL;
+                    l_offset = l_signs_size;
                     if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL || l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
                     {
                         l_tsd_size = l_datum_token->header_private_decl.tsd_total_size;
                         l_token_tsd = DAP_NEW_SIZE(uint8_t, l_tsd_size);
-                        memcpy(l_token_tsd, l_datum_token->data_n_tsd + l_signs_size, l_tsd_size);
-                        l_offset = l_signs_size;
+                        memcpy(l_token_tsd, l_datum_token->data_n_tsd + l_signs_size, l_tsd_size);                    
                     }
 
                     for(size_t i = 0; i < l_certs_count; i++) {
@@ -2097,6 +2101,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                             DAP_DELETE(l_sign);
 
                             l_offset += l_sign_size;
+                            l_datum_token->header_simple.signs_current += 1;
                         } else{
                             log_it(L_ERROR, "Can't allocate more memory for datum token");
                             return -81;
