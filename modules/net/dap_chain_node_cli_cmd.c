@@ -3087,11 +3087,6 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)) ;
             l_datum_token->type = l_type;
 
-            // Sign header with all certificates in the list and add signs to the end of ticker declaration
-            // Important:
-
-            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
-
             if (l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) {
                 log_it(L_DEBUG,"Prepeared TSD sections for private token on %zd total size", l_tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
@@ -3100,7 +3095,6 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_datum_token->header_private_decl.current_supply_256 = l_total_supply;
                 l_datum_token->header_private_decl.signs_total = l_signs_total;
                 l_datum_token->header_private_decl.signs_valid = l_signs_emission;
-                l_datum_token->header_private_decl.signs_current = l_sign_counter;
             } else { //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
                 log_it(L_DEBUG,"Prepeared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
@@ -3109,8 +3103,18 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_datum_token->header_native_decl.current_supply_256 = uint256_0;
                 l_datum_token->header_native_decl.signs_total = l_signs_total;
                 l_datum_token->header_native_decl.signs_valid = l_signs_emission;
-                l_datum_token->header_native_decl.signs_current = l_sign_counter;
+                
             }
+
+            // Sign header with all certificates in the list and add signs to the end of ticker declaration
+            // Important:
+
+            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
+
+            if (l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+                l_datum_token->header_private_decl.signs_current = l_sign_counter;
+            else  //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+                l_datum_token->header_native_decl.signs_current = l_sign_counter;
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
@@ -3173,8 +3177,6 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
 
-             l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
-            // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
@@ -3182,7 +3184,12 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token->header_simple.current_supply_256 = l_total_supply;
             l_datum_token->header_simple.signs_total = l_signs_total;
             l_datum_token->header_simple.signs_valid = l_signs_emission;
+
+            // Create new datum token
+            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
+
             l_datum_token->header_simple.signs_current = l_sign_counter;
+
 
         }break;
         default:
