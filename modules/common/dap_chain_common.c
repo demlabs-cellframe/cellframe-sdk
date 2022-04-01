@@ -646,6 +646,8 @@ uint32_t l_tmp[4];
 }
 
 #else
+static const   char l_zero[sizeof(uint256_t)] = {0};
+
 char *dap_cvt_uint256_to_str(uint256_t a_balance)
 {
 int     l_pos, l_len, l_len_hi, l_len_lo;
@@ -761,8 +763,8 @@ uint32_t l_tmp[4];
 char *dap_chain_balance_print333(uint256_t a_balance)
 {
 int     l_pos, l_len, l_len_hi, l_len_lo;
-char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr,
-        l_zero[sizeof(uint256_t)] = {0};
+char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr;
+static const   char l_zero[sizeof(uint256_t)] = {0};
 uint64_t t, q;
 uint32_t l_tmp[4];
 
