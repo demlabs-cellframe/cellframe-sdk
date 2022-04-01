@@ -2045,7 +2045,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 }
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
-                do {
+                for (i = 1; i <= l_datum_token->header_simple.signs_current; i++){
                     dap_sign_t *l_sign = (dap_sign_t *)l_datum_token->data_n_tsd + l_signs_size;
                     if( dap_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header_simple)) != 1) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
@@ -2059,7 +2059,8 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                         log_it(L_DEBUG,"Sign %zu passed", i);
                     }
                     l_signs_size += dap_sign_get_size(l_sign);
-                } while (i++ <= l_datum_token->header_simple.signs_current);
+                }
+
                 log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->header_simple.signs_valid, l_signs_size);
 
