@@ -353,6 +353,11 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             break;
         }
         l_tx_items_count += l_item_tx_size;
+        // Freeze protection
+        if(!l_item_tx_size)
+        {
+            break;
+        }
 
     }
 
