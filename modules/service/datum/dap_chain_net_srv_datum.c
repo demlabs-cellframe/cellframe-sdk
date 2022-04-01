@@ -24,7 +24,7 @@
 
 #include <errno.h>
 #include "dap_chain_net_srv_datum.h"
-
+#include "dap_config.h"
 #include "dap_file_utils.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_node_cli.h"
@@ -45,9 +45,9 @@ int dap_chain_net_srv_datum_init()
         "srv_datum -net <chain net name> -chain <chain name> datum load -datum <datum hash>\n"
             "\tLoad datum custum from file to mempool.\n\n");
     uint16_t l_net_arr_len = 0;
-    cahr **l_net_arr_str = dap_config_get_array_str(g_gonfig, "srv_datum", "networks", &l_net_arr_len);
+    char **l_net_arr_str = dap_config_get_array_str(g_config, "srv_datum", "networks", &l_net_arr_len);
     for (int i = 0; i < l_net_arr_len; i++) {
-        l_net = dap_chain_net_by_name(l_net_arr_str[i]);
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_arr_str[i]);
         if (!l_net)
             continue;
         dap_chain_net_srv_order_add_notify_callback(l_net, s_order_notficator, l_net);
@@ -184,17 +184,17 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
     char l_tx_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_chain_hash_fast_to_str(l_order->tx_cond_hash, l_tx_cond_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    dap_chain_hash_fast_to_str(&l_order->tx_cond_hash, l_tx_cond_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
     dap_chain_t *l_chain;
-    dap_chain_datum_t *l_datum;
+    dap_chain_datum_t *l_datum = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         size_t l_datum_size;
-        char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
+        char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
         l_datum = (dap_chain_datum_t *)dap_chain_global_db_gr_get(l_tx_cond_hash_str, &l_datum_size, l_gdb_group);
         if (l_datum)
             break;
     }
-    if (!l_res) {
+    if (!l_datum) {
         log_it(L_DEBUG, "Invalid tx cond hash");
     }
 }

@@ -548,9 +548,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
     dap_global_db_obj_t * l_events_round_new = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new, &l_events_round_new_size );
     // Prepare hashes
     size_t l_hashes_int_size = min(l_events_round_new_size + a_datums_count, l_dag->datum_add_hashes_count);
-//            ( l_events_round_new_size + a_datums_count ) > l_dag->datum_add_hashes_count ?
-//                                   l_dag->datum_add_hashes_count :
-//                                   l_events_round_new_size+a_datums_count;
 
     if (l_dag->is_single_line ) // If single line - only one link inside
         l_hashes_int_size = min(l_hashes_int_size, 1);
@@ -611,10 +608,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                 l_rnd_steps++;
                 if (l_rnd_steps > 100) // Too many attempts
                     break;
-            } while (l_hashes_linked <(l_events_round_new_size) );
+            } while (l_hashes_linked < l_hashes_int_size);
 
             // Check if we have enought hash links
-            if (l_hashes_linked<l_events_round_new_size ){
+            if (l_hashes_linked < l_hashes_int_size) {
                 log_it(L_ERROR,"Can't link new events randomly for 100 attempts");
                 break;
             }
@@ -636,8 +633,8 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             dap_chain_cs_dag_event_t * l_event = NULL;
             size_t l_event_size = 0;
             if(l_dag->callback_cs_event_create)
-                l_event = l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked,&l_event_size);
-            if (l_event&&l_event_size) { // Event is created
+                l_event = l_dag->callback_cs_event_create(l_dag, l_datum, l_hashes, l_hashes_linked, &l_event_size);
+            if (l_event && l_event_size) { // Event is created
                 if (l_dag->is_add_directly) {
                     l_cell = a_chain->cells;
                     if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {

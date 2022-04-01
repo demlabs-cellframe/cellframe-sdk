@@ -647,11 +647,21 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
         return  NULL;
     }
     if ( s_seed_mode || (a_hashes && a_hashes_count) ){
-        dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new( a_dag->chain->id, a_dag->chain->cells->id, a_datum,
-                                                         PVT(l_poa)->events_sign_cert->enc_key, a_hashes, a_hashes_count,a_event_size);
-        return l_event;
-    }else
-        return NULL;
+        if ( !PVT(l_poa)->callback_pre_sign || !PVT(l_poa)->callback_pre_sign->callback) {
+            dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new( a_dag->chain->id, a_dag->chain->cells->id, a_datum,
+                                                             PVT(l_poa)->events_sign_cert->enc_key, a_hashes, a_hashes_count, a_event_size);
+            return l_event;
+        } else {
+            dap_chain_cs_dag_event_t *l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_datum,
+                                                                            NULL, a_hashes, a_hashes_count, a_event_size);
+            int ret = PVT(l_poa)->callback_pre_sign->callback(a_dag->chain, l_event, *a_event_size, PVT(l_poa)->callback_pre_sign->arg);
+            if (ret)
+                return NULL;
+            *a_event_size = dap_chain_cs_dag_event_sign_add(&l_event, *a_event_size, l_net, PVT(l_poa)->events_sign_cert->enc_key);
+            return l_event;
+        }
+    }
+    return NULL;
 }
 
 static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
