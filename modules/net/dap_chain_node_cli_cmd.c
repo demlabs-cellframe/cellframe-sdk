@@ -2033,6 +2033,9 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
                 dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
                 size_t l_datum_token_size = l_datum->header.data_size;
+
+                
+
                 if (l_datum_token->header_simple.signs_valid == l_datum_token->header_simple.signs_total) {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                             "Datum %s with datum token has all signs on board. Can't add anything to it", l_datum_hash_out_str);
@@ -2890,6 +2893,9 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC; // 256
         }else if (strcmp( l_type_str, "CF20") == 0){
             l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
+        }else{
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                        "uknown token type was specified. Simple token will be used by default");
         }
     }
 
@@ -2929,6 +2935,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
             return -3;
         } else {
+            l_total_supply = dap_chain_balance_scan((char *)l_deciamls_str);
             if (dap_strcmp(l_deciamls_str, "18")) {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                         "token_decl support '-decimals' to be 18 only");
@@ -3146,7 +3153,11 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 //add realloc: size of token header + sizeof signed data s_sign_cert_in_cycle + n * l_tsd_size
                 l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_tsd_size);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
-                l_datum_token->header_private_decl.tsd_total_size += l_tsd_size;
+                if ( l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) {
+                    l_datum_token->header_private_decl.tsd_total_size += l_tsd_size;
+                } else {
+                    l_datum_token->header_native_decl.tsd_total_size += l_tsd_size;
+                }
                 l_datum_data_offset += l_tsd_size;
             }
             log_it(L_DEBUG, "%s token declaration '%s' initialized", l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ?
@@ -3326,7 +3337,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
             return -3;
         }
 
-        dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_str);
+        l_addr = dap_chain_addr_from_str(l_addr_str);
 
         if(!l_addr) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "address \"%s\" is invalid", l_addr_str);

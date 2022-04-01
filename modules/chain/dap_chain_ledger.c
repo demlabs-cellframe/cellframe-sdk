@@ -983,9 +983,9 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
             case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
                 l_type_str = "PRIVATE_UPDATE"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: // 256
-                l_type_str = "NATIVE"; break;
+                l_type_str = "CF20"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE: // 256
-                l_type_str = "NATIVE_UPDATE"; break;
+                l_type_str = "CF20_UPDATE"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: // 256
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
                 l_type_str = "PUBLIC";
@@ -994,7 +994,16 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
         }
        char *l_item_str = NULL;
 
-       l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
+        if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) || (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)){
+                l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
+                                                "\tDecimals: 18\n"
+                                                "\tAuth signs (valid/total) %zu/%zu\n"
+                                                "\tTotal emissions %u\n",
+                                                &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags),
+                                                l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
+                                                HASH_COUNT(l_token_item->token_emissions));
+        } else {
+                l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
                                                 "\tSupply (current/total) %s/%s\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
                                                 "\tTotal emissions %u\n",
@@ -1002,6 +1011,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                                                 dap_chain_balance_print(l_token_item->current_supply), dap_chain_balance_print(l_token_item->total_supply),
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                                 HASH_COUNT(l_token_item->token_emissions));
+        }
 
         l_ret_list = dap_list_append(l_ret_list, l_item_str);
     }
@@ -1429,8 +1439,16 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
         return -5;
     }
 
-    if (compare256(l_token_item->current_supply, l_emission->hdr.value_256) < 0)
+    // if total_supply > 0 we can check current_supply
+    if (!IS_ZERO_256(l_token_item->total_supply)){
+        if (compare256(l_token_item->current_supply, l_emission->hdr.value_256) < 0){
+        log_it(L_WARNING,"Ledger_token_emission_add_check. current_supply %s is lower, then l_emission->hdr.value_256: %s",
+                        dap_chain_balance_print(l_token_item->current_supply),
+                        dap_chain_balance_print(l_emission->hdr.value_256));
         return -4;
+        }
+    }
+        
     //additional check for private tokens
     if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
             (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) || 
