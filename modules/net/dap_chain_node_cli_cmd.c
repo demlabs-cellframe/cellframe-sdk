@@ -3092,8 +3092,8 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 log_it(L_DEBUG,"Prepeared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_native_decl.flags = l_flags;
-                l_datum_token->header_native_decl.total_supply_256 = 0;
-                l_datum_token->header_native_decl.current_supply_256 = 0;
+                l_datum_token->header_native_decl.total_supply_256 = uint256_0;
+                l_datum_token->header_native_decl.current_supply_256 = uint256_0;
                 l_datum_token->header_native_decl.signs_total = l_signs_total;
                 l_datum_token->header_native_decl.signs_valid = l_signs_emission;
             }

@@ -1022,6 +1022,8 @@ bool s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
 {
     //Update value in ledger memory object
 
+    if (IS_ZERO_256(l_token_item->total_supply))
+        return true;     // Supply is unlimited
     if (s_token_supply_limit_disable){
         log_it(L_WARNING,"s_token_supply_limit_disable is enabled in config, please fix it and disable");
         return false;
