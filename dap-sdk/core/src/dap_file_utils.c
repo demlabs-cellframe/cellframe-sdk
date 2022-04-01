@@ -1257,7 +1257,7 @@ char* dap_get_current_dir(void)
     const char *pwd;
     char *buffer = NULL;
     char *dir = NULL;
-    static ulong max_len = 0;
+    static u_long max_len = 0;
     struct stat pwdbuf, dotbuf;
 
     pwd = getenv("PWD");
