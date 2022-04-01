@@ -2033,8 +2033,6 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
                 dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
                 size_t l_datum_token_size = l_datum->header.data_size;
-                log_it(L_DEBUG,"size of l_datum_token_size :0x%llx ", l_datum_token_size);
-                log_it(L_DEBUG,"size of dap_chain_datum_token_t :0x%llx ", sizeof(dap_chain_datum_token_t));
 
                 if (l_datum_token->header_simple.signs_valid == l_datum_token->header_simple.signs_total) {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -2047,7 +2045,6 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 size_t l_signs_size = 0, i = 1;
                 for (i = 1; i <= l_datum_token->header_simple.signs_current; i++){
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_signs_size);
-                    log_it(L_DEBUG,"size of l_sign 0x%llx:", sizeof(dap_sign_t));
                     if( dap_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header_simple)) != 1) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -2060,7 +2057,6 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                         log_it(L_DEBUG,"Sign %zu passed", i);
                     }
                     l_signs_size += dap_sign_get_size(l_sign);
-                    log_it(L_DEBUG,"new l_signs_size: 0x%llx", l_signs_size);
                 }
 
                 log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
@@ -2225,7 +2221,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
             const char *l_type = NULL;
             DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
-            dap_string_append_printf(a_str_tmp, "hash %s: type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
+            dap_string_append_printf(a_str_tmp, "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
                     l_objs[i].key, l_type,
                     l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
             dap_chain_net_dump_datum(a_str_tmp, l_datum, a_hash_out_type);
