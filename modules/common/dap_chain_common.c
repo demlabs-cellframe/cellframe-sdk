@@ -646,7 +646,7 @@ uint32_t l_tmp[4];
 }
 
 #else
-char *dap_chain_balance_print333(uint256_t a_balance)
+char *dap_cvt_uint256_to_str(uint256_t a_balance)
 {
 int     l_pos, l_len, l_len_hi, l_len_lo;
 char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr;
@@ -660,7 +660,7 @@ uint32_t l_tmp[4];
 
     l_cp = l_buf;
 
-    if ( a_balance.hi )
+    if ( memcmp(&a_balance.hi, &l_zero, sizeof(uint128_t)) )
     {
         l_tmp [0] = a_balance.__hi.a;
         l_tmp [1] = a_balance.__hi.b;
@@ -761,7 +761,8 @@ uint32_t l_tmp[4];
 char *dap_chain_balance_print333(uint256_t a_balance)
 {
 int     l_pos, l_len, l_len_hi, l_len_lo;
-char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr;
+char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr,
+        l_zero[sizeof(uint256_t)] = {0};
 uint64_t t, q;
 uint32_t l_tmp[4];
 
@@ -772,7 +773,7 @@ uint32_t l_tmp[4];
 
     l_cp = l_buf;
 
-    if ( a_balance.hi )
+    if ( memcmp(&a_balance.hi, &l_zero, sizeof(uint128_t)) )
     {
         l_tmp [0] = a_balance.__hi.a;
         l_tmp [1] = a_balance.__hi.b;
