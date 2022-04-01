@@ -580,7 +580,7 @@ uint256_t l_nul = {0};
  *   RETURNS:
  *      an address of the decimal representation text string , shoud be deallocated  by free()
  */
-
+#ifdef DAP_GLOBAL_IS_INT128
 char *dap_cvt_uint256_to_str (uint256_t a_uint256)
 {
 char *l_buf, *l_cp, *l_cp2, *l_cps, *l_cpe, l_chr;
@@ -596,8 +596,6 @@ uint32_t l_tmp[4];
         return  log_it(L_ERROR, "Cannot allocate %d octets, errno=%d", l_len, errno), NULL;
 
     /* hi = 123, lo = 0...0456 */
-
-#ifdef DAP_GLOBAL_IS_INT128
     if ( a_uint256.hi )
     {
         /* 123 - > "321" */
@@ -645,67 +643,12 @@ uint32_t l_tmp[4];
     }
 
     return l_buf;
-#else
-    int     l_pos;
-    uint64_t t, q;
-    uint32_t l_tmp[4];
-
-        if ( a_balance.hi )
-        {
-            l_tmp [0] = a_balance.hi.u32.a;
-            l_tmp [1] = a_balance.hi.u32.b;
-            l_tmp [2] = a_balance.hi.u32.c;
-            l_tmp [3] = a_balance.hi.u32.d;
-
-            do {
-                q = 0;
-                // Byte order is 1, 0, 3, 2 for little endian
-                for (int i = 1; i <= 3; )
-                {
-                    t = q << 32 | l_tmp[i];
-                    q = t % 10;
-                    l_tmp[i] = t / 10;
-
-                    if (i == 2) i = 4; // end of cycle
-                    if (i == 3) i = 2;
-                    if (i == 0) i = 3;
-                    if (i == 1) i = 0;
-                }
-
-                l_buf[l_pos++] = q + '0';
-            } while (l_tmp[2]);
-        }
-
-        l_tmp [1] = a_balance.lo.u32.a;
-        l_tmp [2] = a_balance.lo.u32.b;
-        l_tmp [3] = a_balance.lo.u32.c;
-        l_tmp [4] = a_balance.lo.u32.d;
-
-        do {
-            q = 0;
-            // Byte order is 1, 0, 3, 2 for little endian
-            for (int i = 1; i <= 3; )
-            {
-                t = q << 32 | l_tmp[i];
-                q = t % 10;
-                l_tmp[i] = t / 10;
-
-                if (i == 2) i = 4; // end of cycle
-                if (i == 3) i = 2;
-                if (i == 0) i = 3;
-                if (i == 1) i = 0;
-            }
-
-            l_buf[l_pos++] = q + '0';
-        } while (l_tmp[2]);
-
-#endif
 }
 
-#if 1
+#else
 char *dap_chain_balance_print333(uint256_t a_balance)
 {
-int     l_pos, l_len;
+int     l_pos, l_len, l_len_hi, l_len_lo;
 char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr;
 uint64_t t, q;
 uint32_t l_tmp[4];
@@ -724,7 +667,7 @@ uint32_t l_tmp[4];
         l_tmp [2] = a_balance.__hi.c;
         l_tmp [3] = a_balance.__hi.d;
 
-        l_len = 0;
+        l_len_hi = 0;
         l_cps = l_cp;
 
         do {
@@ -743,12 +686,11 @@ uint32_t l_tmp[4];
             }
 
             *(l_cp++) = q + '0';
-            l_len++;
+            l_len_hi++;
 
         } while (l_tmp[2]);
 
-
-        l_pos = l_len / 2;                                                      /* A number of swaps */
+        l_pos = l_len_hi / 2;                                                   /* A number of swaps */
         l_cpe = l_cp - 1;                                                       /* -- // -- to tail of the string */
 
         for (int i = l_pos; i--; l_cps++, l_cpe--)                              /* Do swaps ... */
@@ -800,7 +742,119 @@ uint32_t l_tmp[4];
 
     l_len = l_cp - l_cp2;
 
-    if (  DAP_CHAIN$SZ_MAX128DEC > l_len )                                  /* Do we need to add leading zeroes ? */
+    if (  l_len_hi && (DAP_CHAIN$SZ_MAX128DEC > l_len) )                    /* Do we need to add leading zeroes ? */
+    {
+        /* "123456" -> 123000...000456" */
+        memmove(l_cp2 + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp2, l_len);
+        memset(l_cp2, '0', ( DAP_CHAIN$SZ_MAX128DEC - l_len));
+    }
+
+    return  l_buf;
+}
+
+#endif
+
+
+
+
+#if 1
+char *dap_chain_balance_print333(uint256_t a_balance)
+{
+int     l_pos, l_len, l_len_hi, l_len_lo;
+char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr;
+uint64_t t, q;
+uint32_t l_tmp[4];
+
+    l_len = (DAP_CHAIN$SZ_MAX256DEC + 8) & (~7);                            /* Align size of the buffer to 8 bytes */
+
+    if ( !(l_buf = DAP_NEW_Z_SIZE(char, l_len)) )
+        return  log_it(L_ERROR, "Cannot allocate %d octets, errno=%d", l_len, errno), NULL;
+
+    l_cp = l_buf;
+
+    if ( a_balance.hi )
+    {
+        l_tmp [0] = a_balance.__hi.a;
+        l_tmp [1] = a_balance.__hi.b;
+        l_tmp [2] = a_balance.__hi.c;
+        l_tmp [3] = a_balance.__hi.d;
+
+        l_len_hi = 0;
+        l_cps = l_cp;
+
+        do {
+            q = 0;
+            // Byte order is 1, 0, 3, 2 for little endian
+            for (int i = 1; i <= 3; )
+            {
+                t = q << 32 | l_tmp[i];
+                q = t % 10;
+                l_tmp[i] = t / 10;
+
+                if (i == 2) i = 4; // end of cycle
+                if (i == 3) i = 2;
+                if (i == 0) i = 3;
+                if (i == 1) i = 0;
+            }
+
+            *(l_cp++) = q + '0';
+            l_len_hi++;
+
+        } while (l_tmp[2]);
+
+        l_pos = l_len_hi / 2;                                                   /* A number of swaps */
+        l_cpe = l_cp - 1;                                                       /* -- // -- to tail of the string */
+
+        for (int i = l_pos; i--; l_cps++, l_cpe--)                              /* Do swaps ... */
+        {
+            l_chr = *l_cps;
+            *l_cps = *l_cpe;
+            *l_cpe = l_chr;
+        }
+    }
+
+    l_tmp [0] = a_balance.__lo.a;
+    l_tmp [1] = a_balance.__lo.b;
+    l_tmp [2] = a_balance.__lo.c;
+    l_tmp [3] = a_balance.__lo.d;
+
+    l_len = 0;
+    l_cps = l_cp2 = l_cp;
+
+    do {
+        q = 0;
+        // Byte order is 1, 0, 3, 2 for little endian
+        for (int i = 1; i <= 3; )
+        {
+            t = q << 32 | l_tmp[i];
+            q = t % 10;
+            l_tmp[i] = t / 10;
+
+            if (i == 2) i = 4; // end of cycle
+            if (i == 3) i = 2;
+            if (i == 0) i = 3;
+            if (i == 1) i = 0;
+        }
+
+        *(l_cp++) = q + '0';
+        l_len++;
+
+    } while (l_tmp[2]);
+
+
+    l_pos = l_len / 2;                                                      /* A number of swaps */
+    l_cpe = l_cp - 1;                                                       /* -- // -- to tail of the string */
+
+    for (int i = l_pos; i--; l_cps++, l_cpe--)                              /* Do swaps ... */
+    {
+        l_chr = *l_cps;
+        *l_cps = *l_cpe;
+        *l_cpe = l_chr;
+    }
+
+    l_len = l_cp - l_cp2;
+
+    if (  l_len_hi && (DAP_CHAIN$SZ_MAX128DEC > l_len) )                    /* Do we need to add leading zeroes ? */
     {
         /* "123456" -> 123000...000456" */
         memmove(l_cp2 + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp2, l_len);
