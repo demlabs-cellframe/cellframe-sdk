@@ -353,6 +353,11 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             break;
         }
         l_tx_items_count += l_item_tx_size;
+        // Freeze protection
+        if(!l_item_tx_size)
+        {
+            break;
+        }
 
     }
 
@@ -886,6 +891,11 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     size_t l_datum_num_global = a_total_datums ? *a_total_datums : 0;
     while(l_atom && l_atom_size) {
         size_t l_datums_count = 0;
+        printf("l_datum_num=%d\n",l_datum_num);
+        if(l_datum_num==1672)
+        {
+            int gsdg=4214;
+        }
         dap_chain_datum_t **l_datums =
                 (a_chain->callback_atom_get_datums && l_atom && l_atom_size) ?
                         a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count) : NULL;
