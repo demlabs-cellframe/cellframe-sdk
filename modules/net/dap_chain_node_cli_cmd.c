@@ -3437,7 +3437,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     // Calc datum emission's hash
     dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_datum_emission_hash);
-    // return 0 (false) if strings are equivalent
+    
     bool l_hex_format = dap_strcmp(l_hash_out_type, "hex") ? false
                                                            : true;
     l_emission_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(&l_datum_emission_hash)

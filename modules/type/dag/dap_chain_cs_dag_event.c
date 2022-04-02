@@ -71,8 +71,6 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
             l_event_new = (dap_chain_cs_dag_event_t *)DAP_REALLOC(l_event_new, l_event_size + l_sign_size );
             memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
             l_event_size += l_sign_size;
-            if (a_event_size)
-                *a_event_size = l_event_size;
             l_event_new = (dap_chain_cs_dag_event_t* )DAP_REALLOC(l_event_new, l_event_size);
             memcpy(l_event_new->hashes_n_datum_n_signs + l_hashes_size + l_datum_size, l_sign, l_sign_size);
             l_event_new->header.signs_count++;
@@ -86,6 +84,8 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
     }else {
         log_it(L_NOTICE, "Created unsigned dag event");
     }
+    if (a_event_size)
+        *a_event_size = l_event_size;
     return l_event_new;
 }
 

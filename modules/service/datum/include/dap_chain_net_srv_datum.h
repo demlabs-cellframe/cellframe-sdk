@@ -26,6 +26,8 @@
 #include "dap_common.h"
 #include "dap_chain_net.h"
 
+#define DAP_CHAIN_NET_SRV_DATUM_ID 0x5
+
 int dap_chain_net_srv_datum_init();
 void dap_chain_net_srv_datum_deinit();
 
