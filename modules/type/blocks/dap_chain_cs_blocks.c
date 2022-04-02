@@ -169,7 +169,7 @@ int dap_chain_cs_blocks_init()
     if (dap_chain_block_cache_init() != 0){
         log_it(L_WARNING, "Can't init blocks cache");
     }
-    log_it(L_NOTICE,"Initialized blocks chain type");
+    log_it(L_NOTICE,"Initialized blocks(m) chain type");
 
     return 0;
 }
