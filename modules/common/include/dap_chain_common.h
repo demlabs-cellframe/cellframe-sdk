@@ -45,6 +45,7 @@
 
 #define DATOSHI_LD 1000000000.0L
 #define DATOSHI_DEGREE 9
+#define DATOSHI_DEGREE_18   18
 #define DATOSHI_POW 38
 
 // Chain ID of the whole system
@@ -289,7 +290,13 @@ uint64_t dap_chain_uint256_to(uint256_t a_from);
 char *dap_chain_balance_print(uint256_t a_balance);
 char *dap_chain_balance_to_coins(uint256_t a_balance);
 uint256_t dap_chain_balance_scan(const char *a_balance);
+
+char *dap_cvt_uint256_to_str(uint256_t a_uint256);
+uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num);
+
+
 uint256_t dap_chain_coins_to_balance(const char *a_coins);
+
 
 /**
  * @brief dap_chain_hash_to_str
