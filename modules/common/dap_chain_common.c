@@ -887,7 +887,7 @@ uint32_t l_tmp[4];
 uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 {
 int  l_strlen, l_len;
-uint256_t l_ret = {0, 0}, l_nul = uint256_0;
+uint256_t l_ret = {}, l_nul = uint256_0;
 char    l_128bit_num  [DAP_CHAIN$SZ_MAX128DEC + 8];
 
     /* Compute & check length */

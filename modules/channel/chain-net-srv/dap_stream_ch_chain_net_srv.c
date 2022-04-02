@@ -195,9 +195,9 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
             }
 
             // Check cond output if it equesl or not to request
-            if ( l_tx_out_cond->subtype.srv_pay.srv_uid.uint64 != l_request->hdr.srv_uid.uint64 ){
+            if (!dap_chain_net_srv_uid_compare(l_tx_out_cond->header.srv_uid, l_request->hdr.srv_uid)) {
                 log_it( L_WARNING, "Wrong service uid in request, tx expect to close its output with 0x%016"DAP_UINT64_FORMAT_X,
-                        l_tx_out_cond->subtype.srv_pay.srv_uid.uint64 );
+                        l_tx_out_cond->header.srv_uid.uint64 );
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID  ;
                 goto free_exit;
             }
@@ -266,7 +266,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
             } else {
                 l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
                 memcpy(l_price, l_srv->pricelist, sizeof(*l_price));
-                l_price->value_datoshi = 0;
+                l_price->value_datoshi = uint256_0;
             }
             l_usage->price = l_price;         
             l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
