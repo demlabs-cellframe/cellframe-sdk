@@ -3195,10 +3195,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
             // Create new datum token
             l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
-
             l_datum_token->header_simple.signs_current = l_sign_counter;
-
-
         }break;
         default:
             dap_chain_node_cli_set_reply_text(a_str_reply,
