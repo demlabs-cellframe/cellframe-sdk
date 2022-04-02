@@ -62,6 +62,7 @@
 #include "dap_sign.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_net_srv.h"
 
 #define LOG_TAG "dap_chain_mempool"
 
@@ -107,14 +108,12 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
  */
 dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
-        const dap_chain_addr_t* a_addr_fee,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_fee)
 {
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) ||
-            (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || IS_ZERO_256(a_value))
+            !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) || IS_ZERO_256(a_value))
         return NULL;
 
     // find the transactions from which to take away coins
@@ -141,8 +140,8 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
         if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_value) == 1) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
             // transaction fee
-            if(a_addr_fee) {
-                if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_fee, a_value_fee) == 1)
+            if (!IS_ZERO_256(a_value_fee)) {
+                if(dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) == 1)
                     SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
             }
         }
@@ -188,14 +187,13 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
  */
 int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
-        const dap_chain_addr_t* a_addr_fee,
         const char a_token_ticker[10],
         uint256_t a_value, uint256_t a_value_fee,size_t a_tx_num)
 {
     // check valid param
     if(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) ||
-            (a_addr_fee && !dap_chain_addr_check_sum(a_addr_fee)) || IS_ZERO_256(a_value) || !a_tx_num){
+            IS_ZERO_256(a_value) || !a_tx_num){
         log_it(L_ERROR, "Wrong parameters in dap_chain_mempool_tx_create_massive() call");
         return -1;
 
@@ -262,8 +260,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_to, a_value) == 1) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
             // transaction fee
-            if(a_addr_fee) {
-                if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_fee, a_value_fee) == 1)
+            if (!IS_ZERO_256(a_value_fee)) {
+                if (dap_chain_datum_tx_add_fee_item(&l_tx_new, a_value_fee) == 1)
                     SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
             }
         }
@@ -354,9 +352,9 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
 }
 
-dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
-                                                              const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,
-                                                              dap_chain_datum_tx_receipt_t * a_receipt)
+dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+                                                  const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,
+                                                  dap_chain_datum_tx_receipt_t * a_receipt)
 {
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     if ( ! a_net || ! l_ledger || ! a_addr_to )
@@ -399,7 +397,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
                 continue;
             if (l_tmp_cond->header.subtype != l_out_cond->header.subtype)
                 continue;
-            if (l_tmp_cond->subtype.srv_pay.srv_uid.uint64 != l_out_cond->subtype.srv_pay.srv_uid.uint64)
+            if (!dap_chain_net_srv_uid_compare(l_tmp_cond->header.srv_uid, l_out_cond->header.srv_uid))
                 continue;
             if (l_tmp_cond->subtype.srv_pay.unit.uint32 != l_out_cond->subtype.srv_pay.unit.uint32)
                 continue;
@@ -436,7 +434,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     l_out_cond->header.value = l_old_val;
 
     // add 'sign' items
-    if (a_key_tx_sign){
+    if (a_key_tx_sign) {
         if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_tx_sign) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it( L_ERROR, "Can't add sign output");
@@ -445,10 +443,17 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     }
     size_t l_tx_size = dap_chain_datum_tx_get_size( l_tx );
     dap_chain_datum_t *l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_TX, l_tx, l_tx_size );
+    DAP_DELETE(l_tx);
+    return l_datum;
+}
 
+dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+                                                              const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,
+                                                              dap_chain_datum_tx_receipt_t * a_receipt)
+{
+    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond_input(a_net, a_tx_prev_hash, a_addr_to, a_key_tx_sign, a_receipt);
     dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
-    dap_hash_fast( l_tx, l_tx_size, l_key_hash );
-    DAP_DELETE( l_tx );
+    dap_hash_fast(l_datum->data, l_datum->header.data_size, l_key_hash);
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
 

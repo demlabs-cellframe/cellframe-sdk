@@ -107,6 +107,13 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
 dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token);
 
 /**
+ * Create item dap_chain_tx_out_cond_t with fee subtype
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a_value);
+
+/**
  * Create item dap_chain_tx_out_cond_t
  *
  * return item, NULL Error
@@ -128,7 +135,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, long double a_fee_value,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, uint256_t a_fee_value,
                                                                                dap_chain_addr_t *a_fee_addr, dap_chain_addr_t *a_hldr_addr,
                                                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr);
 /**

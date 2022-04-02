@@ -2939,19 +2939,16 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         }
     }
 
+    const char * l_decimals_str = NULL;
     if (l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL){
-        const char * l_deciamls_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-decimals", &l_deciamls_str);
-        if(!l_deciamls_str) {
+        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-decimals", &l_decimals_str);
+        if(!l_decimals_str) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
             return -3;
-        } else {
-            l_total_supply = dap_chain_balance_scan((char *)l_deciamls_str);
-            if (dap_strcmp(l_deciamls_str, "18")) {
-                dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "token_decl support '-decimals' to be 18 only");
-                return -4;
-            }
+        } else if (dap_strcmp(l_decimals_str, "18")) {
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                    "token_decl support '-decimals' to be 18 only");
+            return -4;
         }
     }
    
@@ -3114,7 +3111,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_datum_token->header_native_decl.current_supply_256 = uint256_0;
                 l_datum_token->header_native_decl.signs_total = l_signs_total;
                 l_datum_token->header_native_decl.signs_valid = l_signs_emission;
-                
+                l_datum_token->header_native_decl.decimals = atoi(l_decimals_str);
             }
 
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
@@ -3198,10 +3195,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
             // Create new datum token
             l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
-
             l_datum_token->header_simple.signs_current = l_sign_counter;
-
-
         }break;
         default:
             dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -3852,7 +3846,6 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
 //    int cmd_num = 1;
 //    const char *value_str = NULL;
     const char *addr_base58_to = NULL;
-    const char *addr_base58_fee = NULL;
     const char *str_tmp = NULL;
     const char * l_from_wallet_name = NULL;
     const char * l_token_ticker = NULL;
@@ -3881,12 +3874,12 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
 
     if(l_tx_num_str)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
-
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-fee", &addr_base58_fee)) {
-        if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-value_fee", &str_tmp)) {
-            l_value_fee = dap_chain_balance_scan(str_tmp);
-        }
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-fee", &str_tmp)) {
+        l_value_fee = dap_chain_balance_scan(str_tmp);
+    } else {
+        l_value_fee = dap_chain_coins_to_balance("0.1");
     }
+
     if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-value", &str_tmp)) {
         l_value = dap_chain_balance_scan(str_tmp);
     }
@@ -3938,9 +3931,9 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-value' to be valid uint256 value");
         return -4;
     }
-    if(addr_base58_fee && IS_ZERO_256(l_value_fee)) {
+    if (IS_ZERO_256(l_value_fee)) {
         dap_chain_node_cli_set_reply_text(str_reply,
-                "tx_create requires parameter '-value_fee' to be valid uint256 value if '-fee' is specified");
+                "tx_create requires parameter '-value_fee' to be valid uint256");
         return -5;
     }
 
@@ -3989,16 +3982,11 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
-    dap_chain_addr_t *addr_fee = dap_chain_addr_from_str(addr_base58_fee);
-
     if(!addr_from) {
         dap_chain_node_cli_set_reply_text(str_reply, "source address is invalid");
         return -10;
     }
-    if(addr_base58_fee && !addr_fee) {
-        dap_chain_node_cli_set_reply_text(str_reply, "fee address is invalid");
-        return -12;
-    }
+
     // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
     if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
         dap_chain_node_cli_set_reply_text(str_reply, "destination wallet network ID=0x%llx and network ID=0x%llx is not equal. Please, change network name or wallet address", 
@@ -4008,15 +3996,13 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
 
     if(l_tx_num){
         res = dap_chain_mempool_tx_create_massive(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from,
-                               l_addr_to, addr_fee,
-                               l_token_ticker, l_value, l_value_fee, l_tx_num);
+                                                  l_addr_to, l_token_ticker, l_value, l_value_fee, l_tx_num);
 
         dap_string_append_printf(string_ret, "transfer=%s\n",
                 (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for transfer" : "False");
     }else{
         dap_hash_fast_t * l_tx_hash = dap_chain_mempool_tx_create(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, l_addr_to,
-                addr_fee,
-                l_token_ticker, l_value, l_value_fee);
+                                                                  l_token_ticker, l_value, l_value_fee);
         if (l_tx_hash){
             char l_tx_hash_str[80]={[0]='\0'};
             dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof (l_tx_hash_str)-1);
@@ -4033,7 +4019,6 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     dap_string_free(string_ret, false);
 
     DAP_DELETE(l_addr_to);
-    DAP_DELETE(addr_fee);
     dap_chain_wallet_close(l_wallet);
     return res;
 }

@@ -164,6 +164,7 @@ typedef enum {
     SERV_UNIT_DAY = 0x00000003,  // days
     SERV_UNIT_KB = 0x00000010,  // kilobytes
     SERV_UNIT_B = 0x00000011,   // bytes
+    SERV_UNIT_PCS = 0x00000022  // pieces
 } serv_unit_enum_t;
 
 DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum){
@@ -174,6 +175,7 @@ DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum)
     case SERV_UNIT_DAY: return "SERV_UNIT_DAY";
     case SERV_UNIT_KB: return "SERV_UNIT_KB";
     case SERV_UNIT_B: return "SERV_UNIT_B";
+    case SERV_UNIT_PCS: return "SERV_UNIT_PCS";
     default: return "UNDEFINED";
 
     }
