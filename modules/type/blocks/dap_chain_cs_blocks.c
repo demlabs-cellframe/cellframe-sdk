@@ -231,6 +231,7 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 
     l_cs_blocks_pvt->block_size_maximum = 10 * 1024 * 1024; // 10 Mb
     l_cs_blocks_pvt->fill_timeout = dap_config_get_item_uint64_default(a_chain_config, "blocks", "fill_timeout", 60) * 1000; // 1 min
+    l_cs_blocks_pvt->blocks_count = 0;
 
     return 0;
 }
@@ -556,7 +557,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
                     char l_buf[50];
-                    ctime_r(&l_block_cache->ts_created, l_buf);
+                    ctime_r(&l_block_cache->block->hdr.ts_created, l_buf);
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
                                              l_block_cache->block_hash_str, l_buf);
                 }
@@ -686,6 +687,7 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         //All correct, no matter for result
         pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
         HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
+        PVT(a_blocks)->blocks_count++;
         if (! (PVT(a_blocks)->block_cache_first ) )
                 PVT(a_blocks)->block_cache_first = a_block_cache;
         if (PVT(a_blocks)->block_cache_last)
@@ -736,6 +738,7 @@ static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks)
                     if(l_block_cache->next)
                         l_block_cache->next->prev = l_block_cache->prev;
                     HASH_DEL(PVT(a_blocks)->blocks,l_block_cache);
+                    PVT(a_blocks)->blocks_count--;
                     pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
                     dap_chain_block_chunks_add(PVT(a_blocks)->chunks,l_block_cache);
                 }
@@ -1043,8 +1046,10 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t
     a_atom_iter->cur_item = l_cur_cache = l_cur_cache->next;
     if (l_cur_cache){
         a_atom_iter->cur = l_cur_cache->block;
+        a_atom_iter->cur_size = l_cur_cache->block_size;
+        a_atom_iter->cur_hash = &l_cur_cache->block_hash;
         if(a_atom_size)
-            *a_atom_size=a_atom_iter->cur_size = l_cur_cache->block_size;
+            *a_atom_size = l_cur_cache->block_size;
         return l_cur_cache->block;
     }
     else {
