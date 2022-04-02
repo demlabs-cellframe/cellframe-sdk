@@ -78,6 +78,9 @@ typedef struct dap_chain_datum_token{
             };
             uint16_t signs_valid; // Emission auth signs
             uint16_t signs_total; // Emission auth signs
+            uint16_t padding01;
+            size_t   padding02; 
+            uint16_t signs_current;
         } DAP_ALIGN_PACKED header_simple;
         // Private token declarations, with flags, manipulations and updates
         struct {
@@ -93,6 +96,7 @@ typedef struct dap_chain_datum_token{
             uint16_t signs_total; // Emission auth signs
             uint16_t flags; // Token declaration flags
             size_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t signs_current;
         } DAP_ALIGN_PACKED header_private_decl;
         //native tokens
         struct {
@@ -108,6 +112,7 @@ typedef struct dap_chain_datum_token{
             uint16_t signs_total; // Emission auth signs
             uint16_t flags; // Token declaration flags
             size_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t signs_current;
         } DAP_ALIGN_PACKED header_native_decl;
         // Private token update
         struct {

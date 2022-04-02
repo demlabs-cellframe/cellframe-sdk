@@ -292,7 +292,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
 {
     assert(a_emission_serial);
     assert(a_emission_size);
-    dap_chain_datum_token_emission_t *l_emission;
+    dap_chain_datum_token_emission_t *l_emission = NULL;
     if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 0) {
         size_t l_emission_size = *a_emission_size;
         size_t l_old_hdr_size = sizeof(struct dap_chain_emission_header_v0);
@@ -308,7 +308,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         l_emission_size += l_add_size;
         (*a_emission_size) = l_emission_size;
     } else {
-        l_emission = DAP_DUP_SIZE(a_emission_serial, (*a_emission_size));
+        l_emission = DAP_DUP_SIZE(a_emission_serial, *a_emission_size);
         if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 1)
             l_emission->hdr.value_256 = dap_chain_uint256_from(
                         ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);
