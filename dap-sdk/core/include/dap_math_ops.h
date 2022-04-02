@@ -703,39 +703,40 @@ static inline int MULT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uint128
 // }
 
 
-
-static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_t* c_512_bit) {
-    int dummy_overflow;
-    //product of .hi terms - stored in .hi field of c_512_bit
-    MULT_128_256(a_256_bit.hi,b_256_bit.hi, &c_512_bit->hi);
-
-    //product of .lo terms - stored in .lo field of c_512_bit
-    MULT_128_256(a_256_bit.lo,b_256_bit.lo, &c_512_bit->lo);
-
-    //cross product of .hi and .lo terms
-    uint256_t cross_product_first_term=uint256_0;
-    uint256_t cross_product_second_term=uint256_0;
-    uint256_t cross_product=uint256_0;
-    uint256_t cross_product_shift_128=uint256_0;
-    uint256_t c_512_bit_lo_copy=uint256_0;
-    uint256_t c_512_bit_hi_copy=uint256_0;
-    int overflow=0;
-
-    MULT_128_256(a_256_bit.hi,b_256_bit.lo,&cross_product_first_term);
-    MULT_128_256(a_256_bit.lo,b_256_bit.hi,&cross_product_second_term);
-    overflow=SUM_256_256(cross_product_first_term,cross_product_second_term,&cross_product);
-
-
-    LEFT_SHIFT_256(cross_product,&cross_product_shift_128,128); //the factor in front of cross product is 2**128
-    c_512_bit_lo_copy=c_512_bit->lo;
-    dummy_overflow=SUM_256_256(c_512_bit_lo_copy,cross_product_shift_128,&c_512_bit->lo);
-
-    cross_product_shift_128.hi = uint128_0;
-    cross_product_shift_128.lo = uint128_0;
-    RIGHT_SHIFT_256(cross_product,&cross_product_shift_128,128);
-    c_512_bit_hi_copy=c_512_bit->hi;
-    dummy_overflow=SUM_256_256(c_512_bit_hi_copy,cross_product_shift_128,&c_512_bit->hi);
-}
+//we have test fails for this function, need to check it out if using it
+//incorrect
+//static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_t* c_512_bit) {
+//    int dummy_overflow;
+//    //product of .hi terms - stored in .hi field of c_512_bit
+//    MULT_128_256(a_256_bit.hi,b_256_bit.hi, &c_512_bit->hi);
+//
+//    //product of .lo terms - stored in .lo field of c_512_bit
+//    MULT_128_256(a_256_bit.lo,b_256_bit.lo, &c_512_bit->lo);
+//
+//    //cross product of .hi and .lo terms
+//    uint256_t cross_product_first_term=uint256_0;
+//    uint256_t cross_product_second_term=uint256_0;
+//    uint256_t cross_product=uint256_0;
+//    uint256_t cross_product_shift_128=uint256_0;
+//    uint256_t c_512_bit_lo_copy=uint256_0;
+//    uint256_t c_512_bit_hi_copy=uint256_0;
+//    int overflow=0;
+//
+//    MULT_128_256(a_256_bit.hi,b_256_bit.lo,&cross_product_first_term);
+//    MULT_128_256(a_256_bit.lo,b_256_bit.hi,&cross_product_second_term);
+//    overflow=SUM_256_256(cross_product_first_term,cross_product_second_term,&cross_product);
+//
+//
+//    LEFT_SHIFT_256(cross_product,&cross_product_shift_128,128); //the factor in front of cross product is 2**128
+//    c_512_bit_lo_copy=c_512_bit->lo;
+//    dummy_overflow=SUM_256_256(c_512_bit_lo_copy,cross_product_shift_128,&c_512_bit->lo);
+//
+//    cross_product_shift_128.hi = uint128_0;
+//    cross_product_shift_128.lo = uint128_0;
+//    RIGHT_SHIFT_256(cross_product,&cross_product_shift_128,128);
+//    c_512_bit_hi_copy=c_512_bit->hi;
+//    dummy_overflow=SUM_256_256(c_512_bit_hi_copy,cross_product_shift_128,&c_512_bit->hi);
+//}
 
 static inline int MULT_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t* accum_256_bit){
     int overflow=0;
@@ -995,14 +996,14 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
-#define CONV_256_FLOAT 10000000000000ULL // 10^13, so max float number to mult is 1.000.000
-static inline uint256_t MULT_256_FLOAT(uint256_t a_val, long double a_mult)
-{
-    uint256_t l_ret = GET_256_FROM_64((uint64_t)(a_mult * CONV_256_FLOAT));
-    MULT_256_256(l_ret, a_val, &l_ret);
-    DIV_256(l_ret, GET_256_FROM_64(CONV_256_FLOAT), &l_ret);
-    return l_ret;
-}
+//#define CONV_256_FLOAT 10000000000000ULL // 10^13, so max float number to mult is 1.000.000
+//static inline uint256_t MULT_256_FLOAT(uint256_t a_val, long double a_mult)
+//{
+//    uint256_t l_ret = GET_256_FROM_64((uint64_t)(a_mult * CONV_256_FLOAT));
+//    MULT_256_256(l_ret, a_val, &l_ret);
+//    DIV_256(l_ret, GET_256_FROM_64(CONV_256_FLOAT), &l_ret);
+//    return l_ret;
+//}
 
 #ifdef __cplusplus
 }
