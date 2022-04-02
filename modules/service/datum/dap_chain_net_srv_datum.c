@@ -33,7 +33,7 @@
 
 #define LOG_TAG "chain_net_srv_datum"
 
-static dap_chain_net_srv *s_srv_datum = NULL;
+static dap_chain_net_srv_t *s_srv_datum = NULL;
 static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply);
 
 void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, const char *a_key, const void *a_value, const size_t a_value_len);
@@ -187,7 +187,7 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
     if (a_op_code == DAP_DB$K_OPTYPE_DEL)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(a_value);    // Old format comliance
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_value, a_value_len);    // Old format comliance
     if (!l_order) {
         dap_chain_global_db_gr_del(a_key, a_group);
         return; // order is corrupted
@@ -203,7 +203,7 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
         log_it(L_DEBUG, "Price for net %s is not set", l_net->pub.name);
         return; // price not set for this network
     }
-    if ((l_order->price_unit != SERV_UNIT_PCS) || (l_order->direction != SERV_DIR_BUY) ||
+    if ((l_order->price_unit.uint32 != SERV_UNIT_PCS) || (l_order->direction != SERV_DIR_BUY) ||
             (strncmp(l_order->price_ticker, l_price->token, DAP_CHAIN_TICKER_SIZE_MAX)) ||
             (!compare256(l_order->price, l_price->value_datoshi))) {
         log_it(L_DEBUG, "Price from order (%s) is not equal to price from service pricelist (%s)",
@@ -230,13 +230,14 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
         log_it(L_DEBUG, "Invalid tx cond datum hash");
         return;
     }
+    int l_tx_out_cond_size;
     dap_chain_tx_out_cond_t *l_cond_out = (dap_chain_tx_out_cond_t *)
             dap_chain_datum_tx_item_get(l_tx_cond, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
     if (!l_cond_out || l_cond_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY) {
         log_it(L_DEBUG, "Condition with required subtype SRV_PAY not found in requested tx");
     }
     dap_hash_fast_t l_sign_hash;
-    if (!dap_sign_get_pkey_hash(l_order->ext_n_sign[l_order->ext_size], &l_sign_hash)) {
+    if (!dap_sign_get_pkey_hash((dap_sign_t *)&l_order->ext_n_sign[l_order->ext_size], &l_sign_hash)) {
          log_it(L_DEBUG, "Wrong order sign");
          return;
     }

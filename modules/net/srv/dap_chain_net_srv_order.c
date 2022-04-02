@@ -447,7 +447,7 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
             continue; // order is corrupted
         }
         dap_chain_hash_fast_t l_hash, l_hash_gdb;
-        dap_hash_fast(l_orders[i].value, l_order_size, &l_hash);
+        dap_hash_fast(l_orders[i].value, l_orders[i].value_len, &l_hash);
         dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
         if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
             dap_chain_global_db_gr_del(l_orders[i].key, l_gdb_group_str);

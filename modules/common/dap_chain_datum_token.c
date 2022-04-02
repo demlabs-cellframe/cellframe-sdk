@@ -332,12 +332,22 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_dat
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_t *a_sign_key, dap_chain_datum_token_emission_t *a_emission)
 {
-    if (!a_emission)
+    if (!a_emission || a_emission->hdr.type != DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH)
         return NULL;
-    size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
-    dap_sign_t *l_sign = dap_sign_create(a_sign_key, a_emission, sizeof(a_emission->hdr), 0);
+    size_t l_pub_key_size = 0;
+    dap_sign_t *l_sign = (dap_sign_t *)(a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size);
+    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_sign_key, &l_pub_key_size);
+    for (int i = 0; i < a_emission->data.type_auth.signs_count; i++) {
+        if (l_sign->header.sign_pkey_size == l_pub_key_size &&
+                !memcmp(l_sign->pkey_n_sign, l_pub_key, l_pub_key_size))
+            return a_emission;  // this sign already exists
+        l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));
+    }
+    DAP_DELETE(l_pub_key);
+    l_sign = dap_sign_create(a_sign_key, a_emission, sizeof(a_emission->hdr), 0);
     if (!l_sign)
         return NULL;
+    size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
     dap_chain_datum_token_emission_t *l_ret = DAP_REALLOC(a_emission, l_emission_size + dap_sign_get_size(l_sign));
     size_t l_sign_size = dap_sign_get_size(l_sign);
     memcpy(l_ret->tsd_n_signs + l_ret->data.type_auth.size, l_sign, l_sign_size);

@@ -329,7 +329,7 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
         }
     }
     dap_list_free(l_list_out_items);
-    uint256_t l_fee = MULT_256_FLOAT(l_outs_sum, l_stake->fee_value / 100.0);
+    uint256_t l_fee = {}; // TODO replace with fractional mult MULT_256_FLOAT(l_outs_sum, l_stake->fee_value / 100.0);
     if (compare256(l_fee_sum, l_fee) == -1) {
         return false;
     }
@@ -667,8 +667,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order create' required parameter -fee_percent");
                 return -11;
             }
-            long double l_fee = strtold(l_fee_str, NULL);
-            if (!l_fee) {
+            uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
+            if (IS_ZERO_256(l_fee)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%)");
                 return -12;
             }
@@ -743,8 +743,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order declare' required parameter -fee_percent");
                 return -11;
             }
-            long double l_fee = strtold(l_fee_str, NULL);
-            if (!l_fee) {
+            uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
+            if (IS_ZERO_256(l_fee)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%)");
                 return -12;
             }
@@ -980,8 +980,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 // TODO add filters to list (token, address, etc.)
                 l_stake = s_stake_item_from_order(l_net, l_order);
                 char *l_addr = dap_chain_addr_to_str(&l_stake->signing_addr);
-                dap_string_append_printf(l_reply_str, "%s %s %s %s %Lf\n", l_orders[i].key, dap_chain_balance_print(l_stake->value),
-                                                                           l_stake->token, l_addr, l_stake->fee_value);
+                dap_string_append_printf(l_reply_str, "%s %s %s %s %s\n", l_orders[i].key, dap_chain_balance_print(l_stake->value),
+                                                                           l_stake->token, l_addr, dap_chain_balance_to_coins(l_stake->fee_value));
                 DAP_DELETE(l_addr);
                 DAP_DELETE(l_stake);
             }
@@ -1183,9 +1183,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 char *l_addr_hldr_str = dap_chain_addr_to_str(&l_stake->addr_hldr);
                 char *l_signing_addr_str = dap_chain_addr_to_str(&l_stake->signing_addr);
                 char *l_addr_fee_str = dap_chain_addr_to_str(&l_stake->addr_fee);
-                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %s %Lf\n", l_tx_hash_str, l_stake->token,
+                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %s %s\n", l_tx_hash_str, l_stake->token,
                                                                                  dap_chain_balance_print(l_stake->value), l_addr_hldr_str,
-                                                                                 l_signing_addr_str, l_addr_fee_str, l_stake->fee_value);
+                                                                                 l_signing_addr_str, l_addr_fee_str,
+                                                                                 dap_chain_balance_to_coins(l_stake->fee_value));
                 DAP_DELETE(l_tx_hash_str);
                 DAP_DELETE(l_addr_hldr_str);
                 DAP_DELETE(l_signing_addr_str);

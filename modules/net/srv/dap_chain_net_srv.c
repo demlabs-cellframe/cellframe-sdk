@@ -638,8 +638,8 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 }
                 continue;
             case 1:
-                l_price->value_datoshi = dap_chain_uint256_to(dap_chain_coins_to_balance(l_price_token));
-                if (!l_price->value_datoshi) {
+                l_price->value_datoshi = dap_chain_coins_to_balance(l_price_token);
+                if (IS_ZERO_256(l_price->value_datoshi)) {
                     log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
                     l_iter = 0;
                     DAP_DELETE(l_price);
@@ -943,7 +943,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                                                                const void * a_ext, size_t a_ext_size)
 {
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
-                    a_srv->uid, a_price->units_uid, a_price->units, dap_chain_uint256_from(a_price->value_datoshi), a_ext, a_ext_size);
+                    a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
     // Sign with our wallet
     return dap_chain_datum_tx_receipt_sign_add(l_receipt, dap_chain_wallet_get_key(a_price->wallet, 0));
 }
