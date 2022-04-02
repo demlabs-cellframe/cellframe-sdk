@@ -49,14 +49,32 @@ typedef int128_t _dap_int128_t;
 #endif // __SIZEOF_INT128__ == 16
 
 typedef struct uint256_t {
-    uint128_t hi;
-    uint128_t lo;
+    union {
+        struct {
+        uint128_t hi;
+        uint128_t lo;
+        };
+        struct {
+            struct {
+                uint32_t c;
+                uint32_t d;
+                uint32_t a;
+                uint32_t b;
+            } __hi;
+            struct {
+                uint32_t c;
+                uint32_t d;
+                uint32_t a;
+                uint32_t b;
+            }__lo;
+        };
+    };
 } DAP_ALIGN_PACKED uint256_t;
 
 typedef struct uint512_t {
     uint256_t hi;
     uint256_t lo;
-} DAP_ALIGN_PACKED uint512_t;
+} DAP_ALIGN_PACKED  uint512_t;
 
 #endif //defined(__GNUC__) || defined (__clang__)
 
