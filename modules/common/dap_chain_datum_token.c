@@ -309,8 +309,6 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         (*a_emission_size) = l_emission_size;
     } else {
         l_emission = DAP_DUP_SIZE(a_emission_serial, *a_emission_size);
-        //l_emission = DAP_MALLOC(*a_emission_size - sizeof(l_emission->hdr));
-        //memcpy(a_emission_serial,l_emission,a_emission_size - sizeof(l_emission->hdr));
         if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 1)
             l_emission->hdr.value_256 = dap_chain_uint256_from(
                         ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);
