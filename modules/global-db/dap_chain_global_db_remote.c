@@ -301,7 +301,12 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
         return NULL;
     uint64_t l_offset = 0;
     uint32_t l_count = a_pkt->obj_count, l_cur_count;
-    dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_count * sizeof(struct dap_store_obj));
+    uint64_t l_size = l_count <= UINT32_MAX ? l_count * sizeof(struct dap_store_obj) : 0;
+    dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_size);
+    if (!l_store_obj || !l_size) {
+        log_it(L_ERROR, "Invalid size: can't allocate %lu bytes", l_size);
+        return NULL;
+    }
     for(l_cur_count = 0; l_cur_count < l_count; ++l_cur_count) {
         dap_store_obj_t *l_obj = l_store_obj + l_cur_count;
         uint16_t l_str_length;

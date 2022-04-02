@@ -548,9 +548,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
     dap_global_db_obj_t * l_events_round_new = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new, &l_events_round_new_size );
     // Prepare hashes
     size_t l_hashes_int_size = min(l_events_round_new_size + a_datums_count, l_dag->datum_add_hashes_count);
-//            ( l_events_round_new_size + a_datums_count ) > l_dag->datum_add_hashes_count ?
-//                                   l_dag->datum_add_hashes_count :
-//                                   l_events_round_new_size+a_datums_count;
 
     if (l_dag->is_single_line ) // If single line - only one link inside
         l_hashes_int_size = min(l_hashes_int_size, 1);
@@ -611,10 +608,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                 l_rnd_steps++;
                 if (l_rnd_steps > 100) // Too many attempts
                     break;
-            } while (l_hashes_linked <(l_events_round_new_size) );
+            } while (l_hashes_linked < l_hashes_int_size);
 
             // Check if we have enought hash links
-            if (l_hashes_linked<l_events_round_new_size ){
+            if (l_hashes_linked < l_hashes_int_size) {
                 log_it(L_ERROR,"Can't link new events randomly for 100 attempts");
                 break;
             }
@@ -636,8 +633,8 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             dap_chain_cs_dag_event_t * l_event = NULL;
             size_t l_event_size = 0;
             if(l_dag->callback_cs_event_create)
-                l_event = l_dag->callback_cs_event_create(l_dag,l_datum,l_hashes,l_hashes_linked,&l_event_size);
-            if (l_event&&l_event_size) { // Event is created
+                l_event = l_dag->callback_cs_event_create(l_dag, l_datum, l_hashes, l_hashes_linked, &l_event_size);
+            if (l_event && l_event_size) { // Event is created
                 if (l_dag->is_add_directly) {
                     l_cell = a_chain->cells;
                     if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
@@ -761,9 +758,15 @@ static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_even
     size_t l_sign_offset = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_event_size);
     if (l_sign_offset >= a_event_size)
         return false;
+    if (a_event->header.signs_count > UINT16_MAX)
+        return false;
     for (int i = 0; i < a_event->header.signs_count; i++) {
         dap_sign_t *l_sign = (dap_sign_t *)((uint8_t *)a_event + l_sign_offset);
         l_sign_offset += dap_sign_get_size(l_sign);
+        if (l_sign_offset > a_event_size) {
+            log_it(L_ERROR, "%d of atom signes don't fit in the atom size %zd", a_event->header.signs_count, a_event_size);
+            return false;
+        }
     }
     return l_sign_offset == a_event_size;
 }
