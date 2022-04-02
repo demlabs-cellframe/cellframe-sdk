@@ -354,9 +354,9 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
 }
 
-dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
-                                                              const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,
-                                                              dap_chain_datum_tx_receipt_t * a_receipt)
+dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+                                                  const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,
+                                                  dap_chain_datum_tx_receipt_t * a_receipt)
 {
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     if ( ! a_net || ! l_ledger || ! a_addr_to )
@@ -436,7 +436,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     l_out_cond->header.value = l_old_val;
 
     // add 'sign' items
-    if (a_key_tx_sign){
+    if (a_key_tx_sign) {
         if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_tx_sign) != 1) {
             dap_chain_datum_tx_delete(l_tx);
             log_it( L_ERROR, "Can't add sign output");
@@ -445,10 +445,17 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     }
     size_t l_tx_size = dap_chain_datum_tx_get_size( l_tx );
     dap_chain_datum_t *l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_TX, l_tx, l_tx_size );
+    DAP_DELETE(l_tx);
+    return l_datum;
+}
 
+dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+                                                              const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,
+                                                              dap_chain_datum_tx_receipt_t * a_receipt)
+{
+    dap_chain_datum_t *l_datum = dap_chain_tx_create_cond_input(a_net, a_tx_prev_hash, a_addr_to, a_key_tx_sign, a_receipt);
     dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
-    dap_hash_fast( l_tx, l_tx_size, l_key_hash );
-    DAP_DELETE( l_tx );
+    dap_hash_fast(l_datum->data, l_datum->header.data_size, l_key_hash);
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
 

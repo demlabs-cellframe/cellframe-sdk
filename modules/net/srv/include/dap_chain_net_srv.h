@@ -285,6 +285,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                                                                dap_chain_net_srv_price_t * a_price,
                                                                const void * a_ext, size_t a_ext_size);
 uint8_t dap_stream_ch_chain_net_srv_get_id();
+int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
@@ -294,6 +295,16 @@ DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chai
         case SERV_UNIT_MB: return "MEGABYTE";
         case SERV_UNIT_SEC: return "SECOND";
         case SERV_UNIT_DAY: return  "DAY";
+        case SERV_UNIT_PCS: return "PIECES";
         default: return "UNKNOWN";
     }
+}
+
+DAP_STATIC_INLINE dap_chain_net_srv_uid_compare(dap_chain_net_srv_uid_t a, dap_chain_net_srv_uid_t b)
+{
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    return a.uint64 == b.uint64;
+#else // DAP_CHAIN_NET_SRV_UID_SIZE == 16
+    return !memcmp(&a, &b, DAP_CHAIN_NET_SRV_UID_SIZE);
+#endif
 }

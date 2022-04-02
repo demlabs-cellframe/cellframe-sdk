@@ -346,10 +346,14 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     return l_order_hash_str;
 }
 
-dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order)
+dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t a_order_size)
 {
-    if (((dap_chain_net_srv_order_t *)a_order)->version == 3)
-        return DAP_DUP_SIZE(a_order, dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)a_order));
+    dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_order;
+    size_t l_order_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)a_order);
+    if (l_order->version > 3 || l_order->direction > SERV_DIR_SELL || l_order_size != a_order_size)
+        return NULL;
+    if (l_order->version == 3)
+        return DAP_DUP_SIZE(a_order, l_order_size);
     dap_chain_net_srv_order_old_t *l_old = (dap_chain_net_srv_order_old_t *)a_order;
     size_t l_ret_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)l_old) +
                             sizeof(dap_chain_net_srv_order_t) - sizeof(dap_chain_net_srv_order_old_t);
@@ -437,10 +441,8 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
     size_t l_orders_size = 0;
     for (size_t i = 0; i < l_orders_count; i++) {
         DAP_DEL_Z(l_order);
-        l_order = dap_chain_net_srv_order_read(l_orders[i].value);
-        size_t l_order_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)l_orders[i].value);
-        if (l_order->version > 3 || l_order->direction > SERV_DIR_SELL ||
-                l_order_size != l_orders[i].value_len) {
+        l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
+        if (!l_order) {
             dap_chain_global_db_gr_del(l_orders[i].key, l_gdb_group_str);
             continue; // order is corrupted
         }
