@@ -978,7 +978,7 @@ char *_strndup(const char *str, unsigned long len) {
  */
 int dap_unichar_to_utf8 (unichar c, char   *outbuf)
 {
-  uint len = 0;
+  int len = 0;
   int first;
   int i;
 
