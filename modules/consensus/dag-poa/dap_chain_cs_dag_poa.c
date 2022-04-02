@@ -697,6 +697,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
                 s_round_event_cs_done(a_dag, l_event, (char *)a_key, &l_round_item->round_info);
             }
         }
+        s_round_event_clean_dup(a_dag, a_key);
         DAP_DELETE(l_round_item);
         DAP_DELETE(l_event);
         return 0;
@@ -730,7 +731,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
                 dap_chain_global_db_gr_del(a_key, a_group);
             }
         }
-        // s_round_event_clean_dup(a_dag, a_key);
+        s_round_event_clean_dup(a_dag, a_key);
         DAP_DELETE(l_round_item);
         DAP_DELETE(l_event);
         return 0;
