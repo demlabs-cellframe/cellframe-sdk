@@ -222,6 +222,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
         if (!l_event_hash_hex_str) {
             DAP_DELETE(l_event_hash_base58_str);
             dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid base58 hash format");
+            return -6;
         }
 
         DAP_DELETE(l_event_hash_hex_str);
