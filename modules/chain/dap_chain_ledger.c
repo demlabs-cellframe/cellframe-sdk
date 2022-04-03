@@ -332,7 +332,7 @@ dap_chain_datum_token_t *dap_chain_ledger_token_ticker_check(dap_ledger_t * a_le
     if ( !a_ledger){
         if(s_debug_more)
             log_it(L_WARNING, "NULL ledger, can't find token ticker");
-        return  -2;
+        return NULL;
     }
     dap_chain_ledger_token_item_t *l_token_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);

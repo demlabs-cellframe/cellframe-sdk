@@ -469,4 +469,3 @@ size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_t *a_sign_key, dap_chain_datum_token_emission_t *a_emission);
 // 256 TYPE
 bool dap_chain_datum_token_is_old(uint8_t a_type);
-dap_chain_datum_token_emission_t *dap_chain_datum_emission_extract(byte_t *a_data, size_t a_size);

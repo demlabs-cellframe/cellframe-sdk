@@ -25,6 +25,7 @@
 #include <string.h>
 #include "dap_strfuncs.h"
 #include "dap_common.h"
+#include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
 #include "dap_uuid.h"
 
@@ -382,9 +383,4 @@ bool dap_chain_datum_token_is_old(uint8_t a_type) {
         default:
             return false;
     }
-}
-
-dap_chain_datum_token_emission_t *dap_chain_datum_emission_extract(byte_t *a_data, size_t a_size)
-{
-
 }
