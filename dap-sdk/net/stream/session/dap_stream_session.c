@@ -54,6 +54,7 @@ void dap_stream_session_deinit()
     log_it(L_INFO,"Destroy all the sessions");
     pthread_mutex_lock(&sessions_mutex);
       HASH_ITER(hh, sessions, current, tmp) {
+          // Clang bug at this, current should change at every loop cycle
           HASH_DEL(sessions,current);
           if (current->callback_delete)
               current->callback_delete(current, NULL);
