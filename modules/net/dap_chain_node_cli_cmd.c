@@ -3466,8 +3466,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     } else{ // if transaction was not specified when emission was added we need output only emission result
         dap_chain_node_cli_set_reply_text(a_str_reply, str_reply_tmp);
     }
-    DAP_DELETE(str_reply_tmp);
-    DAP_DELETE(l_addr);
+    DAP_DEL_Z(str_reply_tmp);
+    DAP_DEL_Z(l_addr);
     DAP_DEL_Z(l_certs);
     return 0;
 }
