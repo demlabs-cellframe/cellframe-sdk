@@ -2974,16 +2974,12 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
             dap_string_append_printf(a_str_out, "ticker: %s\n", l_token->ticker);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_token_size);
             switch (l_token->type) {
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
+                //case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:{
                     dap_string_append_printf(a_str_out, "type: SIMPLE\n");
-                    dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->header_simple.signs_total );
-                    dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->header_simple.signs_valid );
-                    if ( dap_chain_datum_token_is_old(l_token->type) )
-                        dap_string_append_printf(a_str_out, "total_supply: %"DAP_UINT64_FORMAT_U"\n", l_token->header_simple.total_supply );
-                    else
-                        dap_string_append_printf(a_str_out, "total_supply: %s\n",
-                                                dap_chain_balance_print(l_token->header_simple.total_supply_256));
+                    dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->signs_total );
+                    dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->signs_valid );
+                    dap_string_append_printf(a_str_out, "total_supply: %s\n", dap_chain_balance_print(l_token->total_supply));
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
                     dap_string_append_printf(a_str_out,"type: PRIVATE_UPDATE\n");
