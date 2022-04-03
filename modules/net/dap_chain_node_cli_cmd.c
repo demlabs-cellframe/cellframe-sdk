@@ -3409,7 +3409,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         // Create emission datum
         l_emission = dap_chain_datum_emission_create(l_emission_value, l_ticker, l_addr);
     }
-    l_emission->data.type_auth.signs_count += l_certs_size;
+    //
+    //l_emission->data.type_auth.signs_count += l_certs_size;
     // Then add signs
     for(size_t i = 0; i < l_certs_size; i++)
         l_emission = dap_chain_datum_emission_add_sign(l_certs[i]->enc_key, l_emission);
