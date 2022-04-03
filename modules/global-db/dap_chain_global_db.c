@@ -281,7 +281,7 @@ int dap_chain_global_db_flush(void)
  * @param a_group a group name string
  * @return If successful, returns a pointer to the item, otherwise NULL.
  */
-void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
+dap_store_obj_t *dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 {
     size_t l_count = 1;
     // read one item

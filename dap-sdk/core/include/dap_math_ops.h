@@ -78,28 +78,21 @@ typedef struct uint512_t {
 
 #endif //defined(__GNUC__) || defined (__clang__)
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-
-#ifndef DAP_GLOBAL_IS_INT128
-#define uint128_0 ((uint128_t){.hi=0,.lo=0})
-#define uint128_1 ((uint128_t){.hi=0,.lo=1})
-#else // DAP_GLOBAL_IS_INT128
-#define uint128_0 0ULL
-#define uint128_1 1ULL
-
-#endif // DAP_GLOBAL_IS_INT128
-
-#define uint256_0 ((uint256_t){.hi=uint128_0,.lo=uint128_0})
-#define uint256_1 ((uint256_t){.hi=uint128_0,.lo=uint128_1})
-#define uint512_0 ((uint512_t){.hi=uint256_0,.lo=uint256_0})
 #define lo_32 ((uint64_t)0xffffffff)
 #define hi_32 ((uint64_t)0xffffffff00000000)
 #define ones_64 ((uint64_t)0xffffffffffffffff)
 
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern const uint128_t uint128_0;
+extern const uint128_t uint128_1;
+extern const uint256_t uint256_0;
+extern const uint256_t uint256_1;
+extern const uint512_t uint512_0;
 
 static inline uint128_t GET_128_FROM_64(uint64_t n) {
 #ifdef DAP_GLOBAL_IS_INT128
