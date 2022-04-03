@@ -703,8 +703,8 @@ static inline int MULT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uint128
 // }
 
 
-//we have test fails for this function, need to check it out if using it
-//incorrect
+// we have test fails for this function with 512 bit, need to check it out if using it with 512 bit space
+// But with 256 bit sapce it works correct
 static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_t* c_512_bit) {
     int dummy_overflow;
     //product of .hi terms - stored in .hi field of c_512_bit
@@ -995,6 +995,8 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
+
+// TODO replace it with fixed point MUL
 //#define CONV_256_FLOAT 10000000000000ULL // 10^13, so max float number to mult is 1.000.000
 //static inline uint256_t MULT_256_FLOAT(uint256_t a_val, long double a_mult)
 //{
