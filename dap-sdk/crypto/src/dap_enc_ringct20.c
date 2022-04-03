@@ -536,7 +536,6 @@ int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_ke
 
     f = calloc(p->RINGCT20_PBK_SIZE, sizeof(char));
     if (f == NULL) {
-        free(f);
         return -1;
     }
     public_key->kind = p->kind;
@@ -544,8 +543,6 @@ int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_ke
 
     g = calloc(p->RINGCT20_PRK_SIZE, sizeof(char));
     if (g == NULL) {
-        free(f);
-        free(g);
         return -1;
     }
 
