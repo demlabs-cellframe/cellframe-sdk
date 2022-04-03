@@ -306,7 +306,7 @@ void H3(const uint32_t* circuitOutput, const uint32_t* plaintext, uint32_t** vie
     /* Hash the output share from each view */
     uint32_t i;
     int j;
-    for (i = 0; i < params->numZKBRounds; i++) {
+    for (i = 0; i < params->numZKBRounds; i++) { //params->numZKBRounds should never be 0
         for (j = 0; j < 3; j++) {
             HashUpdate(&ctx, (uint8_t*)VIEW_OUTPUTS(i, j), params->stateSizeBytes);
         }
