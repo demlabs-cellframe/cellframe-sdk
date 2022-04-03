@@ -384,4 +384,7 @@ bool dap_chain_datum_token_is_old(uint8_t a_type) {
     }
 }
 
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_extract(byte_t *a_data, size_t a_size)
+{
 
+}

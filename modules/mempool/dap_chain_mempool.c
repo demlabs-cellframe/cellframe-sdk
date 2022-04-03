@@ -659,7 +659,7 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
         DAP_DELETE(l_emission_hash_str_from_base58);
     }
     DAP_DELETE(l_gdb_group);
-    if (!l_emission)
+    if (!l_emission || l_emission->header.type_id != DAP_CHAIN_DATUM_TOKEN_EMISSION)
         return NULL;
     l_emission_size = l_emission_size - sizeof(l_emission->header);
     dap_chain_datum_token_emission_t *l_ret = dap_chain_datum_emission_read(l_emission->data, &l_emission_size);
