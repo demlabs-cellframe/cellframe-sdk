@@ -694,7 +694,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             if ( s_round_event_ready_minimum_check(a_dag, l_event, l_event_size,
                                                             (char *)a_key,  &l_round_item->round_info) ) {
                 // cs done (minimum signs & verify passed)
-                s_round_event_cs_done(a_dag, l_event, (char *)a_key, &l_round_item->round_info);
+                // s_round_event_cs_done(a_dag, l_event, (char *)a_key, &l_round_item->round_info);
             }
         }
         s_round_event_clean_dup(a_dag, a_key);

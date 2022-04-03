@@ -41,6 +41,7 @@ typedef struct dap_chain_cs_block_ton_round {
 	dap_chain_hash_fast_t *my_candidate_hash;
 	dap_list_t *validators_list; // dap_chain_node_addr_t 
 	uint16_t validators_count;
+	uint16_t candidates_count;
 } dap_chain_cs_block_ton_round_t;
 
 typedef struct dap_chain_cs_block_ton_items {
