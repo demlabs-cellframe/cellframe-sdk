@@ -281,7 +281,7 @@ size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
         l_ret = sizeof(l_emission->hdr);
     }
     if (l_emission->hdr.type == DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH) {
-        uint64_t l_size = *(uint64_t *)(a_emission_serial + l_ret);
+        uint64_t l_size = *(uint64_t *)(a_emission_serial + l_ret); // data.type_auth.size
         l_ret += l_size;
     }
     l_ret += sizeof(l_emission->data);
@@ -327,6 +327,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_dat
     memcpy(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size, l_tsd, l_tsd_size);
     DAP_DELETE(l_tsd);
     l_emission->data.type_auth.tsd_total_size += l_tsd_size;
+    l_emission->data.type_auth.size += l_tsd_size;
     return l_emission;
 }
 
