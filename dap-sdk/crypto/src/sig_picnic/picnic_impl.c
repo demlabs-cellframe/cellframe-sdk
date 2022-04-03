@@ -826,7 +826,7 @@ int sign(uint32_t* privateKey, uint32_t* pubKey, uint32_t* plaintext, const uint
     uint32_t** viewOutputs = malloc(params->numZKBRounds * 3 * sizeof(uint32_t*));
 
     size_t ii, jj;
-    for (ii = 0; ii < params->numZKBRounds; ii++)
+    for (ii = 0; ii < params->numZKBRounds; ii++) //params->numZKBRounds should never be 0
         for (jj = 0; jj < 3; jj++)
             VIEW_OUTPUTS(ii, jj) = views[ii][jj].outputShare;
 
