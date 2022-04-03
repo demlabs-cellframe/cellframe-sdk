@@ -305,6 +305,7 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
     dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_size);
     if (!l_store_obj || !l_size) {
         log_it(L_ERROR, "Invalid size: can't allocate %lu bytes", l_size);
+        DAP_DEL_Z(l_store_obj)
         return NULL;
     }
     for(l_cur_count = 0; l_cur_count < l_count; ++l_cur_count) {
