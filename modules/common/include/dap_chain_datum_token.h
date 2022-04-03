@@ -78,6 +78,8 @@ typedef struct dap_chain_datum_token{
             };
             uint16_t signs_valid; // Emission auth signs
             uint16_t signs_total; // Emission auth signs
+            uint16_t field01; // empty field
+            uint64_t field02; // empty field
             uint16_t signs_current;
         } DAP_ALIGN_PACKED header_simple;
         // Private token declarations, with flags, manipulations and updates
