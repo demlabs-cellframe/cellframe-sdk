@@ -506,7 +506,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
         }
     } break;
-    default: break;
+    default:
+        DAP_DELETE(l_event_item); // Neither added, nor freed
+        break;
     }
     if(s_debug_more)
         DAP_DELETE(l_event_hash_str);
