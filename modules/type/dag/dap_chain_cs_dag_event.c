@@ -273,20 +273,25 @@ bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_
 
 bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
                                     dap_chain_cs_dag_event_round_item_t * a_round_item,
-                                        const char *a_group)
+                                    const char *a_group)
 {
     size_t l_signs_size = a_round_item->data_size-a_round_item->event_size;
-    uint8_t *l_signs = (uint8_t*)DAP_DUP_SIZE(a_round_item->event_n_signs+a_round_item->event_size, l_signs_size);
+    uint8_t *l_signs = (uint8_t*)a_round_item->event_n_signs + a_round_item->event_size;
+    dap_chain_cs_dag_event_round_item_t * l_round_item
+            = DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
+                           sizeof(dap_chain_cs_dag_event_round_item_t) + a_event_size + l_signs_size);
+    if (!l_round_item) {
+        log_it(L_ERROR, "Not enough memory for event");
+        return false;
+    }
 
-    dap_chain_cs_dag_event_round_item_t * l_round_item = DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
-                                                    sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_size+l_signs_size );
 
     l_round_item->event_size = a_event_size;
     l_round_item->data_size = a_event_size+l_signs_size;
 
     memcpy(&l_round_item->round_info, &a_round_item->round_info, sizeof(dap_chain_cs_dag_event_round_info_t));
-    memcpy(l_round_item->event_n_signs, a_event, a_event_size);
-    memcpy(l_round_item->event_n_signs+a_event_size, l_signs, l_signs_size);
+    memcpy(l_round_item->event_n_signs,                 a_event, a_event_size);
+    memcpy(l_round_item->event_n_signs + a_event_size,  l_signs, l_signs_size);
 
     l_round_item->round_info.ts_update = (uint64_t)time(NULL);
 
