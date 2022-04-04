@@ -2874,7 +2874,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     l_arg_index=dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-token", &l_ticker);
     // Check for ticker
     if(!l_ticker) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter 'token'");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-token'");
         return -2;
     }
 
@@ -3065,9 +3065,6 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                                                             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD, l_arg_param);
                     l_tsd_list = dap_list_append( l_tsd_list, l_tsd);
                     l_tsd_total_size+= dap_tsd_size( l_tsd);
-                } else {
-                     dap_chain_node_cli_set_reply_text(a_str_reply, "Unknown param \"%s\"",a_argv[l_arg_index]);
-                     return -20;
                 }
                 l_arg_index+=2;
             }
