@@ -223,7 +223,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             *l_datum_data_offset += l_sign_size;
             DAP_DELETE(l_sign);
             log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
-            *l_sign_counter++;
+            (*l_sign_counter)++;
         }
     }
 
@@ -2087,7 +2087,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                         DAP_DELETE(l_sign);
 
                         l_offset += l_sign_size;
-                        l_datum_token->signs_total++;
+                        l_datum_token->signs_total = l_datum_token->signs_total + 1;
                     } else{
                         log_it(L_ERROR, "Can't allocate more memory for datum token");
                         return -81;
