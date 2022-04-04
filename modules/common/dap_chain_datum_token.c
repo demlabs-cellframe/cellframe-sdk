@@ -25,6 +25,7 @@
 #include <string.h>
 #include "dap_strfuncs.h"
 #include "dap_common.h"
+#include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
 #include "dap_uuid.h"
 
@@ -65,56 +66,12 @@ const char *c_dap_chain_datum_token_flag_str[] = {
 dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
     // Check if token type could have tsd section
-    size_t l_tsd_size;
     size_t l_hdr_size = sizeof(dap_chain_datum_token_t);
     if (l_hdr_size > a_token_size){
         log_it(L_WARNING, "Token size smaller then header, corrupted data");
         return NULL;
     }
-
-    switch( a_token->type){
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL: // 256
-            l_hdr_size = sizeof(dap_chain_datum_token_t);
-            l_tsd_size = a_token->header_private_decl.tsd_total_size;
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
-            l_hdr_size = sizeof(dap_chain_datum_token_t);
-            l_tsd_size = a_token->header_private_update.tsd_total_size;
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: // 256
-            l_hdr_size = sizeof(dap_chain_datum_token_t);
-            l_tsd_size = a_token->header_native_decl.tsd_total_size;
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE: // 256
-            l_hdr_size = sizeof(dap_chain_datum_token_t);
-            l_tsd_size = a_token->header_native_update.tsd_total_size;
-            break;
-        default: return NULL;
-    }
-
-    if (l_tsd_size+l_hdr_size > a_token_size){
-        log_it(L_WARNING, "TSD size %zd overlaps with header, corrupted data", l_tsd_size);
-    }else if (l_tsd_size +l_hdr_size == a_token_size){
-        log_it(L_INFO, "No signatures at all, returning pointer to the top of data");
-        return (dap_tsd_t*) a_token->data_n_tsd;
-    }
-
-    // Pass through signatures to find top of TSD section
-    size_t l_offset = 0;
-    while( l_offset < (a_token_size - l_hdr_size-l_tsd_size) ){
-        dap_sign_t* l_sign = (dap_sign_t*) (a_token->data_n_tsd + l_offset);
-        if (l_sign->header.sign_size == 0){
-            log_it( L_WARNING, "Corrupted signature, 0 size");
-            return NULL;
-        }
-        l_offset += dap_sign_get_size( l_sign);
-    }
-    if ( l_offset + l_hdr_size +l_tsd_size <= a_token_size  )
-        return (dap_tsd_t*) (a_token->data_n_tsd+l_offset);
-    else{
-        log_it(L_WARNING, "Signatures overlaps with TSD section, corrupted data");
-        return NULL;
-    }
+    return (dap_tsd_t *)a_token->data_n_tsd;
 }
 
 dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size_t *a_token_size) {
@@ -132,17 +89,11 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size
         switch( l_token_type ){
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE: {
                 l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
-                l_token->header_simple.total_supply_256 = GET_256_FROM_64(l_token_old->header_simple.total_supply);
-                l_token->header_simple.signs_valid = l_token_old->header_simple.signs_valid;
-                l_token->header_simple.signs_total = l_token_old->header_simple.signs_total;
+                l_token->total_supply = GET_256_FROM_64(l_token_old->header_simple.total_supply);
+                l_token->signs_valid = l_token_old->header_simple.signs_valid;
+                l_token->signs_total = l_token_old->header_simple.signs_total;
                 break;
             }
-            case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
-                    l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC; // 256
-                    l_token->header_public.total_supply_256 = GET_256_FROM_128(l_token_old->header_public.total_supply);
-                    l_token->header_public.premine_supply_256 = GET_256_FROM_128(l_token_old->header_public.premine_supply);
-                    memcpy(&l_token->header_public.premine_address, &l_token_old->header_public.premine_address, sizeof(l_token_old->header_public.premine_address));
-                break;
             default:
                 return NULL;
         }
@@ -217,23 +168,26 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
     }
 }
 
-dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_total, size_t * a_signs_valid)
+dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_total, size_t * a_signs_valid)
 {
     assert(a_datum_token_size);
     assert(a_datum_token);
     assert(a_signs_total);
     assert(a_signs_valid);
     assert(a_datum_token_size >= sizeof(dap_chain_datum_token_old_t));
-    dap_sign_t ** l_ret = DAP_NEW_Z_SIZE(dap_sign_t*, sizeof (dap_sign_t*)*a_datum_token->header_simple.signs_current);
-    *a_signs_total=0;
-    *a_signs_valid = a_datum_token->header_simple.signs_valid;
+    dap_sign_t ** l_ret = DAP_NEW_Z_SIZE(dap_sign_t*, sizeof (dap_sign_t*)*a_datum_token->signs_total);
+    *a_signs_total = 0;
+    *a_signs_valid = a_datum_token->signs_valid;
     size_t l_offset = 0;
     uint16_t n = 0;
     size_t l_signs_offset = a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE
                                                  ? sizeof(dap_chain_datum_token_old_t)
                                                  : sizeof(dap_chain_datum_token_t);
-
-    while( l_offset < (a_datum_token_size - l_signs_offset) && n < a_datum_token->header_simple.signs_current ) {
+    if ((a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) ||
+            (a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)) {
+        l_signs_offset += a_datum_token->header_native_decl.tsd_total_size;
+    }
+    while( l_offset < (a_datum_token_size - l_signs_offset) && n < a_datum_token->signs_total ) {
         dap_sign_t *l_sign = (dap_sign_t *)((byte_t *)a_datum_token + l_signs_offset + l_offset);
         size_t l_sign_size = dap_sign_get_size(l_sign);
         if(!l_sign_size ){
@@ -383,5 +337,3 @@ bool dap_chain_datum_token_is_old(uint8_t a_type) {
             return false;
     }
 }
-
-
