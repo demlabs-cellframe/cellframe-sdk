@@ -418,8 +418,8 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
                         &l_event_round_item->round_info.first_event_hash, sizeof(dap_chain_hash_fast_t)) == 0 ) {
             event_clean_dup_items_t * l_item = DAP_NEW_Z(event_clean_dup_items_t);
             l_item->signs_count = l_event->header.signs_count;
-            // l_item->ts_update = l_events_round[l_index].timestamp;
-            l_item->ts_update = l_event_round_item->round_info.ts_update;
+            l_item->ts_update = l_events_round[l_index].timestamp;
+            // l_item->ts_update = l_event_round_item->round_info.ts_update;
             l_item->hash_str = (char *)l_events_round[l_index].key;
             HASH_ADD_STR(s_event_clean_dup_items, hash_str, l_item);
             if ( l_event->header.signs_count > l_max_signs_count ) {
@@ -694,9 +694,10 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             if ( s_round_event_ready_minimum_check(a_dag, l_event, l_event_size,
                                                             (char *)a_key,  &l_round_item->round_info) ) {
                 // cs done (minimum signs & verify passed)
-                s_round_event_cs_done(a_dag, l_event, (char *)a_key, &l_round_item->round_info);
+                // s_round_event_cs_done(a_dag, l_event, (char *)a_key, &l_round_item->round_info);
             }
         }
+        s_round_event_clean_dup(a_dag, a_key);
         DAP_DELETE(l_round_item);
         DAP_DELETE(l_event);
         return 0;
@@ -712,6 +713,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     }
     else {
         size_t l_round_item_size_new = 0;
+        bool l_deleted = false;
         // set sign for reject
         if ( (l_round_item_size_new = dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size,
                                                 l_net, PVT(l_poa)->events_sign_cert->enc_key)) ) {
@@ -728,9 +730,12 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             else {
                 // delete from gdb if reject_count is max
                 dap_chain_global_db_gr_del(a_key, a_group);
+                l_deleted = true;
             }
         }
-        // s_round_event_clean_dup(a_dag, a_key);
+        if (!l_deleted) {
+            s_round_event_clean_dup(a_dag, a_key);
+        }
         DAP_DELETE(l_round_item);
         DAP_DELETE(l_event);
         return 0;
