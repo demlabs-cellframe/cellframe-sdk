@@ -984,13 +984,12 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 		goto handler_finish;
 	}
 
-	if ( l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC
-			&& l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS ) {
-		goto handler_finish;
-	}
-
 	// round check
 	if ( l_message->hdr.type != DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN ) {
+		if ( l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC
+				&& l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS ) {
+			goto handler_finish;
+		}
 		if ( l_round_id != l_session->cur_round.id.uint64) {
 			if (l_session->debug)
                 log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Message rejected: round in message does not match to current round",

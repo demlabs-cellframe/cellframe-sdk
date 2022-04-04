@@ -418,8 +418,8 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
                         &l_event_round_item->round_info.first_event_hash, sizeof(dap_chain_hash_fast_t)) == 0 ) {
             event_clean_dup_items_t * l_item = DAP_NEW_Z(event_clean_dup_items_t);
             l_item->signs_count = l_event->header.signs_count;
-            // l_item->ts_update = l_events_round[l_index].timestamp;
-            l_item->ts_update = l_event_round_item->round_info.ts_update;
+            l_item->ts_update = l_events_round[l_index].timestamp;
+            // l_item->ts_update = l_event_round_item->round_info.ts_update;
             l_item->hash_str = (char *)l_events_round[l_index].key;
             HASH_ADD_STR(s_event_clean_dup_items, hash_str, l_item);
             if ( l_event->header.signs_count > l_max_signs_count ) {
