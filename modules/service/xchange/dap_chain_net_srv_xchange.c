@@ -142,7 +142,7 @@ bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_
 static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_xchange_price_t *a_price)
 {
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
-    uint8_t *l_ext = DAP_NEW_SIZE(uint8_t, l_ext_size);
+    uint8_t *l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
     uint256_t l_datoshi_buy = {}; // TODO rework it with fixed point MULT_256_FLOAT(a_price->datoshi_sell, 1 / a_price->rate);
     memcpy(l_ext, &l_datoshi_buy, sizeof(uint256_t));
     strcpy((char *)&l_ext[sizeof(uint256_t)], a_price->token_buy);
