@@ -2045,8 +2045,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         }
 
         // 2. Verify signature in current transaction
-        if(dap_chain_datum_tx_verify_sign(a_tx) != 1)
-            return -2;
+        if(dap_chain_datum_tx_verify_sign(a_tx) != 1) {
+            l_err_num = -2;
+            break;
+        }
 
         // 3. Compare hash in previous transaction with hash inside 'in' item
         // calculate hash of previous transaction anew
@@ -2086,6 +2088,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 break;
             default:
                 l_err_num = -8;
+                break;
             }
             if (l_err_num)
                 break;
