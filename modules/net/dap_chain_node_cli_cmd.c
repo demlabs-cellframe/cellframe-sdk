@@ -2061,7 +2061,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
 
                 // Sign header with all certificates in the list and add signs to the end of token update
-                uint16_t l_sign_counter;
+                uint16_t l_sign_counter = 0;
                 size_t l_data_size = l_tsd_size + l_signs_size;
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
@@ -2673,7 +2673,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token_update->header_private_update.tsd_total_size = l_tsd_total_size;
 
             // Sign header with all certificates in the list and add signs to the end of token update
-            uint16_t l_sign_counter;
+            uint16_t l_sign_counter = 0;
             l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_tsd_total_size,
                                                         &l_sign_counter);
             l_datum_token_update->signs_total = l_sign_counter;
@@ -3114,7 +3114,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     if(l_certs_count > l_signs_total)
         l_certs_count = l_signs_total;
     // Sign header with all certificates in the list and add signs to the end of TSD cetions
-    uint16_t l_sign_counter;
+    uint16_t l_sign_counter = 0;
     l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
     l_datum_token->signs_total = l_sign_counter;
 
