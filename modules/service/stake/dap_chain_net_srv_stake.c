@@ -890,6 +890,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
                 if (!l_cert_str) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order update' requires parameter -cert for buying orders");
+                    DAP_DELETE(l_stake);
                     return -9;
                 }
                 dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
@@ -914,16 +915,19 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
                 if (!l_wallet_str) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order update' requires parameter -wallet for selling orders");
+                    DAP_DELETE(l_stake);
                     return -7;
                 }
                 dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
                 if (!l_wallet) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Specified wallet not found");
+                    DAP_DELETE(l_stake);
                     return -18;
                 }
                 uint256_t l_balance = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_stake->token);
                 if (compare256(l_balance, l_stake->value) == -1) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Insufficient coins for token %s in wallet '%s'", l_token_str, l_wallet_str);
+                    DAP_DELETE(l_stake);
                     return -11;
                 }
                 l_key = dap_chain_wallet_get_key(l_wallet, 0);
@@ -938,23 +942,19 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             DAP_DELETE(l_order_hash_hex_str);
             DAP_DELETE(l_order_hash_base58_str);
             l_order_hash_hex_str = s_stake_order_create(l_stake, l_key);
-            if(l_order_hash_hex_str) {
-                if(!dap_strcmp(a_hash_out_type, "hex")) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_hex_str);
-                }
-                else {
-                    l_order_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_hex_str);
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s",
-                            l_order_hash_base58_str);
-                    DAP_DELETE(l_order_hash_base58_str);
-                }
-                DAP_DELETE(l_order_hash_hex_str);
-                DAP_DELETE(l_stake);
-            } else {
+            DAP_DELETE(l_stake);
+            if(!l_order_hash_hex_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the order");
-                DAP_DELETE(l_stake);
                 return -15;
             }
+            if(!dap_strcmp(a_hash_out_type, "hex")) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_hex_str);
+            } else {
+                l_order_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_hex_str);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_base58_str);
+                DAP_DELETE(l_order_hash_base58_str);
+            }
+            DAP_DELETE(l_order_hash_hex_str);
         } break;
         case CMD_LIST: {
             const char *l_net_str = NULL;
