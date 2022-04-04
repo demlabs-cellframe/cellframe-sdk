@@ -115,7 +115,7 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
  *
  */
 
-int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_token_ticker);
+dap_chain_datum_token_t *dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_token_ticker);
 
 /**
  * Add new token datum
