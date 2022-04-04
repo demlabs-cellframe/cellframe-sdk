@@ -115,6 +115,7 @@ void dap_chain_node_client_deinit()
 {
     dap_chain_node_client_handle_t *l_client = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_clients,l_client, l_tmp){
+        // Clang bug at this, l_client should change at every loop cycle
         HASH_DEL(s_clients,l_client);
         DAP_DELETE(l_client);
     }
