@@ -36,7 +36,7 @@ static inline int    s_dap_insqtail    ( dap_slist_t *q, void *data, int datasz)
 {
 dap_slist_elm_t *elm;
 
-    if ( !(elm = DAP_MALLOC(sizeof(dap_slist_elm_t))) )                       /* Allocate memory for new element */
+    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )                       /* Allocate memory for new element */
         return  -ENOMEM;
 
     elm->flink = NULL;                                                      /* This element is terminal */

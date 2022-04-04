@@ -281,7 +281,7 @@ int dap_chain_global_db_flush(void)
  * @param a_group a group name string
  * @return If successful, returns a pointer to the item, otherwise NULL.
  */
-void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
+dap_store_obj_t *dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 {
     size_t l_count = 1;
     // read one item
@@ -673,7 +673,7 @@ dap_store_obj_t *l_store_obj;
     l_store_obj = (dap_store_obj_t *)a_store_data;
 
     for(int  i = a_objs_count; i--; l_store_obj++) {
-        if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && !l_res)
+        if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL && !l_res)
             // delete info about the deleted entry from the base if one present
             global_db_gr_del_del(l_store_obj->key, l_store_obj->group);
         else if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL && l_res >= 0)

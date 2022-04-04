@@ -3170,9 +3170,18 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                     dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:{
-                    dap_string_append_printf(a_str_out,"type: NATIVE\n");
+                    dap_string_append_printf(a_str_out,"type: CF20\n");
                     dap_string_append_printf(a_str_out,"flags: ");
-                    dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
+                    char * a_str_flags = s_flag_str_from_code(l_token->header_native_decl.flags);
+                    if (a_str_flags){
+                        dap_string_t* a_str_out_flags = dap_string_new(a_str_flags);
+                        dap_string_append_printf(a_str_out,a_str_out_flags->str);
+                        dap_string_append_printf(a_str_out,"\n");
+                    }
+                    else {
+                        dap_string_append_printf(a_str_out,"Flags error parsing");   
+                    }                  
+                    
                     dap_tsd_t * l_tsd_first = dap_chain_datum_token_tsd_get(l_token, l_token_size);
                     if (l_tsd_first == NULL)
                         dap_string_append_printf(a_str_out,"<CORRUPTED TSD SECTION>\n");
@@ -3218,8 +3227,9 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                                              dap_tsd_get_string_const(l_tsd) );
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
+
                                     dap_string_append_printf(a_str_out,"tx_receiver_allowed: %s\n",
-                                                             dap_tsd_get_string_const(l_tsd) );
+                                                             dap_chain_addr_to_str((dap_chain_addr_t*)l_tsd->data));
                                 break;
                                 case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
                                     dap_string_append_printf(a_str_out, "tx_receiver_blocked: %s\n",
@@ -3331,7 +3341,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                                     switch ( l_out->header.subtype){
                                         case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:{
                                             dap_string_append_printf(a_str_out,"\tsubtype: DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY\n");
-                                            dap_string_append_printf(a_str_out,"\tsrv_uid: 0x%016"DAP_UINT64_FORMAT_x"\n", l_out->subtype.srv_pay.srv_uid.uint64 );
+                                            dap_string_append_printf(a_str_out,"\tsrv_uid: 0x%016"DAP_UINT64_FORMAT_x"\n", l_out->header.srv_uid.uint64 );
                                             switch (l_out->subtype.srv_pay.unit.enm) {
                                                 case SERV_UNIT_UNDEFINED: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_UNDEFINED\n"); break;
                                                 case SERV_UNIT_MB: dap_string_append_printf(a_str_out,"\tunit: SERV_UNIT_MB\n"); break;

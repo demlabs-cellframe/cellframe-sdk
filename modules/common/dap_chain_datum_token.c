@@ -224,7 +224,7 @@ dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t *
     assert(a_signs_total);
     assert(a_signs_valid);
     assert(a_datum_token_size >= sizeof(dap_chain_datum_token_old_t));
-    dap_sign_t ** l_ret = DAP_NEW_Z_SIZE(dap_sign_t*, sizeof (dap_sign_t*)*a_datum_token->header_simple.signs_total );
+    dap_sign_t ** l_ret = DAP_NEW_Z_SIZE(dap_sign_t*, sizeof (dap_sign_t*)*a_datum_token->header_simple.signs_current);
     *a_signs_total=0;
     *a_signs_valid = a_datum_token->header_simple.signs_valid;
     size_t l_offset = 0;
@@ -233,7 +233,7 @@ dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t *
                                                  ? sizeof(dap_chain_datum_token_old_t)
                                                  : sizeof(dap_chain_datum_token_t);
 
-    while( l_offset < (a_datum_token_size - l_signs_offset) && n < a_datum_token->header_simple.signs_total ) {
+    while( l_offset < (a_datum_token_size - l_signs_offset) && n < a_datum_token->header_simple.signs_current ) {
         dap_sign_t *l_sign = (dap_sign_t *)((byte_t *)a_datum_token + l_signs_offset + l_offset);
         size_t l_sign_size = dap_sign_get_size(l_sign);
         if(!l_sign_size ){
@@ -292,7 +292,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
 {
     assert(a_emission_serial);
     assert(a_emission_size);
-    dap_chain_datum_token_emission_t *l_emission;
+    dap_chain_datum_token_emission_t *l_emission = NULL;
     if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 0) {
         size_t l_emission_size = *a_emission_size;
         size_t l_old_hdr_size = sizeof(struct dap_chain_emission_header_v0);
@@ -308,7 +308,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         l_emission_size += l_add_size;
         (*a_emission_size) = l_emission_size;
     } else {
-        l_emission = DAP_DUP_SIZE(a_emission_serial, (*a_emission_size));
+        l_emission = DAP_DUP_SIZE(a_emission_serial, *a_emission_size);
         if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 1)
             l_emission->hdr.value_256 = dap_chain_uint256_from(
                         ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);
@@ -327,17 +327,35 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_dat
     memcpy(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size, l_tsd, l_tsd_size);
     DAP_DELETE(l_tsd);
     l_emission->data.type_auth.tsd_total_size += l_tsd_size;
+    l_emission->data.type_auth.size += l_tsd_size;
     return l_emission;
 }
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_t *a_sign_key, dap_chain_datum_token_emission_t *a_emission)
 {
-    if (!a_emission)
+    if (!a_emission || a_emission->hdr.type != DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH)
         return NULL;
-    size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
-    dap_sign_t *l_sign = dap_sign_create(a_sign_key, a_emission, sizeof(a_emission->hdr), 0);
+
+    dap_sign_t *l_sign = NULL;
+
+    if (a_emission->data.type_auth.size > a_emission->data.type_auth.tsd_total_size)
+    {
+        size_t l_pub_key_size = 0;
+        dap_sign_t *l_sign = (dap_sign_t *)(a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size);
+        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_sign_key, &l_pub_key_size);
+        for (int i = 0; i < a_emission->data.type_auth.signs_count; i++) {
+            if (l_sign->header.sign_pkey_size == l_pub_key_size &&
+                    !memcmp(l_sign->pkey_n_sign, l_pub_key, l_pub_key_size))
+                return a_emission;  // this sign already exists
+            l_sign = (dap_sign_t *)((byte_t *)l_sign + dap_sign_get_size(l_sign));
+        }
+        DAP_DELETE(l_pub_key);
+    }
+
+    l_sign = dap_sign_create(a_sign_key, a_emission, sizeof(a_emission->hdr), 0);
     if (!l_sign)
         return NULL;
+    size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
     dap_chain_datum_token_emission_t *l_ret = DAP_REALLOC(a_emission, l_emission_size + dap_sign_get_size(l_sign));
     size_t l_sign_size = dap_sign_get_size(l_sign);
     memcpy(l_ret->tsd_n_signs + l_ret->data.type_auth.size, l_sign, l_sign_size);
