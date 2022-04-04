@@ -2066,11 +2066,12 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
                 l_datum_token->signs_total += l_sign_counter;
-                l_datum_size = sizeof(*l_datum_token) + l_data_size;
+                size_t l_token_size = sizeof(*l_datum_token) + l_data_size;
                 dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
-                                                                     l_datum_token, l_datum_size);
+                                                                     l_datum_token, l_token_size);
                 DAP_DELETE(l_datum_token);
                 // Calc datum's hash
+                l_datum_size = dap_chain_datum_size(l_datum);
                 dap_chain_hash_fast_t l_key_hash={};
                 dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
                 char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
@@ -2375,7 +2376,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
         if (l_datum_size != l_datum_size2 ){
             ret = -8;
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
-                                              l_datum_size2, l_datum_size);
+                                              l_datum_hash_hex_str, l_datum_size2, l_datum_size);
         }else{
             if(l_datum) {
                 char buf[50];
