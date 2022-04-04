@@ -3163,7 +3163,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                     }
 
                     size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
-                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
+                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_decl.tsd_total_size, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:{
                     dap_string_append_printf(a_str_out,"type: CF20\n");
@@ -3239,7 +3239,7 @@ void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datu
                     }
 
                     size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
-                    //dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd, l_certs_field_size);
+                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size, l_certs_field_size);
                 }break;
                 case DAP_CHAIN_DATUM_TX:{
                     dap_chain_datum_tx_t * l_tx =(dap_chain_datum_tx_t *) a_datum->data;
