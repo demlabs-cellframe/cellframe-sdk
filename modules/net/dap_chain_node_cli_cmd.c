@@ -223,7 +223,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             *l_datum_data_offset += l_sign_size;
             DAP_DELETE(l_sign);
             log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
-            *l_sign_counter++;
+            (*l_sign_counter)++;
         }
     }
 
