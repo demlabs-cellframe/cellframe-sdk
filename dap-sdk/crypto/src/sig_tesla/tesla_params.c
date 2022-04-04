@@ -331,7 +331,7 @@ void poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p) {
     unsigned int pos = 0, i = 0, nbytes = (p->PARAM_Q_LOG + 7) / 8;
     unsigned int nblocks = p->PARAM_GEN_A;
     uint32_t val1, val2, val3, val4, mask = (uint32_t)(1 << p->PARAM_Q_LOG) - 1;
-    unsigned char *buf = malloc(SHAKE128_RATE * nblocks * sizeof(char));
+    unsigned char *buf = malloc(SHAKE128_RATE * nblocks * sizeof(unsigned char));
     uint16_t dmsp = 0;
 
     cshake128_simple( buf, SHAKE128_RATE * nblocks, dmsp++, seed, CRYPTO_RANDOMBYTES);
