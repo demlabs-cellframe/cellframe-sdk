@@ -692,9 +692,10 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
             //Blocked tx receiver addres list add, remove or clear
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:{
                 if( l_tsd->size == sizeof (dap_chain_addr_t) ){
-                    dap_chain_addr_t * l_addrs = a_token_item->tx_recv_block? DAP_NEW_Z_SIZE( dap_chain_addr_t,
-                                                                                              sizeof(*a_token_item->tx_recv_block) )
-                                : DAP_REALLOC(a_token_item->tx_recv_block,(a_token_item->tx_recv_block_size+1)*sizeof (*a_token_item->tx_recv_block) );
+                    dap_chain_addr_t * l_addrs = a_token_item->tx_recv_block
+                            ? DAP_NEW_Z_SIZE(dap_chain_addr_t, sizeof(*a_token_item->tx_recv_block))
+                            : DAP_REALLOC(a_token_item->tx_recv_block,
+                                          (a_token_item->tx_recv_block_size + 1) * sizeof(*a_token_item->tx_recv_block));
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
                     int l_add_addr_check;
@@ -709,18 +710,18 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                     if(a_token_item->tx_recv_block)
                         for( size_t i=0; i < a_token_item->tx_recv_block_size; i++){ // Check for all the list
                             if ( memcmp(&a_token_item->tx_recv_block[i], l_tsd->data, l_tsd->size) == 0 ){ // Found
-                                char * l_addr_str= dap_chain_addr_to_str((dap_chain_addr_t*) l_tsd->data );
+                                char * l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_tsd->data );
                                 if(s_debug_more)
                                     log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD has address %s thats already present in list",
                                        l_addr_str);
                                 DAP_DELETE(l_addr_str);
-                                DAP_DELETE(a_token_item->tx_recv_allow);
-                                a_token_item->tx_recv_allow = NULL;
+                                DAP_DELETE(l_addrs);
+                                DAP_DEL_Z(a_token_item->tx_recv_allow)
                                 return -11;
                             }
                         }
 
-                    if( l_addrs){
+                    if(l_addrs){
                         memcpy(&l_addrs[a_token_item->tx_recv_block_size], l_tsd->data,l_tsd->size);
                         a_token_item->tx_recv_block_size++;
                         a_token_item->tx_recv_block = l_addrs;
