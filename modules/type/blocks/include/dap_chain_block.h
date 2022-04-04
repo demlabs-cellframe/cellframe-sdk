@@ -42,14 +42,15 @@ typedef union dap_chain_block_typeid{
   * @brief Block header
   */
 typedef struct dap_chain_block_hdr{
-   uint32_t signature; /// @param signature @brief Magic number, always equels to DAP_CHAIN_BLOCK_SIGNATURE
-   int32_t version; /// @param version @brief block version (be carefull, signed value, as Bitcoin has)
-   dap_chain_cell_id_t cell_id; /// Cell id
-   dap_chain_id_t chain_id; /// Chain id
-   dap_chain_time_t ts_created; /// @param timestamp @brief Block create time timestamp
-   uint16_t meta_count; // Meta values number
-   uint16_t datum_count; // Datums's count
-   uint32_t meta_n_datum_n_signs_size; // Meta&Datum&Signs section size
+    uint32_t signature; /// @param signature @brief Magic number, always equels to DAP_CHAIN_BLOCK_SIGNATURE
+    int32_t version; /// @param version @brief block version (be carefull, signed value, as Bitcoin has)
+    dap_chain_cell_id_t cell_id; /// Cell id
+    dap_chain_id_t chain_id; /// Chain id
+    dap_chain_time_t ts_created; /// @param timestamp @brief Block create time timestamp
+    uint16_t meta_count; // Meta values number
+    uint16_t datum_count; // Datums's count
+    dap_chain_hash_fast_t merkle;
+    uint32_t meta_n_datum_n_signs_size; // Meta&Datum&Signs section size
 } DAP_ALIGN_PACKED dap_chain_block_hdr_t;
 
 // Metadata item
