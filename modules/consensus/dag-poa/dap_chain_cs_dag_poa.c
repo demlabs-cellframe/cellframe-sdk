@@ -713,6 +713,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     }
     else {
         size_t l_round_item_size_new = 0;
+        bool l_deleted = false;
         // set sign for reject
         if ( (l_round_item_size_new = dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size,
                                                 l_net, PVT(l_poa)->events_sign_cert->enc_key)) ) {
@@ -729,9 +730,12 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             else {
                 // delete from gdb if reject_count is max
                 dap_chain_global_db_gr_del(a_key, a_group);
+                l_deleted = true;
             }
         }
-        s_round_event_clean_dup(a_dag, a_key);
+        if (!l_deleted) {
+            s_round_event_clean_dup(a_dag, a_key);
+        }
         DAP_DELETE(l_round_item);
         DAP_DELETE(l_event);
         return 0;

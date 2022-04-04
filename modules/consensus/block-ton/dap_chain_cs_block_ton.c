@@ -1023,8 +1023,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 	}
 
 	dap_chain_cs_block_ton_message_item_t *l_messages_items = NULL;
-	l_messages_items = l_round_id == l_session->cur_round.id.uint64 ?
-						l_session->cur_round.messages_items : l_session->old_round.messages_items;
+	l_messages_items = l_round_id == l_session->old_round.id.uint64 ?
+						l_session->old_round.messages_items : l_session->cur_round.messages_items;
 
 	// check hash message dup
 	dap_chain_cs_block_ton_message_item_t *l_message_item_temp = NULL;
@@ -1645,8 +1645,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			dap_chain_hash_fast_t *l_candidate_hash = &l_commitsign->candidate_hash;
 
 			dap_chain_cs_block_ton_round_t *l_round =
-						l_commitsign->round_id.uint64 == l_session->cur_round.id.uint64 ?
-								&l_session->cur_round : &l_session->old_round;
+						l_commitsign->round_id.uint64 == l_session->old_round.id.uint64 ?
+								&l_session->old_round : &l_session->cur_round;
 
 			if ( s_hash_is_null(l_candidate_hash) ) {
 				if (l_session->debug)
@@ -1764,8 +1764,8 @@ static void s_message_chain_add(dap_chain_cs_block_ton_items_t *a_session, dap_c
 	dap_chain_cs_block_ton_message_getinfo_t *l_getinfo =
 								(dap_chain_cs_block_ton_message_getinfo_t *)&l_message->message;
 	dap_chain_cs_block_ton_round_t *l_round =
-				l_getinfo->round_id.uint64 == a_session->cur_round.id.uint64 ?
-						&a_session->cur_round : &a_session->old_round;
+				l_getinfo->round_id.uint64 == a_session->old_round.id.uint64 ?
+						&a_session->old_round : &a_session->cur_round;
 
 
 	l_message->hdr.is_genesis = !l_round->last_message_hash ? true : false;
