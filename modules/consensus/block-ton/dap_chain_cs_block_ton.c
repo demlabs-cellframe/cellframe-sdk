@@ -685,7 +685,6 @@ static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session
     return false; // for timer
 }
 
-
 static int s_session_datums_validation(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size){
 	size_t l_datums_count = 0;
 	dap_chain_datum_t **l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
