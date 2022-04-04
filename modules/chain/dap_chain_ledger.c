@@ -410,7 +410,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             break;
    case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: // 256
         if(s_debug_more)
-            log_it(L_NOTICE, "Native token %s added (total_supply = %s total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)",
+            log_it(L_NOTICE, "CF20 token %s added (total_supply = %s total_signs_valid=%hu signs_total=%hu)",
             a_token->ticker, dap_chain_balance_to_coins(a_token->total_supply),
             a_token->signs_valid, a_token->signs_total);
             s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
