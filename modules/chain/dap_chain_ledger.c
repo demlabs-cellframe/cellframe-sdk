@@ -421,6 +421,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             log_it(L_WARNING, "Ledger cache mismatch");
     }
     DAP_DELETE(l_gdb_group);
+    DAP_DELETE(l_token_cache);
     switch(a_token->type){
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: {// 256
             l_token_item->auth_signs= dap_chain_datum_token_simple_signs_parse(a_token,a_token_size,
