@@ -2065,7 +2065,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 size_t l_data_size = l_tsd_size + l_signs_size;
                 l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
                                                             &l_sign_counter);
-                l_datum_token->signs_total = l_sign_counter;
+                l_datum_token->signs_total += l_sign_counter;
                 l_datum_size = sizeof(*l_datum_token) + l_data_size;
                 dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
                                                                      l_datum_token, l_datum_size);
