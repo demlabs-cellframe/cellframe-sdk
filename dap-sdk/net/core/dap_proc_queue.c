@@ -118,8 +118,8 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg) 
         }
 
         if(l_queue->items[l_msg->pri].item_first){
-            l_queue->items[l_msg->pri].item_first->prev = l_item;
-            l_item->next = l_queue->items[l_msg->pri].item_first;
+            l_queue->items[l_msg->pri].item_first->next = l_item;
+            l_item->prev = l_queue->items[l_msg->pri].item_first;
         } else {
             l_queue->items[l_msg->pri].item_first = l_item;
         }
