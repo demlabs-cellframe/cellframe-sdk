@@ -60,7 +60,7 @@ void dap_chain_block_deinit()
  */
 dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size_t *a_block_size)
 {
-    dap_chain_block_t * l_block = DAP_NEW_Z_SIZE (dap_chain_block_t,sizeof(l_block->hdr));
+    dap_chain_block_t * l_block = DAP_NEW_Z_SIZE(dap_chain_block_t,sizeof(l_block->hdr));
     if( l_block == NULL){
         log_it(L_CRITICAL, "Can't allocate memory for the new block");
         return NULL;
@@ -68,6 +68,10 @@ dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size
         l_block->hdr.signature = DAP_CHAIN_BLOCK_SIGNATURE;
         l_block->hdr.version = 1;
         l_block->hdr.ts_created = time(NULL);
+
+        dap_chain_hash_fast_t l_hash_null={0};
+        memcpy(&l_block->hdr.merkle, &l_hash_null, sizeof(dap_chain_hash_fast_t));
+
         size_t l_block_size = sizeof(l_block->hdr);
         if( a_prev_block ){
             l_block_size = dap_chain_block_meta_add(&l_block, l_block_size, DAP_CHAIN_BLOCK_META_PREV,
