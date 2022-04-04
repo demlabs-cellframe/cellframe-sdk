@@ -162,8 +162,12 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
  */
 static void s_sync_request_delete(struct sync_request * a_sync_request)
 {
+    if (!a_sync_request) {
+        //already NULL'ed
+        return;
+    }
     if (a_sync_request->pkt.pkt_data) {
-        DAP_DELETE(a_sync_request->pkt.pkt_data);
+        DAP_DEL_Z(a_sync_request->pkt.pkt_data);
     }
 
     if (a_sync_request->gdb.db_iter) {
@@ -171,7 +175,7 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
         dap_list_free_full( a_sync_request->gdb.db_iter, free);
         a_sync_request->gdb.db_iter = NULL;
     }
-    DAP_DELETE(a_sync_request);
+    DAP_DEL_Z(a_sync_request);
 }
 
 /**
