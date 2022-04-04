@@ -66,7 +66,6 @@
 
 #define LOG_TAG "dap_chain_mempool"
 
-
 int dap_datum_mempool_init(void)
 {
     return 0;
@@ -692,14 +691,16 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
     if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
         return NULL;
     int l_signs_valid = 0;
-    dap_sign_t *l_token_sign = (dap_sign_t *)l_token->data_n_tsd;
+    dap_sign_t *l_token_sign = (dap_sign_t *)(l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size);
     for (int i = 0; i < l_token->signs_total; i++) {
         uint32_t l_token_pkey_size = l_token_sign->header.sign_pkey_size;
         dap_sign_t *l_ems_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
         for (int j = 0; j < l_emission->data.type_auth.signs_count; j++) {
             if (l_token_pkey_size == l_ems_sign->header.sign_pkey_size &&
-                    !memcmp(l_token_sign->pkey_n_sign, l_ems_sign->pkey_n_sign, l_token_pkey_size))
+                    !memcmp(l_token_sign->pkey_n_sign, l_ems_sign->pkey_n_sign, l_token_pkey_size)) {
                 l_signs_valid++;
+                break;
+            }
         }
     }
     if (l_signs_valid != l_emission->data.type_auth.signs_count)
