@@ -575,8 +575,13 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     dap_chain_addr_t l_cert_addr;
     dap_chain_addr_fill(&l_cert_addr, l_sign->header.type, &l_pkey_hash, a_net->pub.id);
     dap_chain_net_srv_stake_item_t *l_item = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+    if (!l_item) {
+        log_it(L_CRITICAL, "Can't allocate item");
+        return NULL;
+    }
     if (memcmp(&l_cert_addr, &l_ext->signing_addr, sizeof(dap_chain_addr_t))) {
         log_it(L_WARNING, "Order sign addr & signing_addr are different");
+        DAP_DELETE(l_item);
         return NULL;
     }
     memcpy(&l_item->addr_hldr, &l_ext->addr_hldr, sizeof(dap_chain_addr_t));
