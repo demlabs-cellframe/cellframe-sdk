@@ -233,7 +233,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
         } else if (l_sign_cert->enc_key->priv_key_data) {
             l_ton_pvt->blocks_sign_key = l_sign_cert->enc_key;
-            log_it(L_NOTICE, "Loaded \"%s\" certificate to sign TON blocks", l_sign_cert_str);
+            log_it(L_INFO, "Loaded \"%s\" certificate to sign TON blocks", l_sign_cert_str);
         } else {
             log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
         }
@@ -296,7 +296,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 	}
 	pthread_rwlock_init(&l_session->rwlock, NULL);
 
-	log_it(L_NOTICE, "TON: init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
+	log_it(L_INFO, "TON: init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
 	DL_APPEND(s_session_items, l_session);
 	if ( s_session_get_validator_by_addr(l_session, l_session->my_addr, DAP_TON$ROUND_CUR) ) {
 		if (!s_session_cs_timer) {
@@ -622,22 +622,38 @@ static void s_session_candidate_to_chain(
 	}
 
 	if ( ((float)l_signs_count/a_session->old_round.validators_count) >= ((float)2/3) ) {
-		dap_chain_t *l_chain = a_session->chain;
-		dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+		//dap_chain_t *l_chain = a_session->chain;
+		//dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 		dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
-		if (l_res == ATOM_ACCEPT) {
-			char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
-			// block save to chain
-	        if (dap_chain_atom_save(a_session->chain, (uint8_t *)l_candidate, a_candidate_size, a_session->chain->cells->id) < 0) {
-	            log_it(L_ERROR, "TON: Can't add block %s to the file", l_candidate_hash_str);
-	        }
-	        else {
-				log_it(L_NOTICE, "TON: Block %s added in chain successfully", l_candidate_hash_str);
-	        }
-	        DAP_DELETE(l_candidate_hash_str);
-	    }
+		char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
+		switch (l_res) {
+			case ATOM_ACCEPT: {
+				// block save to chain
+		        if (dap_chain_atom_save(a_session->chain, (uint8_t *)l_candidate, a_candidate_size, a_session->chain->cells->id) < 0) {
+		            log_it(L_ERROR, "TON: Can't save atom %s to the file", l_candidate_hash_str);
+		        }
+		        else {
+					log_it(L_INFO, "TON: atom %s added in chain successfully", l_candidate_hash_str);
+		        }
+		    } break;
+		    case ATOM_MOVE_TO_THRESHOLD: {
+		        log_it(L_INFO, "TON: Thresholded atom with hash %s", l_candidate_hash_str);
+		    } break;
+		    case ATOM_PASS: {
+		    	log_it(L_WARNING, "TON: Atom with hash %s not accepted (code ATOM_PASS, already present)", l_candidate_hash_str);
+		    	DAP_DELETE(l_candidate);
+		    } break;
+		    case ATOM_REJECT: {
+		        log_it(L_WARNING,"TON: Atom with hash %s for %s:%s rejected", l_candidate_hash_str);
+		        DAP_DELETE(l_candidate);
+		    } break;
+		    default:
+		        DAP_DELETE(l_candidate);
+		        log_it(L_CRITICAL, "TON: Wtf is this ret code? %d", l_candidate_hash_str);
+		        break;
+		}
+		DAP_DELETE(l_candidate_hash_str);
 	}
-	DAP_DELETE(l_candidate);
 }
 
 static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session){
@@ -895,7 +911,7 @@ static uint16_t s_session_message_count(
 
 static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_node_addr, 
 								dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size) {
-
+	bool l_message_delete = true;
 	dap_chain_cs_block_ton_items_t *l_session = (dap_chain_cs_block_ton_items_t *)a_arg;
 	dap_chain_cs_block_ton_message_t *l_message =
 			(dap_chain_cs_block_ton_message_t *)DAP_DUP_SIZE(a_data, a_data_size);
@@ -1721,12 +1737,15 @@ handler_finish_save:
 	// save to messages chain
 	dap_chain_hash_fast_t l_message_hash;
 	s_message_chain_add(l_session, a_sender_node_addr, l_message, a_data_size, &l_message_hash);
+	l_message_delete = false;
 	if (l_finalize_consensus) {
 		s_session_round_finish(l_session);
 	}
 }
 handler_finish:
-    // DAP_DELETE(l_message); //no leak
+    if (l_message_delete) {
+    	DAP_DELETE(l_message);
+	}
 	return;
 }
 
