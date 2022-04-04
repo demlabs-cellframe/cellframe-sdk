@@ -1345,6 +1345,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         l_pkt_item->pkt_data = DAP_NEW_SIZE(byte_t, l_chain_pkt_data_size);
                         if (!l_pkt_item->pkt_data) {
                             log_it(L_ERROR, "Not enough memory!");
+                            DAP_DELETE(l_sync_request);
                             break;
                         }
                         memcpy(l_pkt_item->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
