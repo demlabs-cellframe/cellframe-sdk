@@ -223,7 +223,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             *l_datum_data_offset += l_sign_size;
             DAP_DELETE(l_sign);
             log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
-            *l_sign_counter += 1;
+            *l_sign_counter++;
         }
     }
 
@@ -2708,9 +2708,10 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             // Sign header with all certificates in the list and add signs to the end of token update
             // Important:
 
-
+            uint16_t l_sign_counter;
             l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_datum_data_offset,
-                                                        &l_datum_token_update->signs_total);
+                                                        &l_sign_counter);
+            l_datum_token_update->signs_total = l_sign_counter;
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
@@ -3096,7 +3097,9 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Sign header with all certificates in the list and add signs to the end of ticker declaration
             // Important:
 
-            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_datum_token->signs_total);
+            uint16_t l_sign_counter;
+            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
+            l_datum_token->signs_total = l_sign_counter;
 
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
@@ -3166,7 +3169,9 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token->signs_valid = l_signs_emission;
 
             // Create new datum token
-            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_datum_token->signs_total);
+            uint16_t l_sign_counter;
+            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
+            l_datum_token->signs_total = l_sign_counter;
         }break;
         default:
             dap_chain_node_cli_set_reply_text(a_str_reply,
