@@ -514,7 +514,6 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
     if (a_block_links_count)
         *a_block_links_count = 0;
 
-
     for(size_t i = 0; i < a_meta_count; i++){
         dap_chain_block_meta_t * l_meta = a_meta[i];
         switch (l_meta->hdr.type) {
