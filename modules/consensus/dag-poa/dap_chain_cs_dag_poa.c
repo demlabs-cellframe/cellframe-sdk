@@ -359,6 +359,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         l_poa_pvt->wait_sync_before_complete = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","wait_sync_before_complete",180);
         l_poa_pvt->auth_certs_prefix = strdup ( dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") );
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify ) {
+            // Type sizeof's misunderstanding in malloc?
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t));
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){

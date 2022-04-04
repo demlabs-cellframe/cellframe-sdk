@@ -568,6 +568,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                         }
                         a_token_item->auth_signs_total--;
                         if(a_token_item->auth_signs_total){
+                            // Type sizeof's misunderstanding in realloc?
                             a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
                             a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
                         }else{
@@ -584,6 +585,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD:{
                 if(l_tsd->size == sizeof (dap_hash_fast_t) ){
                     a_token_item->auth_signs_total++;
+                    // Type sizeof's misunderstanding in realloc?
                     a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
                     a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
                     a_token_item->auth_signs[a_token_item->auth_signs_total-1] = NULL;
