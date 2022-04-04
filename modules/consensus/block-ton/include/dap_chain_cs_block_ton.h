@@ -22,6 +22,11 @@
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
 
+enum    {
+    DAP_TON$ROUND_CUR  = 'c',
+    DAP_TON$ROUND_OLD  = 'o',
+};
+
 typedef struct dap_chain_cs_block_ton_message dap_chain_cs_block_ton_message_t;
 typedef struct dap_chain_cs_block_ton_message_item dap_chain_cs_block_ton_message_item_t;
 
@@ -72,7 +77,7 @@ typedef struct dap_chain_cs_block_ton_items {
     struct dap_chain_cs_block_ton_items *prev;
 
 	bool debug;
-
+	bool validators_list_by_stake;
 	uint16_t round_start_sync_timeout;
 	uint16_t round_start_multiple_of;
 	uint32_t allowed_clock_offset;
