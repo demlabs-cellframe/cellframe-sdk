@@ -113,9 +113,9 @@
  * Find in base addr by alias
  *
  * return addr, NULL if not found
- * @param a_net 
- * @param a_alias 
- * @return dap_chain_node_addr_t* 
+ * @param a_net
+ * @param a_alias
+ * @return dap_chain_node_addr_t*
  */
 dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net, const char *a_alias)
 {
@@ -140,9 +140,9 @@ dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net,
  * Find in base alias by addr
  *
  * return list of addr, NULL if not found
- * @param l_net 
- * @param a_addr 
- * @return dap_list_t* 
+ * @param l_net
+ * @param a_addr
+ * @return dap_list_t*
  */
 static dap_list_t* get_aliases_by_name(dap_chain_net_t * l_net, dap_chain_node_addr_t *a_addr)
 {
@@ -170,12 +170,12 @@ static dap_list_t* get_aliases_by_name(dap_chain_net_t * l_net, dap_chain_node_a
 
 /**
  * @brief dap_chain_node_addr_t* s_node_info_get_addr
- * 
- * @param a_net 
- * @param a_node_info 
- * @param a_addr 
- * @param a_alias_str 
- * @return dap_chain_node_addr_t* 
+ *
+ * @param a_net
+ * @param a_node_info
+ * @param a_addr
+ * @param a_alias_str
+ * @return dap_chain_node_addr_t*
  */
 static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_addr, const char *a_alias_str)
 {
@@ -191,7 +191,7 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
 }
 
 /**
- * @brief 
+ * @brief
  * sign data (datum_token) by certificates (1 or more)
  * successful count of signes return in l_sign_counter
  * @param l_certs - array with certificates loaded from dcert file
@@ -199,20 +199,20 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
  * @param l_certs_count - count of certificate
  * @param l_datum_data_offset - offset of datum
  * @param l_sign_counter - counter of successful data signing operation
- * @return dap_chain_datum_token_t* 
+ * @return dap_chain_datum_token_t*
  */
-static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t * l_datum_token, size_t l_certs_count, 
+static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t * l_datum_token, size_t l_certs_count,
             size_t * l_datum_data_offset, uint32_t * l_sign_counter)
-{         
+{
     if (!l_datum_data_offset)
     {
         log_it(L_DEBUG,"l_datum_data_offset is NULL");
         return NULL;
-    }  
-    
-    for(size_t i = 0; i < l_certs_count; i++) 
+    }
+
+    for(size_t i = 0; i < l_certs_count; i++)
     {
-        dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token, 
+        dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token,
            sizeof(l_datum_token->header_simple), 0);
 
         if (l_sign)
@@ -233,10 +233,10 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
 /**
  * @brief node_info_read_and_reply
  * Read node from base
- * @param a_net 
- * @param a_address 
- * @param a_str_reply 
- * @return dap_chain_node_info_t* 
+ * @param a_net
+ * @param a_address
+ * @param a_str_reply
+ * @return dap_chain_node_info_t*
  */
 static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_address,
         char **a_str_reply)
@@ -276,11 +276,11 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
 /**
  * @brief node_info_save_and_reply
  * Save node to base
- * @param a_net 
- * @param a_node_info 
- * @param str_reply 
- * @return true 
- * @return false 
+ * @param a_net
+ * @param a_node_info
+ * @param str_reply
+ * @return true
+ * @return false
  */
 static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info, char **str_reply)
 {
@@ -318,14 +318,14 @@ static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_inf
  *
  * str_reply[out] for reply
  * return 0 Ok, -1 error
- * @param a_net 
- * @param a_node_info 
- * @param a_alias_str 
- * @param a_cell_str 
- * @param a_ipv4_str 
- * @param a_ipv6_str 
- * @param a_str_reply 
- * @return int 
+ * @param a_net
+ * @param a_node_info
+ * @param a_alias_str
+ * @param a_cell_str
+ * @param a_ipv4_str
+ * @param a_ipv6_str
+ * @param a_str_reply
+ * @return int
  */
 static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,
         const char *a_alias_str,
@@ -376,11 +376,11 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
 /**
  * @brief node_info_del_with_reply
  * Handler of command 'global_db node add'
- * @param a_net 
- * @param a_node_info 
- * @param alias_str 
+ * @param a_net
+ * @param a_node_info
+ * @param alias_str
  * @param str_reply str_reply[out] for reply
- * @return int 
+ * @return int
  * return 0 Ok, -1 error
  */
 static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info, const char *alias_str,
@@ -444,13 +444,13 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  * cmd 'add' or 'del'
  * str_reply[out] for reply
  * return 0 Ok, -1 error
- * @param a_net 
- * @param a_node_info 
- * @param cmd 
- * @param a_alias_str 
- * @param link 
- * @param a_str_reply 
- * @return int 
+ * @param a_net
+ * @param a_node_info
+ * @param cmd
+ * @param a_alias_str
+ * @param link
+ * @param a_str_reply
+ * @return int
  */
 static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info, const char *cmd,
         const char *a_alias_str,
@@ -559,11 +559,11 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
 
 /**
  * @brief node_info_dump_with_reply Handler of command 'node dump'
- * @param a_net 
- * @param a_addr 
- * @param a_is_full 
- * @param a_alias 
- * @param a_str_reply 
+ * @param a_net
+ * @param a_addr
+ * @param a_is_full
+ * @param a_alias
+ * @param a_str_reply
  * @return int 0 Ok, -1 error
  */
 static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
@@ -747,11 +747,11 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 /**
  * @brief com_global_db
  * global_db command
- * @param a_argc 
- * @param a_argv 
- * @param arg_func 
- * @param a_str_reply 
- * @return int 
+ * @param a_argc
+ * @param a_argv
+ * @param arg_func
+ * @param a_str_reply
+ * @return int
  * return 0 OK, -1 Err
  */
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
@@ -1346,11 +1346,11 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 /**
  * @brief Traceroute command
  * return 0 OK, -1 Err
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_traceroute(int argc, char** argv, char **str_reply)
 {
@@ -1434,11 +1434,11 @@ int com_traceroute(int argc, char** argv, char **str_reply)
 /**
  * @brief com_tracepath
  * Tracepath command
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  * return 0 OK, -1 Err
  */
 int com_tracepath(int argc, char** argv, char **str_reply)
@@ -1518,11 +1518,11 @@ int com_tracepath(int argc, char** argv, char **str_reply)
 /**
  * @brief Ping command
  * return 0 OK, -1 Err
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_ping(int argc, char** argv, char **str_reply)
 {
@@ -1610,13 +1610,13 @@ int com_version(int argc, char ** argv, char **str_reply)
 
 
 /**
- * @brief 
+ * @brief
  * Help command
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_help(int argc, char ** argv, char **str_reply)
 {
@@ -1652,11 +1652,11 @@ int com_help(int argc, char ** argv, char **str_reply)
  * @brief com_tx_wallet
  * Wallet info
  * com_tx_create command
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_tx_wallet(int argc, char ** argv, char **str_reply)
 {
@@ -2064,7 +2064,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
                 if (l_datum_token->header_simple.signs_total >= l_datum_token->header_simple.signs_valid + l_certs_count) {
                     // Copy TSD sections to new location
-                    // rewrite to separate l_datum_token->header_private and l_datum_token->header_native 
+                    // rewrite to separate l_datum_token->header_private and l_datum_token->header_native
                     size_t l_offset = 0;
                     size_t l_tsd_size = 0 ;
                     uint8_t *l_token_tsd = NULL;
@@ -2073,7 +2073,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                     {
                         l_tsd_size = l_datum_token->header_private_decl.tsd_total_size;
                         l_token_tsd = DAP_NEW_SIZE(uint8_t, l_tsd_size);
-                        memcpy(l_token_tsd, l_datum_token->data_n_tsd + l_signs_size, l_tsd_size);                    
+                        memcpy(l_token_tsd, l_datum_token->data_n_tsd + l_signs_size, l_tsd_size);
                     }
 
                     for(size_t i = 0; i < l_certs_count; i++) {
@@ -2189,11 +2189,11 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
 /**
  * @brief s_com_mempool_list_print_for_chain
- * 
- * @param a_net 
- * @param a_chain 
- * @param a_str_tmp 
- * @param a_hash_out_type 
+ *
+ * @param a_net
+ * @param a_chain
+ * @param a_str_tmp
+ * @param a_hash_out_type
  */
 void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, dap_string_t * a_str_tmp, const char *a_hash_out_type){
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
@@ -2724,7 +2724,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             // Important:
 
 
-            l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_datum_data_offset, 
+            l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_datum_data_offset,
                                                         &l_sign_counter);
 
             // Add TSD sections in the end
@@ -2951,7 +2951,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             return -4;
         }
     }
-   
+
     // Signs emission
     if(!l_signs_emission_str){
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_emission'");
@@ -3044,7 +3044,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed" )==0){
                     const char *a_tx_receiver_allowed_base58 = NULL;
-                    dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_tx_receiver_allowed_base58);        
+                    dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_tx_receiver_allowed_base58);
                     char ** l_str_wallet_addr = NULL;
                     l_str_wallet_addr = dap_strsplit( a_tx_receiver_allowed_base58,",",0xffff );
 
@@ -3427,7 +3427,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     //remove previous emission datum from mempool if have new signed emission datum
     char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
     dap_chain_global_db_gr_del(l_emission_hash_str_remove, l_gdb_group_mempool_emission);
-    
+
     size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
     // Calc datum emission's hash
@@ -3462,7 +3462,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is%s placed in datum pool",
                                           str_reply_tmp, l_tx_hash_str, l_placed ? "" : " not");
         DAP_DEL_Z(l_tx_hash_str);
-        DAP_DELETE(str_reply_tmp);
+//@RRL        DAP_DELETE(str_reply_tmp);
     } else{ // if transaction was not specified when emission was added we need output only emission result
         dap_chain_node_cli_set_reply_text(a_str_reply, str_reply_tmp);
     }
@@ -3477,17 +3477,17 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
  * @brief com_tx_cond_create
  * Create transaction
  * com_tx_cond_create command
- * @param a_argc 
- * @param a_argv 
- * @param a_str_reply 
- * @return int 
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @return int
  */
 int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
 {
     (void) a_argc;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-    const char * l_token_ticker = NULL;    
+    const char * l_token_ticker = NULL;
     const char * l_wallet_str = NULL;
     const char * l_cert_str = NULL;
     const char * l_value_datoshi_str = NULL;
@@ -3835,11 +3835,11 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply)
 /**
  * @brief Create transaction
  * com_tx_create command
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_tx_create(int argc, char ** argv, char **str_reply)
 {
@@ -3990,7 +3990,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
 
     // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
     if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
-        dap_chain_node_cli_set_reply_text(str_reply, "destination wallet network ID=0x%llx and network ID=0x%llx is not equal. Please, change network name or wallet address", 
+        dap_chain_node_cli_set_reply_text(str_reply, "destination wallet network ID=0x%llx and network ID=0x%llx is not equal. Please, change network name or wallet address",
                                             l_addr_to->net_id.uint64, l_net->pub.id.uint64);
         return -13;
     }
@@ -4029,11 +4029,11 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
  * @brief com_tx_verify
  * Verifing transaction
  * tx_verify command
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
 {
@@ -4086,10 +4086,10 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
  * @brief com_tx_history
  * tx_history command
  * Transaction history for an address
- * @param a_argc 
- * @param a_argv 
- * @param a_str_reply 
- * @return int 
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @return int
  */
 int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
 {
@@ -4206,12 +4206,12 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
 
 /**
  * @brief stats command
- * 
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ *
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_stats(int argc, char ** argv, char **str_reply)
 {
@@ -4264,12 +4264,12 @@ int com_stats(int argc, char ** argv, char **str_reply)
 
 /**
  * @brief com_exit
- * 
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ *
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_exit(int argc, char ** argv, char **str_reply)
 {
@@ -4285,11 +4285,11 @@ int com_exit(int argc, char ** argv, char **str_reply)
 /**
  * @brief com_print_log Print log info
  * print_log [ts_after <timestamp >] [limit <line numbers>]
- * @param argc 
- * @param argv 
- * @param arg_func 
- * @param str_reply 
- * @return int 
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return int
  */
 int com_print_log(int argc, char ** argv, char **str_reply)
 {
