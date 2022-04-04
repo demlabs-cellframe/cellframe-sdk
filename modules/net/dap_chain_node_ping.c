@@ -202,8 +202,10 @@ static void* node_ping_background_proc(void *a_arg)
     // select the nearest node from the list
     unsigned int l_nodes_count = dap_list_length(l_node_list);
     unsigned int l_thread_id = 0;
-    pthread_t *l_threads = DAP_NEW_Z_SIZE(pthread_t, sizeof(pthread_t) * l_nodes_count);
-    uint64_t *l_nodes_addr = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_nodes_count);
+    pthread_t l_threads[l_nodes_count];
+    memset(l_threads, 0, l_nodes_count);
+    uint64_t l_nodes_addr[l_nodes_count];
+
     dap_list_t *l_node_list0 = l_node_list;
 
     int l_min_hops = INT32_MAX;
@@ -271,10 +273,6 @@ static void* node_ping_background_proc(void *a_arg)
     memcpy(l_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
     DAP_DELETE(s_node_addr_ping);
     s_node_addr_ping = l_node_addr_tmp;
-
-    // delete memory
-    DAP_DELETE(l_nodes_addr);
-    DAP_DELETE(l_threads);
     dap_list_free_full(l_node_list0, free);
     return 0;
 }
