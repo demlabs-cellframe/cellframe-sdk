@@ -66,7 +66,6 @@ typedef struct dap_chain_datum_token{
     uint16_t type;
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t signs_valid; // Emission auth signs
-    uint16_t signs_total; // Emission auth signs
     uint256_t total_supply;
     union {
         // Simple token declaration. Useful for 100% premined emission without any plays with token and owners after that
@@ -100,6 +99,7 @@ typedef struct dap_chain_datum_token{
         } DAP_ALIGN_PACKED header_public;
         byte_t header[256]; // For future changes
     };
+    uint16_t signs_total; // Emission auth signs
     byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 

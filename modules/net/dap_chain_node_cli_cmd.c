@@ -191,46 +191,6 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
 }
 
 /**
- * @brief
- * sign data (datum_token) by certificates (1 or more)
- * successful count of signes return in l_sign_counter
- * @param l_certs - array with certificates loaded from dcert file
- * @param l_datum_token - updated pointer for l_datum_token variable after realloc
- * @param l_certs_count - count of certificate
- * @param l_datum_data_offset - offset of datum
- * @param l_sign_counter - counter of successful data signing operation
- * @return dap_chain_datum_token_t*
- */
-static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t * l_datum_token, size_t l_certs_count, 
-            size_t * l_datum_data_offset, uint16_t * l_sign_counter)
-{         
-    if (!l_datum_data_offset)
-    {
-        log_it(L_DEBUG,"l_datum_data_offset is NULL");
-        return NULL;
-    }
-
-    for(size_t i = 0; i < l_certs_count; i++)
-    {
-        dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token, 
-           sizeof(l_datum_token->header), 0);
-
-        if (l_sign)
-        {
-            size_t l_sign_size = dap_sign_get_size(l_sign);
-            l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + *l_datum_data_offset + l_sign_size);
-            memcpy(l_datum_token->data_n_tsd + *l_datum_data_offset, l_sign, l_sign_size);
-            *l_datum_data_offset += l_sign_size;
-            DAP_DELETE(l_sign);
-            log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
-            (*l_sign_counter)++;
-        }
-    }
-
-    return l_datum_token;
-}
-
-/**
  * @brief node_info_read_and_reply
  * Read node from base
  * @param a_net
@@ -1947,6 +1907,49 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
 }
 
 /**
+ * @brief
+ * sign data (datum_token) by certificates (1 or more)
+ * successful count of signes return in l_sign_counter
+ * @param l_certs - array with certificates loaded from dcert file
+ * @param l_datum_token - updated pointer for l_datum_token variable after realloc
+ * @param l_certs_count - count of certificate
+ * @param l_datum_data_offset - offset of datum
+ * @param l_sign_counter - counter of successful data signing operation
+ * @return dap_chain_datum_token_t*
+ */
+static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap_chain_datum_token_t *l_datum_token, size_t l_certs_count,
+            size_t *l_datum_signs_offset, uint16_t * l_sign_counter)
+{
+    if (!l_datum_signs_offset) {
+        log_it(L_DEBUG,"l_datum_data_offset is NULL");
+        return NULL;
+    }
+
+    size_t l_tsd_size = 0;
+    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
+            (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+        l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
+
+    for(size_t i = 0; i < l_certs_count; i++)
+    {
+        dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token,
+           sizeof(*l_datum_token) - sizeof(uint16_t), 0);
+
+        if (l_sign) {
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + *l_datum_signs_offset + l_sign_size);
+            memcpy(l_datum_token->data_n_tsd + *l_datum_signs_offset, l_sign, l_sign_size);
+            *l_datum_signs_offset += l_sign_size;
+            DAP_DELETE(l_sign);
+            log_it(L_DEBUG,"<-- Signed with '%s'", l_certs[i]->name);
+            (*l_sign_counter)++;
+        }
+    }
+
+    return l_datum_token;
+}
+
+/**
  * @brief com_token_decl_sign
  * @param argc
  * @param argv
@@ -2025,24 +2028,27 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
         dap_chain_datum_t * l_datum = NULL;
         size_t l_datum_size = 0;
+        size_t l_tsd_size = 0;
         if((l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get(
                 l_datum_hash_hex_str, &l_datum_size, l_gdb_group_mempool)) != NULL) {
 
             // Check if its token declaration
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
-                dap_chain_datum_token_t * l_datum_token = (dap_chain_datum_token_t *) l_datum->data;
-                size_t l_datum_token_size = l_datum->header.data_size;
-
+                dap_chain_datum_token_t *l_datum_token = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
+                DAP_DELETE(l_datum);
+                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
+                        (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+                    l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
                 for (i = 1; i <= l_datum_token->signs_total; i++){
-                    dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_signs_size);
-                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(l_datum_token->header)) != 1) {
+                    dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_tsd_size + l_signs_size);
+                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) - sizeof(uint16_t)) != 1) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %zu, break process and exit",
                                 l_datum_hash_out_str, i);
-                        DAP_DELETE(l_datum);
+                        DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
                         return -6;
                     }else{
@@ -2053,103 +2059,64 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
                 log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
                                  l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
-                // Copy TSD sections to new location
-                // rewrite to separate l_datum_token->header_private and l_datum_token->header_native
-                size_t l_offset = 0;
-                size_t l_tsd_size = 0 ;
-                uint8_t *l_token_tsd = NULL;
-                l_offset = l_signs_size;
-                if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ||
-                        l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) { // Use careful!
-                    l_tsd_size = l_datum_token->header_private_decl.tsd_total_size;
-                    l_token_tsd = DAP_NEW_SIZE(uint8_t, l_tsd_size);
-                    memcpy(l_token_tsd, l_datum_token->data_n_tsd + l_signs_size, l_tsd_size);
-                }
 
-                for(size_t i = 0; i < l_certs_count; i++) {
-                    // Add signs to token
-                    dap_sign_t * l_sign = dap_sign_create(l_certs[i]->enc_key,
-                            l_datum_token,
-                            sizeof(l_datum_token->header), 0);
-                    size_t l_sign_size = dap_sign_get_size(l_sign);
+                // Sign header with all certificates in the list and add signs to the end of token update
+                uint16_t l_sign_counter;
+                size_t l_data_size = l_tsd_size + l_signs_size;
+                l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
+                                                            &l_sign_counter);
+                l_datum_token->signs_total = l_sign_counter;
+                l_datum_size = sizeof(*l_datum_token) + l_data_size;
+                dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
+                                                                     l_datum_token, l_datum_size);
+                DAP_DELETE(l_datum_token);
+                // Calc datum's hash
+                dap_chain_hash_fast_t l_key_hash={};
+                dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+                char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+                char * l_key_str_base58 = dap_enc_base58_encode_hash_to_str(&l_key_hash);
+                const char * l_key_out_str;
+                if(!dap_strcmp(l_hash_out_type,"hex"))
+                    l_key_out_str = l_key_str;
+                else
+                    l_key_out_str = l_key_str_base58;
 
-                    l_signs_size += l_sign_size;
-                    l_datum_size += l_sign_size;
-                    l_datum_token_size += l_sign_size;
+                // Add datum to mempool with datum_token hash as a key
+                if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
 
-                    if ( (l_datum = DAP_REALLOC(l_datum, l_datum_size)) != NULL ) {
-                        // add place for new signatures
-                        l_datum_token = (dap_chain_datum_token_t*) l_datum->data;
-                        l_datum->header.data_size = l_datum_token_size;
-                        memcpy(l_datum_token->data_n_tsd + l_offset, l_sign, l_sign_size);
-                        log_it(L_DEBUG, "Added datum token declaration sign with cert %s (new size %zu)",
-                               l_certs[i]->name , l_datum_size);
-                        DAP_DELETE(l_sign);
-
-                        l_offset += l_sign_size;
-                        l_datum_token->signs_total++;
-                    } else{
-                        log_it(L_ERROR, "Can't allocate more memory for datum token");
-                        return -81;
-                    }
-                    // Return TSD sections to its place
-                    if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ||
-                            l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) {
-                        memcpy(l_datum_token->data_n_tsd + l_signs_size, l_token_tsd, l_tsd_size);
-                        DAP_DELETE(l_token_tsd);
-                    }
-
-                    // Recalc hash, string and place new datum
-
-                    // Calc datum's hash
-                    dap_chain_hash_fast_t l_key_hash={0};
-                    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
-                    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-                    char * l_key_str_base58 = dap_enc_base58_encode_hash_to_str(&l_key_hash);
-                    const char * l_key_out_str;
-                    if(!dap_strcmp(l_hash_out_type,"hex"))
-                        l_key_out_str = l_key_str;
-                    else
-                        l_key_out_str = l_key_str_base58;
-
-                    // Add datum to mempool with datum_token hash as a key
-                    if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
-
-                        char* l_hash_str = l_datum_hash_hex_str;
-                        // Remove old datum from pool
-                        if( dap_chain_global_db_gr_del( dap_strdup(l_hash_str) , l_gdb_group_mempool)) {
-                            dap_chain_node_cli_set_reply_text(a_str_reply,
-                                    "datum %s produced from %s is replacing the %s in datum pool",
-                                    l_key_out_str, l_datum_hash_out_str, l_datum_hash_out_str);
-
-                            DAP_DELETE(l_datum);
-                            //DAP_DELETE(l_datum_token);
-                            DAP_DELETE(l_gdb_group_mempool);
-                            return 0;
-                        } else {
-                            dap_chain_node_cli_set_reply_text(a_str_reply,
-                                    "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
-                                    l_datum_hash_out_str, l_key_out_str);
-                            DAP_DELETE(l_datum);
-                            //DAP_DELETE(l_datum_token);
-                            DAP_DELETE(l_gdb_group_mempool);
-                            return 1;
-                        }
-                        DAP_DELETE(l_hash_str);
-                        DAP_DELETE(l_key_str);
-                        DAP_DELETE(l_key_str_base58);
-                    } else {
+                    char* l_hash_str = l_datum_hash_hex_str;
+                    // Remove old datum from pool
+                    if( dap_chain_global_db_gr_del( dap_strdup(l_hash_str) , l_gdb_group_mempool)) {
                         dap_chain_node_cli_set_reply_text(a_str_reply,
-                                "Error! datum %s produced from %s can't be placed in mempool",
+                                "datum %s is replacing the %s in datum pool",
                                 l_key_out_str, l_datum_hash_out_str);
+
                         DAP_DELETE(l_datum);
                         //DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
-                        DAP_DELETE(l_key_str);
-                        DAP_DELETE(l_key_str_base58);
-                        return -2;
+                        return 0;
+                    } else {
+                        dap_chain_node_cli_set_reply_text(a_str_reply,
+                                "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
+                                l_datum_hash_out_str, l_key_out_str);
+                        DAP_DELETE(l_datum);
+                        //DAP_DELETE(l_datum_token);
+                        DAP_DELETE(l_gdb_group_mempool);
+                        return 1;
                     }
-
+                    DAP_DELETE(l_hash_str);
+                    DAP_DELETE(l_key_str);
+                    DAP_DELETE(l_key_str_base58);
+                } else {
+                    dap_chain_node_cli_set_reply_text(a_str_reply,
+                            "Error! datum %s produced from %s can't be placed in mempool",
+                            l_key_out_str, l_datum_hash_out_str);
+                    DAP_DELETE(l_datum);
+                    //DAP_DELETE(l_datum_token);
+                    DAP_DELETE(l_gdb_group_mempool);
+                    DAP_DELETE(l_key_str);
+                    DAP_DELETE(l_key_str_base58);
+                    return -2;
                 }
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -2165,7 +2132,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
         DAP_DELETE(l_datum_hash_hex_str);
         DAP_DELETE(l_datum_hash_base58_str);
     } else {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl_sign need datum <datum hash> argument");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl_sign need -datum <datum hash> argument");
         return -2;
     }
     return 0;
@@ -2706,10 +2673,8 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token_update->header_private_update.tsd_total_size = l_tsd_total_size;
 
             // Sign header with all certificates in the list and add signs to the end of token update
-            // Important:
-
             uint16_t l_sign_counter;
-            l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_datum_data_offset,
+            l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_tsd_total_size,
                                                         &l_sign_counter);
             l_datum_token_update->signs_total = l_sign_counter;
 
@@ -3069,35 +3034,24 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_arg_index+=2;
             }
 
-            // If we have more certs than we need signs - use only first part of the list
-            if(l_certs_count > l_signs_total)
-                l_certs_count = l_signs_total;
-
             // Create new datum token
-            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)) ;
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_tsd_total_size) ;
             l_datum_token->type = l_type;
-
             if (l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) {
                 log_it(L_DEBUG,"Prepeared TSD sections for private token on %zd total size", l_tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_private_decl.flags = l_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
+                l_datum_token->header_private_decl.tsd_total_size = l_tsd_total_size;
             } else { //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
                 log_it(L_DEBUG,"Prepeared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_native_decl.flags = l_flags;
                 l_datum_token->signs_valid = l_signs_emission;
+                l_datum_token->header_native_decl.tsd_total_size = l_tsd_total_size;
                 l_datum_token->header_native_decl.decimals = atoi(l_decimals_str);
             }
-
-            // Sign header with all certificates in the list and add signs to the end of ticker declaration
-            // Important:
-
-            uint16_t l_sign_counter;
-            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
-            l_datum_token->signs_total = l_sign_counter;
-
             // Add TSD sections in the end
             for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
                 dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
@@ -3138,43 +3092,31 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     default: log_it(L_DEBUG, "== 0x%04X: binary data %u size ",l_tsd->type, l_tsd->size );
                 }
                 size_t l_tsd_size = dap_tsd_size( l_tsd);
-                //add realloc: size of token header + sizeof signed data s_sign_cert_in_cycle + n * l_tsd_size
-                l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_tsd_size);
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
-                if ( l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) {
-                    l_datum_token->header_private_decl.tsd_total_size += l_tsd_size;
-                } else {
-                    l_datum_token->header_native_decl.tsd_total_size += l_tsd_size;
-                }
                 l_datum_data_offset += l_tsd_size;
             }
             log_it(L_DEBUG, "%s token declaration '%s' initialized", l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ?
                             "Ptivate" : "CF20", l_datum_token->ticker);
         }break;
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
-            // If we have more certs than we need signs - use only first part of the list
-            if(l_certs_count > l_signs_total)
-                l_certs_count = l_signs_total;
-
-            // Sign header with all certificates in the list and add signs to the end of ticker declaration
-            // Important:
-
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
-
-            // Create new datum token
-            uint16_t l_sign_counter;
-            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
-            l_datum_token->signs_total = l_sign_counter;
         }break;
         default:
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "Unknown token type");
             return -8;
     }
+    // If we have more certs than we need signs - use only first part of the list
+    if(l_certs_count > l_signs_total)
+        l_certs_count = l_signs_total;
+    // Sign header with all certificates in the list and add signs to the end of TSD cetions
+    uint16_t l_sign_counter;
+    l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
+    l_datum_token->signs_total = l_sign_counter;
 
     // We skip datum creation opeartion, if count of signed certificates in s_sign_cert_in_cycle is 0.
     // Usually it happen, when certificate in token_decl or token_update command doesn't contain private data or broken
