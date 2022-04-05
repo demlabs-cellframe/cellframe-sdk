@@ -3156,9 +3156,9 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
     if (l_key_str_out != l_key_str)
-        DAP_DELETE(l_key_str);
-    DAP_DELETE(l_key_str);
-    DAP_DELETE(l_datum);
+        DAP_DEL_Z(l_key_str);
+    DAP_DEL_Z(l_key_str);
+    DAP_DEL_Z(l_datum);
     if (!l_placed) {
         l_ret = -2;
     }
@@ -3378,12 +3378,12 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is%s placed in datum pool",
                                           str_reply_tmp, l_tx_hash_str, l_placed ? "" : " not");
         DAP_DEL_Z(l_tx_hash_str);
-//@RRL        DAP_DELETE(str_reply_tmp);
+        DAP_DEL_Z(str_reply_tmp);
     } else{ // if transaction was not specified when emission was added we need output only emission result
         dap_chain_node_cli_set_reply_text(a_str_reply, str_reply_tmp);
     }
-    DAP_DELETE(str_reply_tmp);
-    DAP_DELETE(l_addr);
+    DAP_DEL_Z(str_reply_tmp);
+    DAP_DEL_Z(l_addr);
     DAP_DEL_Z(l_certs);
     return 0;
 }

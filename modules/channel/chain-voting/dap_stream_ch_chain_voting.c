@@ -285,6 +285,7 @@ static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg){
 void dap_stream_ch_chain_voting_deinit() {
 	voting_node_client_list_t *l_node_info_item=NULL, *l_node_info_tmp=NULL;
     HASH_ITER(hh, s_node_client_list, l_node_info_item, l_node_info_tmp) {
+        // Clang bug at this, l_node_info_item should change at every loop cycle
         HASH_DEL(s_node_client_list, l_node_info_item);
         DAP_DELETE(l_node_info_item->node_client);
         DAP_DELETE(l_node_info_item);

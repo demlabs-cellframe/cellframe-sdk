@@ -52,6 +52,7 @@ void dap_enc_ks_deinit()
     if (_ks) {
         dap_enc_ks_key_t *cur_item, *tmp;
         HASH_ITER(hh, _ks, cur_item, tmp) {
+            // Clang bug at this, cur_item should change at every loop cycle
             HASH_DEL(_ks, cur_item);
             _enc_key_free(&cur_item);
         }

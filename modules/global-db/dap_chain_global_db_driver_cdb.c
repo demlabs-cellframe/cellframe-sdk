@@ -227,7 +227,7 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
         DAP_DELETE(l_cdb_i->local_group);
         cdb_destroy(l_cdb_i->cdb);
         HASH_DEL(s_cdb, l_cdb_i);
-        DAP_DELETE(l_cdb_i);
+        DAP_DEL_Z(l_cdb_i);
     }
 
 FIN:

@@ -654,7 +654,7 @@ static uint32_t Bernoulli(int64_t r, int64_t t, tesla_param_t *p) { // Sample a 
 
 void sample_gauss_poly(int64_t *x, const unsigned char *seed, int nonce, tesla_param_t *p) { // Gaussian sampler
 
-    unsigned char *seed_ex = malloc(p->PARAM_N * 8 * sizeof(char));
+    unsigned char *seed_ex = malloc(p->PARAM_N * 8 * sizeof(unsigned char));
     int64_t i, j = 0, x_ind;
     int64_t *buf = (int64_t *) seed_ex;
     int64_t sign, k, bitsremained, rbits, y, z;
@@ -865,7 +865,7 @@ void encode_c(uint32_t *pos_list, int16_t *sign_list, unsigned char *c_bin, tesl
     int pos, cnt = 0;
     int16_t *c = malloc(p->PARAM_N * sizeof(int16_t));
     const int RLENGTH = SHAKE128_RATE;
-    unsigned char *r = malloc(RLENGTH * sizeof(char));
+    unsigned char *r = malloc(RLENGTH * sizeof(unsigned char));
     uint16_t dmsp = 0;
 
     // Use the hash value as key to generate some randomness
