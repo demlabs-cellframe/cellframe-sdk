@@ -593,15 +593,13 @@ static void s_callback_delete(dap_chain_t * a_chain)
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
-    if(l_blocks->_inheritor)
-        DAP_DELETE(l_blocks->_inheritor);
-    if(l_blocks->_pvt)
-        DAP_DELETE(l_blocks->_pvt);
+    DAP_DEL_Z(l_blocks->_inheritor)
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->datums_lock);
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks );
-    log_it(L_INFO,"callback_delete() called");
+    DAP_DEL_Z(l_blocks->_pvt)
+    log_it(L_INFO, "Block destructed");
 }
 
 /**

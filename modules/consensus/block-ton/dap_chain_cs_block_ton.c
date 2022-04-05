@@ -798,6 +798,7 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
 
     dap_chain_cs_block_ton_message_item_t *l_message_item=NULL, *l_message_tmp=NULL;
     HASH_ITER(hh, a_session->old_round.messages_items, l_message_item, l_message_tmp) {
+        // Clang bug at this, l_message_item should change at every loop cycle
         HASH_DEL(a_session->old_round.messages_items, l_message_item);
         DAP_DELETE(l_message_item->message);
         DAP_DELETE(l_message_item);

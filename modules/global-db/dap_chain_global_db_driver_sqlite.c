@@ -41,12 +41,6 @@
 
 #define LOG_TAG "db_sqlite"
 
-
-
-
-
-
-
 struct dap_sqlite_conn_pool_item {
     sqlite3 *conn;
     int busy;
@@ -60,8 +54,8 @@ static pthread_rwlock_t s_db_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 // Value of one field in the table
 typedef struct _SQLITE_VALUE_
 {
-    int32_t len;
-    char type;
+    int32_t len,
+            type;
     /*
      #define SQLITE_INTEGER  1
      #define SQLITE_FLOAT    2
@@ -69,7 +63,7 @@ typedef struct _SQLITE_VALUE_
      #define SQLITE_BLOB     4
      #define SQLITE_NULL     5
      */
-    uint8_t reserv[3];
+
     union
     {
         int val_int;
@@ -92,37 +86,50 @@ static int dap_db_driver_sqlite_exec(sqlite3 *l_db, const char *l_query, char **
 
 static sqlite3 *s_sqlite_get_connection(void)
 {
-    if (pthread_rwlock_wrlock(&s_db_rwlock) == EDEADLK) {
-        return s_trans;
-    }
+int     l_rc;
+sqlite3 *l_ret;
+struct dap_sqlite_conn_pool_item *l_conn;
 
-    sqlite3 *l_ret = NULL;
-    for (int i = 0; i < DAP_SQLITE_POOL_COUNT; i++) {
-        if (!s_conn_pool[i].busy) {
-            l_ret = s_conn_pool[i].conn;
-            s_conn_pool[i].busy = 1;
+    if ( (l_rc = pthread_rwlock_wrlock(&s_db_rwlock)) == EDEADLK )
+        return s_trans;
+    else if ( l_rc )
+        return  log_it(L_ERROR, "Cannot get free SQLITE connection, errno=%d", l_rc), NULL;
+
+    l_conn = s_conn_pool;
+    for (int i = DAP_SQLITE_POOL_COUNT; i--; l_conn++) {
+        if (!l_conn->busy) {
+            l_ret = l_conn->conn;
+            l_conn->busy = 1;
             break;
         }
     }
 
-    pthread_rwlock_unlock(&s_db_rwlock);
+    assert ( !pthread_rwlock_unlock(&s_db_rwlock) );
+
+    if ( !l_ret )
+        log_it(L_ERROR, "No free SQLITE connection");
+
     return l_ret;
 }
 
-static void s_sqlite_free_connection(sqlite3 *a_conn)
+static int s_sqlite_free_connection(sqlite3 *a_conn)
 {
-    if (pthread_rwlock_wrlock(&s_db_rwlock) == EDEADLK) {
-        return;
-    }
+int     l_rc;
+struct dap_sqlite_conn_pool_item *l_conn;
 
-    for (int i = 0; i < DAP_SQLITE_POOL_COUNT; i++) {
-        if (s_conn_pool[i].conn == a_conn) {
-            s_conn_pool[i].busy = 0;
+    if ( (l_rc = pthread_rwlock_wrlock(&s_db_rwlock)) )
+        return  log_it(L_ERROR, "Cannot free SQLITE connection, errno=%d", l_rc), l_rc;
+
+    l_conn = s_conn_pool;
+    for (int i = DAP_SQLITE_POOL_COUNT; i--; l_conn++) {
+        if ( (l_rc = (l_conn->conn == a_conn)) ) {
+            l_conn->busy = 0;
             break;
         }
     }
 
-    pthread_rwlock_unlock(&s_db_rwlock);
+    assert ( !(l_rc = pthread_rwlock_unlock(&s_db_rwlock)) );
+    return  l_rc;
 }
 
 /**
@@ -310,17 +317,16 @@ void dap_db_driver_sqlite_free(char *memory)
  */
 bool dap_db_driver_sqlite_set_pragma(sqlite3 *a_db, char *a_param, char *a_mode)
 {
+char    l_query [512];
+int     l_rc;
+
     if(!a_param || !a_mode)
-            {
-        printf("[sqlite_set_pragma] err!!! no param or mode\n");
-        return false;
-    }
-    char *l_str_query = sqlite3_mprintf("PRAGMA %s = %s", a_param, a_mode);
-    int l_rc = dap_db_driver_sqlite_exec(a_db, l_str_query, NULL); // default synchronous=FULL
-    sqlite3_free(l_str_query);
-    if(l_rc == SQLITE_OK)
-        return true;
-    return false;
+        return  log_it(L_ERROR, "%s - no param or mode\n", __PRETTY_FUNCTION__), false;
+
+    snprintf(l_query, sizeof(l_query) - 1, "PRAGMA %s = %s", a_param, a_mode);
+    l_rc = dap_db_driver_sqlite_exec(a_db, l_query, NULL); // default synchronous=FULL
+
+    return  (l_rc == SQLITE_OK);
 }
 
 /**
@@ -401,34 +407,41 @@ struct  timespec tmo = {0, 500 * 1024 /* ~0.5 sec */}, delta;
  */
 static int dap_db_driver_sqlite_create_group_table(const char *a_table_name)
 {
-    sqlite3 *s_db = s_sqlite_get_connection();
-    char *l_error_message = NULL;
-    if(!s_db || !a_table_name)
-        return -1;
-    char *l_query =
-            dap_strdup_printf(
-                    "create table if not exists '%s'(id INTEGER NOT NULL PRIMARY KEY, key TEXT KEY, hash BLOB, ts INTEGER KEY, value BLOB)",
+int l_rc;
+sqlite3     *s_db;
+char    *l_error_message, l_query[512];
+
+    if( !a_table_name )
+        return  -EINVAL;
+
+    if ( !(s_db = s_sqlite_get_connection()) )
+        return log_it(L_ERROR, "Error create group table '%s'", a_table_name), -ENOENT;
+
+    dap_snprintf(l_query, sizeof(l_query) - 1,
+                    "CREATE TABLE IF NOT EXISTs '%s'(id INTEGER NOT NULL PRIMARY KEY, key TEXT KEY, hash BLOB, ts INTEGER KEY, value BLOB)",
                     a_table_name);
-    if(dap_db_driver_sqlite_exec(s_db, (const char*) l_query, &l_error_message) != SQLITE_OK)
-    {
-        log_it(L_ERROR, "Create_table : %s\n", l_error_message);
+
+    if ( (l_rc = dap_db_driver_sqlite_exec(s_db, (const char*) l_query, &l_error_message)) != SQLITE_OK) {
+        log_it(L_ERROR, "'%s' -> (%d) %s\n", l_query, l_rc, l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
-        DAP_DELETE(l_query);
         s_sqlite_free_connection(s_db);
         return -1;
     }
-    DAP_DELETE(l_query);
+
+
     // create unique index - key
-    l_query = dap_strdup_printf("create unique index if not exists 'idx_key_%s' ON '%s' (key)", a_table_name,
-            a_table_name);
-    if(dap_db_driver_sqlite_exec(s_db, (const char*) l_query, &l_error_message) != SQLITE_OK) {
-        log_it(L_ERROR, "Create unique index : %s\n", l_error_message);
+    dap_snprintf(l_query, sizeof(l_query) - 1,
+                 "CREATE UNIQUE INDEX IF NOT EXISTS 'idx_key_%s' ON '%s' (key)", a_table_name,
+                a_table_name);
+
+    if ( (l_rc = dap_db_driver_sqlite_exec(s_db, (const char*) l_query, &l_error_message)) != SQLITE_OK) {
+        log_it(L_ERROR, "'%s' -> (%d) %s\n", l_query, l_rc, l_error_message);
+        log_it(L_ERROR, "'%s' ->  %s\n", l_query, l_error_message);
         dap_db_driver_sqlite_free(l_error_message);
-        DAP_DELETE(l_query);
         s_sqlite_free_connection(s_db);
         return -1;
     }
-    DAP_DELETE(l_query);
+
     s_sqlite_free_connection(s_db);
     return 0;
 }
@@ -502,11 +515,9 @@ static int dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VALU
                     {
                 SQLITE_VALUE *cur_val = l_row->val + l_iCol;
                 cur_val->len = sqlite3_column_bytes(l_res, l_iCol); // how many bytes will be needed
-                cur_val->type = (signed char)sqlite3_column_type(l_res, l_iCol); // field type
+                cur_val->type = sqlite3_column_type(l_res, l_iCol); // field type
                 if(cur_val->type == SQLITE_INTEGER)
-                {
                     cur_val->val.val_int64 = sqlite3_column_int64(l_res, l_iCol);
-                }
                 else if(cur_val->type == SQLITE_FLOAT)
                     cur_val->val.val_float = sqlite3_column_double(l_res, l_iCol);
                 else if(cur_val->type == SQLITE_BLOB)
@@ -534,14 +545,15 @@ static int dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VALU
  * @param l_res a pointer to the statement structure
  * @return Returnes true if successful, otherwise false.
  */
-static bool dap_db_driver_sqlite_query_free(sqlite3_stmt *l_res)
+static int dap_db_driver_sqlite_query_free(sqlite3_stmt *l_res)
 {
+int rc;
+
     if(!l_res)
-        return false;
-    int rc = sqlite3_finalize(l_res);
-    if(rc != SQLITE_OK)
-        return false;
-    return true;
+        return -EINVAL;
+
+    rc = sqlite3_finalize(l_res);
+    return  -rc;
 }
 
 /**
@@ -554,14 +566,16 @@ static bool dap_db_driver_sqlite_query_free(sqlite3_stmt *l_res)
 static char* dap_db_driver_get_string_from_blob(const uint8_t *blob, int len)
 {
     char *str_out;
-    int ret;
+
     if(!blob)
         return NULL;
-    str_out = (char*) sqlite3_malloc(len * 2 + 1);
-    ret = (int)dap_bin2hex(str_out, (const void*)blob, (size_t)len);
+
+    if ( !(str_out = (char*) sqlite3_malloc(len * 2 + 1)) )
+        return NULL;
+
+    dap_bin2hex(str_out, (const void*)blob, (size_t)len);
     str_out[len * 2] = 0;
     return str_out;
-
 }
 
 

@@ -534,18 +534,15 @@ int32_t ringct20_private_and_public_keys_init(ringct20_private_key_t *private_ke
 
     unsigned char *f = NULL, *g = NULL;
 
-    f = calloc(p->RINGCT20_PBK_SIZE, sizeof(char));
+    f = calloc(p->RINGCT20_PBK_SIZE, sizeof(unsigned char));
     if (f == NULL) {
-        free(f);
         return -1;
     }
     public_key->kind = p->kind;
     public_key->data = f;
 
-    g = calloc(p->RINGCT20_PRK_SIZE, sizeof(char));
+    g = calloc(p->RINGCT20_PRK_SIZE, sizeof(unsigned char));
     if (g == NULL) {
-        free(f);
-        free(g);
         return -1;
     }
 

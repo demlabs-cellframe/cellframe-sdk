@@ -306,7 +306,7 @@ void H3(const uint32_t* circuitOutput, const uint32_t* plaintext, uint32_t** vie
     /* Hash the output share from each view */
     uint32_t i;
     int j;
-    for (i = 0; i < params->numZKBRounds; i++) {
+    for (i = 0; i < params->numZKBRounds; i++) { //params->numZKBRounds should never be 0
         for (j = 0; j < 3; j++) {
             HashUpdate(&ctx, (uint8_t*)VIEW_OUTPUTS(i, j), params->stateSizeBytes);
         }
@@ -826,7 +826,7 @@ int sign(uint32_t* privateKey, uint32_t* pubKey, uint32_t* plaintext, const uint
     uint32_t** viewOutputs = malloc(params->numZKBRounds * 3 * sizeof(uint32_t*));
 
     size_t ii, jj;
-    for (ii = 0; ii < params->numZKBRounds; ii++)
+    for (ii = 0; ii < params->numZKBRounds; ii++) //params->numZKBRounds should never be 0
         for (jj = 0; jj < 3; jj++)
             VIEW_OUTPUTS(ii, jj) = views[ii][jj].outputShare;
 

@@ -294,6 +294,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
     pthread_rwlock_wrlock(&l_dag_pvt->events_rwlock);
     dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
+    // Clang bug at this, l_event_current should change at every loop cycle
     HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events, l_event_current);
         DAP_DELETE(l_event_current);
@@ -506,7 +507,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
         }
     } break;
-    default: break;
+    default:
+        DAP_DELETE(l_event_item); // Neither added, nor freed
+        break;
     }
     if(s_debug_more)
         DAP_DELETE(l_event_hash_str);
@@ -1452,8 +1455,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     // delete events from db
                     dap_list_t *l_list_tmp = l_list_to_del;
                     while(l_list_tmp) {
-                        char *l_key = strdup((char*) l_list_tmp->data);
-                        dap_chain_global_db_gr_del(l_key, l_dag->gdb_group_events_round_new);
+                        dap_chain_global_db_gr_del((char*)l_list_tmp->data, l_dag->gdb_group_events_round_new);
                         l_list_tmp = dap_list_next(l_list_tmp);
                     }
                 }
