@@ -31,27 +31,3 @@
 
 int dap_db_driver_sqlite_init(const char *a_filename_db, dap_db_driver_callbacks_t *a_drv_callback);
 int dap_db_driver_sqlite_deinit(void);
-
-sqlite3* dap_db_driver_sqlite_open(const char *a_filename_utf8, int a_flags, char **error_message);
-void dap_db_driver_sqlite_close(sqlite3 *l_db);
-void dap_db_driver_sqlite_free(char *memory);
-bool dap_db_driver_sqlite_set_pragma(sqlite3 *a_db, char *a_param, char *a_mode);
-int dap_db_driver_sqlite_flush(void);
-
-
-// ** SQLite callbacks **
-
-// Start a transaction
-int dap_db_driver_sqlite_start_transaction(void);
-// End of transaction
-int dap_db_driver_sqlite_end_transaction(void);
-
-// Apply data (write or delete)
-int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj);
-// Read data
-dap_store_obj_t* dap_db_driver_sqlite_read_last_store_obj(const char *a_group);
-dap_store_obj_t* dap_db_driver_sqlite_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
-dap_store_obj_t* dap_db_driver_sqlite_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
-dap_list_t* dap_db_driver_sqlite_get_groups_by_mask(const char *a_group_mask);
-size_t dap_db_driver_sqlite_read_count_store(const char *a_group, uint64_t a_id);
-bool dap_db_driver_sqlite_is_obj(const char *a_group, const char *a_key);
