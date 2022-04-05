@@ -81,50 +81,50 @@ int dap_proc_queue_delete(dap_proc_queue_t * a_queue)
  * @param a_es
  * @param a_msg
  */
-static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg) {
-    if (!a_es) {
-        log_it(L_CRITICAL, "Wrong wsocket!");
-        return;
-    }
+static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
+{
     dap_proc_queue_t * l_queue = (dap_proc_queue_t*) a_es->_inheritor;
     dap_proc_queue_msg_t * l_msg = (dap_proc_queue_msg_t*) a_msg;
-    if (!l_msg) {
-        log_it(L_CRITICAL, "Wrong argument! Esocket %d", a_es->fd);
+    dap_proc_queue_item_t * l_item = DAP_NEW_Z(dap_proc_queue_item_t);
+
+    assert(l_msg);
+
+    if ( !l_item )
+    {
+        log_it(L_CRITICAL,"Can't allocate memory for callback item, exiting");
+        DAP_DELETE(l_msg);
         return;
+    }
+
+
+    log_it(L_DEBUG, "l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+
+
+    // We have callback to add in list according with the priority (!!!)
+    if (l_msg->callback)
+    {
+        l_item->callback = l_msg->callback;
+        l_item->callback_arg = l_msg->callback_arg;
+
+        if ( l_queue->items[l_msg->pri].item_last)
+            l_queue->items[l_msg->pri].item_last->prev = l_item;
+
+        l_item->next = l_queue->items[l_msg->pri].item_last ;
+        l_queue->items[l_msg->pri].item_last = l_item;
+
+        if( l_queue->items[l_msg->pri].item_first == NULL){
+            //log_it( L_DEBUG, "Added callback %p/%p in proc thread %u callback queue: first in list", l_msg->callback,l_msg->callback_arg, l_queue->proc_thread->cpu_id);
+            l_queue->items[l_msg->pri].item_first = l_item;
+        }//else
+        //    log_it( L_DEBUG, "Added callback %p/%p in proc thread %u callback queue: last in list", l_msg->callback,l_msg->callback_arg, l_queue->proc_thread->cpu_id);
+
+        // Add on top so after call this callback will be executed first
+        dap_events_socket_event_signal(l_queue->proc_thread->proc_event, 1);
     }
 
     if (l_msg->signal_kill) // Say to kill this object and delete its inherior dap_proc_queue_t
         a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
 
-    if (!l_msg->callback || !l_msg->callback_arg) {
-        log_it(L_INFO, "No callback to add in queue");
-    } else {
-        // We have callback to add in list according with the priority (!!!)
-        log_it(L_DEBUG, "l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
-        dap_proc_queue_item_t * l_item = DAP_NEW_Z(dap_proc_queue_item_t);
-        if (!l_item) {
-            log_it(L_CRITICAL,"Can't allocate memory for callback item, exiting");
-            DAP_DELETE(l_msg);
-            return;
-        }
-        l_item->callback        = l_msg->callback;
-        l_item->callback_arg    = l_msg->callback_arg;
-
-        if (l_queue->items[l_msg->pri].item_last) {
-            l_queue->items[l_msg->pri].item_last->prev = l_item;
-            l_item->next = l_queue->items[l_msg->pri].item_last;
-        } else {
-            l_queue->items[l_msg->pri].item_last = l_item;
-        }
-
-        if(l_queue->items[l_msg->pri].item_first){
-            l_queue->items[l_msg->pri].item_first->next = l_item;
-            l_item->prev = l_queue->items[l_msg->pri].item_first;
-        } else {
-            l_queue->items[l_msg->pri].item_first = l_item;
-        }
-        dap_events_socket_event_signal(l_queue->proc_thread->proc_event, 1);
-    }
     DAP_DELETE(l_msg);
 }
 

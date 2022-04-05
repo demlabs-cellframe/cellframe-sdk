@@ -552,6 +552,9 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             dap_chain_net_sync_unlock(l_net, l_node_client);
             dap_timerfd_reset(l_node_client->sync_timer);
         } break;
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
+            dap_chain_node_client_close(l_node_client);
+        } break;
         default: {
         }
     }

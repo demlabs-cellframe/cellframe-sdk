@@ -187,8 +187,12 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
 static bool s_stream_ch_delete_in_proc(dap_proc_thread_t * a_thread, void * a_arg)
 {
     (void) a_thread;
-    dap_stream_ch_chain_go_idle((dap_stream_ch_chain_t *)a_arg);
-    s_free_log_list_gdb((dap_stream_ch_chain_t *)a_arg);
+    dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
+    if (l_ch_chain->callback_notify_packet_out)
+        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
+                                               l_ch_chain->callback_notify_arg);
+    dap_stream_ch_chain_go_idle(l_ch_chain);
+    s_free_log_list_gdb(l_ch_chain);
     DAP_DELETE(a_arg);
     return true;
 }
