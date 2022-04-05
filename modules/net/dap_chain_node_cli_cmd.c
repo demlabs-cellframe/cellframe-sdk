@@ -919,7 +919,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         // handler of command 'node add'
         int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
                 a_str_reply);
-        //DAP_DELETE(l_node_info); ticket 5804
+        DAP_DELETE(l_node_info);
         return l_ret;
         //break;
 
