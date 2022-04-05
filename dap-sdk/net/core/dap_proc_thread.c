@@ -25,6 +25,12 @@
 #include <errno.h>
 #include <stdatomic.h>
 
+#include "dap_config.h"
+#include "dap_events.h"
+#include "dap_events_socket.h"
+#include "dap_proc_thread.h"
+#include "dap_server.h"
+
 #if defined(DAP_EVENTS_CAPS_EPOLL) && !defined(DAP_OS_WINDOWS)
 #include <sys/epoll.h>
 #elif defined DAP_OS_WINDOWS
@@ -50,12 +56,6 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #else
 #error "Unimplemented poll for this platform"
 #endif
-
-#include "dap_config.h"
-#include "dap_events.h"
-#include "dap_events_socket.h"
-#include "dap_proc_thread.h"
-#include "dap_server.h"
 
 #define LOG_TAG "dap_proc_thread"
 

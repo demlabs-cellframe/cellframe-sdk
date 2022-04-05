@@ -87,7 +87,7 @@ static int dap_db_driver_sqlite_exec(sqlite3 *l_db, const char *l_query, char **
 static sqlite3 *s_sqlite_get_connection(void)
 {
 int     l_rc;
-sqlite3 *l_ret;
+sqlite3 *l_ret = NULL;
 struct dap_sqlite_conn_pool_item *l_conn;
 
     if ( (l_rc = pthread_rwlock_wrlock(&s_db_rwlock)) == EDEADLK )
