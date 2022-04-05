@@ -2,14 +2,13 @@
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
-
-#include <dap_common.h>
-#include <dap_strfuncs.h>
-#include <dap_string.h>
-#include <dap_hash.h>
-#include "dap_chain_datum_tx_items.h"
-#include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
+#include "dap_chain_global_db_remote.h"
+#include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_string.h"
+#include "dap_hash.h"
+#include "dap_chain_datum_tx_items.h"
 #include "uthash.h"
 
 #define GDB_SYNC_ALWAYS_FROM_ZERO
@@ -128,7 +127,7 @@ bool dap_db_history_add(uint32_t a_type, dap_store_obj_t *a_store_obj, size_t a_
         size_t i;
         for(i = 0; i < a_dap_store_count; i++) {
             // if it is marked, the data has not been saved
-            if(a_store_obj[i].timestamp == (time_t) -1)
+            if(a_store_obj[i].timestamp == (uint64_t) -1)
                 continue;
             l_keys[i] = (char *)a_store_obj[i].key;
         }

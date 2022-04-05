@@ -23,13 +23,13 @@
 */
 
 #include <errno.h>
-#include "dap_chain_net_srv_datum.h"
+#include "dap_chain_mempool.h"
 #include "dap_config.h"
 #include "dap_file_utils.h"
-#include "dap_chain_mempool.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_datum.h"
 
 #define LOG_TAG "chain_net_srv_datum"
 

@@ -24,7 +24,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdatomic.h>
-#include "dap_server.h"
 
 #if defined(DAP_EVENTS_CAPS_EPOLL) && !defined(DAP_OS_WINDOWS)
 #include <sys/epoll.h>
@@ -56,6 +55,7 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #include "dap_events.h"
 #include "dap_events_socket.h"
 #include "dap_proc_thread.h"
+#include "dap_server.h"
 
 #define LOG_TAG "dap_proc_thread"
 
@@ -81,7 +81,7 @@ int l_ret = 0;
     s_threads = DAP_NEW_Z_SIZE(dap_proc_thread_t, sizeof (dap_proc_thread_t)* s_threads_count);
     s_debug_reactor = g_config ? dap_config_get_item_bool_default(g_config, "general", "debug_reactor", false) : false;
 
-    for (int i = 0; i < s_threads_count; i++ )
+    for (uint32_t i = 0; i < s_threads_count; i++ )
     {
         s_threads[i].cpu_id = i;
         assert( !pthread_mutex_lock( &s_started_mutex ));

@@ -435,7 +435,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
     memcpy(&l_event_item->hash, &l_event_hash, sizeof(dap_chain_hash_fast_t));
 
-    char * l_event_hash_str;
+    char * l_event_hash_str = NULL;
     if(s_debug_more) {
         l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
         log_it(L_DEBUG, "Processing event: %s... (size %zd)", l_event_hash_str,a_atom_size);
@@ -758,7 +758,7 @@ static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_even
     size_t l_sign_offset = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_event_size);
     if (l_sign_offset >= a_event_size)
         return false;
-    if (a_event->header.signs_count > UINT16_MAX)
+    if (a_event->header.signs_count > UINT8_MAX)
         return false;
     for (int i = 0; i < a_event->header.signs_count; i++) {
         dap_sign_t *l_sign = (dap_sign_t *)((uint8_t *)a_event + l_sign_offset);

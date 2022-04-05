@@ -29,12 +29,11 @@
 #include <time.h>
 #include <assert.h>
 //#include <string.h>
-
+#include "dap_chain_global_db_hist.h"
+#include "dap_chain_global_db.h"
 #include "uthash.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_common.h"
-#include "dap_chain_global_db_hist.h"
-#include "dap_chain_global_db.h"
 
 #ifdef WIN32
 #include "registry.h"

@@ -29,11 +29,11 @@
 #endif
 #include <unistd.h>
 
+#include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 #include "dap_config.h"
-#include "dap_chain_pvt.h"
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_cert.h"

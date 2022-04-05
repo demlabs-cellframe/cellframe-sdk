@@ -349,7 +349,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs)-1;
     const char* l_subcmd_str_args[l_subcmd_str_count];
     const char* l_subcmd_str_arg;
-    const char* l_subcmd_str;
+    const char* l_subcmd_str = NULL;
 
 
     int arg_index = 1;

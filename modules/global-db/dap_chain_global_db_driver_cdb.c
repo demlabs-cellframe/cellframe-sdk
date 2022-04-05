@@ -32,13 +32,12 @@
 #include <errno.h>
 #include <stdatomic.h>
 
-
 #define _GNU_SOURCE
 
+#include "dap_chain_global_db_driver_cdb.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h" // #include <dap_fnmatch.h>
-#include "dap_chain_global_db_driver_cdb.h"
 #include "dap_file_utils.h"
 
 #define LOG_TAG "dap_chain_global_db_cdb"

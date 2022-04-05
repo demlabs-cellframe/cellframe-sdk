@@ -429,7 +429,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     }
 
     uint64_t l_max_ts_update = 0;
-    char * l_max_ts_update_hash;
+    char * l_max_ts_update_hash = NULL;
     event_clean_dup_items_t *l_clean_item=NULL, *l_clean_tmp=NULL;
     HASH_ITER(hh, s_event_clean_dup_items, l_clean_item, l_clean_tmp) {
         if ( l_clean_item->signs_count < l_max_signs_count ) {

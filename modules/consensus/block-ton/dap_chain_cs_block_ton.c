@@ -460,16 +460,16 @@ static bool s_session_timer() {
 					}
 					if ( l_my_number != -1 ) {
 						l_my_number++;
-						if ( (l_time-l_session->ts_round_start) 
-									>= ((l_session->next_candidate_delay*l_my_number)+l_session->first_message_delay) ) {
+                        if ( (l_time-l_session->ts_round_start) >=
+                                     (dap_chain_time_t)((l_session->next_candidate_delay*l_my_number)+l_session->first_message_delay) ) {
 							l_session->cur_round.submit = true;
 							s_session_candidate_submit(l_session);
 						}
 					}
 				}
 
-				if ( (l_time-l_session->ts_round_start) 
-							>= (l_session->round_attempt_duration*l_session->attempt_current_number) ) {
+                if ( (l_time-l_session->ts_round_start) >=
+                            (dap_chain_time_t)(l_session->round_attempt_duration*l_session->attempt_current_number) ) {
 					l_session->attempt_current_number++;
 					if ( l_session->attempt_current_number > l_session->round_attempts_max ) {
 						s_session_round_finish(l_session); // attempts is out
@@ -644,12 +644,12 @@ static void s_session_candidate_to_chain(
 		    	DAP_DELETE(l_candidate);
 		    } break;
 		    case ATOM_REJECT: {
-		        log_it(L_WARNING,"TON: Atom with hash %s for %s:%s rejected", l_candidate_hash_str);
+                log_it(L_WARNING,"TON: Atom with hash %s (for s:s) rejected", l_candidate_hash_str);
 		        DAP_DELETE(l_candidate);
 		    } break;
 		    default:
 		        DAP_DELETE(l_candidate);
-		        log_it(L_CRITICAL, "TON: Wtf is this ret code? %d", l_candidate_hash_str);
+                log_it(L_CRITICAL, "TON: Wtf is this ret code? %d", l_res);
 		        break;
 		}
 		DAP_DELETE(l_candidate_hash_str);

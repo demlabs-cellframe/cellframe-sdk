@@ -32,12 +32,12 @@
 #ifdef DAP_OS_UNIX
 #include <unistd.h>
 #endif
+#include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_file_utils.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
-#include "dap_chain_global_db_driver_sqlite.h"
 
 #define LOG_TAG "db_sqlite"
 

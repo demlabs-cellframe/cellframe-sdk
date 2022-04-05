@@ -3820,7 +3820,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         return -7;
     }
 
-    dap_chain_t *l_emission_chain;
+    dap_chain_t *l_emission_chain = NULL;
     if (l_emission_hash_str) {
         if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
             dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_hash' "
@@ -4435,7 +4435,7 @@ int com_signer(int a_argc, char **a_argv, char **a_str_reply)
     };
 
     size_t l_len_opts = sizeof(l_opts) / sizeof(struct opts);
-    for (int i = 0; i < l_len_opts; i++) {
+    for (size_t i = 0; i < l_len_opts; i++) {
         if (dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), l_opts[i].name, NULL)) {
             cmd_num = l_opts[i].cmd;
             break;
@@ -4809,7 +4809,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
     size_t l_counter = 0;
-    int l_part_power = l_part;
+    size_t l_part_power = l_part;
     int l_index = 0;
 
     for ( dap_list_t* l_iter = dap_list_first(a_meta); l_iter; l_iter = l_iter->next){
