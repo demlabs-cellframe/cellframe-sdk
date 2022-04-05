@@ -507,7 +507,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
         }
     } break;
-    default: break;
+    default:
+        DAP_DELETE(l_event_item); // Neither added, nor freed
+        break;
     }
     if(s_debug_more)
         DAP_DELETE(l_event_hash_str);
@@ -1453,8 +1455,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     // delete events from db
                     dap_list_t *l_list_tmp = l_list_to_del;
                     while(l_list_tmp) {
-                        char *l_key = strdup((char*) l_list_tmp->data);
-                        dap_chain_global_db_gr_del(l_key, l_dag->gdb_group_events_round_new);
+                        dap_chain_global_db_gr_del((char*)l_list_tmp->data, l_dag->gdb_group_events_round_new);
                         l_list_tmp = dap_list_next(l_list_tmp);
                     }
                 }
