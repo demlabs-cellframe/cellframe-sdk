@@ -162,8 +162,12 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
  */
 static void s_sync_request_delete(struct sync_request * a_sync_request)
 {
+    if (!a_sync_request) {
+        //already NULL'ed
+        return;
+    }
     if (a_sync_request->pkt.pkt_data) {
-        DAP_DELETE(a_sync_request->pkt.pkt_data);
+        DAP_DEL_Z(a_sync_request->pkt.pkt_data);
     }
 
     if (a_sync_request->gdb.db_iter) {
@@ -171,7 +175,7 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
         dap_list_free_full( a_sync_request->gdb.db_iter, free);
         a_sync_request->gdb.db_iter = NULL;
     }
-    DAP_DELETE(a_sync_request);
+    DAP_DEL_Z(a_sync_request);
 }
 
 /**
@@ -1463,6 +1467,7 @@ static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
     a_ch_chain->request_db_log = NULL;
     dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
+        // Clang bug at this, l_hash_item should change at every loop cycle
         HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
         DAP_DELETE(l_hash_item);
     }
@@ -1497,6 +1502,7 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
     dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
 
     HASH_ITER(hh, a_ch_chain->remote_atoms, l_hash_item, l_tmp) {
+        // Clang bug at this, l_hash_item should change at every loop cycle
         HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
         DAP_DELETE(l_hash_item);
     }

@@ -203,8 +203,9 @@ static void* node_ping_background_proc(void *a_arg)
     unsigned int l_nodes_count = dap_list_length(l_node_list);
     unsigned int l_thread_id = 0;
     pthread_t l_threads[l_nodes_count];
-    memset(l_threads, 0, l_nodes_count);
+    memset(l_threads, 0, l_nodes_count * sizeof(pthread_t));
     uint64_t l_nodes_addr[l_nodes_count];
+    memset(l_nodes_addr, 0, l_nodes_count * sizeof(uint64_t));
 
     dap_list_t *l_node_list0 = l_node_list;
 

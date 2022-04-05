@@ -854,6 +854,7 @@ void dap_chain_net_srv_del_all(void)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
+        // Clang bug at this, l_sdata should change at every loop cycle
         HASH_DEL(s_srv_list, l_sdata);
         pthread_mutex_destroy(&l_sdata->srv->banlist_mutex);
         DAP_DELETE(l_sdata->srv);

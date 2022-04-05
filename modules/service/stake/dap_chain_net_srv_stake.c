@@ -142,6 +142,7 @@ void dap_chain_net_srv_stake_deinit()
 {
     dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
+        // Clang bug at this, l_stake should change at every loop cycle
         HASH_DEL(s_srv_stake->itemlist, l_stake);
         DAP_DELETE(l_stake);
     }

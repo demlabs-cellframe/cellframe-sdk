@@ -276,6 +276,7 @@ void dap_dns_server_stop() {
 
     dap_dns_zone_hash_t *current_zone, *tmp;
     HASH_ITER(hh, s_dns_server->hash_table, current_zone, tmp) {
+        // Clang bug at this, current_zone should change at every loop cycle
         HASH_DEL(s_dns_server->hash_table, current_zone);
         DAP_DELETE(current_zone->zone);
         DAP_DELETE(current_zone);

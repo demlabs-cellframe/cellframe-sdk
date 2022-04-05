@@ -626,9 +626,11 @@ uint32_t l_tmp[4];
     /* 456 - > "456" */
     l_cp2 = l_cp;
     l_nibble = a_uint256.lo;
+
     do {
         *(l_cp2++) = (l_nibble % 10) + '0';
     } while (l_nibble /= 10);
+
 
     l_len = l_cp2 - l_cp;
     l_len = l_len / 2;
@@ -643,8 +645,7 @@ uint32_t l_tmp[4];
         *l_cpe = l_chr;
     }
 
-    if (  DAP_CHAIN$SZ_MAX128DEC > (l_len = l_cp2 - l_cp) )
-    {
+    if (  DAP_CHAIN$SZ_MAX128DEC > (l_len = l_cp2 - l_cp) ) {
         /* "123456" -> 123000...000456" */
         memmove(l_cp + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp, l_len);
         memset(l_cp, '0', ( DAP_CHAIN$SZ_MAX128DEC - l_len));
@@ -955,6 +956,9 @@ const   uint256_t uint256_zero = {0};
     cp = dap_chain_balance_print(uint256);
     free(cp);
 
+    cp = dap_chain_balance_to_coins256(uint256);
+    uint256 = dap_chain_coins_to_balance(cp);
+    free(cp);
 
     cp = dap_chain_balance_print333(uint256);
     free(cp);

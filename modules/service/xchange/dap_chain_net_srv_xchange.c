@@ -93,6 +93,7 @@ void dap_chain_net_srv_xchange_deinit()
         return;
     dap_chain_net_srv_xchange_price_t *l_price = NULL, *l_tmp;
     HASH_ITER(hh, s_srv_xchange->pricelist, l_price, l_tmp) {
+        // Clang bug at this, l_price should change at every loop cycle
         HASH_DEL(s_srv_xchange->pricelist, l_price);
         DAP_DELETE(l_price->wallet_str);
         DAP_DELETE(l_price->key_ptr);
