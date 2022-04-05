@@ -75,6 +75,10 @@ void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks)
     DAP_DELETE(a_chunks);
 }
 
+/*int dap_chain_block_chunks_ordered_by_length( // cache size descending order
+        dap_chain_block_chunk_t *a_chunk1, dap_chain_block_chunk_t *a_chunk2) {
+    return HASH_COUNT(a_chunk2->block_cache_hash) - HASH_COUNT(a_chunk1->block_cache_hash);
+}*/
 
 /**
  * @brief dap_chain_block_chunks_add
@@ -86,11 +90,11 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
 {
     if (!a_block_cache)
         return;
-    dap_chain_block_cache_hash_t  * l_chunk_cache_hash = NULL;
+    dap_chain_block_cache_t *l_block_cache = NULL;
     // Parse block and produce cache object
     // Check if already present
-    HASH_FIND(hh, a_chunks->cache, &a_block_cache->block_hash, sizeof (l_chunk_cache_hash->block_hash), l_chunk_cache_hash);
-    if (l_chunk_cache_hash){
+    HASH_FIND(hh, a_chunks->cache, &a_block_cache->block_hash, sizeof (dap_chain_hash_fast_t), l_block_cache);
+    if (l_block_cache){
         log_it(L_WARNING, "Already present block %s in cache",a_block_cache->block_hash_str);
         dap_chain_block_cache_delete(a_block_cache);
         return;
@@ -98,9 +102,9 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
     // Save to GDB
     dap_chain_global_db_gr_set(a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size, a_chunks->gdb_group);
 
-
     // And here we select chunk for the new block cache
     bool l_is_chunk_found = false;
+    dap_chain_block_cache_hash_t  *l_chunk_cache_hash = NULL;
     for (dap_chain_block_chunk_t * l_chunk = a_chunks->chunks_last; l_chunk; l_chunk = l_chunk->prev ){
         if(dap_hash_fast_compare(&l_chunk->block_cache_top->block_hash, &a_block_cache->prev_hash ) ){
             // Init cache-hash object
