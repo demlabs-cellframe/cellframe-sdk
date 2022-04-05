@@ -60,7 +60,8 @@ void dap_chain_block_deinit()
  */
 dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size_t *a_block_size)
 {
-    dap_chain_block_t * l_block = DAP_NEW_Z_SIZE(dap_chain_block_t,sizeof(l_block->hdr));
+    // Type sizeof's misunderstanding in malloc?
+    dap_chain_block_t * l_block = DAP_NEW_Z_SIZE (dap_chain_block_t,sizeof(l_block->hdr));
     if( l_block == NULL){
         log_it(L_CRITICAL, "Can't allocate memory for the new block");
         return NULL;
@@ -556,6 +557,7 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
             case DAP_CHAIN_BLOCK_META_LINK:
                 if ( a_block_links && a_block_links_count){
                     if ( *a_block_links_count == 0 ){
+                        // Type sizeof's misunderstanding in malloc?
                         *a_block_links = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof (dap_chain_hash_fast_t *) *l_links_count_max);
                         *a_block_links_count = 0;
                     }else if ( *a_block_links_count == l_links_count_max ){

@@ -294,6 +294,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
     pthread_rwlock_wrlock(&l_dag_pvt->events_rwlock);
     dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
+    // Clang bug at this, l_event_current should change at every loop cycle
     HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events, l_event_current);
         DAP_DELETE(l_event_current);

@@ -204,7 +204,7 @@ static void* node_ping_background_proc(void *a_arg)
     // select the nearest node from the list
     unsigned int l_nodes_count = dap_list_length(l_node_list);
     unsigned int l_thread_id = 0;
-    pthread_t *l_threads = DAP_NEW_Z_SIZE(pthread_t, sizeof(pthread_t) * l_nodes_count);
+    pthread_t *l_threads = DAP_NEW_Z_SIZE(pthread_t, sizeof(pthread_t) * l_nodes_count); //Need to check for NULL
     uint64_t *l_nodes_addr = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_nodes_count);
     dap_list_t *l_node_list0 = l_node_list;
 

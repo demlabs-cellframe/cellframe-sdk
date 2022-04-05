@@ -90,6 +90,7 @@ static void session_data_del(unsigned int a_id)
     pthread_mutex_lock(&s_hash_mutex);
     HASH_FIND_INT(s_chain_net_data, &a_id, l_sdata);
     if(l_sdata) {
+        // Clang bug at this, l_sdata should change at every loop cycle
         HASH_DEL(s_chain_net_data, l_sdata);
         DAP_DELETE(l_sdata);
     }

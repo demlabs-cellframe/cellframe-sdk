@@ -121,6 +121,7 @@ void dap_http_delete( dap_server_t *a_server, void * a_arg )
     dap_http_url_proc_t *l_url_proc, *l_tmp;
 
     HASH_ITER( hh, l_http->url_proc ,l_url_proc, l_tmp ) {
+        // Clang bug at this, l_url_proc should change at every loop cycle
         HASH_DEL(l_http->url_proc, l_url_proc);
         if( l_url_proc->_inheritor )
             DAP_DELETE(l_url_proc->_inheritor );
