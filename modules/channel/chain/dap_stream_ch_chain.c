@@ -780,7 +780,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 continue;
             }
 
-            l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
+            dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
             if (l_chain && l_chain->callback_add_datums_with_group) {
                 log_it(L_WARNING, "New data goes to GDB chain");
