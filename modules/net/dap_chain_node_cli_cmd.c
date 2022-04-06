@@ -3340,9 +3340,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // Delete token emission
     DAP_DEL_Z(l_emission);
 
-    //remove previous emission datum from mempool if have new signed emission datum
     char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
-    dap_chain_global_db_gr_del(l_emission_hash_str_remove, l_gdb_group_mempool_emission);
 
     size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
@@ -3368,6 +3366,9 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         DAP_DEL_Z(l_certs);
         return -1;
     }
+    //remove previous emission datum from mempool if have new signed emission datum
+    if (l_emission_hash_str_remove)
+        dap_chain_global_db_gr_del(l_emission_hash_str_remove, l_gdb_group_mempool_emission);
 
     if(l_chain_base_tx) {
         dap_chain_hash_fast_t *l_datum_tx_hash = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
