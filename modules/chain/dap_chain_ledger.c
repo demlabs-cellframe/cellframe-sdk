@@ -927,14 +927,12 @@ dap_string_t *dap_chain_ledger_treshold_info(dap_ledger_t *a_ledger)
     dap_chain_ledger_token_emission_item_t *l_emission_item, *l_emission_tmp;
     HASH_ITER(hh, l_ledger_pvt->threshold_emissions, l_emission_item, l_emission_tmp){  
         char l_emission_hash_str[70]={0};
-        char l_time[1024] = {0};
         char l_item_size[70] = {0};
         dap_chain_hash_fast_to_str(&l_emission_item->datum_token_emission_hash,l_emission_hash_str,sizeof(l_emission_hash_str));
-        dap_time_to_str_rfc822(l_time, sizeof(l_time), l_tx_item->tx->header.ts_created);
        //log_it(L_DEBUG,"Ledger thresholded datum_token_emission_hash %s, emission_item_size: %lld", l_emission_hash_str, l_emission_item->datum_token_emission_size);
         dap_string_append(l_str_ret, "Ledger thresholded datum_token_emission_hash: ");
         dap_string_append(l_str_ret, l_emission_hash_str);
-        sprintf(l_item_size, ", tx_item_size: %d\n", l_tx_item->tx->header.tx_items_size);  
+        sprintf(l_item_size, ", tx_item_size: %d\n", l_emission_item->datum_token_emission_size);  
         dap_string_append(l_str_ret, l_item_size);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_emissions_rwlock);
