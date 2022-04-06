@@ -3803,13 +3803,18 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");
         return -1;
     }
-    if(!l_emission_hash_str && !addr_base58_to) {
+    if(!addr_base58_to) {
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-to_addr'");
         return -2;
     }
 
     if(!l_net_name) {
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-net'");
+        return -6;
+    }
+
+    if(!l_token_ticker) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-token'");
         return -6;
     }
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
@@ -3843,7 +3848,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
             return -5;
         }
     }
-    if(!l_emission_hash_str && IS_ZERO_256(l_value)) {
+    if(IS_ZERO_256(l_value)) {
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-value' to be valid uint256 value");
         return -4;
     }
