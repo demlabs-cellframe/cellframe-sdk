@@ -412,6 +412,14 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
     return l_list ? (dap_db_log_list_obj_t *)l_list->data : DAP_INT_TO_POINTER(l_is_process);
 }
 
+void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list)
+{
+    if (!a_db_log_list)
+        return;
+    a_db_log_list->list_read = a_db_log_list->list_write;
+    a_db_log_list->items_rest = a_db_log_list->items_number;
+}
+
 /**
  * @brief Deallocates memory of a list item
  *

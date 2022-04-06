@@ -404,17 +404,16 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    dap_db_log_list_t *l_db_log = NULL;
-    if (l_ch_chain->request_db_log == NULL) {
-        l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
-        l_ch_chain->request_db_log = l_db_log;
-    }
+    if (l_ch_chain->request_db_log == NULL)
+        l_ch_chain->request_db_log  = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+    else
+        dap_db_log_list_rewind(l_ch_chain->request_db_log);
 
-    if(l_db_log) {
+    if (l_ch_chain->request_db_log) {
         if (s_debug_more)
             log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_U" transactions from address "NODE_ADDR_FP_STR,
-                             l_db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
-        l_sync_request->gdb.db_log = l_db_log;
+                             l_ch_chain->request_db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
+        l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_out_gdb_first_worker_callback, l_sync_request );
     } else {
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_out_gdb_last_worker_callback, l_sync_request );
@@ -459,12 +458,12 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    dap_db_log_list_t *l_db_log = NULL;
-    if (l_ch_chain->request_db_log == NULL) {
-        l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
-        l_ch_chain->request_db_log = l_db_log;
-    }
+    if (l_ch_chain->request_db_log == NULL)
+        l_ch_chain->request_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+    else
+        dap_db_log_list_rewind(l_ch_chain->request_db_log);
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
+    l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_update_gdb_start_worker_callback, l_sync_request);
     return true;
@@ -780,30 +779,22 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     log_it(L_WARNING, "New data not applied, because object is too old");
                 continue;
             }
-            // apply received transaction
-            dap_chain_t *l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
 
-            // if chain is zero, it's name can be part of GDB group name
-            if (!l_chain)
-                 l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
+            l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
-            if(l_chain) {
+            if (l_chain && l_chain->callback_add_datums_with_group) {
                 log_it(L_WARNING, "New data goes to GDB chain");
-                if(l_chain->callback_add_datums_with_group){
                     const void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
                             (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
-                }
-            }
-            // save data to global_db
-            if(!dap_chain_global_db_obj_save(l_obj, 1)) {
-                struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
-                dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
-                                                s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
-            }
-            else {
-                if (s_debug_more)
+            } else {
+                // save data to global_db
+                if(!dap_chain_global_db_obj_save(l_obj, 1)) {
+                    struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
+                    dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
+                                                    s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
+                } else if (s_debug_more)
                     log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
             }
         }

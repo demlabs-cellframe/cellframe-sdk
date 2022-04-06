@@ -53,4 +53,5 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list);
 // Get last id in log
 uint64_t dap_db_log_get_group_last_id(const char *a_group_name);
 uint64_t dap_db_log_get_last_id(void);
+void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list);
 

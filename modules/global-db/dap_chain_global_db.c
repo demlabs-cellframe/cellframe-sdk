@@ -675,10 +675,9 @@ dap_store_obj_t *l_store_obj;
         if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && !l_res)
             // delete info about the deleted entry from the base if one present
             global_db_gr_del_del(l_store_obj->key, l_store_obj->group);
-        else if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL && l_res >= 0)
+        else if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL)
             // add to Del group
             global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
-
         if (!l_res) {
             // Extract prefix if added successfuly, add history log and call notify callback if present
             dap_global_db_obj_track_history(l_store_obj);
