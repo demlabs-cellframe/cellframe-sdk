@@ -206,7 +206,8 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
 
     dap_chain_node_client_t *l_me = l_client_found->client;
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
-    assert(l_worker);
+    if (!l_worker)
+        return NODE_SYNC_STATUS_FAILED;
     assert(l_me);
     dap_events_socket_t * l_es = NULL;
     dap_events_socket_uuid_t l_es_uuid = l_me->esocket_uuid;

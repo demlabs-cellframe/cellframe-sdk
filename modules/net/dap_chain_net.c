@@ -413,26 +413,24 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     UNUSED(a_value_len);
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (PVT(l_net)->state == NET_STATE_ONLINE) {
-        char *l_group;
-        if (a_op_code == DAP_DB$K_OPTYPE_DEL ) {
-            l_group = dap_strdup_printf("%s.del", a_group);
-        } else {
-            l_group = (char *)a_group;
-        }
-        dap_store_obj_t *l_obj = (dap_store_obj_t *)dap_chain_global_db_obj_get(a_key, l_group);
+        dap_store_obj_t *l_obj = NULL;
+        if (a_op_code == DAP_DB$K_OPTYPE_DEL) {
+            char *l_group = dap_strdup_printf("%s.del", a_group);
+            l_obj = dap_chain_global_db_obj_get(a_key, l_group);
+            DAP_DELETE(l_group);
+        } else
+            l_obj = dap_chain_global_db_obj_get(a_key, a_group);
+
         if (!l_obj) {
-            if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
-                DAP_DELETE(l_group);
-            }
             log_it(L_DEBUG, "Notified GDB event does not exist");
             return;
         }
         l_obj->type = a_op_code;
-        DAP_DELETE((char *)l_obj->group);
-        l_obj->group = dap_strdup(l_group);
-        if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
-            DAP_DELETE(l_group);
+        if (a_op_code == DAP_DB$K_OPTYPE_DEL) {
+            DAP_DELETE(l_obj->group);
+            l_obj->group = dap_strdup(a_group);
         }
+
         dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
         dap_store_obj_free(l_obj, 1);
         dap_chain_id_t l_chain_id;

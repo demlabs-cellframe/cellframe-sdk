@@ -666,25 +666,25 @@ dap_store_obj_t *l_store_obj;
         return true;
 
     lock();
-    int l_res = dap_chain_global_db_driver_apply(a_store_data, a_objs_count);
+    int l_res = !dap_chain_global_db_driver_apply(a_store_data, a_objs_count);
     unlock();
 
     l_store_obj = (dap_store_obj_t *)a_store_data;
 
     for(int  i = a_objs_count; i--; l_store_obj++) {
-        if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && !l_res)
+        if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && l_res)
             // delete info about the deleted entry from the base if one present
             global_db_gr_del_del(l_store_obj->key, l_store_obj->group);
         else if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL)
             // add to Del group
-            global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
-        if (!l_res) {
+            l_res = global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
+        if (l_res) {
             // Extract prefix if added successfuly, add history log and call notify callback if present
             dap_global_db_obj_track_history(l_store_obj);
         }
     }
 
-    return !l_res;
+    return l_res;
 }
 
 /**
