@@ -3215,8 +3215,6 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,NULL, &l_net);
     if( ! l_net) { // Can't find such network
-        dap_chain_node_cli_set_reply_text(a_str_reply,
-                "token_create requires parameter '-net' to be valid chain network name");
         return -43;
     }
 
