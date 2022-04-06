@@ -96,7 +96,7 @@ bool is_writeable_memory(void *a_p, size_t a_len)
     bool l_writeable;
     if (l_fd < 0)
         return FALSE; // Should not happen
-    l_writeable = read(l_fd, a_p, a_len) == a_len;
+    l_writeable = read(l_fd, a_p, a_len) == (ssize_t)a_len;
     close(l_fd);
     return l_writeable;
 }

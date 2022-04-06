@@ -23,10 +23,11 @@
 
 #pragma once
 
-#include <pthread.h>
-#include "dap_common.h"
 #include "dap_proc_queue.h"
 #include "dap_worker.h"
+#include "dap_common.h"
+
+#include <pthread.h>
 
 typedef struct dap_proc_thread{
     uint32_t    cpu_id;

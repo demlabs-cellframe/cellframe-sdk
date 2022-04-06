@@ -24,14 +24,14 @@
 
 #pragma once
 
-#include "dap_json_rpc_request.h"
-#include "dap_common.h"
+#include "dap_http_simple.h"
 #include "dap_strfuncs.h"
 #include "dap_json_rpc_params.h"
-#include "dap_http_simple.h"
 #include "dap_json_rpc_errors.h"
 #include "dap_json_rpc_response.h"
+#include "dap_json_rpc_request.h"
 #include "dap_json_rpc_notification.h"
+#include "dap_common.h"
 #include "uthash.h"
 
 #ifdef __cplusplus

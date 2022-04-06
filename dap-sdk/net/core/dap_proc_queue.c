@@ -97,7 +97,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     }
 
 
-    log_it(L_DEBUG, "l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+    //log_it(L_DEBUG, "l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
 
 
     // We have callback to add in list according with the priority (!!!)

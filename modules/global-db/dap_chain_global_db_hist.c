@@ -2,14 +2,13 @@
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
-
-#include <dap_common.h>
-#include <dap_strfuncs.h>
-#include <dap_string.h>
-#include <dap_hash.h>
-#include "dap_chain_datum_tx_items.h"
-#include "dap_chain_global_db_remote.h"
 #include "dap_chain_global_db_hist.h"
+#include "dap_chain_global_db_remote.h"
+#include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_string.h"
+#include "dap_hash.h"
+#include "dap_chain_datum_tx_items.h"
 #include "uthash.h"
 
 #define GDB_SYNC_ALWAYS_FROM_ZERO
@@ -128,7 +127,7 @@ bool dap_db_history_add(uint32_t a_type, dap_store_obj_t *a_store_obj, size_t a_
         size_t i;
         for(i = 0; i < a_dap_store_count; i++) {
             // if it is marked, the data has not been saved
-            if(a_store_obj[i].timestamp == (time_t) -1)
+            if(a_store_obj[i].timestamp == (uint64_t) -1)
                 continue;
             l_keys[i] = (char *)a_store_obj[i].key;
         }
@@ -411,6 +410,14 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
     pthread_mutex_unlock(&a_db_log_list->list_mutex);
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
     return l_list ? (dap_db_log_list_obj_t *)l_list->data : DAP_INT_TO_POINTER(l_is_process);
+}
+
+void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list)
+{
+    if (!a_db_log_list)
+        return;
+    a_db_log_list->list_read = a_db_log_list->list_write;
+    a_db_log_list->items_rest = a_db_log_list->items_number;
 }
 
 /**

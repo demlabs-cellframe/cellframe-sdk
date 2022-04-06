@@ -21,6 +21,7 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
 #include "dap_events_socket.h"
 
 typedef struct dap_proc_thread dap_proc_thread_t;

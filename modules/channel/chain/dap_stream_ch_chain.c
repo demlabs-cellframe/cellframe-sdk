@@ -162,8 +162,12 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
  */
 static void s_sync_request_delete(struct sync_request * a_sync_request)
 {
+    if (!a_sync_request) {
+        //already NULL'ed
+        return;
+    }
     if (a_sync_request->pkt.pkt_data) {
-        DAP_DELETE(a_sync_request->pkt.pkt_data);
+        DAP_DEL_Z(a_sync_request->pkt.pkt_data);
     }
 
     if (a_sync_request->gdb.db_iter) {
@@ -171,7 +175,7 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
         dap_list_free_full( a_sync_request->gdb.db_iter, free);
         a_sync_request->gdb.db_iter = NULL;
     }
-    DAP_DELETE(a_sync_request);
+    DAP_DEL_Z(a_sync_request);
 }
 
 /**
@@ -183,8 +187,12 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
 static bool s_stream_ch_delete_in_proc(dap_proc_thread_t * a_thread, void * a_arg)
 {
     (void) a_thread;
-    dap_stream_ch_chain_go_idle((dap_stream_ch_chain_t *)a_arg);
-    s_free_log_list_gdb((dap_stream_ch_chain_t *)a_arg);
+    dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
+    if (l_ch_chain->callback_notify_packet_out)
+        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
+                                               l_ch_chain->callback_notify_arg);
+    dap_stream_ch_chain_go_idle(l_ch_chain);
+    s_free_log_list_gdb(l_ch_chain);
     DAP_DELETE(a_arg);
     return true;
 }
@@ -396,17 +404,16 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    dap_db_log_list_t *l_db_log = NULL;
-    if (l_ch_chain->request_db_log == NULL) {
-        l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
-        l_ch_chain->request_db_log = l_db_log;
-    }
+    if (l_ch_chain->request_db_log == NULL)
+        l_ch_chain->request_db_log  = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+    else
+        dap_db_log_list_rewind(l_ch_chain->request_db_log);
 
-    if(l_db_log) {
+    if (l_ch_chain->request_db_log) {
         if (s_debug_more)
             log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_U" transactions from address "NODE_ADDR_FP_STR,
-                             l_db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
-        l_sync_request->gdb.db_log = l_db_log;
+                             l_ch_chain->request_db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
+        l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_out_gdb_first_worker_callback, l_sync_request );
     } else {
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_out_gdb_last_worker_callback, l_sync_request );
@@ -451,12 +458,12 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    dap_db_log_list_t *l_db_log = NULL;
-    if (l_ch_chain->request_db_log == NULL) {
-        l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
-        l_ch_chain->request_db_log = l_db_log;
-    }
+    if (l_ch_chain->request_db_log == NULL)
+        l_ch_chain->request_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+    else
+        dap_db_log_list_rewind(l_ch_chain->request_db_log);
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
+    l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_update_gdb_start_worker_callback, l_sync_request);
     return true;
@@ -695,7 +702,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
         uint64_t l_last_id = l_store_obj->id;
         const char *l_last_group = l_store_obj->group;
-        int l_last_type = l_store_obj->type;
+        uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
         uint64_t l_limit_time = l_time_store_lim ? (uint64_t)time(NULL) - l_time_store_lim * 3600 : 0;
@@ -750,8 +757,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
             // check the applied object newer that we have stored or erased
-            if (l_obj->timestamp >= l_timestamp_del &&
-                    l_obj->timestamp >= l_timestamp_cur &&
+            if (l_obj->timestamp >= (uint64_t)l_timestamp_del &&
+                    l_obj->timestamp >= (uint64_t)l_timestamp_cur &&
                     (l_obj->type != 'd' || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
             }
@@ -764,38 +771,30 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);
             }
             if (!l_apply) {
-                if (l_obj->timestamp < l_timestamp_cur)
+                if (l_obj->timestamp < (uint64_t)l_timestamp_cur)
                     log_it(L_WARNING, "New data not applied, because newly object exists");
-                if (l_obj->timestamp < l_timestamp_del)
+                if (l_obj->timestamp < (uint64_t)l_timestamp_del)
                     log_it(L_WARNING, "New data not applied, because newly object is deleted");
                 if ((l_obj->type == 'd' && l_obj->timestamp <= l_limit_time))
                     log_it(L_WARNING, "New data not applied, because object is too old");
                 continue;
             }
-            // apply received transaction
-            dap_chain_t *l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
 
-            // if chain is zero, it's name can be part of GDB group name
-            if (!l_chain)
-                 l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
+            dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
-            if(l_chain) {
+            if (l_chain && l_chain->callback_add_datums_with_group) {
                 log_it(L_WARNING, "New data goes to GDB chain");
-                if(l_chain->callback_add_datums_with_group){
                     const void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
                             (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
-                }
-            }
-            // save data to global_db
-            if(!dap_chain_global_db_obj_save(l_obj, 1)) {
-                struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
-                dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
-                                                s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
-            }
-            else {
-                if (s_debug_more)
+            } else {
+                // save data to global_db
+                if(!dap_chain_global_db_obj_save(l_obj, 1)) {
+                    struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
+                    dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
+                                                    s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
+                } else if (s_debug_more)
                     log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
             }
         }
@@ -1345,6 +1344,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         l_pkt_item->pkt_data = DAP_NEW_SIZE(byte_t, l_chain_pkt_data_size);
                         if (!l_pkt_item->pkt_data) {
                             log_it(L_ERROR, "Not enough memory!");
+                            DAP_DELETE(l_sync_request);
                             break;
                         }
                         memcpy(l_pkt_item->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
@@ -1462,6 +1462,7 @@ static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
     a_ch_chain->request_db_log = NULL;
     dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
+        // Clang bug at this, l_hash_item should change at every loop cycle
         HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
         DAP_DELETE(l_hash_item);
     }
@@ -1496,6 +1497,7 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
     dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
 
     HASH_ITER(hh, a_ch_chain->remote_atoms, l_hash_item, l_tmp) {
+        // Clang bug at this, l_hash_item should change at every loop cycle
         HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
         DAP_DELETE(l_hash_item);
     }

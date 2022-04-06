@@ -919,7 +919,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         // handler of command 'node add'
         int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
                 a_str_reply);
-        //DAP_DELETE(l_node_info); ticket 5804
+        DAP_DELETE(l_node_info);
         return l_ret;
         //break;
 
@@ -3156,9 +3156,9 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
     if (l_key_str_out != l_key_str)
-        DAP_DELETE(l_key_str);
-    DAP_DELETE(l_key_str);
-    DAP_DELETE(l_datum);
+        DAP_DEL_Z(l_key_str);
+    DAP_DEL_Z(l_key_str);
+    DAP_DEL_Z(l_datum);
     if (!l_placed) {
         l_ret = -2;
     }
@@ -3340,9 +3340,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // Delete token emission
     DAP_DEL_Z(l_emission);
 
-    //remove previous emission datum from mempool if have new signed emission datum
     char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
-    dap_chain_global_db_gr_del(l_emission_hash_str_remove, l_gdb_group_mempool_emission);
 
     size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
@@ -3368,6 +3366,9 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         DAP_DEL_Z(l_certs);
         return -1;
     }
+    //remove previous emission datum from mempool if have new signed emission datum
+    if (l_emission_hash_str_remove)
+        dap_chain_global_db_gr_del(l_emission_hash_str_remove, l_gdb_group_mempool_emission);
 
     if(l_chain_base_tx) {
         dap_chain_hash_fast_t *l_datum_tx_hash = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
@@ -3378,12 +3379,12 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is%s placed in datum pool",
                                           str_reply_tmp, l_tx_hash_str, l_placed ? "" : " not");
         DAP_DEL_Z(l_tx_hash_str);
-//@RRL        DAP_DELETE(str_reply_tmp);
+        DAP_DEL_Z(str_reply_tmp);
     } else{ // if transaction was not specified when emission was added we need output only emission result
         dap_chain_node_cli_set_reply_text(a_str_reply, str_reply_tmp);
     }
-    DAP_DELETE(str_reply_tmp);
-    DAP_DELETE(l_addr);
+    DAP_DEL_Z(str_reply_tmp);
+    DAP_DEL_Z(l_addr);
     DAP_DEL_Z(l_certs);
     return 0;
 }
@@ -3820,7 +3821,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         return -7;
     }
 
-    dap_chain_t *l_emission_chain;
+    dap_chain_t *l_emission_chain = NULL;
     if (l_emission_hash_str) {
         if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
             dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_hash' "
@@ -4435,7 +4436,7 @@ int com_signer(int a_argc, char **a_argv, char **a_str_reply)
     };
 
     size_t l_len_opts = sizeof(l_opts) / sizeof(struct opts);
-    for (int i = 0; i < l_len_opts; i++) {
+    for (size_t i = 0; i < l_len_opts; i++) {
         if (dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), l_opts[i].name, NULL)) {
             cmd_num = l_opts[i].cmd;
             break;
@@ -4809,7 +4810,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
     size_t l_counter = 0;
-    int l_part_power = l_part;
+    size_t l_part_power = l_part;
     int l_index = 0;
 
     for ( dap_list_t* l_iter = dap_list_first(a_meta); l_iter; l_iter = l_iter->next){

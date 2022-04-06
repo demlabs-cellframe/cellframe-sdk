@@ -169,7 +169,7 @@ int res;
     if(res < 1)
         return -1;
 
-    if ( 0 >= (res = recv(sd, buf, bufsize, 0)) )
+    if ( 0 >= (res = recv(sd, (char *)buf, bufsize, 0)) )
         printf("[s_recv] recv()->%d, errno: %d\n", res, errno);
 
     return res;

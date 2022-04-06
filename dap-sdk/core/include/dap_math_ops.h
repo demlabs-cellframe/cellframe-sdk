@@ -417,7 +417,7 @@ static inline int SUBTRACT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uin
     int underflow_flag = 0;
 #ifdef DAP_GLOBAL_IS_INT128
     *c_128_bit = a_128_bit - b_128_bit;
-    underflow_flag = (*c_128_bit < 0) ^ (a_128_bit < b_128_bit);
+    underflow_flag = a_128_bit < b_128_bit;
 #else
     c_128_bit->lo = a_128_bit.lo - b_128_bit.lo;
     uint64_t carry = (((c_128_bit->lo & b_128_bit.lo) & 1) + (b_128_bit.lo >> 1) + (c_128_bit->lo >> 1)) >> 63;

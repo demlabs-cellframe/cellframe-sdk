@@ -260,53 +260,49 @@ static void s_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_co
 bool dap_chain_node_mempool_autoproc_init()
 {
     uint16_t l_net_count;
-    bool l_mempool_auto_default = false, l_ret = false;
+    if (!dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", false))
+        return false;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
-
         switch (l_role.enums) {
             case NODE_ROLE_ROOT:
             case NODE_ROLE_MASTER:
             case NODE_ROLE_ROOT_MASTER:
             case NODE_ROLE_CELL_MASTER:
-                l_mempool_auto_default = true;
+                l_net_list[i]->pub.mempool_autoproc = true;
                 break;
             default:
-                l_mempool_auto_default = false;
-                break;
+                l_net_list[i]->pub.mempool_autoproc = false;
+                continue;
         }
-        l_net_list[i]->pub.mempool_autoproc = dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", l_mempool_auto_default);
-        if (l_net_list[i]->pub.mempool_autoproc) {
-            l_ret = true;
-            dap_chain_t *l_chain;
-            DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-                if (!l_chain) {
-                    continue;
-                }
-                char *l_gdb_group_mempool = NULL;
-                l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-                size_t l_objs_size = 0;
-                dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
-                if (l_objs_size) {
-                    for (size_t i = 0; i < l_objs_size; i++) {
-                        if (!l_objs[i].value_len)
-                            continue;
-                        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-                        if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
-                            // Delete processed objects
-                            dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
-                        }
-                    }
-                    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
-                }
-                DAP_DELETE(l_gdb_group_mempool);
-                dap_chain_add_mempool_notify_callback(l_chain, s_chain_node_mempool_autoproc_notify, l_chain);
+        dap_chain_t *l_chain;
+        DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
+            if (!l_chain) {
+                continue;
             }
+            char *l_gdb_group_mempool = NULL;
+            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+            size_t l_objs_size = 0;
+            dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+            if (l_objs_size) {
+                for (size_t i = 0; i < l_objs_size; i++) {
+                    if (!l_objs[i].value_len)
+                        continue;
+                    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+                    if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
+                        // Delete processed objects
+                        dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
+                    }
+                }
+                dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+            }
+            DAP_DELETE(l_gdb_group_mempool);
+            dap_chain_add_mempool_notify_callback(l_chain, s_chain_node_mempool_autoproc_notify, l_chain);
         }
     }
     DAP_DELETE(l_net_list);
-    return l_ret;
+    return true;
 }
 
 /**

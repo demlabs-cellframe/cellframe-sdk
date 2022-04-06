@@ -1,9 +1,9 @@
 #pragma once
 
 #include <stdbool.h>
-#include <dap_list.h>
-#include "dap_chain_global_db.h"
 #include "dap_chain_global_db_driver.h"
+#include "dap_chain_global_db.h"
+#include "dap_list.h"
 
 #define GLOBAL_DB_HIST_REC_SEPARATOR "\r;"
 #define GLOBAL_DB_HIST_KEY_SEPARATOR "\a;"
@@ -53,4 +53,5 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list);
 // Get last id in log
 uint64_t dap_db_log_get_group_last_id(const char *a_group_name);
 uint64_t dap_db_log_get_last_id(void);
+void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list);
 

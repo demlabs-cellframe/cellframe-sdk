@@ -270,6 +270,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             //log_it(L_DEBUG,"Change back %"DAP_UINT64_FORMAT_U"", l_value_back);
             if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx_new);
+                DAP_DELETE(l_objs);
                 return -3;
             }
         }
@@ -277,6 +278,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // add 'sign' items
         if(dap_chain_datum_tx_add_sign_item(&l_tx_new, a_key_from) != 1) {
             dap_chain_datum_tx_delete(l_tx_new);
+            DAP_DELETE(l_objs);
             return -1;
         }
         // now tx is formed - calc size and hash
@@ -381,7 +383,7 @@ dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_c
         return NULL;
     }
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, l_tx_prev_hash, l_prev_cond_idx)) { // TX already spent
-        dap_chain_datum_tx_t *l_tx_tmp;
+        dap_chain_datum_tx_t *l_tx_tmp = NULL;
         dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
         dap_chain_tx_out_cond_t *l_tmp_cond;
         uint256_t l_value_cond = {};
