@@ -835,12 +835,13 @@ void dap_string_append_vprintf(dap_string_t *string, const char *format, va_list
 {
     const char l_oom [] = { "Out of memory@%s!" };
     char *buf, l_buf[128];
-    int len;
+    size_t len;
 
     dap_return_if_fail(string != NULL);
     dap_return_if_fail(format != NULL);
 
-    if ( 0 > (len = dap_vasprintf(&buf, format, args)) )                    /* Got negative/error ? Return to caller */
+    len = dap_vasprintf(&buf, format, args);
+    if ( (ssize_t)len < 0 )                    /* Got negative/error ? Return to caller */
         return;
 
     dap_string_maybe_expand(string, len);                                   /* Try to expand an area for new append */

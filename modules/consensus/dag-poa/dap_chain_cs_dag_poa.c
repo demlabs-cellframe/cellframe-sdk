@@ -222,6 +222,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
         if (!l_event_hash_hex_str) {
             DAP_DELETE(l_event_hash_base58_str);
             dap_chain_node_cli_set_reply_text(a_str_reply, "Invalid base58 hash format");
+            return -6;
         }
 
         DAP_DELETE(l_event_hash_hex_str);
@@ -358,6 +359,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         l_poa_pvt->wait_sync_before_complete = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","wait_sync_before_complete",180);
         l_poa_pvt->auth_certs_prefix = strdup ( dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") );
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify ) {
+            // Type sizeof's misunderstanding in malloc?
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t));
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
@@ -429,7 +431,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     }
 
     uint64_t l_max_ts_update = 0;
-    char * l_max_ts_update_hash;
+    char * l_max_ts_update_hash = NULL;
     event_clean_dup_items_t *l_clean_item=NULL, *l_clean_tmp=NULL;
     HASH_ITER(hh, s_event_clean_dup_items, l_clean_item, l_clean_tmp) {
         if ( l_clean_item->signs_count < l_max_signs_count ) {

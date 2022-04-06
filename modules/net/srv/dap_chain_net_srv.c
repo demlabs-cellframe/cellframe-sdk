@@ -633,7 +633,6 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 l_price->net_name = l_price_token;
                 if (!(l_price->net = dap_chain_net_by_name(l_price->net_name))) {
                     log_it(L_ERROR, "Error parsing pricelist: can't find network \"%s\"", l_price_token);
-                    DAP_DELETE(l_price);
                     break;
                 }
                 continue;
@@ -642,7 +641,6 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 if (IS_ZERO_256(l_price->value_datoshi)) {
                     log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
                     l_iter = 0;
-                    DAP_DELETE(l_price);
                     break;
                 }
                 continue;
@@ -654,7 +652,6 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 if (!l_price->units) {
                     log_it(L_ERROR, "Error parsing pricelist: text on 4th position \"%s\" is not unsigned integer", l_price_token);
                     l_iter = 0;
-                    DAP_DELETE(l_price);
                     break;
                 }
                 continue;
@@ -674,7 +671,6 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 else {
                     log_it(L_ERROR, "Error parsing pricelist: wrong unit type \"%s\"", l_price_token);
                     l_iter = 0;
-                    DAP_DELETE(l_price);
                     break;
                 }
                 continue;
@@ -682,19 +678,21 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
                     log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
                     l_iter = 0;
-                    DAP_DELETE(l_price);
                     break;
                 }
                 continue;
             case 6:
                 log_it(L_INFO, "Price item correct, added to service");
-                DL_APPEND(a_srv->pricelist, l_price);
                 ret++;
                 break;
             default:
                 break;
             }
             log_it(L_DEBUG, "Done with price item %d", i);
+            if (l_iter == 6)
+                DL_APPEND(a_srv->pricelist, l_price);
+            else
+                DAP_DELETE(l_price);
             break; // double break exits tokenizer loop and steps to next price item
         }
     }
@@ -856,6 +854,7 @@ void dap_chain_net_srv_del_all(void)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
+        // Clang bug at this, l_sdata should change at every loop cycle
         HASH_DEL(s_srv_list, l_sdata);
         pthread_mutex_destroy(&l_sdata->srv->banlist_mutex);
         DAP_DELETE(l_sdata->srv);

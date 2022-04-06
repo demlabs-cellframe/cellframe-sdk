@@ -24,11 +24,11 @@
 
 #pragma once
 
+#include "dap_proc_thread.h"
+#include "dap_list.h"
+
 #include <stddef.h>
 #include <stdint.h>
-#include "dap_common.h"
-#include "dap_list.h"
-#include "dap_proc_thread.h"
 
 enum    {
     DAP_DB$K_OPTYPE_ADD  = 'a',                 /* Operation Type = INSERT/ADD */

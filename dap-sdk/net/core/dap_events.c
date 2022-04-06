@@ -440,7 +440,7 @@ uint32_t dap_events_worker_get_index_min( )
     if ( !s_workers_init )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
-    for( int i = 1; i < s_threads_count; i++ ) {
+    for( uint32_t i = 1; i < s_threads_count; i++ ) {
         if ( s_workers[min]->event_sockets_count > s_workers[i]->event_sockets_count )
             min = i;
     }
@@ -486,7 +486,7 @@ void dap_events_worker_print_all( )
     if ( !s_workers_init )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
-    for( int i = 0; i < s_threads_count; i ++ ) {
+    for( uint32_t i = 0; i < s_threads_count; i ++ ) {
         log_it( L_INFO, "Worker: %d, count open connections: %d", s_workers[i]->id, s_workers[i]->event_sockets_count );
     }
 }

@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include <dap_common.h>
-#include <dap_strfuncs.h>
-#include <dap_string.h>
-#include "dap_chain.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
+#include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_string.h"
+#include "dap_chain.h"
 
 #define LOG_TAG "dap_chain_global_db_remote"
 
@@ -304,7 +304,7 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
     uint64_t l_size = l_count <= UINT32_MAX ? l_count * sizeof(struct dap_store_obj) : 0;
     dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_size);
     if (!l_store_obj || !l_size) {
-        log_it(L_ERROR, "Invalid size: can't allocate %lu bytes", l_size);
+        log_it(L_ERROR, "Invalid size: can't allocate %"DAP_UINT64_FORMAT_U" bytes", l_size);
         DAP_DEL_Z(l_store_obj)
         return NULL;
     }

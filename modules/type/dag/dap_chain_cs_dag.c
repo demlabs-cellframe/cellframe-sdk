@@ -294,6 +294,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
     pthread_rwlock_wrlock(&l_dag_pvt->events_rwlock);
     dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
+    // Clang bug at this, l_event_current should change at every loop cycle
     HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
         HASH_DEL(l_dag_pvt->events, l_event_current);
         DAP_DELETE(l_event_current);
@@ -435,7 +436,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
     memcpy(&l_event_item->hash, &l_event_hash, sizeof(dap_chain_hash_fast_t));
 
-    char * l_event_hash_str;
+    char * l_event_hash_str = NULL;
     if(s_debug_more) {
         l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
         log_it(L_DEBUG, "Processing event: %s... (size %zd)", l_event_hash_str,a_atom_size);
@@ -506,7 +507,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
         }
     } break;
-    default: break;
+    default:
+        DAP_DELETE(l_event_item); // Neither added, nor freed
+        break;
     }
     if(s_debug_more)
         DAP_DELETE(l_event_hash_str);
@@ -758,7 +761,7 @@ static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_even
     size_t l_sign_offset = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_event_size);
     if (l_sign_offset >= a_event_size)
         return false;
-    if (a_event->header.signs_count > UINT16_MAX)
+    if (a_event->header.signs_count > UINT8_MAX)
         return false;
     for (int i = 0; i < a_event->header.signs_count; i++) {
         dap_sign_t *l_sign = (dap_sign_t *)((uint8_t *)a_event + l_sign_offset);
@@ -1452,8 +1455,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     // delete events from db
                     dap_list_t *l_list_tmp = l_list_to_del;
                     while(l_list_tmp) {
-                        char *l_key = strdup((char*) l_list_tmp->data);
-                        dap_chain_global_db_gr_del(l_key, l_dag->gdb_group_events_round_new);
+                        dap_chain_global_db_gr_del((char*)l_list_tmp->data, l_dag->gdb_group_events_round_new);
                         l_list_tmp = dap_list_next(l_list_tmp);
                     }
                 }

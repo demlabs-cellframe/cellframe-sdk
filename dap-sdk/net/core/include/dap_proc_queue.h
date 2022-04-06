@@ -21,6 +21,7 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
 #include "dap_events_socket.h"
 #include "dap_list.h"                                                       /* Simple List routines */
 

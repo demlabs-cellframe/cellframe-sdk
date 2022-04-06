@@ -492,7 +492,7 @@ int32_t bliss_b_sign(bliss_signature_t *signature,  const bliss_private_key_t *p
         return BLISS_B_NO_MEM;
       }
 
-      indices = calloc(kappa, sizeof(int32_t));
+      indices = calloc(kappa, sizeof(uint32_t));
       if(indices ==  NULL){
         free(hash);
         secure_free(&z1, n);
@@ -847,7 +847,7 @@ int32_t bliss_b_verify(const bliss_signature_t *signature,  const bliss_public_k
         return retval;
     }
 
-    indices = calloc(kappa, sizeof(int32_t));
+    indices = calloc(kappa, sizeof(uint32_t));
     if(indices ==  NULL){
         retval = BLISS_B_NO_MEM;
         delete_ntt_state(state);

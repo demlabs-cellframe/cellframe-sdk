@@ -4,11 +4,11 @@
 #include <stdbool.h>
 #include <time.h>
 
+#include "dap_chain_global_db_driver.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
-#include "dap_chain_global_db_driver.h"
 
 
 #define GROUP_LOCAL_HISTORY "local.history"

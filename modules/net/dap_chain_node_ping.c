@@ -193,22 +193,22 @@ static dap_chain_node_addr_t *s_node_addr_tr = NULL, *s_node_addr_ping = NULL;
 
 static void* node_ping_background_proc(void *a_arg)
 {
-    dap_chain_net_t *l_net;
-    dap_list_t *l_node_list;
-    memcpy(&l_net, a_arg, sizeof(dap_chain_net_t*));
-    memcpy(&l_node_list, a_arg + sizeof(dap_chain_net_t*), sizeof(dap_list_t*));
-    DAP_DELETE(a_arg);
+    if (!a_arg)
+        return 0;
+    dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
+    dap_list_t *l_node_list = (dap_list_t*)(a_arg + sizeof(dap_chain_net_t*));
     dap_chain_node_addr_t l_node_addr = { 0 };
-
 
     // select the nearest node from the list
     unsigned int l_nodes_count = dap_list_length(l_node_list);
     unsigned int l_thread_id = 0;
-    pthread_t *l_threads = DAP_NEW_Z_SIZE(pthread_t, sizeof(pthread_t) * l_nodes_count);
-    uint64_t *l_nodes_addr = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t) * l_nodes_count);
+    pthread_t l_threads[l_nodes_count];
+    memset(l_threads, 0, l_nodes_count * sizeof(pthread_t));
+    uint64_t l_nodes_addr[l_nodes_count];
+    memset(l_nodes_addr, 0, l_nodes_count * sizeof(uint64_t));
+
     dap_list_t *l_node_list0 = l_node_list;
 
-    dap_chain_node_addr_t *l_node_addr_tr2 = NULL, *l_node_addr_ping = NULL;
     int l_min_hops = INT32_MAX;
     int l_min_ping = INT32_MAX;
     // send ping to all nodes
@@ -216,25 +216,23 @@ static void* node_ping_background_proc(void *a_arg)
         dap_chain_node_addr_t *l_node_addr = l_node_list->data;
         dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_node_addr);
 
-
-        char *host4 = DAP_NEW_SIZE(char, INET_ADDRSTRLEN);
+        char *host4 = DAP_NEW_S_SIZE(char, INET_ADDRSTRLEN);
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
         const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, INET_ADDRSTRLEN);
         if(!str_ip4){
-            DAP_DELETE(host4);
             continue;
         }
         int hops = 0, time_usec = 0;
 #ifdef DAP_OS_LINUX
         int res = traceroute_util(str_ip4, &hops, &time_usec);
 #endif
-        DAP_DELETE(host4);
-        if(l_min_hops>hops)
-            l_node_addr_tr2 = l_node_list->data;
+        if(l_min_hops>hops) {
+            l_min_hops = hops;
+            s_node_addr_tr = l_node_list->data;
+        }
 
         // start sending ping
         start_node_ping(&l_threads[l_thread_id], l_node_info->hdr.ext_addr_v4, l_node_info->hdr.ext_port, 1);
-
         l_nodes_addr[l_thread_id] = l_node_info->hdr.address.uint64;
         l_thread_id++;
         DAP_DELETE(l_node_info);
@@ -268,16 +266,14 @@ static void* node_ping_background_proc(void *a_arg)
     // allocate memory for best node addresses
     dap_chain_node_addr_t *l_node_addr_tmp;
     l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
-    memcpy(l_node_addr_tmp, l_node_addr_tr2, sizeof(dap_chain_node_addr_t));
-    DAP_DELETE(l_node_addr_tr2);
-    l_node_addr_tr2 = l_node_addr_tmp;
+    memcpy(l_node_addr_tmp, s_node_addr_tr, sizeof(dap_chain_node_addr_t));
+    DAP_DELETE(s_node_addr_tr);
+    s_node_addr_tr = l_node_addr_tmp;
+
     l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
     memcpy(l_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
+    DAP_DELETE(s_node_addr_ping);
     s_node_addr_ping = l_node_addr_tmp;
-
-    // delete memory
-    DAP_DELETE(l_nodes_addr);
-    DAP_DELETE(l_threads);
     dap_list_free_full(l_node_list0, free);
     return 0;
 }
@@ -302,7 +298,7 @@ int dap_chain_node_ping_background_start(dap_chain_net_t *a_net, dap_list_t *a_n
         l_node_list_tmp = dap_list_next(l_node_list_tmp);
     }
     // start searching for better nodes
-    uint8_t *l_arg = DAP_NEW_SIZE(uint8_t, sizeof(dap_chain_net_t*) + sizeof(dap_chain_net_t*));
+    uint8_t *l_arg = DAP_NEW_SIZE(uint8_t, sizeof(dap_chain_net_t*) + sizeof(dap_list_t*));
     memcpy(l_arg, &a_net, sizeof(dap_chain_net_t*));
     memcpy(l_arg + sizeof(dap_chain_net_t*), &l_node_list, sizeof(dap_list_t*));
     pthread_create(&s_thread, NULL, node_ping_background_proc, l_arg);

@@ -27,8 +27,6 @@
 #include <pthread.h>
 #include "dap_common.h"
 
-
-
 //typedef struct dap_proc_queue dap_proc_queue_t;
 typedef struct dap_timerfd dap_timerfd_t;
 typedef struct dap_worker

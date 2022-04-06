@@ -115,6 +115,7 @@ void dap_chain_node_client_deinit()
 {
     dap_chain_node_client_handle_t *l_client = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_clients,l_client, l_tmp){
+        // Clang bug at this, l_client should change at every loop cycle
         HASH_DEL(s_clients,l_client);
         DAP_DELETE(l_client);
     }
@@ -205,7 +206,8 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
 
     dap_chain_node_client_t *l_me = l_client_found->client;
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
-    assert(l_worker);
+    if (!l_worker)
+        return NODE_SYNC_STATUS_FAILED;
     assert(l_me);
     dap_events_socket_t * l_es = NULL;
     dap_events_socket_uuid_t l_es_uuid = l_me->esocket_uuid;
@@ -550,6 +552,9 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             dap_chain_net_sync_unlock(l_net, l_node_client);
             dap_timerfd_reset(l_node_client->sync_timer);
+        } break;
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
+            dap_chain_node_client_close(l_node_client);
         } break;
         default: {
         }

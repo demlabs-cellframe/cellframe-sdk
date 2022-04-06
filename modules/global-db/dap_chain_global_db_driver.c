@@ -36,14 +36,14 @@
 #include <assert.h>
 #include <unistd.h>
 
-#include "dap_common.h"
+#include "dap_worker.h"
 #include "dap_file_utils.h"
 #include "dap_strfuncs.h"
 #include "dap_hash.h"
-#include "dap_worker.h"
 #include "dap_proc_queue.h"
 #include "dap_events.h"
 #include "dap_list.h"
+#include "dap_common.h"
 
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"

@@ -24,7 +24,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include <sys/time.h>
 #include "dap_timerfd.h"
-#include "dap_common.h"
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
 
@@ -36,6 +35,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_mempool.h"
+#include "dap_common.h"
 
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stream_session.h"
@@ -465,7 +465,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 l_err.net_id.uint64 = l_usage->net->pub.id.uint64;
                 l_err.srv_uid.uint64 = l_usage->service->uid.uint64;
 
-                dap_chain_tx_out_cond_t *l_tx_out_cond;
+                dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
                 if (!l_usage->is_grace) {
                     if (! l_usage->tx_cond ){
                         log_it(L_WARNING, "No tx out in usage");

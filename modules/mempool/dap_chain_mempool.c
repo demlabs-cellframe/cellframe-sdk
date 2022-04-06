@@ -66,7 +66,6 @@
 
 #define LOG_TAG "dap_chain_mempool"
 
-
 int dap_datum_mempool_init(void)
 {
     return 0;
@@ -271,6 +270,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             //log_it(L_DEBUG,"Change back %"DAP_UINT64_FORMAT_U"", l_value_back);
             if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx_new);
+                DAP_DELETE(l_objs);
                 return -3;
             }
         }
@@ -278,6 +278,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // add 'sign' items
         if(dap_chain_datum_tx_add_sign_item(&l_tx_new, a_key_from) != 1) {
             dap_chain_datum_tx_delete(l_tx_new);
+            DAP_DELETE(l_objs);
             return -1;
         }
         // now tx is formed - calc size and hash
@@ -382,7 +383,7 @@ dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_c
         return NULL;
     }
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, l_tx_prev_hash, l_prev_cond_idx)) { // TX already spent
-        dap_chain_datum_tx_t *l_tx_tmp;
+        dap_chain_datum_tx_t *l_tx_tmp = NULL;
         dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
         dap_chain_tx_out_cond_t *l_tmp_cond;
         uint256_t l_value_cond = {};
@@ -692,15 +693,19 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
     if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
         return NULL;
     int l_signs_valid = 0;
-    dap_sign_t *l_token_sign = (dap_sign_t *)l_token->data_n_tsd;
-    for (int i = 0; i < l_token->signs_total; i++) {
-        uint32_t l_token_pkey_size = l_token_sign->header.sign_pkey_size;
-        dap_sign_t *l_ems_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
-        for (int j = 0; j < l_emission->data.type_auth.signs_count; j++) {
-            if (l_token_pkey_size == l_ems_sign->header.sign_pkey_size &&
-                    !memcmp(l_token_sign->pkey_n_sign, l_ems_sign->pkey_n_sign, l_token_pkey_size))
+    dap_sign_t *l_ems_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
+    for (int i = 0; i < l_emission->data.type_auth.signs_count; i++) {
+        uint32_t l_ems_pkey_size = l_ems_sign->header.sign_pkey_size;
+        dap_sign_t *l_token_sign = (dap_sign_t *)(l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size);
+        for (int j = 0; j < l_token->signs_total; j++) {
+            if (l_ems_pkey_size == l_ems_sign->header.sign_pkey_size &&
+                    !memcmp(l_token_sign->pkey_n_sign, l_ems_sign->pkey_n_sign, l_ems_pkey_size)) {
                 l_signs_valid++;
+                break;
+            }
+            l_token_sign = (dap_sign_t *)((byte_t *)l_token_sign + dap_sign_get_size(l_token_sign));
         }
+        l_ems_sign = (dap_sign_t *)((byte_t *)l_ems_sign + dap_sign_get_size(l_ems_sign));
     }
     if (l_signs_valid != l_emission->data.type_auth.signs_count)
         return NULL;

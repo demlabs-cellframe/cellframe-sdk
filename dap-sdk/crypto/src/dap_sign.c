@@ -655,6 +655,7 @@ void dap_multi_sign_params_delete(dap_multi_sign_params_t *a_params)
  */
 bool dap_multi_sign_hash_data(dap_multi_sign_t *a_sign, const void *a_data, const size_t a_data_size, dap_chain_hash_fast_t *a_hash)
 {
+    //types missunderstanding?
     uint8_t *l_concatenated_hash = DAP_NEW_SIZE(uint8_t, 3 * sizeof(dap_chain_hash_fast_t));
     if (!dap_hash_fast(a_data, a_data_size, a_hash)) {
         DAP_DELETE(l_concatenated_hash);

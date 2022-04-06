@@ -33,12 +33,12 @@
 #ifdef DAP_OS_UNIX
 #include <unistd.h>
 #endif
+#include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_file_utils.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
-#include "dap_chain_global_db_driver_sqlite.h"
 
 #define LOG_TAG "db_sqlite"
 
@@ -116,7 +116,7 @@ static inline void s_dap_db_driver_sqlite_free(char *memory)
 static inline sqlite3 *s_sqlite_get_connection(void)
 {
 int     l_rc;
-sqlite3 *l_ret;
+sqlite3 *l_ret = NULL;
 struct dap_sqlite_conn_pool_item *l_conn;
 
     if ( (l_rc = pthread_rwlock_wrlock(&s_db_rwlock)) == EDEADLK )
