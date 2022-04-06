@@ -3822,7 +3822,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     dap_chain_t *l_emission_chain = NULL;
     if (l_emission_hash_str) {
         if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
-            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_hash' "
+            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-from_emission' "
                                                          "to be valid string containing hash in hex or base58 format");
             return -3;
         }
