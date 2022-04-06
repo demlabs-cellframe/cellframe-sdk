@@ -149,7 +149,7 @@ int dap_chain_cs_dag_init(void)
             "\tdoesn't changes after sign add to event. \n\n"
         "dag -net <chain net name> -chain <chain name> event dump -event <event hash> -from < events | events_lasts | round.new  | round.<Round id in hex> > [-H hex|base58(default)]\n"
             "\tDump event info\n\n"
-        "dag -net <chain net name> -chain <chain name> event list -from < events | events_lasts | round.new | round.<Round id in hex> \n\n"
+        "dag -net <chain net name> -chain <chain name> event list -from < events | events_lasts | thresholds | round.new | round.<Round id in hex> \n\n"
             "\tShow event list \n\n"
         "dag -net <chain net name> -chain <chain name> round complete\n\n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
@@ -1650,6 +1650,19 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                               "Can't find event %s in events_last table\n", l_event_hash_str);
                             break;
                         }
+                     }else if ( strcmp(l_from_events_str,"threshold") == 0){
+                        dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+                        pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+                        HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+                        if ( l_event_item )
+                            l_event = l_event_item->event;
+                        else {
+                            ret = -23;
+                            dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                              "Can't find event %s in threshold table\n", l_event_hash_str);
+                            break;
+                        }
                     }else if ( strcmp(l_from_events_str,"events") == 0){
                         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
                         pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
@@ -1818,7 +1831,26 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                              l_net->pub.name, l_chain->name, l_events_count);
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
-
+                
+                }else if (l_from_events_str && (strcmp(l_from_events_str,"threshold") == 0) ){
+                    dap_string_t * l_str_tmp = dap_string_new(NULL);
+                    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+                    dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
+                    dap_string_append_printf(l_str_tmp,"\nDAG threshold events:\n");
+                    HASH_ITER(hh,PVT(l_dag)->events_treshold,l_event_item, l_event_item_tmp ) {
+                        char buf[50];
+                        char * l_event_item_hash_str = dap_chain_hash_fast_to_str_new( &l_event_item->hash);
+                        time_t l_ts_create = (time_t) l_event_item->event->header.ts_created;
+                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
+                                                 l_event_item_hash_str, dap_ctime_r( &l_ts_create,buf ) );
+                        DAP_DELETE(l_event_item_hash_str);
+                    }
+                    size_t l_events_count = HASH_COUNT(PVT(l_dag)->events_treshold);
+                    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+                    dap_string_append_printf(l_str_tmp,"%s.%s have total %zu events in threshold :\n",
+                                             l_net->pub.name, l_chain->name, l_events_count);
+                    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+                    dap_string_free(l_str_tmp,false);
                 }else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Undefined events source for listing ");
                     ret=-14;
