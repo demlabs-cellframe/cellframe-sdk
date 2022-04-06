@@ -526,7 +526,6 @@ static void s_print_workers_channels()
         }
         log_it(L_DEBUG, "Active workers l_channel_count = %d on worker %d", l_channel_count, l_stream_worker->worker->id);
     }
-    
     return;
 }
 
@@ -546,12 +545,13 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
         for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
             if (l_node_client) {
-                dap_stream_worker_t * l_worker = dap_client_get_stream_worker( l_node_client->client);
-                if (!l_worker->channels){
-                    log_it(L_WARNING, "Worker id = %d hasn't active channels", l_worker->worker->id);
-                    s_print_workers_channels();
+                dap_stream_worker_t * l_worker = dap_client_get_stream_worker(l_node_client->client);
+                if (s_debug_more){
+                    if (!l_worker->channels && l_worker->worker){
+                        log_it(L_WARNING, "Worker id = %d hasn't active channels", l_worker->worker->id);
+                        s_print_workers_channels();
+                    }
                 }
-                    
                 if(l_worker)
                     dap_stream_ch_chain_pkt_write_mt(l_worker, l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
                                                   l_net->pub.id.uint64, a_chain->id.uint64, a_id.uint64, a_atom, a_atom_size);
@@ -560,7 +560,7 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     }else{
         if (s_debug_more)    
-             log_it(L_WARNING,"Node current state is %d. Real-time syncing is possible when you in NET_STATE_LINKS_ESTABLISHED (and above) state", PVT(l_net)->state);     
+             log_it(L_WARNING,"Node current state is %s. Real-time syncing is possible when you in NET_STATE_LINKS_ESTABLISHED (and above) state", s_net_state_to_str(PVT(l_net)->state));     
     }
 }
 
