@@ -30,6 +30,13 @@ enum    {
 typedef struct dap_chain_cs_block_ton_message dap_chain_cs_block_ton_message_t;
 typedef struct dap_chain_cs_block_ton_message_item dap_chain_cs_block_ton_message_item_t;
 
+typedef struct dap_chain_cs_block_ton
+{
+    dap_chain_t *chain;
+    dap_chain_cs_blocks_t *blocks;
+    void *_pvt;
+} dap_chain_cs_block_ton_t;
+
 typedef union dap_chain_cs_block_ton_round_id {
     uint8_t raw[DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE];
     uint64_t uint64;
@@ -51,9 +58,14 @@ typedef struct dap_chain_cs_block_ton_round {
 
 typedef struct dap_chain_cs_block_ton_items {
 	dap_chain_t *chain;
+	dap_chain_cs_block_ton_t *ton;
 
 	dap_chain_node_addr_t *my_addr;
 	dap_list_t *seed_nodes_addrs; // dap_chain_node_addr_t
+
+    dap_chain_block_t *my_candidate;
+    size_t my_candidate_size;
+   	uint16_t my_candidate_attempts_count;
 
 	uint8_t state; // session state
 	dap_chain_cs_block_ton_round_t cur_round;
@@ -76,18 +88,6 @@ typedef struct dap_chain_cs_block_ton_items {
     struct dap_chain_cs_block_ton_items *next;
     struct dap_chain_cs_block_ton_items *prev;
 
-	bool debug;
-	bool validators_list_by_stake;
-	uint16_t round_start_sync_timeout;
-	uint16_t round_start_multiple_of;
-	uint32_t allowed_clock_offset;
-	uint32_t session_idle_min;
-	uint16_t round_candidates_max;
-	uint16_t next_candidate_delay;
-	uint16_t round_attempts_max; 
-	uint16_t round_attempt_duration;
-	uint16_t first_message_delay;
-
 	bool time_proc_lock; // flag - skip check if prev check is not finish
 
     pthread_rwlock_t rwlock;
@@ -102,10 +102,11 @@ typedef struct dap_chain_cs_block_ton_message_hdr {
     	uint64_t uint64;
 	} DAP_ALIGN_PACKED id;
 
+	size_t sign_size;
 	size_t message_size;
 
 	dap_chain_time_t ts_created;
-	dap_chain_cs_block_ton_round_id_t round_id;
+	//dap_chain_cs_block_ton_round_id_t round_id;
 
 	dap_chain_node_addr_t sender_node_addr;
 
@@ -117,8 +118,7 @@ typedef struct dap_chain_cs_block_ton_message_hdr {
 
 typedef struct dap_chain_cs_block_ton_message {
     dap_chain_cs_block_ton_message_hdr_t hdr;
-    // UT_hash_handle hh;
-    uint8_t message[];
+    uint8_t sign_n_message[];
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_t;
 
 typedef struct dap_chain_cs_block_ton_message_item {
@@ -211,14 +211,6 @@ typedef struct dap_chain_cs_block_ton_store {
     uint8_t candidate_n_signs[];
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_store_t;
 
-typedef struct dap_chain_cs_block_ton
-{
-    dap_chain_t *chain;
-    dap_chain_cs_blocks_t *blocks;
-    void *_pvt;
-} dap_chain_cs_block_ton_t;
-
 #define DAP_CHAIN_CS_BLOCK_TON(a) ((dap_chain_cs_block_ton_t *)(a)->_inheritor)
-
 int dap_chain_cs_block_ton_init();
 void dap_chain_cs_block_ton_deinit(void);

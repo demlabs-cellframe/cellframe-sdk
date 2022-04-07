@@ -89,10 +89,11 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
     if (!a_block_cache)
         return;
     dap_chain_block_cache_hash_t  * l_chunk_cache_hash = NULL;
+    dap_chain_block_cache_t * l_chunk_cache = NULL;
     // Parse block and produce cache object
     // Check if already present
-    HASH_FIND(hh, a_chunks->cache, &a_block_cache->block_hash, sizeof (l_chunk_cache_hash->block_hash), l_chunk_cache_hash);
-    if (l_chunk_cache_hash){
+    HASH_FIND(hh, a_chunks->cache, &a_block_cache->block_hash, sizeof(dap_chain_hash_fast_t), l_chunk_cache);
+    if (l_chunk_cache){
         log_it(L_WARNING, "Already present block %s in cache",a_block_cache->block_hash_str);
         dap_chain_block_cache_delete(a_block_cache);
         return;
