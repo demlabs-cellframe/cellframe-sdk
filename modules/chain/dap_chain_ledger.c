@@ -2218,6 +2218,11 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
     return 0;
 }
 
+int sort_ledger_tx_item(dap_chain_ledger_tx_item_t* a, dap_chain_ledger_tx_item_t* b){
+    return a->tx->header.ts_created == b->tx->header.ts_created ? 0 :
+                a->tx->header.ts_created < b->tx->header.ts_created ? -1 : 1;
+}
+
 /**
  * Add new transaction to the cache list
  *
@@ -2280,7 +2285,10 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                         l_item_tmp = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
                         memcpy(&l_item_tmp->tx_hash_fast, a_tx_hash, sizeof(dap_chain_hash_fast_t));
                         l_item_tmp->tx = DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
-                        HASH_ADD_BYHASHVALUE(hh, l_ledger_priv->threshold_txs, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_hash_value, l_item_tmp);
+                        HASH_ADD_BYHASHVALUE_INORDER(hh,
+                                                     l_ledger_priv->threshold_txs, tx_hash_fast,
+                                                     sizeof(dap_chain_hash_fast_t), l_hash_value, l_item_tmp,
+                                                     sort_ledger_tx_item);
                         if(s_debug_more)
                             log_it (L_DEBUG, "Tx %s added to threshold", l_tx_hash_str);
                     }
@@ -2578,7 +2586,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         if (!l_hash_value)
             HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
         pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
-        HASH_ADD_BYHASHVALUE(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_hash_value, l_tx_item); // tx_hash_fast: name of key field
+        HASH_ADD_BYHASHVALUE_INORDER(hh,
+                                     l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
+                                     l_hash_value, l_tx_item, sort_ledger_tx_item); // tx_hash_fast: name of key field
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
         // Count TPS
         clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_end_time);
