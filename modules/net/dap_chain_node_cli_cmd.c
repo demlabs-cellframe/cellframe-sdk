@@ -3215,8 +3215,6 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,NULL, &l_net);
     if( ! l_net) { // Can't find such network
-        dap_chain_node_cli_set_reply_text(a_str_reply,
-                "token_create requires parameter '-net' to be valid chain network name");
         return -43;
     }
 
@@ -3805,13 +3803,18 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");
         return -1;
     }
-    if(!l_emission_hash_str && !addr_base58_to) {
+    if(!addr_base58_to) {
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-to_addr'");
         return -2;
     }
 
     if(!l_net_name) {
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-net'");
+        return -6;
+    }
+
+    if(!l_token_ticker) {
+        dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-token'");
         return -6;
     }
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
@@ -3824,7 +3827,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     dap_chain_t *l_emission_chain = NULL;
     if (l_emission_hash_str) {
         if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
-            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_hash' "
+            dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-from_emission' "
                                                          "to be valid string containing hash in hex or base58 format");
             return -3;
         }
@@ -3845,7 +3848,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
             return -5;
         }
     }
-    if(!l_emission_hash_str && IS_ZERO_256(l_value)) {
+    if(IS_ZERO_256(l_value)) {
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-value' to be valid uint256 value");
         return -4;
     }

@@ -1635,7 +1635,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                         l_event_hash_str, &l_round_item_size, l_gdb_group_events);
                         if (l_round_item) {
                             l_event_size = l_round_item->event_size;
-                            l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+                            l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
                         }
                     }else if ( strncmp(l_from_events_str,"round.",6) == 0){
 
@@ -1783,7 +1783,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     ret=-10;
                 }
                 DAP_DELETE(l_round_item);
-                DAP_DELETE(l_event);
             }break;
             case SUBCMD_EVENT_LIST:{
                 if( (l_from_events_str == NULL) ||

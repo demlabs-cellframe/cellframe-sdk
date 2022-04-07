@@ -1438,6 +1438,7 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
 {
     dap_chain_hash_fast_t l_token_emission_hash = {};
     dap_hash_fast(a_token_emission, a_token_emission_size, &l_token_emission_hash);
+    log_it(L_DEBUG, "Check emission with hash %s", dap_hash_fast_to_str_new(&l_token_emission_hash));
     if (PVT(a_ledger)->load_mode) {
         dap_chain_ledger_token_emission_item_t *l_token_emission_item;
         dap_chain_ledger_token_item_t *l_token_item, *l_item_tmp;
