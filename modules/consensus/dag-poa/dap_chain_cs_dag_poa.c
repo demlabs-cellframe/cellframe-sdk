@@ -116,7 +116,7 @@ int dap_chain_cs_dag_poa_init(void)
     dap_chain_cs_add ("dag_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_node_cli_cmd_item_create ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
-        "dag_poa -net <chain net name> -chain <chain name> event sign -event <event hash> [-H hex|base58(default)]\n"
+        "dag_poa event sign -net <chain net name> -chain <chain name> -event <event hash> [-H hex|base58(default)]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
 
     return 0;
@@ -264,13 +264,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
 
                     if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event,
                                                     l_event_size_new, l_round_item, l_gdb_group_events)) { //&l_event_round_info) ){
-                        if ( !dap_chain_global_db_gr_del( l_event_hash_hex_str, l_gdb_group_events) ) { // Delete old event
-                            ret = 1;
-                            dap_chain_node_cli_set_reply_text(a_str_reply, "Added new sign with cert \"%s\", event %s placed back in round.new\n"
-                                                                           "WARNING! Old event %s with same datum is still in round.new, produced DUP!\n",
-                                                                           l_poa_pvt->events_sign_cert->name ,l_event_new_hash_hex_str, l_event_hash_str);
-                        }
-
+                        // Old event will be cleaned automatically with s_round_event_clean_dup()
                         if(!dap_strcmp(l_hash_out_type, "hex")) {
                             dap_chain_node_cli_set_reply_text(a_str_reply,
                                     "Added new sign with cert \"%s\", event %s placed back in round.new\n",

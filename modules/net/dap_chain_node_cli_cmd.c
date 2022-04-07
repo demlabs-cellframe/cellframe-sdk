@@ -630,8 +630,11 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             return -1;
         } else {
             dap_string_append_printf(l_string_reply, "Got %zu records:\n", l_nodes_count);
+            size_t l_data_size = 0;
+            // read all aliases
+            dap_global_db_obj_t *l_aliases_objs = dap_chain_global_db_gr_load(a_net->pub.gdb_nodes_aliases, &l_data_size);
             for(size_t i = 0; i < l_nodes_count; i++) {
-                dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
+                dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
                 // read node
                 dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, &l_node_info->hdr.address, NULL);
                 if (!node_info_read)
@@ -647,19 +650,19 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 
                 // get aliases in form of string
                 dap_string_t *aliases_string = dap_string_new(NULL);
-                dap_list_t *list_aliases = get_aliases_by_name(a_net, &node_info_read->hdr.address);
-                if(list_aliases)
-                {
-                    dap_list_t *list = list_aliases;
-                    while(list)
-                    {
-                        const char *alias = (const char *) list->data;
-                        dap_string_append_printf(aliases_string, "\nalias %s", alias);
-                        list = dap_list_next(list);
+
+                for (size_t i = 0; i < l_data_size; i++) {
+                    //dap_chain_node_addr_t addr_i;
+                    dap_global_db_obj_t *l_obj = l_aliases_objs + i;
+                    if (!l_obj)
+                        break;
+                    dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *)l_obj->value;
+                    if (l_addr && l_obj->value_len == sizeof(dap_chain_node_addr_t) &&
+                            node_info_read->hdr.address.uint64 == l_addr->uint64) {
+                        dap_string_append_printf(aliases_string, "\nalias %s", l_obj->key);
                     }
-                    dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
                 }
-                else
+                if (!l_data_size)
                     dap_string_append(aliases_string, "\nno aliases");
 
                 // get links in form of string
@@ -696,6 +699,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 dap_string_free(links_string, true);
                 DAP_DELETE(node_info_read);
             }
+            dap_chain_global_db_objs_delete(l_aliases_objs, l_data_size);
         }
         dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
     }

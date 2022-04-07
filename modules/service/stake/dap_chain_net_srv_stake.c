@@ -1208,7 +1208,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'delegate' required parameter -net");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'invalidate' required parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1218,7 +1218,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
             if (!l_wallet_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'delegate' required parameter -wallet");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'invalidate' required parameter -wallet");
                 return -17;
             }
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
@@ -1228,7 +1228,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &l_tx_hash_str);
             if (!l_tx_hash_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'delegate' required parameter -tx");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'invalidate' required parameter -tx");
                 return -13;
             }
             dap_chain_hash_fast_t l_tx_hash = {};

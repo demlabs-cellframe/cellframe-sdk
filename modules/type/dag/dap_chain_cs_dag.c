@@ -142,18 +142,18 @@ int dap_chain_cs_dag_init(void)
     s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
 
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, "DAG commands",
-        "dag -net <chain net name> -chain <chain name> event create -datum <datum hash> [-H hex|base58(default)]\n"
+        "dag -net event create <chain net name> -chain <chain name> -datum <datum hash> [-H hex|base58(default)]\n"
             "\tCreate event from datum mempool element\n\n"
-        "dag -net <chain net name> -chain <chain name> event cancel -event <event hash>\n"
+        "dag event cancel -net <chain net name> -chain <chain name> -event <event hash>\n"
             "\tRemove event from forming new round and put back its datum to mempool\n\n"
-        "dag -net <chain net name> -chain <chain name> event sign -event <event hash>\n"
+        "dag event sign -net <chain net name> -chain <chain name> -event <event hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag -net <chain net name> -chain <chain name> event dump -event <event hash> -from < events | events_lasts | round.new  | round.<Round id in hex> > [-H hex|base58(default)]\n"
+        "dag event dump -net <chain net name> -chain <chain name> -event <event hash> -from < events | events_lasts | round.new  | round.<Round id in hex> > [-H hex|base58(default)]\n"
             "\tDump event info\n\n"
-        "dag -net <chain net name> -chain <chain name> event list -from < events | events_lasts | round.new | round.<Round id in hex> \n\n"
+        "dag event list -net <chain net name> -chain <chain name> -from < events | events_lasts | round.new | round.<Round id in hex> \n\n"
             "\tShow event list \n\n"
-        "dag -net <chain net name> -chain <chain name> round complete\n\n"
+        "dag round complete -net <chain net name> -chain <chain name> \n\n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
@@ -1823,44 +1823,26 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                             dap_chain_cs_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
                             //size_t l_event_new_size = dap_chain_cs_dag_event_calc_size(l_event_new);
                             char * l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
-                            char * l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_event_new_hash);
+                            char * l_event_new_hash_base58_str = NULL;
+                            if (dap_strcmp(l_hash_out_type, "hex"))
+                                l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_event_new_hash);
 
                             if (dap_chain_cs_dag_event_gdb_set(l_event_new_hash_hex_str, l_event,
                                                             l_event_size_new, l_round_item, l_gdb_group_events)) { //&l_event_round_info) ){
-                                if ( !dap_chain_global_db_gr_del( l_event_hash_hex_str, l_gdb_group_events) ) { // Delete old event
-                                    ret = 1;
-                                    dap_chain_node_cli_set_reply_text(a_str_reply, "Added new sign with cert \"%s\", event %s placed back in round.new\n"
-                                                                                   "WARNING! Old event %s with same datum is still in round.new, produced DUP!\n",
-                                                                                   l_cert_str ,l_event_new_hash_hex_str, l_event_hash_str);
-                                }
-
-                                if(!dap_strcmp(l_hash_out_type, "hex")) {
-                                    dap_chain_node_cli_set_reply_text(a_str_reply,
+                                // Old event will be cleaned automatically with s_round_event_clean_dup()
+                                dap_chain_node_cli_set_reply_text(a_str_reply,
                                             "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                            l_cert_str, l_event_new_hash_hex_str);
-                                }
-                                else {
-                                    dap_chain_node_cli_set_reply_text(a_str_reply,
-                                            "Added new sign with cert \"%s\", event %s placed back in round.new\n",
-                                            l_cert_str, l_event_new_hash_base58_str);
-                                }
-                            }else {
-                                if(!dap_strcmp(l_hash_out_type, "hex")) {
-                                    dap_chain_node_cli_set_reply_text(a_str_reply,
+                                            l_cert_str, l_event_new_hash_base58_str ?
+                                                                      l_event_new_hash_base58_str : l_event_new_hash_hex_str);
+                            } else {
+                                dap_chain_node_cli_set_reply_text(a_str_reply,
                                             "GDB Error: Can't place event %s with new sign back in round.new\n",
-                                            l_event_new_hash_hex_str);
-                                }
-                                else {
-                                    dap_chain_node_cli_set_reply_text(a_str_reply,
-                                            "GDB Error: Can't place event %s with new sign back in round.new\n",
-                                            l_event_new_hash_base58_str);
-                                }
-                                ret=-31;
-
+                                            l_event_new_hash_base58_str ? l_event_new_hash_base58_str : l_event_new_hash_hex_str);
+                                ret = -31;
                             }
                             DAP_DELETE(l_event);
                             DAP_DELETE(l_event_new_hash_hex_str);
-                            DAP_DELETE(l_event_new_hash_base58_str);
+                            DAP_DEL_Z(l_event_new_hash_base58_str);
                         } else {
                             dap_chain_node_cli_set_reply_text(a_str_reply,
                                                           "Can't sign event in round.new\n",
