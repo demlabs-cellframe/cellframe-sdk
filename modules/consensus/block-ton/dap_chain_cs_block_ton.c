@@ -76,6 +76,8 @@ typedef struct dap_chain_cs_block_ton_pvt
 	uint16_t first_message_delay;
    	uint16_t my_candidate_attempts_max;
 
+	dap_list_t *seed_nodes_addrs; // dap_chain_node_addr_t
+
    	uint16_t auth_certs_count;
     char *auth_certs_prefix;
     dap_cert_t ** auth_certs;
@@ -165,6 +167,27 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
 	        }
 	    }
 	}
+
+	l_ton_pvt->seed_nodes_addrs = NULL;
+    uint16_t l_node_addrs_count;
+    char **l_seed_addrs = dap_config_get_array_str(a_chain_cfg, "block-ton", "ton_nodes_addrs", &l_node_addrs_count);
+    for(size_t i = 0; i < l_node_addrs_count; i++) {
+        // dap_chain_node_addr_t *l_seed_node_addr = dap_chain_node_alias_find(l_net, l_seed_aliases[i] );
+        dap_chain_node_addr_t *l_seed_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+        //dap_snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
+        if (sscanf(l_seed_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_seed_node_addr) ) != 4 ){
+            log_it(L_ERROR,"TON: Wrong address format,  should be like 0123::4567::890AB::CDEF");
+            DAP_DELETE(l_seed_node_addr);
+            //DAP_DELETE(l_node_info);
+            l_seed_node_addr = NULL;
+            continue;
+        }
+        if (l_seed_node_addr) {
+            log_it(L_MSG, "TON: add validator addr:"NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS(l_seed_node_addr));
+        	l_ton_pvt->seed_nodes_addrs = dap_list_append(l_ton_pvt->seed_nodes_addrs, l_seed_node_addr);
+        }
+    }
+
     // Save old callback if present and set the call of its own (chain callbacks)
     l_ton_pvt->prev_callback_created = l_blocks->chain->callback_created;
     l_blocks->chain->callback_created = s_callback_created;
@@ -235,8 +258,8 @@ static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_items_t *a_
 	    dap_list_free(l_list);
 	}
 	else {
-		dap_chain_net_t *l_net = dap_chain_net_by_id(a_session->chain->net_id);
-		dap_list_t *l_list = dap_list_first(a_session->seed_nodes_addrs);
+		// dap_chain_net_t *l_net = dap_chain_net_by_id(a_session->chain->net_id);
+		dap_list_t *l_list = dap_list_first(PVT(a_session->ton)->seed_nodes_addrs);
 		while (l_list) {
 			dap_chain_node_addr_t *l_addr =
 					(dap_chain_node_addr_t *)DAP_DUP_SIZE(
@@ -274,16 +297,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 	dap_chain_cs_block_ton_items_t *l_session = DAP_NEW_Z(dap_chain_cs_block_ton_items_t);
 	l_session->chain = a_chain;
 	l_session->ton = l_ton;
-
-	l_session->seed_nodes_addrs = NULL;
-    uint16_t seed_aliases_count;
-    char **l_seed_aliases = dap_config_get_array_str(a_chain_net_cfg, "general", "seed_nodes_aliases", &seed_aliases_count);
-    for(size_t i = 0; i < seed_aliases_count; i++) {
-        dap_chain_node_addr_t *l_seed_node_addr = dap_chain_node_alias_find(l_net, l_seed_aliases[i] );
-        if (l_seed_node_addr) {
-        	l_session->seed_nodes_addrs = dap_list_append(l_session->seed_nodes_addrs, l_seed_node_addr);
-        }
-    }
 
     l_session->my_candidate = NULL;
     l_session->my_candidate_size = 0;
