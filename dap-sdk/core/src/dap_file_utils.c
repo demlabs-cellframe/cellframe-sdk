@@ -1236,20 +1236,20 @@ char* dap_get_current_dir(void)
 {
 #ifdef _WIN32
 
-  gchar *dir = NULL;
+  char *dir = NULL;
   wchar_t dummy[2], *wdir;
   DWORD len;
 
   len = GetCurrentDirectoryW (2, dummy);
-  wdir = g_new (wchar_t, len);
+  wdir = DAP_NEW_Z_SIZE(wchar_t, len);
 
   if (GetCurrentDirectoryW (len, wdir) == len - 1)
-    dir = g_utf16_to_utf8 (wdir, -1, NULL, NULL, NULL);
+    dir = dap_utf16_to_utf8 ((unichar2*)wdir, -1, NULL, NULL);
 
-  g_free (wdir);
+  DAP_DELETE(wdir);
 
   if (dir == NULL)
-    dir = g_strdup ("\\");
+    dir = dap_strdup ("\\");
 
   return dir;
 
@@ -1257,7 +1257,7 @@ char* dap_get_current_dir(void)
     const char *pwd;
     char *buffer = NULL;
     char *dir = NULL;
-    static ulong max_len = 0;
+    static u_long max_len = 0;
     struct stat pwdbuf, dotbuf;
 
     pwd = getenv("PWD");
