@@ -192,8 +192,10 @@ static int init_ecb_14_impl(unsigned char *key, void* ctx, printout_byte_array p
      context->PrintUIntArray = print_uint;
 
      context->Keys = (unsigned char*)malloc(10 * kBlockLen14);
-     if( !context->Keys )
-          return -1;
+     if( !context->Keys ) {
+         //free_ecb(context); // eventually no other fields
+         return -1;
+     }
      memset(context->Keys, 0, 10 * kBlockLen14);
 
      ExpandKey(key, context->Keys, print);
@@ -285,9 +287,10 @@ static int init_cbc_14_impl(unsigned char *key, void* ctx, const unsigned char *
      context->tempIV = (unsigned char*)malloc(context->M);
      context->nextIV = (unsigned char*)malloc(context->M);
      context->tmpblock = (unsigned char *)malloc(kBlockLen14);
-     if( !context->IV || !context->Keys || !context->tempIV || !context->nextIV || !context->tmpblock )
-          return -1;
-
+     if( !context->IV || !context->Keys || !context->tempIV || !context->nextIV || !context->tmpblock ) {
+         free_cbc(context);
+         return -1;
+     }
      memcpy(context->IV, iv, ivLength);
      memset(context->Keys, 0, 10 * kBlockLen14);
 
@@ -330,8 +333,10 @@ static int init_cbc_89_impl(unsigned char *key, void* ctx, const unsigned char *
      context->nextIV = (unsigned char*)malloc(context->M);
      context->tmpblock = (unsigned char *)malloc(kBlockLen89);
 
-     if( !context->IV || !context->Keys || !context->tempIV || !context->nextIV || !context->tmpblock )
-          return -1;
+     if( !context->IV || !context->Keys || !context->tempIV || !context->nextIV || !context->tmpblock ) {
+         free_cbc(context);
+        return -1;
+     }
 
      memcpy(context->IV, iv, ivLength);
      memcpy(context->Keys, key, kKeyLen89);
@@ -408,8 +413,10 @@ static int init_ctr_14_impl(unsigned char* key, const unsigned char *iv, size_t 
      context->tmpblock = (unsigned char*)malloc(kBlockLen14);
      context->Keys = (unsigned char*)malloc(10*kBlockLen14);
      context->Counter = (unsigned char*)malloc(kBlockLen14);
-     if( !context->tmpblock || !context->Keys || !context->Counter )
-          return -1;
+     if( !context->tmpblock || !context->Keys || !context->Counter ) {
+         free_ctr(context);
+         return -1;
+     }
 
      memset(context->Keys, 0, 10 * kBlockLen14);
      ExpandKey(key, context->Keys, print);
@@ -452,9 +459,10 @@ static int init_ctr_89_impl(unsigned char* key, const unsigned char *iv, size_t 
      context->Keys = (unsigned char*)malloc(kKeyLen89);
      context->Counter = (unsigned char*)malloc(kBlockLen89);
 
-     if( !context->tmpblock || !context->Keys || !context->Counter )
-          return -1;
-
+     if( !context->tmpblock || !context->Keys || !context->Counter ) {
+         free_ctr(context);
+         return -1;
+     }
      memcpy(context->Keys, key, kKeyLen89);
      memset(context->Counter, 0, kBlockLen89);
      memcpy(context->Counter, iv, kBlockLen89/2);
@@ -517,13 +525,13 @@ static int init_ofb_14_impl(unsigned char *key, void *ctx, size_t s, const unsig
 
      context->BlockLen = kBlockLen14;
 
-     context->IV = (unsigned char*)malloc(ivLength);
-     context->tmpblock = (unsigned char*)malloc(kBlockLen14);
-     context->nextIV = (unsigned char*)malloc(ivLength);
-     context->Keys = (unsigned char*)malloc(10*kBlockLen14);
-
-     if( !context->IV || !context->tmpblock || !context->nextIV || !context->Keys )
-          return -1;
+     if (!(context->IV = (unsigned char*)malloc(ivLength))
+             || !(context->tmpblock = (unsigned char*)malloc(kBlockLen14))
+             || !(context->nextIV = (unsigned char*)malloc(ivLength))
+             || !(context->Keys = (unsigned char*)malloc(10*kBlockLen14))) {
+         free_ofb(context);
+         return -1;
+     }
 
      memcpy(context->IV, iv, ivLength);
 
@@ -568,8 +576,10 @@ static int init_ofb_89_impl(unsigned char *key, void *ctx, size_t s, const unsig
      context->tmpblock = (unsigned char*)malloc(kBlockLen89);
      context->nextIV = (unsigned char*)malloc(ivLength);
      context->Keys = (unsigned char*)malloc(kKeyLen89);
-     if( !context->IV || !context->tmpblock || !context->nextIV || !context->Keys )
-          return -1;
+     if( !context->IV || !context->tmpblock || !context->nextIV || !context->Keys ) {
+         free_ofb(context);
+         return -1;
+     }
 
      memcpy(context->IV, iv, ivLength);
 
@@ -648,8 +658,10 @@ static int init_cfb_14_impl(unsigned char *key, void *ctx, size_t s, const unsig
      context->tmpblock = (unsigned char*)malloc(kBlockLen14);
      context->nextIV = (unsigned char*)malloc(ivLength);
      context->Keys = (unsigned char*)malloc(10 * kBlockLen14);
-     if( !context->IV || !context->tmpblock || !context->nextIV || !context->Keys )
-          return -1;
+     if( !context->IV || !context->tmpblock || !context->nextIV || !context->Keys ) {
+         free_cfb(context);
+         return -1;
+     }
 
      memcpy(context->IV, iv, ivLength);
 
@@ -694,8 +706,10 @@ static int init_cfb_89_impl(unsigned char *key, void *ctx, size_t s, const unsig
      context->tmpblock = (unsigned char*)malloc(kBlockLen89);
      context->nextIV = (unsigned char*)malloc(ivLength);
      context->Keys = (unsigned char*)malloc(kKeyLen89);
-     if( !context->IV || !context->tmpblock || !context->nextIV || !context->Keys )
-          return -1;
+     if( !context->IV || !context->tmpblock || !context->nextIV || !context->Keys ) {
+         free_cfb(context);
+         return -1;
+     }
 
      memcpy(context->IV, iv, ivLength);
 
@@ -832,8 +846,10 @@ static int init_imit_14_impl(unsigned char *key, size_t s, void *ctx, printout_b
      context->resimit = (unsigned char*)malloc(kBlockLen14);
      if( !context->Keys || !context->R || !context->B 
           || !context->K1 || !context->K2 || !context->C
-          || !context->LastBlock || !context->tmpblock || !context->resimit )
-          return -1;
+          || !context->LastBlock || !context->tmpblock || !context->resimit ) {
+         free_imit(context);
+         return -1;
+     }
 
      memset(context->Keys, 0, 10 * kBlockLen14);
 
@@ -900,8 +916,10 @@ static int init_imit_89_impl(unsigned char *key, size_t s, void *ctx, printout_b
      context->resimit = (unsigned char*)malloc(kBlockLen89);
      if( !context->Keys || !context->R || !context->B 
           || !context->K1 || !context->K2 || !context->C
-          || !context->LastBlock || !context->tmpblock || !context->resimit )
-          return -1;
+          || !context->LastBlock || !context->tmpblock || !context->resimit ) {
+         free_imit(context);
+         return -1;
+     }
 
      memcpy(context->Keys, key, kKeyLen89);
 

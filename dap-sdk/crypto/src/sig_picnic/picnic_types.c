@@ -194,9 +194,18 @@ g_commitments_t* allocateGCommitments(paramset_t* params)
     uint32_t i;
     uint8_t j;
 
+    if (!params->numZKBRounds)
+        return NULL;
+
     if (params->transform == TRANSFORM_UR) {
         gs = malloc(params->numZKBRounds * sizeof(g_commitments_t));
+        if (!gs)
+            return NULL;
         uint8_t* slab = malloc(params->UnruhGWithInputBytes * params->numZKBRounds * 3);
+        if (!slab) {
+            free(gs);
+            return NULL;
+        }
         for (i = 0; i < params->numZKBRounds; i++) {
             for (j = 0; j < 3; j++) {
                 gs[i].G[j] = slab;
