@@ -77,14 +77,14 @@ void _dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_ha
 
 /**
  * @brief _dap_chain_datum_tx_out_data
- * 
- * @param a_datum 
- * @param a_ledger 
- * @param a_str_out 
- * @param a_hash_out_type 
- * @param save_processed_tx 
- * @param a_tx_hash_processed 
- * @param l_tx_num 
+ *
+ * @param a_datum
+ * @param a_ledger
+ * @param a_str_out
+ * @param a_hash_out_type
+ * @param save_processed_tx
+ * @param a_tx_hash_processed
+ * @param l_tx_num
  */
 
 static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
@@ -435,10 +435,10 @@ static dap_chain_datum_t* get_prev_tx(dap_tx_data_t *a_tx_data)
  * Get data according the history log
  *
  * return history string
- * @param a_tx_hash 
- * @param a_chain 
- * @param a_hash_out_type 
- * @return char* 
+ * @param a_tx_hash
+ * @param a_chain
+ * @param a_hash_out_type
+ * @return char*
  */
 char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type)
 {
@@ -705,10 +705,10 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
  * Get data according the history log
  *
  * return history string
- * @param a_addr 
- * @param a_chain 
- * @param a_hash_out_type 
- * @return char* 
+ * @param a_addr
+ * @param a_chain
+ * @param a_hash_out_type
+ * @return char*
  */
 char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, const char *a_hash_out_type)
 {
@@ -764,6 +764,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
                 dap_tx_data_t *l_tx_data_prev = NULL;
                 HASH_FIND(hh, l_tx_data_hash, l_tx_prev_hash, sizeof(dap_chain_hash_fast_t), l_tx_data_prev);
                 if (!l_tx_data_prev) {      // prev tx not found - no info for history
+                    dap_list_free(l_list_in_items);
                     DAP_DELETE(l_tx_data);
                     continue;
                 }
@@ -845,6 +846,7 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
     HASH_ITER(hh, l_tx_data_hash , l_iter_current, l_item_tmp) {
         HASH_DEL(l_tx_data_hash, l_iter_current);
         // delete struct
+        DAP_DELETE(l_iter_current->datum);
         DAP_DELETE(l_iter_current);
     }
     // if no history
@@ -926,12 +928,12 @@ static char *s_token_info_print(dap_chain_datum_t *a_datum, const char *a_hash_o
 
 /**
  * @brief char* dap_db_history_token_list
- * 
- * @param a_chain 
- * @param a_token_name 
- * @param a_hash_out_type 
- * @param a_token_num 
- * @return char* 
+ *
+ * @param a_chain
+ * @param a_token_name
+ * @param a_hash_out_type
+ * @param a_token_num
+ * @return char*
  */
 static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num)
 {
@@ -973,16 +975,16 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
  * Get data according the history log
  *
  * return history string
- * @param a_chain 
- * @param a_ledger 
- * @param a_filter_token_name 
- * @param a_filtr_addr_base58 
- * @param a_hash_out_type 
- * @param a_datum_start 
- * @param a_datum_end 
- * @param a_total_datums 
- * @param a_tx_hash_processed 
- * @return char* 
+ * @param a_chain
+ * @param a_ledger
+ * @param a_filter_token_name
+ * @param a_filtr_addr_base58
+ * @param a_hash_out_type
+ * @param a_datum_start
+ * @param a_datum_end
+ * @param a_total_datums
+ * @param a_tx_hash_processed
+ * @return char*
  */
 static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger, const char *a_filter_token_name, const char *a_filtr_addr_base58, const char *a_hash_out_type, long a_datum_start, long a_datum_end, long *a_total_datums, dap_chain_tx_hash_processed_ht_t *a_tx_hash_processed)
 {
@@ -1174,11 +1176,11 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
 /**
  * @brief com_ledger
  * ledger command
- * @param a_argc 
- * @param a_argv 
- * @param a_arg_func 
- * @param a_str_reply 
- * @return int 
+ * @param a_argc
+ * @param a_argv
+ * @param a_arg_func
+ * @param a_str_reply
+ * @return int
  */
 int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 {
@@ -1385,7 +1387,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         if (l_net_str == NULL){
             dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand 'info' requires key -net");
             return -2;
-        }     
+        }
         dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find net %s", l_net_str);
@@ -1418,11 +1420,11 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 /**
  * @brief com_token
  * token command
- * @param a_argc 
- * @param a_argv 
- * @param a_arg_func 
- * @param a_str_reply 
- * @return int 
+ * @param a_argc
+ * @param a_argv
+ * @param a_arg_func
+ * @param a_str_reply
+ * @return int
  */
 int com_token(int a_argc, char ** a_argv, char **a_str_reply)
 {
