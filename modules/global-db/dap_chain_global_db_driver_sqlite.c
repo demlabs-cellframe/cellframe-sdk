@@ -146,9 +146,8 @@ struct timespec tmo = {0};
                 {
                                                                             /* l_rc == 0 - so connection was free, */
                                                                             /* we got free connection, so, release mutex and get out */
-                //assert ( !pthread_mutex_unlock(&s_conn_free_mtx) );
                 atomic_fetch_add(&l_conn->usage, 1);
-                log_it(L_NOTICE, "Get l_conn: @%p", l_conn);
+                log_it(L_DEBUG, "Get l_conn: @%p", l_conn);
                 return  l_conn;
                 }
         }
@@ -177,7 +176,7 @@ static inline int s_sqlite_free_connection(struct conn_pool_item *a_conn)
 {
 int     l_rc;
 
-    log_it(L_NOTICE, "Free l_conn: @%p", a_conn);
+    log_it(L_DEBUG, "Free l_conn: @%p", a_conn);
 
     atomic_flag_clear(&a_conn->busy);                                        /* Clear busy flag */
 
@@ -497,14 +496,14 @@ int l_rc;
     /* Try to lock */
     if ( EDEADLK == (l_rc = pthread_mutex_lock(&s_trans_mtx)) ) {
         /* DEADLOCK ?! - so transaction is already active ... */
-        log_it(L_NOTICE, "Active TX l_conn: @%p", s_trans);
+        log_it(L_DEBUG, "Active TX l_conn: @%p", s_trans);
         return  0;
     }
 
     if ( ! (s_trans = s_sqlite_get_connection()) )
         return  -666;
 
-    log_it(L_NOTICE, "Start TX l_conn: @%p", s_trans);
+    log_it(L_DEBUG, "Start TX l_conn: @%p", s_trans);
 
     assert ( !pthread_mutex_lock(&s_db_mtx) );
     l_rc = s_dap_db_driver_sqlite_exec(s_trans->conn, "BEGIN", NULL);
@@ -529,9 +528,10 @@ static int s_dap_db_driver_sqlite_end_transaction(void)
 int l_rc;
 
     if ( !s_trans)
-        return  -666;
+        return  log_it(L_ERROR, "No active TX!"), -666;
 
-    log_it(L_NOTICE, "End TX l_conn: @%p", s_trans);
+
+    log_it(L_DEBUG, "End TX l_conn: @%p", s_trans);
 
     assert ( !pthread_mutex_unlock(&s_trans_mtx) );
 
