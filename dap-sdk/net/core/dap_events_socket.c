@@ -2125,7 +2125,7 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_
 {
     if (a_es->buf_out_size + a_data_size > a_es->buf_out_size_max) {
         if (a_es->buf_out_size_max + a_data_size > DAP_EVENTS_SOCKET_BUF_LIMIT) {
-            log_it(L_ERROR, "Write esocket buffer overflow size=%zu/max=%zu", a_es->buf_out_size_max, (size_t)DAP_EVENTS_SOCKET_BUF_LIMIT);
+            log_it(L_ERROR, "Write esocket (%p) buffer overflow size=%zu/max=%zu", a_es, a_es->buf_out_size_max, (size_t)DAP_EVENTS_SOCKET_BUF_LIMIT);
             return 0;
         } else {
             size_t l_new_size = a_es->buf_out_size_max * 2;
