@@ -2218,6 +2218,11 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
     return 0;
 }
 
+int sort_ledger_tx_item(dap_chain_ledger_tx_item_t* a, dap_chain_ledger_tx_item_t* b){
+    return a->tx->header.ts_created == b->tx->header.ts_created ? 0 :
+                a->tx->header.ts_created < b->tx->header.ts_created ? -1 : 1;
+}
+
 /**
  * Add new transaction to the cache list
  *
@@ -2578,7 +2583,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         if (!l_hash_value)
             HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
         pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
-        HASH_ADD_BYHASHVALUE(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_hash_value, l_tx_item); // tx_hash_fast: name of key field
+        HASH_ADD_BYHASHVALUE_INORDER(hh,
+                                     l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
+                                     l_hash_value, l_tx_item, sort_ledger_tx_item); // tx_hash_fast: name of key field
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
         // Count TPS
         clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_end_time);
