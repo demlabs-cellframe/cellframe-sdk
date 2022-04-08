@@ -930,9 +930,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
-            "node add  -net <net name> -addr {<node address> | -alias <node alias>} {-port <port>} -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
-                    "node del  -net <net name> -addr <node address> | -alias <node alias>\n\n"
-                    "node link {add|del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
+            "node add  -net <net name> {-addr <node address> | -alias <node alias>} -port <port> -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
+                    "node del  -net <net name> {-addr <node address> | -alias <node alias>}\n\n"
+                    "node link {add | del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
                     "node alias -addr <node address> -alias <node alias>\n\n"
                     "node connect {<node address> | -alias <node alias> | auto}\n\n"
                     "node handshake {<node address> | -alias <node alias>}\n"
@@ -958,7 +958,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
-            "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
+            "wallet {new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force] | list | info -addr <addr> -w <wallet_name> -net <net_name>}\n");
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, "Token update",
@@ -1083,8 +1083,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
             "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
-            "tx_cond_create -net <net name> -token <token ticker> -wallet <from wallet> -cert <public cert>"
-                                        "-value <value datoshi> -unit <mb | kb | b | sec | day> -srv_uid <numeric uid>\n" );
+            "tx_cond_create -net <net name> -token <token ticker> -wallet <from wallet> -cert <public cert>-value <value datoshi> -unit {mb | kb | b | sec | day} -srv_uid <numeric uid>\n" );
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
             "tx_verify -net <net name> -chain <chain name> -tx <tx_hash>\n" );
 

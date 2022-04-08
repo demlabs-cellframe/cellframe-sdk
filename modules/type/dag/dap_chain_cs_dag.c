@@ -145,16 +145,16 @@ int dap_chain_cs_dag_init(void)
     s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
 
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, "DAG commands",
-        "dag -net <chain net name> -chain <chain name> event create -datum <datum hash> [-H hex|base58(default)]\n"
+        "dag -net <chain net name> -chain <chain name> event create -datum <datum hash> [-H {hex | base58(default)}]\n"
             "\tCreate event from datum mempool element\n\n"
         "dag -net <chain net name> -chain <chain name> event cancel -event <event hash>\n"
             "\tRemove event from forming new round and put back its datum to mempool\n\n"
         "dag -net <chain net name> -chain <chain name> event sign -event <event hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag -net <chain net name> -chain <chain name> event dump -event <event hash> -from < events | events_lasts | round.new  | round.<Round id in hex> > [-H hex|base58(default)]\n"
+        "dag -net <chain net name> -chain <chain name> event dump -event <event hash> -from {events | events_lasts | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag -net <chain net name> -chain <chain name> event list -from < events | events_lasts | round.new  | round.<Round id in hex> \n\n"
+        "dag -net <chain net name> -chain <chain name> event list -from {events | events_lasts | round.new | round.<Round id in hex>}\n\n"
             "\tShow event list \n\n"
         "dag -net <chain net name> -chain <chain name> round complete\n\n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
