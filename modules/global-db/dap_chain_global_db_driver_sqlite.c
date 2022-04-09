@@ -276,7 +276,7 @@ struct  timespec tmo = {0, 500 * 1024 /* ~0.5 sec */}, delta;
              && (l_rc != SQLITE_BUSY) )
             break;
 
-        log_it (L_ERROR, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_db, l_query);
+        log_it (L_WARNING, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_db, l_query);
 
         for ( delta = tmo; nanosleep(&delta, &delta); );                        /* Wait some time ... */
     }
@@ -526,21 +526,24 @@ int l_rc;
 static int s_dap_db_driver_sqlite_end_transaction(void)
 {
 int l_rc;
+struct conn_pool_item *l_conn;
 
     if ( !s_trans)
         return  log_it(L_ERROR, "No active TX!"), -666;
 
+    l_conn = s_trans;
+    s_trans = NULL;                                                         /* Zeroing current TX's context until
+                                                                              it's protected by the mutex ! */
 
     log_it(L_DEBUG, "End TX l_conn: @%p", s_trans);
 
-    assert ( !pthread_mutex_unlock(&s_trans_mtx) );
+    assert ( !pthread_mutex_unlock(&s_trans_mtx) );                         /* Free TX context to other ... */
 
     assert ( !pthread_mutex_lock(&s_db_mtx) );
-    l_rc = s_dap_db_driver_sqlite_exec(s_trans->conn, "COMMIT", NULL);
+    l_rc = s_dap_db_driver_sqlite_exec(l_conn->conn, "COMMIT", NULL);
     assert ( ! pthread_mutex_unlock(&s_db_mtx) );
 
-    s_sqlite_free_connection(s_trans);
-    s_trans = NULL;
+    s_sqlite_free_connection(l_conn);
 
     return  ( l_rc == SQLITE_OK ) ? 0 : -l_rc;
 }
