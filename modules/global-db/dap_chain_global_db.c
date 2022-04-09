@@ -411,25 +411,33 @@ int	l_res = 0;
  */
 time_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
 {
-    time_t l_timestamp = 0;
+time_t l_timestamp = 0;
+dap_store_obj_t store_data = {0};
+char    l_group [512];
+size_t l_count_out = 0;
+dap_store_obj_t *l_obj;
+
     if(!a_key)
         return l_timestamp;
-    dap_store_obj_t store_data;
-    memset(&store_data, 0, sizeof(dap_store_obj_t));
+
     store_data.key = a_key;
-    // store_data->c_key = a_key;
-    store_data.group = dap_strdup_printf("%s.del", a_group);
-    //store_data->c_group = a_group;
+    dap_snprintf(l_group, sizeof(l_group) - 1,  "%s.del", a_group);
+    store_data.group = l_group;
+
     lock();
-    if (dap_chain_global_db_driver_is(store_data.group, store_data.key)) {
-        size_t l_count_out = 0;
-        dap_store_obj_t *l_obj = dap_chain_global_db_driver_read(store_data.group, store_data.key, &l_count_out);
-        assert(l_count_out <= 1);
-        l_timestamp = l_obj->timestamp;
-        dap_store_obj_free(l_obj, l_count_out);
+    if (dap_chain_global_db_driver_is(store_data.group, store_data.key))
+    {
+        if ( (l_obj = dap_chain_global_db_driver_read(store_data.group, store_data.key, &l_count_out)) )
+        {
+            if ( (l_count_out > 1) )
+                log_it(L_WARNING, "Got more then 1 records (%zu) for group '%s'", l_count_out, l_group);
+
+            l_timestamp = l_obj->timestamp;
+            dap_store_obj_free(l_obj, l_count_out);
+        }
     }
     unlock();
-    DAP_DELETE((char *)store_data.group);
+
     return l_timestamp;
 }
 

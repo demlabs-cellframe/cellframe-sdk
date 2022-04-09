@@ -60,8 +60,7 @@ typedef struct dap_cert {
 extern "C" {
 #endif
 
-int dap_cert_init();
-
+int dap_cert_init(u_int q);
 
 dap_cert_t * dap_cert_new(const char * a_name);
 

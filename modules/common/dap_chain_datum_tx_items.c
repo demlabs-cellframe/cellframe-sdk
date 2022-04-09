@@ -422,19 +422,21 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
  */
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count)
 {
-    dap_list_t *items_list = NULL;
-    int l_items_count = 0, l_item_idx_start = 0;
+dap_list_t *items_list = NULL;
+int l_items_count = 0, l_item_idx_start = 0;
+uint8_t *l_tx_item;
+
     // Get sign item from transaction
-    while(1) {
-        uint8_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL);
-        if(!l_tx_item)
-            break;
+    while ( l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL) )
+    {
         items_list = dap_list_append(items_list, l_tx_item);
         l_items_count++;
         l_item_idx_start++;
     }
+
     if(a_item_count)
         *a_item_count = l_items_count;
+
     return items_list;
 }
 
