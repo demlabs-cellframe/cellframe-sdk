@@ -1223,6 +1223,25 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     }
     for (size_t i = 0; i < a_datums_count; i++) {
         size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
+
+        dap_chain_datum_t * l_datum = a_datums[i];
+        if(l_datum == NULL){ // Was wrong datum thats not passed checks
+            log_it(L_WARNING,"Datum in mempool processing comes NULL");
+            continue;
+        }
+
+        // Verify for correctness
+        dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
+        int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+        if (l_verify_datum != 0 &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
+            log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
+                                     l_verify_datum);
+            continue;
+        }
+
         if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum) {
             s_new_block_complete(l_blocks);
             pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
