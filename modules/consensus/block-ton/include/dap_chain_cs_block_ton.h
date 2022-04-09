@@ -61,8 +61,6 @@ typedef struct dap_chain_cs_block_ton_items {
 	dap_chain_cs_block_ton_t *ton;
 
 	dap_chain_node_addr_t *my_addr;
-	
-	// dap_list_t *seed_nodes_addrs; // dap_chain_node_addr_t
 
     dap_chain_block_t *my_candidate;
     size_t my_candidate_size;
