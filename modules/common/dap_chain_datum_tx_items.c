@@ -427,7 +427,7 @@ int l_items_count = 0, l_item_idx_start = 0;
 uint8_t *l_tx_item;
 
     // Get sign item from transaction
-    while ( l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL) )
+    while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL)) != NULL)
     {
         items_list = dap_list_append(items_list, l_tx_item);
         l_items_count++;

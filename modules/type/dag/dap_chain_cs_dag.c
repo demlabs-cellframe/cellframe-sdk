@@ -1726,16 +1726,18 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                             dap_string_append_printf(l_str_tmp,"\t\t\t\tERROR: wrong sign size 0, stop parsing headers\n");
                             break;
                         }
-                        dap_chain_addr_t l_addr = {0};
                         dap_chain_hash_fast_t l_pkey_hash;
+                        char *l_hash_str;
                         dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                        dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
-                        char * l_addr_str = dap_chain_addr_to_str(&l_addr);
-                        dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype: %s\taddr: %s"
+                        if (!dap_strcmp(l_hash_out_type, "hex"))
+                            l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+                        else
+                            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\ttype: %s\tpkey_hash: %s"
                                                            "\n", dap_sign_type_to_str( l_sign->header.type ),
-                                                 l_addr_str );
+                                                 l_hash_str );
                         l_offset += l_sign_size;
-                        DAP_DELETE( l_addr_str);
+                        DAP_DELETE( l_hash_str);
                     }
                     dap_chain_datum_dump(l_str_tmp, l_datum, l_hash_out_type);
 

@@ -145,7 +145,16 @@ static int s_callback_presign_test(dap_chain_t *a_chain,
 // dap_chain_cs_dag_poa_presign_callback_set(l_dag->chain,
 //            (dap_chain_cs_dag_poa_callback_t)s_callback_presign_test, "Presign callback test");
 */
-void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_cs_dag_poa_callback_t a_callback, void *a_arg){
+void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_cs_dag_poa_callback_t a_callback, void *a_arg)
+{
+    if (!a_chain) {
+        log_it(L_ERROR, "NULL with chain argument for setting presign callback");
+        return;
+    }
+    if (!a_callback) {
+        log_it(L_ERROR, "Trying to set NULL presign callback");
+        return;
+    }
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(l_dag));
     l_poa_pvt->callback_pre_sign =
