@@ -27,6 +27,7 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
+#include "dap_chain_datum_tx.h"
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
@@ -157,3 +158,10 @@ static inline const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
     DAP_DATUM_TYPE_STR(a_type_id,l_ret);
     return l_ret;
 }
+
+void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
+bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
+                             const char *a_ticker,
+                             dap_string_t *a_str_out,
+                             const char *a_hash_out_type,
+                             dap_hash_fast_t *a_tx_hash);

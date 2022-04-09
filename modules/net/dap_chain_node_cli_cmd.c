@@ -2180,7 +2180,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_string_append_printf(a_str_tmp, "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
                     l_objs[i].key, l_type,
                     l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
-            dap_chain_net_dump_datum(a_str_tmp, l_datum, a_hash_out_type);
+            dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
         }
         dap_chain_global_db_objs_delete(l_objs, l_objs_size);
     }
@@ -2584,7 +2584,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
                     dap_tsd_t * l_tsd;
                     uint256_t l_param_value = dap_chain_balance_scan(l_arg_param);
                     l_tsd = dap_tsd_create_scalar(
-                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256, l_param_value);
+                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
                     l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
@@ -2970,7 +2970,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     dap_tsd_t * l_tsd;
                     uint256_t l_param_value = dap_chain_balance_scan(l_arg_param);
                     l_tsd = dap_tsd_create_scalar(
-                                    DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256, l_param_value);
+                                    DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     l_tsd_list = dap_list_append( l_tsd_list, l_tsd);
                     l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
@@ -3065,7 +3065,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     continue;
                 }
                 switch (l_tsd->type){
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256: { // 256
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
                         char *l_balance;
                         l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint256_t));
                         log_it(L_DEBUG,"== TOTAL_SUPPLY: %s", l_balance);

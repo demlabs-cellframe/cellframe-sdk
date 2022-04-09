@@ -1737,7 +1737,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         l_offset += l_sign_size;
                         DAP_DELETE( l_addr_str);
                     }
-                    dap_chain_net_dump_datum(l_str_tmp, l_datum, l_hash_out_type);
+                    dap_chain_datum_dump(l_str_tmp, l_datum, l_hash_out_type);
 
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);

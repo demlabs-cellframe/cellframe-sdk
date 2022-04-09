@@ -28,6 +28,7 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
 #include "dap_uuid.h"
+#include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_chain_datum_token"
 
@@ -137,7 +138,8 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
  * @param a_data_n_tsd
  * @param a_certs_size
  */
-void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size) {
+void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size, const char *a_hash_out_type)
+{
     dap_string_append_printf(a_str_out, "signatures: ");
     if (!a_certs_size) {
         dap_string_append_printf(a_str_out, "<NONE>\n");
@@ -161,7 +163,11 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
             continue;
         }
 
-        char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+        char *l_hash_str = NULL;
+        if(!dap_strcmp(a_hash_out_type, "hex"))
+            l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+        else
+            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
 
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
