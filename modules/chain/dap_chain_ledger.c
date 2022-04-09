@@ -1063,8 +1063,10 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         const char *c_token_ticker = ((dap_chain_datum_token_emission_t *)l_objs[i].value)->hdr.ticker;
         dap_chain_ledger_token_item_t *l_token_item = NULL;
         HASH_FIND_STR(l_ledger_pvt->tokens, c_token_ticker, l_token_item);
-        l_emission_item->datum_token_emission = DAP_DUP_SIZE(l_objs[i].value, l_objs[i].value_len);
-        l_emission_item->datum_token_emission_size = l_objs[i].value_len;
+        memcpy(&l_emission_item->tx_used_out, l_objs[i].value, sizeof(dap_hash_fast_t));
+        l_emission_item->datum_token_emission = DAP_DUP_SIZE(l_objs[i].value + sizeof(dap_hash_fast_t),
+                                                             l_objs[i].value_len - sizeof(dap_hash_fast_t));
+        l_emission_item->datum_token_emission_size = l_objs[i].value_len - sizeof(dap_hash_fast_t);
         if (l_token_item)
             HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash,
                      sizeof(dap_chain_hash_fast_t), l_emission_item);
@@ -1329,9 +1331,13 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
             // Add it to cache
             char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_EMISSIONS_STR);
-            if (!dap_chain_global_db_gr_set(l_hash_str, a_token_emission, a_token_emission_size,l_gdb_group)) {
+            size_t l_cache_size = a_token_emission_size + sizeof(dap_hash_fast_t);
+            uint8_t *l_cache = DAP_NEW_Z_SIZE(uint8_t, l_cache_size);
+            memcpy(l_cache + sizeof(dap_hash_fast_t), a_token_emission, a_token_emission_size);
+            if (!dap_chain_global_db_gr_set(l_hash_str, l_cache, l_cache_size, l_gdb_group)) {
                 log_it(L_WARNING, "Ledger cache mismatch");
             }
+            DAP_DELETE(l_cache);
             DAP_DELETE(l_gdb_group);
             if(s_debug_more) {
                 char * l_token_emission_address_str = dap_chain_addr_to_str(&(l_token_emission_item->datum_token_emission->hdr.address));
@@ -2348,7 +2354,22 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         if (l_type == TX_ITEM_TYPE_IN) {
             dap_chain_tx_in_t *l_tx_in = bound_item->in.tx_cur_in;
             if (dap_hash_fast_is_blank(&l_tx_in->header.tx_prev_hash)) { // It's the emission behind
+                // Mark it as used with base tx hash
                 memcpy(&bound_item->item_emission->tx_used_out, a_tx_hash, sizeof(dap_chain_hash_fast_t));
+                // Mirror it in cache
+                char *l_hash_str = dap_chain_hash_fast_to_str_new(&bound_item->item_emission->datum_token_emission_hash);
+                size_t l_emission_size = bound_item->item_emission->datum_token_emission_size;
+                char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_EMISSIONS_STR);
+                size_t l_cache_size = l_emission_size + sizeof(dap_hash_fast_t);
+                uint8_t *l_cache = DAP_NEW_Z_SIZE(uint8_t, l_cache_size);
+                memcpy(l_cache, a_tx_hash, sizeof(dap_hash_fast_t));
+                memcpy(l_cache + sizeof(dap_hash_fast_t), bound_item->item_emission->datum_token_emission, l_emission_size);
+                if (!dap_chain_global_db_gr_set(l_hash_str, l_cache, l_cache_size, l_gdb_group)) {
+                    log_it(L_WARNING, "Ledger cache mismatch");
+                }
+                DAP_DELETE(l_hash_str);
+                DAP_DELETE(l_cache);
+                DAP_DELETE(l_gdb_group);
                 l_list_tmp = dap_list_next(l_list_tmp);
                 i--;    // Do not calc this output with tx used items
                 l_outs_used--;
