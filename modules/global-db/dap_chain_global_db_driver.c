@@ -206,7 +206,7 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count){
 
     dap_store_obj_t *l_store_obj_cur = a_store_obj;
 
-    for (int  i = a_store_count; i--; l_store_obj_cur++ ) {
+    for ( ; a_store_count--; l_store_obj_cur++ ) {
         DAP_DEL_Z(l_store_obj_cur->group);
         DAP_DEL_Z(l_store_obj_cur->key);
         DAP_DEL_Z(l_store_obj_cur->value);

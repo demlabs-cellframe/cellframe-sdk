@@ -330,8 +330,9 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
     l_ret_value = l_store_data->value && l_store_data->value_len
             ? DAP_DUP_SIZE(l_store_data->value, l_store_data->value_len)
             : NULL;
-    *a_data_len_out = l_store_data->value_len;
+    l_data_len_out = l_store_data->value_len;
     dap_store_obj_free(l_store_data, *a_data_len_out);
+    *a_data_len_out = l_data_len_out;
     return l_ret_value;
 }
 
@@ -497,16 +498,17 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
 
     dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
                                                  (*a_data_size_out + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
+    if (!l_data) {
+        dap_store_obj_free(l_store_obj, *a_data_size_out);
+        return NULL;
+    }
+
     for(size_t i = 0; i < *a_data_size_out; i++) {
         l_data[i] = (dap_global_db_obj_t) {
                 .key = dap_strdup(l_store_obj[i].key),
                 .value_len = l_store_obj[i].value_len,
                 .value = DAP_DUP_SIZE(l_store_obj[i].value, l_store_obj[i].value_len)
         };
-        l_data[i].key = dap_strdup(l_store_obj[i].key);
-        l_data[i].value_len = l_store_obj[i].value_len;
-        l_data[i].value = DAP_NEW_Z_SIZE(uint8_t, l_store_obj[i].value_len + 1);
-        memcpy(l_data[i].value, l_store_obj[i].value, l_store_obj[i].value_len);
     }
     dap_store_obj_free(l_store_obj, *a_data_size_out);
     return l_data;
