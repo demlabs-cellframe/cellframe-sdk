@@ -267,7 +267,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         char * gdb_group = dap_strdup_printf( "%s-%s-round", l_net->pub.gdb_groups_prefix, a_chain->name);
         l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", gdb_group, l_round_new_str);
         dap_chain_global_db_add_sync_group(gdb_group, s_history_callback_round_notify, l_dag);
-    }else {
+    } else {
         char * gdb_group = dap_strdup_printf( "%s-%s-%016llx-round", l_net->pub.gdb_groups_prefix, a_chain->name, 0);//a_chain->cells->id.uint64);
         l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", gdb_group, l_round_new_str);
         dap_chain_global_db_add_sync_group(gdb_group, s_history_callback_round_notify, l_dag);

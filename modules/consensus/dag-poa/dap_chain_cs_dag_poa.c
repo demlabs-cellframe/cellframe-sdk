@@ -349,21 +349,24 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->callback_cs_verify = s_callback_event_verify;
     l_dag->callback_cs_event_create = s_callback_event_create;
     l_dag->callback_cs_get_round_info = s_callback_get_round_info;
-    l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
     l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_poa_pvt_t );
-
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( l_poa );
-    if (dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") ) {
+    // PoA rounds
+    l_poa_pvt->confirmations_timeout = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","confirmations_timeout",600);
+    l_poa_pvt->auto_confirmation = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_confirmation",true);
+    l_poa_pvt->auto_round_complete = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_round_complete",true);
+    l_poa_pvt->wait_sync_before_complete = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","wait_sync_before_complete",180);
+    dap_chain_net_t *l_cur_net = dap_chain_net_by_name(a_chain->net_name);
+    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
+    if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT)
+        l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
+    // PoA certs
+    l_poa_pvt->auth_certs_prefix = dap_strdup(dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix"));
+    if (l_poa_pvt->auth_certs_prefix) {
         l_poa_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
         l_poa_pvt->auth_certs_count_verify = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number_verify",0);
-        l_poa_pvt->confirmations_timeout = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","confirmations_timeout",600);
-        l_poa_pvt->auto_confirmation = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_confirmation",true);
-        l_poa_pvt->auto_round_complete = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_round_complete",true);
-        l_poa_pvt->wait_sync_before_complete = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","wait_sync_before_complete",180);
-        l_poa_pvt->auth_certs_prefix = strdup ( dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix") );
-        if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify ) {
-            // Type sizeof's misunderstanding in malloc?
-            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t));
+        if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify) {
+            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
                 dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
@@ -379,9 +382,6 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         }
     }
     log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
-    // Save old callback if present and set the call of its own (chain callbacks)
-    l_poa_pvt->callback_pre_sign = NULL;
-    l_poa_pvt->prev_callback_created = l_dag->chain->callback_created;
     l_dag->chain->callback_created = s_callback_created;
 
     return 0;
