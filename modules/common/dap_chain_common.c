@@ -351,13 +351,40 @@ int l_strlen, l_len;
         l_cp = l_buf + l_len;                                               /* Move last 18 symbols to one position right */
         memmove(l_cp + 1, l_cp, DATOSHI_DEGREE_18);
         *l_cp = '.';                                                        /* Insert '.' separator */
+
+        l_strlen++;                                                         /* Adjust string len in the buffer */
     } else {
         l_len = DATOSHI_DEGREE_18 - l_strlen + 2;                           /* Add leading "0." */
         l_cp = l_buf;
         memmove(l_cp + 2, l_cp, l_len);                                     /* Move last 18 symbols to 2 positions right */
         *(l_cp++) = '0';
         *(l_cp++) = '.';
+
+        l_strlen += 2;                                                      /* Adjust string len in the buffer */
     }
+
+    if ( *(l_cp = l_buf) == '0' )                                           /* Is there lead zeroes ? */
+    {
+        /* 000000000000000000000.000000000000000001 */
+        /* 000000000000000000123.000000000000000001 */
+        for ( l_cp += 1; *l_cp == '0'; l_cp++);                             /* Skip all '0' symbols */
+
+        if ( *l_cp == '.' )                                                 /* l_cp point to separator - then step back */
+            l_cp--;
+
+        if ( (l_len = (l_cp - l_buf)) )
+        {
+            l_len = l_strlen - l_len;                                       /* A part of the buffer to be moved to begin */
+            memmove(l_buf, l_cp, l_len);                                    /* Move and terminated by zero */
+            l_buf[l_len] = '\0';
+        }
+
+        l_strlen = l_len;                                                   /* Adjust string len in the buffer */
+    }
+
+    for ( l_cp = l_buf + l_strlen -1; *l_cp == '0'; l_cp--)
+        *l_cp = '\0';
+
 
     return l_buf;
 }
@@ -560,6 +587,8 @@ uint256_t l_nul = {0};
     *(l_point + l_pos) = '\0';
 
     /* Add trailer zeros:
+     *                pos
+     *                 |
      * 123456 -> 12345600...000
      *           ^            ^
      *           |            |
@@ -588,10 +617,8 @@ uint256_t l_nul = {0};
 char *dap_cvt_uint256_to_str (uint256_t a_uint256)
 {
 char *l_buf, *l_cp, *l_cp2, *l_cps, *l_cpe, l_chr;
-int     l_len, l_pos;
+int     l_len;
 uint128_t l_nibble;
-uint64_t t, q;
-uint32_t l_tmp[4];
 
 
     l_len = (DAP_CHAIN$SZ_MAX256DEC + 8) & (~7);                            /* Align size of the buffer to 8 bytes */
@@ -702,10 +729,10 @@ uint32_t l_tmp[4];
 
         } while (l_tmp[2]);
 
-        l_pos = l_len_hi / 2;                                                   /* A number of swaps */
-        l_cpe = l_cp - 1;                                                       /* -- // -- to tail of the string */
+        l_pos = l_len_hi / 2;                                               /* A number of swaps */
+        l_cpe = l_cp - 1;                                                   /* -- // -- to tail of the string */
 
-        for (int i = l_pos; i--; l_cps++, l_cpe--)                              /* Do swaps ... */
+        for (int i = l_pos; i--; l_cps++, l_cpe--)                          /* Do swaps ... */
         {
             l_chr = *l_cps;
             *l_cps = *l_cpe;
@@ -752,7 +779,7 @@ uint32_t l_tmp[4];
         *l_cpe = l_chr;
     }
 
-    if (  l_len_hi && (DAP_CHAIN$SZ_MAX128DEC > l_len_lo) )                    /* Do we need to add leading zeroes ? */
+    if (  l_len_hi && (DAP_CHAIN$SZ_MAX128DEC > l_len_lo) )                 /* Do we need to add leading zeroes ? */
     {
         /* "123456" -> 123000...000456" */
         memmove(l_cp2 + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp2, l_len_lo);
@@ -825,7 +852,7 @@ char *dap_chain_balance_to_coins(uint256_t a_balance)
 }
 
 
-//#define __NEW_STARLET__ "BMF"
+#define __NEW_STARLET__ "BMF"
 #ifdef  __NEW_STARLET__
 
 
@@ -956,9 +983,20 @@ const   uint256_t uint256_zero = {0};
     cp = dap_chain_balance_print(uint256);
     free(cp);
 
-    cp = dap_chain_balance_to_coins256(uint256);
+    uint256 = uint256_zero;
+    uint256.__lo.c = 1;
+    cp = dap_chain_balance_to_coins(uint256);
     uint256 = dap_chain_coins_to_balance(cp);
     free(cp);
+
+    uint256 = uint256_zero;
+    uint256.__lo.c = 100000000;
+    cp = dap_chain_balance_to_coins(uint256);
+    uint256 = dap_chain_coins_to_balance(cp);
+    free(cp);
+
+
+
 
     cp = dap_chain_balance_print333(uint256);
     free(cp);
