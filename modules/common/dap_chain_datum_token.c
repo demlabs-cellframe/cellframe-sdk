@@ -241,7 +241,8 @@ size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial)
         l_ret = sizeof(l_emission->hdr);
     }
     if (l_emission->hdr.type == DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH) {
-        l_ret += l_emission->data.type_auth.size;
+        uint64_t l_size = *(uint64_t *)(a_emission_serial + l_ret);
+        l_ret += l_size;
     }
     l_ret += sizeof(l_emission->data);
     return l_ret;
