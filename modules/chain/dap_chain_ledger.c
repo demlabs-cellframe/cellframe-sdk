@@ -2465,7 +2465,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 uint8_t *l_cache = DAP_NEW_Z_SIZE(uint8_t, l_cache_size);
                 memcpy(l_cache, a_tx_hash, sizeof(dap_hash_fast_t));
                 memcpy(l_cache + sizeof(dap_hash_fast_t), bound_item->item_emission->datum_token_emission, l_emission_size);
-                if (!dap_chain_global_db_gr_set(l_hash_str, l_cache, l_cache_size, l_gdb_group)) {
+                if (!dap_chain_global_db_gr_set(l_hash_str, l_cache, l_cache_size, l_ems_group)) {
                     log_it(L_WARNING, "Ledger cache mismatch");
                 }
                 DAP_DELETE(l_hash_str);

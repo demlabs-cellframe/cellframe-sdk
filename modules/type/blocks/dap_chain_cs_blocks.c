@@ -129,6 +129,8 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );  
 
 static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count);
 
+static void s_callback_cs_blocks_purge(dap_chain_t *a_chain);
+
 static void s_new_block_delete(dap_chain_cs_blocks_t *a_blocks);
 
 static bool s_seed_mode=false;
@@ -213,6 +215,7 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     a_chain->callback_tx_find_by_hash = s_callback_atom_iter_find_by_tx_hash;
 
     a_chain->callback_add_datums = s_callback_add_datums;
+    a_chain->callback_purge = s_callback_cs_blocks_purge;
 
     l_cs_blocks->callback_new_block_del = s_new_block_delete;
 
@@ -603,6 +606,21 @@ static void s_callback_delete(dap_chain_t * a_chain)
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks );
     DAP_DEL_Z(l_blocks->_pvt)
     log_it(L_INFO, "Block destructed");
+}
+
+static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    dap_chain_block_cache_t *l_block, *l_block_tmp;
+    HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
+        HASH_DEL(PVT(l_blocks)->blocks, l_block);
+        DAP_DELETE(l_block->block);
+        DAP_DELETE(l_block);
+    }
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
+    PVT(l_blocks)->chunks = DAP_NEW_Z(dap_chain_block_chunks_t);
 }
 
 /**
