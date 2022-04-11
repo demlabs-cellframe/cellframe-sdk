@@ -1345,46 +1345,32 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
     PVT(ret)->state_proc_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
 #endif
 
-    if ( sscanf(a_id,"0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64 ) == 1 ){
-        if (strcmp (a_node_role, "root_master")==0){
-            PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
-            log_it (L_NOTICE, "Node role \"root master\" selected");
-        } else if (strcmp( a_node_role,"root") == 0){
-            PVT(ret)->node_role.enums = NODE_ROLE_ROOT;
-            log_it (L_NOTICE, "Node role \"root\" selected");
-
-        } else if (strcmp( a_node_role,"archive") == 0){
-            PVT(ret)->node_role.enums = NODE_ROLE_ARCHIVE;
-            log_it (L_NOTICE, "Node role \"archive\" selected");
-
-        } else if (strcmp( a_node_role,"cell_master") == 0){
-            PVT(ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
-            log_it (L_NOTICE, "Node role \"cell master\" selected");
-
-        }else if (strcmp( a_node_role,"master") == 0){
-            PVT(ret)->node_role.enums = NODE_ROLE_MASTER;
-            log_it (L_NOTICE, "Node role \"master\" selected");
-
-        }else if (strcmp( a_node_role,"full") == 0){
-            PVT(ret)->node_role.enums = NODE_ROLE_FULL;
-            log_it (L_NOTICE, "Node role \"full\" selected");
-
-        }else if (strcmp( a_node_role,"light") == 0){
-            PVT(ret)->node_role.enums = NODE_ROLE_LIGHT;
-            log_it (L_NOTICE, "Node role \"light\" selected");
-
-        }else{
-            log_it(L_ERROR,"Unknown node role \"%s\"",a_node_role);
-            DAP_DELETE(ret);
-            return  NULL;
-        }
-    } else {
+    if (sscanf(a_id,"0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64 ) != 1) {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
         DAP_DELETE(ret);
-        return  NULL;
+        return NULL;
     }
+    if (strcmp (a_node_role, "root_master")==0){
+        PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
+    } else if (strcmp( a_node_role,"root") == 0){
+        PVT(ret)->node_role.enums = NODE_ROLE_ROOT;
+    } else if (strcmp( a_node_role,"archive") == 0){
+        PVT(ret)->node_role.enums = NODE_ROLE_ARCHIVE;
+    } else if (strcmp( a_node_role,"cell_master") == 0){
+        PVT(ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
+    }else if (strcmp( a_node_role,"master") == 0){
+        PVT(ret)->node_role.enums = NODE_ROLE_MASTER;
+    }else if (strcmp( a_node_role,"full") == 0){
+        PVT(ret)->node_role.enums = NODE_ROLE_FULL;
+    }else if (strcmp( a_node_role,"light") == 0){
+        PVT(ret)->node_role.enums = NODE_ROLE_LIGHT;
+    }else{
+        log_it(L_ERROR,"Unknown node role \"%s\" for network '%s'", a_node_role, a_name);
+        DAP_DELETE(ret);
+        return NULL;
+    }
+    log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, a_name);
     return ret;
-
 }
 
 /**

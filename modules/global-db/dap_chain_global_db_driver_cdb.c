@@ -627,6 +627,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
             log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
             ret = -1;
         }
+        cdb_flushalldpage(l_cdb_i->cdb);
         DAP_DELETE(l_rec.val);
     } else if(a_store_obj->type == DAP_DB$K_OPTYPE_DEL) {
         if(a_store_obj->key) {
