@@ -630,8 +630,11 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             return -1;
         } else {
             dap_string_append_printf(l_string_reply, "Got %zu records:\n", l_nodes_count);
+            size_t l_data_size = 0;
+            // read all aliases
+            dap_global_db_obj_t *l_aliases_objs = dap_chain_global_db_gr_load(a_net->pub.gdb_nodes_aliases, &l_data_size);
             for(size_t i = 0; i < l_nodes_count; i++) {
-                dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
+                dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
                 // read node
                 dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, &l_node_info->hdr.address, NULL);
                 if (!node_info_read)
@@ -647,19 +650,19 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 
                 // get aliases in form of string
                 dap_string_t *aliases_string = dap_string_new(NULL);
-                dap_list_t *list_aliases = get_aliases_by_name(a_net, &node_info_read->hdr.address);
-                if(list_aliases)
-                {
-                    dap_list_t *list = list_aliases;
-                    while(list)
-                    {
-                        const char *alias = (const char *) list->data;
-                        dap_string_append_printf(aliases_string, "\nalias %s", alias);
-                        list = dap_list_next(list);
+
+                for (size_t i = 0; i < l_data_size; i++) {
+                    //dap_chain_node_addr_t addr_i;
+                    dap_global_db_obj_t *l_obj = l_aliases_objs + i;
+                    if (!l_obj)
+                        break;
+                    dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *)l_obj->value;
+                    if (l_addr && l_obj->value_len == sizeof(dap_chain_node_addr_t) &&
+                            node_info_read->hdr.address.uint64 == l_addr->uint64) {
+                        dap_string_append_printf(aliases_string, "\nalias %s", l_obj->key);
                     }
-                    dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
                 }
-                else
+                if (!l_data_size)
                     dap_string_append(aliases_string, "\nno aliases");
 
                 // get links in form of string
@@ -696,6 +699,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 dap_string_free(links_string, true);
                 DAP_DELETE(node_info_read);
             }
+            dap_chain_global_db_objs_delete(l_aliases_objs, l_data_size);
         }
         dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
     }
@@ -2176,7 +2180,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_string_append_printf(a_str_tmp, "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
                     l_objs[i].key, l_type,
                     l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
-            dap_chain_net_dump_datum(a_str_tmp, l_datum, a_hash_out_type);
+            dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
         }
         dap_chain_global_db_objs_delete(l_objs, l_objs_size);
     }
@@ -2580,7 +2584,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
                     dap_tsd_t * l_tsd;
                     uint256_t l_param_value = dap_chain_balance_scan(l_arg_param);
                     l_tsd = dap_tsd_create_scalar(
-                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256, l_param_value);
+                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     dap_list_append( l_tsd_list, l_tsd);
                     l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
@@ -2966,7 +2970,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     dap_tsd_t * l_tsd;
                     uint256_t l_param_value = dap_chain_balance_scan(l_arg_param);
                     l_tsd = dap_tsd_create_scalar(
-                                    DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256, l_param_value);
+                                    DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
                     l_tsd_list = dap_list_append( l_tsd_list, l_tsd);
                     l_tsd_total_size+= dap_tsd_size( l_tsd);
                 }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
@@ -3061,7 +3065,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     continue;
                 }
                 switch (l_tsd->type){
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256: { // 256
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
                         char *l_balance;
                         l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint256_t));
                         log_it(L_DEBUG,"== TOTAL_SUPPLY: %s", l_balance);

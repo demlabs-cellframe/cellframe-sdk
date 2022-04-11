@@ -912,6 +912,8 @@ int tesla_crypto_sign_open( tesla_signature_t *sig, const unsigned char *m, unsi
     decode_sig(c, z, sig->sig_data, p);
 
     if (test_z(z, p) != 0) {
+        free(c);
+        free(c_sig);
         free(p);
         free(seed);
         free(pos_list);

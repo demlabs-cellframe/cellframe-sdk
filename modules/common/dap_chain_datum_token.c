@@ -28,6 +28,7 @@
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_token.h"
 #include "dap_uuid.h"
+#include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_chain_datum_token"
 
@@ -137,7 +138,8 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
  * @param a_data_n_tsd
  * @param a_certs_size
  */
-void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size) {
+void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size, const char *a_hash_out_type)
+{
     dap_string_append_printf(a_str_out, "signatures: ");
     if (!a_certs_size) {
         dap_string_append_printf(a_str_out, "<NONE>\n");
@@ -161,7 +163,11 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
             continue;
         }
 
-        char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+        char *l_hash_str = NULL;
+        if(!dap_strcmp(a_hash_out_type, "hex"))
+            l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+        else
+            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
 
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
@@ -283,6 +289,23 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_dat
     l_emission->data.type_auth.tsd_total_size += l_tsd_size;
     l_emission->data.type_auth.size += l_tsd_size;
     return l_emission;
+}
+
+byte_t *dap_chain_emission_get_tsd(dap_chain_datum_token_emission_t *a_emission, int a_type, size_t *a_size)
+{
+    if (!a_emission || a_emission->hdr.type != DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH ||
+            a_emission->data.type_auth.tsd_total_size == 0)
+        return NULL;
+    dap_tsd_t *l_tsd = (dap_tsd_t *)a_emission->tsd_n_signs;
+    do {
+        if (l_tsd->type == a_type) {
+            if (a_size)
+                *a_size = l_tsd->size;
+            return l_tsd->data;
+        }
+        l_tsd = (dap_tsd_t *)((byte_t *)l_tsd + dap_tsd_size(l_tsd));
+    } while ((byte_t *)l_tsd < a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size);
+    return NULL;
 }
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_t *a_sign_key, dap_chain_datum_token_emission_t *a_emission)

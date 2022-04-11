@@ -44,7 +44,7 @@ typedef struct voting_node_client_list {
     dap_chain_node_client_t *node_client;
     dap_chain_node_addr_t node_addr;
     UT_hash_handle hh;
-} DAP_ALIGN_PACKED voting_node_client_list_t;
+} voting_node_client_list_t;
 
 static size_t s_pkt_in_callback_count = 0;
 static voting_pkt_in_callback_t s_pkt_in_callback[256]={{0}};

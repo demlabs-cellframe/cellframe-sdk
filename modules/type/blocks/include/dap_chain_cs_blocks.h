@@ -52,6 +52,8 @@ typedef struct dap_chain_cs_blocks
     dap_chain_cs_blocks_callback_block_create_t callback_block_create;
     dap_chain_cs_blocks_callback_block_t callback_block_verify;
     dap_chain_cs_blocks_callback_block_sign_t callback_block_sign;
+    dap_chain_cs_blocks_callback_t callback_new_block_del;
+
     void * _pvt;
     void * _inheritor;
 } dap_chain_cs_blocks_t;
