@@ -207,7 +207,11 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
  */
 int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
 {
-    s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
+    uint32_t l_cpu_count = dap_get_cpu_count();
+    if (a_threads_count > l_cpu_count)
+        a_threads_count = l_cpu_count;
+    
+    s_threads_count = a_threads_count ? a_threads_count : l_cpu_count;
 
     s_workers =  DAP_NEW_Z_SIZE(dap_worker_t*,s_threads_count*sizeof (dap_worker_t*) );
     s_threads = DAP_NEW_Z_SIZE(dap_thread_t, sizeof(dap_thread_t) * s_threads_count );
