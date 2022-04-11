@@ -1092,11 +1092,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
 
     // Ledger info
-    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger info",
+    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger information",
             "ledger list coins -net <network name>\n"
-            "ledger list coins_cond -net <network name>\n"
-            "ledger list addrs -net <network name>\n"
-            "ledger tx [all | -addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
+            "ledger list threshold -net <network name>\n"
+            "ledger info -hash <tx_hash> -net <network name> [-unspent]\n"
+            "ledger tx -all -net <network name>\n"
+            "ledger tx [-addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
 
     // Token info
     dap_chain_node_cli_cmd_item_create("token", com_token, "Token info",
