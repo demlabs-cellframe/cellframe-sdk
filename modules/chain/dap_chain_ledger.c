@@ -1917,7 +1917,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 log_it(L_WARNING, "Base TX is not signed by the same certificate as the emission");
                 l_err_num = -25;
                 break;
-            }*/ // temporary disabled
+            }*/ // Base TX can be unsigned so temporary disabled
             bound_item->item_emission = l_emission_item;
             l_list_bound_items = dap_list_append(l_list_bound_items, bound_item);
             break;
