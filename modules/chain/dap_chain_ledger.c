@@ -1883,12 +1883,13 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 log_it(L_WARNING, "Output addr of base TX must be equal emission addr");
                 break;
             }
+            // Base TX can be unsigned!
             // Match the signature of the emission with the transaction
-            if(!s_tx_match_sign(l_token_emission, a_tx)) {
-                log_it(L_WARNING, "Base TX is not signed by the same certificate as the emission");
-                l_err_num = -25;
-                break;
-            }
+            //if(!s_tx_match_sign(l_token_emission, a_tx)) {
+            //    log_it(L_WARNING, "Base TX is not signed by the same certificate as the emission");
+            //    l_err_num = -25;
+            //    break;
+            //}
             bound_item->item_emission = l_emission_item;
             l_list_bound_items = dap_list_append(l_list_bound_items, bound_item);
             break;
