@@ -1685,6 +1685,65 @@ static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_i
 }
 
 /**
+ * Match the signature of the emission with the transaction
+ *
+ * return true or false
+ */
+bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_chain_datum_tx_t *a_tx)
+{
+    bool l_ret_value = false;
+    if(!a_datum_emission || !a_tx) {
+        return false;
+    }
+    // First emission sign
+    dap_sign_t *l_emission_sign = (dap_sign_t*) (a_datum_emission->tsd_n_signs + a_datum_emission->data.type_auth.tsd_total_size);
+    size_t l_emission_sign_offset = (byte_t*) l_emission_sign - (byte_t*) a_datum_emission;
+    int l_emission_sign_num = a_datum_emission->data.type_auth.signs_count;
+
+    // Get all tx signs
+    int l_tx_sign_num = 0;
+    dap_list_t *l_list_sig = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_SIG, &l_tx_sign_num);
+
+    if(!l_emission_sign_num || !l_tx_sign_num)
+        return false;
+
+    size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t*) a_datum_emission);
+    dap_sign_t *l_sign = (dap_sign_t*) (a_datum_emission->tsd_n_signs + a_datum_emission->data.type_auth.tsd_total_size);
+    size_t l_offset = (byte_t*) l_sign - (byte_t*) a_datum_emission;
+    for(uint16_t i = 0; i < a_datum_emission->data.type_auth.signs_count && l_offset < l_emission_size; i++) {
+        if(dap_sign_verify_size(l_sign, l_emission_size - l_offset)) {
+            dap_chain_hash_fast_t l_sign_pkey_hash;
+            dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            l_offset += l_sign_size;
+            l_sign = (dap_sign_t*) ((byte_t*) a_datum_emission + l_offset);
+        } else
+            break;
+    }
+    // For each emission signs
+    for(int l_sign_em_num = 0; l_sign_em_num < l_emission_sign_num && l_emission_sign_offset < l_emission_size; l_sign_em_num++) {
+        // For each tx signs
+        for(dap_list_t *l_list_tmp = l_list_sig; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp)) {
+            dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) l_list_tmp->data;
+            // Get sign from sign item
+            dap_sign_t *l_tx_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*) l_tx_sig);
+            // Compare signs
+            if(dap_sign_match_pkey_signs(l_emission_sign, l_tx_sign)) {
+                dap_list_free(l_list_sig);
+                return true;
+            }
+        }
+        // Go to the next emission sign
+        size_t l_sign_size = dap_sign_get_size(l_emission_sign);
+        l_emission_sign_offset += l_sign_size;
+        l_emission_sign = (dap_sign_t*) ((byte_t*) a_datum_emission + l_emission_sign_offset);
+    }
+    dap_list_free(l_list_sig);
+    return false;
+}
+
+/**
  * Checking a new transaction before adding to the cache
  *
  * return 1 OK, -1 error
@@ -1822,6 +1881,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             if (memcmp(&l_token_emission->hdr.address, &l_out->addr, sizeof(dap_chain_addr_t))) {
                 l_err_num = -24;
                 log_it(L_WARNING, "Output addr of base TX must be equal emission addr");
+                break;
+            }
+            // Match the signature of the emission with the transaction
+            if(!s_tx_match_sign(l_token_emission, a_tx)) {
+                log_it(L_WARNING, "Base TX is not signed by the same certificate as the emission");
+                l_err_num = -25;
                 break;
             }
             bound_item->item_emission = l_emission_item;

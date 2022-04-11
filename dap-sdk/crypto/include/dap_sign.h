@@ -127,6 +127,7 @@ dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type);
 uint8_t* dap_sign_get_sign(dap_sign_t *a_sign, size_t *a_sign_out);
 uint8_t* dap_sign_get_pkey(dap_sign_t *a_sign, size_t *a_pub_key_out);
 bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_hash);
+bool dap_sign_match_pkey_signs(dap_sign_t *l_sign1, dap_sign_t *l_sign2);
 
 bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_key_size);
 dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign);
