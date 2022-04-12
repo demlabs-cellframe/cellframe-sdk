@@ -29,7 +29,6 @@
 #include <time.h>
 #include <assert.h>
 //#include <string.h>
-#include "dap_chain_global_db_hist.h"
 #include "dap_chain_global_db.h"
 #include "uthash.h"
 #include "dap_strfuncs.h"
@@ -66,15 +65,13 @@ static inline void unlock()
 typedef struct sync_group_item
 {
     char *group_mask;
-    char *group_name_for_history;
     dap_global_db_obj_callback_notify_t callback_notify;
     void * callback_arg;
-    UT_hash_handle hh;
 } sync_group_item_t;
 
 // Tacked group callbacks
-static sync_group_item_t *s_sync_group_items = NULL;
-static sync_group_item_t *s_sync_group_extra_items = NULL;
+static dap_list_t *s_sync_group_items = NULL;
+static dap_list_t *s_sync_group_extra_items = NULL;
 
 static int s_track_history = 0;
 
@@ -93,10 +90,9 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
 {
     sync_group_item_t * l_item = DAP_NEW_Z(sync_group_item_t);
     l_item->group_mask = dap_strdup_printf("%s.*", a_group_prefix);
-    l_item->group_name_for_history = dap_strdup(GROUP_LOCAL_HISTORY);
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
-    HASH_ADD_STR(s_sync_group_items, group_mask, l_item);
+    dap_list_append(s_sync_group_items, l_item);
 }
 
 /**
@@ -110,25 +106,9 @@ void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_glob
 {
     sync_group_item_t* l_item = DAP_NEW_Z(sync_group_item_t);
     l_item->group_mask = dap_strdup(a_group_mask);
-    l_item->group_name_for_history = dap_strdup(GROUP_LOCAL_HISTORY".extra");
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
-    HASH_ADD_STR(s_sync_group_extra_items, group_mask, l_item);
-}
-
-/**
- * @brief Gets a list of a group mask.
- * @param a_table a table
- * @return Returns a pointer to a list of a group mask.
- */
-dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
-{
-    dap_list_t *l_ret = NULL;
-    sync_group_item_t *l_item = NULL, *l_item_tmp = NULL;
-    HASH_ITER(hh, a_table, l_item, l_item_tmp) {
-        l_ret = dap_list_append(l_ret, l_item->group_mask);
-    }
-    return l_ret;
+    dap_list_append(s_sync_group_extra_items, l_item);
 }
 
 /**
@@ -137,7 +117,7 @@ dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
  */
 dap_list_t *dap_chain_db_get_sync_groups()
 {
-    return dap_chain_db_get_sync_groups_internal(s_sync_group_items);
+    return s_sync_group_items;
 }
 
 /**
@@ -147,7 +127,7 @@ dap_list_t *dap_chain_db_get_sync_groups()
  */
 dap_list_t *dap_chain_db_get_sync_extra_groups()
 {
-    return dap_chain_db_get_sync_groups_internal(s_sync_group_extra_items);
+    return s_sync_group_extra_items;
 }
 
 /**
@@ -228,6 +208,14 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     return res;
 }
 
+
+static void s_clear_sync_grp(void *a_elm)
+{
+    sync_group_item_t *l_item = (sync_group_item_t *)a_elm;
+    DAP_DELETE(l_item->group_mask);
+    DAP_DELETE(l_item);
+}
+
 /**
  * @brief Deinitialize a database.
  * @note You should call this function at the end.
@@ -235,27 +223,13 @@ int dap_chain_global_db_init(dap_config_t * g_config)
  */
 void dap_chain_global_db_deinit(void)
 {
-sync_group_item_t *l_item = NULL, *l_item_tmp = NULL,
-        *l_add_item = NULL, *l_add_item_tmp = NULL;
-
     lock();
     dap_db_driver_deinit();
     unlock();
 
-    HASH_ITER(hh, s_sync_group_items, l_item, l_item_tmp)
-    {
-        DAP_DELETE(l_item->group_name_for_history);
-        DAP_DELETE(l_item);
-    }
-
-    HASH_ITER(hh, s_sync_group_extra_items, l_add_item, l_add_item_tmp)
-    {
-        DAP_DELETE(l_add_item->group_mask);
-        DAP_DELETE(l_add_item->group_name_for_history);
-        DAP_DELETE(l_add_item);
-    }
-
-    s_sync_group_items = NULL;
+    dap_list_free_full(s_sync_group_items, s_clear_sync_grp);
+    dap_list_free_full(s_sync_group_extra_items, s_clear_sync_grp);
+    s_sync_group_extra_items = s_sync_group_items = NULL;
 }
 
 /**
@@ -523,58 +497,29 @@ dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out)
 }
 
 /**
- * @brief Finds item by a_items and a_group
- * @param a_items items
- * @param a_group a group name string
- * @return
- */
-static sync_group_item_t *find_item_by_mask(sync_group_item_t *a_items, const char *a_group)
-{
-    sync_group_item_t * l_item = NULL, *l_item_tmp = NULL;
-    HASH_ITER(hh, a_items, l_item, l_item_tmp) {
-        if (!dap_fnmatch(l_item->group_mask, a_group, 0))
-            return l_item;
-    }
-    return NULL;
-}
-
-/**
  * @brief Adds data to the history log
  *
  * @param a_store_data a pointer to an object
  * @return (none)
  */
-void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data)
+void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
 {
     dap_store_obj_t *l_obj = a_store_data;
-    sync_group_item_t *l_sync_group_item = find_item_by_mask(s_sync_group_items, l_obj->group);
-
-    if (l_sync_group_item) {
-        if(l_sync_group_item->callback_notify) {
-             l_sync_group_item->callback_notify(l_sync_group_item->callback_arg,
-                        l_obj->type,
-                        l_obj->group, l_obj->key,
-                        l_obj->value, l_obj->value_len);
-        }
-        if (s_track_history) {
-            lock();
-            dap_db_history_add(l_obj->type, l_obj, 1, l_sync_group_item->group_name_for_history);
-            unlock();
-        }
-    } else { // looking for extra group
-        sync_group_item_t *l_sync_extra_group_item = find_item_by_mask(s_sync_group_extra_items, l_obj->group);
-        if(l_sync_extra_group_item) {
-            if(l_sync_extra_group_item->callback_notify) {
-                l_sync_extra_group_item->callback_notify(l_sync_extra_group_item->callback_arg,
-                        l_obj->type, l_obj->group, l_obj->key,
-                        l_obj->value, l_obj->value_len);
+    dap_list_t *it = s_sync_group_items;
+    while (it) {
+        for (; it; it = it->next) {
+            sync_group_item_t *l_sync_group_item = (sync_group_item_t *)it->data;
+            if (dap_fnmatch(l_sync_group_item->group_mask, l_obj->group, 0))
+                continue;
+            if(l_sync_group_item->callback_notify) {
+                 l_sync_group_item->callback_notify(l_sync_group_item->callback_arg,
+                            l_obj->type,
+                            l_obj->group, l_obj->key,
+                            l_obj->value, l_obj->value_len);
             }
-            if (s_track_history) {
-                lock();
-                dap_db_history_add(l_obj->type, l_obj, 1, l_sync_extra_group_item->group_name_for_history);
-                unlock();
-            }
+            return;
         }
+        it = it == s_sync_group_items ? s_sync_group_extra_items : NULL;
     }
 }
 
@@ -609,7 +554,7 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
         store_data.value = (void *)a_value;
         store_data.key = a_key;
 
-        dap_global_db_obj_track_history(&store_data);
+        dap_global_db_change_notify(&store_data);
     } else {
         log_it(L_ERROR, "Save error: %d", l_res);
     }
@@ -653,7 +598,7 @@ dap_store_obj_t store_data = {0};
         // do not add to history if l_res=1 (already deleted)
         if (!l_res) {
             store_data.key = (char *) a_key;
-            dap_global_db_obj_track_history(&store_data);
+            dap_global_db_change_notify(&store_data);
         }
     }
     return !l_res;
@@ -689,7 +634,7 @@ dap_store_obj_t *l_store_obj;
             l_res_del = global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
         if (!l_res || !l_res_del) {
             // Extract prefix if added successfuly, add history log and call notify callback if present
-            dap_global_db_obj_track_history(l_store_obj);
+            dap_global_db_change_notify(l_store_obj);
         }
     }
 

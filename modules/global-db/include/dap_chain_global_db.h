@@ -10,11 +10,12 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 
-
-#define GROUP_LOCAL_HISTORY "local.history"
 #define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 #define GROUP_LOCAL_NODE_ADDR "local.node-addr"
+
+#define	DAP_DB_K_MAXKEYLEN	128			/* @RRL: A maximum key's size */
+#define	DAP_DB_K_MAXGRPLEN	128			/* @RRL: A maximum group name  */
 
 typedef struct dap_global_db_obj {
     uint64_t id;
@@ -25,12 +26,6 @@ typedef struct dap_global_db_obj {
 
 typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
                                                      const char * a_key, const void * a_value, const size_t a_value_len);
-
-
-#define	DAP_DB_K_MAXKEYLEN	128			/* @RRL: A maximum key's size */
-#define	DAP_DB_K_MAXGRPLEN	128			/* @RRL: A maximum group name  */
-
-
 /**
  * Flush DB
  */
@@ -61,7 +56,7 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
 void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
 dap_list_t *dap_chain_db_get_sync_groups();
 dap_list_t *dap_chain_db_get_sync_extra_groups();
-void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data);
+void dap_global_db_change_notify(dap_store_obj_t *a_store_data);
 /**
  * Get entry from base
  */

@@ -56,7 +56,6 @@
 #include "dap_chain_cell.h"
 
 #include "dap_chain_global_db.h"
-#include "dap_chain_global_db_remote.h"
 
 #include "dap_stream.h"
 #include "dap_stream_worker.h"
@@ -66,8 +65,8 @@
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_chain_net.h"
-#define LOG_TAG "dap_stream_ch_chain"
 
+#define LOG_TAG "dap_stream_ch_chain"
 
 struct sync_request
 {
