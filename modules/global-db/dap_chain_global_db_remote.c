@@ -127,9 +127,10 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
     if (a_flags & F_DB_LOG_ADD_EXTRA_GROUPS) {
         l_groups_masks = dap_list_concat(l_groups_masks, dap_chain_db_get_sync_extra_groups());
     }
+    dap_list_t *l_groups_names = NULL;
     for (dap_list_t *l_cur_mask = l_groups_masks; l_cur_mask; l_cur_mask = dap_list_next(l_cur_mask)) {
-        l_dap_db_log_list->groups = dap_list_concat(l_dap_db_log_list->groups,
-                                                    dap_chain_global_db_driver_get_groups_by_mask(l_cur_mask->data));
+        char *l_cur_mask_data = ((dap_sync_group_item_t *)l_cur_mask->data)->group_mask;
+        l_groups_names = dap_list_concat(l_groups_names, dap_chain_global_db_driver_get_groups_by_mask(l_cur_mask_data));
     }
     dap_list_free(l_groups_masks);
 
@@ -154,48 +155,49 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
 
     /* delete if not condition */
     if (s_size_white_list > 0) {
-        for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; ) {
+        for (dap_list_t *l_group = l_groups_names; l_group; ) {
             bool l_found = false;
             for (int i = 0; i < s_size_white_list; i++) {
-                if (!dap_fnmatch(s_white_list[i], l_groups->data, FNM_NOESCAPE)) {
+                if (!dap_fnmatch(s_white_list[i], l_group->data, FNM_NOESCAPE)) {
                     l_found = true;
                     break;
                 }
             }
             if (!l_found) {
-                    dap_list_t *l_tmp = l_groups->next;
-                    l_dap_db_log_list->groups = dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
-                    l_groups = l_tmp;
+                    dap_list_t *l_tmp = l_group->next;
+                    l_groups_names = dap_list_delete_link(l_dap_db_log_list->groups, l_group);
+                    l_group = l_tmp;
             }
-            l_groups = dap_list_next(l_groups);
+            l_group = dap_list_next(l_group);
         }
     } else if (s_size_ban_list > 0) {
-        for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; ) {
+        for (dap_list_t *l_group = l_groups_names; l_group; ) {
             bool l_found = false;
             for (int i = 0; i < s_size_ban_list; i++) {
-                if (!dap_fnmatch(s_ban_list[i], l_groups->data, FNM_NOESCAPE)) {
-                    dap_list_t *l_tmp = l_groups->next;
-                    l_dap_db_log_list->groups = dap_list_delete_link(l_dap_db_log_list->groups, l_groups);
-                    l_groups = l_tmp;
+                if (!dap_fnmatch(s_ban_list[i], l_group->data, FNM_NOESCAPE)) {
+                    dap_list_t *l_tmp = l_group->next;
+                    l_groups_names = dap_list_delete_link(l_groups_names, l_group);
+                    l_group = l_tmp;
                     l_found = true;
                     break;
                 }
             }
             if (l_found) continue;
-            l_groups = dap_list_next(l_groups);
+            l_group = dap_list_next(l_group);
         }
     }
 
-    for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups)) {
-        dap_db_log_list_group_t *l_replace = DAP_NEW_Z(dap_db_log_list_group_t);
-        l_replace->name = (char *)l_groups->data;
+    l_dap_db_log_list->groups = l_groups_names; // repalce name of group with group item
+    for (dap_list_t *l_group = l_dap_db_log_list->groups; l_group; l_group = dap_list_next(l_group)) {
+        dap_db_log_list_group_t *l_sync_group = DAP_NEW_Z(dap_db_log_list_group_t);
+        l_sync_group->name = (char *)l_group->data;
         if (a_flags & F_DB_LOG_SYNC_FROM_ZERO)
-            l_replace->last_id_synced = 0;
+            l_sync_group->last_id_synced = 0;
         else
-            l_replace->last_id_synced = dap_db_get_last_id_remote(a_addr.uint64, l_replace->name);
-        l_replace->count = dap_chain_global_db_driver_count(l_replace->name, l_replace->last_id_synced + 1);
-        l_dap_db_log_list->items_number += l_replace->count;
-        l_groups->data = (void *)l_replace;
+            l_sync_group->last_id_synced = dap_db_get_last_id_remote(a_addr.uint64, l_sync_group->name);
+        l_sync_group->count = dap_chain_global_db_driver_count(l_sync_group->name, l_sync_group->last_id_synced + 1);
+        l_dap_db_log_list->items_number += l_sync_group->count;
+        l_group->data = (void *)l_sync_group;
     }
     l_dap_db_log_list->items_rest = l_dap_db_log_list->items_number;
     if (!l_dap_db_log_list->items_number) {

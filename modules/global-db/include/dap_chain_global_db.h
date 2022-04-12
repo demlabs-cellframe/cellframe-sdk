@@ -22,10 +22,19 @@ typedef struct dap_global_db_obj {
     char *key;
     uint8_t *value;
     size_t value_len;
-}DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
+} DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
+
 
 typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
                                                      const char * a_key, const void * a_value, const size_t a_value_len);
+
+// Callback table item
+typedef struct dap_sync_group_item {
+    char *group_mask;
+    dap_global_db_obj_callback_notify_t callback_notify;
+    void * callback_arg;
+} dap_sync_group_item_t;
+
 /**
  * Flush DB
  */

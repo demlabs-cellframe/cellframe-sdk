@@ -61,14 +61,6 @@ static inline void unlock()
     //pthread_mutex_unlock(&ldb_mutex_);
 }
 
-// Callback table item
-typedef struct sync_group_item
-{
-    char *group_mask;
-    dap_global_db_obj_callback_notify_t callback_notify;
-    void * callback_arg;
-} sync_group_item_t;
-
 // Tacked group callbacks
 static dap_list_t *s_sync_group_items = NULL;
 static dap_list_t *s_sync_group_extra_items = NULL;
@@ -79,15 +71,15 @@ int     s_db_drvmode_async ,                                                /* S
                                                                             <> 0 - Async mode should be used */
         s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
 
-int s_db_add_sync_group(dap_list_t *a_grp_list, sync_group_item_t *a_item)
+int s_db_add_sync_group(dap_list_t **a_grp_list, dap_sync_group_item_t *a_item)
 {
-    for (dap_list_t *it = a_grp_list; it; it = it->next) {
-        if (!dap_strcmp(((sync_group_item_t *)it->data)->group_mask, a_item->group_mask)) {
+    for (dap_list_t *it = *a_grp_list; it; it = it->next) {
+        if (!dap_strcmp(((dap_sync_group_item_t *)it->data)->group_mask, a_item->group_mask)) {
             log_it(L_WARNING, "Group mask '%s' already present in the list, ignore it", a_item->group_mask);
             return -1;
         }
     }
-    dap_list_append(a_grp_list, a_item);
+    *a_grp_list = dap_list_append(*a_grp_list, a_item);
     return 0;
 }
 
@@ -100,11 +92,11 @@ int s_db_add_sync_group(dap_list_t *a_grp_list, sync_group_item_t *a_item)
  */
 void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
-    sync_group_item_t *l_item = DAP_NEW_Z(sync_group_item_t);
+    dap_sync_group_item_t *l_item = DAP_NEW_Z(dap_sync_group_item_t);
     l_item->group_mask = dap_strdup_printf("%s.*", a_group_prefix);
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
-    s_db_add_sync_group(s_sync_group_items, l_item);
+    s_db_add_sync_group(&s_sync_group_items, l_item);
 }
 
 /**
@@ -116,11 +108,11 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
  */
 void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
-    sync_group_item_t* l_item = DAP_NEW_Z(sync_group_item_t);
+    dap_sync_group_item_t* l_item = DAP_NEW_Z(dap_sync_group_item_t);
     l_item->group_mask = dap_strdup(a_group_mask);
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
-    s_db_add_sync_group(s_sync_group_extra_items, l_item);
+    s_db_add_sync_group(&s_sync_group_extra_items, l_item);
 }
 
 /**
@@ -129,7 +121,7 @@ void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_glob
  */
 dap_list_t *dap_chain_db_get_sync_groups()
 {
-    return s_sync_group_items;
+    return dap_list_copy(s_sync_group_items);
 }
 
 /**
@@ -139,7 +131,7 @@ dap_list_t *dap_chain_db_get_sync_groups()
  */
 dap_list_t *dap_chain_db_get_sync_extra_groups()
 {
-    return s_sync_group_extra_items;
+    return dap_list_copy(s_sync_group_extra_items);
 }
 
 /**
@@ -223,7 +215,7 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 
 static void s_clear_sync_grp(void *a_elm)
 {
-    sync_group_item_t *l_item = (sync_group_item_t *)a_elm;
+    dap_sync_group_item_t *l_item = (dap_sync_group_item_t *)a_elm;
     DAP_DELETE(l_item->group_mask);
     DAP_DELETE(l_item);
 }
@@ -520,7 +512,7 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
     dap_list_t *it = s_sync_group_items;
     while (it) {
         for (; it; it = it->next) {
-            sync_group_item_t *l_sync_group_item = (sync_group_item_t *)it->data;
+            dap_sync_group_item_t *l_sync_group_item = (dap_sync_group_item_t *)it->data;
             if (dap_fnmatch(l_sync_group_item->group_mask, l_obj->group, 0))
                 continue;
             if(l_sync_group_item->callback_notify) {
