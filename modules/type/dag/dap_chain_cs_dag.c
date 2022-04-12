@@ -1365,16 +1365,19 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
     }
 
     if ( (l_ret = dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net)) )
-        return  l_ret;
+        return  log_it(L_ERROR, "Error processing -net or -chain options, code=%d", l_ret), -1;
 
-    if ( l_net == NULL )
-        return -1;
+    if ( !l_net )
+        return  log_it(L_ERROR, "Illformed or missing -net"), -1;
+
+    if ( !l_chain ||  !(l_dag = DAP_CHAIN_CS_DAG(l_chain)) )
+        return  log_it(L_ERROR, "Illformed or missing -chain"), -1;
 
     if (a_str_reply && *a_str_reply) {
         DAP_DEL_Z(*a_str_reply);
     }
 
-    l_dag = DAP_CHAIN_CS_DAG(l_chain);
+
 
     if ( l_round_cmd_str ) {
         if ( strcmp(l_round_cmd_str,"complete") == 0 ){
