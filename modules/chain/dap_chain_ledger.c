@@ -1407,6 +1407,55 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     return l_ret;
 }
 
+bool s_chain_ledger_token_address_check(dap_chain_addr_t * l_addrs, dap_chain_datum_token_emission_t *a_token_emission, size_t l_addrs_count)
+{
+    // if l_addrs is empty - nothing to check
+    if (!l_addrs)
+        return true;
+
+    for(size_t n=0; n<l_addrs_count;n++ ){
+        if (memcmp(&l_addrs[n],&a_token_emission->hdr.address,sizeof(dap_chain_addr_t))==0)
+            return true;
+    }
+
+    return false; 
+}
+
+bool s_chain_ledger_token_tsd_check(dap_chain_ledger_token_item_t * a_token_item, dap_chain_datum_token_emission_t *a_token_emission)
+{
+    if (!a_token_item){
+        log_it(L_WARNING, "Token object is null. Probably, you set unknown token ticker in -token parameter");
+        return false;
+    }
+
+    // tsd section was parsed in s_token_tsd_parse
+    if (!s_chain_ledger_token_address_check(a_token_item->tx_recv_allow, a_token_emission, a_token_item->tx_recv_allow_size)){
+        log_it(L_WARNING, "Address %s is not in tx_recv_allow for emission for token %s",
+                dap_chain_addr_to_str(&a_token_emission->hdr.address), a_token_item->ticker);
+        return false;
+    }
+
+    if (!s_chain_ledger_token_address_check(a_token_item->tx_recv_block, a_token_emission, a_token_item->tx_recv_block_size)){
+        log_it(L_WARNING, "Address %s is not in tx_recv_block for emission for token %s",
+                dap_chain_addr_to_str(&a_token_emission->hdr.address), a_token_item->ticker);
+        return false;
+    }
+
+    if (!s_chain_ledger_token_address_check(a_token_item->tx_send_allow, a_token_emission, a_token_item->tx_send_allow_size)){
+        log_it(L_WARNING, "Address %s is not in tx_send_allow for emission for token %s",
+                dap_chain_addr_to_str(&a_token_emission->hdr.address), a_token_item->ticker);
+        return false;
+    }
+
+    if (!s_chain_ledger_token_address_check(a_token_item->tx_send_block, a_token_emission, a_token_item->tx_send_block_size)){
+        log_it(L_WARNING, "Address %s is not in tx_send_block for emission for token %s",
+                dap_chain_addr_to_str(&a_token_emission->hdr.address), a_token_item->ticker);
+        return false;
+    }
+
+    return true;
+}
+
 /**
  * @brief dap_chain_ledger_token_emission_add
  * @param a_token_emission
@@ -1450,8 +1499,8 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                     (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) ||
                     (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) ||
                     (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
-                //s_ledger_permissions_check(l_token_item)
-                //    return -114;
+                    if (!s_chain_ledger_token_tsd_check(l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
+                        return -114;
             }
             //Update value in ledger memory object
             if (!IS_ZERO_256(l_token_item->total_supply)) {
