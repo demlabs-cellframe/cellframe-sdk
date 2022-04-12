@@ -973,8 +973,10 @@ extern char *dap_chain_balance_to_coins256(uint256_t a_balance);
 extern  char *dap_chain_balance_print333(uint256_t a_balance);
 
 char *cp;
-uint128_t uint128 = {-1};
-uint256_t uint256 = {123, 374607431768211455};
+uint128_t uint128 = dap_chain_uint128_from(-1);
+uint256_t uint256;
+uint256.hi = dap_chain_uint128_from(123);
+uint256.lo = dap_chain_uint128_from(374607431768211455);
 const   uint256_t uint256_zero = {0};
 
     uint256 = uint256_zero;
@@ -1003,8 +1005,8 @@ const   uint256_t uint256_zero = {0};
 
 
 
-    uint256.hi = -1;
-    uint256.lo = -1;
+    uint256.hi = dap_chain_uint128_from(-1);
+    uint256.lo = dap_chain_uint128_from(-1);
     cp = dap_chain_balance_print333(uint256);
     free(cp);
 
@@ -1015,13 +1017,13 @@ const   uint256_t uint256_zero = {0};
     uint256 = dap_cvt_str_to_uint256(cp);
     free(cp);
 
-    uint256.hi = -1;
-    uint256.lo = -1;
+    uint256.hi = dap_chain_uint128_from(-1);
+    uint256.lo = dap_chain_uint128_from(-1);
     cp = dap_cvt_uint256_to_str(uint256 );
     free(cp);
 
-    uint256.hi = 123;
-    uint256.lo = 374607431768211455;
+    uint256.hi = dap_chain_uint128_from(123);
+    uint256.lo = dap_chain_uint128_from(374607431768211455);
 
     cp = dap_chain_balance_to_coins256(uint256);
     uint256 = dap_chain_coins_to_balance(cp);
