@@ -208,6 +208,8 @@ static void *s_list_thread_proc(void *arg)
         while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
             size_t l_item_count = min(64, l_group_cur->count);
             dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
+            if (!l_dap_db_log_list->is_process)
+                break;
             // go to next group
             if (!l_objs)
                 break;
@@ -234,8 +236,6 @@ static void *s_list_thread_proc(void *arg)
                 dap_store_packet_change_id(l_pkt, l_cur_id);
                 l_list_obj->pkt = l_pkt;
                 l_list = dap_list_append(l_list, l_list_obj);
-                if (!l_dap_db_log_list->is_process)
-                    break;
             }
             dap_store_obj_free(l_objs, l_item_count);
             pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
@@ -247,6 +247,8 @@ static void *s_list_thread_proc(void *arg)
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         }
         DAP_DEL_Z(l_del_group_name_replace);
+        if (!l_dap_db_log_list->is_process)
+            break;
     }
 
     pthread_mutex_lock(&l_dap_db_log_list->list_mutex);

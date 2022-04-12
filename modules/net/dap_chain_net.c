@@ -800,6 +800,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         for (dap_list_t *it = l_net_pvt->net_links; it; it = it->next) {
             if (((struct net_link *)it->data)->link == NULL) {  // We have a free prepared link
                 s_node_link_remove(l_net_pvt, a_node_client);
+                a_node_client->keep_connection = false;
                 ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net,
                                                         ((struct net_link *)it->data)->link_info);
                 pthread_rwlock_unlock(&l_net_pvt->rwlock);

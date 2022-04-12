@@ -268,6 +268,10 @@ static bool s_timer_update_states_callback(void *a_arg)
             l_me->state = NODE_CLIENT_STATE_DISCONNECTED;
             if (l_me->keep_connection) {
                 if (dap_client_pvt_find(l_me->client->pvt_uuid)) {
+                    if (dap_client_get_stage(l_me->client) != STAGE_BEGIN) {
+                        dap_client_go_stage(l_me->client, STAGE_BEGIN, NULL);
+                        return true;
+                    }
                     if (l_me->callbacks.disconnected) {
                         l_me->callbacks.disconnected(l_me, l_me->callbacks_arg);
                     }
@@ -275,6 +279,7 @@ static bool s_timer_update_states_callback(void *a_arg)
                         log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
                         l_me->state = NODE_CLIENT_STATE_CONNECTING ;
                         dap_client_go_stage(l_me->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
+                        return true;
                     } else {
                         dap_chain_node_client_close(l_me);
                     }

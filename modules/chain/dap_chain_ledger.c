@@ -962,7 +962,7 @@ dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger)
        //log_it(L_DEBUG,"Ledger thresholded datum_token_emission_hash %s, emission_item_size: %lld", l_emission_hash_str, l_emission_item->datum_token_emission_size);
         dap_string_append(l_str_ret, "Ledger thresholded datum_token_emission_hash: ");
         dap_string_append(l_str_ret, l_emission_hash_str);
-        sprintf(l_item_size, ", tx_item_size: %d\n", l_emission_item->datum_token_emission_size);  
+        sprintf(l_item_size, ", tx_item_size: %zu\n", l_emission_item->datum_token_emission_size);
         dap_string_append(l_str_ret, l_item_size);
         l_counter +=1;
     }

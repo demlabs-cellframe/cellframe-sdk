@@ -142,7 +142,7 @@ typedef struct dap_chain_addr{
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
 typedef uint64_t dap_chain_time_t;
-static inline dap_chain_time_t dap_chain_time_now() { return (dap_chain_time_t) time(NULL); }
+dap_chain_time_t dap_chain_time_now();
 
 #define DAP_CHAIN_NET_SRV_UID_SIZE 8
 
