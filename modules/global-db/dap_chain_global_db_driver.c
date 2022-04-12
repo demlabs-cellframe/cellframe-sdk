@@ -33,7 +33,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <pthread.h>
-#include <assert.h>
 #include <unistd.h>
 
 #include "dap_worker.h"
@@ -262,9 +261,7 @@ dap_store_obj_t *l_store_obj_cur;
         s_drv_callback.transaction_start();
 
     if(s_drv_callback.apply_store_obj)
-        for(int i = a_store_count; (!l_ret) && i--; l_store_obj_cur++) {
-            assert(l_store_obj_cur);                /* Sanity check */
-
+        for(int i = a_store_count; (!l_ret) && (i--); l_store_obj_cur++) {
             if ( 1 == (l_ret = s_drv_callback.apply_store_obj(l_store_obj_cur)) )
                 log_it(L_INFO, "[%p] Item is missing (may be already deleted) %s/%s", a_store_obj, l_store_obj_cur->group, l_store_obj_cur->key);
             else if (l_ret < 0)
@@ -288,17 +285,18 @@ size_t l_store_obj_cnt;
 
     debug_if(s_dap_global_db_debug_more, L_DEBUG, "Entering, %d entries in the queue ...",  s_db_reqs_list.nr);
 
-    assert ( !pthread_mutex_lock(&s_db_reqs_list_lock) );                   /* Get exclusive access to the request list */
+    if ( (l_ret = pthread_mutex_lock(&s_db_reqs_list_lock)) )               /* Get exclusive access to the request list */
+         return log_it(L_ERROR, "Cannot lock request queue, errno=%d",l_ret), 0;
 
     if ( !s_db_reqs_list.nr )                                               /* Nothing to do ?! Just exit */
     {
-        assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
+        pthread_mutex_unlock(&s_db_reqs_list_lock);
         return  1;                                                          /* 1 - Don't call it again */
     }
 
     if ( (l_ret = s_dap_remqhead (&s_db_reqs_list, (void **)  &l_store_obj_cur, &l_store_obj_cnt)) )
     {
-        assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
+        pthread_mutex_unlock(&s_db_reqs_list_lock);
         log_it(L_ERROR, "DB Request list is in incosistence state (code %d)", l_ret);
         return  1;                                                          /* 1 - Don't call it again */
     }
@@ -306,7 +304,7 @@ size_t l_store_obj_cnt;
     /* So at this point we are ready to do work in the DB */
     s_dap_chain_global_db_driver_apply_do(l_store_obj_cur, l_store_obj_cnt);
 
-    assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
+    pthread_mutex_unlock(&s_db_reqs_list_lock);
 
 
     /* Is there a callback  ? */
@@ -351,14 +349,14 @@ dap_worker_t        *l_dap_worker;
     /* Async mode - put request into the list for deffered processing */
     l_ret = -ENOMEM;                                                    /* Preset return code to non-OK  */
 
-    assert ( !pthread_mutex_lock(&s_db_reqs_list_lock) );               /* Get exclusive access to the request list */
+    pthread_mutex_lock(&s_db_reqs_list_lock);                           /* Get exclusive access to the request list */
 
     if ( !(l_store_obj_cur = dap_store_obj_copy(a_store_obj, a_store_count)) )
         l_ret = - ENOMEM, log_it(L_ERROR, "[%p] No memory for DB Request for item %s/%s", a_store_obj, a_store_obj->group, a_store_obj->key);
     else if ( (l_ret = s_dap_insqtail (&s_db_reqs_list, l_store_obj_cur, a_store_count)) )
         log_it(L_ERROR, "[%p] Can't enqueue DB request for item %s/%s (code %d)", a_store_obj, a_store_obj->group, a_store_obj->key, l_ret);
 
-    assert ( !pthread_mutex_unlock(&s_db_reqs_list_lock) );
+    pthread_mutex_unlock(&s_db_reqs_list_lock);
 
     if ( !l_ret )
         {                                                                /* So finaly enqueue an execution routine */

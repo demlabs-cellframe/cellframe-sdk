@@ -20,8 +20,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
-#include <assert.h>
 #include <errno.h>
 #include <stdatomic.h>
 
@@ -84,7 +82,7 @@ int l_ret = 0;
     for (uint32_t i = 0; i < s_threads_count; i++ )
     {
         s_threads[i].cpu_id = i;
-        assert( !pthread_mutex_lock( &s_started_mutex ));
+        pthread_mutex_lock( &s_started_mutex );
 
         if ( (l_ret = pthread_create( &s_threads[i].thread_id,NULL, s_proc_thread_function, &s_threads[i] )) ) {
             log_it(L_CRITICAL, "Create thread failed with code %d", l_ret);
@@ -92,8 +90,8 @@ int l_ret = 0;
             return l_ret;
         }
 
-        assert( !pthread_cond_wait( &s_started_cond, &s_started_mutex ));
-        assert( !pthread_mutex_unlock( &s_started_mutex ));
+        pthread_cond_wait( &s_started_cond, &s_started_mutex);
+        pthread_mutex_unlock( &s_started_mutex);
     }
 
     return l_ret;
@@ -185,9 +183,9 @@ dap_proc_queue_t    *l_queue;
         if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
             continue;
 
-        assert ( !pthread_mutex_lock(&l_queue->list[l_cur_pri].lock) );     /* Protect list from other threads */
+        pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
         l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
-        assert ( !pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock) );
+        pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
 
         if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
             debug_if (s_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
@@ -197,8 +195,6 @@ dap_proc_queue_t    *l_queue;
         debug_if (s_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
-        assert(l_item->callback);                                           /* Just for ensuring ... */
-
         l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         l_is_anybody_for_repeat++;
 
@@ -207,9 +203,9 @@ dap_proc_queue_t    *l_queue;
 
         if ( !(l_is_finished) ) {
                                                                             /* Rearm callback to be executed again */
-            assert ( !pthread_mutex_lock(&l_queue->list[l_cur_pri].lock) );
+            pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
             l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, 1);
-            assert ( !pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock) );
+            pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
         }
         else    {
                     DAP_DELETE(l_item);
