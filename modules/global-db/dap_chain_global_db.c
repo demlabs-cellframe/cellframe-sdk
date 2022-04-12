@@ -79,6 +79,18 @@ int     s_db_drvmode_async ,                                                /* S
                                                                             <> 0 - Async mode should be used */
         s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
 
+int s_db_add_sync_group(dap_list_t *a_grp_list, sync_group_item_t *a_item)
+{
+    for (dap_list_t *it = a_grp_list; it; it = it->next) {
+        if (!dap_strcmp(((sync_group_item_t *)it->data)->group_mask, a_item->group_mask)) {
+            log_it(L_WARNING, "Group mask '%s' already present in the list, ignore it", a_item->group_mask);
+            return -1;
+        }
+    }
+    dap_list_append(a_grp_list, a_item);
+    return 0;
+}
+
 /**
  * @brief Adds a group name for synchronization.
  * @param a_group_prefix a prefix of the group name
@@ -88,11 +100,11 @@ int     s_db_drvmode_async ,                                                /* S
  */
 void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
-    sync_group_item_t * l_item = DAP_NEW_Z(sync_group_item_t);
+    sync_group_item_t *l_item = DAP_NEW_Z(sync_group_item_t);
     l_item->group_mask = dap_strdup_printf("%s.*", a_group_prefix);
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
-    dap_list_append(s_sync_group_items, l_item);
+    s_db_add_sync_group(s_sync_group_items, l_item);
 }
 
 /**
@@ -108,7 +120,7 @@ void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_glob
     l_item->group_mask = dap_strdup(a_group_mask);
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
-    dap_list_append(s_sync_group_extra_items, l_item);
+    s_db_add_sync_group(s_sync_group_extra_items, l_item);
 }
 
 /**

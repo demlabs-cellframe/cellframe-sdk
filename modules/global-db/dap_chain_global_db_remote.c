@@ -499,8 +499,8 @@ dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_cha
  */
 static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 {
-    size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(time_t)
-            + 2 * sizeof(uint64_t) + dap_strlen(store_obj->group) +
+    size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) +
+            3 * sizeof(uint64_t) + dap_strlen(store_obj->group) +
             dap_strlen(store_obj->key) + store_obj->value_len;
     return size;
 }
