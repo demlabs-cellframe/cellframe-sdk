@@ -625,7 +625,6 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         // Add value
         if(a_store_obj->value && a_store_obj->value_len){
             memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
-            DAP_DELETE(a_store_obj->value);
         }
         offset += a_store_obj->value_len;
         // Add a timestamp
