@@ -358,7 +358,7 @@ static int global_db_gr_del_add(const char *a_key, const char *a_group, time_t a
 {
 dap_store_obj_t store_data = {0};
 char	l_group[DAP_DB_K_MAXGRPLEN];
-int l_res = 0;
+int l_res = -1;
 
     store_data.key = a_key;
     // group = parent group + '.del'
@@ -371,7 +371,7 @@ int l_res = 0;
         l_res = dap_chain_global_db_driver_add(&store_data, 1);
     unlock();
 
-    return  (l_res >= 0);    /*  ? true : false; */
+    return  l_res;
 }
 
 /**
@@ -674,19 +674,20 @@ dap_store_obj_t *l_store_obj;
         return true;
 
     lock();
-    int l_res = !dap_chain_global_db_driver_apply(a_store_data, a_objs_count);
+    int l_res = dap_chain_global_db_driver_apply(a_store_data, a_objs_count);
     unlock();
 
     l_store_obj = (dap_store_obj_t *)a_store_data;
 
+    int l_res_del = 0;
     for(int  i = a_objs_count; i--; l_store_obj++) {
         if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && l_res)
             // delete info about the deleted entry from the base if one present
             global_db_gr_del_del(l_store_obj->key, l_store_obj->group);
         else if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL)
             // add to Del group
-            l_res = global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
-        if (l_res) {
+            l_res_del = global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
+        if (!l_res || !l_res_del) {
             // Extract prefix if added successfuly, add history log and call notify callback if present
             dap_global_db_obj_track_history(l_store_obj);
         }
