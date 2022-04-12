@@ -741,12 +741,19 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             bool l_apply = false;
             // timestamp for exist obj
             time_t l_timestamp_cur = 0;
+            // Record is pinned or not
+            bool l_is_pinned_cur = false;
             if (dap_chain_global_db_driver_is(l_obj->group, l_obj->key)) {
                 dap_store_obj_t *l_read_obj = dap_chain_global_db_driver_read(l_obj->group, l_obj->key, NULL);
                 if (l_read_obj) {
                     l_timestamp_cur = l_read_obj->timestamp;
+                    l_is_pinned_cur = l_read_obj->flags | RECORD_PINNED;
                     dap_store_obj_free(l_read_obj, 1);
                 }
+            }
+            // Do not overwrite pinned records
+            if(l_is_pinned_cur){
+                continue;
             }
             // check the applied object newer that we have stored or erased
             if (l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&

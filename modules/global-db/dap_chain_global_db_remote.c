@@ -317,9 +317,8 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
         l_offset += sizeof(uint16_t);
 
         if (l_offset+l_str_length> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'group' field"); break;} // Check for buffer boundries
-        l_obj->group = DAP_NEW_SIZE(char, l_str_length + 1);
-        memcpy(l_obj->group, a_pkt->data + l_offset, l_str_length);
-        l_obj->group[l_str_length] = '\0';
+        l_obj->group = DAP_NEW_Z_SIZE(char, l_str_length + 1);
+        memcpy((char*)l_obj->group, a_pkt->data + l_offset, l_str_length);
         l_offset += l_str_length;
 
         if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'id' field"); break;} // Check for buffer boundries
@@ -335,9 +334,8 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
         l_offset += sizeof(uint16_t);
 
         if (l_offset+ l_str_length > a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'key' field"); break;} // Check for buffer boundries
-        l_obj->key = DAP_NEW_SIZE(char, l_str_length + 1);
-        memcpy(l_obj->key, a_pkt->data + l_offset, l_str_length);
-        l_obj->key[l_str_length] = '\0';
+        l_obj->key = DAP_NEW_Z_SIZE(char, l_str_length + 1);
+        memcpy((char*)l_obj->key, a_pkt->data + l_offset, l_str_length);
         l_offset += l_str_length;
 
         if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;} // Check for buffer boundries
@@ -346,7 +344,7 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
 
         if (l_offset+l_obj->value_len> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field"); break;} // Check for buffer boundries
         l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
-        memcpy(l_obj->value, a_pkt->data + l_offset, l_obj->value_len);
+        memcpy((char*)l_obj->value, a_pkt->data + l_offset, l_obj->value_len);
         l_offset += l_obj->value_len;
     }
     assert(a_pkt->data_size == l_offset);

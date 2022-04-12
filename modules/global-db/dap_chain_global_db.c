@@ -313,6 +313,36 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
 
 
 /**
+ * @brief Gets an object value with parameters from database by a_key and a_group.
+ *
+ * @param a_key an object key string
+ * @param a_data_len_out a length of values that were gotten
+ * @param a_flags_out record flags that were gotten
+ * @param a_group a group name string
+ * @return If successful, returns a pointer to the object value.
+ */
+uint8_t* dap_chain_global_db_gr_flags_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group)
+{
+    uint8_t *l_ret_value = NULL;
+    // read several items, 0 - no limits
+    size_t l_data_len_out = 0;
+    if(a_data_len_out)
+        l_data_len_out = *a_data_len_out;
+    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_data_len_out);
+    if(l_store_data) {
+        l_ret_value = (l_store_data->value) ? DAP_NEW_SIZE(uint8_t, l_store_data->value_len) : NULL;
+        if(l_ret_value && l_store_data->value && l_store_data->value_len)
+            memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
+        if(a_data_len_out)
+            *a_data_len_out = l_store_data->value_len;
+        if(a_flags_out)
+            *a_flags_out = l_store_data->flags;
+        dap_store_obj_free(l_store_data, l_data_len_out);
+    }
+    return l_ret_value;
+}
+
+/**
  * @brief Gets an object value from database by a_key and a_group.
  *
  * @param a_key an object key string
@@ -322,21 +352,8 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
-    uint8_t *l_ret_value = NULL;
-    // read several items, 0 - no limits
-    size_t l_data_len_out = 0;
-    if(a_data_len_out)
-        l_data_len_out = *a_data_len_out;
-    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_data_len_out);
-    if(l_store_data) {
-        l_ret_value = (l_store_data->value) ? DAP_NEW_SIZE(uint8_t, l_store_data->value_len) : NULL; //ret_value = (store_data->value) ? strdup(store_data->value) : NULL;
-        if(l_ret_value && l_store_data->value&& l_store_data->value_len)
-            memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
-        if(a_data_len_out)
-            *a_data_len_out = l_store_data->value_len;
-        dap_store_obj_free(l_store_data, l_data_len_out);
-    }
-    return l_ret_value;
+    uint8_t l_flags_out = RECORD_COMMON;
+    return dap_chain_global_db_gr_flags_get(a_key, a_data_len_out, &l_flags_out, a_group);
 }
 
 /**
@@ -572,19 +589,21 @@ void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data)
 }
 
 /**
- * @brief Adds a value to a database.
+ * @brief Adds a value with parameters to a database.
  * @param a_key a object key string
  * @param a_value a value to be added
  * @param a_value_len length of value. If a_value_len=-1, the function calculates length.
  * @param a_group a group name string
+ * @param a_flags flags for record (RECORD_COMMON, RECORD_PINNED)
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
  * @return True if successful, false otherwise.
  */
-bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
+bool dap_chain_global_db_gr_flags_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group, uint8_t a_flags)
 {
-dap_store_obj_t store_data = {0};
+    dap_store_obj_t store_data = { 0 };
 
     store_data.key = a_key;
+    store_data.flags = a_flags;
     store_data.value_len = (a_value_len == (size_t) -1) ? dap_strlen(a_value) : a_value_len;
     store_data.value = store_data.value_len ? a_value : NULL;
     store_data.group = a_group;
@@ -597,7 +616,7 @@ dap_store_obj_t store_data = {0};
     // Extract prefix if added successfuly, add history log and call notify callback if present
     if(!l_res) {
         // delete info about the deleted entry from the base if one present
-        global_db_gr_del_del( a_key, a_group);
+        global_db_gr_del_del(a_key, a_group);
 
         store_data.value = a_value;
         store_data.key = a_key;
@@ -611,12 +630,33 @@ dap_store_obj_t store_data = {0};
 }
 
 /**
+ * @brief Adds a value to a database.
+ * @param a_key a object key string
+ * @param a_value a value to be added
+ * @param a_value_len length of value. If a_value_len=-1, the function calculates length.
+ * @param a_group a group name string
+ * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
+ * @return True if successful, false otherwise.
+ */
+bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
+{
+    uint8_t l_flags = RECORD_COMMON;
+    return dap_chain_global_db_gr_flags_set(a_key, a_value, a_value_len, a_group, l_flags);
+}
+
+bool dap_chain_global_db_gr_pinned_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
+{
+    uint8_t l_flags = RECORD_PINNED;
+    return dap_chain_global_db_gr_flags_set(a_key, a_value, a_value_len, a_group, l_flags);
+}
+
+/**
  * @brief Adds a value to a database for the "local.general" group
  * @param a_value a value to be added
  * @param a_value_len length of value. If a_value_len=-1, the function counts length.
  * @return True if successful, false otherwise.
  */
-bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
+bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len)
 {
     return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, GROUP_LOCAL_GENERAL);
 }

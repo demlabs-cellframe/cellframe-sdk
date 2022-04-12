@@ -36,11 +36,16 @@ enum    {
 
 };
 
+enum RECORD_FLAGS {
+    RECORD_COMMON = 0,    // 0000
+    RECORD_PINNED = 1,    // 0001
+};
 
 typedef struct dap_store_obj {
     uint64_t id;
     uint64_t timestamp;
     uint32_t type;                              /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
+    uint8_t flags;                              /* RECORD_FLAGS */
     const char *group;
     const char *key;
     const char *c_key;
