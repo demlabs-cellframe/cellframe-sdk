@@ -925,11 +925,12 @@ int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t 
     return dap_chain_ledger_token_add(a_ledger, a_token, a_token_size);
 }
 
-dap_string_t *dap_chain_ledger_treshold_info(dap_ledger_t *a_ledger)
+dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
     dap_string_t *l_str_ret = dap_string_new("");
+    uint32_t l_counter = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){  
         char l_tx_prev_hash_str[70]={0};
@@ -945,10 +946,14 @@ dap_string_t *dap_chain_ledger_treshold_info(dap_ledger_t *a_ledger)
         dap_string_append(l_str_ret, "");
         sprintf(l_item_size, ", tx_item_size: %d\n", l_tx_item->tx->header.tx_items_size);  
         dap_string_append(l_str_ret, l_item_size);
+        l_counter +=1;
     }
+    if (!l_counter)
+        dap_string_append(l_str_ret, "0 items in ledger tx threshold\n");
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
 
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_emissions_rwlock);
+    l_counter = 0;
     dap_chain_ledger_token_emission_item_t *l_emission_item, *l_emission_tmp;
     HASH_ITER(hh, l_ledger_pvt->threshold_emissions, l_emission_item, l_emission_tmp){  
         char l_emission_hash_str[70]={0};
@@ -959,25 +964,75 @@ dap_string_t *dap_chain_ledger_treshold_info(dap_ledger_t *a_ledger)
         dap_string_append(l_str_ret, l_emission_hash_str);
         sprintf(l_item_size, ", tx_item_size: %d\n", l_emission_item->datum_token_emission_size);  
         dap_string_append(l_str_ret, l_item_size);
+        l_counter +=1;
     }
+    if (!l_counter)
+        dap_string_append(l_str_ret, "0 items in ledger emission threshold\n");
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_emissions_rwlock);
 
+    return l_str_ret;
+}
+
+dap_string_t *dap_chain_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_threshold_hash)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
+    dap_string_t *l_str_ret = dap_string_new("");
+    uint32_t l_counter = 0;
+    pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
+    HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){ 
+        if (!memcmp(l_threshold_hash,&l_tx_item->tx_hash_fast, sizeof(dap_chain_hash_fast_t))){
+            char l_tx_hash_str[70]={0};
+            dap_chain_hash_fast_to_str(l_threshold_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
+            dap_string_append(l_str_ret, "Hash was found in ledger tx threshold:");
+            dap_string_append(l_str_ret, l_tx_hash_str);
+            dap_string_append(l_str_ret, "\n");
+            return l_str_ret;
+        }
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
+
+    pthread_rwlock_rdlock(&l_ledger_pvt->threshold_emissions_rwlock);
+    l_counter = 0;
+    dap_chain_ledger_token_emission_item_t *l_emission_item, *l_emission_tmp;
+    HASH_ITER(hh, l_ledger_pvt->threshold_emissions, l_emission_item, l_emission_tmp){  
+        if (!memcmp(&l_emission_item->datum_token_emission_hash,l_threshold_hash, sizeof(dap_chain_hash_fast_t))){
+            char l_emission_hash_str[70]={0};
+            dap_chain_hash_fast_to_str(l_threshold_hash,l_emission_hash_str,sizeof(l_emission_hash_str));
+            dap_string_append(l_str_ret, "Hash was found in ledger emission threshold: ");
+            dap_string_append(l_str_ret, l_emission_hash_str);
+            dap_string_append(l_str_ret, "\n");
+            return l_str_ret;
+        }
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->threshold_emissions_rwlock);
+    dap_string_append(l_str_ret, "Hash wasn't found in ledger\n");
+    return l_str_ret;
+}
+
+dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+    dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
+    dap_string_t *l_str_ret = dap_string_new("");
     pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
+    uint32_t l_counter = 0;
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_item, l_balance_tmp){  
-        char l_balance_key[70]={0};
         char l_time[1024] = {0};
-        dap_chain_hash_fast_to_str(&l_balance_item->key,l_balance_key,sizeof(l_balance_key));
         //log_it(L_DEBUG,"Ledger balance key %s, token_ticker: %s, balance: %s", l_balance_key, l_balance_item->token_ticker, 
         //                        dap_chain_balance_print(l_balance_item->balance));
         dap_string_append(l_str_ret, "Ledger balance key: ");
-        dap_string_append(l_str_ret, l_balance_key);
+        dap_string_append(l_str_ret, l_balance_item->key);
         dap_string_append(l_str_ret, ", token_ticker:");
         dap_string_append(l_str_ret, l_balance_item->token_ticker);
         dap_string_append(l_str_ret, ", balance:");
         dap_string_append(l_str_ret, dap_chain_balance_print(l_balance_item->balance));
         dap_string_append(l_str_ret, "\n");
+        l_counter +=1;
     }
+    if (!l_counter)
+        dap_string_append(l_str_ret, "0 items in ledger balance_accounts\n");
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
     return l_str_ret;
 }

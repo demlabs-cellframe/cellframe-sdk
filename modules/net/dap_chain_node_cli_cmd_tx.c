@@ -915,12 +915,24 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         return 0;
     }
     else if(l_cmd == CMD_LIST){
-        enum {SUBCMD_NONE, SUBCMD_LIST_COIN, SUB_CMD_LIST_LEDGER_THRESHOLD};
+        enum {SUBCMD_NONE, SUBCMD_LIST_COIN, SUB_CMD_LIST_LEDGER_THRESHOLD, SUB_CMD_LIST_LEDGER_BALANCE, SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH};
         int l_sub_cmd = SUBCMD_NONE;
+        dap_chain_hash_fast_t l_tx_threshold_hash;
         if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "coins", NULL ))
                 l_sub_cmd = SUBCMD_LIST_COIN;
-        if (dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "threshold", NULL ))
-                l_sub_cmd = SUB_CMD_LIST_LEDGER_THRESHOLD;
+        if (dap_chain_node_cli_find_option_val(a_argv, 2, a_argc, "threshold", NULL)){
+            l_sub_cmd = SUB_CMD_LIST_LEDGER_THRESHOLD;
+            const char* l_tx_threshold_hash_str = NULL;
+            dap_chain_node_cli_find_option_val(a_argv, 3, a_argc, "-hash", &l_tx_threshold_hash_str);
+            if (l_tx_threshold_hash_str){          
+                l_sub_cmd = SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH;
+                if (dap_chain_hash_fast_from_str(l_tx_threshold_hash_str, &l_tx_threshold_hash)){
+                    l_tx_hash_str = NULL;
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "tx threshold hash not recognized");
+                    return -1;
+                }
+            }     
+        }
         if (l_sub_cmd == SUBCMD_NONE) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'list' requires subcommands 'coins' or 'threshold'");
             return -5;
@@ -936,7 +948,23 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             return -2;
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD){
-            dap_string_t *l_str_ret = dap_chain_ledger_treshold_info(l_ledger);
+            dap_string_t *l_str_ret = dap_chain_ledger_threshold_info(l_ledger);
+            if (l_str_ret){
+                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
+                dap_string_free(l_str_ret, true);
+            }
+                
+            return 0;
+        }
+        if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH){
+            dap_string_t *l_str_ret = dap_chain_ledger_threshold_hash_info(l_ledger, &l_tx_threshold_hash);
+            if (l_str_ret){
+                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
+                dap_string_free(l_str_ret, true);
+            }
+        }
+        if (l_sub_cmd == SUB_CMD_LIST_LEDGER_BALANCE){
+            dap_string_t *l_str_ret = dap_chain_ledger_balance_info(l_ledger);
             if (l_str_ret){
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
                 dap_string_free(l_str_ret, true);
