@@ -29,11 +29,11 @@
 #endif
 #include <unistd.h>
 
+#include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 #include "dap_config.h"
-#include "dap_chain_pvt.h"
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_cert.h"
@@ -66,14 +66,10 @@ int s_prepare_env();
  */
 int dap_chain_init(void)
 {
-    /*if (dap_cert_init() != 0) {
-        log_it(L_CRITICAL,"Can't chain certificate storage module");
-        return -4;
-    }*/
-
     uint16_t l_ca_folders_size = 0;
     char ** l_ca_folders;
     l_ca_folders = dap_config_get_array_str(g_config, "resources", "ca_folders", &l_ca_folders_size);
+    dap_cert_init(l_ca_folders_size);
     for (uint16_t i=0; i < l_ca_folders_size; i++) {
         dap_cert_add_folder(l_ca_folders[i]);
     }

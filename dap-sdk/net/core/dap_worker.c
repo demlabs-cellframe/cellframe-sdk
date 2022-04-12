@@ -161,7 +161,7 @@ void *dap_worker_thread(void *arg)
     l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_es_reassign_callback );
 
 
-    for( int n = 0; n < dap_events_worker_get_count(); n++) {
+    for( uint32_t n = 0; n < dap_events_worker_get_count(); n++) {
         l_worker->queue_es_new_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_new);
         l_worker->queue_es_delete_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_delete);
         l_worker->queue_es_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io);

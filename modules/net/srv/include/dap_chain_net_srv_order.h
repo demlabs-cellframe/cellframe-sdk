@@ -74,6 +74,7 @@ int dap_chain_net_srv_order_init(void);
 void dap_chain_net_srv_order_deinit(void);
 
 size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order);
+dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t a_order_size);
 
 bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_order, uint8_t a_continent_num, const char *a_region);
 bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_order, uint8_t *a_continent_num, char **a_region);

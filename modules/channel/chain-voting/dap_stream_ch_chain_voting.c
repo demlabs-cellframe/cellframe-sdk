@@ -44,7 +44,7 @@ typedef struct voting_node_client_list {
     dap_chain_node_client_t *node_client;
     dap_chain_node_addr_t node_addr;
     UT_hash_handle hh;
-} DAP_ALIGN_PACKED voting_node_client_list_t;
+} voting_node_client_list_t;
 
 static size_t s_pkt_in_callback_count = 0;
 static voting_pkt_in_callback_t s_pkt_in_callback[256]={{0}};
@@ -59,16 +59,20 @@ static void s_callback_channel_pkt_free_unsafe(uint64_t node_addr_uint64);
 static void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg);
 
-static bool s_packet_in_callback_handler(void);
+static bool s_packet_in_callback_handler(void * a_arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
 
 static dap_timerfd_t * s_packet_in_callback_timer = NULL; 
+static bool s_is_inited = false;
 
 //static int s_cli_voting(int argc, char ** argv, char **a_str_reply);
 
 int dap_stream_ch_chain_voting_init() {
 	log_it(L_NOTICE, "Chains voting channel initialized");
+	if (s_is_inited) {
+		return 0;
+	}
 
     if (!s_pkt_items) {
 		s_pkt_items = DAP_NEW_Z(voting_pkt_items_t);
@@ -89,7 +93,7 @@ int dap_stream_ch_chain_voting_init() {
                         (dap_timerfd_callback_t)s_packet_in_callback_handler, 
                         NULL);
 	}
-
+	s_is_inited = true;
 	// s_packet_in_callback_handler();
 	return 0;
 }
@@ -176,22 +180,17 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net, dap_list_
 	            	DAP_DELETE(l_key);
 	            	if (!l_node_info) {
 	                	continue;
-	           		}
+                    }
+                    char l_channels[] = {dap_stream_ch_chain_voting_get_id(),0};
+                    dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect_channels(a_net, l_node_info, l_channels);
+                    if (!l_node_client) {
+                        continue;
+                    }
 	           		voting_node_client_list_t *l_node_client_item = DAP_NEW_Z(voting_node_client_list_t);
-	           		l_node_client_item->node_info = NULL;
-	           		l_node_client_item->node_client = NULL;
 	           		memcpy(&l_node_client_item->node_addr, l_remote_node_addr, sizeof(dap_chain_node_addr_t));
-	           		
-		            char l_channels[] = {dap_stream_ch_chain_voting_get_id(),0};
-		            dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect_channels(a_net, l_node_info, l_channels);
-		            // DAP_DELETE(l_node_info);
-		            if (!l_node_client) {
-		                continue;
-		            }
 					l_node_client_item->node_info = l_node_info;
 	           		l_node_client_item->node_client = l_node_client;
 	           		HASH_ADD(hh, s_node_client_list, node_addr, sizeof(dap_chain_node_addr_t), l_node_client_item);
-
 	           		l_node_item = l_node_client_item;
 			    }
 	            dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(l_node_item->node_client->client->pvt_uuid);
@@ -281,6 +280,7 @@ static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg){
 void dap_stream_ch_chain_voting_deinit() {
 	voting_node_client_list_t *l_node_info_item=NULL, *l_node_info_tmp=NULL;
     HASH_ITER(hh, s_node_client_list, l_node_info_item, l_node_info_tmp) {
+        // Clang bug at this, l_node_info_item should change at every loop cycle
         HASH_DEL(s_node_client_list, l_node_info_item);
         DAP_DELETE(l_node_info_item->node_client);
         DAP_DELETE(l_node_info_item);
@@ -298,7 +298,9 @@ static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg) {
     a_ch->internal = NULL; // To prevent its cleaning in worker
 }
 
-static bool s_packet_in_callback_handler(void) {
+static bool s_packet_in_callback_handler(void *a_arg)
+{
+    UNUSED(a_arg);
 	if (dap_list_length(s_pkt_items->pkts_in)) {
 		pthread_rwlock_rdlock(&s_pkt_items->rwlock_in);
 		dap_list_t* l_list_pkts = dap_list_copy(s_pkt_items->pkts_in);
@@ -310,7 +312,7 @@ static bool s_packet_in_callback_handler(void) {
 		while(l_list_temp) {
             dap_list_t *l_list_next = l_list_temp->next;
 			dap_stream_ch_chain_voting_pkt_t * l_voting_pkt = (dap_stream_ch_chain_voting_pkt_t *)l_list_temp->data;
-			for (int i=0; i<s_pkt_in_callback_count; i++) {
+            for (size_t i=0; i<s_pkt_in_callback_count; i++) {
 				voting_pkt_in_callback_t * l_callback = s_pkt_in_callback+i;
 				if (l_callback->packet_in_callback) {
 					dap_chain_node_addr_t *l_sender_node_addr = DAP_NEW(dap_chain_node_addr_t);

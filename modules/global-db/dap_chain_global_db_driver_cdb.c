@@ -32,13 +32,12 @@
 #include <errno.h>
 #include <stdatomic.h>
 
-
 #define _GNU_SOURCE
 
+#include "dap_chain_global_db_driver_cdb.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h" // #include <dap_fnmatch.h>
-#include "dap_chain_global_db_driver_cdb.h"
 #include "dap_file_utils.h"
 
 #define LOG_TAG "dap_chain_global_db_cdb"
@@ -193,7 +192,7 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
     }
     memset(l_cdb_path, '\0', sizeof(l_cdb_path));
     dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, a_group);
-    cdb_options l_opts = { 1000000, 128, 1024 };
+    cdb_options l_opts = { 4096, 128, 1024 };
     if (cdb_option(l_cdb_i->cdb, l_opts.hsize, l_opts.pcacheMB, l_opts.rcacheMB) != CDB_SUCCESS) {
         log_it(L_ERROR, "Options are inacceptable: \"%s\"", cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
         goto ERR;
@@ -229,7 +228,7 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
         DAP_DELETE(l_cdb_i->local_group);
         cdb_destroy(l_cdb_i->cdb);
         HASH_DEL(s_cdb, l_cdb_i);
-        DAP_DELETE(l_cdb_i);
+        DAP_DEL_Z(l_cdb_i);
     }
 
 FIN:
@@ -637,12 +636,13 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
             log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
             ret = -1;
         }
+        cdb_flushalldpage(l_cdb_i->cdb);
         DAP_DELETE(l_rec.val);
     } else if(a_store_obj->type == DAP_DB$K_OPTYPE_DEL) {
         if(a_store_obj->key) {
             if(cdb_del(l_cdb_i->cdb, a_store_obj->key, (int) strlen(a_store_obj->key)) == -3)
                 ret = 1;
-        } else if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP))
+        } else if (dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP))
             ret = -1;
     }
     return ret;

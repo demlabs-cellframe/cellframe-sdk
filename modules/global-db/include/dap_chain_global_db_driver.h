@@ -24,11 +24,11 @@
 
 #pragma once
 
+#include "dap_proc_thread.h"
+#include "dap_list.h"
+
 #include <stddef.h>
 #include <stdint.h>
-#include "dap_common.h"
-#include "dap_list.h"
-#include "dap_proc_thread.h"
 
 enum    {
     DAP_DB$K_OPTYPE_ADD  = 'a',                 /* Operation Type = INSERT/ADD */
@@ -46,10 +46,10 @@ typedef struct dap_store_obj {
     uint64_t timestamp;
     uint32_t type;                              /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
     uint8_t flags;                              /* RECORD_FLAGS */
-    const char *group;
+    char *group;
     const char *key;
     const char *c_key;
-    const uint8_t *value;
+    uint8_t *value;
     uint64_t value_len;
 
     dap_proc_queue_callback_t cb;               /* (Async mode only!) A call back to be called on request completion */

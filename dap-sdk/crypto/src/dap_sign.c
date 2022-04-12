@@ -264,7 +264,7 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
  * @param a_sign_ser signed data buffer
  * @param a_sign_ser_size buffer size
  * @param a_pkey public key
- * @param a_pub_key_size pulic key size
+ * @param a_pub_key_size public key size
  * @return dap_sign_t* 
  */
 dap_sign_t * dap_sign_pack(dap_enc_key_t *a_key, const void * a_sign_ser, const size_t a_sign_ser_size, const void * a_pkey, const size_t a_pub_key_size)
@@ -331,6 +331,27 @@ bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_h
         return false;
     }
     return dap_hash_fast( a_sign->pkey_n_sign,a_sign->header.sign_pkey_size,a_sign_hash );
+}
+
+/**
+ * @brief Compare two sign
+ *
+ * @param l_sign1
+ * @param l_sign2
+ * @return true or false
+ */
+bool dap_sign_match_pkey_signs(dap_sign_t *l_sign1, dap_sign_t *l_sign2)
+{
+    dap_chain_hash_fast_t l_hash_pkey;
+    size_t l_pkey_ser_size1 = 0, l_pkey_ser_size2 = 0;
+    // Get public key from sign
+    const uint8_t *l_pkey_ser1 = dap_sign_get_pkey(l_sign1, &l_pkey_ser_size1);
+    const uint8_t *l_pkey_ser2 = dap_sign_get_pkey(l_sign2, &l_pkey_ser_size2);
+    if(l_pkey_ser_size1 == l_pkey_ser_size2) {
+        if(!memcmp(l_pkey_ser1, l_pkey_ser2, l_pkey_ser_size1))
+            return true;
+    }
+    return false;
 }
 
 /**
@@ -655,6 +676,7 @@ void dap_multi_sign_params_delete(dap_multi_sign_params_t *a_params)
  */
 bool dap_multi_sign_hash_data(dap_multi_sign_t *a_sign, const void *a_data, const size_t a_data_size, dap_chain_hash_fast_t *a_hash)
 {
+    //types missunderstanding?
     uint8_t *l_concatenated_hash = DAP_NEW_SIZE(uint8_t, 3 * sizeof(dap_chain_hash_fast_t));
     if (!dap_hash_fast(a_data, a_data_size, a_hash)) {
         DAP_DELETE(l_concatenated_hash);

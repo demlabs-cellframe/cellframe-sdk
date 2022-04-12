@@ -29,12 +29,10 @@
 #include <time.h>
 #include <assert.h>
 //#include <string.h>
-
+#include "dap_chain_global_db.h"
 #include "uthash.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_common.h"
-#include "dap_chain_global_db_hist.h"
-#include "dap_chain_global_db.h"
 
 #ifdef WIN32
 #include "registry.h"
@@ -63,25 +61,27 @@ static inline void unlock()
     //pthread_mutex_unlock(&ldb_mutex_);
 }
 
-// Callback table item
-typedef struct sync_group_item
-{
-    char *group_mask;
-    char *group_name_for_history;
-    dap_global_db_obj_callback_notify_t callback_notify;
-    void * callback_arg;
-    UT_hash_handle hh;
-} sync_group_item_t;
-
 // Tacked group callbacks
-static sync_group_item_t *s_sync_group_items = NULL;
-static sync_group_item_t *s_sync_group_extra_items = NULL;
+static dap_list_t *s_sync_group_items = NULL;
+static dap_list_t *s_sync_group_extra_items = NULL;
 
 static int s_track_history = 0;
 
 int     s_db_drvmode_async ,                                                /* Set a kind of processing requests to DB:
                                                                             <> 0 - Async mode should be used */
         s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
+
+int s_db_add_sync_group(dap_list_t **a_grp_list, dap_sync_group_item_t *a_item)
+{
+    for (dap_list_t *it = *a_grp_list; it; it = it->next) {
+        if (!dap_strcmp(((dap_sync_group_item_t *)it->data)->group_mask, a_item->group_mask)) {
+            log_it(L_WARNING, "Group mask '%s' already present in the list, ignore it", a_item->group_mask);
+            return -1;
+        }
+    }
+    *a_grp_list = dap_list_append(*a_grp_list, a_item);
+    return 0;
+}
 
 /**
  * @brief Adds a group name for synchronization.
@@ -92,12 +92,11 @@ int     s_db_drvmode_async ,                                                /* S
  */
 void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
-    sync_group_item_t * l_item = DAP_NEW_Z(sync_group_item_t);
+    dap_sync_group_item_t *l_item = DAP_NEW_Z(dap_sync_group_item_t);
     l_item->group_mask = dap_strdup_printf("%s.*", a_group_prefix);
-    l_item->group_name_for_history = dap_strdup(GROUP_LOCAL_HISTORY);
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
-    HASH_ADD_STR(s_sync_group_items, group_mask, l_item);
+    s_db_add_sync_group(&s_sync_group_items, l_item);
 }
 
 /**
@@ -109,27 +108,11 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
  */
 void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
-    sync_group_item_t* l_item = DAP_NEW_Z(sync_group_item_t);
+    dap_sync_group_item_t* l_item = DAP_NEW_Z(dap_sync_group_item_t);
     l_item->group_mask = dap_strdup(a_group_mask);
-    l_item->group_name_for_history = dap_strdup(GROUP_LOCAL_HISTORY".extra");
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
-    HASH_ADD_STR(s_sync_group_extra_items, group_mask, l_item);
-}
-
-/**
- * @brief Gets a list of a group mask.
- * @param a_table a table
- * @return Returns a pointer to a list of a group mask.
- */
-dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
-{
-    dap_list_t *l_ret = NULL;
-    sync_group_item_t *l_item = NULL, *l_item_tmp = NULL;
-    HASH_ITER(hh, a_table, l_item, l_item_tmp) {
-        l_ret = dap_list_append(l_ret, l_item->group_mask);
-    }
-    return l_ret;
+    s_db_add_sync_group(&s_sync_group_extra_items, l_item);
 }
 
 /**
@@ -138,7 +121,7 @@ dap_list_t *dap_chain_db_get_sync_groups_internal(sync_group_item_t *a_table)
  */
 dap_list_t *dap_chain_db_get_sync_groups()
 {
-    return dap_chain_db_get_sync_groups_internal(s_sync_group_items);
+    return dap_list_copy(s_sync_group_items);
 }
 
 /**
@@ -148,7 +131,7 @@ dap_list_t *dap_chain_db_get_sync_groups()
  */
 dap_list_t *dap_chain_db_get_sync_extra_groups()
 {
-    return dap_chain_db_get_sync_groups_internal(s_sync_group_extra_items);
+    return dap_list_copy(s_sync_group_extra_items);
 }
 
 /**
@@ -161,11 +144,8 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *a_obj)
     if(!a_obj)
         return;
 
-    DAP_DELETE(a_obj->key);
-    DAP_DELETE(a_obj->value);
-
-    a_obj->key = NULL;
-    a_obj->value = NULL;
+    DAP_DEL_Z(a_obj->key);
+    DAP_DEL_Z(a_obj->value);
 }
 
 /**
@@ -176,7 +156,7 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *a_obj)
 void dap_chain_global_db_obj_delete(dap_global_db_obj_t *a_obj)
 {
     dap_chain_global_db_obj_clean(a_obj);
-    DAP_DELETE(a_obj);
+    DAP_DEL_Z(a_obj);
 }
 
 /**
@@ -232,6 +212,14 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     return res;
 }
 
+
+static void s_clear_sync_grp(void *a_elm)
+{
+    dap_sync_group_item_t *l_item = (dap_sync_group_item_t *)a_elm;
+    DAP_DELETE(l_item->group_mask);
+    DAP_DELETE(l_item);
+}
+
 /**
  * @brief Deinitialize a database.
  * @note You should call this function at the end.
@@ -239,27 +227,13 @@ int dap_chain_global_db_init(dap_config_t * g_config)
  */
 void dap_chain_global_db_deinit(void)
 {
-sync_group_item_t *l_item = NULL, *l_item_tmp = NULL,
-        *l_add_item = NULL, *l_add_item_tmp = NULL;
-
     lock();
     dap_db_driver_deinit();
     unlock();
 
-    HASH_ITER(hh, s_sync_group_items, l_item, l_item_tmp)
-    {
-        DAP_DELETE(l_item->group_name_for_history);
-        DAP_DELETE(l_item);
-    }
-
-    HASH_ITER(hh, s_sync_group_extra_items, l_add_item, l_add_item_tmp)
-    {
-        DAP_DELETE(l_add_item->group_mask);
-        DAP_DELETE(l_add_item->group_name_for_history);
-        DAP_DELETE(l_add_item);
-    }
-
-    s_sync_group_items = NULL;
+    dap_list_free_full(s_sync_group_items, s_clear_sync_grp);
+    dap_list_free_full(s_sync_group_extra_items, s_clear_sync_grp);
+    s_sync_group_extra_items = s_sync_group_items = NULL;
 }
 
 /**
@@ -281,7 +255,7 @@ int dap_chain_global_db_flush(void)
  * @param a_group a group name string
  * @return If successful, returns a pointer to the item, otherwise NULL.
  */
-void* dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
+dap_store_obj_t *dap_chain_global_db_obj_get(const char *a_key, const char *a_group)
 {
     size_t l_count = 1;
     // read one item
@@ -326,19 +300,20 @@ uint8_t* dap_chain_global_db_gr_flags_get(const char *a_key, size_t *a_data_len_
     uint8_t *l_ret_value = NULL;
     // read several items, 0 - no limits
     size_t l_data_len_out = 0;
-    if(a_data_len_out)
-        l_data_len_out = *a_data_len_out;
-    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_data_len_out);
-    if(l_store_data) {
-        l_ret_value = (l_store_data->value) ? DAP_NEW_SIZE(uint8_t, l_store_data->value_len) : NULL;
-        if(l_ret_value && l_store_data->value && l_store_data->value_len)
-            memcpy(l_ret_value, l_store_data->value, l_store_data->value_len);
-        if(a_data_len_out)
-            *a_data_len_out = l_store_data->value_len;
-        if(a_flags_out)
-            *a_flags_out = l_store_data->flags;
-        dap_store_obj_free(l_store_data, l_data_len_out);
+    if(!a_data_len_out)
+        a_data_len_out = &l_data_len_out;
+    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, a_data_len_out);
+    if (!l_store_data) {
+        return NULL;
     }
+    l_ret_value = l_store_data->value && l_store_data->value_len
+            ? DAP_DUP_SIZE(l_store_data->value, l_store_data->value_len)
+            : NULL;
+    l_data_len_out = l_store_data->value_len;
+    if(a_flags_out)
+        *a_flags_out = l_store_data->flags;
+    dap_store_obj_free(l_store_data, *a_data_len_out);
+    *a_data_len_out = l_data_len_out;
     return l_ret_value;
 }
 
@@ -378,7 +353,7 @@ static int global_db_gr_del_add(const char *a_key, const char *a_group, time_t a
 {
 dap_store_obj_t store_data = {0};
 char	l_group[DAP_DB_K_MAXGRPLEN];
-int l_res = 0;
+int l_res = -1;
 
     store_data.key = a_key;
     // group = parent group + '.del'
@@ -391,7 +366,7 @@ int l_res = 0;
         l_res = dap_chain_global_db_driver_add(&store_data, 1);
     unlock();
 
-    return  (l_res >= 0);    /*  ? true : false; */
+    return  l_res;
 }
 
 /**
@@ -429,25 +404,33 @@ int	l_res = 0;
  */
 time_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
 {
-    time_t l_timestamp = 0;
+time_t l_timestamp = 0;
+dap_store_obj_t store_data = {0};
+char    l_group [512];
+size_t l_count_out = 0;
+dap_store_obj_t *l_obj;
+
     if(!a_key)
         return l_timestamp;
-    dap_store_obj_t store_data;
-    memset(&store_data, 0, sizeof(dap_store_obj_t));
+
     store_data.key = a_key;
-    // store_data->c_key = a_key;
-    store_data.group = dap_strdup_printf("%s.del", a_group);
-    //store_data->c_group = a_group;
+    dap_snprintf(l_group, sizeof(l_group) - 1,  "%s.del", a_group);
+    store_data.group = l_group;
+
     lock();
-    if (dap_chain_global_db_driver_is(store_data.group, store_data.key)) {
-        size_t l_count_out = 0;
-        dap_store_obj_t *l_obj = dap_chain_global_db_driver_read(store_data.group, store_data.key, &l_count_out);
-        assert(l_count_out <= 1);
-        l_timestamp = l_obj->timestamp;
-        dap_store_obj_free(l_obj, l_count_out);
+    if (dap_chain_global_db_driver_is(store_data.group, store_data.key))
+    {
+        if ( (l_obj = dap_chain_global_db_driver_read(store_data.group, store_data.key, &l_count_out)) )
+        {
+            if ( (l_count_out > 1) )
+                log_it(L_WARNING, "Got more then 1 records (%zu) for group '%s'", l_count_out, l_group);
+
+            l_timestamp = l_obj->timestamp;
+            dap_store_obj_free(l_obj, l_count_out);
+        }
     }
     unlock();
-    DAP_DELETE((char *)store_data.group);
+
     return l_timestamp;
 }
 
@@ -501,26 +484,28 @@ dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_f
  */
 dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out)
 {
-    size_t count = 0;
-    // Read data
-    lock();
-    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, &count);
-    unlock();
-    if(!l_store_obj || !count){
-        if(a_data_size_out)
-            *a_data_size_out = 0;
+    size_t l_count = 0;
+    if (!a_data_size_out)
+        a_data_size_out = &l_count;
+    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, a_data_size_out);
+    if(!l_store_obj)
+        return NULL;
+
+    dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
+                                                 (*a_data_size_out + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
+    if (!l_data) {
+        dap_store_obj_free(l_store_obj, *a_data_size_out);
         return NULL;
     }
-    dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t, (count + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
-    for(size_t i = 0; i < count; i++) {
-        l_data[i].key = dap_strdup(l_store_obj[i].key);
-        l_data[i].value_len = l_store_obj[i].value_len;
-        l_data[i].value = DAP_NEW_Z_SIZE(uint8_t, l_store_obj[i].value_len + 1);
-        memcpy(l_data[i].value, l_store_obj[i].value, l_store_obj[i].value_len);
+
+    for(size_t i = 0; i < *a_data_size_out; i++) {
+        l_data[i] = (dap_global_db_obj_t) {
+                .key = dap_strdup(l_store_obj[i].key),
+                .value_len = l_store_obj[i].value_len,
+                .value = DAP_DUP_SIZE(l_store_obj[i].value, l_store_obj[i].value_len)
+        };
     }
-    dap_store_obj_free(l_store_obj, count);
-    if(a_data_size_out)
-        *a_data_size_out = count;
+    dap_store_obj_free(l_store_obj, *a_data_size_out);
     return l_data;
 }
 
@@ -533,58 +518,29 @@ dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out)
 }
 
 /**
- * @brief Finds item by a_items and a_group
- * @param a_items items
- * @param a_group a group name string
- * @return
- */
-static sync_group_item_t *find_item_by_mask(sync_group_item_t *a_items, const char *a_group)
-{
-    sync_group_item_t * l_item = NULL, *l_item_tmp = NULL;
-    HASH_ITER(hh, a_items, l_item, l_item_tmp) {
-        if (!dap_fnmatch(l_item->group_mask, a_group, 0))
-            return l_item;
-    }
-    return NULL;
-}
-
-/**
  * @brief Adds data to the history log
  *
  * @param a_store_data a pointer to an object
  * @return (none)
  */
-void dap_global_db_obj_track_history(dap_store_obj_t *a_store_data)
+void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
 {
     dap_store_obj_t *l_obj = a_store_data;
-    sync_group_item_t *l_sync_group_item = find_item_by_mask(s_sync_group_items, l_obj->group);
-
-    if (l_sync_group_item) {
-        if(l_sync_group_item->callback_notify) {
-             l_sync_group_item->callback_notify(l_sync_group_item->callback_arg,
-                        l_obj->type,
-                        l_obj->group, l_obj->key,
-                        l_obj->value, l_obj->value_len);
-        }
-        if (s_track_history) {
-            lock();
-            dap_db_history_add(l_obj->type, l_obj, 1, l_sync_group_item->group_name_for_history);
-            unlock();
-        }
-    } else { // looking for extra group
-        sync_group_item_t *l_sync_extra_group_item = find_item_by_mask(s_sync_group_extra_items, l_obj->group);
-        if(l_sync_extra_group_item) {
-            if(l_sync_extra_group_item->callback_notify) {
-                l_sync_extra_group_item->callback_notify(l_sync_extra_group_item->callback_arg,
-                        l_obj->type, l_obj->group, l_obj->key,
-                        l_obj->value, l_obj->value_len);
+    dap_list_t *it = s_sync_group_items;
+    while (it) {
+        for (; it; it = it->next) {
+            dap_sync_group_item_t *l_sync_group_item = (dap_sync_group_item_t *)it->data;
+            if (dap_fnmatch(l_sync_group_item->group_mask, l_obj->group, 0))
+                continue;
+            if(l_sync_group_item->callback_notify) {
+                 l_sync_group_item->callback_notify(l_sync_group_item->callback_arg,
+                            l_obj->type,
+                            l_obj->group, l_obj->key,
+                            l_obj->value, l_obj->value_len);
             }
-            if (s_track_history) {
-                lock();
-                dap_db_history_add(l_obj->type, l_obj, 1, l_sync_extra_group_item->group_name_for_history);
-                unlock();
-            }
+            return;
         }
+        it = it == s_sync_group_items ? s_sync_group_extra_items : NULL;
     }
 }
 
@@ -605,8 +561,8 @@ bool dap_chain_global_db_gr_flags_set(const char *a_key, const void *a_value, si
     store_data.key = a_key;
     store_data.flags = a_flags;
     store_data.value_len = (a_value_len == (size_t) -1) ? dap_strlen(a_value) : a_value_len;
-    store_data.value = store_data.value_len ? a_value : NULL;
-    store_data.group = a_group;
+    store_data.value = store_data.value_len ? (void *)a_value : NULL;
+    store_data.group = (char *)a_group;
     store_data.timestamp = time(NULL);
 
     lock();
@@ -618,10 +574,10 @@ bool dap_chain_global_db_gr_flags_set(const char *a_key, const void *a_value, si
         // delete info about the deleted entry from the base if one present
         global_db_gr_del_del(a_key, a_group);
 
-        store_data.value = a_value;
+        store_data.value = (void *)a_value;
         store_data.key = a_key;
 
-        dap_global_db_obj_track_history(&store_data);
+        dap_global_db_change_notify(&store_data);
     } else {
         log_it(L_ERROR, "Save error: %d", l_res);
     }
@@ -686,7 +642,7 @@ dap_store_obj_t store_data = {0};
         // do not add to history if l_res=1 (already deleted)
         if (!l_res) {
             store_data.key = (char *) a_key;
-            dap_global_db_obj_track_history(&store_data);
+            dap_global_db_change_notify(&store_data);
         }
     }
     return !l_res;
@@ -712,21 +668,21 @@ dap_store_obj_t *l_store_obj;
 
     l_store_obj = (dap_store_obj_t *)a_store_data;
 
+    int l_res_del = 0;
     for(int  i = a_objs_count; i--; l_store_obj++) {
-        if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && !l_res)
+        if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && l_res)
             // delete info about the deleted entry from the base if one present
             global_db_gr_del_del(l_store_obj->key, l_store_obj->group);
-        else if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && l_res >= 0)
+        else if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL)
             // add to Del group
-            global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
-
-        if (!l_res) {
+            l_res_del = global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
+        if (!l_res || !l_res_del) {
             // Extract prefix if added successfuly, add history log and call notify callback if present
-            dap_global_db_obj_track_history(l_store_obj);
+            dap_global_db_change_notify(l_store_obj);
         }
     }
 
-    return !l_res;
+    return l_res;
 }
 
 /**

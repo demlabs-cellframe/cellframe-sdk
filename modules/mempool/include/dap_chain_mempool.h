@@ -1,10 +1,11 @@
 #pragma once
 
 #include <stdint.h>
-#include "dap_chain_datum.h"
 #include "dap_chain_net.h"
+#include "dap_chain_datum.h"
 #include "dap_chain_ledger.h"
 #include "dap_http.h"
+#include "dap_cert.h"
 /*
  // datum mempool structure
  typedef struct dap_datum_mempool {
@@ -46,7 +47,6 @@ void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url);
 char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain);
 dap_hash_fast_t*  dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t *a_addr_from, const dap_chain_addr_t *a_addr_to,
-        const dap_chain_addr_t *a_addr_fee,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_fee);
 
@@ -57,11 +57,19 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
         uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
         dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size);
 
+dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+                                                  const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,
+                                                  dap_chain_datum_tx_receipt_t * a_receipt);
 dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
         const dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_tx_sign, dap_chain_datum_tx_receipt_t *a_receipt);
 
 int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
-        const dap_chain_addr_t* a_addr_fee,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_fee, size_t a_tx_num);
+
+dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
+                                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
+                                                        dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count);
+dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_chain, const char *a_emission_hash_str);
+dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size);

@@ -136,8 +136,8 @@ struct json_tokener *json_tokener_new_ex(int depth)
 	tok->pb = printbuf_new();
 	if (!tok->pb)
 	{
+        free(tok->stack);
 		free(tok);
-		free(tok->stack);
 		return NULL;
 	}
 	tok->max_depth = depth;

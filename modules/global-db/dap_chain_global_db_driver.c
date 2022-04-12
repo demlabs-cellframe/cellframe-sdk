@@ -36,14 +36,14 @@
 #include <assert.h>
 #include <unistd.h>
 
-#include "dap_common.h"
+#include "dap_worker.h"
 #include "dap_file_utils.h"
 #include "dap_strfuncs.h"
 #include "dap_hash.h"
-#include "dap_worker.h"
 #include "dap_proc_queue.h"
 #include "dap_events.h"
 #include "dap_list.h"
+#include "dap_common.h"
 
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"
@@ -200,22 +200,18 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
  * @param a_store_count a number of objects
  * @return (none)
  */
-void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
-{
-dap_store_obj_t *l_store_obj_cur;
-
+void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count){
     if(!a_store_obj)
         return;
 
-    l_store_obj_cur = a_store_obj;
+    dap_store_obj_t *l_store_obj_cur = a_store_obj;
 
-    for (int  i = a_store_count; i--; l_store_obj_cur++ ) {
-        DAP_DELETE((char *)l_store_obj_cur->group);
-        DAP_DELETE((char *)l_store_obj_cur->key);
-        DAP_DELETE((char *)l_store_obj_cur->value);
+    for ( ; a_store_count--; l_store_obj_cur++ ) {
+        DAP_DEL_Z(l_store_obj_cur->group);
+        DAP_DEL_Z(l_store_obj_cur->key);
+        DAP_DEL_Z(l_store_obj_cur->value);
     }
-
-    DAP_DELETE(a_store_obj);
+    DAP_DEL_Z(a_store_obj);
 }
 
 /**

@@ -62,12 +62,14 @@ void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks)
     while(l_chunk){
         dap_chain_block_cache_hash_t* l_block_cache_hash = NULL, *l_tmp = NULL;
         HASH_ITER(hh, l_chunk->block_cache_hash , l_block_cache_hash, l_tmp){
+            // Clang bug at this, l_block_cache_hash should change at every loop cycle
             HASH_DEL(l_chunk->block_cache_hash, l_block_cache_hash);
             DAP_DELETE(l_block_cache_hash);
         }
     }
     dap_chain_block_cache_t* l_block_cache = NULL, *l_tmp = NULL;
     HASH_ITER(hh, a_chunks->cache , l_block_cache, l_tmp){
+        // Clang bug at this, l_block_cache should change at every loop cycle
         HASH_DEL(a_chunks->cache, l_block_cache);
         dap_chain_block_cache_delete(l_block_cache);
     }
@@ -87,10 +89,11 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
     if (!a_block_cache)
         return;
     dap_chain_block_cache_hash_t  * l_chunk_cache_hash = NULL;
+    dap_chain_block_cache_t * l_chunk_cache = NULL;
     // Parse block and produce cache object
     // Check if already present
-    HASH_FIND(hh, a_chunks->cache, &a_block_cache->block_hash, sizeof (l_chunk_cache_hash->block_hash), l_chunk_cache_hash);
-    if (l_chunk_cache_hash){
+    HASH_FIND(hh, a_chunks->cache, &a_block_cache->block_hash, sizeof(dap_chain_hash_fast_t), l_chunk_cache);
+    if (l_chunk_cache){
         log_it(L_WARNING, "Already present block %s in cache",a_block_cache->block_hash_str);
         dap_chain_block_cache_delete(a_block_cache);
         return;
@@ -177,6 +180,7 @@ void dap_chain_block_chunk_delete( dap_chain_block_chunk_t * a_chunk)
 {
     dap_chain_block_cache_hash_t  * l_cache_hash = NULL, *l_tmp = NULL;
     HASH_ITER(hh, a_chunk->block_cache_hash, l_cache_hash, l_tmp){
+        // Clang bug at this, l_cache_hash should change at every loop cycle
         HASH_DEL(a_chunk->block_cache_hash, l_cache_hash);
         DAP_DELETE(l_cache_hash);
     }

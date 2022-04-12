@@ -24,6 +24,11 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdatomic.h>
+
+#include "dap_config.h"
+#include "dap_events.h"
+#include "dap_events_socket.h"
+#include "dap_proc_thread.h"
 #include "dap_server.h"
 
 #if defined(DAP_EVENTS_CAPS_EPOLL) && !defined(DAP_OS_WINDOWS)
@@ -52,11 +57,6 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #error "Unimplemented poll for this platform"
 #endif
 
-#include "dap_config.h"
-#include "dap_events.h"
-#include "dap_events_socket.h"
-#include "dap_proc_thread.h"
-
 #define LOG_TAG "dap_proc_thread"
 
 static size_t s_threads_count = 0;
@@ -81,7 +81,7 @@ int l_ret = 0;
     s_threads = DAP_NEW_Z_SIZE(dap_proc_thread_t, sizeof (dap_proc_thread_t)* s_threads_count);
     s_debug_reactor = g_config ? dap_config_get_item_bool_default(g_config, "general", "debug_reactor", false) : false;
 
-    for (int i = 0; i < s_threads_count; i++ )
+    for (uint32_t i = 0; i < s_threads_count; i++ )
     {
         s_threads[i].cpu_id = i;
         assert( !pthread_mutex_lock( &s_started_mutex ));
@@ -162,12 +162,12 @@ unsigned l_id_min = 0, l_size_min = UINT32_MAX, l_queue_size;
 static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t __attribute__((unused))  a_value)
 {
 dap_proc_thread_t   *l_thread;
-dap_proc_queue_item_t *l_item, *l_item_old;
-int l_is_anybody_for_repeat, l_is_finished, l_iter_cnt, l_cur_pri;
+dap_proc_queue_item_t *l_item;
+int     l_rc, l_is_anybody_for_repeat, l_is_finished, l_iter_cnt, l_cur_pri;
+size_t  l_size;
 dap_proc_queue_t    *l_queue;
 
-    if (s_debug_reactor)
-        log_it(L_DEBUG, "--> Proc event callback start");
+    debug_if (s_debug_reactor, L_DEBUG, "--> Proc event callback start, a_esocket:%p ", a_esocket);
 
     if ( !(l_thread = (dap_proc_thread_t *) a_esocket->_inheritor) )
         {
@@ -175,73 +175,54 @@ dap_proc_queue_t    *l_queue;
         return;
         }
 
-    l_is_anybody_for_repeat = 0;
-    l_iter_cnt = DAP_QUE$K_ITER_NR;
+    l_iter_cnt = l_is_anybody_for_repeat = 0;
+    /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_cur_pri = (DAP_QUE$K_PRIMAX - 1);
     l_queue = l_thread->proc_queue;
 
-    for ( ; l_iter_cnt && l_cur_pri--; )                                    /* Run from higest to lowest ... */
+    for ( ; l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
     {
-        if ( !(l_item = l_queue->items[l_cur_pri].item_first) )             /* Is there something to do at all ? */
+        if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
             continue;
 
-        for ( l_item_old = NULL ; l_item;  )
-        {
-            if(s_debug_reactor)
-                log_it(L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
+        assert ( !pthread_mutex_lock(&l_queue->list[l_cur_pri].lock) );     /* Protect list from other threads */
+        l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
+        assert ( !pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock) );
+
+        if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
+            debug_if (s_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
+            continue;
+        }
+
+        debug_if (s_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
-            l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
+        assert(l_item->callback);                                           /* Just for ensuring ... */
 
-            if (l_is_finished) {
-                if ( l_item->prev )
-                    l_item->prev->next = l_item_old;
+        l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
+        l_is_anybody_for_repeat++;
 
-                if(l_item_old){
-                    l_item_old->prev = l_item->prev;
+        debug_if (s_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
+                           l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
 
-                    if ( ! l_item->prev )  // We deleted tail
-                        l_queue->items[l_cur_pri].item_last = l_item_old;
-
+        if ( !(l_is_finished) ) {
+                                                                            /* Rearm callback to be executed again */
+            assert ( !pthread_mutex_lock(&l_queue->list[l_cur_pri].lock) );
+            l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, 1);
+            assert ( !pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock) );
+        }
+        else    {
                     DAP_DELETE(l_item);
-                    l_item = l_item_old->prev;
-                } else  {
-                    l_queue->items[l_cur_pri].item_first = l_item->prev;
-
-                    if ( l_item->prev)
-                        l_item->prev->next = NULL; // Prev if it was - now its NULL
-                    else
-                        l_queue->items[l_cur_pri].item_last = NULL; // NULL last item
-
-                    DAP_DELETE(l_item);
-                    l_item = l_queue->items[l_cur_pri].item_first;
-                } /* if (l_is_finished) */
-
-                if ( s_debug_reactor ) {
-                    log_it(L_DEBUG, "Proc event finished");
-                }
-            } else {
-                if ( s_debug_reactor )
-                    log_it(L_DEBUG, "Proc event not finished");
-
-                l_item_old = l_item;
-                l_item = l_item->prev;
-            }
+    	}
 
             l_is_anybody_for_repeat += (!l_is_finished);
 
-            if ( (l_iter_cnt -= 1) == 1 )                                   /* Rest a last iteration to get a chance to  */
-                break;                                                      /* execute callback with the <l_cur_pri> - 1 */
         }
-    }
-
-    l_is_anybody_for_repeat += (!l_iter_cnt);                               /* All iterations is used - the set "say what again" */
 
     if ( l_is_anybody_for_repeat )                                          /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
 
-    if(s_debug_reactor)
-        log_it(L_DEBUG, "<-- Proc event callback end, repeat flag is: %d, iterations: %d", l_is_anybody_for_repeat, l_iter_cnt);
+    debug_if(s_debug_reactor, L_DEBUG, "<-- Proc event callback end, repeat flag is: %d, iterations: %d", l_is_anybody_for_repeat, l_iter_cnt);
 }
 
 

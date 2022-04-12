@@ -56,7 +56,6 @@
 #include "dap_client.h"
 #include "dap_client_pvt.h"
 #include "dap_chain_global_db_remote.h"
-#include "dap_chain_global_db_hist.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net_srv.h"
@@ -115,6 +114,7 @@ void dap_chain_node_client_deinit()
 {
     dap_chain_node_client_handle_t *l_client = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_clients,l_client, l_tmp){
+        // Clang bug at this, l_client should change at every loop cycle
         HASH_DEL(s_clients,l_client);
         DAP_DELETE(l_client);
     }
@@ -205,7 +205,8 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
 
     dap_chain_node_client_t *l_me = l_client_found->client;
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
-    assert(l_worker);
+    if (!l_worker)
+        return NODE_SYNC_STATUS_FAILED;
     assert(l_me);
     dap_events_socket_t * l_es = NULL;
     dap_events_socket_uuid_t l_es_uuid = l_me->esocket_uuid;
@@ -266,6 +267,10 @@ static bool s_timer_update_states_callback(void *a_arg)
             l_me->state = NODE_CLIENT_STATE_DISCONNECTED;
             if (l_me->keep_connection) {
                 if (dap_client_pvt_find(l_me->client->pvt_uuid)) {
+                    if (dap_client_get_stage(l_me->client) != STAGE_BEGIN) {
+                        dap_client_go_stage(l_me->client, STAGE_BEGIN, NULL);
+                        return true;
+                    }
                     if (l_me->callbacks.disconnected) {
                         l_me->callbacks.disconnected(l_me, l_me->callbacks_arg);
                     }
@@ -273,6 +278,7 @@ static bool s_timer_update_states_callback(void *a_arg)
                         log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
                         l_me->state = NODE_CLIENT_STATE_CONNECTING ;
                         dap_client_go_stage(l_me->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
+                        return true;
                     } else {
                         dap_chain_node_client_close(l_me);
                     }
@@ -550,6 +556,9 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             dap_chain_net_sync_unlock(l_net, l_node_client);
             dap_timerfd_reset(l_node_client->sync_timer);
+        } break;
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
+            dap_chain_node_client_close(l_node_client);
         } break;
         default: {
         }

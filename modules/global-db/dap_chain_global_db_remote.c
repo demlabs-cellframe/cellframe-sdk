@@ -2,17 +2,314 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include <dap_common.h>
-#include <dap_strfuncs.h>
-#include <dap_string.h>
-#include "dap_chain.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
+#include "dap_common.h"
+#include "dap_strfuncs.h"
+#include "dap_string.h"
+#include "dap_chain.h"
 
 #define LOG_TAG "dap_chain_global_db_remote"
 
 // Default time of a node address expired in hours
 #define NODE_TIME_EXPIRED_DEFAULT 720
+
+/**
+ * @brief Gets last id of the log.
+ *
+ * @param a_group_name a group name string
+ * @return Returns id if succeessful.
+ */
+uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
+{
+    uint64_t result = 0;
+    dap_store_obj_t *l_last_obj = dap_chain_global_db_get_last(a_group_name);
+    if(l_last_obj) {
+        result = l_last_obj->id;
+        dap_store_obj_free(l_last_obj, 1);
+    }
+    return result;
+}
+
+/**
+ * @brief A function for a thread for reading a log list
+ *
+ * @param arg a pointer to the log list structure
+ * @return Returns NULL.
+ */
+static void *s_list_thread_proc(void *arg)
+{
+    dap_db_log_list_t *l_dap_db_log_list = (dap_db_log_list_t *)arg;
+    uint32_t l_time_store_lim = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
+    uint64_t l_limit_time = l_time_store_lim ? (uint64_t)time(NULL) - l_time_store_lim * 3600 : 0;
+    for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups)) {
+        dap_db_log_list_group_t *l_group_cur = (dap_db_log_list_group_t *)l_groups->data;
+        char *l_del_group_name_replace = NULL;
+        char l_obj_type;
+        if (!dap_fnmatch("*.del", l_group_cur->name, 0)) {
+            l_obj_type = DAP_DB$K_OPTYPE_DEL;
+            size_t l_del_name_len = strlen(l_group_cur->name) - 4; //strlen(".del");
+            l_del_group_name_replace = DAP_NEW_SIZE(char, l_del_name_len + 1);
+            memcpy(l_del_group_name_replace, l_group_cur->name, l_del_name_len);
+            l_del_group_name_replace[l_del_name_len] = '\0';
+        } else {
+            l_obj_type = DAP_DB$K_OPTYPE_ADD;
+        }
+        uint64_t l_item_start = l_group_cur->last_id_synced + 1;
+        while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
+            size_t l_item_count = min(64, l_group_cur->count);
+            dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
+            if (!l_dap_db_log_list->is_process)
+                return NULL;
+            // go to next group
+            if (!l_objs)
+                break;
+            // set new start pos = lastitem pos + 1
+            l_item_start = l_objs[l_item_count - 1].id + 1;
+            l_group_cur->count -= l_item_count;
+            dap_list_t *l_list = NULL;
+            for (size_t i = 0; i < l_item_count; i++) {
+                dap_store_obj_t *l_obj_cur = l_objs + i;
+                l_obj_cur->type = l_obj_type;
+                if (l_obj_type == DAP_DB$K_OPTYPE_DEL) {
+                    if (l_limit_time && l_obj_cur->timestamp < l_limit_time) {
+                        dap_chain_global_db_driver_delete(l_obj_cur, 1);
+                        continue;
+                    }
+                    DAP_DELETE((char *)l_obj_cur->group);
+                    l_obj_cur->group = dap_strdup(l_del_group_name_replace);
+                }
+                dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
+                uint64_t l_cur_id = l_obj_cur->id;
+                l_obj_cur->id = 0;
+                dap_store_obj_pkt_t *l_pkt = dap_store_packet_single(l_obj_cur);
+                dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_list_obj->hash);
+                dap_store_packet_change_id(l_pkt, l_cur_id);
+                l_list_obj->pkt = l_pkt;
+                l_list = dap_list_append(l_list, l_list_obj);
+            }
+            dap_store_obj_free(l_objs, l_item_count);
+            pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
+            // add l_list to list_write
+            l_dap_db_log_list->list_write = dap_list_concat(l_dap_db_log_list->list_write, l_list);
+            // init read list if it ended already
+            if(!l_dap_db_log_list->list_read)
+                l_dap_db_log_list->list_read = l_list;
+            pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
+        }
+        DAP_DEL_Z(l_del_group_name_replace);
+        if (!l_dap_db_log_list->is_process)
+            return NULL;
+    }
+
+    pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
+    l_dap_db_log_list->is_process = false;
+    pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
+    return NULL;
+}
+
+/**
+ * @brief Starts a thread that readding a log list
+ * @note instead dap_db_log_get_list()
+ *
+ * @param a_addr a pointer to the structure
+ * @param a_flags flags
+ * @return Returns a pointer to the log list structure if successful, otherwise NULL pointer.
+ */
+dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_flags)
+{
+#ifdef GDB_SYNC_ALWAYS_FROM_ZERO
+    a_flags |= F_DB_LOG_SYNC_FROM_ZERO;
+#endif
+    //log_it(L_DEBUG, "Start loading db list_write...");
+    dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
+    dap_list_t *l_groups_masks = dap_chain_db_get_sync_groups();
+    if (a_flags & F_DB_LOG_ADD_EXTRA_GROUPS) {
+        l_groups_masks = dap_list_concat(l_groups_masks, dap_chain_db_get_sync_extra_groups());
+    }
+    dap_list_t *l_groups_names = NULL;
+    for (dap_list_t *l_cur_mask = l_groups_masks; l_cur_mask; l_cur_mask = dap_list_next(l_cur_mask)) {
+        char *l_cur_mask_data = ((dap_sync_group_item_t *)l_cur_mask->data)->group_mask;
+        l_groups_names = dap_list_concat(l_groups_names, dap_chain_global_db_driver_get_groups_by_mask(l_cur_mask_data));
+    }
+    dap_list_free(l_groups_masks);
+
+
+    static uint16_t s_size_ban_list = 0;
+    static char **s_ban_list = NULL;
+
+    static uint16_t s_size_white_list = 0;
+    static char **s_white_list = NULL;
+
+    static bool l_try_read_ban_list = false;
+    static bool l_try_read_white_list = false;
+
+    if (!l_try_read_ban_list) {
+            s_ban_list = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_list);
+            l_try_read_ban_list = true;
+    }
+    if (!l_try_read_white_list) {
+            s_white_list = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_list);
+            l_try_read_white_list = true;
+    }
+
+    /* delete if not condition */
+    if (s_size_white_list > 0) {
+        for (dap_list_t *l_group = l_groups_names; l_group; ) {
+            bool l_found = false;
+            for (int i = 0; i < s_size_white_list; i++) {
+                if (!dap_fnmatch(s_white_list[i], l_group->data, FNM_NOESCAPE)) {
+                    l_found = true;
+                    break;
+                }
+            }
+            if (!l_found) {
+                    dap_list_t *l_tmp = l_group->next;
+                    l_groups_names = dap_list_delete_link(l_dap_db_log_list->groups, l_group);
+                    l_group = l_tmp;
+            }
+            l_group = dap_list_next(l_group);
+        }
+    } else if (s_size_ban_list > 0) {
+        for (dap_list_t *l_group = l_groups_names; l_group; ) {
+            bool l_found = false;
+            for (int i = 0; i < s_size_ban_list; i++) {
+                if (!dap_fnmatch(s_ban_list[i], l_group->data, FNM_NOESCAPE)) {
+                    dap_list_t *l_tmp = l_group->next;
+                    l_groups_names = dap_list_delete_link(l_groups_names, l_group);
+                    l_group = l_tmp;
+                    l_found = true;
+                    break;
+                }
+            }
+            if (l_found) continue;
+            l_group = dap_list_next(l_group);
+        }
+    }
+
+    l_dap_db_log_list->groups = l_groups_names; // repalce name of group with group item
+    for (dap_list_t *l_group = l_dap_db_log_list->groups; l_group; l_group = dap_list_next(l_group)) {
+        dap_db_log_list_group_t *l_sync_group = DAP_NEW_Z(dap_db_log_list_group_t);
+        l_sync_group->name = (char *)l_group->data;
+        if (a_flags & F_DB_LOG_SYNC_FROM_ZERO)
+            l_sync_group->last_id_synced = 0;
+        else
+            l_sync_group->last_id_synced = dap_db_get_last_id_remote(a_addr.uint64, l_sync_group->name);
+        l_sync_group->count = dap_chain_global_db_driver_count(l_sync_group->name, l_sync_group->last_id_synced + 1);
+        l_dap_db_log_list->items_number += l_sync_group->count;
+        l_group->data = (void *)l_sync_group;
+    }
+    l_dap_db_log_list->items_rest = l_dap_db_log_list->items_number;
+    if (!l_dap_db_log_list->items_number) {
+        DAP_DELETE(l_dap_db_log_list);
+        return NULL;
+    }
+    l_dap_db_log_list->is_process = true;
+    pthread_mutex_init(&l_dap_db_log_list->list_mutex, NULL);
+    pthread_create(&l_dap_db_log_list->thread, NULL, s_list_thread_proc, l_dap_db_log_list);
+    return l_dap_db_log_list;
+}
+
+/**
+ * @brief Gets a number of objects from a log list.
+ *
+ * @param a_db_log_list a pointer to the log list structure
+ * @return Returns the number if successful, otherwise 0.
+ */
+size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list)
+{
+    if(!a_db_log_list)
+        return 0;
+    size_t l_items_number;
+    pthread_mutex_lock(&a_db_log_list->list_mutex);
+    l_items_number = a_db_log_list->items_number;
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
+    return l_items_number;
+}
+
+/**
+ * @brief Gets a number of rest objects from a log list.
+ *
+ * @param a_db_log_list a pointer to the log list structure
+ * @return Returns the number if successful, otherwise 0.
+ */
+size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list)
+{
+    if(!a_db_log_list)
+        return 0;
+    size_t l_items_rest;
+    pthread_mutex_lock(&a_db_log_list->list_mutex);
+    l_items_rest = a_db_log_list->items_rest;
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
+    return l_items_rest;
+}
+
+/**
+ * @brief Gets an object from a list.
+ *
+ * @param a_db_log_list a pointer to the log list
+ * @return Returns a pointer to the object.
+ */
+dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
+{
+    if (!a_db_log_list)
+        return NULL;
+    pthread_mutex_lock(&a_db_log_list->list_mutex);
+    int l_is_process = a_db_log_list->is_process;
+    // check next item
+    dap_list_t *l_list = a_db_log_list->list_read;
+    if (l_list){
+        a_db_log_list->list_read = dap_list_next(a_db_log_list->list_read);
+        a_db_log_list->items_rest--;
+    }
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
+    //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
+    return l_list ? (dap_db_log_list_obj_t *)l_list->data : DAP_INT_TO_POINTER(l_is_process);
+}
+
+void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list)
+{
+    if (!a_db_log_list)
+        return;
+    a_db_log_list->list_read = a_db_log_list->list_write;
+    a_db_log_list->items_rest = a_db_log_list->items_number;
+}
+
+/**
+ * @brief Deallocates memory of a list item
+ *
+ * @param a_item a pointer to the list item
+ * @returns (none)
+ */
+void dap_db_log_list_delete_item(void *a_item)
+{
+    dap_db_log_list_obj_t *l_list_item = (dap_db_log_list_obj_t *)a_item;
+    DAP_DELETE(l_list_item->pkt);
+    DAP_DELETE(l_list_item);
+}
+
+/**
+ * @brief Deallocates memory of a log list.
+ *
+ * @param a_db_log_list a pointer to the log list structure
+ * @returns (none)
+ */
+void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
+{
+    if(!a_db_log_list)
+        return;
+    // stop thread if it has created
+    if(a_db_log_list->thread) {
+        pthread_mutex_lock(&a_db_log_list->list_mutex);
+        a_db_log_list->is_process = false;
+        pthread_mutex_unlock(&a_db_log_list->list_mutex);
+        pthread_join(a_db_log_list->thread, NULL);
+    }
+    dap_list_free_full(a_db_log_list->groups, free);
+    dap_list_free_full(a_db_log_list->list_write, (dap_callback_destroyed_t)dap_db_log_list_delete_item);
+    pthread_mutex_destroy(&a_db_log_list->list_mutex);
+    DAP_DELETE(a_db_log_list);
+}
 
 /**
  * @brief Sets a current node adress.
@@ -204,8 +501,8 @@ dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_cha
  */
 static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
 {
-    size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(time_t)
-            + 2 * sizeof(uint64_t) + dap_strlen(store_obj->group) +
+    size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) +
+            3 * sizeof(uint64_t) + dap_strlen(store_obj->group) +
             dap_strlen(store_obj->key) + store_obj->value_len;
     return size;
 }
@@ -301,7 +598,13 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
         return NULL;
     uint64_t l_offset = 0;
     uint32_t l_count = a_pkt->obj_count, l_cur_count;
-    dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_count * sizeof(struct dap_store_obj));
+    uint64_t l_size = l_count <= UINT32_MAX ? l_count * sizeof(struct dap_store_obj) : 0;
+    dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_size);
+    if (!l_store_obj || !l_size) {
+        log_it(L_ERROR, "Invalid size: can't allocate %"DAP_UINT64_FORMAT_U" bytes", l_size);
+        DAP_DEL_Z(l_store_obj)
+        return NULL;
+    }
     for(l_cur_count = 0; l_cur_count < l_count; ++l_cur_count) {
         dap_store_obj_t *l_obj = l_store_obj + l_cur_count;
         uint16_t l_str_length;

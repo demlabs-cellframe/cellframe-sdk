@@ -142,6 +142,17 @@ int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_h
 
 }
 
+int dap_chain_datum_tx_add_fee_item(dap_chain_datum_tx_t **a_tx, uint256_t a_value)
+{
+    dap_chain_tx_out_cond_t *l_tx_out_fee = dap_chain_datum_tx_item_out_cond_create_fee(a_value);
+    if (l_tx_out_fee) {
+        dap_chain_datum_tx_add_item(a_tx, (const uint8_t *)l_tx_out_fee);
+        DAP_DELETE(l_tx_out_fee);
+        return 1;
+    }
+    return -1;
+}
+
 /**
  * Create 'out' item and insert to transaction
  *

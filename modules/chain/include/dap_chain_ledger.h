@@ -93,10 +93,9 @@ DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_c
 
 DAP_STATIC_INLINE char *dap_chain_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
 {
-   if (a_ledger) {
-       return dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net_name, a_suffix);
-   }
-   return NULL;
+    return a_ledger && a_ledger->net_name && a_suffix
+            ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net_name, a_suffix)
+            : NULL;
 }
 
 /**
@@ -115,7 +114,7 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
  *
  */
 
-int dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_token_ticker);
+dap_chain_datum_token_t *dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_token_ticker);
 
 /**
  * Add new token datum
@@ -126,6 +125,9 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token);
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
+dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger);
+dap_string_t *dap_chain_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash);
+dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger);
 /**
  * Add token emission datum
  */
@@ -226,3 +228,5 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
 
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page);
+
+bool dap_chain_ledger_fee_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);

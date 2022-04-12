@@ -26,8 +26,6 @@
 #include "dap_list.h"
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
-#include "dap_chain_datum.h"
-
 
 typedef enum dap_chain_tx_cond_type {
     COND_SERVICE_PROVIDE = 0x20, //
@@ -105,6 +103,13 @@ int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_h
  * return 1 Ok, -1 Error
  */
 int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain_addr_t *a_addr, uint256_t a_value);
+
+/**
+ * Create 'out_cond' item with fee value and insert to transaction
+ *
+ * return 1 Ok, -1 Error
+ */
+int dap_chain_datum_tx_add_fee_item(dap_chain_datum_tx_t **a_tx, uint256_t a_value);
 
 /**
  * Create 'out'_ext item and insert to transaction

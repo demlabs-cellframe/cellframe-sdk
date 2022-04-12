@@ -23,17 +23,20 @@
 */
 
 #include <errno.h>
-#include "dap_chain_net_srv_datum.h"
-
-#include "dap_file_utils.h"
-
 #include "dap_chain_mempool.h"
+#include "dap_config.h"
+#include "dap_file_utils.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_net_srv_order.h"
+#include "dap_chain_net_srv_datum.h"
 
 #define LOG_TAG "chain_net_srv_datum"
 
+static dap_chain_net_srv_t *s_srv_datum = NULL;
 static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply);
+
+void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, const char *a_key, const void *a_value, const size_t a_value_len);
 
 int dap_chain_net_srv_datum_init()
 {
@@ -42,7 +45,16 @@ int dap_chain_net_srv_datum_init()
             "\tSaving datum from mempool to file.\n\n"
         "srv_datum -net <chain net name> -chain <chain name> datum load -datum <datum hash>\n"
             "\tLoad datum custum from file to mempool.\n\n");
-
+    s_srv_datum = DAP_NEW_Z(dap_chain_net_srv_t);
+    s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
+    int l_net_count = dap_chain_net_srv_parse_pricelist(s_srv_datum, "srv_datum");
+    dap_chain_net_srv_price_t *l_price;
+    DL_FOREACH(s_srv_datum->pricelist, l_price) {
+        dap_chain_net_t *l_net = l_price->net;
+        if (!l_net)
+            continue;
+        dap_chain_net_srv_order_add_notify_callback(l_net, s_order_notficator, l_net);
+    }
     return 0;
 }
 
@@ -168,4 +180,65 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
         }
     }
     return -1;
+}
+
+void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, const char *a_key, const void *a_value, const size_t a_value_len)
+{
+    if (a_op_code == DAP_DB$K_OPTYPE_DEL)
+        return;
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_value, a_value_len);    // Old format comliance
+    if (!l_order) {
+        dap_chain_global_db_gr_del(a_key, a_group);
+        return; // order is corrupted
+    }
+    if (!dap_chain_net_srv_uid_compare(l_order->srv_uid, s_srv_datum->uid))
+        return; // order from another service
+    dap_chain_net_srv_price_t *l_price = NULL;
+    DL_FOREACH(s_srv_datum->pricelist, l_price) {
+        if (l_price->net == l_net)
+            break;
+    }
+    if (!l_price || l_price->net != l_net) {
+        log_it(L_DEBUG, "Price for net %s is not set", l_net->pub.name);
+        return; // price not set for this network
+    }
+    if ((l_order->price_unit.uint32 != SERV_UNIT_PCS) || (l_order->direction != SERV_DIR_BUY) ||
+            (strncmp(l_order->price_ticker, l_price->token, DAP_CHAIN_TICKER_SIZE_MAX)) ||
+            (!compare256(l_order->price, l_price->value_datoshi))) {
+        log_it(L_DEBUG, "Price from order (%s) is not equal to price from service pricelist (%s)",
+               dap_chain_balance_to_coins(l_order->price), dap_chain_balance_to_coins(l_price->value_datoshi));
+        return; // price from order is not equal with service price
+    }
+    char l_tx_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_order->tx_cond_hash, l_tx_cond_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    dap_chain_t *l_chain;
+    dap_chain_datum_t *l_datum = NULL;
+    dap_chain_datum_tx_t *l_tx_cond = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        size_t l_datum_size;
+        char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
+        l_datum = (dap_chain_datum_t *)dap_chain_global_db_gr_get(l_tx_cond_hash_str, &l_datum_size, l_gdb_group);
+        if (l_datum)
+            break;
+    }
+    if (l_datum)
+        l_tx_cond = (dap_chain_datum_tx_t *)l_datum->data;
+    else
+        l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
+    if (!l_tx_cond) {
+        log_it(L_DEBUG, "Invalid tx cond datum hash");
+        return;
+    }
+    int l_tx_out_cond_size;
+    dap_chain_tx_out_cond_t *l_cond_out = (dap_chain_tx_out_cond_t *)
+            dap_chain_datum_tx_item_get(l_tx_cond, NULL, TX_ITEM_TYPE_OUT_COND, &l_tx_out_cond_size);
+    if (!l_cond_out || l_cond_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY) {
+        log_it(L_DEBUG, "Condition with required subtype SRV_PAY not found in requested tx");
+    }
+    dap_hash_fast_t l_sign_hash;
+    if (!dap_sign_get_pkey_hash((dap_sign_t *)&l_order->ext_n_sign[l_order->ext_size], &l_sign_hash)) {
+         log_it(L_DEBUG, "Wrong order sign");
+         return;
+    }
 }

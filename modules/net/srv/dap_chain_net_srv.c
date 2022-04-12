@@ -610,6 +610,93 @@ bool dap_chain_net_srv_pay_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chai
     if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash))
         return false;
     return dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash);
+    // TODO add comparision a_tx sign pkey with receipt provider sign pkey
+}
+
+int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section)
+{
+    int ret = 0;
+    if (!a_config_section)
+        return ret;
+    a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
+    //! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
+    uint16_t l_pricelist_count = 0;
+    char **l_pricelist = dap_config_get_array_str(g_config, a_config_section, "pricelist", &l_pricelist_count);
+    for (uint16_t i = 0; i < l_pricelist_count; i++) {
+        dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
+        short l_iter = 0;
+        char *l_ctx;
+        for (char *l_price_token = strtok_r(l_pricelist[i], ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
+            //log_it(L_DEBUG, "Tokenizer: %s", l_price_token);
+            switch (l_iter) {
+            case 0:
+                l_price->net_name = l_price_token;
+                if (!(l_price->net = dap_chain_net_by_name(l_price->net_name))) {
+                    log_it(L_ERROR, "Error parsing pricelist: can't find network \"%s\"", l_price_token);
+                    break;
+                }
+                continue;
+            case 1:
+                l_price->value_datoshi = dap_chain_coins_to_balance(l_price_token);
+                if (IS_ZERO_256(l_price->value_datoshi)) {
+                    log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
+                    l_iter = 0;
+                    break;
+                }
+                continue;
+            case 2:
+                dap_stpcpy(l_price->token, l_price_token);
+                continue;
+            case 3:
+                l_price->units = strtoul(l_price_token, NULL, 10);
+                if (!l_price->units) {
+                    log_it(L_ERROR, "Error parsing pricelist: text on 4th position \"%s\" is not unsigned integer", l_price_token);
+                    l_iter = 0;
+                    break;
+                }
+                continue;
+            case 4:
+                if (!strcmp(l_price_token,      "SEC"))
+                    l_price->units_uid.enm = SERV_UNIT_SEC;
+                else if (!strcmp(l_price_token, "DAY"))
+                    l_price->units_uid.enm = SERV_UNIT_DAY;
+                else if (!strcmp(l_price_token, "MB"))
+                    l_price->units_uid.enm = SERV_UNIT_MB;
+                else if (!strcmp(l_price_token, "KB"))
+                    l_price->units_uid.enm = SERV_UNIT_KB;
+                else if (!strcmp(l_price_token, "B"))
+                    l_price->units_uid.enm = SERV_UNIT_B;
+                else if (!strcmp(l_price_token, "PCS"))
+                    l_price->units_uid.enm = SERV_UNIT_PCS;
+                else {
+                    log_it(L_ERROR, "Error parsing pricelist: wrong unit type \"%s\"", l_price_token);
+                    l_iter = 0;
+                    break;
+                }
+                continue;
+            case 5:
+                if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
+                    log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
+                    l_iter = 0;
+                    break;
+                }
+                continue;
+            case 6:
+                log_it(L_INFO, "Price item correct, added to service");
+                ret++;
+                break;
+            default:
+                break;
+            }
+            log_it(L_DEBUG, "Done with price item %d", i);
+            if (l_iter == 6)
+                DL_APPEND(a_srv->pricelist, l_price);
+            else
+                DAP_DELETE(l_price);
+            break; // double break exits tokenizer loop and steps to next price item
+        }
+    }
+    return ret;
 }
 
 /**
@@ -646,81 +733,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
         l_sdata->srv = l_srv;
-        if (a_config_section) {
-            l_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
-            //! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
-            uint16_t l_pricelist_count = 0;
-            char **l_pricelist = dap_config_get_array_str(g_config, a_config_section, "pricelist", &l_pricelist_count);
-            for (uint16_t i = 0; i < l_pricelist_count; i++) {
-                dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
-                short l_iter = 0;
-                char *l_ctx;
-                for (char *l_price_token = strtok_r(l_pricelist[i], ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
-                    //log_it(L_DEBUG, "Tokenizer: %s", l_price_token);
-                    switch (l_iter) {
-                    case 0:
-                        l_price->net_name = l_price_token;
-                        if (!(l_price->net = dap_chain_net_by_name(l_price->net_name))) {
-                            log_it(L_ERROR, "Error parsing pricelist: can't find network \"%s\"", l_price_token);
-                            DAP_DELETE(l_price);
-                            break;
-                        }
-                        continue;
-                    case 1:
-                        l_price->value_datoshi = dap_chain_uint256_to(dap_chain_coins_to_balance(l_price_token));
-                        if (!l_price->value_datoshi) {
-                            log_it(L_ERROR, "Error parsing pricelist: text on 2nd position \"%s\" is not floating number", l_price_token);
-                            l_iter = 0;
-                            DAP_DELETE(l_price);
-                            break;
-                        }
-                        continue;
-                    case 2:
-                        dap_stpcpy(l_price->token, l_price_token);
-                        continue;
-                    case 3:
-                        l_price->units = strtoul(l_price_token, NULL, 10);
-                        if (!l_price->units) {
-                            log_it(L_ERROR, "Error parsing pricelist: text on 4th position \"%s\" is not unsigned integer", l_price_token);
-                            l_iter = 0;
-                            DAP_DELETE(l_price);
-                            break;
-                        }
-                        continue;
-                    case 4:
-                        if (!strcmp(l_price_token,      "SEC"))
-                            l_price->units_uid.enm = SERV_UNIT_SEC;
-                        else if (!strcmp(l_price_token, "DAY"))
-                            l_price->units_uid.enm = SERV_UNIT_DAY;
-                        else if (!strcmp(l_price_token, "MB"))
-                            l_price->units_uid.enm = SERV_UNIT_MB;
-                        else {
-                            log_it(L_ERROR, "Error parsing pricelist: wrong unit type \"%s\"", l_price_token);
-                            l_iter = 0;
-                            DAP_DELETE(l_price);
-                            break;
-                        }
-                        continue;
-                    case 5:
-                        if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
-                            log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
-                            l_iter = 0;
-                            DAP_DELETE(l_price);
-                            break;
-                        }
-                        continue;
-                    case 6:
-                        log_it(L_INFO, "Price item correct, added to service");
-                        DL_APPEND(l_srv->pricelist, l_price);
-                        break;
-                    default:
-                        break;
-                    }
-                    log_it(L_DEBUG, "Done with price item %d", i);
-                    break; // double break exits tokenizer loop and steps to next price item
-                }
-            }
-        }
+        dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
@@ -841,6 +854,7 @@ void dap_chain_net_srv_del_all(void)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
+        // Clang bug at this, l_sdata should change at every loop cycle
         HASH_DEL(s_srv_list, l_sdata);
         pthread_mutex_destroy(&l_sdata->srv->banlist_mutex);
         DAP_DELETE(l_sdata->srv);
@@ -928,7 +942,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                                                                const void * a_ext, size_t a_ext_size)
 {
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
-                    a_srv->uid, a_price->units_uid, a_price->units, dap_chain_uint256_from(a_price->value_datoshi), a_ext, a_ext_size);
+                    a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
     // Sign with our wallet
     return dap_chain_datum_tx_receipt_sign_add(l_receipt, dap_chain_wallet_get_key(a_price->wallet, 0));
 }

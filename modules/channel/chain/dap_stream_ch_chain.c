@@ -56,7 +56,6 @@
 #include "dap_chain_cell.h"
 
 #include "dap_chain_global_db.h"
-#include "dap_chain_global_db_remote.h"
 
 #include "dap_stream.h"
 #include "dap_stream_worker.h"
@@ -66,8 +65,8 @@
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_chain_net.h"
-#define LOG_TAG "dap_stream_ch_chain"
 
+#define LOG_TAG "dap_stream_ch_chain"
 
 struct sync_request
 {
@@ -162,8 +161,12 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
  */
 static void s_sync_request_delete(struct sync_request * a_sync_request)
 {
+    if (!a_sync_request) {
+        //already NULL'ed
+        return;
+    }
     if (a_sync_request->pkt.pkt_data) {
-        DAP_DELETE(a_sync_request->pkt.pkt_data);
+        DAP_DEL_Z(a_sync_request->pkt.pkt_data);
     }
 
     if (a_sync_request->gdb.db_iter) {
@@ -171,7 +174,7 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
         dap_list_free_full( a_sync_request->gdb.db_iter, free);
         a_sync_request->gdb.db_iter = NULL;
     }
-    DAP_DELETE(a_sync_request);
+    DAP_DEL_Z(a_sync_request);
 }
 
 /**
@@ -183,8 +186,12 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
 static bool s_stream_ch_delete_in_proc(dap_proc_thread_t * a_thread, void * a_arg)
 {
     (void) a_thread;
-    dap_stream_ch_chain_go_idle((dap_stream_ch_chain_t *)a_arg);
-    s_free_log_list_gdb((dap_stream_ch_chain_t *)a_arg);
+    dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
+    if (l_ch_chain->callback_notify_packet_out)
+        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
+                                               l_ch_chain->callback_notify_arg);
+    dap_stream_ch_chain_go_idle(l_ch_chain);
+    s_free_log_list_gdb(l_ch_chain);
     DAP_DELETE(a_arg);
     return true;
 }
@@ -363,7 +370,7 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
 
     if (s_debug_more )
         log_it(L_INFO,"Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB");
-    dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB,
+    dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                          l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                          l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
     l_ch_chain->state = CHAIN_STATE_IDLE;
@@ -396,17 +403,16 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    dap_db_log_list_t *l_db_log = NULL;
-    if (l_ch_chain->request_db_log == NULL) {
-        l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
-        l_ch_chain->request_db_log = l_db_log;
-    }
+    if (l_ch_chain->request_db_log == NULL)
+        l_ch_chain->request_db_log  = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+    else
+        dap_db_log_list_rewind(l_ch_chain->request_db_log);
 
-    if(l_db_log) {
+    if (l_ch_chain->request_db_log) {
         if (s_debug_more)
             log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_U" transactions from address "NODE_ADDR_FP_STR,
-                             l_db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
-        l_sync_request->gdb.db_log = l_db_log;
+                             l_ch_chain->request_db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
+        l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_out_gdb_first_worker_callback, l_sync_request );
     } else {
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_out_gdb_last_worker_callback, l_sync_request );
@@ -451,12 +457,12 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    dap_db_log_list_t *l_db_log = NULL;
-    if (l_ch_chain->request_db_log == NULL) {
-        l_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
-        l_ch_chain->request_db_log = l_db_log;
-    }
+    if (l_ch_chain->request_db_log == NULL)
+        l_ch_chain->request_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+    else
+        dap_db_log_list_rewind(l_ch_chain->request_db_log);
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
+    l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_update_gdb_start_worker_callback, l_sync_request);
     return true;
@@ -695,7 +701,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
         uint64_t l_last_id = l_store_obj->id;
         const char *l_last_group = l_store_obj->group;
-        int l_last_type = l_store_obj->type;
+        uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
         uint64_t l_limit_time = l_time_store_lim ? (uint64_t)time(NULL) - l_time_store_lim * 3600 : 0;
@@ -755,53 +761,48 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             if(l_is_pinned_cur){
                 continue;
             }
+            time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
             // check the applied object newer that we have stored or erased
-            if (l_obj->timestamp > global_db_gr_del_get_timestamp(l_obj->group, l_obj->key) &&
-                    l_obj->timestamp > l_timestamp_cur &&
-                    (l_obj->type != 'd' || l_obj->timestamp > l_limit_time)) {
+            if (l_obj->timestamp > (uint64_t)l_timestamp_del &&
+                    l_obj->timestamp > (uint64_t)l_timestamp_cur &&
+                    (l_obj->type != DAP_DB$K_OPTYPE_DEL || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
             }
             if (s_debug_more){
                 char l_ts_str[50];
                 dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_store_obj[i].timestamp);
                 log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
-                        " timestamp=\"%s\" value_len=%zu  ",
-                        (char ) l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
+                        " timestamp=\"%s\" value_len=%zu",
+                        (char )l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
                         l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);
             }
             if (!l_apply) {
+                if (l_obj->timestamp <= (uint64_t)l_timestamp_cur)
+                    log_it(L_WARNING, "New data not applied, because newly object exists");
+                if (l_obj->timestamp <= (uint64_t)l_timestamp_del)
+                    log_it(L_WARNING, "New data not applied, because newly object is deleted");
+                if ((l_obj->type == DAP_DB$K_OPTYPE_DEL && l_obj->timestamp <= l_limit_time))
+                    log_it(L_WARNING, "New data not applied, because object is too old");
                 continue;
             }
 
-            // apply received transaction
-            dap_chain_t *l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
+            dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
-            //
-            // if chain is zero, it can be on of GDB group
-            // 
-            if (!l_chain)
-                 l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
-
-            if(l_chain) {
-                if(l_chain->callback_add_datums_with_group){
+            if (l_chain && l_chain->callback_add_datums_with_group) {
+                log_it(L_WARNING, "New data goes to GDB chain");
                     const void * restrict l_store_obj_value = l_store_obj[i].value;
                     l_chain->callback_add_datums_with_group(l_chain,
                             (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
                             l_store_obj[i].group);
-                }
-            } else 
-            {
+            } else {
                 // save data to global_db
                 if(!dap_chain_global_db_obj_save(l_obj, 1)) {
                     struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
                     dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
                                                     s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
-                } else {
-                    if (s_debug_more)
-                        log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
-                }
+                } else if (s_debug_more)
+                    log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
             }
-
         }
         if(l_store_obj) {
             dap_store_obj_free(l_store_obj, l_data_obj_count);
@@ -854,21 +855,22 @@ static bool s_chain_timer_callback(void *a_arg)
     if (l_ch_chain->timer_shots++ >= 3) {
         if (l_ch_chain->state != CHAIN_STATE_IDLE) {
             dap_stream_ch_chain_go_idle(l_ch_chain);
+            if (l_ch_chain->callback_notify_packet_out)
+                l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT, NULL, 0,
+                                                      l_ch_chain->callback_notify_arg);
         }
-        if (l_ch_chain->callback_notify_packet_out)
-            l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT, NULL, 0,
-                                                   l_ch_chain->callback_notify_arg);
-        if (l_ch_chain->request_db_log) s_free_log_list_gdb(l_ch_chain);
+        if (l_ch_chain->request_db_log)
+            s_free_log_list_gdb(l_ch_chain);
         DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
     }
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
-    if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS)
+    if (!l_ch_chain->timer_shots && l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS)
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
-    if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB || l_ch_chain->state == CHAIN_STATE_UPDATE_GLOBAL_DB) {
+    if (!l_ch_chain->timer_shots && l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB) {
         if (s_debug_more)
             log_it(L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
                             dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
@@ -910,7 +912,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         log_it(L_ERROR, "No chain packet in channel packet, returning");
         return;
     }
-    if (l_ch_pkt->hdr.size< sizeof (l_chain_pkt->hdr) ){
+    if (l_ch_pkt->hdr.size < sizeof (l_chain_pkt->hdr)){
         log_it(L_ERROR, "Corrupted packet: too small size %u, smaller then header size %zu", l_ch_pkt->hdr.size,
                sizeof(l_chain_pkt->hdr));
         return;
@@ -961,7 +963,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             log_it(L_INFO, "In:  UPDATE_GLOBAL_DB_REQ pkt: net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
                             l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
-            if (l_chain_pkt_data_size == sizeof(dap_stream_ch_chain_sync_request_t))
+            if (l_chain_pkt_data_size == (size_t)sizeof(dap_stream_ch_chain_sync_request_t))
                 memcpy(&l_ch_chain->request, l_chain_pkt->data, sizeof(dap_stream_ch_chain_sync_request_t));
             dap_chain_node_client_t *l_client = (dap_chain_node_client_t *)l_ch_chain->callback_notify_arg;
             if (l_client && l_client->resync_gdb)
@@ -1088,7 +1090,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         } break;
         // first packet of data with source node address
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_GLOBAL_DB: {
-            if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t)){
+            if(l_chain_pkt_data_size == (size_t)sizeof(dap_chain_node_addr_t)){
                memcpy(&l_ch_chain->request.node_addr, l_chain_pkt->data, l_chain_pkt_data_size);
                l_ch_chain->stats_request_gdb_processed = 0;
                log_it(L_INFO, "In: FIRST_GLOBAL_DB data_size=%zu net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x
@@ -1323,7 +1325,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         } break;
         // first packet of data with source node address
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_FIRST_CHAIN: {
-            if(l_chain_pkt_data_size == sizeof(dap_chain_node_addr_t)){
+            if(l_chain_pkt_data_size == (size_t)sizeof(dap_chain_node_addr_t)){
                 memcpy(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_stream_ch_chain_pkt_hdr_t));
                 memcpy(&l_ch_chain->request.node_addr, l_chain_pkt->data, sizeof(dap_chain_node_addr_t));
                 log_it(L_INFO, "From "NODE_ADDR_FP_STR": FIRST_CHAIN data_size=%zu net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
@@ -1349,6 +1351,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         l_pkt_item->pkt_data = DAP_NEW_SIZE(byte_t, l_chain_pkt_data_size);
                         if (!l_pkt_item->pkt_data) {
                             log_it(L_ERROR, "Not enough memory!");
+                            DAP_DELETE(l_sync_request);
                             break;
                         }
                         memcpy(l_pkt_item->pkt_data, l_chain_pkt->data, l_chain_pkt_data_size);
@@ -1466,6 +1469,7 @@ static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
     a_ch_chain->request_db_log = NULL;
     dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
+        // Clang bug at this, l_hash_item should change at every loop cycle
         HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
         DAP_DELETE(l_hash_item);
     }
@@ -1500,6 +1504,7 @@ void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain)
     dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
 
     HASH_ITER(hh, a_ch_chain->remote_atoms, l_hash_item, l_tmp) {
+        // Clang bug at this, l_hash_item should change at every loop cycle
         HASH_DEL(a_ch_chain->remote_atoms, l_hash_item);
         DAP_DELETE(l_hash_item);
     }
@@ -1519,8 +1524,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         return;
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
 
-    s_chain_timer_reset(l_ch_chain);
-
     switch (l_ch_chain->state) {
         // Update list of global DB records to remote
         case CHAIN_STATE_UPDATE_GLOBAL_DB: {
@@ -1531,6 +1534,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
                 if (!l_obj || DAP_POINTER_TO_INT(l_obj) == 1)
                     break;
+                s_chain_timer_reset(l_ch_chain);
                 memcpy(&l_data[i].hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
                 l_data[i].size = l_obj->pkt->data_size;
             }
@@ -1584,6 +1588,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                         l_request_atom_hash_str);
                     }*/
                     l_skip_count++;
+                    l_ch_chain->timer_shots = -1;
                 } else {
                     l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
                     memcpy(&l_hash_item->hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
@@ -1598,6 +1603,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 }
             }
             if (l_pkt_size) {
+                s_chain_timer_reset(l_ch_chain);
                 // If request was from defined node_addr we update its state
                 if (s_debug_more)
                     log_it(L_INFO, "Send one global_db packet len=%zu (rest=%zu/%zu items)", l_pkt_size,
@@ -1627,6 +1633,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
         // Update list of atoms to remote
         case CHAIN_STATE_UPDATE_CHAINS:{
+            s_chain_timer_reset(l_ch_chain);
             dap_stream_ch_chain_update_element_t *l_data = DAP_NEW_Z_SIZE(dap_stream_ch_chain_update_element_t,
                                                                           sizeof(dap_stream_ch_chain_update_element_t) * s_update_pack_size);
             size_t l_data_size=0;
@@ -1705,6 +1712,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);
                 if (l_was_sent_smth)
                     break;
+                else
+                    s_chain_timer_reset(l_ch_chain);
             }
             if(!l_ch_chain->request_atom_iter || !l_ch_chain->request_atom_iter->cur)  { // All chains synced
                 dap_stream_ch_chain_sync_request_t l_request = {};
@@ -1720,6 +1729,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                            0, l_ch_chain->callback_notify_arg);
             }
             if (! l_was_sent_smth ){
+                l_ch_chain->timer_shots = -1;
                 // We need to return into the write callback
                 a_ch->stream->esocket->buf_out_zero_count = 0;
             }

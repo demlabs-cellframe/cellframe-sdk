@@ -169,7 +169,7 @@ int res;
     if(res < 1)
         return -1;
 
-    if ( 0 >= (res = recv(sd, buf, bufsize, 0)) )
+    if ( 0 >= (res = recv(sd, (char *)buf, bufsize, 0)) )
         printf("[s_recv] recv()->%d, errno: %d\n", res, errno);
 
     return res;
@@ -1006,9 +1006,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
             "\nExtended private token declaration\n"
-            "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -type private -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
-            "\t   Declare new token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>"
-            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>."
+            "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -type private -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+            "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t   Declare new token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
+            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
+            "\nExtended CF20 token declaration\n"
+            "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -type CF20 -decimals <18> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>"
+            "\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+            "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t   Declare new token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
+            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
             "\n"
             "==Flags=="
             "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
@@ -1046,7 +1053,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit -net <net name> -chain_emission <chain for emission> -chain_base_tx <chain for base tx> -addr <addr> -token <token ticker> -certs <cert> -emission_value <val>\n");
+            "token_emit {sign | -token <token ticker> -emission_value <val>} -net <net name> [-chain_emission <chain for emission>] [-chain_base_tx <chain for base tx> -addr <addr>] -certs <cert list>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network",
             "mempool_list -net <net name>\n");
@@ -1071,7 +1078,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create -net <net name> -chain <chain name> -from_wallet <name> -to_addr <addr> -token <token ticker> -value <value> [-fee <addr> -value_fee <val>]\n" );
+            "tx_create -net <net name> -chain <chain name> {-from_wallet <name> -token <token ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>}"
+                                        "[-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
                                         "tx_cond_create -net <net name> -token <token ticker> -wallet <from wallet> -cert <public cert>"
                                         "-value <value datoshi> -unit <mb | kb | b | sec | day> -srv_uid <numeric uid>\n" );
@@ -1084,11 +1092,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
 
     // Ledger info
-    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger info",
+    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger information",
             "ledger list coins -net <network name>\n"
-            "ledger list coins_cond -net <network name>\n"
-            "ledger list addrs -net <network name>\n"
-            "ledger tx [all | -addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
+            "ledger list threshold [-hash <tx_treshold_hash>] -net <network name>\n"
+            "ledger list balance -net <network name>\n"
+            "ledger info -hash <tx_hash> -net <network name> [-unspent]\n"
+            "ledger tx -all -net <network name>\n"
+            "ledger tx [-addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
 
     // Token info
     dap_chain_node_cli_cmd_item_create("token", com_token, "Token info",

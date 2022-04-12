@@ -26,4 +26,5 @@
 
 uint128_t dap_uuid_generate_uint128(); // Produce uint128 unique id
 uint64_t dap_uuid_generate_uint64(); // Produce uint64 unique id
-
+// Produces unique nonce
+void dap_uuid_generate_nonce(void *a_nonce, size_t a_nonce_size);

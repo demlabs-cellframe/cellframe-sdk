@@ -25,7 +25,9 @@
 //#define _XOPEN_SOURCE 700
 
 #pragma once
+#ifndef __STDC_WANT_LIB_EXT1__
 #define __STDC_WANT_LIB_EXT1__ 1
+#endif
 #include <string.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -58,10 +60,11 @@
 #include "portable_endian.h"
 typedef uint8_t byte_t;
 
+#define BIT( x ) ( 1 << x )
 // Stuffs an integer into a pointer type
-#define DAP_INT_TO_POINTER(i) ((void*) (long) (i))
+#define DAP_INT_TO_POINTER(i) ((void*) (size_t) (i))
 // Extracts an integer from a pointer
-#define DAP_POINTER_TO_INT(p) ((int)  (long) (p))
+#define DAP_POINTER_TO_INT(p) ((int)  (size_t) (void *) (p))
 // Stuffs an unsigned integer into a pointer type
 #define DAP_UINT_TO_POINTER(u) ((void*) (unsigned long) (u))
 // Extracts an unsigned integer from a pointer

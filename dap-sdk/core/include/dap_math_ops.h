@@ -49,54 +49,74 @@ typedef int128_t _dap_int128_t;
 #endif // __SIZEOF_INT128__ == 16
 
 typedef struct uint256_t {
-    uint128_t hi;
-    uint128_t lo;
+    union {
+        struct {
+        uint128_t hi;
+        uint128_t lo;
+        };
+        struct {
+            struct {
+                uint32_t c;
+                uint32_t d;
+                uint32_t a;
+                uint32_t b;
+            } __hi;
+            struct {
+                uint32_t c;
+                uint32_t d;
+                uint32_t a;
+                uint32_t b;
+            }__lo;
+        };
+    };
 } DAP_ALIGN_PACKED uint256_t;
 
 typedef struct uint512_t {
     uint256_t hi;
     uint256_t lo;
-} DAP_ALIGN_PACKED uint512_t;
+} DAP_ALIGN_PACKED  uint512_t;
 
 #endif //defined(__GNUC__) || defined (__clang__)
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-
-#ifndef DAP_GLOBAL_IS_INT128
-#define uint128_0 ((uint128_t){.hi=0,.lo=0})
-#define uint128_1 ((uint128_t){.hi=0,.lo=1})
-#else // DAP_GLOBAL_IS_INT128
-#define uint128_0 0ULL
-#define uint128_1 1ULL
-
-#endif // DAP_GLOBAL_IS_INT128
-
-#define uint256_0 ((uint256_t){.hi=uint128_0,.lo=uint128_0})
-#define uint256_1 ((uint256_t){.hi=uint128_0,.lo=uint128_1})
-#define uint512_0 ((uint512_t){.hi=uint256_0,.lo=uint256_0})
 #define lo_32 ((uint64_t)0xffffffff)
 #define hi_32 ((uint64_t)0xffffffff00000000)
 #define ones_64 ((uint64_t)0xffffffffffffffff)
 
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+extern const uint128_t uint128_0;
+extern const uint128_t uint128_1;
+extern const uint256_t uint256_0;
+extern const uint256_t uint256_1;
+extern const uint512_t uint512_0;
+
 static inline uint128_t GET_128_FROM_64(uint64_t n) {
 #ifdef DAP_GLOBAL_IS_INT128
     return (uint128_t) n;
 #else
-    return (uint128_t){.hi=0,.lo=n};
+    uint128_t output;
+    output.hi = 0;
+    output.lo = n;
+    return output;
 #endif
 }
 
 static inline uint256_t GET_256_FROM_64(uint64_t n) {
-    return (uint256_t){.hi=uint128_0,.lo=GET_128_FROM_64(n)};
+    uint256_t output;
+    output.hi = uint128_0;
+    output.lo = GET_128_FROM_64(n);
+    return output;
 }
 
 static inline uint256_t GET_256_FROM_128(uint128_t n) {
-    return (uint256_t){.hi=uint128_0,.lo=n};
+    uint256_t output;
+    output.hi = uint128_0;
+    output.lo = n;
+    return output;
 }
 
 
@@ -397,7 +417,7 @@ static inline int SUBTRACT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uin
     int underflow_flag = 0;
 #ifdef DAP_GLOBAL_IS_INT128
     *c_128_bit = a_128_bit - b_128_bit;
-    underflow_flag = (*c_128_bit < 0) ^ (a_128_bit < b_128_bit);
+    underflow_flag = a_128_bit < b_128_bit;
 #else
     c_128_bit->lo = a_128_bit.lo - b_128_bit.lo;
     uint64_t carry = (((c_128_bit->lo & b_128_bit.lo) & 1) + (b_128_bit.lo >> 1) + (c_128_bit->lo >> 1)) >> 63;
@@ -685,13 +705,14 @@ static inline int MULT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uint128
 // }
 
 
-
+// we have test fails for this function with 512 bit, need to check it out if using it with 512 bit space
+// But with 256 bit sapce it works correct
 static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_t* c_512_bit) {
     int dummy_overflow;
     //product of .hi terms - stored in .hi field of c_512_bit
     MULT_128_256(a_256_bit.hi,b_256_bit.hi, &c_512_bit->hi);
 
-    //product of .lo terms - stored in .lo field of c_512_bit
+   //product of .lo terms - stored in .lo field of c_512_bit
     MULT_128_256(a_256_bit.lo,b_256_bit.lo, &c_512_bit->lo);
 
     //cross product of .hi and .lo terms
@@ -706,7 +727,6 @@ static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_
     MULT_128_256(a_256_bit.hi,b_256_bit.lo,&cross_product_first_term);
     MULT_128_256(a_256_bit.lo,b_256_bit.hi,&cross_product_second_term);
     overflow=SUM_256_256(cross_product_first_term,cross_product_second_term,&cross_product);
-
 
     LEFT_SHIFT_256(cross_product,&cross_product_shift_128,128); //the factor in front of cross product is 2**128
     c_512_bit_lo_copy=c_512_bit->lo;
@@ -977,14 +997,16 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
-#define CONV_256_FLOAT 10000000000000ULL // 10^13, so max float number to mult is 1.000.000
-static inline uint256_t MULT_256_FLOAT(uint256_t a_val, long double a_mult)
-{
-    uint256_t l_ret = GET_256_FROM_64((uint64_t)(a_mult * CONV_256_FLOAT));
-    MULT_256_256(l_ret, a_val, &l_ret);
-    DIV_256(l_ret, GET_256_FROM_64(CONV_256_FLOAT), &l_ret);
-    return l_ret;
-}
+
+// TODO replace it with fixed point MUL
+//#define CONV_256_FLOAT 10000000000000ULL // 10^13, so max float number to mult is 1.000.000
+//static inline uint256_t MULT_256_FLOAT(uint256_t a_val, long double a_mult)
+//{
+//    uint256_t l_ret = GET_256_FROM_64((uint64_t)(a_mult * CONV_256_FLOAT));
+//    MULT_256_256(l_ret, a_val, &l_ret);
+//    DIV_256(l_ret, GET_256_FROM_64(CONV_256_FLOAT), &l_ret);
+//    return l_ret;
+//}
 
 #ifdef __cplusplus
 }

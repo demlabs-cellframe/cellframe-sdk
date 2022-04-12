@@ -31,12 +31,12 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+#include "dap_chain_global_db_driver_pgsql.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_file_utils.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
-#include "dap_chain_global_db_driver_pgsql.h"
 
 #ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
 #include <pwd.h>

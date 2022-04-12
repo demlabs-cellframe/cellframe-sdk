@@ -62,6 +62,8 @@ dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blo
     l_block_cache->block = a_block;
     l_block_cache->block_size= a_block_size;
     l_block_cache->_inheritor = a_blocks;
+    l_block_cache->ts_created = a_block->hdr.ts_created;
+    l_block_cache->sign_count = dap_chain_block_get_signs_count(a_block, a_block_size);
     if (dap_chain_block_cache_update(l_block_cache)) {
         log_it(L_WARNING, "Block cache can't be created, possible cause corrupted block inside");
         DAP_DELETE(l_block_cache);

@@ -45,6 +45,7 @@
 
 #define DATOSHI_LD 1000000000.0L
 #define DATOSHI_DEGREE 9
+#define DATOSHI_DEGREE_18   18
 #define DATOSHI_POW 38
 
 // Chain ID of the whole system
@@ -141,7 +142,7 @@ typedef struct dap_chain_addr{
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
 typedef uint64_t dap_chain_time_t;
-static inline dap_chain_time_t dap_chain_time_now() { return (dap_chain_time_t) time(NULL); }
+dap_chain_time_t dap_chain_time_now();
 
 #define DAP_CHAIN_NET_SRV_UID_SIZE 8
 
@@ -163,6 +164,7 @@ typedef enum {
     SERV_UNIT_DAY = 0x00000003,  // days
     SERV_UNIT_KB = 0x00000010,  // kilobytes
     SERV_UNIT_B = 0x00000011,   // bytes
+    SERV_UNIT_PCS = 0x00000022  // pieces
 } serv_unit_enum_t;
 
 DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum){
@@ -173,6 +175,7 @@ DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum)
     case SERV_UNIT_DAY: return "SERV_UNIT_DAY";
     case SERV_UNIT_KB: return "SERV_UNIT_KB";
     case SERV_UNIT_B: return "SERV_UNIT_B";
+    case SERV_UNIT_PCS: return "SERV_UNIT_PCS";
     default: return "UNDEFINED";
 
     }
@@ -287,7 +290,13 @@ uint64_t dap_chain_uint256_to(uint256_t a_from);
 char *dap_chain_balance_print(uint256_t a_balance);
 char *dap_chain_balance_to_coins(uint256_t a_balance);
 uint256_t dap_chain_balance_scan(const char *a_balance);
+
+char *dap_cvt_uint256_to_str(uint256_t a_uint256);
+uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num);
+
+
 uint256_t dap_chain_coins_to_balance(const char *a_coins);
+
 
 /**
  * @brief dap_chain_hash_to_str

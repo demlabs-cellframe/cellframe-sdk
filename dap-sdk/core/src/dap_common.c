@@ -72,6 +72,23 @@
 
 #define LOG_TAG "dap_common"
 
+
+#ifndef DAP_GLOBAL_IS_INT128
+const uint128_t uint128_0 = {};
+const uint128_t uint128_1 = {.hi = 0, .lo = 1};
+#else // DAP_GLOBAL_IS_INT128
+const uint128_t uint128_0 = 0;
+const uint128_t uint128_1 = 1;
+#endif // DAP_GLOBAL_IS_INT128
+
+const uint256_t uint256_0 = {};
+#ifndef DAP_GLOBAL_IS_INT128
+const uint256_t uint256_1 = {.hi = uint128_0, .lo = uint128_1};
+#else // DAP_GLOBAL_IS_INT128
+const uint256_t uint256_1 = {.hi = 0, .lo = 1};
+#endif // DAP_GLOBAL_IS_INT128
+const uint512_t uint512_0 = {};
+
 static const char *s_log_level_tag[ 16 ] = {
     " [DBG] ", // L_DEBUG     = 0
     " [INF] ", // L_INFO      = 1,

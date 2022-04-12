@@ -694,6 +694,17 @@ size_t dap_str_countv(char **a_str_array)
     return l_i;
 }
 
+size_t dap_str_symbol_count(const char *a_str, char a_sym)
+{
+    const char *p = a_str;
+    uint32_t l_count = 0;
+
+    while (*p)
+        if (*p++ == a_sym)
+            l_count++;
+    return l_count;
+}
+
 /**
  * @brief  dap_strdupv:
  * 
@@ -945,7 +956,6 @@ char *_strndup(const char *str, unsigned long len) {
 }
 #endif
 
-
 #define SURROGATE_VALUE(h,l) (((h) - 0xd800) * 0x400 + (l) - 0xdc00 + 0x10000)
 
 #define UTF8_LENGTH(char)              \
@@ -968,7 +978,7 @@ char *_strndup(const char *str, unsigned long len) {
  */
 int dap_unichar_to_utf8 (unichar c, char   *outbuf)
 {
-  uint len = 0;
+  int len = 0;
   int first;
   int i;
 
