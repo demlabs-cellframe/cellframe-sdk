@@ -107,7 +107,7 @@ int dap_chain_net_srv_init()
         "\tOrder delete\n"
         "net_srv -net <chain net name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <chain net name> order create -direction <sell | buy> -srv_uid <Service UID> -price <Price>\n"
+        "net_srv -net <chain net name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
         "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"

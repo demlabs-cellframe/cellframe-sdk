@@ -296,7 +296,7 @@ int dap_chain_net_init()
             "\tAdd certificate to list of authority cetificates in GDB group\n"
         "net -net <chain net name> ca list\n"
             "\tPrint list of authority cetificates from GDB group\n"
-        "net -net <chain net name> ca del -hash <cert hash> [-H hex|base58(default)]\n"
+        "net -net <chain net name> ca del -hash <cert hash> [-H {hex | base58(default)}]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
         "net -net <chain net name> ledger reload\n"
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n");
