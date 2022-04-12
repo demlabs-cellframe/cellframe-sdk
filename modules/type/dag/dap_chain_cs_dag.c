@@ -179,7 +179,6 @@ static void s_history_callback_round_notify(void * a_arg, const char a_op_code, 
         if (l_dag->callback_cs_event_round_sync) {
             l_dag->callback_cs_event_round_sync(l_dag, a_op_code, a_group, a_key, a_value, a_value_size);
         }
-        dap_chain_net_sync_gdb_broadcast((void *)l_net, a_op_code, a_group, a_key, a_value, a_value_size);
     }
 }
 
