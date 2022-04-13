@@ -2278,8 +2278,8 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
                 l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
             }
             char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-            uint8_t *l_data_tmp = l_datum_hash_hex_str ? dap_chain_global_db_gr_get(dap_strdup(l_datum_hash_hex_str), NULL, l_gdb_group_mempool) : NULL;
-            if(l_data_tmp && dap_chain_global_db_gr_del(dap_strdup(l_datum_hash_hex_str), l_gdb_group_mempool)) {
+            uint8_t *l_data_tmp = l_datum_hash_hex_str ? dap_chain_global_db_gr_get(l_datum_hash_hex_str, NULL, l_gdb_group_mempool) : NULL;
+            if(l_data_tmp && dap_chain_global_db_gr_del(l_datum_hash_hex_str, l_gdb_group_mempool)) {
                 if(!dap_strcmp(l_hash_out_type,"hex"))
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_hex_str);
                 else

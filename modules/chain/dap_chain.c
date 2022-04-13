@@ -343,7 +343,7 @@ bool s_chain_check_duplicated_chain(uint64_t l_chain_id, const char * a_chain_cf
     uint32_t l_cur_count = s_chain_id_array.count;
     for (uint32_t i = 0; i < l_cur_count; i++){
         if (s_chain_id_array.ids[i] == l_chain_id){
-             log_it (L_ERROR, "Chain id 0x%llx is duplicated in %s. Check chain config files for same chain ids, fix it and restart node", l_chain_id, a_chain_cfg_name);
+             log_it (L_ERROR, "Chain id 0x%"DAP_UINT64_FORMAT_U" is duplicated in %s. Check chain config files for same chain ids, fix it and restart node", l_chain_id, a_chain_cfg_name);
              s_chain_id_array.is_duplicate_detected = true;
              return false;
         }
@@ -417,8 +417,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
-            if (!s_chain_check_duplicated_chain(l_chain_id_u, a_chain_cfg_name, l_chain_name))
-                return NULL;
+            //if (!s_chain_check_duplicated_chain(l_chain_id_u, a_chain_cfg_name, l_chain_name))
+            //    return NULL;
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
