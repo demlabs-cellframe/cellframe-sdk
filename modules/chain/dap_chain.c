@@ -322,7 +322,7 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
     }
 }
 
-bool s_chain_check_id_duplicated(uint64_t l_chain_id, const char * a_chain_cfg_name, const char *l_chain_name)
+bool s_chain_check_duplicated_chain(uint64_t l_chain_id, const char * a_chain_cfg_name, const char *l_chain_name)
 {
     if (s_chain_id_array.is_duplicate_detected){
         log_it (L_ERROR, "Duplicated chain was already detected. Check chain config files for same chain ids,names, fix it and restart node");
@@ -417,7 +417,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
-            if (!s_chain_check_id_duplicated(l_chain_id_u, a_chain_cfg_name, l_chain_name))
+            if (!s_chain_check_duplicated_chain(l_chain_id_u, a_chain_cfg_name, l_chain_name))
                 return NULL;
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
