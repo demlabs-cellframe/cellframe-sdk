@@ -2921,6 +2921,7 @@ int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx_sender_allowed", &l_params->ext.tx_sender_allowed);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &l_params->ext.tx_receiver_allowed);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx_sender_blocked", &l_params->ext.tx_sender_blocked);
+    return 0;
 }
 
 int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* l_params)
