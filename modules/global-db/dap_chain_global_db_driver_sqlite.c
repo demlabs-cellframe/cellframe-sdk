@@ -95,7 +95,6 @@ typedef struct _sqlite_row_value_
     SQLITE_VALUE *val; // array of field values
 } SQLITE_ROW_VALUE;
 
-bool s_debug_more = false;
 /**
  * @brief Closes a SQLite database.
  *
@@ -147,8 +146,7 @@ struct timespec tmo = {0};
                                                                             /* l_rc == 0 - so connection was free, */
                                                                             /* we got free connection, so, release mutex and get out */
                 atomic_fetch_add(&l_conn->usage, 1);
-                if (s_debug_more)
-                    log_it(L_DEBUG, "Get l_conn: @%p", l_conn);
+                log_it(L_DEBUG, "Get l_conn: @%p", l_conn);
                 return  l_conn;
                 }
         }
@@ -177,8 +175,7 @@ static inline int s_sqlite_free_connection(struct conn_pool_item *a_conn)
 {
 int     l_rc;
 
-    if (s_debug_more)
-        log_it(L_DEBUG, "Free l_conn: @%p", a_conn);
+    log_it(L_DEBUG, "Free l_conn: @%p", a_conn);
 
     atomic_flag_clear(&a_conn->busy);                                       /* Clear busy flag */
 
