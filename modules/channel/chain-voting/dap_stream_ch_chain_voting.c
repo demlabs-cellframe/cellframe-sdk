@@ -53,8 +53,8 @@ static voting_node_client_list_t *s_node_client_list = NULL;
 
 static void s_callback_send_all_loopback(dap_chain_node_addr_t *a_remote_node_addr);
 static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg);
-static void s_callback_channel_pkt_free_unsafe(uint64_t node_addr_uint64);
-// static void s_callback_channel_go_stage(dap_worker_t * a_worker,void * a_arg);
+static void s_callback_channel_pkt_free_unsafe(uint64_t a_node_addr_uint64);
+static void s_callback_channel_pkt_buf_limit(uint64_t a_node_addr_uint64);
 
 static void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg);
@@ -130,30 +130,59 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t * a_net, dap_list_
 }
 
 
-static void s_callback_channel_pkt_free_unsafe(uint64_t node_addr_uint64) {
+static void s_callback_channel_pkt_free_unsafe(uint64_t a_node_addr_uint64) {
 	if ( dap_list_length(s_pkt_items->pkts_out) == 0 )
 		return;
 
-    dap_list_t* l_first_list = dap_list_first(s_pkt_items->pkts_out);
-    
-    while( l_first_list ) {
-    	dap_list_t *l_next_list = l_first_list->next;
-		voting_pkt_addr_t * l_pkt_addr = l_first_list->data;
-		if ( l_pkt_addr->node_addr.uint64 == node_addr_uint64) {
+    dap_list_t *l_list = dap_list_first(s_pkt_items->pkts_out);
+    while( l_list ) {
+    	// dap_list_t *l_next_list = l_list->next;
+		voting_pkt_addr_t *l_pkt_addr = l_list->data;
+		if ( l_pkt_addr->node_addr.uint64 == a_node_addr_uint64) {
 			DAP_DELETE(l_pkt_addr->voting_pkt);
 			DAP_DELETE(l_pkt_addr);
-			s_pkt_items->pkts_out = dap_list_remove_link(s_pkt_items->pkts_out, l_first_list);
+			s_pkt_items->pkts_out = dap_list_remove_link(s_pkt_items->pkts_out, l_list);
     	}
-    	l_first_list = l_next_list;
+    	l_list = l_list->next;
     }
 }
 
+// remove overflow in outbuf
+static void s_callback_channel_pkt_buf_limit(uint64_t a_node_addr_uint64) {
+	if ( dap_list_length(s_pkt_items->pkts_out) == 0 )
+		return;
+	int l_limit = 10; // max messages per one addr
+	dap_list_t *l_list = dap_list_first(s_pkt_items->pkts_out);
+	unsigned int l_count = 0;
+	while (l_list) {
+		voting_pkt_addr_t *l_pkt_addr = (voting_pkt_addr_t *)l_list->data;
+		if ( l_pkt_addr->node_addr.uint64 == a_node_addr_uint64)
+			l_count++;
+		l_list = l_list->next;
+	}
+	if ( l_count > l_limit) {
+		unsigned int l_over = l_count-l_limit;
+		dap_list_t *l_list = dap_list_first(s_pkt_items->pkts_out);
+		while (l_list && l_over) {
+			voting_pkt_addr_t *l_pkt_addr = (voting_pkt_addr_t *)l_list->data;
+			if ( l_pkt_addr->node_addr.uint64 == a_node_addr_uint64 ) {
+				DAP_DELETE(l_pkt_addr->voting_pkt);
+				DAP_DELETE(l_pkt_addr);
+				s_pkt_items->pkts_out = dap_list_remove_link(s_pkt_items->pkts_out, l_list);
+				l_over--;
+			}
+			l_list = l_list->next;
+		}
+	}
 
-void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net, dap_list_t *a_sendto_nodes) {
+
+}
+
+void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t *a_sendto_nodes) {
     //if (dap_chain_net_get_state(a_net) == NET_STATE_ONLINE) {
         pthread_rwlock_rdlock(&s_pkt_items->rwlock_out);        
 
-		dap_list_t* l_nodes_list_temp = dap_list_first(a_sendto_nodes);
+		dap_list_t *l_nodes_list_temp = dap_list_first(a_sendto_nodes);
 		while(l_nodes_list_temp) {
 			dap_list_t *l_nodes_list = l_nodes_list_temp;
 			l_nodes_list_temp = l_nodes_list_temp->next;
@@ -193,6 +222,9 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net, dap_list_
 	           		HASH_ADD(hh, s_node_client_list, node_addr, sizeof(dap_chain_node_addr_t), l_node_client_item);
 	           		l_node_item = l_node_client_item;
 			    }
+	        	if ( !l_node_item || !l_node_item->node_client ) {
+	        		continue;
+	        	}
 	            dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(l_node_item->node_client->client->pvt_uuid);
 	            if (NULL == l_client_pvt) {
 	                continue;
@@ -214,6 +246,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net, dap_list_
 					memcpy(&l_pkt_addr_new->voting_pkt->hdr.recipient_node_addr,
 								l_remote_node_addr, sizeof(dap_chain_node_addr_t));
 					s_pkt_items->pkts_out = dap_list_append(s_pkt_items->pkts_out, l_pkt_addr_new);
+					s_callback_channel_pkt_buf_limit(l_remote_node_addr->uint64);
             	}
             }
 
