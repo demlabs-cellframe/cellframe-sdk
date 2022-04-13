@@ -2823,6 +2823,7 @@ typedef struct _dap_sdk_cli_params {
 
 int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* l_params)
 {
+    l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-H", &l_params->l_hash_out_type);
     if(!l_params->l_hash_out_type)
         l_params->l_hash_out_type = "hex";
@@ -2862,7 +2863,6 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
         }else if (strcmp(l_params->l_type_str, "CF20") == 0){
             l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
         }else{
-            l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
             dap_chain_node_cli_set_reply_text(a_str_reply,
                         "uknown token type was specified. Simple token will be used by default");
         }
@@ -3028,15 +3028,8 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
 int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 {
     int l_arg_index = 1;
-
-    const char * l_type_str = NULL;
-
     const char * l_ticker = NULL;
-
-    const char * l_total_supply_str = NULL;
     uint256_t l_total_supply = {}; // 256
-
-    const char * l_signs_emission_str = NULL;
     uint16_t l_signs_emission = 0;
 
     const char * l_signs_total_str = NULL;
@@ -3049,9 +3042,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
-
     uint16_t l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
-
     const char * l_hash_out_type = NULL;
 
     dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
@@ -3105,13 +3096,6 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                      l_str_flags++;
                 }
             }
-            // if (!IS_ZERO_256(l_params->l_total_supply)){ // Total supply
-            //     dap_tsd_t * l_tsd;
-            //     l_tsd = dap_tsd_create_scalar(
-            //                     DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256, l_params->l_total_supply);
-            //     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            //     l_tsd_total_size+= dap_tsd_size(l_tsd);
-            // }
             if (l_params->ext.total_signs_valid){ // Signs valid
                 uint16_t l_param_value = (uint16_t)atoi(l_params->ext.total_signs_valid);
                 l_signs_total = l_param_value;
