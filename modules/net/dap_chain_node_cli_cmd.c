@@ -3240,6 +3240,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     bool l_placed = dap_chain_global_db_gr_set(l_key_str, (uint8_t *)l_datum, l_datum_size, l_gdb_group_mempool);
     dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
+    //additional checking for incorrect key format
     if (l_key_str_out != l_key_str)
         DAP_DELETE(l_key_str);
     else
