@@ -2410,6 +2410,30 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_list = dap_list_next(l_list);
             }
             dap_list_free_full(l_prior_list, free);
+
+            dap_chain_t *l_chain02;
+
+            DL_FOREACH(l_net->pub.chains, l_chain){
+                DL_FOREACH(l_net->pub.chains, l_chain02){
+                    if (l_chain != l_chain02){
+                        if (l_chain->id.uint64 == l_chain02->id.uint64)
+                        {
+                            log_it(L_ERROR, "Your network %s has chains with duplicate ids: 0x%llx, chain01: %s, chain02: %s", l_chain->net_name, 
+                                            l_chain->id.uint64, l_chain->name,l_chain02->name);
+                            log_it(L_ERROR, "Please, fix your configs and restart node");
+                            return -2;
+                        } 
+                        if (!dap_strcmp(l_chain->name, l_chain02->name))
+                        {
+                            log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%llx, chain02 id = 0x%llx",l_chain->net_name,  
+                                   l_chain->name, l_chain->id.uint64, l_chain02->id.uint64);
+                            log_it(L_ERROR, "Please, fix your configs and restart node");
+                            return -2;
+                        }
+                    }                         
+                }
+            }         
+
             bool l_processed;
             do {
                 l_processed = false;
