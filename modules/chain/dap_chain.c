@@ -58,15 +58,6 @@ typedef struct dap_chain_item {
 static pthread_rwlock_t s_chain_items_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 static dap_chain_item_t * s_chain_items = NULL;
 
-typedef struct _dap_chain_id_array{
-    uint64_t *ids;
-    char **name;
-    uint32_t count;
-    bool is_duplicate_detected;  
-} dap_chain_id_array;
-
-dap_chain_id_array s_chain_id_array = {0};
-
 int s_prepare_env();
 
 /**
@@ -322,51 +313,6 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
     }
 }
 
-bool s_chain_check_duplicated_chain(uint64_t l_chain_id, const char * a_chain_cfg_name, const char *l_chain_name)
-{
-    if (s_chain_id_array.is_duplicate_detected){
-        log_it (L_ERROR, "Duplicated chain was already detected. Check chain config files for same chain ids,names, fix it and restart node");
-        return false;
-    }   
-    uint32_t l_chain_name_len = dap_strlen(l_chain_name);
-    if (s_chain_id_array.count == 0){
-        s_chain_id_array.ids = (uint64_t *)DAP_NEW_Z(uint64_t);
-        s_chain_id_array.ids[0] = l_chain_id;
-        s_chain_id_array.count = 1;
-        //add chain name
-        s_chain_id_array.name = (char **)DAP_NEW_Z(uint64_t);
-        s_chain_id_array.name[0] = calloc(1, l_chain_name_len+1);
-        memcpy(s_chain_id_array.name[0],l_chain_name, l_chain_name_len);
-        return true;
-    }
-    //check id duplicate
-    uint32_t l_cur_count = s_chain_id_array.count;
-    for (uint32_t i = 0; i < l_cur_count; i++){
-        if (s_chain_id_array.ids[i] == l_chain_id){
-             log_it (L_ERROR, "Chain id 0x%llx is duplicated in %s. Check chain config files for same chain ids, fix it and restart node", l_chain_id, a_chain_cfg_name);
-             s_chain_id_array.is_duplicate_detected = true;
-             return false;
-        }
-    }
-    //check chain name duplicate
-    for (uint32_t i = 0; i < l_cur_count; i++){
-        if (!dap_strcmp(s_chain_id_array.name[i], l_chain_name)){
-             log_it(L_ERROR, "Chain name %s is duplicated. Check chain config files for same chain names, fix it and restart node", l_chain_name);
-             s_chain_id_array.is_duplicate_detected = true;
-             return false;
-        }
-    }
-    //add id
-    s_chain_id_array.count = s_chain_id_array.count + 1;
-    s_chain_id_array.ids = realloc(s_chain_id_array.ids,sizeof(uint64_t) * (l_cur_count + 1));
-    s_chain_id_array.ids[l_cur_count] = l_chain_id;
-    //add chain name
-    s_chain_id_array.name = realloc(s_chain_id_array.name,sizeof(uint64_t) * (l_cur_count + 1));
-    s_chain_id_array.name[l_cur_count] = calloc(1, l_chain_name_len+1);
-    memcpy(s_chain_id_array.name[l_cur_count],l_chain_name, l_chain_name_len);
-    return true;
-}
-
 /**
  * @brief dap_chain_load_from_cfg
  * Loading chain from config file
@@ -416,9 +362,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 dap_config_close(l_cfg);
                 return NULL;
             }
-
-            if (!s_chain_check_duplicated_chain(l_chain_id_u, a_chain_cfg_name, l_chain_name))
-                return NULL;
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
