@@ -95,7 +95,6 @@ typedef struct _sqlite_row_value_
     SQLITE_VALUE *val; // array of field values
 } SQLITE_ROW_VALUE;
 
-
 /**
  * @brief Closes a SQLite database.
  *
