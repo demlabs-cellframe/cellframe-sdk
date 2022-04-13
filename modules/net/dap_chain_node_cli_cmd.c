@@ -1895,8 +1895,8 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
         if(l_chain_str) {
             if((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "%s requires parameter '-chain' to be valid chain name in chain net %s",
-                        argv[0], l_net_str);
+                        "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid",
+                        argv[0], l_net_str, l_chain_str);
                 return -103;
             }
         }
@@ -2833,10 +2833,10 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
     }
 
     int l_arg_index = 0;
-    dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_params->l_chain, &l_params->l_net);
+    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_params->l_chain, &l_params->l_net);
 
-    if(!l_params->l_net)
-        return -1;
+    if(!l_params->l_net || !l_params->l_chain)
+        return l_res;
     else {
         if(*a_str_reply) {
             DAP_DELETE(*a_str_reply);
