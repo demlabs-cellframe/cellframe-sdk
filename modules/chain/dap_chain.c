@@ -321,7 +321,7 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
     }
 }
 
-bool s_chain_check_id_duplicates(uint64_t l_chain_id, const char * a_chain_cfg_name)
+bool s_chain_check_id_duplicated(uint64_t l_chain_id, const char * a_chain_cfg_name)
 {
     if (s_chain_id_array.count == 0){
         s_chain_id_array.ids = (uint64_t *)DAP_NEW_Z(uint64_t);
@@ -384,7 +384,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
             l_chain_id.uint64 = l_chain_id_u;
 
-            if (!s_chain_check_id_duplicates(l_chain_id_u, a_chain_cfg_name))
+            if (!s_chain_check_id_duplicated(l_chain_id_u, a_chain_cfg_name))
                 return NULL;
 
             if (l_chain_id_str ) {
