@@ -133,8 +133,8 @@ struct timespec tmo = {0};
         return s_trans;                                                     /* DEADLOCK is detected ? Return pointer to current transaction */
     else if ( l_rc )
         return  log_it(L_ERROR, "Cannot get free SQLITE connection, errno=%d", l_rc), NULL;
-    assert ( !pthread_mutex_unlock(&s_db_mtx) );
 
+    pthread_mutex_unlock(&s_db_mtx);
 
     for (int i = DAP_DB$K_RTR4CONN; i--; )
     {
@@ -156,17 +156,17 @@ struct timespec tmo = {0};
 
         /* No free connection at the moment, so, prepare to wait a condition ... */
 
-        assert ( !(l_rc = clock_gettime(CLOCK_REALTIME, &tmo)) );
+        clock_gettime(CLOCK_REALTIME, &tmo);
         tmo.tv_sec += DAP_DB$K_TMO4CONN;
 
-        assert( !pthread_mutex_lock(&s_conn_free_mtx) );
+        pthread_mutex_lock(&s_conn_free_mtx);
         l_rc = pthread_cond_timedwait (&s_conn_free_cnd, &s_conn_free_mtx, &tmo);
-        assert ( !pthread_mutex_unlock(&s_conn_free_mtx) );
+        pthread_mutex_unlock(&s_conn_free_mtx);
 
         log_it(L_DEBUG, "pthread_cond_timedwait()->%d", l_rc);
     }
 
-    assert ( !pthread_mutex_unlock(&s_conn_free_mtx) );
+    pthread_mutex_unlock(&s_conn_free_mtx);
     log_it(L_ERROR, "No free SQLITE connection");
 
     return  NULL;
@@ -178,11 +178,11 @@ int     l_rc;
 
     log_it(L_DEBUG, "Free l_conn: @%p", a_conn);
 
-    atomic_flag_clear(&a_conn->busy);                                        /* Clear busy flag */
+    atomic_flag_clear(&a_conn->busy);                                       /* Clear busy flag */
 
-    assert ( !(l_rc = pthread_mutex_lock (&s_conn_free_mtx)) );              /* Send a signal to waiters to wake-up */
-    assert ( !(l_rc = pthread_cond_signal(&s_conn_free_cnd)) );
-    assert ( !(l_rc = pthread_mutex_unlock(&s_conn_free_mtx)) );
+    l_rc = pthread_mutex_lock (&s_conn_free_mtx);                           /* Send a signal to waiters to wake-up */
+    l_rc = pthread_cond_signal(&s_conn_free_cnd);
+    l_rc = pthread_mutex_unlock(&s_conn_free_mtx);
 
     return  0;
 }
@@ -505,12 +505,12 @@ int l_rc;
 
     log_it(L_DEBUG, "Start TX l_conn: @%p", s_trans);
 
-    assert ( !pthread_mutex_lock(&s_db_mtx) );
+    pthread_mutex_lock(&s_db_mtx);
     l_rc = s_dap_db_driver_sqlite_exec(s_trans->conn, "BEGIN", NULL);
-    assert ( !pthread_mutex_unlock(&s_db_mtx) );
+    pthread_mutex_unlock(&s_db_mtx);
 
     if ( l_rc != SQLITE_OK ) {
-        assert ( !pthread_mutex_unlock(&s_trans_mtx) );
+        pthread_mutex_unlock(&s_trans_mtx);
         s_sqlite_free_connection(s_trans);
         s_trans = NULL;
         }
@@ -537,11 +537,11 @@ struct conn_pool_item *l_conn;
 
     log_it(L_DEBUG, "End TX l_conn: @%p", s_trans);
 
-    assert ( !pthread_mutex_unlock(&s_trans_mtx) );                         /* Free TX context to other ... */
+    pthread_mutex_unlock(&s_trans_mtx);                                     /* Free TX context to other ... */
 
-    assert ( !pthread_mutex_lock(&s_db_mtx) );
+    pthread_mutex_lock(&s_db_mtx);
     l_rc = s_dap_db_driver_sqlite_exec(l_conn->conn, "COMMIT", NULL);
-    assert ( ! pthread_mutex_unlock(&s_db_mtx) );
+    pthread_mutex_unlock(&s_db_mtx);
 
     s_sqlite_free_connection(l_conn);
 
