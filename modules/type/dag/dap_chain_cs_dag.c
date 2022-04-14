@@ -1688,13 +1688,12 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_round_item->round_info.first_event_hash);
                         dap_string_append_printf(l_str_tmp, "\t\t\t\tfirst_event_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
-                        dap_string_append_printf(l_str_tmp,
-                            "\t\t\t\tts_update: %s", 
-                            dap_ctime_r((time_t *)&l_round_item->round_info.ts_update, buf) );
-                        if (l_round_item->round_info.ts_confirmations_minimum_completed != 0)
-                            dap_string_append_printf(l_str_tmp,
-                                "\t\t\t\tts_confirmations_minimum_completed: %s", 
-                                dap_ctime_r((time_t *)&l_round_item->round_info.ts_confirmations_minimum_completed, buf) );
+                        time_t l_ts = l_round_item->round_info.ts_update;
+                        dap_string_append_printf(l_str_tmp,"\t\t\t\tts_update: %s", dap_ctime_r(&l_ts, buf));
+                        if (l_round_item->round_info.ts_confirmations_minimum_completed != 0) {
+                            l_ts = l_round_item->round_info.ts_confirmations_minimum_completed;
+                            dap_string_append_printf(l_str_tmp,"\t\t\t\tts_confirmations_minimum_completed: %s", dap_ctime_r(&l_ts, buf));
+                        }
                     }
 
                      // Header

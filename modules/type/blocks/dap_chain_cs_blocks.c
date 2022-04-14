@@ -566,9 +566,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
                     char l_buf[50];
-                    ctime_r((time_t *)&l_block_cache->block->hdr.ts_created, l_buf);
+                    time_t l_ts = l_block_cache->block->hdr.ts_created;
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                             l_block_cache->block_hash_str, l_buf);
+                                             l_block_cache->block_hash_str, ctime_r(&l_ts, l_buf));
                 }
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 

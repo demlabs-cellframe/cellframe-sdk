@@ -28,6 +28,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <stdint.h>
 #include <string.h>
 #include "dap_net.h"
+#include "dap_stream.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
@@ -186,6 +187,7 @@ bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
 void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
+int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid);
 void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg);
 void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_group,
                                       const char *a_key, const void *a_value, const size_t a_value_len);

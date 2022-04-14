@@ -445,12 +445,18 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
     struct sync_request *l_sync_request = (struct sync_request *)a_arg;
     log_it(L_DEBUG, "Prepare request to gdb sync from %s", l_sync_request->request.id_start ? "last sync" : "zero");
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
+    if (!l_net) {
+        log_it(L_ERROR, "Network ID 0x%016"DAP_UINT64_FORMAT_x" not found", l_sync_request->request_hdr.net_id.uint64);
+        DAP_DELETE(l_sync_request);
+        return true;
+    }
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_sync_request->worker), l_sync_request->ch_uuid);
     if (!l_ch) {
         log_it(L_INFO, "Client disconnected before we sent the reply");
         DAP_DELETE(l_sync_request);
         return true;
     }
+    dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid);
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     int l_flags = 0;
     if (dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr))
