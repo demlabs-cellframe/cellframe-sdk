@@ -90,9 +90,10 @@ int s_db_add_sync_group(dap_list_t **a_grp_list, dap_sync_group_item_t *a_item)
  * @param a_arg a pointer to an argument
  * @return (none)
  */
-void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
+void dap_chain_global_db_add_sync_group(const char *a_net_name, const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
     dap_sync_group_item_t *l_item = DAP_NEW_Z(dap_sync_group_item_t);
+    l_item->net_name = dap_strdup(a_net_name);
     l_item->group_mask = dap_strdup_printf("%s.*", a_group_prefix);
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
@@ -101,14 +102,16 @@ void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_d
 
 /**
  * @brief Adds a group name for synchronization with especially node addresses.
+ * @param a_net_name a net name string, if for all net then a_net_name=null
  * @param a_group_mask a group mask string
  * @param a_callback a callabck function
  * @param a_arg a pointer to an argument
  * @return (none)
  */
-void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
+void dap_chain_global_db_add_sync_extra_group(const char *a_net_name, const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg)
 {
     dap_sync_group_item_t* l_item = DAP_NEW_Z(dap_sync_group_item_t);
+    l_item->net_name = dap_strdup(a_net_name);
     l_item->group_mask = dap_strdup(a_group_mask);
     l_item->callback_notify = a_callback;
     l_item->callback_arg = a_arg;
@@ -119,19 +122,37 @@ void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_glob
  * @brief Gets a list of a group mask for s_sync_group_items.
  * @return Returns a pointer to a list of a group mask.
  */
-dap_list_t *dap_chain_db_get_sync_groups()
+dap_list_t* dap_chain_db_get_sync_groups(const char *a_net_name)
 {
-    return dap_list_copy(s_sync_group_items);
+    //return dap_list_copy(s_sync_group_items);
+    dap_list_t *l_list_out = NULL;
+    dap_list_t *l_list_group = s_sync_group_items;
+    while(l_list_group) {
+        if(!dap_strcmp(a_net_name, ((dap_sync_group_item_t*) l_list_group->data)->net_name)) {
+            l_list_out = dap_list_append(l_list_out, l_list_group->data);
+        }
+        l_list_group = dap_list_next(l_list_group);
+    }
+    return l_list_out;
 }
 
 /**
  * @brief Gets a list of a group mask for s_sync_group_items.
- * @param a_table a table
+ * @param a_net_name
  * @return Returns a pointer to a list of a group mask.
  */
-dap_list_t *dap_chain_db_get_sync_extra_groups()
+dap_list_t* dap_chain_db_get_sync_extra_groups(const char *a_net_name)
 {
-    return dap_list_copy(s_sync_group_extra_items);
+    //return dap_list_copy(s_sync_group_extra_items);
+    dap_list_t *l_list_out = NULL;
+    dap_list_t *l_list_group = s_sync_group_extra_items;
+    while(l_list_group) {
+        if(!dap_strcmp(a_net_name, ((dap_sync_group_item_t*) l_list_group->data)->net_name)) {
+            l_list_out = dap_list_append(l_list_out, l_list_group->data);
+        }
+        l_list_group = dap_list_next(l_list_group);
+    }
+    return l_list_out;
 }
 
 /**
