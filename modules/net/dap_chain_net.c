@@ -2581,62 +2581,6 @@ uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id)
 }
 
 /**
- * @brief
- *
- * @param net_id
- * @param group_name
- * @return dap_chain_t*
- */
-dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name)
-{
-    if (!a_group_name) {
-        log_it(L_ERROR, "GDB group name is NULL ");
-        return NULL;
-    }
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-    if (!l_net)
-        return false;
-    dap_chain_t *l_chain = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        char *l_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);
-        if (!strcmp(a_group_name, l_chain_group_name)) {
-            DAP_DELETE(l_chain_group_name);
-            return l_chain;
-        }
-        DAP_DELETE(l_chain_group_name);
-    }
-    return NULL;
-}
-
-/**
- * @brief
- *
- * @param net_id
- * @param group_name
- * @return dap_chain_t*
- */
-dap_chain_t *dap_chain_get_chain_from_mempool_group(dap_chain_net_id_t a_net_id, const char *a_group_name)
-{
-    if (!a_group_name) {
-        log_it(L_ERROR, "GDB group name is NULL ");
-        return NULL;
-    }
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-    if (!l_net)
-        return false;
-    dap_chain_t *l_chain = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        char *l_chain_group_name = dap_chain_net_get_gdb_group_mempool(l_chain);
-        if (!strcmp(a_group_name, l_chain_group_name)) {
-            DAP_DELETE(l_chain_group_name);
-            return l_chain;
-        }
-        DAP_DELETE(l_chain_group_name);
-    }
-    return NULL;
-}
-
-/**
  * @brief dap_chain_net_id_by_name
  * @param a_name
  * @return
