@@ -766,7 +766,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_store_obj[i].timestamp);
                 log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
                         " timestamp=\"%s\" value_len=%zu",
-                        (char )l_store_obj[i].type, l_store_obj[i].type, l_store_obj[i].group,
+                        (char )l_store_obj[i].type, (char)l_store_obj[i].type, l_store_obj[i].group,
                         l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);
             }
             if (!l_apply) {

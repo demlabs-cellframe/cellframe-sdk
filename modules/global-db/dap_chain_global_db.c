@@ -642,7 +642,7 @@ dap_store_obj_t *l_store_obj;
         }
     }
 
-    return l_res;
+    return !(l_res & l_res_del);
 }
 
 /**
