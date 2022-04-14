@@ -31,6 +31,7 @@ typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_
 // Callback table item
 typedef struct dap_sync_group_item {
     char *group_mask;
+    char *net_name;
     dap_global_db_obj_callback_notify_t callback_notify;
     void * callback_arg;
 } dap_sync_group_item_t;
@@ -61,10 +62,10 @@ void dap_chain_global_db_deinit(void);
  * Setup callbacks and filters
  */
 // Add group name that will be synchronized
-void dap_chain_global_db_add_sync_group(const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
-void dap_chain_global_db_add_sync_extra_group(const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
-dap_list_t *dap_chain_db_get_sync_groups();
-dap_list_t *dap_chain_db_get_sync_extra_groups();
+void dap_chain_global_db_add_sync_group(const char *a_net_name, const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
+void dap_chain_global_db_add_sync_extra_group(const char *a_net_name, const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
+dap_list_t *dap_chain_db_get_sync_groups(const char *a_net_name);
+dap_list_t *dap_chain_db_get_sync_extra_groups(const char *a_net_name);
 void dap_global_db_change_notify(dap_store_obj_t *a_store_data);
 /**
  * Get entry from base
