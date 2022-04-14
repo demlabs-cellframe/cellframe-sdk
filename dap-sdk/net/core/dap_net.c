@@ -20,11 +20,9 @@ int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_a
     l_hints.ai_socktype = SOCK_STREAM;
     l_hints.ai_flags |= AI_CANONNAME;
 
-    int errcode = getaddrinfo(a_host, NULL, &l_hints, &l_res);
-    if(errcode != 0)
-            {
+    if ( getaddrinfo(a_host, NULL, &l_hints, &l_res) )
         return -2;
-    }
+
     while(l_res)
     {
         if(ai_family == l_res->ai_family)

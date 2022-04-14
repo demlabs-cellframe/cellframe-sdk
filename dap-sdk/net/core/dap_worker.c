@@ -130,14 +130,16 @@ void *dap_worker_thread(void *arg)
     log_it(L_INFO, "Worker #%d started with epoll fd %"DAP_FORMAT_HANDLE" and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_worker->kqueue_fd = kqueue();
-        if (l_worker->kqueue_fd == -1 ){
-        int l_errno = errno;
-        char l_errbuf[255];
-        strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
-        log_it (L_CRITICAL,"Can't create kqueue():\"\" code %d",l_errbuf,l_errno);
-            pthread_cond_broadcast(&l_worker->started_cond);
-        return NULL;
+
+    if (l_worker->kqueue_fd == -1 ){
+    int l_errno = errno;
+    char l_errbuf[255];
+    strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
+    log_it (L_CRITICAL,"Can't create kqueue(): '%s' code %d",l_errbuf,l_errno);
+    pthread_cond_broadcast(&l_worker->started_cond);
+    return NULL;
     }
+
     l_worker->kqueue_events_selected_count_max = 100;
     l_worker->kqueue_events_count_max = DAP_EVENTS_SOCKET_MAX;
     l_worker->kqueue_events_selected = DAP_NEW_Z_SIZE(struct kevent, l_worker->kqueue_events_selected_count_max *sizeof(struct kevent));
@@ -161,7 +163,7 @@ void *dap_worker_thread(void *arg)
     l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_es_reassign_callback );
 
 
-    for( uint32_t n = 0; n < dap_events_worker_get_count(); n++) {
+    for( size_t n = 0; n < dap_events_worker_get_count(); n++) {
         l_worker->queue_es_new_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_new);
         l_worker->queue_es_delete_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_delete);
         l_worker->queue_es_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io);
@@ -178,8 +180,8 @@ void *dap_worker_thread(void *arg)
     pthread_mutex_lock(&l_worker->started_mutex);
     pthread_cond_broadcast(&l_worker->started_cond);
     pthread_mutex_unlock(&l_worker->started_mutex);
-    bool s_loop_is_active = true;
-    while(s_loop_is_active) {
+
+    while (1) {
     int l_selected_sockets;
     size_t l_sockets_max;
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -278,7 +280,13 @@ void *dap_worker_thread(void *arg)
                 l_flag_rdhup = true;
             l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
         }
-        assert(l_cur);
+
+        if( !l_cur) {
+            log_it(L_WARNING, "dap_events_socket was destroyed earlier");
+            continue;
+        }
+
+
         l_cur->kqueue_event_catched = l_kevent_selected;
 #ifndef DAP_OS_DARWIN
             u_int l_cur_flags = l_kevent_selected->flags;
