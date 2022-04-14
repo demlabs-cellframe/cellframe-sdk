@@ -202,8 +202,10 @@ typedef struct dap_chain_net_item{
 #define PVT(a) ( (dap_chain_net_pvt_t *) (void*) a->pvt )
 #define PVT_S(a) ( (dap_chain_net_pvt_t *) (void*) a.pvt )
 
-static dap_chain_net_item_t * s_net_items = NULL;
-static dap_chain_net_item_t * s_net_items_ids = NULL;
+pthread_rwlock_t    g_net_items_rwlock  = PTHREAD_RWLOCK_INITIALIZER,
+                    g_net_ids_rwlock    = PTHREAD_RWLOCK_INITIALIZER;
+static dap_chain_net_item_t     *s_net_items        = NULL,
+                                *s_net_items_ids    = NULL;
 
 
 static const char * c_net_states[]={
@@ -439,7 +441,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         dap_chain_id_t l_chain_id;
         l_chain_id.uint64 = 0;
         dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
-        if (l_chain)  
+        if (l_chain)
             l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
 
         dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
@@ -560,8 +562,8 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
         }
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     }else{
-        if (s_debug_more)    
-             log_it(L_WARNING,"Node current state is %s. Real-time syncing is possible when you in NET_STATE_LINKS_ESTABLISHED (and above) state", s_net_state_to_str(PVT(l_net)->state));     
+        if (s_debug_more)
+            log_it(L_WARNING,"Node current state is %s. Real-time syncing is possible when you in NET_STATE_LINKS_ESTABLISHED (and above) state", s_net_state_to_str(PVT(l_net)->state));
     }
 }
 
@@ -1336,7 +1338,7 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
 #else
     PVT(ret)->state_proc_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
 #endif
-
+    pthread_mutex_init(&(PVT(ret)->state_mutex_cond), NULL);
     if (sscanf(a_id,"0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64 ) != 1) {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
         DAP_DELETE(ret);
@@ -1454,9 +1456,9 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 /**
  * @brief reload ledger
  * command cellframe-node-cli net -net <network_name> ledger reload
- * @param l_net 
- * @return true 
- * @return false 
+ * @param l_net
+ * @return true
+ * @return false
  */
 void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
@@ -1491,8 +1493,8 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
  * if you node build need ledger cache one time reload, uncomment this function
  * iat the end of s_net_load
  * @param l_net network object
- * @return true 
- * @return false 
+ * @return true
+ * @return false
  */
 bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 {
@@ -1519,14 +1521,14 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
             dap_fprintf(stderr, "Can't open cache file %s for one time ledger cache reloading.\
                 Please, do it manually using command\
                 cellframe-node-cli net -net <network_name>> ledger reload'\n", l_cache_file);
-            return -1;   
+            return -1;
         }
     }
     // reload ledger cache (same as net -net <network_name>> ledger reload command)
     if (dap_file_simple_test(l_cache_file))
         s_chain_net_ledger_cache_reload(l_net);
-
-    return true; 
+    fclose(s_cache_file);
+    return true;
 }
 
 /**
@@ -1575,6 +1577,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
                 int l_net_i = 0;
                 dap_string_append(l_string_ret,"Networks:\n");
+                pthread_rwlock_rdlock(&g_net_items_rwlock);
                 HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
                     l_net = l_net_item->chain_net;
                     dap_string_append_printf(l_string_ret, "\t%s:\n", l_net_item->name);
@@ -1586,6 +1589,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                         l_chain = l_chain->next;
                     }
                 }
+                pthread_rwlock_unlock(&g_net_items_rwlock);
             }
 
         }else{
@@ -1593,10 +1597,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             // show list of nets
             dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
             int l_net_i = 0;
+            pthread_rwlock_rdlock(&g_net_items_rwlock);
             HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
                 dap_string_append_printf(l_string_ret, "\t%s\n", l_net_item->name);
                 l_net_i++;
             }
+            pthread_rwlock_unlock(&g_net_items_rwlock);
             dap_string_append(l_string_ret, "\n");
         }
 
@@ -1627,7 +1633,6 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-mode", &l_sync_mode_str);
         if ( !dap_strcmp(l_sync_mode_str,"all") )
             dap_chain_net_get_flag_sync_from_zero(l_net);
-
         if (l_stats_str) {
             char l_from_str_new[50], l_to_str_new[50];
             const char c_time_fmt[]="%Y-%m-%d_%H:%M:%S";
@@ -1904,11 +1909,11 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                                                   "Subcommand 'ca' requires one of parameter: add, list, del\n");
                 ret = -5;
             }
-        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) 
+        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload"))
         {
            s_chain_net_ledger_cache_reload(l_net);
-        } 
-        else 
+        }
+        else
         {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                                               "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
@@ -2032,10 +2037,14 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                      ,dap_config_get_item_str(l_cfg , "general" , "name" ));
         l_net_item->chain_net = l_net;
         l_net_item->net_id.uint64 = l_net->pub.id.uint64;
+        pthread_rwlock_wrlock(&g_net_items_rwlock);
         HASH_ADD_STR(s_net_items,name,l_net_item);
+        pthread_rwlock_unlock(&g_net_items_rwlock);
 
         memcpy( l_net_item2,l_net_item,sizeof (*l_net_item));
+        pthread_rwlock_wrlock(&g_net_ids_rwlock);
         HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
+        pthread_rwlock_unlock(&g_net_ids_rwlock);
 
         // LEDGER model
         uint16_t l_ledger_flags = 0;
@@ -2500,6 +2509,7 @@ void dap_chain_net_deinit()
 
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
 {
+    pthread_rwlock_rdlock(&g_net_items_rwlock);
     *a_size = HASH_COUNT(s_net_items);
     if(*a_size){
         dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
@@ -2511,8 +2521,11 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
                 break;
         }
         return l_net_list;
-    }else
+        pthread_rwlock_unlock(&g_net_items_rwlock);
+    } else {
+        pthread_rwlock_unlock(&g_net_items_rwlock);
         return NULL;
+    }
 }
 
 /**
@@ -2523,8 +2536,11 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name)
 {
     dap_chain_net_item_t * l_net_item = NULL;
-    if(a_name)
+    if(a_name) {
+        pthread_rwlock_rdlock(&g_net_items_rwlock);
         HASH_FIND_STR(s_net_items,a_name,l_net_item );
+        pthread_rwlock_unlock(&g_net_items_rwlock);
+    }
     return l_net_item ? l_net_item->chain_net : NULL;
 }
 
@@ -2547,7 +2563,9 @@ dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name)
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
 {
     dap_chain_net_item_t * l_net_item = NULL;
+    pthread_rwlock_rdlock(&g_net_ids_rwlock);
     HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
+    pthread_rwlock_unlock(&g_net_ids_rwlock);
     return l_net_item ? l_net_item->chain_net : NULL;
 }
 
@@ -2562,6 +2580,61 @@ uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id)
     return l_net ? PVT(l_net)->acl_idx : (uint16_t)-1;
 }
 
+/**
+ * @brief
+ *
+ * @param net_id
+ * @param group_name
+ * @return dap_chain_t*
+ */
+dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name)
+{
+    if (!a_group_name) {
+        log_it(L_ERROR, "GDB group name is NULL ");
+        return NULL;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (!l_net)
+        return false;
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        char *l_chain_group_name = dap_chain_net_get_gdb_group_from_chain(l_chain);
+        if (!strcmp(a_group_name, l_chain_group_name)) {
+            DAP_DELETE(l_chain_group_name);
+            return l_chain;
+        }
+        DAP_DELETE(l_chain_group_name);
+    }
+    return NULL;
+}
+
+/**
+ * @brief
+ *
+ * @param net_id
+ * @param group_name
+ * @return dap_chain_t*
+ */
+dap_chain_t *dap_chain_get_chain_from_mempool_group(dap_chain_net_id_t a_net_id, const char *a_group_name)
+{
+    if (!a_group_name) {
+        log_it(L_ERROR, "GDB group name is NULL ");
+        return NULL;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
+    if (!l_net)
+        return false;
+    dap_chain_t *l_chain = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        char *l_chain_group_name = dap_chain_net_get_gdb_group_mempool(l_chain);
+        if (!strcmp(a_group_name, l_chain_group_name)) {
+            DAP_DELETE(l_chain_group_name);
+            return l_chain;
+        }
+        DAP_DELETE(l_chain_group_name);
+    }
+    return NULL;
+}
 
 /**
  * @brief dap_chain_net_id_by_name
