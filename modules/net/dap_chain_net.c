@@ -101,6 +101,9 @@
 #include "dap_chain_node_dns_client.h"
 #include "dap_module.h"
 
+#include "json-c/json.h"
+#include "json-c/json_object.h"
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -238,8 +241,8 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks={
 static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg);
 
 // Notify about net states
-static void s_net_states_notify(dap_chain_net_t * l_net );
-static void s_net_links_notify(dap_chain_net_t * a_net );
+struct json_object *net_states_json_collect(dap_chain_net_t * l_net);
+static void s_net_states_notify(dap_chain_net_t * l_net);
 
 // Prepare link success/error endpoints
 static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_node_info_t * a_node_info, void * a_arg);
@@ -653,14 +656,14 @@ static void s_net_state_link_replace_error(dap_worker_t *a_worker, dap_chain_nod
     inet_ntop(AF_INET, &a_node_info->hdr.ext_addr_v4, l_node_addr_str, sizeof (a_node_info->hdr.ext_addr_v4));
     log_it(L_WARNING,"Link " NODE_ADDR_FP_STR " (%s) replace error with code %d", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
                                                                                  l_node_addr_str,a_errno );
-    dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkReplaceError\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\","
-                            "error: %d"
-                            "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
-                                NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address), a_errno);
+    struct json_object *l_json = net_states_json_collect(l_net);
+    char l_err_str[128] = { };
+    dap_snprintf(l_err_str, sizeof(l_err_str)
+                 , "Link " NODE_ADDR_FP_STR " [%s] replace errno %d"
+                 , NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address), l_node_addr_str, a_errno);
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
     DAP_DELETE(a_node_info);
     dap_chain_node_info_t *l_link_node_info = NULL;
     for (int i = 0; i < 1000; i++) {
@@ -719,14 +722,14 @@ static void s_net_state_link_replace_success(dap_worker_t *a_worker, dap_chain_n
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     l_net_pvt->net_links = dap_list_append(l_net_pvt->net_links, l_new_link);
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-
-    dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkReplaceSuccess\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\""
-                        "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
-                                NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
+    struct json_object *l_json = net_states_json_collect(l_net);
+    char l_err_str[128] = { };
+    dap_snprintf(l_err_str, sizeof(l_err_str)
+                 , "Link " NODE_ADDR_FP_STR " replace success"
+                 , NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
     DAP_DELETE(l_dns_request);
 }
 
@@ -754,7 +757,14 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     l_net_pvt->links_connected_count++;
     a_node_client->is_connected = true;
-    s_net_links_notify(l_net);
+    struct json_object *l_json = net_states_json_collect(l_net);
+    char l_err_str[128] = { };
+    dap_snprintf(l_err_str, sizeof(l_err_str)
+                 , "Established connection with link " NODE_ADDR_FP_STR
+                 , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
         dap_proc_queue_add_callback_inter(a_node_client->stream_worker->worker->proc_queue_input,s_net_states_proc,l_net );
@@ -846,15 +856,10 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
     if( s_debug_more)
         log_it(L_INFO,"%s."NODE_ADDR_FP_STR" stage %s",l_net->pub.name,NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
                                                         dap_client_stage_str(a_stage));
-    dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkStage\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\","
-                            "state:\"%s\""
-                        "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
-                                NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
-                                dap_chain_node_client_state_to_str(a_node_client->state) );
+    struct json_object *l_json = net_states_json_collect(l_net);
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(" "));
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
 }
 
 /**
@@ -868,15 +873,16 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
     log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-    dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkError\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\","
-                            "error:\%d"
-                        "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
-                                NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
-                                a_error);
+    struct json_object *l_json = net_states_json_collect(l_net);
+    char l_node_addr_str[INET_ADDRSTRLEN] = {};
+    inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, sizeof (a_node_client->info->hdr.ext_addr_v4));
+    char l_err_str[128] = { };
+    dap_snprintf(l_err_str, sizeof(l_err_str)
+                 , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
+                 , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address), l_node_addr_str, a_error);
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
 }
 
 /**
@@ -889,13 +895,10 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     if (!a_node_client->keep_connection) {
-        dap_notify_server_send_f_mt("{"
-                                "class:\"NetLinkDelete\","
-                                "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                                "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                                "address:\""NODE_ADDR_FP_STR"\""
-                                "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
-                                    NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+        struct json_object *l_json = net_states_json_collect(l_net);
+        json_object_object_add(l_json, "errorMessage", json_object_new_string("Link deleted"));
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);
         return;
     } else if (a_node_client->is_connected) {
         a_node_client->is_connected = false;
@@ -913,13 +916,10 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkRestart\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\""
-                            "}\n", a_node_client->net->pub.id.uint64, a_node_client->info->hdr.cell_id.uint64,
-                                NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+    struct json_object *l_json = net_states_json_collect(l_net);
+    json_object_object_add(l_json, "errorMessage", json_object_new_string("Link restart"));
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
     // Then a_alient wiil be destroyed in a right way
 }
 
@@ -961,13 +961,14 @@ static void s_net_state_link_prepare_success(dap_worker_t * a_worker,dap_chain_n
         dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkPrepareSuccess\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\""
-                        "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
-                                NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
+    struct json_object *l_json = net_states_json_collect(l_net);
+    char l_err_str[128] = { };
+    dap_snprintf(l_err_str, sizeof(l_err_str)
+                 , "Link " NODE_ADDR_FP_STR " prepared"
+                 , NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
     DAP_DELETE(l_dns_request);
 }
 
@@ -987,16 +988,14 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str,sizeof (a_node_info->hdr.ext_addr_v4));
     log_it(L_WARNING,"Link " NODE_ADDR_FP_STR " (%s) prepare error with code %d", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
                                                                                  l_node_addr_str,a_errno );
-
-    dap_notify_server_send_f_mt("{"
-                            "class:\"NetLinkPrepareError\","
-                            "net_id:0x%016" DAP_UINT64_FORMAT_X ","
-                            "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                            "address:\""NODE_ADDR_FP_STR"\","
-                            "error: %d"
-                        "}\n", l_net->pub.id.uint64, a_node_info->hdr.cell_id.uint64,
-                                NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),a_errno);
-
+    struct json_object *l_json = net_states_json_collect(l_net);
+    char l_err_str[128] = { };
+    dap_snprintf(l_err_str, sizeof(l_err_str)
+                 , "Link " NODE_ADDR_FP_STR " [%s] can't be prepared, errno %d"
+                 , NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address), l_node_addr_str, a_errno);
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     if(l_net_pvt->links_dns_requests)
         l_net_pvt->links_dns_requests--;
@@ -1016,75 +1015,36 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     DAP_DELETE(l_dns_request);
 }
 
+struct json_object *net_states_json_collect(dap_chain_net_t * l_net) {
+    struct json_object *l_json = json_object_new_object();
+    json_object_object_add(l_json, "class"            , json_object_new_string("NetStates"));
+    json_object_object_add(l_json, "name"             , json_object_new_string((const char*)l_net->pub.name));
+    json_object_object_add(l_json, "networkState"     , json_object_new_string(dap_chain_net_state_to_str(PVT(l_net)->state)));
+    json_object_object_add(l_json, "targetState"      , json_object_new_string(dap_chain_net_state_to_str(PVT(l_net)->state_target)));
+    json_object_object_add(l_json, "linksCount"       , json_object_new_int(dap_list_length(PVT(l_net)->net_links)));
+    json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(PVT(l_net)->links_connected_count));
+    char l_node_addr_str[24] = {'\0'};
+    dap_snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(PVT(l_net)->node_addr));
+    json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_node_addr_str));
+    return l_json;
+}
+
 /**
  * @brief s_net_states_notify
  * @param l_net
  */
-static void s_net_states_notify(dap_chain_net_t * l_net )
-{
-    dap_notify_server_send_f_mt("{"
-                                    "class:\"NetStates\","
-                                    "net_id: 0x%016" DAP_UINT64_FORMAT_X ","
-                                    "state: \"%s\","
-                                    "state_target:\"%s\""
-                                "}\n", l_net->pub.id.uint64,
-                                       dap_chain_net_state_to_str( PVT(l_net)->state),
-                                       dap_chain_net_state_to_str(PVT(l_net)->state_target));
-
-}
-
-/**
- * @brief s_net_links_notify
- * @param l_net
- */
-static void s_net_links_notify(dap_chain_net_t * a_net )
-{
-    dap_chain_net_pvt_t * l_net_pvt = PVT(a_net);
-    dap_string_t * l_str_reply = dap_string_new("[");
-
-    size_t i =0;
-    for (dap_list_t * l_item = l_net_pvt->net_links; l_item;  l_item = l_item->next ) {
-        dap_chain_node_client_t * l_node_client = ((struct net_link *)l_item->data)->link;
-        if(l_node_client){
-            dap_chain_node_info_t * l_info = l_node_client->info;
-            char l_ext_addr_v4[INET_ADDRSTRLEN]={};
-            char l_ext_addr_v6[INET6_ADDRSTRLEN]={};
-            inet_ntop(AF_INET,&l_info->hdr.ext_addr_v4,l_ext_addr_v4,sizeof (l_info->hdr.ext_addr_v4));
-            inet_ntop(AF_INET6,&l_info->hdr.ext_addr_v6,l_ext_addr_v6,sizeof (l_info->hdr.ext_addr_v6));
-
-            dap_string_append_printf(l_str_reply,"{"
-                                        "id:%zu,"
-                                        "address:\""NODE_ADDR_FP_STR"\","
-                                        "alias:\"%s\","
-                                        "cell_id:0x%016"DAP_UINT64_FORMAT_X","
-                                        "ext_ipv4:\"%s\","
-                                        "ext_ipv6:\"%s\","
-                                        "ext_port:%hu"
-                                        "state:\"%s\""
-                                    "}", i,NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->hdr.alias, l_info->hdr.cell_id.uint64,
-                                     l_ext_addr_v4, l_ext_addr_v6,l_info->hdr.ext_port
-                                     , dap_chain_node_client_state_to_str(l_node_client->state) );
-        }
-        i++;
-    }
-
-
-    dap_notify_server_send_f_mt("{"
-                                    "class:\"NetLinks\","
-                                    "net_id:0x%016"DAP_UINT64_FORMAT_X","
-                                    "links:%s"
-                                "}]\n", a_net->pub.id.uint64,
-                                       l_str_reply->str);
-    dap_string_free(l_str_reply,true);
-
+static void s_net_states_notify(dap_chain_net_t * l_net) {
+    struct json_object *l_json = net_states_json_collect(l_net);
+    json_object_object_add(l_json, "errorMessage", json_object_new_string(" ")); // regular notify has no error
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
 }
 
 /**
  * @brief s_net_states_proc
  * @param l_net
  */
-static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
-{
+static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
     UNUSED(a_thread);
     bool l_repeat_after_exit = false; // If true - repeat on next iteration of proc thread loop
     dap_chain_net_t *l_net = (dap_chain_net_t *) a_arg;
