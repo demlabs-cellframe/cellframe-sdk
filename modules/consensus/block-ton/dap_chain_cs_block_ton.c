@@ -679,19 +679,26 @@ static void s_session_candidate_to_chain(
 		    } break;
 		    case ATOM_PASS: {
 		    	log_it(L_WARNING, "TON: Atom with hash %s not accepted (code ATOM_PASS, already present)", l_candidate_hash_str);
-		    	DAP_DELETE(l_candidate);
+                DAP_DELETE(l_candidate);
 		    } break;
 		    case ATOM_REJECT: {
 		        log_it(L_WARNING,"TON: Atom with hash %s rejected", l_candidate_hash_str);
-		        DAP_DELETE(l_candidate);
+                DAP_DELETE(l_candidate);
 		    } break;
 		    default:
-		        DAP_DELETE(l_candidate);
+                // DAP_DELETE(l_candidate);
 		        // log_it(L_CRITICAL, "TON: Wtf is this ret code? %d", l_candidate_hash_str);
 		        break;
 		}
 		DAP_DELETE(l_candidate_hash_str);
+		dap_chain_hash_fast_t l_my_candidate_hash;
+		dap_hash_fast(a_session->my_candidate, a_session->my_candidate_size, &l_my_candidate_hash);
+		if (memcmp(&l_my_candidate_hash, a_candidate_hash,
+							sizeof(dap_chain_hash_fast_t)) == 0) {
+			s_session_my_candidate_delete(a_session);
+		}
 	}
+    //DAP_DELETE(l_candidate);
 }
 
 static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session){
@@ -849,7 +856,7 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
 
 					// delete my candidate if it passed consensus or not collected 2/3 approve
 					if ( !l_store->hdr.approve_collected || l_store->hdr.sign_collected ) {
-						s_session_my_candidate_delete(a_session);
+						// s_session_my_candidate_delete(a_session);
 						// DAP_DELETE(a_session->cur_round.my_candidate_hash);
 						// a_session->cur_round.my_candidate_hash=NULL;
 						if (PVT(a_session->ton)->debug) {
@@ -1453,6 +1460,12 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			l_reject_count++;
 			if ( ((float)l_reject_count/l_session->cur_round.validators_count) >= ((float)2/3) ) {
 				dap_chain_global_db_gr_del(dap_strdup(l_candidate_hash_str), l_session->gdb_group_store);
+				dap_chain_hash_fast_t l_my_candidate_hash;
+				dap_hash_fast(l_session->my_candidate, l_session->my_candidate_size, &l_my_candidate_hash);
+				if (memcmp(&l_my_candidate_hash, l_candidate_hash,
+									sizeof(dap_chain_hash_fast_t)) == 0) {
+					s_session_my_candidate_delete(l_session);
+				}
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Candidate:%s collected rejected more than 2/3 of the validators, so to removed this candidate",
                             l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
