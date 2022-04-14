@@ -484,7 +484,8 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
 
             if ( l_tx->header.ts_created) {
                 struct tm l_tm;                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
-                if ( (localtime_r((time_t *) &l_tx->header.ts_created, &l_tm )) )
+                uint64_t l_ts = l_tx->header.ts_created;
+                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
                     asctime_r (&l_tm, l_time_str);
             }
 

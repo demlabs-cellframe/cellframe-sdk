@@ -231,6 +231,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
 	            }
 	        }
 
+			s_callback_channel_pkt_free_unsafe(l_remote_node_addr->uint64);
 			dap_list_t* l_pkts_list_temp = dap_list_first(s_pkt_items->pkts_out);
 			while(l_pkts_list_temp) {
 				dap_list_t *l_pkts_list = l_pkts_list_temp;
@@ -246,7 +247,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
 					memcpy(&l_pkt_addr_new->voting_pkt->hdr.recipient_node_addr,
 								l_remote_node_addr, sizeof(dap_chain_node_addr_t));
 					s_pkt_items->pkts_out = dap_list_append(s_pkt_items->pkts_out, l_pkt_addr_new);
-					s_callback_channel_pkt_buf_limit(l_remote_node_addr->uint64);
+					// s_callback_channel_pkt_buf_limit(l_remote_node_addr->uint64);
             	}
             }
 

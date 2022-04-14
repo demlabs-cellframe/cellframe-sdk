@@ -131,6 +131,12 @@ struct net_link {
     dap_chain_node_client_t *link;
 };
 
+struct downlink {
+    dap_stream_worker_t *worker;
+    dap_stream_ch_uuid_t uuid;
+    UT_hash_handle hh;
+};
+
 /**
   * @struct dap_chain_net_pvt
   * @details Private part of chain_net dap object
@@ -159,6 +165,8 @@ typedef struct dap_chain_net_pvt{
     dap_list_t *net_links;              // Links list
     size_t links_connected_count;
     bool only_static_links;
+
+    struct downlink *downlinks;             // List of links who sent SYNC REQ, it used for sync broadcasting
 
     atomic_uint links_dns_requests;
 
@@ -401,6 +409,28 @@ void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_global_db
     PVT(a_net)->gdb_notifiers = dap_list_append(PVT(a_net)->gdb_notifiers, l_notifier);
 }
 
+int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid)
+{
+    if (!a_net || !a_worker)
+        return -1;
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    unsigned a_hash_value;
+    HASH_VALUE(&a_ch_uuid, sizeof(a_ch_uuid), a_hash_value);
+    struct downlink *l_downlink = NULL;
+    pthread_rwlock_rdlock(&l_net_pvt->rwlock);
+    HASH_FIND_BYHASHVALUE(hh, l_net_pvt->downlinks, &a_ch_uuid, sizeof(a_ch_uuid), a_hash_value, l_downlink);
+    if (l_downlink) {
+        pthread_rwlock_unlock(&l_net_pvt->rwlock);
+        return -2;
+    }
+    l_downlink = DAP_NEW_Z(struct downlink);
+    l_downlink->worker = a_worker;
+    l_downlink->uuid = a_ch_uuid;
+    HASH_ADD_BYHASHVALUE(hh, l_net_pvt->downlinks, uuid, sizeof(a_ch_uuid), a_hash_value, l_downlink);
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    return 0;
+}
+
 /**
  * @brief if current network in ONLINE state send to all connected node
  * executes, when you add data to gdb chain (class=gdb in chain config)
@@ -417,6 +447,8 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     UNUSED(a_value);
     UNUSED(a_value_len);
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    if (!HASH_COUNT(PVT(l_net)->downlinks))
+        return;
     if (PVT(l_net)->state == NET_STATE_ONLINE) {
         dap_store_obj_t *l_obj = NULL;
         if (a_op_code == DAP_DB$K_OPTYPE_DEL) {
@@ -446,14 +478,15 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
 
         dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
-        for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
-            dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
-            if (!l_node_client)
+        struct downlink *l_link, *l_tmp;
+        HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
+            dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_link->worker, l_link->uuid);
+            if (!l_ch) {
+                HASH_DEL(PVT(l_net)->downlinks, l_link);
+                DAP_DELETE(l_link);
                 continue;
-            dap_stream_worker_t *l_stream_worker = dap_client_get_stream_worker(l_node_client->client);
-            if (!l_stream_worker)
-                continue;
-            dap_stream_ch_chain_pkt_write_mt(l_stream_worker, l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
+            }
+            dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                  l_chain_id.uint64, l_cell_id.uint64, l_data_out,
                                                  sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
         }
@@ -545,20 +578,16 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (PVT(l_net)->state == NET_STATE_ONLINE) {
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
-        for (dap_list_t *l_tmp = PVT(l_net)->net_links; l_tmp; l_tmp = dap_list_next(l_tmp)) {
-            dap_chain_node_client_t *l_node_client = ((struct net_link *)l_tmp->data)->link;
-            if (l_node_client) {
-                dap_stream_worker_t * l_worker = dap_client_get_stream_worker(l_node_client->client);
-                if (s_debug_more){
-                    if (!l_worker->channels && l_worker->worker){
-                        log_it(L_WARNING, "Worker id = %d hasn't active channels", l_worker->worker->id);
-                        s_print_workers_channels();
-                    }
-                }
-                if(l_worker)
-                    dap_stream_ch_chain_pkt_write_mt(l_worker, l_node_client->ch_chain_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
-                                                  l_net->pub.id.uint64, a_chain->id.uint64, a_id.uint64, a_atom, a_atom_size);
+        struct downlink *l_link, *l_tmp;
+        HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
+            dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_link->worker, l_link->uuid);
+            if (!l_ch) {
+                HASH_DEL(PVT(l_net)->downlinks, l_link);
+                DAP_DELETE(l_link);
+                continue;
             }
+            dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+                                          l_net->pub.id.uint64, a_chain->id.uint64, a_id.uint64, a_atom, a_atom_size);
         }
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     }else{
@@ -2387,14 +2416,14 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     if (l_chain != l_chain02){
                         if (l_chain->id.uint64 == l_chain02->id.uint64)
                         {
-                            log_it(L_ERROR, "Your network %s has chains with duplicate ids: 0x%llx, chain01: %s, chain02: %s", l_chain->net_name, 
+                            log_it(L_ERROR, "Your network %s has chains with duplicate ids: 0x%"DAP_UINT64_FORMAT_U", chain01: %s, chain02: %s", l_chain->net_name,
                                             l_chain->id.uint64, l_chain->name,l_chain02->name);
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;
                         } 
                         if (!dap_strcmp(l_chain->name, l_chain02->name))
                         {
-                            log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%llx, chain02 id = 0x%llx",l_chain->net_name,  
+                            log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%"DAP_UINT64_FORMAT_U", chain02 id = 0x%"DAP_UINT64_FORMAT_U"",l_chain->net_name,
                                    l_chain->name, l_chain->id.uint64, l_chain02->id.uint64);
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;

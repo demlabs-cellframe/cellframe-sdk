@@ -124,7 +124,7 @@ typedef struct dap_chain_cs_block_ton_message_item {
     dap_chain_cs_block_ton_message_t *message;
     dap_chain_hash_fast_t message_hash;
     UT_hash_handle hh;
-} DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_item_t;
+} dap_chain_cs_block_ton_message_item_t;
 
 // struct for get info from any messages
 typedef struct dap_chain_cs_block_ton_message_getinfo {
