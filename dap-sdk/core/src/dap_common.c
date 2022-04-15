@@ -443,7 +443,7 @@ char *dap_log_get_item(time_t a_start_time, int a_limit)
 	}
 
     DL_FOREACH_SAFE(s_log_buffer, elem, tmp) {
-		if (!tmp->str) continue;
+        if (!tmp->str[0]) continue;
 		if (a_limit <= 0) break;
 		a_limit -= s_check_and_fill_buffer_log(&s, l_tm_st, tmp->str);
 	}

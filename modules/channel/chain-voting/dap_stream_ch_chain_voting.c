@@ -151,7 +151,7 @@ static void s_callback_channel_pkt_free_unsafe(uint64_t a_node_addr_uint64) {
 static void s_callback_channel_pkt_buf_limit(uint64_t a_node_addr_uint64) {
 	if ( dap_list_length(s_pkt_items->pkts_out) == 0 )
 		return;
-	int l_limit = 10; // max messages per one addr
+    unsigned int l_limit = 10; // max messages per one addr
 	dap_list_t *l_list = dap_list_first(s_pkt_items->pkts_out);
 	unsigned int l_count = 0;
 	while (l_list) {

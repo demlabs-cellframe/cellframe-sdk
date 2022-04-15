@@ -255,7 +255,7 @@ int l_rc;
 struct dirent *d;
 DIR *dir;
 
-    for (l_rc = 0; *a_cdb_path && (l_rc < sizeof(s_cdb_path)); )
+    for (l_rc = 0; *a_cdb_path && ((size_t)l_rc < sizeof(s_cdb_path)); )
          s_cdb_path[l_rc++] = *(a_cdb_path++);                              /* Copy path to CDB root to local storage, calculate length */
 
     if(s_cdb_path[l_rc - 1] == '/')                                         /* Truncate terminal '/' if need */
