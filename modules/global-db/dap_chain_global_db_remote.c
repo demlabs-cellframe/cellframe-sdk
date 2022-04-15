@@ -112,20 +112,30 @@ static void *s_list_thread_proc(void *arg)
  * @brief Starts a thread that readding a log list
  * @note instead dap_db_log_get_list()
  *
+ * @param l_net net for sync
  * @param a_addr a pointer to the structure
  * @param a_flags flags
  * @return Returns a pointer to the log list structure if successful, otherwise NULL pointer.
  */
-dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_flags)
+dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *l_net, dap_chain_node_addr_t a_addr, int a_flags)
 {
 #ifdef GDB_SYNC_ALWAYS_FROM_ZERO
     a_flags |= F_DB_LOG_SYNC_FROM_ZERO;
 #endif
+
+    const char *l_net_name = NULL;
+    if(l_net && l_net->pub.name && l_net->pub.name[0]!='\0') {
+        l_net_name = l_net->pub.name;
+    }
+
     //log_it(L_DEBUG, "Start loading db list_write...");
     dap_db_log_list_t *l_dap_db_log_list = DAP_NEW_Z(dap_db_log_list_t);
-    dap_list_t *l_groups_masks = dap_chain_db_get_sync_groups();
+    // Add groups for the selected network only
+    dap_list_t *l_groups_masks = dap_chain_db_get_sync_groups(l_net_name);
     if (a_flags & F_DB_LOG_ADD_EXTRA_GROUPS) {
-        l_groups_masks = dap_list_concat(l_groups_masks, dap_chain_db_get_sync_extra_groups());
+        dap_list_t *l_extra_groups_masks = dap_chain_db_get_sync_extra_groups(l_net_name);
+        l_groups_masks = dap_list_concat(l_groups_masks, l_extra_groups_masks);
+        dap_list_free(l_extra_groups_masks);
     }
     dap_list_t *l_groups_names = NULL;
     for (dap_list_t *l_cur_mask = l_groups_masks; l_cur_mask; l_cur_mask = dap_list_next(l_cur_mask)) {
@@ -133,7 +143,6 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_node_addr_t a_addr, int a_fla
         l_groups_names = dap_list_concat(l_groups_names, dap_chain_global_db_driver_get_groups_by_mask(l_cur_mask_data));
     }
     dap_list_free(l_groups_masks);
-
 
     static uint16_t s_size_ban_list = 0;
     static char **s_ban_list = NULL;
