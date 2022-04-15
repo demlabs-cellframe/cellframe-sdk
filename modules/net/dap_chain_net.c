@@ -2148,11 +2148,12 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             uint8_t *l_pub_key_data = NULL;
 
             // read pub key
-            l_pub_key_data = dap_chain_global_db_gr_get("cur-node-addr-pkey", &l_pub_key_data_size, GROUP_LOCAL_NODE_ADDR);
-            // generate new pub key
+            char *l_addr_key = dap_strdup_printf("node-addr-%s", l_net->pub.name);
+            l_pub_key_data = dap_chain_global_db_gr_get(l_addr_key, &l_pub_key_data_size, GROUP_LOCAL_NODE_ADDR);
+            // generate a new pub key if it doesn't exist
             if(!l_pub_key_data || !l_pub_key_data_size){
 
-                const char * l_certs_name_str = "node-addr";
+                const char * l_certs_name_str = l_addr_key;
                 dap_cert_t ** l_certs = NULL;
                 size_t l_certs_size = 0;
                 dap_cert_t * l_cert = NULL;
@@ -2172,7 +2173,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
                     // save pub key
                     if(l_pub_key_data && l_pub_key_data_size > 0)
-                        dap_chain_global_db_gr_set( "cur-node-addr-pkey", l_pub_key_data, l_pub_key_data_size,
+                        dap_chain_global_db_gr_set(l_addr_key, l_pub_key_data, l_pub_key_data_size,
                         GROUP_LOCAL_NODE_ADDR);
                 }
             }
@@ -2185,6 +2186,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                         (uint16_t) *(uint16_t*) (l_hash.raw + DAP_CHAIN_HASH_FAST_SIZE - 4),
                         (uint16_t) *(uint16_t*) (l_hash.raw + DAP_CHAIN_HASH_FAST_SIZE - 2));
             }
+            DAP_DELETE(l_addr_key);
             DAP_DELETE(l_pub_key_data);
         }
         // use static addr from setting
