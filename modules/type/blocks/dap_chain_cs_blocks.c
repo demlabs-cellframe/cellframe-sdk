@@ -910,8 +910,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                     !dap_hash_fast_compare(&PVT(l_blocks)->block_cache_last->block_hash, &l_block_prev_hash))
             res = ATOM_MOVE_TO_THRESHOLD;
     }
-
-
     return res;
 }
 
