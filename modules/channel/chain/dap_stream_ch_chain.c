@@ -404,7 +404,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
     if (l_ch_chain->request_db_log == NULL)
-        l_ch_chain->request_db_log  = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+        l_ch_chain->request_db_log  = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
     else
         dap_db_log_list_rewind(l_ch_chain->request_db_log);
 
@@ -464,7 +464,7 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
     if (l_ch_chain->request_db_log == NULL)
-        l_ch_chain->request_db_log = dap_db_log_list_start(l_sync_request->request.node_addr, l_flags);
+        l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
     else
         dap_db_log_list_rewind(l_ch_chain->request_db_log);
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
