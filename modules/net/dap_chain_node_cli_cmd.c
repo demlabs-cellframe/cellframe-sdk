@@ -2864,7 +2864,12 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
             l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
         }else{
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "uknown token type was specified. Simple token will be used by default");
+                        "Unknown token type %s was specified. Supported types:\n"
+                        "   private_simple\n"
+                        "   private\n"
+                        "   CF20\n"
+                        "Default token type is private_simple.\n", l_params->l_type_str);
+            return -1;
         }
     }
 
@@ -3032,12 +3037,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
-
-    const char * l_signs_total_str = NULL;
     uint16_t l_signs_total = 0;
-
-    const char * l_certs_str = NULL;
-
     dap_cert_t ** l_certs = NULL;
     size_t l_certs_count = 0;
 
@@ -3117,18 +3117,18 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
                 l_tsd_total_size+= dap_tsd_size(l_tsd);
             }
-            if (l_params->ext.tx_receiver_allowed){
+            if (l_params->ext.tx_receiver_allowed)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD);
-            }
-            if (l_params->ext.tx_receiver_blocked){
+            
+            if (l_params->ext.tx_receiver_blocked)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD);
-            }
-            if (l_params->ext.tx_sender_allowed){
+
+            if (l_params->ext.tx_sender_allowed)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD);
-            }
-            if (l_params->ext.tx_sender_blocked){ 
-                    l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);             
-            }
+
+            if (l_params->ext.tx_sender_blocked)
+                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);             
+
 
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_tsd_total_size) ;
