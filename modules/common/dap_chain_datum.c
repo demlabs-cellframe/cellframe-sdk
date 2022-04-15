@@ -310,6 +310,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                         ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
             char *l_coins_str = dap_chain_balance_to_coins(
                         ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
+            serv_unit_enum_t l_unit = ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm;
             dap_string_append_printf(a_str_out, "\t Receipt:\n"
                                                 "\t\t size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t ext size: %"DAP_UINT64_FORMAT_U"\n"
@@ -322,8 +323,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_datum_tx_receipt_t*)item)->exts_size,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64,
-                                     serv_unit_enum_to_str(
-                                         &((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm),
+                                     serv_unit_enum_to_str(&l_unit),
                                      l_coins_str,
                                      l_value_str);
             if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
