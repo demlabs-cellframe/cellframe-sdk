@@ -3247,6 +3247,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     else
         DAP_DELETE(l_key_str);
     DAP_DELETE(l_datum);
+    DAP_DELETE(l_params);
     if (!l_placed) {
         l_ret = -2;
     }

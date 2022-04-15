@@ -142,19 +142,19 @@ int dap_chain_cs_dag_init(void)
     s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
 
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, "DAG commands",
-        "dag -net event create <chain net name> -chain <chain name> -datum <datum hash> [-H hex|base58(default)]\n"
+        "dag event create -net <chain net name> -chain <chain name> -datum <datum hash> [-H hex|base58(default)]\n"
             "\tCreate event from datum mempool element\n\n"
         "dag event cancel -net <chain net name> -chain <chain name> -event <event hash>\n"
             "\tRemove event from forming new round and put back its datum to mempool\n\n"
         "dag event sign -net <chain net name> -chain <chain name> -event <event hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag event dump -net <chain net name> -chain <chain name> -event <event hash> -from < events | events_lasts | round.new  | round.<Round id in hex> > [-H hex|base58(default)]\n"
+        "dag event dump -net <chain net name> -chain <chain name> -event <event hash> -from <events | events_lasts | threshold | round.new | round.<Round id in hex>> [-H hex|base58(default)]\n"
             "\tDump event info\n\n"
-        "dag event list -net <chain net name> -chain <chain name> -from < events | events_lasts | threshold | round.new | round.<Round id in hex> \n\n"
+        "dag event list -net <chain net name> -chain <chain name> -from <events | events_lasts | threshold | round.new | round.<Round id in hex>> \n"
             "\tShow event list \n\n"
-        "dag round complete -net <chain net name> -chain <chain name> \n\n"
-                                        "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
+        "dag round complete -net <chain net name> -chain <chain name> \n"
+                                        "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
     return 0;
@@ -1367,13 +1367,22 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
     }
 
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
-    if ( l_net == NULL ){
+    if ((l_net == NULL) || (l_chain == NULL)){
         return -1;
     } else if (a_str_reply && *a_str_reply) {
         DAP_DELETE(*a_str_reply);
         *a_str_reply = NULL;
     }
     l_dag = DAP_CHAIN_CS_DAG(l_chain);
+
+    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+
+    if (!strstr(l_chain_type, "dag_")){
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                        "Type of chain %s is not dag. This chain with type %s is not supported by this command",
+                        l_chain->name, l_chain_type);
+            return -42;
+    }
 
     int ret = 0;
     if ( l_round_cmd_str ) {
@@ -1656,11 +1665,23 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                               "Can't find event %s in events table\n", l_event_hash_str);
                             break;
                         }
-
+                    }else if ( strcmp(l_from_events_str,"threshold") == 0){
+                        dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+                        pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+                        HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+                        if (l_event_item)
+                            l_event = l_event_item->event;
+                        else {
+                            ret = -23;
+                            dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                              "Can't find event %s in threshold table\n", l_event_hash_str);
+                            break;
+                        }
                     }else {
                         ret = -22;
                         dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                          "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, round.0x0123456789ABCDEF", l_from_events_str);
+                                                          "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, round.0x0123456789ABCDEF, threshold", l_from_events_str);
                         break;
 
                     }
@@ -1765,13 +1786,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             case SUBCMD_EVENT_LIST:{
                 if( (l_from_events_str == NULL) ||
                         (strcmp(l_from_events_str,"round.new") == 0) ){
-                    
-                    if (!strcmp(dap_chain_net_get_type(l_chain), "none")){
-                         dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                      "Type of chain %s is none. This chain doesn't contain events",
-                                                      l_chain->name);
-                        return -42;
-                    }
 
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                     dap_string_t * l_str_tmp = dap_string_new("");
