@@ -449,7 +449,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
-    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED && PVT(l_net)->state != NET_STATE_SYNC_GDB) {
+    //if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED && PVT(l_net)->state != NET_STATE_SYNC_GDB) {
         dap_store_obj_t *l_obj = NULL;
         if (a_op_code == DAP_DB$K_OPTYPE_DEL) {
             char *l_group = dap_strdup_printf("%s.del", a_group);
@@ -492,7 +492,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
         }
         pthread_rwlock_unlock(&PVT(l_net)->rwlock);
         DAP_DELETE(l_data_out);
-    }
+    //}
 }
 
 /**

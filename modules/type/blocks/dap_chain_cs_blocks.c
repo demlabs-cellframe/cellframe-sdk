@@ -576,8 +576,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
                     char l_buf[50];
                     time_t l_ts = l_block_cache->block->hdr.ts_created;
+                    ctime_r(&l_ts, l_buf);
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                             l_block_cache->block_hash_str, ctime_r(&l_ts, l_buf));
+                                             l_block_cache->block_hash_str, l_buf);
                 }
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 
@@ -918,8 +919,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                     !dap_hash_fast_compare(&PVT(l_blocks)->block_cache_last->block_hash, &l_block_prev_hash))
             res = ATOM_MOVE_TO_THRESHOLD;
     }
-
-
     return res;
 }
 
