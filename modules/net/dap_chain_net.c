@@ -444,7 +444,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
-    if (PVT(l_net)->state == NET_STATE_ONLINE) {
+    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED && PVT(l_net)->state != NET_STATE_SYNC_GDB) {
         dap_store_obj_t *l_obj = NULL;
         if (a_op_code == DAP_DB$K_OPTYPE_DEL) {
             char *l_group = dap_strdup_printf("%s.del", a_group);
@@ -571,7 +571,7 @@ static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chai
     if (!a_arg)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (PVT(l_net)->state == NET_STATE_ONLINE) {
+    if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED && PVT(l_net)->state != NET_STATE_SYNC_CHAINS) {
         pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
         struct downlink *l_link, *l_tmp;
         HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
@@ -1404,7 +1404,7 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
     PVT(ret)->state_proc_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
 #endif
 
-    if (sscanf(a_id,"0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64 ) != 1) {
+    if (dap_sscanf(a_id,"0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64 ) != 1) {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
         DAP_DELETE(ret);
         return NULL;
