@@ -368,6 +368,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
         return -11;
 
+    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+
+    if (!strstr(l_chain_type, "block_")){
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                        "Type of chain %s is not block. This chain with type %s is not supported by this command",
+                        l_chain->name, l_chain_type);
+            return -42;
+    }
+
     l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 
     // Parse commands
