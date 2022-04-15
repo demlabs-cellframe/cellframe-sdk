@@ -167,6 +167,8 @@ typedef struct dap_chain_net_pvt{
     bool only_static_links;
 
     struct downlink *downlinks;             // List of links who sent SYNC REQ, it used for sync broadcasting
+    dap_list_t *records_queue;
+    dap_list_t *atoms_queue;
 
     atomic_uint links_dns_requests;
 
@@ -431,6 +433,63 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
     return 0;
 }
 
+static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
+{
+    UNUSED(a_thread);
+    dap_store_obj_t *l_obj, *l_arg = (dap_store_obj_t *)a_arg;
+    dap_chain_net_t *l_net = (dap_chain_net_t *)l_arg->cb_arg;
+    if (l_arg->type == DAP_DB$K_OPTYPE_DEL) {
+        char *l_group = dap_strdup_printf("%s.del", l_arg->group);
+        l_obj = dap_chain_global_db_obj_get(l_arg->key, l_group);
+        DAP_DELETE(l_group);
+    } else
+        l_obj = dap_chain_global_db_obj_get(l_arg->key, l_arg->group);
+
+    if (!l_obj) {
+        log_it(L_DEBUG, "Notified GDB event does not exist");
+        return true;
+    }
+    l_obj->type = l_arg->type;
+    if (l_obj->type == DAP_DB$K_OPTYPE_DEL) {
+        DAP_DELETE(l_obj->group);
+        l_obj->group = dap_strdup(l_arg->group);
+    }
+    pthread_rwlock_wrlock(&PVT(l_net)->rwlock);
+    if (PVT(l_net)->state != NET_STATE_SYNC_GDB) {
+        dap_list_t *it = NULL;
+        do {
+            dap_store_obj_t *l_obj_cur = it ? (dap_store_obj_t *)it->data : l_obj;
+            dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
+            dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
+            dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
+            dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj_cur);
+            dap_store_obj_free(l_obj_cur, 1);
+            struct downlink *l_link, *l_tmp;
+            HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
+                dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_link->worker, l_link->uuid);
+                if (!l_ch) {
+                    HASH_DEL(PVT(l_net)->downlinks, l_link);
+                    DAP_DELETE(l_link);
+                    continue;
+                }
+                dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
+                                                     l_chain_id.uint64, l_cell_id.uint64, l_data_out,
+                                                     sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
+            }
+            DAP_DELETE(l_data_out);
+            if (it) {
+                dap_list_t *l_tmp = it->next;
+                dap_list_delete_link(PVT(l_net)->records_queue, it);
+                it = l_tmp;
+            } else
+                it = PVT(l_net)->records_queue;
+        } while (it);
+    } else
+        PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
+    pthread_rwlock_unlock(&PVT(l_net)->rwlock);
+    return true;
+}
+
 /**
  * @brief if current network in ONLINE state send to all connected node
  * executes, when you add data to gdb chain (class=gdb in chain config)
@@ -449,50 +508,12 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
-    //if (PVT(l_net)->state >= NET_STATE_LINKS_ESTABLISHED && PVT(l_net)->state != NET_STATE_SYNC_GDB) {
-        dap_store_obj_t *l_obj = NULL;
-        if (a_op_code == DAP_DB$K_OPTYPE_DEL) {
-            char *l_group = dap_strdup_printf("%s.del", a_group);
-            l_obj = dap_chain_global_db_obj_get(a_key, l_group);
-            DAP_DELETE(l_group);
-        } else
-            l_obj = dap_chain_global_db_obj_get(a_key, a_group);
-
-        if (!l_obj) {
-            log_it(L_DEBUG, "Notified GDB event does not exist");
-            return;
-        }
-        l_obj->type = a_op_code;
-        if (a_op_code == DAP_DB$K_OPTYPE_DEL) {
-            DAP_DELETE(l_obj->group);
-            l_obj->group = dap_strdup(a_group);
-        }
-
-        dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj);
-        dap_store_obj_free(l_obj, 1);
-        dap_chain_id_t l_chain_id;
-        l_chain_id.uint64 = 0;
-        dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_group);
-        if (l_chain)
-            l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
-
-        dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-        pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
-        struct downlink *l_link, *l_tmp;
-        HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-            dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_link->worker, l_link->uuid);
-            if (!l_ch) {
-                HASH_DEL(PVT(l_net)->downlinks, l_link);
-                DAP_DELETE(l_link);
-                continue;
-            }
-            dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
-                                                 l_chain_id.uint64, l_cell_id.uint64, l_data_out,
-                                                 sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
-        }
-        pthread_rwlock_unlock(&PVT(l_net)->rwlock);
-        DAP_DELETE(l_data_out);
-    //}
+    dap_store_obj_t *l_obj = DAP_NEW(dap_store_obj_t);
+    l_obj->type = a_op_code;
+    l_obj->key = dap_strdup(a_key);
+    l_obj->group = dap_strdup(a_group);
+    l_obj->cb_arg = a_arg;
+    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_records, l_obj);
 }
 
 /**
@@ -538,31 +559,6 @@ static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, con
         }
         DAP_DELETE(l_gdb_group_str);
     }
-}
-
-static void s_print_workers_channels()
-{
-    uint32_t l_worker_count = dap_events_worker_get_count();
-    dap_stream_ch_t* l_msg_ch = NULL;
-    dap_stream_ch_t* l_msg_ch_tmp = NULL;
-    //print all worker connections
-    dap_events_worker_print_all();
-    for (uint32_t i = 0; i < l_worker_count; i++){
-        uint32_t l_channel_count = 0;
-        dap_worker_t* l_worker = dap_events_worker_get(i);
-        if (!l_worker) {
-            log_it(L_CRITICAL, "Can't get stream worker - worker thread don't exist");
-            continue;
-        }
-        dap_stream_worker_t* l_stream_worker = DAP_STREAM_WORKER(l_worker);
-        if (l_stream_worker->channels)
-            HASH_ITER(hh_worker, l_stream_worker->channels, l_msg_ch, l_msg_ch_tmp) {
-                //log_it(L_DEBUG, "Worker id = %d, channel uuid = 0x%llx", l_worker->id, l_msg_ch->uuid);
-                l_channel_count += 1;
-        }
-        log_it(L_DEBUG, "Active workers l_channel_count = %d on worker %d", l_channel_count, l_stream_worker->worker->id);
-    }
-    return;
 }
 
 /**
