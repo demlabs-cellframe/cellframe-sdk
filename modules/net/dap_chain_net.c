@@ -1483,6 +1483,21 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 }
 
 /**
+ * @brief get type of chain
+ * 
+ * @param l_chain 
+ * @return char* 
+ */
+const char* dap_chain_net_get_type(dap_chain_t *l_chain)
+{
+    if (!l_chain){
+        log_it(L_DEBUG, "dap_get_chain_type. Chain object is 0");
+        return NULL;
+    }
+    return (const char*)DAP_CHAIN_PVT(l_chain)->cs_name;
+}
+
+/**
  * @brief reload ledger
  * command cellframe-node-cli net -net <network_name> ledger reload
  * @param l_net

@@ -1358,7 +1358,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
     arg_index++;
     const char * l_hash_out_type = NULL;
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
+    dap_chain_node_cli_find_option_val(argv, 0, argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
@@ -1765,6 +1765,14 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             case SUBCMD_EVENT_LIST:{
                 if( (l_from_events_str == NULL) ||
                         (strcmp(l_from_events_str,"round.new") == 0) ){
+                    
+                    if (!strcmp(dap_chain_net_get_type(l_chain), "none")){
+                         dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                      "Type of chain %s is none. This chain doesn't contain events",
+                                                      l_chain->name);
+                        return -42;
+                    }
+
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                     dap_string_t * l_str_tmp = dap_string_new("");
                     if ( l_gdb_group_events ){

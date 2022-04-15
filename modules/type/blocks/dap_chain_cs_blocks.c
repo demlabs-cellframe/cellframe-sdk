@@ -368,6 +368,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) < 0)
         return -11;
 
+    if (!strcmp(dap_chain_net_get_type(l_chain), "none")){
+            dap_chain_node_cli_set_reply_text(a_str_reply,
+                        "Type of chain %s is none. This chain doesn't contain blocks",
+                                    l_chain->name);
+            return -42;
+    }
+
     l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 
     // Parse commands
