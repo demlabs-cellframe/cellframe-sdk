@@ -203,12 +203,13 @@ dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event
         uint16_t l_signs_passed;
         for ( l_signs_passed=0;  l_signs_passed < a_sign_number; l_signs_passed++){
             dap_sign_t * l_sign = (dap_sign_t *) (l_signs+l_signs_offset);
-            l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
+            // l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
+            l_signs_offset+=dap_sign_get_size(l_sign);
             l_offset_passed += l_offset_to_sign;
             if ( l_offset_passed >= a_event_size)
                 return NULL;
         }
-        return (dap_sign_t*) l_signs + l_signs_offset;
+        return (dap_sign_t*)(l_signs+l_signs_offset);
     }else
         return NULL;
 }
