@@ -199,7 +199,8 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
  * @param a_store_count a number of objects
  * @return (none)
  */
-void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count){
+void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
+{
     if(!a_store_obj)
         return;
 

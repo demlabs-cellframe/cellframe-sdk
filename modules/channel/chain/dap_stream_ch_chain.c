@@ -505,11 +505,11 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     uint64_t l_atom_copy_size = l_pkt_item->pkt_data_size;
     dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
+    char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {[0]='\0'};
+    dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
     switch (l_atom_add_res) {
     case ATOM_PASS:
         if (s_debug_more){
-            char l_atom_hash_str[72]={[0]='\0'};
-            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
             log_it(L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
         dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
@@ -517,21 +517,15 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         if (s_debug_more) {
-            char l_atom_hash_str[72] = {'\0'};
-            dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, sizeof(l_atom_hash_str) - 1);
             log_it(L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
         break;
     case ATOM_ACCEPT:
         if (s_debug_more) {
-            char l_atom_hash_str[72]={'\0'};
-            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
             log_it(L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
         int l_res = dap_chain_atom_save(l_chain, l_atom_copy, l_atom_copy_size, l_sync_request->request_hdr.cell_id);
         if(l_res < 0) {
-            char l_atom_hash_str[72]={'\0'};
-            dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
             log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
         } else {
             dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
@@ -552,10 +546,10 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         if (l_atom_treshold) {
                             dap_chain_cell_id_t l_cell_id = (l_cur_chain == l_chain) ? l_sync_request->request_hdr.cell_id
                                                                                      : l_cur_chain->cells->id;
-                            int l_res = dap_chain_atom_save(l_cur_chain, l_atom_copy, l_atom_copy_size, l_cell_id);
+                            int l_res = dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cell_id);
                             log_it(L_INFO, "Added atom from treshold");
                             if (l_res < 0) {
-                                char l_atom_hash_str[72] = {'\0'};
+                                dap_hash_fast(l_atom_treshold, l_atom_treshold_size, &l_atom_hash);
                                 dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str, sizeof(l_atom_hash_str) - 1);
                                 log_it(L_ERROR, "Can't save atom %s from treshold to file", l_atom_hash_str);
                             } else if (l_cur_chain == l_chain) {
@@ -755,7 +749,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 dap_store_obj_t *l_read_obj = dap_chain_global_db_driver_read(l_obj->group, l_obj->key, NULL);
                 if (l_read_obj) {
                     l_timestamp_cur = l_read_obj->timestamp;
-                    dap_store_obj_free(l_read_obj, 1);
+                    dap_store_obj_free_one(l_read_obj);
                 }
             }
             time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);

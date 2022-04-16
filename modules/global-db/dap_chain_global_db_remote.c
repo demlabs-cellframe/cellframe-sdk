@@ -26,7 +26,7 @@ uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
     dap_store_obj_t *l_last_obj = dap_chain_global_db_get_last(a_group_name);
     if(l_last_obj) {
         result = l_last_obj->id;
-        dap_store_obj_free(l_last_obj, 1);
+        dap_store_obj_free_one(l_last_obj);
     }
     return result;
 }

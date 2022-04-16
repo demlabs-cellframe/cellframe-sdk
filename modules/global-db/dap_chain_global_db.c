@@ -337,7 +337,7 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
             ? DAP_DUP_SIZE(l_store_data->value, l_store_data->value_len)
             : NULL;
     l_data_len_out = l_store_data->value_len;
-    dap_store_obj_free(l_store_data, 1);
+    dap_store_obj_free_one(l_store_data);
     *a_data_len_out = l_data_len_out;
     return l_ret_value;
 }
