@@ -33,6 +33,7 @@
 #include "dap_enc_tesla.h"
 #include "dap_enc_picnic.h"
 #include "dap_enc_dilithium.h"
+#include "dap_list.h"
 
 #define LOG_TAG "dap_sign"
 
@@ -465,6 +466,52 @@ size_t dap_sign_get_size(dap_sign_t * a_chain_sign)
     if(!a_chain_sign || a_chain_sign->header.type.type == SIG_TYPE_NULL)
         return 0;
     return (sizeof(dap_sign_t) + a_chain_sign->header.sign_size + a_chain_sign->header.sign_pkey_size);
+}
+
+
+dap_sign_t **dap_sign_get_unique_signs(void *a_data, size_t a_data_size, size_t *a_signs_count)
+{
+    size_t l_offset = 0;
+    dap_list_t *l_list_signs = NULL;
+    while (l_offset < a_data_size) {
+        dap_sign_t *l_sign = (dap_sign_t *)(a_data+l_offset);
+        size_t l_sign_size = dap_sign_get_size(l_sign);
+        if (!l_sign_size){
+            break;
+        }
+        if (l_sign_size > a_data_size-l_offset ){
+            break;
+        }
+        // Check duplicate signs
+        bool l_sign_duplicate = false;
+        if (l_list_signs) {
+            dap_list_t *l_list = dap_list_first(l_list_signs);
+            while (l_list) {
+                if ( memcmp( ((dap_sign_t *)l_list->data)->pkey_n_sign,
+                            l_sign->pkey_n_sign, l_sign->header.sign_pkey_size ) == 0 ) {
+                    l_sign_duplicate = true;
+                    break;
+                }
+                l_list = l_list->next;
+            }
+        }
+        if (!l_sign_duplicate) {
+            l_list_signs = dap_list_append(l_list_signs, l_sign);
+        }
+        l_offset += l_sign_size;
+    }
+    unsigned int l_list_length = dap_list_length(l_list_signs);
+    *a_signs_count = (size_t)l_list_length;
+    dap_sign_t **l_ret = DAP_NEW_Z_SIZE(dap_sign_t *, sizeof(dap_sign_t *)*l_list_length);
+    unsigned int i = 0;
+    dap_list_t *l_list = dap_list_first(l_list_signs);
+    while(l_list) {
+        l_ret[i] = l_list->data;
+        i++;
+        l_list = l_list->next;
+    }
+    dap_list_free(l_list_signs);
+    return l_ret;
 }
 
 

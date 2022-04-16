@@ -133,6 +133,7 @@ bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_key_size);
 dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign);
 const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type);
 dap_sign_type_t dap_sign_type_from_str(const char * a_type_str);
+dap_sign_t **dap_sign_get_unique_signs(void *a_data, size_t a_data_size, size_t *a_signs_count);
 
 uint8_t *dap_multi_sign_serialize(dap_multi_sign_t *a_sign, size_t *a_out_len);
 dap_multi_sign_t *dap_multi_sign_deserialize(dap_sign_type_enum_t a_type, uint8_t *a_sign, size_t a_sign_len);
