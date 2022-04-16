@@ -465,6 +465,8 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
             dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
             dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
             dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
+            if (!l_obj_cur->group)
+                break;
             dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj_cur);
             dap_store_obj_free_one(l_obj_cur);
             struct downlink *l_link, *l_tmp;
@@ -485,7 +487,8 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
             it = PVT(l_net)->records_queue;
         } while (it);
     } else
-        PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
+        //PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
+        dap_store_obj_free_one(l_obj);
     pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     return true;
 }
@@ -564,7 +567,8 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
             it = PVT(l_net)->atoms_queue;
         } while (it);
     } else
-        PVT(l_net)->atoms_queue = dap_list_append(PVT(l_net)->records_queue, l_arg);
+        //PVT(l_net)->atoms_queue = dap_list_append(PVT(l_net)->records_queue, l_arg);
+        s_atom_obj_free(a_arg);
     pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     return true;
 }

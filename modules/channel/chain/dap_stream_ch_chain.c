@@ -678,9 +678,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if(l_pkt_item->pkt_data_size != l_obj_pkt_size) {
             log_it(L_WARNING, "In: s_gdb_in_pkt_proc_callback: received size=%zu is not equal to obj_pkt_size=%zu",
                     l_pkt_item->pkt_data_size, l_obj_pkt_size);
-            if(l_pkt_item->pkt_data) {
-                DAP_DELETE(l_pkt_item->pkt_data);
-            }
+            DAP_DEL_Z(l_pkt_item->pkt_data);
             DAP_DELETE(l_sync_request);
             return true;
         }
@@ -688,6 +686,12 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         size_t l_data_obj_count = 0;
         // deserialize data & Parse data from dap_db_log_pack()
         dap_store_obj_t *l_store_obj = dap_store_unpacket_multiple(l_obj_pkt, &l_data_obj_count);
+        if (!l_store_obj) {
+            log_it(L_ERROR, "Invalid synchronization packet format");
+            DAP_DEL_Z(l_pkt_item->pkt_data);
+            DAP_DELETE(l_sync_request);
+            return true;
+        }
         if (s_debug_more){
             if (l_data_obj_count)
                 log_it(L_INFO, "In: GLOBAL_DB parse: pkt_data_size=%"DAP_UINT64_FORMAT_U", l_data_obj_count = %zu",l_pkt_item->pkt_data_size, l_data_obj_count );
@@ -768,12 +772,14 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);
             }
             if (!l_apply) {
-                if (l_obj->timestamp <= (uint64_t)l_timestamp_cur)
-                    log_it(L_WARNING, "New data not applied, because newly object exists");
-                if (l_obj->timestamp <= (uint64_t)l_timestamp_del)
-                    log_it(L_WARNING, "New data not applied, because newly object is deleted");
-                if ((l_obj->type == DAP_DB$K_OPTYPE_DEL && l_obj->timestamp <= l_limit_time))
-                    log_it(L_WARNING, "New data not applied, because object is too old");
+                if (s_debug_more) {
+                    if (l_obj->timestamp <= (uint64_t)l_timestamp_cur)
+                        log_it(L_WARNING, "New data not applied, because newly object exists");
+                    if (l_obj->timestamp <= (uint64_t)l_timestamp_del)
+                        log_it(L_WARNING, "New data not applied, because newly object is deleted");
+                    if ((l_obj->type == DAP_DB$K_OPTYPE_DEL && l_obj->timestamp <= l_limit_time))
+                        log_it(L_WARNING, "New data not applied, because object is too old");
+                }
                 continue;
             }
 
