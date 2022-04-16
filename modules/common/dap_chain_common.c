@@ -821,23 +821,58 @@ uint32_t l_tmp[4];
 
 uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 {
-int  l_strlen, l_len;
+int  l_strlen, l_len, l_exp;
 uint256_t l_ret = {}, l_nul = uint256_0;
-char    l_128bit_num  [DAP_CHAIN$SZ_MAX128DEC + 8];
+char    l_128bit_num  [DAP_CHAIN$SZ_MAX128DEC + 8],
+        l_256bit_num  [DAP_CHAIN$SZ_MAX256DEC];
 
     /* Compute & check length */
     if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
         return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
 
+    /* Convert number from xxx.yyyyE+zz to xxxyyyy0000... */
+    char *l_eptr = strchr(a_256bit_num, 'e');
+    if (!l_eptr)
+        l_eptr = strchr(a_256bit_num, 'E');
+    if (l_eptr) {
+        char *l_exp_ptr = l_eptr + 1;
+        if (*l_exp_ptr == '+')
+            l_exp_ptr++;
+        int l_exp = atoi(l_exp_ptr);
+        if (!l_exp)
+            return  log_it(L_ERROR, "Invalid exponent %s", l_eptr), uint256_0;
+        char *l_dot_ptr = strchr(a_256bit_num, '.');
+        if (!l_dot_ptr || l_dot_ptr > l_eptr)
+            return  log_it(L_ERROR, "Invalid number format with exponent %d", l_exp), uint256_0;
+        int l_dot_len = l_dot_ptr - a_256bit_num;
+        if (l_dot_len >= DAP_CHAIN$SZ_MAX256DEC)
+            return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
+        int l_exp_len = l_eptr - a_256bit_num - l_dot_len - 1;
+        if (l_exp_len + l_dot_len + 1 >= DAP_CHAIN$SZ_MAX256DEC)
+            return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
+        if (l_exp < l_exp_len)
+            return  log_it(L_ERROR, "Invalid number format with exponent %d and nuber coun after dot %d", l_exp, l_exp_len), uint256_0;
+        memcpy(l_256bit_num, a_256bit_num, l_dot_len);
+        memcpy(l_256bit_num + l_dot_len, a_256bit_num + l_dot_len + 1, l_exp_len);
+        int l_zero_cnt = l_exp - l_exp_len;
+        size_t l_pos = l_dot_len + l_exp_len;
+        for (int i = l_zero_cnt; i && l_pos < DAP_CHAIN$SZ_MAX256DEC; i--)
+            l_256bit_num[l_pos++] = '0';
+        l_256bit_num[l_pos] = '\0';
+    } else {
+        memcpy(l_256bit_num, a_256bit_num, l_strlen);
+        l_256bit_num[l_strlen] = '\0';
+    }
+
     /* Convert firstly low part of the decimal string */
     l_len = (l_strlen > DAP_CHAIN$SZ_MAX128DEC) ? DAP_CHAIN$SZ_MAX128DEC : l_strlen;
-    l_ret.lo =  dap_chain_balance_scan128(a_256bit_num + (l_strlen - l_len));
+    l_ret.lo =  dap_chain_balance_scan128(l_256bit_num + (l_strlen - l_len));
 
 
     /* Convert a high part of the decimal string is need */
     if ( 0 < (l_len = (l_strlen -  DAP_CHAIN$SZ_MAX128DEC)) )
     {
-        memcpy(l_128bit_num, a_256bit_num, l_len);
+        memcpy(l_128bit_num, l_256bit_num, l_len);
         l_128bit_num[l_len] = '\0';
         l_ret.hi =  dap_chain_balance_scan128(l_128bit_num);
     }
