@@ -2000,80 +2000,50 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return  -7;
     }
 
-    if ( l_ton_pvt->flag_sign_verify && !l_ton_pvt->validators_list_by_stake ) { // PoA mode
-	    uint16_t l_signs_verified_count = 0;
-	    // Check for first signature
-	    dap_sign_t * l_sign = dap_chain_block_sign_get(a_block,a_block_size,0);
-	    if (! l_sign){
+    if ( l_ton_pvt->flag_sign_verify && !l_ton_pvt->validators_list_by_stake ) { // PoA mode		
+		size_t l_offset = dap_chain_block_get_sign_offset(a_block, a_block_size);
+		size_t l_signs_count = 0;
+		dap_sign_t **l_signs = dap_sign_get_unique_signs(a_block->meta_n_datum_n_sign+l_offset,
+												a_block_size-sizeof(a_block->hdr)-l_offset, &l_signs_count);
+		if (!l_signs_count){
 	        log_it(L_ERROR, "No any signatures at all for block");
+	        DAP_DELETE(l_signs);
 	        return -2;
 	    }
+
+	    if ( ((float)l_signs_count/l_ton_pvt->poa_validators_count ) < ((float)2/3) ) {
+	        log_it(L_ERROR, "Corrupted block: not enough signs: %u of %u", l_signs_count, l_ton_pvt->poa_validators_count);
+	        DAP_DELETE(l_signs);
+	    	return -1;
+	    }
+
 	    // Parse the rest signs
 	    int l_ret = 0;
-	    dap_list_t *l_list_signs = NULL;
-	    size_t l_offset = (byte_t *)l_sign - a_block->meta_n_datum_n_sign;
+	    uint16_t l_signs_verified_count = 0;
 	    size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, a_block_size)+sizeof(a_block->hdr);
-	    while (l_offset < a_block_size - sizeof(a_block->hdr)) {
+	    for (size_t i=0; i<l_signs_count; i++) {
+	    	dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
 	        if (!dap_sign_verify_size(l_sign, a_block_size)) {
 	            log_it(L_ERROR, "Corrupted block: sign size is bigger than block size");
 	            l_ret = -3;
 	            break;
 	        }
-	        size_t l_sign_size = dap_sign_get_size(l_sign);
-	        // Check if sign size 0
-	        if (!l_sign_size){
-	            log_it(L_ERROR, "Corrupted block: sign size got zero");
-	            l_ret = -4;
-	            break;
-	        }
-	        // Check if sign size too big
-	        if (l_sign_size > a_block_size- sizeof (a_block->hdr)-l_offset ){
-	            log_it(L_ERROR, "Corrupted block: sign size %zd is too big, out from block size %zd", l_sign_size, a_block_size);
-	            l_ret = -5;
-	            break;
-	        }
 
-	        // Check duplicate signs
-	        bool l_sign_duplicate = false;
-	        if (l_list_signs) {
-	        	dap_list_t *l_list = dap_list_first(l_list_signs);
-	        	while (l_list) {
-	        		if ( memcmp( ((dap_sign_t *)l_list->data)->pkey_n_sign,
-	        					l_sign->pkey_n_sign, l_sign->header.sign_pkey_size ) == 0 ) {
-	        			l_sign_duplicate = true;
-	        			break;
-	        		}
-	        		l_list = l_list->next;
-	        	}
-	        	if (l_sign_duplicate) {
-	        		log_it(L_WARNING, "Corrupted block: sign duplicate");
-	        	}
+	        // Compare signature with auth_certs
+	        for (uint16_t j = 0; j < l_ton_pvt->auth_certs_count; j++) {
+	            if (dap_cert_compare_with_sign( l_ton_pvt->auth_certs[j], l_sign) == 0
+	            		&& dap_sign_verify(l_sign, a_block, l_block_excl_sign_size) == 1 ){
+	                l_signs_verified_count++;
+	                break;
+	            }
 	        }
-
-	        if (!l_sign_duplicate) {
-		        // Compare signature with auth_certs
-		        for (uint16_t j = 0; j < l_ton_pvt->auth_certs_count; j++) {
-		            if (dap_cert_compare_with_sign( l_ton_pvt->auth_certs[j], l_sign) == 0
-		            		&& dap_sign_verify(l_sign, a_block, l_block_excl_sign_size) == 1 ){
-		                l_signs_verified_count++;
-		                l_list_signs = dap_list_append(l_list_signs, l_sign->pkey_n_sign);
-		                break;
-		            }
-		        }
-		    }
-
-	        l_offset += l_sign_size;
-	        l_sign = (dap_sign_t *)(a_block->meta_n_datum_n_sign + l_offset);
 	    }
-	    dap_list_free(l_list_signs);
+		DAP_DELETE(l_signs);
 	    if ( l_ret != 0 ) {
 	    	return l_ret;
 	    }
-	    if (l_offset != a_block_size - sizeof(a_block->hdr)) {
-	        log_it(L_ERROR, "Corrupted block: sign end exceeded the block bound");
-	        return -6;
-	    }
 	    if ( ((float)l_signs_verified_count/l_ton_pvt->poa_validators_count ) < ((float)2/3) ) {
+	        log_it(L_ERROR, "Corrupted block: not enough signs: %u of %u", l_signs_verified_count, l_ton_pvt->poa_validators_count);
 	    	return -1;
 	    }
 	}

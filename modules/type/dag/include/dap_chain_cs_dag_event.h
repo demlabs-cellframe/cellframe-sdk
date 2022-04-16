@@ -146,7 +146,7 @@ static inline ssize_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_d
         return -1;
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (a_event->hashes_n_datum_n_signs + l_hashes_size);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
-    return  l_hashes_size + sizeof (a_event->header) + l_datum_size;
+    return l_hashes_size + sizeof (a_event->header) + l_datum_size;
 }
 
 /**

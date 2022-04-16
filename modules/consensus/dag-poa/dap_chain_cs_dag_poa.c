@@ -782,51 +782,78 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
  * @param a_dag_event_size size_t size of event object
  * @return int
  */
-static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size)
+static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event, size_t a_event_size)
 {
+    
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( a_dag ) );
-    size_t l_offset_from_beginning = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
-    if( l_offset_from_beginning >= a_dag_event_size){
+    size_t l_offset_from_beginning = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_event_size);
+    if( l_offset_from_beginning >= a_event_size){
         log_it(L_WARNING,"Incorrect size with event %p: caled size excl signs %zd is bigger or equal then event size %zd",
-               a_dag_event, l_offset_from_beginning, a_dag_event_size);
+               a_event, l_offset_from_beginning, a_event_size);
         return -7; // Incorrest size
     }
-    uint16_t l_certs_count_verify = a_dag->use_event_round_info ? a_dag->event_round_info.confirmations_minimum
-                                                                : l_poa_pvt->auth_certs_count_verify;
-
+    uint16_t l_certs_count_verify = l_poa_pvt->auth_certs_count_verify;
+    // uint16_t l_certs_count_verify = a_dag->use_event_round_info ? a_dag->event_round_info.confirmations_minimum
+    //                                                             : l_poa_pvt->auth_certs_count_verify;
     a_dag->use_event_round_info = false;
-    if ( a_dag_event->header.signs_count >= l_certs_count_verify ){
-        size_t l_verified = 0;
-        for ( uint16_t i = 0; i < a_dag_event->header.signs_count; i++ ) {
-            if (l_offset_from_beginning == a_dag_event_size)
+    if ( a_event->header.signs_count >= l_certs_count_verify ){
+        size_t l_signs_count = 0;
+        dap_sign_t **l_signs = dap_sign_get_unique_signs(((uint8_t*)a_event)+l_offset_from_beginning,
+                                                a_event_size-l_offset_from_beginning, &l_signs_count);
+
+        if (!l_signs_count){
+            log_it(L_ERROR, "No any signatures at all for event");
+            DAP_DELETE(l_signs);
+            return -2;
+        }
+
+        if ( l_signs_count < l_certs_count_verify ) {
+            log_it(L_ERROR, "Corrupted event: not enough signs: %u of %u", l_signs_count, l_certs_count_verify);
+            DAP_DELETE(l_signs);
+            return -1;
+        }
+
+        uint16_t l_signs_verified_count = 0;
+        int l_ret = 0;
+        uint16_t l_event_signs_count = a_event->header.signs_count;
+        for (size_t i=0; i<l_signs_count; i++) {
+            dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
+            if (!dap_sign_verify_size(l_sign, a_event_size)) {
+                log_it(L_WARNING,"Incorrect size with event %p", a_event);
+                l_ret = -3;
                 break;
-            dap_sign_t * l_sign = dap_chain_cs_dag_event_get_sign(a_dag_event,a_dag_event_size , 0);
-            if ( l_sign == NULL){
-                log_it(L_WARNING, "Event is NOT signed with anything");
-                return -4;
             }
-            l_offset_from_beginning += dap_sign_get_size( l_sign);
-            if (l_offset_from_beginning > a_dag_event_size){
-                log_it(L_WARNING,"Incorrect size with event %p", a_dag_event);
-                return -7;
-            }
+
+            // Compare signature with auth_certs
+            a_event->header.signs_count = i;
             for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
-                if (dap_cert_compare_with_sign ( l_poa_pvt->auth_certs[j], l_sign) == 0)
-                    l_verified++;
+                if (dap_cert_compare_with_sign( l_poa_pvt->auth_certs[j], l_sign) == 0
+                            && dap_sign_verify(l_sign, a_event, l_offset_from_beginning) == 1 ){
+                    l_signs_verified_count++;
+                    break;
+                }
             }
         }
-        return l_verified >= l_certs_count_verify ? 0 : -1;
-    }else if (a_dag_event->header.hash_count == 0){
+        a_event->header.signs_count = l_event_signs_count;
+        DAP_DELETE(l_signs);
+        if ( l_ret != 0 ) {
+            return l_ret;
+        }
+        return l_signs_verified_count >= l_certs_count_verify ? 0 : -1;
+
+    }
+    else if (a_event->header.hash_count == 0){
         dap_chain_hash_fast_t l_event_hash;
-        dap_chain_cs_dag_event_calc_hash(a_dag_event,a_dag_event_size, &l_event_hash);
+        dap_chain_cs_dag_event_calc_hash(a_event,a_event_size, &l_event_hash);
         if ( memcmp( &l_event_hash, &a_dag->static_genesis_event_hash, sizeof(l_event_hash) ) == 0 ){
             return 0;
         }else{
-            log_it(L_WARNING,"Wrong genesis event %p: hash is not equels to what in config", a_dag_event);
+            log_it(L_WARNING,"Wrong genesis event %p: hash is not equels to what in config", a_event);
             return -20; // Wrong signatures number
         }
-    }else{
-        log_it(L_WARNING,"Wrong signatures number with event %p", a_dag_event);
+    }
+    else{
+        log_it(L_WARNING,"Wrong signatures number with event %p", a_event);
         return -2; // Wrong signatures number
     }
 }
