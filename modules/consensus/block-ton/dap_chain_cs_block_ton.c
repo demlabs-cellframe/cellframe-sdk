@@ -2012,7 +2012,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 	    }
 
 	    if ( ((float)l_signs_count/l_ton_pvt->poa_validators_count ) < ((float)2/3) ) {
-	        log_it(L_ERROR, "Corrupted block: not enough signs: %u of %u", l_signs_count, l_ton_pvt->poa_validators_count);
+            log_it(L_ERROR, "Corrupted block: not enough signs: %zu of %hu", l_signs_count, l_ton_pvt->poa_validators_count);
 	        DAP_DELETE(l_signs);
 	    	return -1;
 	    }

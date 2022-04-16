@@ -808,7 +808,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         }
 
         if ( l_signs_count < l_certs_count_verify ) {
-            log_it(L_ERROR, "Corrupted event: not enough signs: %u of %u", l_signs_count, l_certs_count_verify);
+            log_it(L_ERROR, "Corrupted event: not enough signs: %zu of %hu", l_signs_count, l_certs_count_verify);
             DAP_DELETE(l_signs);
             return -1;
         }

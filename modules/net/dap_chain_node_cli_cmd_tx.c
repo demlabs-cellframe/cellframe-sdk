@@ -793,9 +793,10 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     } else if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "info", NULL))
         l_cmd = CMD_TX_INFO;
 
+    bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-all", NULL);
+
     // command tx_history
     if(l_cmd == CMD_TX_HISTORY) {
-        bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-all", NULL);
         dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-addr", &l_addr_base58);
         dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-w", &l_wallet_name);
         dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
