@@ -567,7 +567,7 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
             it = PVT(l_net)->atoms_queue;
         } while (it);
     } else
-        //PVT(l_net)->atoms_queue = dap_list_append(PVT(l_net)->records_queue, l_arg);
+        //PVT(l_net)->atoms_queue = dap_list_append(PVT(l_net)->atoms_queue, l_arg);
         s_atom_obj_free(a_arg);
     pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     return true;
