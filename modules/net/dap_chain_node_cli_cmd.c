@@ -721,7 +721,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -730,6 +730,8 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         cmd_name = CMD_NAME_CELL;
     else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "flush", NULL))
         cmd_name = CMD_FLUSH;
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "record", NULL))
+            cmd_name = CMD_RECORD;
     switch (cmd_name) {
     case CMD_NAME_CELL:
     {
@@ -750,7 +752,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 
         // Check for chain
         if(!l_chain_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'chain' to be valid", a_argv[0]);
             return -12;
         }
 
@@ -818,6 +820,105 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             break;
         }
         return 0;
+    }
+    case CMD_RECORD:
+    {
+        enum {
+            SUMCMD_GET, SUMCMD_PIN, SUMCMD_UNPIN
+        };
+        if(!arg_index || a_argc < 3) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
+            return -1;
+        }
+        int arg_index_n = ++arg_index;
+        int l_subcmd;
+        // Get value
+        if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "get", NULL))!= 0) {
+            l_subcmd = SUMCMD_GET;
+        }
+        // Pin record
+        else if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "pin", NULL)) != 0) {
+            l_subcmd = SUMCMD_PIN;
+        }
+        // Unpin record
+        else if((arg_index_n = dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "unpin", NULL)) != 0) {
+            l_subcmd = SUMCMD_UNPIN;
+        }
+        else{
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand '%s' not recognized, available subcommands are 'get', 'pin' or 'unpin'", a_argv[2]);
+            return -1;
+        }
+        // read record from database
+        const char *l_key = NULL;
+        const char *l_group = NULL;
+        // find key and group
+        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key);
+        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group);
+        size_t l_value_len = 0;
+        uint8_t l_flags = 0;
+        uint8_t *l_value = dap_chain_global_db_flags_gr_get(l_key, &l_value_len, &l_flags, l_group);
+        if(!l_value || !l_value_len) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Record not found\n\n");
+            return -1;
+        }
+        bool is_pinned = l_flags & RECORD_PINNED;
+
+        int l_ret = 0;
+        // prepare record information
+        switch (l_subcmd) {
+        case SUMCMD_GET: // Get value
+        {
+            dap_hash_fast_t l_hash;
+            char *l_hash_str = NULL;
+            if(dap_hash_fast(l_value, l_value_len, &l_hash)) {
+                l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+            }
+            char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
+            size_t ret = dap_bin2hex(l_value_str, l_value, l_value_len);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Record found\n"
+                    "lenght:\t%u byte\n"
+                    "hash:\t%s\n"
+                    "pinned:\t%s\n"
+                    "value:\t0x%s\n\n", l_value_len, l_hash_str, is_pinned ? "Yes" : "No", l_value_str);
+            DAP_DELETE(l_value_str);
+            DAP_DELETE(l_hash_str);
+            break;
+        }
+        case SUMCMD_PIN: // Pin record
+        {
+            if(is_pinned){
+                dap_chain_node_cli_set_reply_text(a_str_reply, "record already pinned");
+                break;
+            }
+            if(dap_chain_global_db_flags_gr_set(l_key, l_value, l_value_len, l_flags | RECORD_PINNED, l_group)){
+                dap_chain_node_cli_set_reply_text(a_str_reply, "record successfully pinned");
+            }
+            else{
+                dap_chain_node_cli_set_reply_text(a_str_reply, "can't pin the record");
+                l_ret = -2;
+            }
+            break;
+        }
+        case SUMCMD_UNPIN: // Unpin record
+        {
+            if(!is_pinned) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "record already unpinned");
+                break;
+            }
+            l_flags &= ~RECORD_PINNED;
+            if(dap_chain_global_db_flags_gr_set(l_key, l_value, l_value_len, l_flags & ~RECORD_PINNED, l_group)) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "record successfully unpinned");
+            }
+            else {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "can't unpin the record");
+                l_ret = -2;
+            }
+            break;
+        }
+
+        }
+        DAP_DELETE(l_value);
+        return l_ret;
     }
     default:
         dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
