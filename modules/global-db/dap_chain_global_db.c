@@ -313,6 +313,36 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
     return l_store_data;
 }
 
+/**
+ * @brief Gets an object value with parameters from database by a_key and a_group.
+ *
+ * @param a_key an object key string
+ * @param a_data_len_out a length of values that were gotten
+ * @param a_flags_out record flags that were gotten
+ * @param a_group a group name string
+ * @return If successful, returns a pointer to the object value.
+ */
+uint8_t* dap_chain_global_db_flags_gr_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group)
+{
+    uint8_t *l_ret_value = NULL;
+    // read several items, 0 - no limits
+    size_t l_count_records = 0;
+    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_count_records);
+    if(!l_store_data || l_count_records < 1) {
+        return NULL;
+    }
+    l_ret_value = l_store_data->value && l_store_data->value_len
+            ? DAP_DUP_SIZE(l_store_data->value, l_store_data->value_len)
+            : NULL;
+    // set length of output buffer
+    if(a_data_len_out)
+        *a_data_len_out = l_store_data->value_len;
+    // set flag of record
+    if(a_flags_out)
+        *a_flags_out = l_store_data->flags;
+    dap_store_obj_free(l_store_data, l_count_records);
+    return l_ret_value;
+}
 
 /**
  * @brief Gets an object value from database by a_key and a_group.
@@ -324,22 +354,7 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
-    uint8_t *l_ret_value = NULL;
-    // read several items, 0 - no limits
-    size_t l_data_len_out = 0;
-    if(!a_data_len_out)
-        a_data_len_out = &l_data_len_out;
-    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, a_data_len_out);
-    if (!l_store_data) {
-        return NULL;
-    }
-    l_ret_value = l_store_data->value && l_store_data->value_len
-            ? DAP_DUP_SIZE(l_store_data->value, l_store_data->value_len)
-            : NULL;
-    l_data_len_out = l_store_data->value_len;
-    dap_store_obj_free_one(l_store_data);
-    *a_data_len_out = l_data_len_out;
-    return l_ret_value;
+    return dap_chain_global_db_flags_gr_get(a_key, a_data_len_out, NULL, a_group);
 }
 
 /**
@@ -556,19 +571,21 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
 }
 
 /**
- * @brief Adds a value to a database.
+ * @brief Adds a value with parameters to a database.
  * @param a_key a object key string
  * @param a_value a value to be added
  * @param a_value_len length of value. If a_value_len=-1, the function calculates length.
  * @param a_group a group name string
+ * @param a_flags flags for record (RECORD_COMMON, RECORD_PINNED)
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
  * @return True if successful, false otherwise.
  */
-bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
+bool dap_chain_global_db_flags_gr_set(const char *a_key, const void *a_value, size_t a_value_len, uint8_t a_flags, const char *a_group)
 {
     dap_store_obj_t store_data = {0};
 
     store_data.key = a_key;
+    store_data.flags = a_flags;
     store_data.value_len = (a_value_len == (size_t) -1) ? dap_strlen(a_value) : a_value_len;
     store_data.value = store_data.value_len ? (void *)a_value : NULL;
     store_data.group = (char *)a_group;
@@ -595,12 +612,34 @@ bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a
 }
 
 /**
+ * @brief Adds a value to a database.
+ * @param a_key a object key string
+ * @param a_value a value to be added
+ * @param a_value_len length of value. If a_value_len=-1, the function calculates length.
+ * @param a_group a group name string
+ * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
+ * @return True if successful, false otherwise.
+ */
+bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
+{
+    uint8_t l_flags = RECORD_COMMON;
+    return dap_chain_global_db_flags_gr_set(a_key, a_value, a_value_len, l_flags, a_group);
+}
+
+bool dap_chain_global_db_pinned_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
+{
+    // Add a value to the database as a pinned record
+    uint8_t l_flags = RECORD_PINNED;
+    return dap_chain_global_db_flags_gr_set(a_key, a_value, a_value_len, l_flags, a_group);
+}
+
+/**
  * @brief Adds a value to a database for the "local.general" group
  * @param a_value a value to be added
  * @param a_value_len length of value. If a_value_len=-1, the function counts length.
  * @return True if successful, false otherwise.
  */
-bool dap_chain_global_db_set( char *a_key,  void *a_value, size_t a_value_len)
+bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len)
 {
     return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, GROUP_LOCAL_GENERAL);
 }

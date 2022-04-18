@@ -88,6 +88,8 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     a_obj->key = dap_strdup(key);
     a_obj->id = dap_hex_to_uint(val, sizeof(uint64_t));
     offset += sizeof(uint64_t);
+    a_obj->flags = dap_hex_to_uint(val + offset, sizeof(uint8_t));
+    offset += sizeof(uint8_t);
     a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(uint64_t));
     offset += sizeof(uint64_t);
     a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
@@ -611,15 +613,21 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         cdb_record l_rec;
         l_rec.key = (char *)a_store_obj->key; //dap_strdup(a_store_obj->key);
         int offset = 0;
-        char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(uint64_t) + a_store_obj->value_len + sizeof(uint64_t));
+        char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(uint8_t) + sizeof(uint64_t) + a_store_obj->value_len + sizeof(uint64_t));
         dap_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
         offset += sizeof(uint64_t);
+        // Add flags
+        dap_uint_to_hex(l_val + offset, a_store_obj->flags, sizeof(uint8_t));
+        offset += sizeof(uint8_t);
+        // Add length of value
         dap_uint_to_hex(l_val + offset, a_store_obj->value_len, sizeof(uint64_t));
         offset += sizeof(uint64_t);
+        // Add value
         if(a_store_obj->value && a_store_obj->value_len){
             memcpy(l_val + offset, a_store_obj->value, a_store_obj->value_len);
         }
         offset += a_store_obj->value_len;
+        // Add a timestamp
         dap_uint_to_hex(l_val + offset, a_store_obj->timestamp, sizeof(uint64_t));
         offset += sizeof(uint64_t);
         l_rec.val = l_val;
@@ -633,7 +641,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         if(a_store_obj->key) {
             if(cdb_del(l_cdb_i->cdb, a_store_obj->key, (int) strlen(a_store_obj->key)) == -3)
                 ret = 1;
-        } else if (dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP))
+        } else if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP))
             ret = -1;
     }
     return ret;
