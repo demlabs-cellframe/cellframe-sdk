@@ -392,8 +392,8 @@ int l_strlen, l_len;
     }
 
     for ( l_cp = l_buf + l_strlen -1; *l_cp == '0'; l_cp--)
-        *l_cp = '\0';
-
+        if (*(l_cp - 1) != '.')
+            *l_cp = '\0';
 
     return l_buf;
 }

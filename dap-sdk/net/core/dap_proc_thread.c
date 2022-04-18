@@ -58,7 +58,6 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #define LOG_TAG "dap_proc_thread"
 
 static size_t s_threads_count = 0;
-static int  s_debug_reactor = 0;
 static dap_proc_thread_t * s_threads = NULL;
 static void *s_proc_thread_function(void * a_arg);
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
@@ -77,7 +76,6 @@ int l_ret = 0;
 
     s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
     s_threads = DAP_NEW_Z_SIZE(dap_proc_thread_t, sizeof (dap_proc_thread_t)* s_threads_count);
-    s_debug_reactor = g_config ? dap_config_get_item_bool_default(g_config, "general", "debug_reactor", false) : false;
 
     for (uint32_t i = 0; i < s_threads_count; i++ )
     {
@@ -165,7 +163,7 @@ int     l_rc, l_is_anybody_for_repeat, l_is_finished, l_iter_cnt, l_cur_pri;
 size_t  l_size;
 dap_proc_queue_t    *l_queue;
 
-    debug_if (s_debug_reactor, L_DEBUG, "--> Proc event callback start, a_esocket:%p ", a_esocket);
+    debug_if (g_debug_reactor, L_DEBUG, "--> Proc event callback start, a_esocket:%p ", a_esocket);
 
     if ( !(l_thread = (dap_proc_thread_t *) a_esocket->_inheritor) )
         {
@@ -188,17 +186,17 @@ dap_proc_queue_t    *l_queue;
         pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
 
         if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
-            debug_if (s_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
+            debug_if (g_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
             continue;
         }
 
-        debug_if (s_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
+        debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
         l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
         l_is_anybody_for_repeat++;
 
-        debug_if (s_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
+        debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
                            l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
 
         if ( !(l_is_finished) ) {
@@ -218,7 +216,7 @@ dap_proc_queue_t    *l_queue;
     if ( l_is_anybody_for_repeat )                                          /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
 
-    debug_if(s_debug_reactor, L_DEBUG, "<-- Proc event callback end, repeat flag is: %d, iterations: %d", l_is_anybody_for_repeat, l_iter_cnt);
+    debug_if(g_debug_reactor, L_DEBUG, "<-- Proc event callback end, repeat flag is: %d, iterations: %d", l_is_anybody_for_repeat, l_iter_cnt);
 }
 
 
@@ -675,7 +673,7 @@ static void * s_proc_thread_function(void * a_arg)
                 memcpy(&l_cur->kqueue_event_catched_data,l_es_w_data,sizeof(*l_es_w_data));
                 if(l_es_w_data != &l_cur->kqueue_event_catched_data )
                     DAP_DELETE(l_es_w_data);
-                else if (s_debug_reactor)
+                else if (g_debug_reactor)
                     log_it(L_DEBUG,"Own event signal without actual event data");
                 if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
                                                // we must drop write flag and set read flag
@@ -707,7 +705,7 @@ static void * s_proc_thread_function(void * a_arg)
 #error "Unimplemented fetch esocket after poll"
 #endif
             assert(l_cur);
-            if(s_debug_reactor)
+            if(g_debug_reactor)
                 log_it(L_DEBUG, "Proc thread #%u esocket %p fd=%"DAP_FORMAT_SOCKET" type=%d flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)", l_thread->cpu_id, l_cur, l_cur->socket,
                     l_cur->type, l_cur_events, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"", l_flag_pri?"pri":"");
@@ -953,7 +951,7 @@ static void * s_proc_thread_function(void * a_arg)
 bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_worker_t * a_worker, dap_events_socket_t *a_esocket  )
 {
     dap_events_socket_t * l_es_assign_input = a_thread->queue_assign_input[a_worker->id];
-    if(s_debug_reactor)
+    if(g_debug_reactor)
         log_it(L_DEBUG,"Remove esocket %p from proc thread and send it to worker #%u",a_esocket, a_worker->id);
 
     dap_events_socket_assign_on_worker_inter(l_es_assign_input, a_esocket);
@@ -1055,7 +1053,7 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
     (void) a_flags;
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_es->_inheritor;
     l_thread->signal_exit = true;
-    if(s_debug_reactor)
+    if(g_debug_reactor)
         log_it(L_DEBUG, "Proc_thread :%u signaled to exit", l_thread->cpu_id);
 }
 

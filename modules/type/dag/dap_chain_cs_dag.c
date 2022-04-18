@@ -174,7 +174,7 @@ static void s_history_callback_round_notify(void *a_arg, const char a_op_code, c
     if (a_arg){
         dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
-        log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
+        debug_if(s_debug_more, L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
             l_net->pub.name, l_dag->chain->name, a_op_code, a_group, a_key, a_value_size);
         if (a_op_code == DAP_DB$K_OPTYPE_ADD && 
                 l_dag->callback_cs_event_round_sync) {

@@ -62,7 +62,6 @@
 #define LOG_TAG "dap_worker"
 
 static time_t s_connection_timeout = 60;    // seconds
-static bool s_debug_reactor=false;
 
 static bool s_socket_all_check_activity( void * a_arg);
 static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg);
@@ -83,7 +82,6 @@ int dap_worker_init( size_t a_conn_timeout )
     if ( a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
 
-    s_debug_reactor = g_config? dap_config_get_item_bool_default(g_config,"general","debug_reactor",false) : false;
 #ifdef DAP_OS_UNIX
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
@@ -249,7 +247,7 @@ void *dap_worker_thread(void *arg)
         struct kevent * l_kevent_selected = &l_worker->kqueue_events_selected[n];
         if ( l_kevent_selected->filter == EVFILT_USER){ // If we have USER event it sends little different pointer
             dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
-            //if(s_debug_reactor)
+            //if(g_debug_reactor)
             //    log_it(L_DEBUG,"EVFILT_USER: udata=%p", l_es_w_data);
 
             l_cur = l_es_w_data->esocket;
@@ -265,7 +263,7 @@ void *dap_worker_thread(void *arg)
             void * l_ptr = &l_cur->kqueue_event_catched_data;
             if(l_es_w_data != l_ptr){
                 DAP_DELETE(l_es_w_data);
-            }else if (s_debug_reactor){
+            }else if (g_debug_reactor){
                 log_it(L_DEBUG,"Own event signal without actual event data");
             }
         }else{
@@ -301,7 +299,7 @@ void *dap_worker_thread(void *arg)
                 log_it(L_WARNING, "dap_events_socket was destroyed earlier");
                 continue;
             }
-            if(s_debug_reactor) {
+            if(g_debug_reactor) {
                 log_it(L_DEBUG, "--Worker #%u esocket %p uuid 0x%016"DAP_UINT64_FORMAT_x" type %d fd=%"DAP_FORMAT_SOCKET" flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
                        l_worker->id, l_cur, l_cur->uuid, l_cur->type, l_cur->socket,
                     l_cur_flags, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
@@ -336,7 +334,7 @@ void *dap_worker_thread(void *arg)
                     break;
                 }
                 default:
-                    if(s_debug_reactor)
+                    if(g_debug_reactor)
                         log_it(L_WARNING, "HUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
                 }
             }
@@ -443,7 +441,7 @@ void *dap_worker_thread(void *arg)
                         l_bytes_read =  wolfSSL_read(l_ssl, (char *) (l_cur->buf_in + l_cur->buf_in_size),
                                                      l_cur->buf_in_size_max - l_cur->buf_in_size);
                         l_errno = wolfSSL_get_error(l_ssl, 0);
-                        if (l_bytes_read > 0 && s_debug_reactor)
+                        if (l_bytes_read > 0 && g_debug_reactor)
                             log_it(L_DEBUG, "SSL read: %s", (char *)(l_cur->buf_in + l_cur->buf_in_size));
 #endif
                     }
@@ -521,7 +519,7 @@ void *dap_worker_thread(void *arg)
                             l_cur->last_time_active = l_cur_time;
                         }
                         l_cur->buf_in_size += l_bytes_read;
-                        if(s_debug_reactor)
+                        if(g_debug_reactor)
                             log_it(L_DEBUG, "Received %d bytes for fd %d ", l_bytes_read, l_cur->fd);
                         if(l_cur->callbacks.read_callback){
                             l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
@@ -582,7 +580,7 @@ void *dap_worker_thread(void *arg)
                     break;
                     default:{}
                 }
-                if(s_debug_reactor)
+                if(g_debug_reactor)
                     log_it(L_DEBUG, "RDHUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type);
             }
 
@@ -607,7 +605,7 @@ void *dap_worker_thread(void *arg)
                                 l_cur->callbacks.error_callback(l_cur, l_error);
                         }
                     } else {
-                        if(s_debug_reactor)
+                        if(g_debug_reactor)
                             log_it(L_NOTICE, "SSL handshake done with %s", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
                         l_cur->flags ^= DAP_SOCK_CONNECTING;
                         if (l_cur->callbacks.connected_callback)
@@ -626,7 +624,7 @@ void *dap_worker_thread(void *arg)
                         if ( l_cur->callbacks.error_callback )
                             l_cur->callbacks.error_callback(l_cur, l_error);
                     }else{
-                        if(s_debug_reactor)
+                        if(g_debug_reactor)
                             log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
                         l_cur->flags ^= DAP_SOCK_CONNECTING;
                         if (l_cur->callbacks.connected_callback)
@@ -639,7 +637,7 @@ void *dap_worker_thread(void *arg)
             // Socket is ready to write and not going to close
             if(   ( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
                  (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
-                if(s_debug_reactor)
+                if(g_debug_reactor)
                     log_it(L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
 
                 if(l_cur->callbacks.write_callback)
@@ -826,7 +824,7 @@ void *dap_worker_thread(void *arg)
             if (l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)
             {
                 if (l_cur->buf_out_size == 0) {
-                    if(s_debug_reactor)
+                    if(g_debug_reactor)
                         log_it(L_INFO, "Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr 0x%p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [thread %u]",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
                                l_cur->type, l_tn);
@@ -851,7 +849,7 @@ void *dap_worker_thread(void *arg)
                         if(l_es_selected == NULL || l_es_selected == l_cur ){
                             if(l_es_selected == NULL)
                                 log_it(L_CRITICAL,"NULL esocket found when cleaning selected list");
-                            else if(s_debug_reactor)
+                            else if(g_debug_reactor)
                                 log_it(L_INFO,"Duplicate esockets removed from selected event list");
                             n=nn; // TODO here we need to make smth like poll() array compressing.
                                   // Here we expect thats event duplicates goes together in it. If not - we lose some events between.
@@ -863,7 +861,7 @@ void *dap_worker_thread(void *arg)
                     l_worker->kqueue_events_count--;
 #endif
                 } else if (l_cur->buf_out_size ) {
-                    if(s_debug_reactor)
+                    if(g_debug_reactor)
                         log_it(L_INFO, "Got signal to close %s sock %"DAP_FORMAT_SOCKET" [thread %u] type %d but buffer is not empty(%zu)",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn,
                            l_cur->buf_out_size);
@@ -921,7 +919,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         return;
     }
 
-    if(s_debug_reactor)
+    if(g_debug_reactor)
         log_it(L_NOTICE, "Received event socket %p (ident %"DAP_FORMAT_SOCKET" type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
 
     switch( l_es_new->type){
@@ -1057,7 +1055,7 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
 {
     (void) a_flags;
     a_es->worker->signal_exit = true;
-    if(s_debug_reactor)
+    if(g_debug_reactor)
         log_it(L_DEBUG, "Worker :%u signaled to exit", a_es->worker->id);
 }
 
@@ -1154,7 +1152,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
         a_events_socket->worker = NULL;
 
 #else*/
-    if(s_debug_reactor)
+    if(g_debug_reactor)
         log_it(L_DEBUG,"Worker add esocket %"DAP_FORMAT_SOCKET, a_events_socket->socket);
     int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
     if(l_ret != 0 ){
@@ -1189,7 +1187,7 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
  */
 int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker )
 {
-    if(s_debug_reactor){
+    if(g_debug_reactor){
         log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET")", a_esocket, a_esocket->socket);
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -1251,7 +1249,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
             if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
                 l_is_error = true;
                 l_errno = errno;
-            }else if (s_debug_reactor){
+            }else if (g_debug_reactor){
                 log_it(L_DEBUG, "kevent set custom filter %d on fd %d",l_filter, a_esocket->socket);
             }
         }else{
@@ -1260,7 +1258,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
                 if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
                     l_is_error = true;
                     l_errno = errno;
-                }else if (s_debug_reactor){
+                }else if (g_debug_reactor){
                     log_it(L_DEBUG, "kevent set EVFILT_READ on fd %d", a_esocket->socket);
                 }
 
@@ -1271,7 +1269,7 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
                     if(kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0){
                         l_is_error = true;
                         l_errno = errno;
-                    }else if (s_debug_reactor){
+                    }else if (g_debug_reactor){
                         log_it(L_DEBUG, "kevent set EVFILT_WRITE on fd %d", a_esocket->socket);
                     }
                 }
