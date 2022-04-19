@@ -590,6 +590,18 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     dap_string_append_printf(a_str_out, "  signs_count: %d\n", l_emission->data.type_auth.signs_count);
                     dap_string_append_printf(a_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U"\n",
                                              l_emission->data.type_auth.tsd_total_size);
+
+                    if (  ( (void *) l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size) >
+                          ((void *) l_emission + l_emisssion_size) )
+                    {
+                        log_it(L_ERROR, "Illformed DATUM type %d, TSD section is out-of-buffer (%" DAP_UINT64_FORMAT_U " vs %zu)",
+                            l_emission->hdr.type, l_emission->data.type_auth.tsd_total_size, l_emisssion_size);
+
+                        dap_string_append_printf(a_str_out, "  Skip incorrect or illformed DATUM");
+                        break;
+                    }
+
+
                     dap_chain_datum_token_certs_dump(a_str_out, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
                                                      l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
                     break;
