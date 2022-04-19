@@ -26,12 +26,12 @@
 #pragma once
 #include <stdbool.h>
 #include <pthread.h>
+#include "dap_chain_global_db.h"
 #include "dap_config.h"
 #include "dap_chain_common.h"
-
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_global_db.h"
+
 
 typedef struct dap_chain dap_chain_t;
 

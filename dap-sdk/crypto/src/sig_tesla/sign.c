@@ -368,7 +368,7 @@ static void decode_sig(unsigned char *c, poly *z, const unsigned char *sm, tesla
 void hash_vm(unsigned char *c_bin, poly_k *v, const unsigned char *m, unsigned long long mlen, tesla_param_t *p)
 {
     // Hash to generate c'
-    unsigned char *t = malloc((p->PARAM_K * p->PARAM_N + mlen) * sizeof(char));
+    unsigned char *t = malloc((p->PARAM_K * p->PARAM_N + mlen) * sizeof(unsigned char));
     int64_t mask, cL, temp;
     unsigned int i, k, index;
 
@@ -621,7 +621,7 @@ static int32_t tesla_private_and_public_keys_init(tesla_private_key_t *private_k
 
     unsigned char *f = NULL, *g = NULL;    
 
-    f = calloc(p->CRYPTO_PUBLICKEYBYTES, sizeof(char));
+    f = calloc(p->CRYPTO_PUBLICKEYBYTES, sizeof(unsigned char));
     if (f == NULL) {
         free(f);
         free(g);
@@ -630,7 +630,7 @@ static int32_t tesla_private_and_public_keys_init(tesla_private_key_t *private_k
     public_key->kind = p->kind;
     public_key->data = f;
 
-    g = calloc(p->CRYPTO_SECRETKEYBYTES, sizeof(char));
+    g = calloc(p->CRYPTO_SECRETKEYBYTES, sizeof(unsigned char));
     if (g == NULL) {
         free(f);
         free(g);
@@ -662,8 +662,8 @@ int tesla_crypto_sign_keypair(tesla_public_key_t *public_key, tesla_private_key_
 
     if(tesla_private_and_public_keys_init( private_key, public_key, p) != 0) return -1;
 
-    unsigned char *randomness = malloc(CRYPTO_RANDOMBYTES * sizeof(char));
-    unsigned char *randomness_extended = malloc((p->PARAM_K + 3) * CRYPTO_SEEDBYTES * sizeof(char));
+    unsigned char *randomness = malloc(CRYPTO_RANDOMBYTES * sizeof(unsigned char));
+    unsigned char *randomness_extended = malloc((p->PARAM_K + 3) * CRYPTO_SEEDBYTES * sizeof(unsigned char));
 
     // Get randomness_extended <- seed_e, seed_s, seed_a, seed_y
     if(seed && seed_size>0){
@@ -900,8 +900,8 @@ int tesla_crypto_sign_open( tesla_signature_t *sig, const unsigned char *m, unsi
     unsigned char *c_sig = malloc(CRYPTO_C_BYTES);
     unsigned char *seed = malloc(CRYPTO_SEEDBYTES);
     uint32_t *pos_list = malloc(p->PARAM_W * sizeof(uint32_t));
-    int16_t *sign_list = malloc(p->PARAM_W * sizeof(uint16_t));
-    int32_t *pk_t = malloc(p->PARAM_N * p->PARAM_K * sizeof(uint32_t));
+    int16_t *sign_list = malloc(p->PARAM_W * sizeof(int16_t));
+    int32_t *pk_t = malloc(p->PARAM_N * p->PARAM_K * sizeof(int32_t));
     unsigned int k;    
     poly_k *w = malloc(p->PARAM_K * p->PARAM_N * sizeof(int64_t));
     poly_k *a = malloc(p->PARAM_K * p->PARAM_N * sizeof(int64_t));
@@ -912,6 +912,8 @@ int tesla_crypto_sign_open( tesla_signature_t *sig, const unsigned char *m, unsi
     decode_sig(c, z, sig->sig_data, p);
 
     if (test_z(z, p) != 0) {
+        free(c);
+        free(c_sig);
         free(p);
         free(seed);
         free(pos_list);

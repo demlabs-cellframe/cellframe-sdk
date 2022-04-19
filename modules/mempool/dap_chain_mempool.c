@@ -66,7 +66,6 @@
 
 #define LOG_TAG "dap_chain_mempool"
 
-
 int dap_datum_mempool_init(void)
 {
     return 0;
@@ -86,17 +85,17 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     dap_chain_hash_fast_t l_key_hash;
 
-    dap_hash_fast(a_datum->data , a_datum->header.data_size, &l_key_hash);
+    dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
 
     if (dap_chain_global_db_gr_set(l_key_str, a_datum, dap_chain_datum_size(a_datum), l_gdb_group)) {
-        log_it(L_NOTICE, "Datum with data's hash %s was placed in mempool", l_key_str);
+        log_it(L_NOTICE, "Datum with hash %s was placed in mempool", l_key_str);
     } else {
-        log_it(L_WARNING, "Can't place data's hash %s in mempool", l_key_str);
-        DAP_DEL_Z(l_key_str);
+        log_it(L_WARNING, "Can't place datum with hash %s in mempool", l_key_str);
     }
 
+    DAP_DEL_Z(l_key_str);
     DAP_DELETE(l_gdb_group);
     return l_key_str;
 }
@@ -271,6 +270,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             //log_it(L_DEBUG,"Change back %"DAP_UINT64_FORMAT_U"", l_value_back);
             if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_from, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx_new);
+                DAP_DELETE(l_objs);
                 return -3;
             }
         }
@@ -278,6 +278,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // add 'sign' items
         if(dap_chain_datum_tx_add_sign_item(&l_tx_new, a_key_from) != 1) {
             dap_chain_datum_tx_delete(l_tx_new);
+            DAP_DELETE(l_objs);
             return -1;
         }
         // now tx is formed - calc size and hash
@@ -382,7 +383,7 @@ dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_c
         return NULL;
     }
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, l_tx_prev_hash, l_prev_cond_idx)) { // TX already spent
-        dap_chain_datum_tx_t *l_tx_tmp;
+        dap_chain_datum_tx_t *l_tx_tmp = NULL;
         dap_chain_hash_fast_t l_tx_cur_hash = { 0 }; // start hash
         dap_chain_tx_out_cond_t *l_tmp_cond;
         uint256_t l_value_cond = {};
@@ -659,12 +660,56 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
         DAP_DELETE(l_emission_hash_str_from_base58);
     }
     DAP_DELETE(l_gdb_group);
-    if (!l_emission)
+    if (!l_emission || l_emission->header.type_id != DAP_CHAIN_DATUM_TOKEN_EMISSION)
         return NULL;
     l_emission_size = l_emission_size - sizeof(l_emission->header);
     dap_chain_datum_token_emission_t *l_ret = dap_chain_datum_emission_read(l_emission->data, &l_emission_size);
     DAP_DELETE(l_emission);
     return l_ret;
+}
+
+dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size)
+{
+    if (!a_chain || !a_data || !a_size)
+        return NULL;
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_data;
+    if ((l_datum->header.version_id != DAP_CHAIN_DATUM_VERSION) || (l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_EMISSION) ||
+            ((l_datum->header.data_size + sizeof(l_datum->header)) != a_size))
+        return NULL;
+    dap_chain_datum_token_emission_t *l_emission = (dap_chain_datum_token_emission_t *)l_datum->data;
+    if (l_emission->hdr.type != DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH)
+        return NULL;
+    if (!l_emission->data.type_auth.signs_count)
+        return NULL;
+    char *l_ticker = l_emission->hdr.ticker;
+    if (l_ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1])
+        return NULL;
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_chain->net_name);
+    if (!l_net)
+        return NULL;
+    dap_chain_datum_token_t *l_token = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_ticker);
+    if (!l_token)
+        return NULL;
+    if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+        return NULL;
+    int l_signs_valid = 0;
+    dap_sign_t *l_ems_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
+    for (int i = 0; i < l_emission->data.type_auth.signs_count; i++) {
+        uint32_t l_ems_pkey_size = l_ems_sign->header.sign_pkey_size;
+        dap_sign_t *l_token_sign = (dap_sign_t *)(l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size);
+        for (int j = 0; j < l_token->signs_total; j++) {
+            if (l_ems_pkey_size == l_ems_sign->header.sign_pkey_size &&
+                    !memcmp(l_token_sign->pkey_n_sign, l_ems_sign->pkey_n_sign, l_ems_pkey_size)) {
+                l_signs_valid++;
+                break;
+            }
+            l_token_sign = (dap_sign_t *)((byte_t *)l_token_sign + dap_sign_get_size(l_token_sign));
+        }
+        l_ems_sign = (dap_sign_t *)((byte_t *)l_ems_sign + dap_sign_get_size(l_ems_sign));
+    }
+    if (l_signs_valid != l_emission->data.type_auth.signs_count)
+        return NULL;
+    return DAP_DUP_SIZE(l_emission, l_datum->header.data_size);
 }
 
 uint8_t* dap_datum_mempool_serialize(dap_datum_mempool_t *datum_mempool, size_t *size)

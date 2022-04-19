@@ -29,12 +29,11 @@
 #include <uthash.h>
 #define _GNU_SOURCE
 
-#include "dap_common.h"
+#include "dap_chain_global_db_driver_mdbx.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
-
-#include "dap_chain_global_db_driver_mdbx.h"
+#include "dap_common.h"
 
 #ifdef DAP_CHAIN_GDB_ENGINE_MDBX
 

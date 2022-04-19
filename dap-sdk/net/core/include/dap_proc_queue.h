@@ -21,7 +21,9 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
 #include "dap_events_socket.h"
+#include "dap_list.h"                                                       /* Simple List routines */
 
 typedef struct dap_proc_thread dap_proc_thread_t;
 
@@ -61,9 +63,9 @@ typedef struct dap_proc_queue{
         dap_events_socket_t *esocket;
 
         struct {
-            dap_proc_queue_item_t   *item_first, *item_last;                 /* Queue's entries ... */
-        } items [DAP_QUE$K_PRIMAX];
-
+        pthread_mutex_t     lock;                                           /* To coordinate access to the queuee's entries */
+        dap_slist_t         items;                                          /* An array of list according of priority numbers */
+        } list [DAP_QUE$K_PRIMAX];
 } dap_proc_queue_t;
 
 dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread);

@@ -24,11 +24,10 @@
 #pragma once
 #include <stdio.h>
 #include <stdint.h>
-#include "dap_common.h"
 #include "dap_chain.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cell.h"
-
+#include "dap_common.h"
 /**
   * @struct dap_chain_pvt
   * @brief Internal blochain data, mostly aggregated

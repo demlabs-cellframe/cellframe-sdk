@@ -21,7 +21,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <dap_chain_ledger.h>
 #include <sys/types.h>
 #include <dirent.h>
 #ifdef DAP_OS_LINUX
@@ -29,14 +28,15 @@
 #endif
 #include <unistd.h>
 
+#include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 #include "dap_config.h"
-#include "dap_chain_pvt.h"
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_cert.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_vf.h"
 #include <uthash.h>
@@ -66,14 +66,10 @@ int s_prepare_env();
  */
 int dap_chain_init(void)
 {
-    /*if (dap_cert_init() != 0) {
-        log_it(L_CRITICAL,"Can't chain certificate storage module");
-        return -4;
-    }*/
-
     uint16_t l_ca_folders_size = 0;
     char ** l_ca_folders;
     l_ca_folders = dap_config_get_array_str(g_config, "resources", "ca_folders", &l_ca_folders_size);
+    dap_cert_init(l_ca_folders_size);
     for (uint16_t i=0; i < l_ca_folders_size; i++) {
         dap_cert_add_folder(l_ca_folders[i]);
     }
@@ -351,7 +347,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 }
             }
             l_chain_id.uint64 = l_chain_id_u;
-
 
             if (l_chain_id_str ) {
                 log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )",l_chain_id.uint64 , l_chain_id_str) ;

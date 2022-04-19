@@ -62,7 +62,6 @@ extern "C" {
 
 int dap_cert_init();
 
-
 dap_cert_t * dap_cert_new(const char * a_name);
 
 size_t dap_cert_parse_str_list(const char * a_certs_str, dap_cert_t *** a_certs, size_t * a_certs_size);

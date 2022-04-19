@@ -306,7 +306,7 @@ void H3(const uint32_t* circuitOutput, const uint32_t* plaintext, uint32_t** vie
     /* Hash the output share from each view */
     uint32_t i;
     int j;
-    for (i = 0; i < params->numZKBRounds; i++) {
+    for (i = 0; i < params->numZKBRounds; i++) { //params->numZKBRounds should never be 0
         for (j = 0; j < 3; j++) {
             HashUpdate(&ctx, (uint8_t*)VIEW_OUTPUTS(i, j), params->stateSizeBytes);
         }
@@ -766,8 +766,7 @@ seeds_t* computeSeeds(uint32_t* privateKey, uint32_t*
 int sign(uint32_t* privateKey, uint32_t* pubKey, uint32_t* plaintext, const uint8_t* message,
          size_t messageByteLength, signature_t* sig, paramset_t* params)
 {
-    bool status;
-
+    int ret = EXIT_FAILURE;
     /* Allocate views and commitments for all parallel iterations */
     view_t** views = allocateViews(params);
     commitments_t* as = allocateCommitments(params);
@@ -787,9 +786,8 @@ int sign(uint32_t* privateKey, uint32_t* pubKey, uint32_t* plaintext, const uint
         // for first two players get all tape INCLUDING INPUT SHARE from seed
         int j;
         for (j = 0; j < 2; j++) {
-            status = createRandomTape(getSeed(seeds, k, j), tmp, params->stateSizeBytes + params->andSizeBytes, params);
-            if (!status) {
-                return EXIT_FAILURE;
+            if(!createRandomTape(getSeed(seeds, k, j), tmp, params->stateSizeBytes + params->andSizeBytes, params)) {
+                goto failure;
             }
 
             memcpy(views[k][j].inputShare, tmp, params->stateSizeBytes);
@@ -797,9 +795,8 @@ int sign(uint32_t* privateKey, uint32_t* pubKey, uint32_t* plaintext, const uint
         }
         // Now set third party's wires. The random bits are from the seed, the input is
         // the XOR of other two inputs and the private key
-        status = createRandomTape(getSeed(seeds, k, 2), tape.tape[2], params->andSizeBytes, params);
-        if (!status) {
-            return EXIT_FAILURE;
+        if(!createRandomTape(getSeed(seeds, k, 2), tape.tape[2], params->andSizeBytes, params)){
+            goto failure;
         }
         uint32_t j1;
         for (j1 = 0; j1 < params->stateSizeWords; j1++) {
@@ -826,7 +823,7 @@ int sign(uint32_t* privateKey, uint32_t* pubKey, uint32_t* plaintext, const uint
     uint32_t** viewOutputs = malloc(params->numZKBRounds * 3 * sizeof(uint32_t*));
 
     size_t ii, jj;
-    for (ii = 0; ii < params->numZKBRounds; ii++)
+    for (ii = 0; ii < params->numZKBRounds; ii++) //params->numZKBRounds should never be 0
         for (jj = 0; jj < 3; jj++)
             VIEW_OUTPUTS(ii, jj) = views[ii][jj].outputShare;
 
@@ -847,17 +844,16 @@ int sign(uint32_t* privateKey, uint32_t* pubKey, uint32_t* plaintext, const uint
         prove(proof, getChallenge(sig->challengeBits, i), &seeds[i],
               views[i], &as[i], (gs == NULL) ? NULL : &gs[i], params);
     }
-
+    ret = EXIT_SUCCESS;
+    free(viewOutputs);
+failure:
     free(tmp);
-
     freeViews(views, params);
     freeCommitments(as);
     freeRandomTape(&tape);
     freeGCommitments(gs);
-    free(viewOutputs);
     freeSeeds(seeds);
-
-    return EXIT_SUCCESS;
+    return ret;
 }
 
 /*** Serialization functions ***/

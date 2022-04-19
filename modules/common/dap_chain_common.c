@@ -25,7 +25,9 @@
 #include <string.h>
 #include <ctype.h>
 #include <errno.h>
-
+#ifdef DAP_OS_WINDOWS
+#include <time.h>
+#endif
 #include "dap_common.h"
 #include "dap_sign.h"
 #include "dap_chain_common.h"
@@ -44,6 +46,13 @@
 char        *dap_cvt_uint256_to_str (uint256_t a_uint256);
 uint256_t   dap_cvt_str_to_uint256 (const char *a_256bit_num);
 
+dap_chain_time_t dap_chain_time_now()
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    dap_chain_time_t ret = ts.tv_sec << 32 | ts.tv_nsec;
+    return ret;
+}
 
 /**
  * @brief dap_chain_hash_to_str
@@ -351,13 +360,40 @@ int l_strlen, l_len;
         l_cp = l_buf + l_len;                                               /* Move last 18 symbols to one position right */
         memmove(l_cp + 1, l_cp, DATOSHI_DEGREE_18);
         *l_cp = '.';                                                        /* Insert '.' separator */
+
+        l_strlen++;                                                         /* Adjust string len in the buffer */
     } else {
         l_len = DATOSHI_DEGREE_18 - l_strlen + 2;                           /* Add leading "0." */
         l_cp = l_buf;
         memmove(l_cp + 2, l_cp, l_len);                                     /* Move last 18 symbols to 2 positions right */
         *(l_cp++) = '0';
         *(l_cp++) = '.';
+
+        l_strlen += 2;                                                      /* Adjust string len in the buffer */
     }
+
+    if ( *(l_cp = l_buf) == '0' )                                           /* Is there lead zeroes ? */
+    {
+        /* 000000000000000000000.000000000000000001 */
+        /* 000000000000000000123.000000000000000001 */
+        for ( l_cp += 1; *l_cp == '0'; l_cp++);                             /* Skip all '0' symbols */
+
+        if ( *l_cp == '.' )                                                 /* l_cp point to separator - then step back */
+            l_cp--;
+
+        if ( (l_len = (l_cp - l_buf)) )
+        {
+            l_len = l_strlen - l_len;                                       /* A part of the buffer to be moved to begin */
+            memmove(l_buf, l_cp, l_len);                                    /* Move and terminated by zero */
+            l_buf[l_len] = '\0';
+        }
+
+        l_strlen = l_len;                                                   /* Adjust string len in the buffer */
+    }
+
+    for ( l_cp = l_buf + l_strlen -1; *l_cp == '0'; l_cp--)
+        *l_cp = '\0';
+
 
     return l_buf;
 }
@@ -512,6 +548,10 @@ uint128_t dap_chain_coins_to_balance128(const char *a_coins)
     return l_ret;
 }
 
+
+
+
+
 /*
  *   DESCRIPTION: Convert a text representation of the coins amount in to
  *   the binary uint256 value .
@@ -556,6 +596,8 @@ uint256_t l_nul = {0};
     *(l_point + l_pos) = '\0';
 
     /* Add trailer zeros:
+     *                pos
+     *                 |
      * 123456 -> 12345600...000
      *           ^            ^
      *           |            |
@@ -584,10 +626,8 @@ uint256_t l_nul = {0};
 char *dap_cvt_uint256_to_str (uint256_t a_uint256)
 {
 char *l_buf, *l_cp, *l_cp2, *l_cps, *l_cpe, l_chr;
-int     l_len, l_pos;
+int     l_len;
 uint128_t l_nibble;
-uint64_t t, q;
-uint32_t l_tmp[4];
 
 
     l_len = (DAP_CHAIN$SZ_MAX256DEC + 8) & (~7);                            /* Align size of the buffer to 8 bytes */
@@ -595,11 +635,13 @@ uint32_t l_tmp[4];
     if ( !(l_buf = DAP_NEW_Z_SIZE(char, l_len)) )
         return  log_it(L_ERROR, "Cannot allocate %d octets, errno=%d", l_len, errno), NULL;
 
+    l_cp = l_buf;
+
+
     /* hi = 123, lo = 0...0456 */
     if ( a_uint256.hi )
     {
         /* 123 - > "321" */
-        l_cp = l_buf;
         l_nibble = a_uint256.hi;
         do { *(l_cp++) = (l_nibble % 10) + '0'; } while (l_nibble /= 10);
 
@@ -620,7 +662,11 @@ uint32_t l_tmp[4];
     /* 456 - > "456" */
     l_cp2 = l_cp;
     l_nibble = a_uint256.lo;
-    do { *(l_cp2++) = (l_nibble % 10) + '0'; } while (l_nibble /= 10);
+
+    do {
+        *(l_cp2++) = (l_nibble % 10) + '0';
+    } while (l_nibble /= 10);
+
 
     l_len = l_cp2 - l_cp;
     l_len = l_len / 2;
@@ -635,8 +681,7 @@ uint32_t l_tmp[4];
         *l_cpe = l_chr;
     }
 
-    if (  DAP_CHAIN$SZ_MAX128DEC > (l_len = l_cp2 - l_cp) )
-    {
+    if (  DAP_CHAIN$SZ_MAX128DEC > (l_len = l_cp2 - l_cp) ) {
         /* "123456" -> 123000...000456" */
         memmove(l_cp + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp, l_len);
         memset(l_cp, '0', ( DAP_CHAIN$SZ_MAX128DEC - l_len));
@@ -652,6 +697,7 @@ char *dap_cvt_uint256_to_str(uint256_t a_balance)
 {
 int     l_pos, l_len, l_len_hi, l_len_lo;
 char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr;
+static const   char l_zero[sizeof(uint256_t)] = {0};
 uint64_t t, q;
 uint32_t l_tmp[4];
 
@@ -692,10 +738,10 @@ uint32_t l_tmp[4];
 
         } while (l_tmp[2]);
 
-        l_pos = l_len_hi / 2;                                                   /* A number of swaps */
-        l_cpe = l_cp - 1;                                                       /* -- // -- to tail of the string */
+        l_pos = l_len_hi / 2;                                               /* A number of swaps */
+        l_cpe = l_cp - 1;                                                   /* -- // -- to tail of the string */
 
-        for (int i = l_pos; i--; l_cps++, l_cpe--)                              /* Do swaps ... */
+        for (int i = l_pos; i--; l_cps++, l_cpe--)                          /* Do swaps ... */
         {
             l_chr = *l_cps;
             *l_cps = *l_cpe;
@@ -708,7 +754,7 @@ uint32_t l_tmp[4];
     l_tmp [2] = a_balance.__lo.c;
     l_tmp [3] = a_balance.__lo.d;
 
-    l_len = 0;
+    l_len_lo = 0;
     l_cps = l_cp2 = l_cp;
 
     do {
@@ -726,14 +772,14 @@ uint32_t l_tmp[4];
             if (i == 1) i = 0;
         }
 
-        *(l_cp++) = q + '0';
-        l_len++;
+        *(l_cp2++) = q + '0';
+        l_len_lo++;
 
     } while (l_tmp[2]);
 
 
-    l_pos = l_len / 2;                                                      /* A number of swaps */
-    l_cpe = l_cp - 1;                                                       /* -- // -- to tail of the string */
+    l_pos = l_len_lo / 2;                                                   /* A number of swaps */
+    l_cpe = l_cp2 - 1;                                                      /* -- // -- to tail of the string */
 
     for (int i = l_pos; i--; l_cps++, l_cpe--)                              /* Do swaps ... */
     {
@@ -742,24 +788,118 @@ uint32_t l_tmp[4];
         *l_cpe = l_chr;
     }
 
-    l_len = l_cp - l_cp2;
-
-    if (  l_len_hi && (DAP_CHAIN$SZ_MAX128DEC > l_len) )                    /* Do we need to add leading zeroes ? */
+    if (  l_len_hi && (DAP_CHAIN$SZ_MAX128DEC > l_len_lo) )                 /* Do we need to add leading zeroes ? */
     {
         /* "123456" -> 123000...000456" */
-        memmove(l_cp2 + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp2, l_len);
-        memset(l_cp2, '0', ( DAP_CHAIN$SZ_MAX128DEC - l_len));
+        memmove(l_cp2 + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp2, l_len_lo);
+        memset(l_cp2, '0', ( DAP_CHAIN$SZ_MAX128DEC - l_len_lo));
     }
 
     return  l_buf;
 }
-
 #endif
 
 
 
 
-#if 1
+
+
+/*
+ *   DESCRIPTION: Convert decimal text string into the uint256_t binary representative.
+ *      We calling twice 128 bit variant of convertors
+ *
+ *   INPUTS:
+ *      a_256bit_num:   Decimal string to be converted
+ *
+ *   OUTPUTS:
+ *      NONE
+ *
+ *   RETURNS:
+ *      256 bit value
+ *      0 - on coversion error
+ */
+
+uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
+{
+int  l_strlen, l_len, l_exp;
+uint256_t l_ret = {}, l_nul = uint256_0;
+char    l_128bit_num  [DAP_CHAIN$SZ_MAX128DEC + 8],
+        l_256bit_num  [DAP_CHAIN$SZ_MAX256DEC];
+
+    /* Compute & check length */
+    if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
+        return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
+
+    /* Convert number from xxx.yyyyE+zz to xxxyyyy0000... */
+    char *l_eptr = strchr(a_256bit_num, 'e');
+    if (!l_eptr)
+        l_eptr = strchr(a_256bit_num, 'E');
+    if (l_eptr) {
+        char *l_exp_ptr = l_eptr + 1;
+        if (*l_exp_ptr == '+')
+            l_exp_ptr++;
+        int l_exp = atoi(l_exp_ptr);
+        if (!l_exp)
+            return  log_it(L_ERROR, "Invalid exponent %s", l_eptr), uint256_0;
+        char *l_dot_ptr = strchr(a_256bit_num, '.');
+        if (!l_dot_ptr || l_dot_ptr > l_eptr)
+            return  log_it(L_ERROR, "Invalid number format with exponent %d", l_exp), uint256_0;
+        int l_dot_len = l_dot_ptr - a_256bit_num;
+        if (l_dot_len >= DAP_CHAIN$SZ_MAX256DEC)
+            return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
+        int l_exp_len = l_eptr - a_256bit_num - l_dot_len - 1;
+        if (l_exp_len + l_dot_len + 1 >= DAP_CHAIN$SZ_MAX256DEC)
+            return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
+        if (l_exp < l_exp_len)
+            return  log_it(L_ERROR, "Invalid number format with exponent %d and nuber coun after dot %d", l_exp, l_exp_len), uint256_0;
+        memcpy(l_256bit_num, a_256bit_num, l_dot_len);
+        memcpy(l_256bit_num + l_dot_len, a_256bit_num + l_dot_len + 1, l_exp_len);
+        int l_zero_cnt = l_exp - l_exp_len;
+        size_t l_pos = l_dot_len + l_exp_len;
+        for (int i = l_zero_cnt; i && l_pos < DAP_CHAIN$SZ_MAX256DEC; i--)
+            l_256bit_num[l_pos++] = '0';
+        l_256bit_num[l_pos] = '\0';
+    } else {
+        memcpy(l_256bit_num, a_256bit_num, l_strlen);
+        l_256bit_num[l_strlen] = '\0';
+    }
+
+    /* Convert firstly low part of the decimal string */
+    l_len = (l_strlen > DAP_CHAIN$SZ_MAX128DEC) ? DAP_CHAIN$SZ_MAX128DEC : l_strlen;
+    l_ret.lo =  dap_chain_balance_scan128(l_256bit_num + (l_strlen - l_len));
+
+
+    /* Convert a high part of the decimal string is need */
+    if ( 0 < (l_len = (l_strlen -  DAP_CHAIN$SZ_MAX128DEC)) )
+    {
+        memcpy(l_128bit_num, l_256bit_num, l_len);
+        l_128bit_num[l_len] = '\0';
+        l_ret.hi =  dap_chain_balance_scan128(l_128bit_num);
+    }
+
+    return l_ret;
+}
+
+
+uint256_t dap_chain_coins_to_balance(const char *a_coins)
+{
+    return  dap_chain_coins_to_balance256(a_coins);
+    // return GET_256_FROM_128(dap_chain_coins_to_balance128(a_coins));
+}
+
+
+
+char *dap_chain_balance_to_coins(uint256_t a_balance)
+{
+    return dap_chain_balance_to_coins256(a_balance); /* @RRL */
+    //return dap_chain_balance_to_coins128(a_balance.lo);
+}
+
+
+#define __NEW_STARLET__ "BMF"
+#ifdef  __NEW_STARLET__
+
+
 char *dap_chain_balance_print333(uint256_t a_balance)
 {
 int     l_pos, l_len, l_len_hi, l_len_lo;
@@ -821,7 +961,7 @@ uint32_t l_tmp[4];
     l_tmp [2] = a_balance.__lo.c;
     l_tmp [3] = a_balance.__lo.d;
 
-    l_len = 0;
+    l_len_lo = 0;
     l_cps = l_cp2 = l_cp;
 
     do {
@@ -839,14 +979,14 @@ uint32_t l_tmp[4];
             if (i == 1) i = 0;
         }
 
-        *(l_cp++) = q + '0';
-        l_len++;
+        *(l_cp2++) = q + '0';
+        l_len_lo++;
 
     } while (l_tmp[2]);
 
 
-    l_pos = l_len / 2;                                                      /* A number of swaps */
-    l_cpe = l_cp - 1;                                                       /* -- // -- to tail of the string */
+    l_pos = l_len_lo / 2;                                                   /* A number of swaps */
+    l_cpe = l_cp2 - 1;                                                      /* -- // -- to tail of the string */
 
     for (int i = l_pos; i--; l_cps++, l_cpe--)                              /* Do swaps ... */
     {
@@ -855,73 +995,82 @@ uint32_t l_tmp[4];
         *l_cpe = l_chr;
     }
 
-    l_len = l_cp - l_cp2;
-
-    if (  l_len_hi && (DAP_CHAIN$SZ_MAX128DEC > l_len) )                    /* Do we need to add leading zeroes ? */
+    if (  l_len_hi && (DAP_CHAIN$SZ_MAX128DEC > l_len_lo) )                    /* Do we need to add leading zeroes ? */
     {
         /* "123456" -> 123000...000456" */
-        memmove(l_cp2 + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp2, l_len);
-        memset(l_cp2, '0', ( DAP_CHAIN$SZ_MAX128DEC - l_len));
+        memmove(l_cp2 + ( DAP_CHAIN$SZ_MAX128DEC - l_len), l_cp2, l_len_lo);
+        memset(l_cp2, '0', ( DAP_CHAIN$SZ_MAX128DEC - l_len_lo));
     }
 
     return  l_buf;
 }
 
+
+
+
+
+void    uint256_cvt_test (void)
+{
+extern char *dap_cvt_uint256_to_str(uint256_t a_uint256);
+extern uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num);
+extern char *dap_chain_balance_to_coins256(uint256_t a_balance);
+extern  char *dap_chain_balance_print333(uint256_t a_balance);
+
+char *cp;
+uint128_t uint128 = dap_chain_uint128_from(-1);
+uint256_t uint256;
+uint256.hi = dap_chain_uint128_from(123);
+uint256.lo = dap_chain_uint128_from(374607431768211455);
+const   uint256_t uint256_zero = {0};
+
+    uint256 = uint256_zero;
+    uint256.__lo.c = 1;
+
+    cp = dap_chain_balance_print(uint256);
+    free(cp);
+
+    uint256 = uint256_zero;
+    uint256.__lo.c = 1;
+    cp = dap_chain_balance_to_coins(uint256);
+    uint256 = dap_chain_coins_to_balance(cp);
+    free(cp);
+
+    uint256 = uint256_zero;
+    uint256.__lo.c = 100000000;
+    cp = dap_chain_balance_to_coins(uint256);
+    uint256 = dap_chain_coins_to_balance(cp);
+    free(cp);
+
+
+
+
+    cp = dap_chain_balance_print333(uint256);
+    free(cp);
+
+
+
+    uint256.hi = dap_chain_uint128_from(-1);
+    uint256.lo = dap_chain_uint128_from(-1);
+    cp = dap_chain_balance_print333(uint256);
+    free(cp);
+
+    cp = dap_chain_balance_print(uint256);
+    free(cp);
+
+    cp = dap_cvt_uint256_to_str(uint256 );
+    uint256 = dap_cvt_str_to_uint256(cp);
+    free(cp);
+
+    uint256.hi = dap_chain_uint128_from(-1);
+    uint256.lo = dap_chain_uint128_from(-1);
+    cp = dap_cvt_uint256_to_str(uint256 );
+    free(cp);
+
+    uint256.hi = dap_chain_uint128_from(123);
+    uint256.lo = dap_chain_uint128_from(374607431768211455);
+
+    cp = dap_chain_balance_to_coins256(uint256);
+    uint256 = dap_chain_coins_to_balance(cp);
+    free(cp);
+}
 #endif
-
-/*
- *   DESCRIPTION: Convert decimal text string into the uint256_t binary representative.
- *      We calling twice 128 bit variant of convertors
- *
- *   INPUTS:
- *      a_256bit_num:   Decimal string to be converted
- *
- *   OUTPUTS:
- *      NONE
- *
- *   RETURNS:
- *      256 bit value
- *      0 - on coversion error
- */
-
-uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
-{
-int  l_strlen, l_len;
-uint256_t l_ret = {}, l_nul = uint256_0;
-char    l_128bit_num  [DAP_CHAIN$SZ_MAX128DEC + 8];
-
-    /* Compute & check length */
-    if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
-        return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
-
-    /* Convert firstly low part of the decimal string */
-    l_len = (l_strlen > DAP_CHAIN$SZ_MAX128DEC) ? DAP_CHAIN$SZ_MAX128DEC : l_strlen;
-    l_ret.lo =  dap_chain_balance_scan128(a_256bit_num + (l_strlen - l_len));
-
-
-    /* Convert a high part of the decimal string is need */
-    if ( 0 < (l_len = (l_strlen -  DAP_CHAIN$SZ_MAX128DEC)) )
-    {
-        memcpy(l_128bit_num, a_256bit_num, l_len);
-        l_128bit_num[l_len] = '\0';
-        l_ret.hi =  dap_chain_balance_scan128(l_128bit_num);
-    }
-
-    return l_ret;
-}
-
-
-uint256_t dap_chain_coins_to_balance(const char *a_coins)
-{
-    return  dap_chain_coins_to_balance256(a_coins);
-    // return GET_256_FROM_128(dap_chain_coins_to_balance128(a_coins));
-}
-
-
-
-char *dap_chain_balance_to_coins(uint256_t a_balance)
-{
-    return dap_chain_balance_to_coins256(a_balance); /* @RRL */
-    //return dap_chain_balance_to_coins128(a_balance.lo);
-}
-

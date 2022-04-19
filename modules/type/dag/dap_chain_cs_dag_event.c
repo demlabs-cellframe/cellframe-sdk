@@ -29,6 +29,7 @@
 #include "dap_sign.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_cs_dag.h"
+#include "dap_timerfd.h"
 
 #define LOG_TAG "dap_chain_cs_dag_event"
 
@@ -202,12 +203,13 @@ dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event
         uint16_t l_signs_passed;
         for ( l_signs_passed=0;  l_signs_passed < a_sign_number; l_signs_passed++){
             dap_sign_t * l_sign = (dap_sign_t *) (l_signs+l_signs_offset);
-            l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
+            // l_signs_offset+=l_sign->header.sign_pkey_size+l_sign->header.sign_size+sizeof(l_sign->header);
+            l_signs_offset+=dap_sign_get_size(l_sign);
             l_offset_passed += l_offset_to_sign;
             if ( l_offset_passed >= a_event_size)
                 return NULL;
         }
-        return (dap_sign_t*) l_signs + l_signs_offset;
+        return (dap_sign_t*)(l_signs+l_signs_offset);
     }else
         return NULL;
 }
@@ -271,22 +273,61 @@ bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_
     return false;
 }
 
-bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-                                    dap_chain_cs_dag_event_round_item_t * a_round_item,
-                                        const char *a_group)
+static bool s_event_broadcast_send(dap_chain_cs_dag_event_round_broadcast_t *l_arg) {
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->dag->chain->net_id);
+    if (dap_chain_net_get_state(l_net) == NET_STATE_ONLINE) {
+        dap_chain_net_sync_gdb_broadcast((void *)l_net, l_arg->op_code, l_arg->group, l_arg->key, l_arg->value, l_arg->value_size);
+    }
+    else if ( l_arg->attempts < 10 ) {
+        l_arg->attempts++;
+        return true;
+    }
+    DAP_DELETE(l_arg->group);
+    DAP_DELETE(l_arg->key);
+    DAP_DELETE(l_arg->value);
+    DAP_DELETE(l_arg);
+    return false;
+}
+
+void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, const char a_op_code, const char *a_group,
+                const char *a_key, const void *a_value, const size_t a_value_size) {
+    dap_chain_cs_dag_event_round_broadcast_t *l_arg = DAP_NEW(dap_chain_cs_dag_event_round_broadcast_t);
+    l_arg->dag = a_dag;
+    l_arg->op_code = a_op_code;
+    l_arg->group = dap_strdup(a_group);
+    l_arg->key = dap_strdup(a_key);
+    l_arg->value = DAP_DUP_SIZE(a_value, a_value_size);
+    l_arg->value_size = a_value_size;
+    l_arg->attempts = 0;
+
+    if (dap_timerfd_start(3*1000,
+                        (dap_timerfd_callback_t)s_event_broadcast_send,
+                        l_arg) == NULL) {
+        log_it(L_ERROR,"Can't run timer for broadcast Event %s", a_key);
+    }
+}
+
+bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
+                                    size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item,
+                                    const char *a_group)
 {
     size_t l_signs_size = a_round_item->data_size-a_round_item->event_size;
-    uint8_t *l_signs = (uint8_t*)DAP_DUP_SIZE(a_round_item->event_n_signs+a_round_item->event_size, l_signs_size);
+    uint8_t *l_signs = (uint8_t*)a_round_item->event_n_signs + a_round_item->event_size;
+    dap_chain_cs_dag_event_round_item_t * l_round_item
+            = DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
+                           sizeof(dap_chain_cs_dag_event_round_item_t) + a_event_size + l_signs_size);
+    if (!l_round_item) {
+        log_it(L_ERROR, "Not enough memory for event");
+        return false;
+    }
 
-    dap_chain_cs_dag_event_round_item_t * l_round_item = DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
-                                                    sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_size+l_signs_size );
 
     l_round_item->event_size = a_event_size;
     l_round_item->data_size = a_event_size+l_signs_size;
 
     memcpy(&l_round_item->round_info, &a_round_item->round_info, sizeof(dap_chain_cs_dag_event_round_info_t));
-    memcpy(l_round_item->event_n_signs, a_event, a_event_size);
-    memcpy(l_round_item->event_n_signs+a_event_size, l_signs, l_signs_size);
+    memcpy(l_round_item->event_n_signs,                 a_event, a_event_size);
+    memcpy(l_round_item->event_n_signs + a_event_size,  l_signs, l_signs_size);
 
     l_round_item->round_info.ts_update = (uint64_t)time(NULL);
 

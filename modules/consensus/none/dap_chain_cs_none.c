@@ -185,7 +185,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     }
 
     // Add group prefix that will be tracking all changes
-    dap_chain_global_db_add_sync_group("chain-gdb", s_history_callback_notify, l_gdb);
+    dap_chain_global_db_add_sync_group(l_net->pub.name, "chain-gdb", s_history_callback_notify, l_gdb);
 
     // load ledger
     l_gdb_priv->is_load_mode = true;
@@ -505,10 +505,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
             DAP_DELETE( a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
         a_atom_iter->cur_size = l_datum_size;
+        a_atom_iter->cur_hash = DAP_NEW_Z(dap_hash_fast_t);
         dap_chain_hash_fast_from_str(l_item->key, a_atom_iter->cur_hash);
         if (a_atom_size)
             *a_atom_size = l_datum_size;
     } else {
+        DAP_DEL_Z(a_atom_iter->cur_hash);
         DAP_DEL_Z(a_atom_iter->cur);
         a_atom_iter->cur_size = 0;
         if (a_atom_size)
@@ -544,6 +546,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_i
         if (a_atom_size)
             *a_atom_size = l_datum_size;
     } else {
+        DAP_DEL_Z(a_atom_iter->cur_hash);
         DAP_DEL_Z(a_atom_iter->cur);
         a_atom_iter->cur_size = 0;
         if (a_atom_size)
@@ -600,7 +603,7 @@ static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t 
     if (a_atom){
         dap_chain_datum_t * l_datum = a_atom;
         if (l_datum){
-            dap_chain_datum_t **l_datums = DAP_NEW_SIZE(dap_chain_datum_t *, sizeof(dap_chain_datum_t *));
+            dap_chain_datum_t **l_datums = DAP_NEW(dap_chain_datum_t *);
             if (a_datums_count)
                 *a_datums_count = 1;
             l_datums[0] = l_datum;

@@ -169,7 +169,7 @@ int res;
     if(res < 1)
         return -1;
 
-    if ( 0 >= (res = recv(sd, buf, bufsize, 0)) )
+    if ( 0 >= (res = recv(sd, (char *)buf, bufsize, 0)) )
         printf("[s_recv] recv()->%d, errno: %d\n", res, errno);
 
     return res;
@@ -1070,11 +1070,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_chain_node_cli_cmd_item_create ("chain_ca_pub", com_chain_ca_pub,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
-            "chain_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+            "chain_ca_pub -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
 
     dap_chain_node_cli_cmd_item_create ("chain_ca_copy", com_chain_ca_copy,
                                         "Copy pubic certificate into the mempool to prepare its way to chains",
-            "chain_ca -net <net name> [-chain <chain name>] -ca_name <Public certificate name>\n");
+            "chain_ca_copy -net <net name> [-chain <chain name>] -ca_name <Public certificate name>\n");
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
@@ -1092,11 +1092,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
 
     // Ledger info
-    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger info",
+    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger information",
             "ledger list coins -net <network name>\n"
-            "ledger list coins_cond -net <network name>\n"
-            "ledger list addrs -net <network name>\n"
-            "ledger tx [all | -addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
+            "ledger list threshold [-hash <tx_treshold_hash>] -net <network name>\n"
+            "ledger list balance -net <network name>\n"
+            "ledger info -hash <tx_hash> -net <network name> [-unspent]\n"
+            "ledger tx -all -net <network name>\n"
+            "ledger tx [-addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
 
     // Token info
     dap_chain_node_cli_cmd_item_create("token", com_token, "Token info",

@@ -207,7 +207,11 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
  */
 int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
 {
-    s_threads_count = a_threads_count ? a_threads_count : dap_get_cpu_count( );
+    uint32_t l_cpu_count = dap_get_cpu_count();
+    if (a_threads_count > l_cpu_count)
+        a_threads_count = l_cpu_count;
+    
+    s_threads_count = a_threads_count ? a_threads_count : l_cpu_count;
 
     s_workers =  DAP_NEW_Z_SIZE(dap_worker_t*,s_threads_count*sizeof (dap_worker_t*) );
     s_threads = DAP_NEW_Z_SIZE(dap_thread_t, sizeof(dap_thread_t) * s_threads_count );
@@ -440,7 +444,7 @@ uint32_t dap_events_worker_get_index_min( )
     if ( !s_workers_init )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
-    for( int i = 1; i < s_threads_count; i++ ) {
+    for( uint32_t i = 1; i < s_threads_count; i++ ) {
         if ( s_workers[min]->event_sockets_count > s_workers[i]->event_sockets_count )
             min = i;
     }
@@ -486,7 +490,7 @@ void dap_events_worker_print_all( )
     if ( !s_workers_init )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
-    for( int i = 0; i < s_threads_count; i ++ ) {
+    for( uint32_t i = 0; i < s_threads_count; i ++ ) {
         log_it( L_INFO, "Worker: %d, count open connections: %d", s_workers[i]->id, s_workers[i]->event_sockets_count );
     }
 }

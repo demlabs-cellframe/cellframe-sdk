@@ -52,44 +52,44 @@
 #include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
+#include "dap_stream_pkt.h"
+
 
 #include "dap_enc_iaes.h"
 
 #define LOG_TAG "stream_pkt"
 
-
-
-static const size_t s_dap_hdr_size=8+2+1+1+4;
-const uint8_t c_dap_stream_sig[8]={0xa0,0x95,0x96,0xa9,0x9e,0x5c,0xfb,0xfa};
+const uint8_t c_dap_stream_sig [STREAM_PKT_SIG_SIZE] = {0xa0,0x95,0x96,0xa9,0x9e,0x5c,0xfb,0xfa};
 
 dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
 {
     uint8_t * sig_start=(uint8_t*) a_data;
-    dap_stream_pkt_t * ret=NULL;
+    dap_stream_pkt_t * hpkt = NULL;
+    size_t length_left = data_size;
 
-    size_t length_left=data_size;
-
-    while( (sig_start=memchr(sig_start, c_dap_stream_sig[0],length_left)) != NULL ){
+    while ( (sig_start = memchr(sig_start, c_dap_stream_sig[0], length_left)) ) {
         length_left = data_size - (size_t)(sig_start - (uint8_t *)a_data);
         if(length_left < sizeof(c_dap_stream_sig) )
             break;
-        if(memcmp(sig_start,c_dap_stream_sig,sizeof(c_dap_stream_sig))==0){
-            ret = (dap_stream_pkt_t *)sig_start;
+
+        if ( !memcmp(sig_start, c_dap_stream_sig, sizeof(c_dap_stream_sig)) ) {
+            hpkt = (dap_stream_pkt_t *)sig_start;
             if (length_left < sizeof(dap_stream_ch_pkt_hdr_t)) {
                 //log_it(L_ERROR, "Too small packet size %zu", length_left); // it's not an error, just random case
-                ret = NULL;
+                hpkt = NULL;
                 break;
             }
-            if(ret->hdr.size > STREAM_PKT_SIZE_MAX ){
-                log_it(L_ERROR, "Too big packet size %u",ret->hdr.size);
-                ret = NULL;
+            if(hpkt->hdr.size > STREAM_PKT_SIZE_MAX ){
+                log_it(L_ERROR, "Too big packet size %u (%#x), type:%d(%#x)",
+                       hpkt->hdr.size, hpkt->hdr.size, hpkt->hdr.type, hpkt->hdr.type);
+                hpkt = NULL;
             }
             break;
         } else
             sig_start++;
     }
 
-    return ret;
+    return hpkt;
 }
 
 /**
@@ -145,7 +145,7 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
     uint8_t * l_buf_allocated = NULL;
     uint8_t * l_buf_selected = a_stream->buf;
     size_t  l_buf_size_required = a_data_size + DAP_STREAM_CH_PKT_ENCRYPTION_OVERHEAD;
-    
+
     if(l_buf_size_required > sizeof(a_stream->buf) ){
         l_buf_allocated = DAP_NEW_SIZE(uint8_t, l_buf_size_required);
         l_buf_selected = l_buf_allocated;

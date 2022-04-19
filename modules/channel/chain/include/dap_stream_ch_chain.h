@@ -28,11 +28,11 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain.h"
-#include "dap_chain_global_db_hist.h"
 #include "dap_chain_node_client.h"
 #include "dap_list.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
+#include "dap_chain_global_db_remote.h"
 
 typedef struct dap_stream_ch_chain dap_stream_ch_chain_t;
 typedef void (*dap_stream_ch_chain_callback_packet_t)(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
@@ -77,6 +77,7 @@ typedef struct dap_stream_ch_chain {
 
     int timer_shots;
     dap_timerfd_t *activity_timer;
+    pthread_rwlock_t idle_lock;
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
@@ -91,6 +92,5 @@ int dap_stream_ch_chain_init(void);
 void dap_stream_ch_chain_deinit(void);
 
 inline static uint8_t dap_stream_ch_chain_get_id(void) { return (uint8_t) 'C'; }
-void dap_stream_ch_chain_go_idle ( dap_stream_ch_chain_t * a_ch_chain);
 dap_chain_t * dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name);
 void dap_stream_ch_chain_create_sync_request_gdb(dap_stream_ch_chain_t * a_ch_chain, dap_chain_net_t * a_net);

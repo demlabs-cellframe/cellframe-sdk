@@ -65,79 +65,41 @@ typedef struct dap_chain_datum_token_old {
 typedef struct dap_chain_datum_token{
     uint16_t type;
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint16_t signs_valid; // Emission auth signs
+    uint256_t total_supply;
     union {
         // Simple token declaration. Useful for 100% premined emission without any plays with token and owners after that
         struct {
-            union {
-                uint64_t total_supply; // Could be zero if unlimited
-                uint256_t total_supply_256;
-            };
-            union {
-                uint64_t current_supply; // Could be zero if unlimited
-                uint256_t current_supply_256;
-            };
-            uint16_t signs_valid; // Emission auth signs
-            uint16_t signs_total; // Emission auth signs
-            uint16_t signs_current;
+             // Nothing here
         } DAP_ALIGN_PACKED header_simple;
         // Private token declarations, with flags, manipulations and updates
         struct {
-            union {
-                uint64_t total_supply; // Could be zero if unlimited
-                uint256_t total_supply_256;
-            };
-            union {
-                uint64_t current_supply; // Could be zero if unlimited
-                uint256_t current_supply_256;
-            };
-            uint16_t signs_valid; // Emission auth signs
-            uint16_t signs_total; // Emission auth signs
             uint16_t flags; // Token declaration flags
             uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
-            uint16_t signs_current;
         } DAP_ALIGN_PACKED header_private_decl;
         //native tokens
         struct {
-            union {
-                uint64_t total_supply; // Could be zero if unlimited
-                uint256_t total_supply_256;
-            };
-            union {
-                uint64_t current_supply; // Could be zero if unlimited
-                uint256_t current_supply_256;
-            };
-            uint16_t signs_valid; // Emission auth signs
-            uint16_t signs_total; // Emission auth signs
             uint16_t flags; // Token declaration flags
             uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
-            uint16_t signs_current;
             uint16_t decimals;
         } DAP_ALIGN_PACKED header_native_decl;
         // Private token update
         struct {
-            uint16_t padding;
             uint64_t tsd_total_size; // Data size section with extended values in key-length-value list.
         } DAP_ALIGN_PACKED header_private_update;
         // native token update
         struct {
-            uint16_t padding;
             uint64_t tsd_total_size; // Data size section with extended values in key-length-value list.
         } DAP_ALIGN_PACKED header_native_update;
         // Public token declaration
         struct {
-            union {
-                uint128_t total_supply;
-                uint256_t total_supply_256;
-            };
-            union {
-                uint128_t premine_supply;
-                uint256_t premine_supply_256;
-            };
-            dap_chain_addr_t premine_address;
             uint32_t flags;
+            uint256_t premine_supply;
+            dap_chain_addr_t premine_address;
         } DAP_ALIGN_PACKED header_public;
-        byte_t free_space[256]; // For future changes
+        byte_t header[256]; // For future changes
     };
+    uint16_t signs_total; // Emission auth signs
     byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
@@ -241,8 +203,8 @@ extern const char *c_dap_chain_datum_token_flag_str[];
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS         0x0002
 
 // Total supply limits
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY        0x0003 // 128
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_256    0x0026 // 256
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD    0x0003 // 128
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY        0x0026 // 256
 
 // Set total signs count value to set to be valid
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID   0x0004
@@ -456,12 +418,13 @@ extern const char *c_dap_chain_datum_token_emission_type_str[];
 /// TDS op funcs
 dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  size_t a_token_size);
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
-void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size);
-dap_sign_t ** dap_chain_datum_token_simple_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
+void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size, const char *a_hash_out_type);
+dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
 dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size_t *a_token_size);
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_value, const char *a_ticker, dap_chain_addr_t *a_addr);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_datum_token_emission_t *a_emission, int a_type, size_t a_size, void *a_data);
+byte_t *dap_chain_emission_get_tsd(dap_chain_datum_token_emission_t *a_emission, int a_type, size_t *a_size);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size);
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_t *a_sign_key, dap_chain_datum_token_emission_t *a_emission);

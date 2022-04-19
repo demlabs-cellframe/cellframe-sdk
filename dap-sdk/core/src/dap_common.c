@@ -72,6 +72,23 @@
 
 #define LOG_TAG "dap_common"
 
+
+#ifndef DAP_GLOBAL_IS_INT128
+const uint128_t uint128_0 = {};
+const uint128_t uint128_1 = {.hi = 0, .lo = 1};
+#else // DAP_GLOBAL_IS_INT128
+const uint128_t uint128_0 = 0;
+const uint128_t uint128_1 = 1;
+#endif // DAP_GLOBAL_IS_INT128
+
+const uint256_t uint256_0 = {};
+#ifndef DAP_GLOBAL_IS_INT128
+const uint256_t uint256_1 = {.hi = uint128_0, .lo = uint128_1};
+#else // DAP_GLOBAL_IS_INT128
+const uint256_t uint256_1 = {.hi = 0, .lo = 1};
+#endif // DAP_GLOBAL_IS_INT128
+const uint512_t uint512_0 = {};
+
 static const char *s_log_level_tag[ 16 ] = {
     " [DBG] ", // L_DEBUG     = 0
     " [INF] ", // L_INFO      = 1,
@@ -426,7 +443,7 @@ char *dap_log_get_item(time_t a_start_time, int a_limit)
 	}
 
     DL_FOREACH_SAFE(s_log_buffer, elem, tmp) {
-		if (!tmp->str) continue;
+        if (!tmp->str[0]) continue;
 		if (a_limit <= 0) break;
 		a_limit -= s_check_and_fill_buffer_log(&s, l_tm_st, tmp->str);
 	}
