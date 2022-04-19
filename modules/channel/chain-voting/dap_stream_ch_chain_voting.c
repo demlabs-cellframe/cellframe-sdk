@@ -281,7 +281,7 @@ static void s_callback_send_all_loopback(dap_chain_node_addr_t *a_remote_node_ad
 		}
 		l_pkts_list = l_pkts_list_next;
 	}
-    //s_callback_channel_pkt_free_unsafe(a_remote_node_addr->uint64);
+    s_callback_channel_pkt_free_unsafe(a_remote_node_addr->uint64);
 	pthread_rwlock_unlock(&s_pkt_items->rwlock_out);
 }
 
@@ -308,7 +308,7 @@ static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg){
 	    	}
 	    	l_pkts_list = l_pkts_list_next;
 	    }
-        //s_callback_channel_pkt_free_unsafe(l_node_client->remote_node_addr.uint64);
+        s_callback_channel_pkt_free_unsafe(l_node_client->remote_node_addr.uint64);
 	}
     pthread_rwlock_unlock(&s_pkt_items->rwlock_out);
 }

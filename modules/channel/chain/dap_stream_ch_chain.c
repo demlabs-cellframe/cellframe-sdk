@@ -171,6 +171,7 @@ static bool s_stream_ch_delete_in_proc(dap_proc_thread_t * a_thread, void * a_ar
     if (l_ch_chain->callback_notify_packet_out)
         l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
                                                l_ch_chain->callback_notify_arg);
+    dap_timerfd_delete(l_ch_chain->activity_timer);
     s_ch_chain_go_idle(l_ch_chain);
     s_free_log_list_gdb(l_ch_chain);
     pthread_rwlock_destroy(&l_ch_chain->idle_lock);
@@ -884,11 +885,16 @@ static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
     if (a_ch_chain->state == CHAIN_STATE_IDLE)
         return;
     if (!a_ch_chain->activity_timer) {
-        dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
-        a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
-                                                                 3000, s_chain_timer_callback, (void *)l_uuid);
+        dap_stream_ch_chain_timer_start(a_ch_chain);
     }
     a_ch_chain->timer_shots = 0;
+}
+
+void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
+{
+    dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
+    a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
+                                                             3000, s_chain_timer_callback, (void *)l_uuid);
 }
 
 /**
