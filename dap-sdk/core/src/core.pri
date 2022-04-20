@@ -18,7 +18,8 @@ HEADERS += $$PWD/dap_common.h \
     $$PWD/dap_list.h \
     $$PWD/dap_module.h \
     $$PWD/dap_strfuncs.h \
-    $$PWD/dap_string.h
+    $$PWD/dap_string.h \
+    $$PWD/dap_time.h
 
 SOURCES += $$PWD/dap_common.c \
     $$PWD/dap_config.c \
@@ -27,6 +28,7 @@ SOURCES += $$PWD/dap_common.c \
     $$PWD/dap_list.c \
     $$PWD/dap_module.c \
     $$PWD/dap_strfuncs.c \
-    $$PWD/dap_string.c
+    $$PWD/dap_string.c \
+    $$PWD/dap_time.c
 
 INCLUDEPATH += $$PWD

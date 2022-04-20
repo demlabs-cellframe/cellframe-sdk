@@ -73,10 +73,10 @@ typedef struct dap_chain_cs_block_ton_items {
 	dap_chain_node_addr_t *attempt_coordinator; // validator-coordinator in current attempt
 	uint16_t attempt_current_number;
 
-	dap_chain_time_t ts_round_sync_start; // time start sync
-	dap_chain_time_t ts_round_start; // time round-start
-	dap_chain_time_t ts_round_state_commit;
-	dap_chain_time_t ts_round_finish;
+	dap_time_t ts_round_sync_start; // time start sync
+	dap_time_t ts_round_start; // time round-start
+	dap_time_t ts_round_state_commit;
+	dap_time_t ts_round_finish;
 
 	char * gdb_group_setup;
 	char * gdb_group_store;
@@ -104,7 +104,7 @@ typedef struct dap_chain_cs_block_ton_message_hdr {
 	size_t sign_size;
 	size_t message_size;
 
-	dap_chain_time_t ts_created;
+	dap_time_t ts_created;
 	//dap_chain_cs_block_ton_round_id_t round_id;
 
 	dap_chain_node_addr_t sender_node_addr;
@@ -135,7 +135,7 @@ typedef struct dap_chain_cs_block_ton_message_getinfo {
 
 // technical messages
 typedef struct dap_chain_cs_block_ton_message_startsync {
-	dap_chain_time_t ts;
+	dap_time_t ts;
 	dap_chain_cs_block_ton_round_id_t round_id;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_startsync_t;
 
@@ -202,7 +202,7 @@ typedef struct dap_chain_cs_block_ton_store_hdr {
 	size_t candidate_size;
 	dap_chain_cs_block_ton_round_id_t round_id;
 	dap_chain_hash_fast_t candidate_hash;
-	dap_chain_time_t ts_candidate_submit;
+	dap_time_t ts_candidate_submit;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_store_hdr_t;
 
 typedef struct dap_chain_cs_block_ton_store {

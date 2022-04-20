@@ -1,6 +1,5 @@
 #include <string.h>
 #include <stdlib.h>
-#include <time.h>
 
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
@@ -8,6 +7,7 @@
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_chain.h"
+#include "dap_time.h"
 
 #define LOG_TAG "dap_chain_global_db_remote"
 
@@ -40,8 +40,8 @@ uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
 static void *s_list_thread_proc(void *arg)
 {
     dap_db_log_list_t *l_dap_db_log_list = (dap_db_log_list_t *)arg;
-    uint32_t l_time_store_lim = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
-    uint64_t l_limit_time = l_time_store_lim ? (uint64_t)time(NULL) - l_time_store_lim * 3600 : 0;
+    uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
+    uint64_t l_limit_time = l_time_store_lim_hours ? dap_gdb_time_now() - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
     for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups)) {
         dap_db_log_list_group_t *l_group_cur = (dap_db_log_list_group_t *)l_groups->data;
         char *l_del_group_name_replace = NULL;
@@ -357,11 +357,11 @@ bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name )
 }
 
 /**
- * @brief Sets an adress of a current node and expire time.
+ * @brief Sets an address of a current node and expire time.
  *
- * @param a_address an adress of a current node
+ * @param a_address an address of a current node
  * @param a_net_name a net name string
- * @return Returns true if siccessful, otherwise false
+ * @return Returns true if successful, otherwise false
  */
 bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
 {

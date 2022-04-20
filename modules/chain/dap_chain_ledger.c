@@ -115,7 +115,7 @@ typedef struct dap_chain_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
     struct {
-        time_t ts_created;
+        dap_time_t ts_created;
         int n_outs;
         int n_outs_used;
         char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -2905,7 +2905,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     memcpy(&l_tx_item->tx_hash_fast, a_tx_hash, sizeof(dap_chain_hash_fast_t));
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     l_tx_item->tx = DAP_DUP_SIZE(a_tx, l_tx_size);
-    l_tx_item->cache_data.ts_created = time(NULL); // Time of transasction added to ledger
+    l_tx_item->cache_data.ts_created = dap_time_now(); // Time of transasction added to ledger
     dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_tx_item->cache_data.n_outs);
     // If debug mode dump the UTXO
     if (dap_log_level_get() == L_DEBUG && s_debug_more) {

@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include "dap_time.h"
 #include "dap_proc_thread.h"
 #include "dap_list.h"
 
@@ -43,7 +44,7 @@ enum RECORD_FLAGS {
 
 typedef struct dap_store_obj {
     uint64_t id;
-    uint64_t timestamp;
+    dap_gdb_time_t timestamp;
     uint32_t type;                              /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
     uint8_t flags;                              /* RECORD_FLAGS */
     char *group;
@@ -56,7 +57,7 @@ typedef struct dap_store_obj {
 } dap_store_obj_t, *pdap_store_obj_t;
 
 typedef struct dap_store_obj_pkt {
-    uint64_t timestamp;
+    dap_gdb_time_t timestamp;
     uint64_t data_size;
     uint32_t obj_count;
     uint8_t data[];

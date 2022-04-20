@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include "dap_common.h"
+#include "dap_time.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
@@ -394,7 +395,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t\t value: %s (%s)\n"
                                                 "\t\t\t subtype: %s\n"
                                                 "\t\t SubType:\n",
-                                     dap_ctime_r((time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
+                                     dap_ctime_r((dap_time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
                                      l_coins_str,
                                      l_value_str,
                                      dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype));

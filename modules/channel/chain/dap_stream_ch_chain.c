@@ -25,7 +25,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -44,6 +43,7 @@
 #include "dap_list.h"
 #include "dap_config.h"
 #include "dap_hash.h"
+#include "dap_time.h"
 #include "utlist.h"
 
 #include "dap_worker.h"
@@ -506,7 +506,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
     dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
     char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {[0]='\0'};
-    dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
+    dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str));
     switch (l_atom_add_res) {
     case ATOM_PASS:
         if (s_debug_more){
@@ -705,8 +705,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         const char *l_last_group = l_store_obj->group;
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
-        uint32_t l_time_store_lim = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
-        uint64_t l_limit_time = l_time_store_lim ? (uint64_t)time(NULL) - l_time_store_lim * 3600 : 0;
+        uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
+        uint64_t l_limit_time = l_time_store_lim_hours ? dap_gdb_time_now() - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
 
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add

@@ -10,6 +10,7 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 
+#define GDB_VERSION 1
 #define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 #define GROUP_LOCAL_NODE_ADDR "local.node-addr"
@@ -93,7 +94,7 @@ bool dap_chain_global_db_del(char *a_key);
 /**
  * Get timestamp of the deleted entry
  */
-time_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key);
+uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key);
 
 /**
  * Read the entire database into an array of size bytes
