@@ -166,7 +166,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
 	    l_ton_pvt->poa_validators_count = l_node_addrs_count;
 	    for(size_t i = 0; i < l_node_addrs_count; i++) {
 	        dap_chain_node_addr_t *l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-	        if (sscanf(l_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_node_addr) ) != 4 ){
+            if (dap_sscanf(l_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_node_addr) ) != 4 ){
 	            log_it(L_ERROR,"TON: Wrong address format,  should be like 0123::4567::890AB::CDEF");
 	            DAP_DELETE(l_node_addr);
 	            //DAP_DELETE(l_node_info);

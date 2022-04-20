@@ -717,7 +717,6 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
         if (res != 1) {
             log_it(L_INFO,"Block %s checked, but ledger declined", a_block_cache->block_hash_str );
-            // return res;
         }
         //All correct, no matter for result
         pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
@@ -729,7 +728,7 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
             PVT(a_blocks)->block_cache_last->next = a_block_cache;
         a_block_cache->prev = PVT(a_blocks)->block_cache_last;
         PVT(a_blocks)->block_cache_last = a_block_cache;
-
+        res = 1;
     } else {
         log_it(L_WARNING,"Block %s check failed: code %d", a_block_cache->block_hash_str,  res );
     }

@@ -462,7 +462,9 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
         dap_list_t *it = NULL;
         do {
             dap_store_obj_t *l_obj_cur = it ? (dap_store_obj_t *)it->data : l_obj;
-            dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
+            dap_chain_t *l_chain = NULL;
+            if (l_obj_cur->type == DAP_DB$K_OPTYPE_ADD)
+                l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
             dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
             dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
             if (!l_obj_cur->group)
@@ -487,8 +489,8 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
             it = PVT(l_net)->records_queue;
         } while (it);
     } else
-        //PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
-        dap_store_obj_free_one(l_obj);
+        PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
+        //dap_store_obj_free_one(l_obj);
     pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     return true;
 }
@@ -2259,11 +2261,16 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                 ( l_seed_nodes_hostnames_len  && i < l_seed_nodes_hostnames_len  )
                               )
                                                                     ; i++ ){
-            dap_chain_node_addr_t * l_seed_node_addr;
-            l_seed_node_addr = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i] );
-            //if (l_seed_node_addr == NULL){
+            dap_chain_node_addr_t *l_seed_node_addr;
+            dap_chain_node_info_t *l_node_info = NULL;
+            l_seed_node_addr = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
+            if (l_seed_node_addr) {
+                l_node_info = dap_chain_node_info_read(l_net, l_seed_node_addr);
+                DAP_DELETE(l_seed_node_addr);
+            }
+            if (!l_seed_node_addr || !l_node_info) {
                 log_it(L_NOTICE, "Update alias %s in database, prefill it",l_net_pvt->seed_aliases[i]);
-                dap_chain_node_info_t * l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                 l_seed_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 dap_snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
                 if (sscanf(l_seed_nodes_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_seed_node_addr) ) != 4 ){
@@ -2324,16 +2331,14 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                    NODE_ADDR_FP_ARGS(l_seed_node_addr), l_ret);
                         }
                     }
-                    DAP_DELETE( l_seed_node_addr);
+                    DAP_DELETE(l_seed_node_addr);
                 }else
                     log_it(L_WARNING,"No address for seed node, can't populate global_db with it");
                 DAP_DELETE( l_node_info);
-            /*}else{
-                log_it(L_DEBUG,"Seed alias %s is present",PVT(l_net)->seed_aliases[i]);
-                dap_chain_node_info_t * l_node_info= dap_chain_node_info_read(l_net,l_seed_node_addr);
-                l_node
-                DAP_DELETE( l_seed_node_addr);
-            }*/
+            } else {
+                log_it(L_DEBUG,"Seed alias %s is present", PVT(l_net)->seed_aliases[i]);
+                DAP_DELETE(l_node_info);
+            }
         }
         PVT(l_net)->bootstrap_nodes_count = 0;
         PVT(l_net)->bootstrap_nodes_addrs = DAP_NEW_SIZE(struct in_addr, l_bootstrap_nodes_len * sizeof(struct in_addr));
@@ -2399,7 +2404,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             const char * l_ext_addr_v4 = dap_config_get_item_str_default(g_config,"server","ext_address",NULL);
                             const char * l_ext_addr_v6 = dap_config_get_item_str_default(g_config,"server","ext_address6",NULL);
                             uint16_t l_ext_port = dap_config_get_item_uint16_default(g_config,"server","ext_port_tcp",0);
-                            uint16_t l_node_info_port = l_ext_port? l_ext_port :
+                            uint16_t l_node_info_port = l_ext_port ? l_ext_port :
                                                     dap_config_get_item_uint16_default(g_config,"server","listen_port_tcp",8089);
                             if (l_ext_addr_v4)
                                 inet_pton(AF_INET,l_ext_addr_v4,&l_net_pvt->node_info->hdr.ext_addr_v4 );
@@ -2410,8 +2415,11 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                    l_node_info_port);
                         }else
                             log_it(L_INFO,"Server is disabled, add only node address in nodelist");
-
-                        dap_chain_node_info_save(l_net,l_net_pvt->node_info);
+                        if (l_net_pvt->node_info->hdr.ext_port &&
+                                (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY ||
+                                 memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr))))
+                            // Save only info with non null address & port!
+                            dap_chain_node_info_save(l_net,l_net_pvt->node_info);
                     }
                     log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016"DAP_UINT64_FORMAT_X,
                            NODE_ADDR_FP_ARGS(l_node_addr),
@@ -2576,7 +2584,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
         }
         if (!l_net_pvt->only_static_links)
-            l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "static_links_only", false);
+            l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
         if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
             l_target_state = NET_STATE_OFFLINE;
         }

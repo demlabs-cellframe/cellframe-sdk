@@ -233,6 +233,8 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
                             dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ,
                                                                  l_net->pub.id.uint64, 0, 0,
                                                                  &l_sync_gdb, sizeof(l_sync_gdb));
+                            if (!l_ch_chain->activity_timer)
+                                dap_stream_ch_chain_timer_start(l_ch_chain);
                             return NODE_SYNC_STATUS_STARTED;
                         } else
                             return NODE_SYNC_STATUS_WAITING;
@@ -554,8 +556,14 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(l_net);
             log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" is timeout for sync", l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr));
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
-            dap_chain_net_sync_unlock(l_net, l_node_client);
             dap_timerfd_reset(l_node_client->sync_timer);
+            bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
+            if (!l_have_waiting) {
+                if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
+                    dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
+                else
+                    dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
+            }
         } break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
             dap_chain_node_client_close(l_node_client);

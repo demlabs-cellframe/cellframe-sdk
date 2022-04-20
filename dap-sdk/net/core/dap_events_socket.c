@@ -104,7 +104,6 @@ struct queue_ptr_input_pvt{
 };
 #define PVT_QUEUE_PTR_INPUT(a) ( (struct queue_ptr_input_pvt*) (a)->_pvt )
 
-static bool s_debug_reactor = false;
 static uint64_t s_delayed_ops_timeout_ms = 5000;
 bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
 
@@ -117,7 +116,6 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
 int dap_events_socket_init( )
 {
     log_it(L_NOTICE,"Initialized events socket module");
-    s_debug_reactor = g_config? dap_config_get_item_bool_default(g_config, "general","debug_reactor", false) : false;
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -410,7 +408,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
         return NULL;
     }
     l_es->type = a_type ;
-    if(s_debug_reactor)
+    if(g_debug_reactor)
         log_it(L_DEBUG,"Created socket %"DAP_FORMAT_SOCKET" type %d", l_sock,l_es->type);
     return l_es;
 }
@@ -892,7 +890,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             }
 #elif defined DAP_EVENTS_CAPS_KQUEUE
         l_queue_ptr = (void*) a_esocket->kqueue_event_catched_data.data;
-        if(s_debug_reactor)
+        if(g_debug_reactor)
             log_it(L_INFO,"Queue ptr received %p ptr on input", l_queue_ptr);
         if(a_esocket->callbacks.queue_ptr_callback)
             a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
@@ -909,7 +907,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
         void * l_queue_ptr = a_esocket->kqueue_event_catched_data.data;
         size_t l_queue_ptr_size = a_esocket->kqueue_event_catched_data.size;
-        if(s_debug_reactor)
+        if(g_debug_reactor)
             log_it(L_INFO,"Queue received %z bytes on input", l_queue_ptr_size);
 
         a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
@@ -1251,7 +1249,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
     int l_ret = -1024, l_errno;
 
-    if (s_debug_reactor)
+    if (g_debug_reactor)
         log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
@@ -1328,11 +1326,11 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     int l_n;
     if(a_es->pipe_out){ // If we have pipe out - we send events directly to the pipe out kqueue fd
         if(a_es->pipe_out->worker){
-            if( s_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to pipe_out worker on esocket %d",a_arg,a_es);
+            if( g_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to pipe_out worker on esocket %d",a_arg,a_es);
             l_n = kevent(a_es->pipe_out->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
         }else if (a_es->pipe_out->proc_thread){
             l_n = kevent(a_es->pipe_out->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
-            if( s_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to pipe_out proc_thread on esocket %d",a_arg,a_es);
+            if( g_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to pipe_out proc_thread on esocket %d",a_arg,a_es);
         }
         else {
             log_it(L_WARNING,"Trying to send pointer in pipe out queue thats not assigned to any worker or proc thread");
@@ -1341,10 +1339,10 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         }
     }else if(a_es->worker){
         l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
-        if( s_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to worker on esocket %d",a_arg,a_es);
+        if( g_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to worker on esocket %d",a_arg,a_es);
     }else if (a_es->proc_thread){
         l_n = kevent(a_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
-        if( s_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to proc_thread on esocket %d",a_arg,a_es);
+        if( g_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to proc_thread on esocket %d",a_arg,a_es);
     }else {
         log_it(L_WARNING,"Trying to send pointer in queue thats not assigned to any worker or proc thread");
         l_n = 0;

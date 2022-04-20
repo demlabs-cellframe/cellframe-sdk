@@ -110,7 +110,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         return;
     }
 
-    log_it(L_DEBUG, "l_queue: %p, l_msg: %p, callback: %p/%p, pri: %d", l_queue, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+    debug_if(g_debug_reactor, L_DEBUG, "l_queue: %p, l_msg: %p, callback: %p/%p, pri: %d", l_queue, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
 
 
     if ( !(l_item = DAP_NEW_Z(dap_proc_queue_item_t)) ) {
@@ -140,7 +140,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     if ( l_rc )
         log_it(L_CRITICAL, "Enqueue failed: %d, drop l_msg:%p, callback: %p/%p, pri: %d", l_rc, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
     else
-        log_it(L_DEBUG, "Enqueued l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+        debug_if(g_debug_reactor, L_DEBUG, "Enqueued l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
 
     dap_events_socket_event_signal(l_queue->proc_thread->proc_event, 1);    /* Add on top so after call this callback will be executed first */
 

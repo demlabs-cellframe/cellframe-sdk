@@ -677,7 +677,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id( a_dag->chain->net_id);
 
-    if ( a_value == NULL || a_op_code != DAP_DB$K_OPTYPE_ADD ) {
+    if ( a_value == NULL || a_op_code != DAP_DB$K_OPTYPE_ADD || !a_value || !a_value_size) {
         return 0;
     }
 
