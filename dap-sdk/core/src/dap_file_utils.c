@@ -1302,7 +1302,7 @@ char* dap_get_current_dir(void)
 
 static const char* dap_dir_read_name(DIR *dir)
 {
-#ifdef _WIN32
+#ifdef _WIN32_MSVS
   char *utf8_name;
   struct _wdirent *wentry;
 #else
@@ -1311,7 +1311,7 @@ static const char* dap_dir_read_name(DIR *dir)
 
     dap_return_val_if_fail(dir != NULL, NULL);
 
-#ifdef _WIN32
+#ifdef _WIN32_MSVS
     while(1)
     {
         wentry = _wreaddir(dir->wdirp);
