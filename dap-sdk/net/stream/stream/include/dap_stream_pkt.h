@@ -23,7 +23,6 @@
 #include <stddef.h>
 #include "dap_enc_key.h"
 #include "dap_events_socket.h"
-#define STREAM_PKT_SIZE_MAX 100000
 typedef struct dap_stream dap_stream_t;
 typedef struct dap_stream_session dap_stream_session_t;
 #define STREAM_PKT_TYPE_DATA_PACKET 0x00

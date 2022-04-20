@@ -489,8 +489,8 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
             it = PVT(l_net)->records_queue;
         } while (it);
     } else
-        PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
-        //dap_store_obj_free_one(l_obj);
+        //PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
+        dap_store_obj_free_one(l_obj);
     pthread_rwlock_unlock(&PVT(l_net)->rwlock);
     return true;
 }
@@ -2273,7 +2273,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                 l_seed_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
                 dap_snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
-                if (sscanf(l_seed_nodes_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_seed_node_addr) ) != 4 ){
+                if (dap_sscanf(l_seed_nodes_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_seed_node_addr) ) != 4 ){
                     log_it(L_ERROR,"Wrong address format,  should be like 0123::4567::890AB::CDEF");
                     DAP_DELETE(l_seed_node_addr);
                     DAP_DELETE(l_node_info);

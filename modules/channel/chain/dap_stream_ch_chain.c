@@ -1643,13 +1643,13 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             for(uint_fast16_t n=0; n<s_update_pack_size && (l_ch_chain->request_atom_iter && l_ch_chain->request_atom_iter->cur);n++){
                 memcpy(&l_data[n].hash, l_ch_chain->request_atom_iter->cur_hash, sizeof (l_data[n].hash));
                 // Shift offset counter
-                l_data_size += sizeof (dap_stream_ch_chain_update_element_t);
+                l_data_size += sizeof(dap_stream_ch_chain_update_element_t);
                 // Then get next atom
                 l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);
             }
             if (l_data_size){
                 if(s_debug_more)
-                    log_it(L_DEBUG,"Out: UPDATE_CHAINS size %zd sent ",l_data_size);
+                    log_it(L_DEBUG,"Out: UPDATE_CHAINS with %zu hashes sent", l_data_size / sizeof(dap_stream_ch_chain_update_element_t));
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS,
                                                      l_ch_chain->request_hdr.net_id.uint64,
                                                      l_ch_chain->request_hdr.chain_id.uint64,

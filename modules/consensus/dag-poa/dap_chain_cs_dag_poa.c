@@ -48,7 +48,7 @@
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_net_srv_stake.h"
 #include "dap_chain_cell.h"
-
+#include "dap_chain_global_db.h"
 #include "dap_cert.h"
 
 #define LOG_TAG "dap_chain_cs_dag_poa"
@@ -356,10 +356,6 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_poa_pvt->auto_confirmation = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_confirmation",true);
     l_poa_pvt->auto_round_complete = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_round_complete",true);
     l_poa_pvt->wait_sync_before_complete = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","wait_sync_before_complete",180);
-    dap_chain_net_t *l_cur_net = dap_chain_net_by_name(a_chain->net_name);
-    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
-    if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT)
-        l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
     // PoA certs
     l_poa_pvt->auth_certs_prefix = dap_strdup(dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix"));
     if (l_poa_pvt->auth_certs_prefix) {
@@ -534,7 +530,6 @@ static void s_callback_get_round_info(dap_chain_cs_dag_t * a_dag, dap_chain_cs_d
 
 static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_arg_t * a_callback_arg) {
     dap_chain_cs_dag_t * l_dag = a_callback_arg->dag;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
     char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
     dap_chain_cs_dag_event_round_item_t * l_round_item = NULL;
     dap_chain_cs_dag_event_t * l_event;
@@ -545,32 +540,49 @@ static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_
                                     a_callback_arg->l_event_hash_hex_str, &l_round_item_size, l_gdb_group_events) ) == NULL ) {
         log_it(L_NOTICE,"Can't find event %s in round.new. The hash may have changed by reason the addition of a new signature.",
                         a_callback_arg->l_event_hash_hex_str);
-    }
-    else {
+    } else {
         l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
         l_event_size = l_round_item->event_size;
 
         dap_chain_atom_ptr_t l_new_atom = (dap_chain_atom_ptr_t)dap_chain_cs_dag_event_copy(l_event, l_event_size);
-        memcpy(l_new_atom, l_event, l_event_size);
-
-        if(l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size) < 0) { // Add new atom in chain
+        dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
+        if (l_res == ATOM_PASS || l_res == ATOM_REJECT) { // Add new atom in chain
             DAP_DELETE(l_new_atom);
             log_it(L_NOTICE, "Event %s not added in chain", a_callback_arg->l_event_hash_hex_str);
-        }
-        else {
-            log_it(L_NOTICE, "Event %s added in chain successfully",
-                    a_callback_arg->l_event_hash_hex_str);
-
-            if (dap_chain_cell_file_update(l_dag->chain->cells) > 0) {
-                // delete events from db
-                dap_chain_global_db_gr_del(a_callback_arg->l_event_hash_hex_str, l_dag->gdb_group_events_round_new);
+        } else {
+            log_it(L_NOTICE, "Event %s added in %s successfully", a_callback_arg->l_event_hash_hex_str,
+                                                                  l_res == ATOM_ACCEPT ? "chain" : "threshold");
+            if (dap_chain_atom_save(l_dag->chain, l_new_atom, l_event_size, l_dag->chain->cells->id) > 0) {
                 // dap_chain_cs_dag_event_broadcast(l_dag, DAP_DB$K_OPTYPE_DEL,
                 //             l_dag->gdb_group_events_round_new, &l_round_item->round_info.first_event_hash,
                 //                 NULL, 0);
             }
-            dap_chain_cell_close(l_dag->chain->cells);
+            dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
+            dap_chain_t *l_cur_chain;
+            bool l_processed;
+            do {
+                l_processed = false;
+                DL_FOREACH(l_net->pub.chains, l_cur_chain) {
+                    if (l_cur_chain->callback_atom_add_from_treshold) {
+                        dap_chain_atom_ptr_t l_atom_treshold;
+                        do {
+                            size_t l_atom_treshold_size;
+                            l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
+                            if (l_atom_treshold) {
+                                dap_chain_cell_id_t l_cell_id = l_cur_chain->cells->id;
+                                dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cell_id);
+                                log_it(L_INFO, "Added atom from treshold");
+                            }
+                        } while(l_atom_treshold);
+                    }
+                }
+            } while (l_processed);
+            //dap_chain_cell_close(l_dag->chain->cells);
             // dap_chain_net_sync_all(l_net);
         }
+        DAP_DELETE(l_round_item);
+        // delete events from db
+        dap_chain_global_db_gr_del(a_callback_arg->l_event_hash_hex_str, l_dag->gdb_group_events_round_new);
     }
 
     DAP_DELETE(a_callback_arg->l_event_hash_hex_str);
@@ -601,6 +613,21 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
         }else
             log_it(L_NOTICE,"Loaded \"%s\" certificate to sign poa event", l_events_sign_cert);
 
+    }
+    // Process events from GDB
+    dap_chain_net_t *l_cur_net = dap_chain_net_by_name(a_chain->net_name);
+    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
+    if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
+        l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
+        size_t l_round_objs_count;
+        dap_global_db_obj_t *l_round_objs = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new, &l_round_objs_count);
+        if (l_round_objs) {
+            for (size_t i = 0; i < l_round_objs_count; i++) {
+                s_callback_event_round_sync(l_dag, DAP_DB$K_OPTYPE_ADD, l_dag->gdb_group_events_round_new,
+                                            l_round_objs[i].key, l_round_objs[i].value, l_round_objs[i].value_len);
+            }
+            dap_chain_global_db_objs_delete(l_round_objs, l_round_objs_count);
+        }
     }
     return 0;
 }
@@ -680,8 +707,9 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     if ( a_value == NULL || a_op_code != DAP_DB$K_OPTYPE_ADD || !a_value || !a_value_size) {
         return 0;
     }
-
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
+    if (!PVT(l_poa)->events_sign_cert)
+        return -1;
 
     if ( !PVT(l_poa)->auto_confirmation ) {
         s_round_event_clean_dup(a_dag, a_key); // Delete dup for manual mode
@@ -702,7 +730,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             if ( s_round_event_ready_minimum_check(a_dag, l_event, l_event_size,
                                                             (char *)a_key,  &l_round_item->round_info) ) {
                 // cs done (minimum signs & verify passed)
-                // s_round_event_cs_done(a_dag, l_event, (char *)a_key, &l_round_item->round_info);
+                s_round_event_cs_done(a_dag, l_event, (char *)a_key, &l_round_item->round_info);
             }
         }
         s_round_event_clean_dup(a_dag, a_key);

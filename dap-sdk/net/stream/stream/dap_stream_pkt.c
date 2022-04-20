@@ -79,7 +79,7 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
                 hpkt = NULL;
                 break;
             }
-            if(hpkt->hdr.size > STREAM_PKT_SIZE_MAX ){
+            if(hpkt->hdr.size > DAP_STREAM_PKT_SIZE_MAX ){
                 log_it(L_ERROR, "Too big packet size %u (%#x), type:%d(%#x)",
                        hpkt->hdr.size, hpkt->hdr.size, hpkt->hdr.type, hpkt->hdr.type);
                 hpkt = NULL;
