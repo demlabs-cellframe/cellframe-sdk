@@ -355,15 +355,15 @@ char *dap_chain_balance_to_coins256(uint256_t a_balance)
 
     l_strlen = strlen(l_buf);
 
-    if ( 0 < (l_len = (l_strlen - DATOSHI_DEGREE_18)) )
+    if ( 0 < (l_len = (l_strlen - DATOSHI_DEGREE_18 * 2)) )
     {
         l_cp = l_buf + l_len;                                               /* Move last 18 symbols to one position right */
-        memmove(l_cp + 1, l_cp, DATOSHI_DEGREE_18);
+        memmove(l_cp + 1, l_cp, DATOSHI_DEGREE_18 * 2);
         *l_cp = '.';                                                        /* Insert '.' separator */
 
         l_strlen++;                                                         /* Adjust string len in the buffer */
     } else {
-        l_len = DATOSHI_DEGREE_18 - l_strlen + 2;                           /* Add leading "0." */
+        l_len = DATOSHI_DEGREE_18 * 2 - l_strlen + 2;                           /* Add leading "0." */
         l_cp = l_buf;
         memmove(l_cp + 2, l_cp, l_len);                                     /* Move last 18 symbols to 2 positions right */
         *(l_cp++) = '0';
