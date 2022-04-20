@@ -112,7 +112,7 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);
     dap_chain_addr_t * l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
     if(dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t) &&
-            dap_chain_addr_check_sum(l_addr)==1)
+       dap_chain_addr_check_sum(l_addr)==1)
         return l_addr;
     else
         DAP_DELETE(l_addr);
@@ -346,8 +346,8 @@ char *dap_chain_balance_to_coins128(uint128_t a_balance)
 
 char *dap_chain_balance_to_coins256(uint256_t a_balance)
 {
-char *l_buf, *l_cp;
-int l_strlen, l_len;
+    char *l_buf, *l_cp;
+    int l_strlen, l_len;
 
     /* 123000...456 -> "123000...456" */
     if ( !(l_buf = dap_cvt_uint256_to_str(a_balance)) )
@@ -356,7 +356,7 @@ int l_strlen, l_len;
     l_strlen = strlen(l_buf);
 
     if ( 0 < (l_len = (l_strlen - DATOSHI_DEGREE_18)) )
-        {
+    {
         l_cp = l_buf + l_len;                                               /* Move last 18 symbols to one position right */
         memmove(l_cp + 1, l_cp, DATOSHI_DEGREE_18);
         *l_cp = '.';                                                        /* Insert '.' separator */
@@ -402,45 +402,45 @@ const union __c_pow10__ {
     uint64_t u64[2];
     uint32_t u32[4];
 } DAP_ALIGN_PACKED c_pow10[DATOSHI_POW + 1] = {
-    { .u64 = {0,                         1ULL} },                          // 0
-    { .u64 = {0,                         10ULL} },                         // 1
-    { .u64 = {0,                         100ULL} },                        // 2
-    { .u64 = {0,                         1000ULL} },                       // 3
-    { .u64 = {0,                         10000ULL} },                      // 4
-    { .u64 = {0,                         100000ULL} },                     // 5
-    { .u64 = {0,                         1000000ULL} },                    // 6
-    { .u64 = {0,                         10000000ULL} },                   // 7
-    { .u64 = {0,                         100000000ULL} },                  // 8
-    { .u64 = {0,                         1000000000ULL} },                 // 9
-    { .u64 = {0,                         10000000000ULL} },                // 10
-    { .u64 = {0,                         100000000000ULL} },               // 11
-    { .u64 = {0,                         1000000000000ULL} },              // 12
-    { .u64 = {0,                         10000000000000ULL} },             // 13
-    { .u64 = {0,                         100000000000000ULL} },            // 14
-    { .u64 = {0,                         1000000000000000ULL} },           // 15
-    { .u64 = {0,                         10000000000000000ULL} },          // 16
-    { .u64 = {0,                         100000000000000000ULL} },         // 17
-    { .u64 = {0,                         1000000000000000000ULL} },        // 18
-    { .u64 = {0,                         10000000000000000000ULL} },       // 19
-    { .u64 = {5ULL,                      7766279631452241920ULL} },        // 20
-    { .u64 = {54ULL,                     3875820019684212736ULL} },        // 21
-    { .u64 = {542ULL,                    1864712049423024128ULL} },        // 22
-    { .u64 = {5421ULL,                   200376420520689664ULL} },         // 23
-    { .u64 = {54210ULL,                  2003764205206896640ULL} },        // 24
-    { .u64 = {542101ULL,                 1590897978359414784ULL} },        // 25
-    { .u64 = {5421010ULL,                15908979783594147840ULL} },       // 26
-    { .u64 = {54210108ULL,               11515845246265065472ULL} },       // 27
-    { .u64 = {542101086ULL,              4477988020393345024ULL} },        // 28
-    { .u64 = {5421010862ULL,             7886392056514347008ULL} },        // 29
-    { .u64 = {54210108624ULL,            5076944270305263616ULL} },        // 30
-    { .u64 = {542101086242ULL,           13875954555633532928ULL} },       // 31
-    { .u64 = {5421010862427ULL,          9632337040368467968ULL} },        // 32
-    { .u64 = {54210108624275ULL,         4089650035136921600ULL} },        // 33
-    { .u64 = {542101086242752ULL,        4003012203950112768ULL} },        // 34
-    { .u64 = {5421010862427522ULL,       3136633892082024448ULL} },        // 35
-    { .u64 = {54210108624275221ULL,      12919594847110692864ULL} },       // 36
-    { .u64 = {542101086242752217ULL,     68739955140067328ULL} },          // 37
-    { .u64 = {5421010862427522170ULL,    687399551400673280ULL} }          // 38
+        { .u64 = {0,                         1ULL} },                          // 0
+        { .u64 = {0,                         10ULL} },                         // 1
+        { .u64 = {0,                         100ULL} },                        // 2
+        { .u64 = {0,                         1000ULL} },                       // 3
+        { .u64 = {0,                         10000ULL} },                      // 4
+        { .u64 = {0,                         100000ULL} },                     // 5
+        { .u64 = {0,                         1000000ULL} },                    // 6
+        { .u64 = {0,                         10000000ULL} },                   // 7
+        { .u64 = {0,                         100000000ULL} },                  // 8
+        { .u64 = {0,                         1000000000ULL} },                 // 9
+        { .u64 = {0,                         10000000000ULL} },                // 10
+        { .u64 = {0,                         100000000000ULL} },               // 11
+        { .u64 = {0,                         1000000000000ULL} },              // 12
+        { .u64 = {0,                         10000000000000ULL} },             // 13
+        { .u64 = {0,                         100000000000000ULL} },            // 14
+        { .u64 = {0,                         1000000000000000ULL} },           // 15
+        { .u64 = {0,                         10000000000000000ULL} },          // 16
+        { .u64 = {0,                         100000000000000000ULL} },         // 17
+        { .u64 = {0,                         1000000000000000000ULL} },        // 18
+        { .u64 = {0,                         10000000000000000000ULL} },       // 19
+        { .u64 = {5ULL,                      7766279631452241920ULL} },        // 20
+        { .u64 = {54ULL,                     3875820019684212736ULL} },        // 21
+        { .u64 = {542ULL,                    1864712049423024128ULL} },        // 22
+        { .u64 = {5421ULL,                   200376420520689664ULL} },         // 23
+        { .u64 = {54210ULL,                  2003764205206896640ULL} },        // 24
+        { .u64 = {542101ULL,                 1590897978359414784ULL} },        // 25
+        { .u64 = {5421010ULL,                15908979783594147840ULL} },       // 26
+        { .u64 = {54210108ULL,               11515845246265065472ULL} },       // 27
+        { .u64 = {542101086ULL,              4477988020393345024ULL} },        // 28
+        { .u64 = {5421010862ULL,             7886392056514347008ULL} },        // 29
+        { .u64 = {54210108624ULL,            5076944270305263616ULL} },        // 30
+        { .u64 = {542101086242ULL,           13875954555633532928ULL} },       // 31
+        { .u64 = {5421010862427ULL,          9632337040368467968ULL} },        // 32
+        { .u64 = {54210108624275ULL,         4089650035136921600ULL} },        // 33
+        { .u64 = {542101086242752ULL,        4003012203950112768ULL} },        // 34
+        { .u64 = {5421010862427522ULL,       3136633892082024448ULL} },        // 35
+        { .u64 = {54210108624275221ULL,      12919594847110692864ULL} },       // 36
+        { .u64 = {542101086242752217ULL,     68739955140067328ULL} },          // 37
+        { .u64 = {5421010862427522170ULL,    687399551400673280ULL} }          // 38
 };
 
 uint128_t dap_chain_balance_scan128(const char *a_balance)
@@ -571,14 +571,14 @@ uint128_t dap_chain_coins_to_balance128(const char *a_coins)
 
 uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 {
-int l_len, l_pos;
-char    l_buf  [DAP_CHAIN$SZ_MAX256DEC + 8] = {0}, *l_point;
-uint256_t l_nul = {0};
+    int l_len, l_pos;
+    char    l_buf  [DAP_CHAIN$SZ_MAX256DEC + 8] = {0}, *l_point;
+    uint256_t l_nul = {0};
 
     /* "12300000000.0000456" */
     if ( (l_len = strnlen(a_coins, 2*DATOSHI_POW + 2 )) > 2*DATOSHI_POW + 2)/* Check for legal length */
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - too long (%d > %d)", a_coins,
-                l_len, 2*DATOSHI_POW + 2), l_nul;
+                       l_len, 2*DATOSHI_POW + 2), l_nul;
 
     /* Find , check and remove 'precision' dot symbol */
     memcpy (l_buf, a_coins, l_len);                                         /* Make local coy */
@@ -753,12 +753,12 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 #ifdef DAP_GLOBAL_IS_INT128
         uint256_t l_tmp;
         l_tmp.hi = 0;
-        l_tmp.lo = (uint128_t)c_pow10_double[i].u64[2] * (uint128_t) l_digit;
+        l_tmp.lo = (uint128_t)c_pow10_double[i].u64[3] * (uint128_t) l_digit;
         SUM_256_256(l_ret, l_tmp, &l_ret);
-        if (l_ret.hi == 0 * l_ret.lo == 0) {
+        if (l_ret.hi == 0 && l_ret.lo == 0) {
             return l_nul;
         }
-        uint128_t l_mul = (uint128_t) c_pow10_double[i].u64[3] * (uint128_t) l_digit;
+        uint128_t l_mul = (uint128_t) c_pow10_double[i].u64[2] * (uint128_t) l_digit;
         l_tmp.lo = l_mul << 64;
         l_tmp.hi = l_mul >> 64;
         SUM_256_256(l_ret, l_tmp, &l_ret);
@@ -768,13 +768,13 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         }
 
         l_tmp.lo = 0;
-        l_tmp.hi = (uint128_t) c_pow10_double[i].u64[0] * (uint128_t) l_digit;
+        l_tmp.hi = (uint128_t) c_pow10_double[i].u64[1] * (uint128_t) l_digit;
         SUM_256_256(l_ret, l_tmp, &l_ret);
         if (l_ret.hi == 0 && l_ret.lo == 0) {
             return l_nul;
         }
 
-        l_mul = (uint128_t) c_pow10_double->u64[1] * (uint128_t) l_digit;
+        l_mul = (uint128_t) c_pow10_double->u64[0] * (uint128_t) l_digit;
         if (l_mul >> 64) {
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
@@ -813,11 +813,11 @@ char *dap_chain_balance_to_coins(uint256_t a_balance)
 
 char *dap_chain_balance_print333(uint256_t a_balance)
 {
-int     l_pos, l_len, l_len_hi, l_len_lo;
-char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr;
-static const   char l_zero[sizeof(uint256_t)] = {0};
-uint64_t t, q;
-uint32_t l_tmp[4];
+    int     l_pos, l_len, l_len_hi, l_len_lo;
+    char    *l_buf, *l_cp, *l_cp2,  *l_cps, *l_cpe, l_chr;
+    static const   char l_zero[sizeof(uint256_t)] = {0};
+    uint64_t t, q;
+    uint32_t l_tmp[4];
 
     l_len = (DAP_CHAIN$SZ_MAX256DEC + 8) & (~7);                            /* Align size of the buffer to 8 bytes */
 
@@ -922,17 +922,17 @@ uint32_t l_tmp[4];
 
 void    uint256_cvt_test (void)
 {
-extern char *dap_cvt_uint256_to_str(uint256_t a_uint256);
-extern uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num);
-extern char *dap_chain_balance_to_coins256(uint256_t a_balance);
-extern  char *dap_chain_balance_print333(uint256_t a_balance);
+    extern char *dap_cvt_uint256_to_str(uint256_t a_uint256);
+    extern uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num);
+    extern char *dap_chain_balance_to_coins256(uint256_t a_balance);
+    extern  char *dap_chain_balance_print333(uint256_t a_balance);
 
-char *cp;
-uint128_t uint128 = dap_chain_uint128_from(-1);
-uint256_t uint256;
-uint256.hi = dap_chain_uint128_from(123);
-uint256.lo = dap_chain_uint128_from(374607431768211455);
-const   uint256_t uint256_zero = {0};
+    char *cp;
+    uint128_t uint128 = dap_chain_uint128_from(-1);
+    uint256_t uint256;
+    uint256.hi = dap_chain_uint128_from(123);
+    uint256.lo = dap_chain_uint128_from(374607431768211455);
+    const   uint256_t uint256_zero = {0};
 
     uint256 = uint256_zero;
     uint256.__lo.c = 1;
