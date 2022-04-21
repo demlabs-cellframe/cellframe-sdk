@@ -550,18 +550,11 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
 
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     size_t l_datum_processed =0;
-    size_t l_events_round_new_size = 0;
-    // Load current events new round pool
-    dap_global_db_obj_t * l_events_round_new = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new, &l_events_round_new_size );
     // Prepare hashes
-    size_t l_hashes_int_size = min(l_events_round_new_size + a_datums_count, l_dag->datum_add_hashes_count);
-
+    size_t l_hashes_size = l_dag->datum_add_hashes_count;
     if (l_dag->is_single_line ) // If single line - only one link inside
-        l_hashes_int_size = min(l_hashes_int_size, 1);
-
-    size_t l_hashes_ext_size = 0; // Change in cfg
-    size_t l_hashes_size = l_hashes_int_size+l_hashes_ext_size;
-    dap_chain_hash_fast_t * l_hashes = l_hashes_size ?DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
+        l_hashes_size = 1;
+    dap_chain_hash_fast_t * l_hashes = l_hashes_size ? DAP_NEW_Z_SIZE(dap_chain_hash_fast_t,
                                              sizeof(dap_chain_hash_fast_t) * l_hashes_size) : NULL;
     size_t l_hashes_linked = 0;
     dap_chain_cell_t *l_cell = NULL;
@@ -585,56 +578,44 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         }
 
         // Prepare round
-        if ( l_hashes_int_size && l_events_round_new_size){
-            // Linking randomly with current new round set
-            size_t l_rnd_steps;
-            // Linking events inside round
-            l_rnd_steps = 0;
-            do{
-                int l_index = rand() % (int) l_events_round_new_size;
-                dap_chain_hash_fast_t l_hash;
-                dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
-                                ((dap_chain_cs_dag_event_round_item_t *)l_events_round_new[l_index].value)->event_n_signs;
-                size_t l_event_size = ((dap_chain_cs_dag_event_round_item_t *)l_events_round_new[l_index].value)->event_size;
-                dap_hash_fast(l_event, l_event_size,&l_hash);
+        if (l_hashes_size) {
+            pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+            size_t l_rnd_steps = 0;
+            // Linking events randomly with ones from previous round
+            do {
+                dap_chain_cs_dag_event_item_t *l_event_ext_item = NULL;
+                int l_unlinked_size = HASH_COUNT(PVT(l_dag)->events_lasts_unlinked);
+                if (!l_unlinked_size)
+                    break;
+                int l_index = rand() % l_unlinked_size;
+                l_event_ext_item = PVT(l_dag)->events_lasts_unlinked;
+                for (int i = 0; i < l_index; i++) {
+                    l_event_ext_item = l_event_ext_item->hh.next;
+                }
+                dap_chain_hash_fast_t *l_hash = &l_event_ext_item->hash;
 
                 bool l_is_already_in_event = false;
-                for (uint16_t i=0; i<l_hashes_linked;i++ ){ // check if we already added it
-                    if (l_hashes && memcmp(&l_hashes[i],&l_hash,sizeof (l_hash) )==0 ){
+                for (uint16_t i = 0; i < l_hashes_linked; i++) { // check if we already added it
+                    if (l_hashes && memcmp(&l_hashes[i], l_hash, sizeof(*l_hash)) ==0) {
                         l_is_already_in_event = true;
                         break;
                     }
                 }
-
-                if ( ! l_is_already_in_event ){
-                    if(l_hashes_linked < l_hashes_size) {
-                        memcpy(&l_hashes[l_hashes_linked], &l_hash, sizeof(l_hash));
-                        l_hashes_linked++;
-                    }
+                if (!l_is_already_in_event && l_hashes_linked < l_hashes_size) {
+                    memcpy(&l_hashes[l_hashes_linked], l_hash, sizeof(*l_hash));
+                    l_hashes_linked++;
                 }
+
                 l_rnd_steps++;
                 if (l_rnd_steps > 100) // Too many attempts
                     break;
-            } while (l_hashes_linked < l_hashes_int_size);
-
+            } while (l_hashes_linked < l_hashes_size);
+            pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
             // Check if we have enought hash links
-            if (l_hashes_linked < l_hashes_int_size) {
-                log_it(L_ERROR,"Can't link new events randomly for 100 attempts");
+            if (l_hashes_linked < l_hashes_size) {
+                log_it(L_ERROR, "Can't link new events randomly for 100 attempts");
                 break;
             }
-        }
-        // Now link with ext events
-        dap_chain_cs_dag_event_item_t *l_event_ext_item = NULL;
-        // is_single_line - only one link inside
-        if(!l_dag->is_single_line || !l_hashes_linked){
-            pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-            if( PVT(l_dag)->events_lasts_unlinked && l_hashes_linked < l_hashes_size) { // Take then the first one if any events_lasts are present
-                    l_event_ext_item = PVT(l_dag)->events_lasts_unlinked;
-                    if(l_hashes)
-                        memcpy(&l_hashes[l_hashes_linked], &l_event_ext_item->hash, sizeof(l_event_ext_item->hash));
-                    l_hashes_linked++;
-                }
-            pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
         }
         if (l_hashes_linked || s_seed_mode ) {
             dap_chain_cs_dag_event_t * l_event = NULL;
@@ -701,27 +682,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                                 l_event_size, l_round_item, l_dag->gdb_group_events_round_new)) {
                                 //&l_event_round_info)) {
                         log_it(L_INFO, "Event %s placed in the new forming round", l_event_hash_str);
-                        DAP_DELETE(l_event_hash_str);
-                        l_event_hash_str = NULL;
-                        // Clear old ext link and place itself as event_lasts
-
-                        dap_chain_cs_dag_event_item_t * l_event_unlinked_item = DAP_NEW_Z(
-                                dap_chain_cs_dag_event_item_t);
-                        if(l_event_ext_item)
-                            memcpy(&l_event_unlinked_item->hash, &l_event_ext_item->hash,
-                                    sizeof(l_event_ext_item->hash));
-                        l_event_unlinked_item->event = l_event;
-                        l_event_unlinked_item->event_size = l_event_size;
-                        l_event_unlinked_item->ts_added = (time_t) l_event->header.ts_created;
-                        pthread_rwlock_wrlock(&PVT(l_dag)->events_rwlock);
-                        HASH_ADD(hh, PVT(l_dag)->events_lasts_unlinked, hash, sizeof(l_event_unlinked_item->hash),
-                                l_event_unlinked_item);
-                        if(l_event_ext_item) {
-                            HASH_DEL(PVT(l_dag)->events_lasts_unlinked, l_event_ext_item);
-                            DAP_DELETE(l_event_ext_item);
-                        }
-                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-
+                        DAP_DEL_Z(l_event_hash_str);
                         l_datum_processed++;
                     }else {
                         log_it(L_ERROR,"Can't add new event to the new events round");
@@ -735,7 +696,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         }
     }
     DAP_DELETE(l_hashes);
-    dap_chain_global_db_objs_delete(l_events_round_new, l_events_round_new_size);
     return  l_datum_processed;
 }
 
