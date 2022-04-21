@@ -31,7 +31,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <limits.h>
+#ifdef DAP_BUILD_WITH_ZIP
 #include <zip.h>
+#endif
 #if (OS_TARGET == OS_MACOS)
     #include <stdio.h>
 #else
@@ -1377,6 +1379,7 @@ void dap_rm_rf(const char *path)
     rmdir(path);
 }
 
+#ifdef DAP_BUILD_WITH_ZIP
 static bool walk_directory(const char *a_startdir, const char *a_inputdir, zip_t *a_zipper)
 {
     DIR *l_dir = opendir(a_inputdir);
@@ -1423,7 +1426,6 @@ static bool walk_directory(const char *a_startdir, const char *a_inputdir, zip_t
     return true;
 }
 
-
 /*
  * Pack a directory to zip file
  *
@@ -1452,3 +1454,4 @@ bool zip_directory(const char *a_inputdir, const char *a_output_filename)
     zip_close(l_zipper);
     return l_ret;
 }
+#endif
