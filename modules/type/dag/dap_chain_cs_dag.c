@@ -1278,7 +1278,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next( dap_chain_atom_
             break;
     }
 
-    if(!l_event_item && !a_atom_iter->found_in_treshold) {
+    if(!l_event_item && !a_atom_iter->found_in_treshold && a_atom_iter->with_treshold) {
         dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_atom_iter->chain);
         assert(l_dag);
         dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);

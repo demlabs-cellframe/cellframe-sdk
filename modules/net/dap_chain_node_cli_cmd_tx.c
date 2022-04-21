@@ -95,13 +95,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
 {
     const char *l_ticker = NULL;
     if (a_ledger) {
-        dap_list_t *l_list_tx_any = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_TOKEN, NULL);
-        if (l_list_tx_any) {
-            l_ticker = ((dap_chain_tx_token_t*)l_list_tx_any->data)->header.ticker;
-        } else {
             l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
-        }
-        dap_list_free(l_list_tx_any);
         if (!l_ticker)
             return false;
     }
@@ -463,13 +457,13 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
                 strncpy(l_tx_data->token_ticker, l_tx_data_prev->token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
 
                 dap_chain_datum_tx_t *l_tx_prev;
-                dap_list_t *l_list_prev_out_items, *l_list_out_prev_item;
+                dap_list_t *l_list_prev_out_items = NULL, *l_list_out_prev_item;
 
                 if ( (l_tx_prev = (dap_chain_datum_tx_t *)l_tx_data_prev->datum->data) )
-                    if ( (l_list_prev_out_items = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT_OLD, NULL)) )
+                    if ( (l_list_prev_out_items = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT, NULL)) )
                         if ( (l_list_out_prev_item = dap_list_nth(l_list_prev_out_items, l_tx_in->header.tx_out_prev_idx)) )
                             {
-                            l_src_addr = &((dap_chain_tx_out_old_t *)l_list_out_prev_item->data)->addr;
+                            l_src_addr = &((dap_chain_tx_out_t *)l_list_out_prev_item->data)->addr;
                             l_src_addr_str = dap_chain_addr_to_str(l_src_addr);
                             }
 
@@ -497,9 +491,9 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
 
             // find OUT items
             bool l_header_printed = false;
-            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_OLD, NULL);
+            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT, NULL);
             for (dap_list_t *l_list_out = l_list_out_items; l_list_out; l_list_out = dap_list_next(l_list_out)) {
-                dap_chain_tx_out_old_t *l_tx_out = (dap_chain_tx_out_old_t *)l_list_out->data;
+                dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)l_list_out->data;
                 if (l_src_addr && !memcmp(&l_tx_out->addr, l_src_addr, sizeof(dap_chain_addr_t)))
                     continue;   // send to self
                 if (l_src_addr && !memcmp(l_src_addr, a_addr, sizeof(dap_chain_addr_t))) {
@@ -508,21 +502,25 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
                         l_header_printed = true;
                     }
                     char *l_dst_addr_str = dap_chain_addr_to_str(&l_tx_out->addr);
-                    dap_string_append_printf(l_str_out, "\tsend %"DAP_UINT64_FORMAT_U" %s to %s\n",
-                                             l_tx_out->header.value,
+                    char *l_value_str = dap_chain_balance_print(l_tx_out->header.value);
+                    dap_string_append_printf(l_str_out, "\tsend %s %s to %s\n",
+                                             l_value_str,
                                              l_tx_data->token_ticker,
                                              l_dst_addr_str);
                     DAP_DELETE(l_dst_addr_str);
+                    DAP_DELETE(l_value_str);
                 }
                 if (!memcmp(&l_tx_out->addr, a_addr, sizeof(dap_chain_addr_t))) {
                     if (!l_header_printed) {
                         dap_string_append_printf(l_str_out, "TX hash %s\n\t%s", l_tx_hash_str, l_time_str);
                         l_header_printed = true;
                     }
-                    dap_string_append_printf(l_str_out, "\trecv %"DAP_UINT64_FORMAT_U" %s from %s\n",
-                                             l_tx_out->header.value,
+                    char *l_value_str = dap_chain_balance_print(l_tx_out->header.value);
+                    dap_string_append_printf(l_str_out, "\trecv %s %s from %s\n",
+                                             l_value_str,
                                              l_tx_data->token_ticker,
                                              l_src_addr ? l_src_addr_str : "emission");
+                    DAP_DELETE(l_value_str);
                 }
             }
             dap_list_free(l_list_out_items);

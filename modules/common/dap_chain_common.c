@@ -40,8 +40,8 @@
 /*
  * Forward declarations
  */
-#define DAP_CHAIN$SZ_MAX128DEC 39                                           /* "340282366920938463463374607431768211455" */
-#define DAP_CHAIN$SZ_MAX256DEC (2*39)                                       /* 2 * "340282366920938463463374607431768211455" */
+#define DAP_CHAIN$SZ_MAX128DEC DATOSHI_POW                                           /* "340282366920938463463374607431768211455" */
+#define DAP_CHAIN$SZ_MAX256DEC DATOSHI_POW256                                       /* 2 ^ "340282366920938463463374607431768211455" */
 
 char        *dap_cvt_uint256_to_str (uint256_t a_uint256);
 uint256_t   dap_cvt_str_to_uint256 (const char *a_256bit_num);
@@ -355,20 +355,19 @@ char *dap_chain_balance_to_coins256(uint256_t a_balance)
 
     l_strlen = strlen(l_buf);
 
-    if ( 0 < (l_len = (l_strlen - DATOSHI_DEGREE_18 * 2)) )
+    if ( 0 < (l_len = (l_strlen - DATOSHI_DEGREE)) )
     {
         l_cp = l_buf + l_len;                                               /* Move last 18 symbols to one position right */
-        memmove(l_cp + 1, l_cp, DATOSHI_DEGREE_18 * 2);
+        memmove(l_cp + 1, l_cp, DATOSHI_DEGREE);
         *l_cp = '.';                                                        /* Insert '.' separator */
 
         l_strlen++;                                                         /* Adjust string len in the buffer */
     } else {
-        l_len = DATOSHI_DEGREE_18 * 2 - l_strlen + 2;                           /* Add leading "0." */
+        l_len = DATOSHI_DEGREE - l_strlen;                           /* Add leading "0." */
         l_cp = l_buf;
-        memmove(l_cp + 2, l_cp, l_len);                                     /* Move last 18 symbols to 2 positions right */
-        *(l_cp++) = '0';
-        *(l_cp++) = '.';
-
+        memmove(l_cp + l_len + 2, l_cp, DATOSHI_DEGREE - l_len);                                     /* Move last 18 symbols to 2 positions right */
+        memset(l_cp, '0', l_len + 2);
+        *(++l_cp) = '.';
         l_strlen += 2;                                                      /* Adjust string len in the buffer */
     }
 
@@ -391,7 +390,7 @@ char *dap_chain_balance_to_coins256(uint256_t a_balance)
         l_strlen = l_len;                                                   /* Adjust string len in the buffer */
     }
 
-    for ( l_cp = l_buf + l_strlen -1; *l_cp == '0'; l_cp--)
+    for ( l_cp = l_buf + strlen(l_buf) - 1; *l_cp == '0'; l_cp--)
         if (*(l_cp - 1) != '.')
             *l_cp = '\0';
 
@@ -588,7 +587,7 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 
     l_pos = l_len - (l_point - l_buf);                                      /* Check number of decimals after dot */
     l_pos--;
-    if ( (l_pos ) >  DATOSHI_DEGREE_18 )
+    if ( (l_pos ) >  DATOSHI_DEGREE )
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - too much precision", l_buf), l_nul;
 
     /* "123.456" -> "123456" */
@@ -604,7 +603,7 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
      *           |            |
      *           +-18 digits--+
      */
-    memset(l_point + l_pos, '0', DATOSHI_DEGREE_18 - l_pos);
+    memset(l_point + l_pos, '0', DATOSHI_DEGREE - l_pos);
 
     return dap_cvt_str_to_uint256 (l_buf);
 }
@@ -736,13 +735,51 @@ const union __c_pow10_double__ {
 
 uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 {
-
-    int l_strlen = strlen(a_256bit_num);
     uint256_t l_ret = uint256_0, l_nul = uint256_0;
-    if (l_strlen > DATOSHI_POW * 2 + 1)
-        return l_nul;
+    int  l_strlen;
+    char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC];
+
+    /* Compute & check length */
+    if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
+        return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
+
+    /* Convert number from xxx.yyyyE+zz to xxxyyyy0000... */
+    char *l_eptr = strchr(a_256bit_num, 'e');
+    if (!l_eptr)
+        l_eptr = strchr(a_256bit_num, 'E');
+    if (l_eptr) {
+        char *l_exp_ptr = l_eptr + 1;
+        if (*l_exp_ptr == '+')
+            l_exp_ptr++;
+        int l_exp = atoi(l_exp_ptr);
+        if (!l_exp)
+            return  log_it(L_ERROR, "Invalid exponent %s", l_eptr), uint256_0;
+        char *l_dot_ptr = strchr(a_256bit_num, '.');
+        if (!l_dot_ptr || l_dot_ptr > l_eptr)
+            return  log_it(L_ERROR, "Invalid number format with exponent %d", l_exp), uint256_0;
+        int l_dot_len = l_dot_ptr - a_256bit_num;
+        if (l_dot_len >= DAP_CHAIN$SZ_MAX256DEC)
+            return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
+        int l_exp_len = l_eptr - a_256bit_num - l_dot_len - 1;
+        if (l_exp_len + l_dot_len + 1 >= DAP_CHAIN$SZ_MAX256DEC)
+            return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
+        if (l_exp < l_exp_len)
+            return  log_it(L_ERROR, "Invalid number format with exponent %d and nuber coun after dot %d", l_exp, l_exp_len), uint256_0;
+        memcpy(l_256bit_num, a_256bit_num, l_dot_len);
+        memcpy(l_256bit_num + l_dot_len, a_256bit_num + l_dot_len + 1, l_exp_len);
+        int l_zero_cnt = l_exp - l_exp_len;
+        size_t l_pos = l_dot_len + l_exp_len;
+        for (int i = l_zero_cnt; i && l_pos < DAP_CHAIN$SZ_MAX256DEC; i--)
+            l_256bit_num[l_pos++] = '0';
+        l_256bit_num[l_pos] = '\0';
+        l_strlen = l_pos;
+    } else {
+        memcpy(l_256bit_num, a_256bit_num, l_strlen);
+        l_256bit_num[l_strlen] = '\0';
+    }
+
     for (int i = 0; i < l_strlen ; i++) {
-        char c = a_256bit_num[l_strlen - i - 1];
+        char c = l_256bit_num[l_strlen - i - 1];
         if (!isdigit(c)) {
             log_it(L_WARNING, "Incorrect input number");
             return l_nul;
