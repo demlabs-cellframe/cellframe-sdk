@@ -27,8 +27,6 @@
 #include <pthread.h>
 #include <errno.h>
 #include <assert.h>
-#include <zip.h>
-//#include <string.h>
 #include "dap_chain_global_db.h"
 #include "uthash.h"
 #include "dap_strfuncs.h"
