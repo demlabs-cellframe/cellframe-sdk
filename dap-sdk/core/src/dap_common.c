@@ -33,7 +33,7 @@
 #include <stdatomic.h>
 
 #include "utlist.h"
-#include <errno.h>
+//#include <errno.h>
 
 #ifdef DAP_OS_ANDROID
   #include <android/log.h>
@@ -497,66 +497,6 @@ char *dap_itoa(int i)
 }
 
 #endif
-
-
-/**
- * @brief time_to_rfc822 Convert time_t to string with RFC822 formatted date and time
- * @param[out] out Output buffer
- * @param[out] out_size_mac Maximum size of output buffer
- * @param[in] t UNIX time
- * @return Length of resulting string if ok or lesser than zero if not
- */
-int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t)
-{
-  struct tm *tmp;
-  tmp = localtime( &t );
-
-  if ( tmp == NULL ) {
-    log_it( L_ERROR, "Can't convert data from unix fromat to structured one" );
-    return -2;
-  }
-
-  int ret;
-
-  #ifndef _WIN32
-    ret = strftime( out, out_size_max, "%a, %d %b %y %T %z", tmp );
-  #else
-    ret = strftime( out, out_size_max, "%a, %d %b %y %H:%M:%S", tmp );
-  #endif
-
-  if ( !ret ) {
-    log_it( L_ERROR, "Can't print formatted time in string" );
-    return -1;
-  }
-
-  return ret;
-}
-
-/**
- * @brief Calculate diff of two struct timespec
- * @param[in] a_start - first time
- * @param[in] a_stop - second time
- * @param[out] a_result -  diff time, may be NULL
- * @return diff time in millisecond
- */
-int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct timespec *a_result)
-{
-    if(!a_start || !a_stop)
-        return 0;
-    if(!a_result) {
-        struct timespec l_time_tmp = { 0 };
-        a_result = &l_time_tmp;
-    }
-    if((a_stop->tv_nsec - a_start->tv_nsec) < 0) {
-        a_result->tv_sec = a_stop->tv_sec - a_start->tv_sec - 1;
-        a_result->tv_nsec = a_stop->tv_nsec - a_start->tv_nsec + 1000000000;
-    } else {
-        a_result->tv_sec = a_stop->tv_sec - a_start->tv_sec;
-        a_result->tv_nsec = a_stop->tv_nsec - a_start->tv_nsec;
-    }
-
-    return (a_result->tv_sec * 1000 + a_result->tv_nsec / 1000000);
-}
 
 #define BREAK_LATENCY   1
 
@@ -1142,45 +1082,6 @@ void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
 {
     dap_lendian_put32(a_buf, a_val);
     dap_lendian_put32(a_buf + 4, a_val >> 32);
-}
-
-/**
- * dap_usleep:
- * @a_microseconds: number of microseconds to pause
- *
- * Pauses the current thread for the given number of microseconds.
- */
-void dap_usleep(time_t a_microseconds)
-{
-#ifdef DAP_OS_WINDOWS
-    Sleep (a_microseconds / 1000);
-#else
-    struct timespec l_request, l_remaining;
-    l_request.tv_sec = a_microseconds / DAP_USEC_PER_SEC;
-    l_request.tv_nsec = 1000 * (a_microseconds % DAP_USEC_PER_SEC);
-    while(nanosleep(&l_request, &l_remaining) == -1 && errno == EINTR)
-        l_request = l_remaining;
-#endif
-}
-
-
-char* dap_ctime_r(time_t *a_time, char* a_buf){
-    char *l_fail_ret = "(null)\r\n";
-    if (!a_buf)
-        return l_fail_ret;
-    if(!a_time || *a_time > DAP_END_OF_DAYS) {
-        strcpy(a_buf, l_fail_ret);
-        return l_fail_ret;
-    }
-    struct tm l_time;
-    localtime_r(a_time, &l_time);
-    char *l_str_time = asctime_r(&l_time, a_buf);
-    if (l_str_time)
-        return  l_str_time;
-    else {
-        strcpy(a_buf, l_fail_ret);
-        return l_fail_ret;
-    }
 }
 
 int dap_is_alpha_and_(char e)

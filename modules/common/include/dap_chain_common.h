@@ -141,9 +141,6 @@ typedef struct dap_chain_addr{
     dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
-typedef uint64_t dap_chain_time_t;
-dap_chain_time_t dap_chain_time_now();
-
 #define DAP_CHAIN_NET_SRV_UID_SIZE 8
 
 typedef union {

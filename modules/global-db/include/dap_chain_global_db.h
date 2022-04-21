@@ -10,6 +10,7 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 
+#define GDB_VERSION 1
 #define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 #define GROUP_LOCAL_NODE_ADDR "local.node-addr"
@@ -72,14 +73,17 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data);
  */
 dap_store_obj_t *dap_chain_global_db_obj_get(const char *a_key, const char *a_group);
 dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
+uint8_t* dap_chain_global_db_flags_gr_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group);
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
 uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
 
 /**
  * Set one entry to base
  */
+bool dap_chain_global_db_flags_gr_set(const char *a_key, const void *a_value, size_t a_value_len, uint8_t a_flags, const char *a_group);
 bool dap_chain_global_db_gr_set(const char *a_key,  const void *a_value, size_t a_value_len, const char *a_group);
-bool dap_chain_global_db_set( char *a_key, void *a_value, size_t a_value_len);
+bool dap_chain_global_db_pinned_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group);
+bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len);
 
 /**
  * Delete entry from base
@@ -90,7 +94,7 @@ bool dap_chain_global_db_del(char *a_key);
 /**
  * Get timestamp of the deleted entry
  */
-time_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key);
+uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key);
 
 /**
  * Read the entire database into an array of size bytes

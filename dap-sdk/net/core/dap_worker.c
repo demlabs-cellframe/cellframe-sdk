@@ -1116,7 +1116,7 @@ static bool s_socket_all_check_activity( void * a_arg)
     dap_events_socket_t *l_es = NULL, *tmp = NULL;
     char l_curtimebuf[64];
     time_t l_curtime= time(NULL);
-    dap_ctime_r(&l_curtime, l_curtimebuf);
+    //dap_ctime_r(&l_curtime, l_curtimebuf);
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
     pthread_rwlock_rdlock(&l_worker->esocket_rwlock);
     HASH_ITER(hh_worker, l_worker->esockets, l_es, tmp ) {

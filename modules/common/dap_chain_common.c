@@ -46,14 +46,6 @@
 char        *dap_cvt_uint256_to_str (uint256_t a_uint256);
 uint256_t   dap_cvt_str_to_uint256 (const char *a_256bit_num);
 
-dap_chain_time_t dap_chain_time_now()
-{
-    struct timespec ts;
-    clock_gettime(CLOCK_REALTIME, &ts);
-    dap_chain_time_t ret = ts.tv_sec << 32 | ts.tv_nsec;
-    return ret;
-}
-
 /**
  * @brief dap_chain_hash_to_str
  * @param a_hash

@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <limits.h>
+#include <zip.h>
 #if (OS_TARGET == OS_MACOS)
     #include <stdio.h>
 #else
@@ -1297,4 +1298,157 @@ char* dap_get_current_dir(void)
     return dir;
 
 #endif
+}
+
+static const char* dap_dir_read_name(DIR *dir)
+{
+#ifdef _WIN32_MSVS
+  char *utf8_name;
+  struct _wdirent *wentry;
+#else
+    struct dirent *entry;
+#endif
+
+    dap_return_val_if_fail(dir != NULL, NULL);
+
+#ifdef _WIN32_MSVS
+    while(1)
+    {
+        wentry = _wreaddir(dir->wdirp);
+        while(wentry
+                && (0 == wcscmp(wentry->d_name, L".") ||
+                        0 == wcscmp(wentry->d_name, L"..")))
+            wentry = _wreaddir(dir->wdirp);
+
+        if(wentry == NULL)
+            return NULL;
+
+        utf8_name = dap_utf16_to_utf8(wentry->d_name, -1, NULL, NULL, NULL);
+
+        if(utf8_name == NULL)
+            continue; /* Huh, impossible? Skip it anyway */
+
+        strcpy(dir->utf8_buf, utf8_name);
+        DAP_DELETE(utf8_name);
+
+        return dir->utf8_buf;
+    }
+#else
+    entry = readdir(dir);
+    while(entry
+            && (0 == strcmp(entry->d_name, ".") ||
+                    0 == strcmp(entry->d_name, "..")))
+        entry = readdir(dir);
+
+    if(entry)
+        return entry->d_name;
+    else
+        return NULL;
+#endif
+}
+
+/**
+ * rm_rf
+ *
+ * A fairly naive `rm -rf` implementation
+ */
+void dap_rm_rf(const char *path)
+{
+    DIR *dir = NULL;
+    const char *entry;
+
+    dir = opendir(path);
+    if(dir == NULL)
+    {
+        /* Assume it’s a file. Ignore failure. */
+        remove(path);
+        return;
+    }
+
+    while((entry = dap_dir_read_name(dir)) != NULL)
+    {
+        char *sub_path = dap_build_filename(path, entry, NULL);
+        dap_rm_rf(sub_path);
+        DAP_DELETE(sub_path);
+    }
+
+    closedir(dir);
+
+    rmdir(path);
+}
+
+static bool walk_directory(const char *a_startdir, const char *a_inputdir, zip_t *a_zipper)
+{
+    DIR *l_dir = opendir(a_inputdir);
+    if(l_dir == NULL)
+    {
+        log_it(L_ERROR, "Failed to open input directory ");
+        zip_close(a_zipper);
+        return false;
+    }
+
+    struct dirent *l_dirp;
+    while((l_dirp = readdir(l_dir)) != NULL) {
+        if(strcmp(l_dirp->d_name, ".") && strcmp(l_dirp->d_name, "..")) {
+            char *l_fullname = dap_build_filename(a_inputdir, l_dirp->d_name, NULL);
+            if(dap_dir_test(l_fullname)) {
+
+                if(zip_dir_add(a_zipper, l_fullname + dap_strlen(a_startdir) + 1, ZIP_FL_ENC_UTF_8) < 0) {
+                    log_it(L_ERROR, "Failed to add directory to zip: %s", zip_strerror(a_zipper));
+                    DAP_DELETE(l_fullname);
+                    closedir(l_dir);
+                    return false;
+                }
+                walk_directory(a_startdir, l_fullname, a_zipper);
+            } else {
+                zip_source_t *l_source = zip_source_file(a_zipper, l_fullname, 0, 0);
+                if(l_source == NULL) {
+                    log_it(L_ERROR, "Failed to add file to zip: %s", zip_strerror(a_zipper));
+                    closedir(l_dir);
+                    DAP_DELETE(l_fullname);
+                    return false;
+                }
+                if(zip_file_add(a_zipper, l_fullname + dap_strlen(a_startdir) + 1, l_source, ZIP_FL_ENC_UTF_8) < 0) {
+                    zip_source_free(l_source);
+                    log_it(L_ERROR, "Failed to add file to zip: %s", zip_strerror(a_zipper));
+                    DAP_DELETE(l_fullname);
+                    closedir(l_dir);
+                    return false;
+                }
+            }
+            DAP_DELETE(l_fullname);
+        }
+    }
+    closedir(l_dir);
+    return true;
+}
+
+
+/*
+ * Pack a directory to zip file
+ *
+ * @a_inputdir: input dir
+ * @a_output_filename: output zip file path
+ *
+ * Returns: True, if successfully
+ */
+bool zip_directory(const char *a_inputdir, const char *a_output_filename)
+{
+    int l_errorp;
+    zip_t *l_zipper = zip_open(a_output_filename, ZIP_CREATE | ZIP_EXCL, &l_errorp);
+    if(l_zipper == NULL) {
+        zip_error_t l_ziperror;
+        zip_error_init_with_code(&l_ziperror, l_errorp);
+        if(l_errorp == ZIP_ER_EXISTS) {
+            if(!remove(a_output_filename))
+                return zip_directory(a_inputdir, a_output_filename);
+        }
+        log_it(L_ERROR, "Failed to open output file %s: %s ", a_output_filename, zip_error_strerror(&l_ziperror));
+        return false;
+    }
+
+    bool l_ret = walk_directory(a_inputdir, a_inputdir, l_zipper);
+
+    zip_close(l_zipper);
+    return l_ret;
 }

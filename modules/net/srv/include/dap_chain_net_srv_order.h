@@ -38,8 +38,8 @@ typedef struct dap_chain_net_srv_order_old
     dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
     dap_chain_hash_fast_t tx_cond_hash; // Hash index of conditioned transaction attached with order
     dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    dap_chain_time_t ts_created;
-    dap_chain_time_t ts_expires;
+    dap_time_t ts_created;
+    dap_time_t ts_expires;
     uint64_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
     char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
     //uint8_t continent;
@@ -60,8 +60,8 @@ typedef struct dap_chain_net_srv_order
     dap_chain_node_addr_t node_addr; // Node address that servs the order (if present)
     dap_chain_hash_fast_t tx_cond_hash; // Hash index of conditioned transaction attached with order
     dap_chain_net_srv_price_unit_uid_t price_unit; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    dap_chain_time_t ts_created;
-    dap_chain_time_t ts_expires;
+    dap_time_t ts_created;
+    dap_time_t ts_expires;
     uint256_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
     char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
     uint32_t ext_size;
@@ -122,7 +122,7 @@ char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,
         uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[],
-        dap_chain_time_t a_expires, // TS when the service expires
+        dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
         const char *a_region,
@@ -139,7 +139,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        dap_chain_time_t a_expires, // TS when the service expires
+        dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
         const char *a_region,
