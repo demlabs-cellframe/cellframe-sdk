@@ -688,7 +688,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         // deserialize data & Parse data from dap_db_log_pack()
         dap_store_obj_t *l_store_obj = dap_store_unpacket_multiple(l_obj_pkt, &l_data_obj_count);
         if (!l_store_obj) {
-            log_it(L_ERROR, "Invalid synchronization packet format");
+            debug_if(s_debug_more, L_ERROR, "Invalid synchronization packet format");
             DAP_DEL_Z(l_pkt_item->pkt_data);
             DAP_DELETE(l_sync_request);
             return true;
@@ -701,18 +701,17 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }else
                  log_it(L_WARNING, "In: GLOBAL_DB parse: packet in list with NULL data(pkt_data_size:%"DAP_UINT64_FORMAT_U")", l_pkt_item->pkt_data_size);
         }
-
         uint64_t l_last_id = l_store_obj->id;
         const char *l_last_group = l_store_obj->group;
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
         uint64_t l_limit_time = l_time_store_lim_hours ? dap_gdb_time_now() - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
-
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
-
+            if (l_obj->timestamp >> 32 == 0)
+                continue;
             if (s_list_white_groups) {
                 int l_ret = -1;
                 for (int i = 0; i < s_size_white_groups; i++) {
@@ -749,14 +748,14 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             //check whether to apply the received data into the database
             bool l_apply = false;
             // timestamp for exist obj
-            time_t l_timestamp_cur = 0;
+            dap_gdb_time_t l_timestamp_cur = 0;
             // Record is pinned or not
             bool l_is_pinned_cur = false;
             if (dap_chain_global_db_driver_is(l_obj->group, l_obj->key)) {
                 dap_store_obj_t *l_read_obj = dap_chain_global_db_driver_read(l_obj->group, l_obj->key, NULL);
                 if (l_read_obj) {
                     l_timestamp_cur = l_read_obj->timestamp;
-                    l_is_pinned_cur = l_read_obj->flags | RECORD_PINNED;
+                    l_is_pinned_cur = l_read_obj->flags & RECORD_PINNED;
                     dap_store_obj_free_one(l_read_obj);
                 }
             }
@@ -764,7 +763,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             if(l_is_pinned_cur) {
                 continue;
             }
-            time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
+            dap_gdb_time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
             // check the applied object newer that we have stored or erased
             if (l_obj->timestamp > (uint64_t)l_timestamp_del &&
                     l_obj->timestamp > (uint64_t)l_timestamp_cur &&
@@ -773,7 +772,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             if (s_debug_more){
                 char l_ts_str[50];
-                dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_store_obj[i].timestamp);
+                dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_gdb_time_to_sec(l_store_obj[i].timestamp));
                 log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
                         " timestamp=\"%s\" value_len=%zu",
                         (char )l_store_obj[i].type, (char)l_store_obj[i].type, l_store_obj[i].group,

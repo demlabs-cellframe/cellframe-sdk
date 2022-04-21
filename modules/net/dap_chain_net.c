@@ -2939,7 +2939,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
                         char buf[50] = { '\0' };
                         const char *l_type = NULL;
                         DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
-                        time_t l_ts_create = (time_t) l_datum->header.ts_create;
+                        dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
                         log_it(L_INFO, "\t\t0x%s: type_id=%s ts_create=%s data_size=%u",
                                 l_objs[i].key, l_type,
                                 dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);

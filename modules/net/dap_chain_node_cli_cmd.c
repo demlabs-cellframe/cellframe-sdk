@@ -2266,7 +2266,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
         for(size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
-            time_t l_ts_create = (time_t) l_datum->header.ts_create;
+            dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
             if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
                 //log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s", a_net->pub.name, a_chain->name, l_objs[i].key);
                 continue;
@@ -2485,7 +2485,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
         }else{
             if(l_datum) {
                 char buf[50];
-                time_t l_ts_create = (time_t) l_datum->header.ts_create;
+                dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
                 const char *l_type = NULL;
                 DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
                 dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",

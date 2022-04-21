@@ -1,6 +1,3 @@
-
-#pragma once
-
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -50,7 +47,7 @@ int clock_gettime(clockid_t clock_id, struct timespec *spec)
 // Create time from second
 dap_gdb_time_t dap_gdb_time_from_sec(uint32_t a_time)
 {
-    return (a_time << 32);
+    return (dap_gdb_time_t)a_time << 32;
 }
 
 // Get seconds from time
@@ -78,8 +75,7 @@ dap_gdb_time_t dap_gdb_time_now(void)
     dap_gdb_time_t l_time_nsec;
     struct timespec cur_time;
     clock_gettime(CLOCK_REALTIME, &cur_time);
-    l_time_nsec = (cur_time.tv_sec << 32) + cur_time.tv_nsec;
-    //l_time_nsec = cur_time.tv_sec * DAP_NSEC_PER_SEC + cur_time.tv_nsec;
+    l_time_nsec = ((dap_gdb_time_t)cur_time.tv_sec << 32) + cur_time.tv_nsec;
     return l_time_nsec;
 }
 
@@ -89,7 +85,7 @@ dap_gdb_time_t dap_gdb_time_now(void)
  *
  * Pauses the current thread for the given number of microseconds.
  */
-void dap_usleep(time_t a_microseconds)
+void dap_usleep(dap_time_t a_microseconds)
 {
 #ifdef DAP_OS_WINDOWS
     Sleep (a_microseconds / 1000);
@@ -135,10 +131,11 @@ int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct time
  * @param[in] t UNIX time
  * @return Length of resulting string if ok or lesser than zero if not
  */
-int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, time_t a_t)
+int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
 {
   struct tm *l_tmp;
-  l_tmp = localtime( &a_t );
+  time_t l_time = (time_t)a_t;
+  l_tmp = localtime(&l_time);
 
   if ( l_tmp == NULL ) {
     log_it( L_ERROR, "Can't convert data from unix fromat to structured one" );

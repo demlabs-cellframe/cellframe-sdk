@@ -198,7 +198,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash)
 {
-    time_t l_ts_create = (time_t)a_datum->header.ts_created;
+    dap_time_t l_ts_create = (dap_time_t)a_datum->header.ts_created;
     bool l_is_first = false;
     dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, TX_ITEM_TYPE_IN, NULL);
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))

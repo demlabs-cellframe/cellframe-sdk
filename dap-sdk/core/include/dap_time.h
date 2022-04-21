@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef DAP_OS_WINDOWS
 #define ctime_r(arg1, arg2) ctime_s(arg2, sizeof(arg2), arg1)
@@ -36,7 +37,7 @@ dap_gdb_time_t dap_gdb_time_now(void);
 
 
 // crossplatform usleep
-void dap_usleep(time_t a_microseconds);
+void dap_usleep(dap_time_t a_microseconds);
 
 /**
  * @brief dap_ctime_r This function does the same as ctime_r, but if it returns (null), a line break is added.
@@ -48,7 +49,7 @@ char* dap_ctime_r(dap_time_t *a_time, char* a_buf);
 char* dap_gdb_ctime_r(dap_gdb_time_t *a_time, char* a_buf);
 
 
-int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t);
+int dap_time_to_str_rfc822(char * out, size_t out_size_max, dap_time_t t);
 int dap_gbd_time_to_str_rfc822(char *a_out, size_t a_out_size_max, dap_gdb_time_t a_chain_time);
 int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct timespec *a_result);
 

@@ -39,6 +39,7 @@
 #include "dap_config.h"
 #include "dap_events_socket.h"
 
+#include "dap_time.h"
 #include "dap_http.h"
 #include "http_status_code.h"
 
