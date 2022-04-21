@@ -381,8 +381,16 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                             len_after = sizeof(l_http_client->in_query_string) - 1;
                         }
 
+                        //Search
                         if ( strstr(l_query_string, "HTTP/1.1") ){
-                            strncpy( l_http_client->in_query_string, l_query_string + 1, len_after - 8 );
+                            //Search for the first occurrence.
+                            int i = 0;
+                            for (; i < strlen(l_query_string); i++){
+                                if (l_query_string[i] == ' '){
+                                    break;
+                                }
+                            }
+                            strncpy( l_http_client->in_query_string, l_query_string + 1, i - 1 );
                         }else{
                             strncpy( l_http_client->in_query_string,l_query_string + 1, len_after );
                         }
