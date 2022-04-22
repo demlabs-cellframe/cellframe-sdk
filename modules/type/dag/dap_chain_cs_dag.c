@@ -142,7 +142,7 @@ int dap_chain_cs_dag_init(void)
     s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
 
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, "DAG commands",
-        "dag -net event create <chain net name> -chain <chain name> -datum <datum hash> [-H {hex | base58(default)}]\n"
+        "dag event create -net <chain net name> -chain <chain name> -datum <datum hash> [-H {hex | base58(default)}]\n"
             "\tCreate event from datum mempool element\n\n"
         "dag event cancel -net <chain net name> -chain <chain name> -event <event hash>\n"
             "\tRemove event from forming new round and put back its datum to mempool\n\n"
