@@ -53,7 +53,7 @@ typedef struct dap_chain_cs_dag_event_round_info {
     uint64_t ts_confirmations_minimum_completed;
     uint64_t ts_update;
     uint16_t reject_count;
-    dap_chain_hash_fast_t first_event_hash; // first event hash in round
+    dap_chain_hash_fast_t datum_hash; // for duobles finding
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_info_t;
 
 typedef struct dap_chain_cs_dag_event_round_item {

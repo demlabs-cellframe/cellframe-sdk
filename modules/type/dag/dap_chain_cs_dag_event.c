@@ -224,7 +224,7 @@ dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event
 size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t **a_round_item_ptr, size_t a_round_item_size,
                                         dap_chain_net_t * a_net, dap_enc_key_t * a_key) {
     dap_chain_cs_dag_event_round_item_t *l_round_item = *a_round_item_ptr;
-    dap_sign_t * l_sign = dap_sign_create(a_key, &l_round_item->round_info.first_event_hash, sizeof(dap_chain_hash_fast_t), 0);
+    dap_sign_t * l_sign = dap_sign_create(a_key, &l_round_item->round_info.datum_hash, sizeof(dap_chain_hash_fast_t), 0);
     size_t l_sign_size = dap_sign_get_size(l_sign);
     dap_chain_addr_t l_addr = {0};
     dap_chain_hash_fast_t l_pkey_hash;

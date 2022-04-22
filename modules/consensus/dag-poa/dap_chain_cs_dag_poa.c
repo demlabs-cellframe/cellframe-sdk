@@ -69,7 +69,7 @@ typedef struct dap_chain_cs_dag_poa_pvt
     uint32_t confirmations_timeout; // wait signs over min value (auth_certs_count_verify)
     bool auto_confirmation;
     bool auto_round_complete;
-    uint8_t padding[4];
+    uint32_t wait_sync_before_complete;
     dap_chain_callback_new_cfg_t prev_callback_created; // global network config init
 } dap_chain_cs_dag_poa_pvt_t;
 
@@ -354,6 +354,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_poa_pvt->confirmations_timeout = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","confirmations_timeout",600);
     l_poa_pvt->auto_confirmation = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_confirmation",true);
     l_poa_pvt->auto_round_complete = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_round_complete",true);
+    l_poa_pvt->wait_sync_before_complete = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","wait_sync_before_complete",180);
     l_poa_pvt->auth_certs_prefix = dap_strdup(dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix"));
     if (l_poa_pvt->auth_certs_prefix) {
         l_poa_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
@@ -392,18 +393,13 @@ static event_clean_dup_items_t *s_event_clean_dup_items = NULL;
 
 static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_event_hash_hex_str) {
     char * l_gdb_group_events = a_dag->gdb_group_events_round_new;
-    size_t l_event_size = 0;
     size_t l_round_item_size = 0;
     dap_chain_cs_dag_event_round_item_t * l_round_item = NULL;
-    dap_chain_cs_dag_event_t * l_event;
 
     if ( (l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_chain_global_db_gr_get(
                                     a_event_hash_hex_str, &l_round_item_size, l_gdb_group_events) ) == NULL ) {
         return;
     }
-    
-    l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
-    l_event_size = l_round_item->event_size;
 
     size_t l_events_round_size = 0;
     dap_store_obj_t *l_events_round = dap_chain_global_db_driver_read(a_dag->gdb_group_events_round_new, NULL, &l_events_round_size);
@@ -411,9 +407,11 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     //char * l_max_signs_hash;
     for (size_t l_index = 0; l_index<l_events_round_size; l_index++) {
         dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_events_round[l_index].value;
+        if (!l_event_round_item)
+            continue;
         dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs;
-        if ( memcmp(&l_round_item->round_info.first_event_hash,
-                        &l_event_round_item->round_info.first_event_hash, sizeof(dap_chain_hash_fast_t)) == 0 ) {
+        if ( memcmp(&l_round_item->round_info.datum_hash,
+                        &l_event_round_item->round_info.datum_hash, sizeof(dap_chain_hash_fast_t)) == 0 ) {
             event_clean_dup_items_t * l_item = DAP_NEW_Z(event_clean_dup_items_t);
             l_item->signs_count = l_event->header.signs_count;
             //l_item->ts_update = l_events_round[l_index].timestamp;
@@ -483,17 +481,16 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_e
         a_event_round_info->ts_confirmations_minimum_completed = (uint64_t)time(NULL);
     }
     int l_timeout = a_event_round_info->ts_confirmations_minimum_completed - (int)time(NULL) + a_event_round_info->confirmations_timeout;
-    if (a_event->header.signs_count >= PVT(l_poa)->auth_certs_count || l_timeout <= 0) {
-        // placement in chain now if max signs
-        s_callback_round_event_to_chain(l_callback_arg);
+    if (a_event->header.signs_count >= PVT(l_poa)->auth_certs_count || l_timeout <= 0)
+        l_timeout = 0;
+    l_timeout += PVT(l_poa)->wait_sync_before_complete;
+    // placement in chain by timer
+    if (dap_timerfd_start(l_timeout * 1000,
+                        (dap_timerfd_callback_t)s_callback_round_event_to_chain,
+                        l_callback_arg) == NULL) {
+        log_it(L_ERROR,"Can't run timer for Event %s", a_event_hash_hex_str);
     } else {
-        // placement in chain by timer
-        if (dap_timerfd_start(l_timeout*1000,
-                            (dap_timerfd_callback_t)s_callback_round_event_to_chain,
-                            l_callback_arg) == NULL)
-            log_it(L_ERROR,"Can't run timer for Event %s", a_event_hash_hex_str);
-        else
-            log_it(L_NOTICE,"Run timer %dsec. for Event %s", l_timeout, a_event_hash_hex_str);
+        log_it(L_NOTICE,"Run timer %dsec. for Event %s", PVT(l_poa)->wait_sync_before_complete, a_event_hash_hex_str);
     }
 }
 

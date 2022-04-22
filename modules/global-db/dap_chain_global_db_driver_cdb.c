@@ -80,8 +80,7 @@ static pthread_rwlock_t cdb_rwlock = PTHREAD_RWLOCK_INITIALIZER;
  * @param val a serialize string
  */
 static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const char *key, const char *val) {
-    if (!key || !val) {
-        a_obj = NULL;
+    if (!key) {
         return;
     }
     int offset = 0;
@@ -92,8 +91,10 @@ static void cdb_serialize_val_to_dap_store_obj(pdap_store_obj_t a_obj, const cha
     offset += sizeof(uint8_t);
     a_obj->value_len = dap_hex_to_uint(val + offset, sizeof(uint64_t));
     offset += sizeof(uint64_t);
-    a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
-    memcpy((byte_t *)a_obj->value, val + offset, a_obj->value_len);
+    if (a_obj->value_len) {
+        a_obj->value = DAP_NEW_SIZE(uint8_t, a_obj->value_len);
+        memcpy((byte_t *)a_obj->value, val + offset, a_obj->value_len);
+    }
     offset += a_obj->value_len;
     a_obj->timestamp = dap_hex_to_uint(val + offset, sizeof(uint64_t));
 }

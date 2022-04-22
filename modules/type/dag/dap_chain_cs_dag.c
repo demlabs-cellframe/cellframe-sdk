@@ -662,16 +662,16 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                 }
                 // add to new round into global_db
                 else {
-                    dap_chain_hash_fast_t l_event_hash;
+                    dap_chain_hash_fast_t l_event_hash, l_datum_hash;
                     dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
                     char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
                     dap_chain_cs_dag_event_round_info_t l_event_round_info;
                     if ( l_dag->callback_cs_get_round_info ) {
                         l_dag->callback_cs_get_round_info(l_dag, &l_event_round_info);
                     }
-
-                    // set first event hash for round
-                    memcpy(&l_event_round_info.first_event_hash, &l_event_hash, sizeof(dap_chain_hash_fast_t));
+                    // set datum hash for round
+                    dap_hash_fast(l_datum, dap_chain_datum_size(l_datum), &l_datum_hash);
+                    memcpy(&l_event_round_info.datum_hash, &l_datum_hash, sizeof(dap_chain_hash_fast_t));
                     dap_chain_cs_dag_event_round_item_t * l_round_item = 
                                 DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t, 
                                                 sizeof(dap_chain_cs_dag_event_round_item_t)+l_event_size);
@@ -1666,8 +1666,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                             l_round_item->round_info.confirmations_minimum,
                             l_round_item->round_info.confirmations_timeout,
                             l_round_item->round_info.reject_count);
-                        char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_round_item->round_info.first_event_hash);
-                        dap_string_append_printf(l_str_tmp, "\t\t\t\tfirst_event_hash: %s\n", l_hash_str);
+                        char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_round_item->round_info.datum_hash);
+                        dap_string_append_printf(l_str_tmp, "\t\t\t\tdatum_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
                         dap_time_t l_ts = l_round_item->round_info.ts_update;
                         dap_string_append_printf(l_str_tmp,"\t\t\t\tts_update: %s", dap_ctime_r(&l_ts, buf));
