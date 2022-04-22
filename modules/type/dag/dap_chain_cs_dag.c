@@ -68,7 +68,6 @@ typedef struct dap_chain_cs_dag_event_item {
 typedef struct dap_chain_cs_dag_pvt {
     dap_enc_key_t* datum_add_sign_key;
 
-
     pthread_rwlock_t events_rwlock;
 
     dap_chain_cs_dag_event_item_t * events;

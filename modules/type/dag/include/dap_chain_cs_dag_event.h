@@ -49,7 +49,7 @@ typedef struct dap_chain_cs_dag_event {
 
 typedef struct dap_chain_cs_dag_event_round_info {
     uint16_t confirmations_minimum; // param auth_certs_count_verify in PoA
-    uint32_t confirmations_timeout; // wait confirmations over minimum value (confirmations_minimum)
+    uint32_t unused;
     uint64_t ts_confirmations_minimum_completed;
     uint64_t ts_update;
     uint16_t reject_count;
