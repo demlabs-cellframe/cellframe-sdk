@@ -132,12 +132,8 @@ void* dap_list_nth_data(dap_list_t *list, unsigned int n);
 #define dap_list_previous(list)	        ((list) ? (((dap_list_t *)(list))->prev) : NULL)
 #define dap_list_next(list)	        ((list) ? (((dap_list_t *)(list))->next) : NULL)
 
-
-
-
-#endif /* __DAP_LIST_H__ */
-
-
 #ifdef __cplusplus
 }
 #endif
+
+#endif /* __DAP_LIST_H__ */

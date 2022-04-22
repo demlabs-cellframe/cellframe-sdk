@@ -23,16 +23,16 @@
 #include <stddef.h>
 #include "dap_enc_key.h"
 #include "dap_events_socket.h"
-#define STREAM_PKT_SIZE_MAX 100000
 typedef struct dap_stream dap_stream_t;
 typedef struct dap_stream_session dap_stream_session_t;
 #define STREAM_PKT_TYPE_DATA_PACKET 0x00
 #define STREAM_PKT_TYPE_SERVICE_PACKET 0xff
 #define STREAM_PKT_TYPE_KEEPALIVE   0x11
 #define STREAM_PKT_TYPE_ALIVE       0x12
+#define STREAM_PKT_SIG_SIZE         8
 
 typedef struct dap_stream_pkt_hdr{
-    uint8_t sig[8];  // Signature to find out beginning of the frame
+    uint8_t sig[STREAM_PKT_SIG_SIZE];  // Signature to find out beginning of the frame
     uint32_t size;
     uint64_t timestamp;
     uint8_t type;      // Packet type

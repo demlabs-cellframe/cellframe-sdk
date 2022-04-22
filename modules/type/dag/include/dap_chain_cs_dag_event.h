@@ -53,7 +53,7 @@ typedef struct dap_chain_cs_dag_event_round_info {
     uint64_t ts_confirmations_minimum_completed;
     uint64_t ts_update;
     uint16_t reject_count;
-    dap_chain_hash_fast_t first_event_hash; // first event hash in round
+    dap_chain_hash_fast_t datum_hash; // for duobles finding
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_info_t;
 
 typedef struct dap_chain_cs_dag_event_round_item {
@@ -62,6 +62,16 @@ typedef struct dap_chain_cs_dag_event_round_item {
     uint32_t data_size;
     uint8_t event_n_signs[]; // event // dap_chain_cs_dag_event_t
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_item_t;
+
+typedef struct dap_chain_cs_dag_event_round_broadcast {
+    dap_chain_cs_dag_t *dag;
+    char op_code;
+    char *group;
+    char *key;
+    void *value;
+    size_t value_size;
+    int attempts;
+} dap_chain_cs_dag_event_round_broadcast_t;
 
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum,
                                                 dap_enc_key_t * a_key,
@@ -89,10 +99,8 @@ size_t dap_chain_cs_dag_event_sign_add( dap_chain_cs_dag_event_t **a_event_ptr, 
                                                             dap_chain_net_t * a_net, dap_enc_key_t * a_key);
 size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t **a_round_item_ptr, size_t a_round_item_size,
                                         dap_chain_net_t * a_net, dap_enc_key_t * a_key);
-bool dap_chain_cs_dag_event_sign_exists(dap_chain_cs_dag_event_t *a_event, size_t a_event_size,
-                                                            dap_chain_net_t * a_net, dap_enc_key_t * a_key);
-bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_t *a_round_item,
-                                                        dap_chain_net_t * a_net, dap_enc_key_t * a_key);
+bool dap_chain_cs_dag_event_sign_exists(dap_chain_cs_dag_event_t *a_event, size_t a_event_size, dap_enc_key_t * a_key);
+bool dap_chain_cs_dag_event_round_sign_exists(dap_chain_cs_dag_event_round_item_t *a_round_item, dap_enc_key_t * a_key);
 dap_sign_t * dap_chain_cs_dag_event_get_sign( dap_chain_cs_dag_event_t * a_event, size_t a_event_size, uint16_t a_sign_number);
 
 /**
@@ -136,7 +144,7 @@ static inline ssize_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_d
         return -1;
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (a_event->hashes_n_datum_n_signs + l_hashes_size);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
-    return  l_hashes_size + sizeof (a_event->header) + l_datum_size;
+    return l_hashes_size + sizeof (a_event->header) + l_datum_size;
 }
 
 /**
@@ -154,9 +162,12 @@ static inline size_t dap_chain_cs_dag_event_round_item_get_size(dap_chain_cs_dag
     return sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_round_item->data_size;
 }
 
-bool dap_chain_cs_dag_event_gdb_set(char *a_event_hash_str, dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-                                    dap_chain_cs_dag_event_round_item_t * a_round_item,
-                                        const char *a_group);
+void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, const char a_op_code, const char *a_group,
+        const char *a_key, const void *a_value, const size_t a_value_size);
+
+bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
+                                    size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item,
+                                    const char *a_group);
 
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(const char *a_event_hash_str, size_t *a_event_size,
                                                         const char *a_group, dap_chain_cs_dag_event_round_info_t * a_event_round_info);

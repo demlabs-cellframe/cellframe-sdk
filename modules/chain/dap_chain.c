@@ -21,7 +21,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <dap_chain_ledger.h>
 #include <sys/types.h>
 #include <dirent.h>
 #ifdef DAP_OS_LINUX
@@ -37,6 +36,7 @@
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_cert.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_vf.h"
 #include <uthash.h>
@@ -347,7 +347,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 }
             }
             l_chain_id.uint64 = l_chain_id_u;
-
 
             if (l_chain_id_str ) {
                 log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )",l_chain_id.uint64 , l_chain_id_str) ;

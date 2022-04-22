@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include "dap_common.h"
+#include "dap_time.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
@@ -197,7 +198,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash)
 {
-    time_t l_ts_create = (time_t)a_datum->header.ts_created;
+    dap_time_t l_ts_create = (dap_time_t)a_datum->header.ts_created;
     bool l_is_first = false;
     dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, TX_ITEM_TYPE_IN, NULL);
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
@@ -310,6 +311,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                         ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
             char *l_coins_str = dap_chain_balance_to_coins(
                         ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
+            serv_unit_enum_t l_unit = ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm;
             dap_string_append_printf(a_str_out, "\t Receipt:\n"
                                                 "\t\t size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t ext size: %"DAP_UINT64_FORMAT_U"\n"
@@ -322,8 +324,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_datum_tx_receipt_t*)item)->exts_size,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64,
-                                     serv_unit_enum_to_str(
-                                         &((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm),
+                                     serv_unit_enum_to_str(&l_unit),
                                      l_coins_str,
                                      l_value_str);
             if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
@@ -394,7 +395,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t\t value: %s (%s)\n"
                                                 "\t\t\t subtype: %s\n"
                                                 "\t\t SubType:\n",
-                                     dap_ctime_r((time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
+                                     dap_ctime_r((dap_time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
                                      l_coins_str,
                                      l_value_str,
                                      dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype));
@@ -590,6 +591,18 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     dap_string_append_printf(a_str_out, "  signs_count: %d\n", l_emission->data.type_auth.signs_count);
                     dap_string_append_printf(a_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U"\n",
                                              l_emission->data.type_auth.tsd_total_size);
+
+                    if (  ( (void *) l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size) >
+                          ((void *) l_emission + l_emisssion_size) )
+                    {
+                        log_it(L_ERROR, "Illformed DATUM type %d, TSD section is out-of-buffer (%" DAP_UINT64_FORMAT_U " vs %zu)",
+                            l_emission->hdr.type, l_emission->data.type_auth.tsd_total_size, l_emisssion_size);
+
+                        dap_string_append_printf(a_str_out, "  Skip incorrect or illformed DATUM");
+                        break;
+                    }
+
+
                     dap_chain_datum_token_certs_dump(a_str_out, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
                                                      l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
                     break;

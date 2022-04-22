@@ -246,16 +246,16 @@ dap_config_t * dap_config_open(const char * a_name)
                                                     // trim token whitespace
                                                     if (isspace(token[0]))
                                                         token = token + 1;
-                                                    if (isspace(token[strlen(token) - 1])
-                                                            || token[strlen(token) - 1] == ']' /* last item in array */)
-                                                        token[strlen(token) - 1] = 0;
+                                                    char *closer = strchr(token, ']');
+                                                    if (closer) /* last item in array */
+                                                        *closer = 0;
 
                                                     l_item->data_str_array[j] = strdup(token);
 
                                                     token = strtok_r(NULL, ",",&l_tmp);
                                                     j++;
                                                 }
-
+                                                l_item->array_length = j;
                                             } else {
                                                 dap_config_item_t * l_item = DAP_NEW_Z(dap_config_item_t);
 

@@ -44,7 +44,7 @@ typedef struct dap_http dap_http_t;
 typedef struct dap_stream dap_stream_t;
 typedef struct dap_stream_pkt dap_stream_pkt_t;
 typedef struct dap_events_socket dap_events_socket_t;
-#define STREAM_BUF_SIZE_MAX 500000
+#define STREAM_BUF_SIZE_MAX DAP_STREAM_PKT_SIZE_MAX * 4
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 
 typedef void (*dap_stream_callback)( dap_stream_t *,void*);

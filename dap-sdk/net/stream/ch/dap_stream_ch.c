@@ -36,6 +36,7 @@
 #include <pthread.h>
 
 #include "dap_common.h"
+#include "dap_events.h"
 #include "dap_events_socket.h"
 #include "dap_http_client.h"
 #include "dap_uuid.h"
@@ -197,3 +198,27 @@ void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready)
     }
 }
 
+static void s_print_workers_channels()
+{
+    uint32_t l_worker_count = dap_events_worker_get_count();
+    dap_stream_ch_t* l_msg_ch = NULL;
+    dap_stream_ch_t* l_msg_ch_tmp = NULL;
+    //print all worker connections
+    dap_events_worker_print_all();
+    for (uint32_t i = 0; i < l_worker_count; i++){
+        uint32_t l_channel_count = 0;
+        dap_worker_t* l_worker = dap_events_worker_get(i);
+        if (!l_worker) {
+            log_it(L_CRITICAL, "Can't get stream worker - worker thread don't exist");
+            continue;
+        }
+        dap_stream_worker_t* l_stream_worker = DAP_STREAM_WORKER(l_worker);
+        if (l_stream_worker->channels)
+            HASH_ITER(hh_worker, l_stream_worker->channels, l_msg_ch, l_msg_ch_tmp) {
+                //log_it(L_DEBUG, "Worker id = %d, channel uuid = 0x%llx", l_worker->id, l_msg_ch->uuid);
+                l_channel_count += 1;
+        }
+        log_it(L_DEBUG, "Active workers l_channel_count = %d on worker %d", l_channel_count, l_stream_worker->worker->id);
+    }
+    return;
+}

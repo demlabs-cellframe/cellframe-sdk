@@ -57,6 +57,9 @@
 #include "dap_chain_global_db.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_pvt.h"
+#include "json-c/json.h"
+#include "json-c/json_object.h"
+#include "dap_notify_srv.h"
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -112,7 +115,7 @@ typedef struct dap_chain_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
     struct {
-        time_t ts_created;
+        dap_time_t ts_created;
         int n_outs;
         int n_outs_used;
         char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -224,6 +227,9 @@ static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
 static bool s_debug_more = false;
 
+struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
+static void wallet_info_notify();
+
 /**
  * @brief dap_chain_ledger_init
  * current function version set s_debug_more parameter, if it define in config, and returns 0
@@ -295,6 +301,32 @@ void dap_chain_ledger_load_end(dap_ledger_t *a_ledger)
     PVT(a_ledger)->load_mode = false;
 }
 
+
+struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_bal) {
+    struct json_object *l_json = json_object_new_object();
+    json_object_object_add(l_json, "class", json_object_new_string("Wallet"));
+    struct json_object *l_network = json_object_new_object();
+    json_object_object_add(l_network, "name", json_object_new_string(a_ledger->net_name));
+    char *pos = strrchr(a_bal->key, ' ');
+    if (pos) {
+        char *l_addr_str = DAP_NEW_S_SIZE(char, pos - a_bal->key + 1);
+        memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
+        json_object_object_add(l_network, "address", json_object_new_string(l_addr_str));
+    } else {
+        json_object_object_add(l_network, "address", json_object_new_string("Unknown"));
+    }
+    struct json_object *l_token = json_object_new_object();
+    json_object_object_add(l_token, "name", json_object_new_string(a_bal->token_ticker));
+    char *l_balance_coins = dap_chain_balance_to_coins(a_bal->balance);
+    char *l_balance_datoshi = dap_chain_balance_print(a_bal->balance);
+    json_object_object_add(l_token, "full_balance", json_object_new_string(l_balance_coins));
+    json_object_object_add(l_token, "datoshi", json_object_new_string(l_balance_datoshi));
+    DAP_DELETE(l_balance_coins);
+    DAP_DELETE(l_balance_datoshi);
+    json_object_object_add(l_network, "tokens", l_token);
+    json_object_object_add(l_json, "networks", l_network);
+    return l_json;
+}
 
 /**
  * @brief dap_chain_ledger_token_check
@@ -962,7 +994,7 @@ dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger)
        //log_it(L_DEBUG,"Ledger thresholded datum_token_emission_hash %s, emission_item_size: %lld", l_emission_hash_str, l_emission_item->datum_token_emission_size);
         dap_string_append(l_str_ret, "Ledger thresholded datum_token_emission_hash: ");
         dap_string_append(l_str_ret, l_emission_hash_str);
-        sprintf(l_item_size, ", tx_item_size: %zu\n", l_emission_item->datum_token_emission_size);
+        dap_sprintf(l_item_size, ", tx_item_size: %zu\n", l_emission_item->datum_token_emission_size);
         dap_string_append(l_str_ret, l_item_size);
         l_counter +=1;
     }
@@ -1245,6 +1277,10 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         l_balance_item->balance = *(uint256_t *)l_objs[i].value;
         HASH_ADD_KEYPTR(hh, l_ledger_pvt->balance_accounts, l_balance_item->key,
                         strlen(l_balance_item->key), l_balance_item);
+        /* Notify the world */
+        /*struct json_object *l_json = wallet_info_json_collect(a_ledger, l_balance_item);
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);*/ // TODO: unstable and spammy
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
@@ -1407,6 +1443,55 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     return l_ret;
 }
 
+bool s_chain_ledger_token_address_check(dap_chain_addr_t * l_addrs, dap_chain_datum_token_emission_t *a_token_emission, size_t l_addrs_count)
+{
+    // if l_addrs is empty - nothing to check
+    if (!l_addrs)
+        return true;
+
+    for(size_t n=0; n<l_addrs_count;n++ ){
+        if (memcmp(&l_addrs[n],&a_token_emission->hdr.address,sizeof(dap_chain_addr_t))==0)
+            return true;
+    }
+
+    return false; 
+}
+
+bool s_chain_ledger_token_tsd_check(dap_chain_ledger_token_item_t * a_token_item, dap_chain_datum_token_emission_t *a_token_emission)
+{
+    if (!a_token_item){
+        log_it(L_WARNING, "Token object is null. Probably, you set unknown token ticker in -token parameter");
+        return false;
+    }
+
+    // tsd section was parsed in s_token_tsd_parse
+    if (!s_chain_ledger_token_address_check(a_token_item->tx_recv_allow, a_token_emission, a_token_item->tx_recv_allow_size)){
+        log_it(L_WARNING, "Address %s is not in tx_recv_allow for emission for token %s",
+                dap_chain_addr_to_str(&a_token_emission->hdr.address), a_token_item->ticker);
+        return false;
+    }
+
+    if (!s_chain_ledger_token_address_check(a_token_item->tx_recv_block, a_token_emission, a_token_item->tx_recv_block_size)){
+        log_it(L_WARNING, "Address %s is not in tx_recv_block for emission for token %s",
+                dap_chain_addr_to_str(&a_token_emission->hdr.address), a_token_item->ticker);
+        return false;
+    }
+
+    if (!s_chain_ledger_token_address_check(a_token_item->tx_send_allow, a_token_emission, a_token_item->tx_send_allow_size)){
+        log_it(L_WARNING, "Address %s is not in tx_send_allow for emission for token %s",
+                dap_chain_addr_to_str(&a_token_emission->hdr.address), a_token_item->ticker);
+        return false;
+    }
+
+    if (!s_chain_ledger_token_address_check(a_token_item->tx_send_block, a_token_emission, a_token_item->tx_send_block_size)){
+        log_it(L_WARNING, "Address %s is not in tx_send_block for emission for token %s",
+                dap_chain_addr_to_str(&a_token_emission->hdr.address), a_token_item->ticker);
+        return false;
+    }
+
+    return true;
+}
+
 /**
  * @brief dap_chain_ledger_token_emission_add
  * @param a_token_emission
@@ -1450,8 +1535,8 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                     (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) ||
                     (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) ||
                     (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
-                //s_ledger_permissions_check(l_token_item)
-                //    return -114;
+                    if (!s_chain_ledger_token_tsd_check(l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
+                        return -114;
             }
             //Update value in ledger memory object
             if (!IS_ZERO_256(l_token_item->total_supply)) {
@@ -2456,6 +2541,10 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
     }
 
     DAP_DELETE(l_gdb_group);
+    /* Notify the world*/
+    struct json_object *l_json = wallet_info_json_collect(a_ledger, a_balance);
+    dap_notify_server_send_mt(json_object_get_string(l_json));
+    json_object_put(l_json);
     return 0;
 }
 
@@ -2816,7 +2905,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     memcpy(&l_tx_item->tx_hash_fast, a_tx_hash, sizeof(dap_chain_hash_fast_t));
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     l_tx_item->tx = DAP_DUP_SIZE(a_tx, l_tx_size);
-    l_tx_item->cache_data.ts_created = time(NULL); // Time of transasction added to ledger
+    l_tx_item->cache_data.ts_created = dap_time_now(); // Time of transasction added to ledger
     dap_list_t *l_tist_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_tx_item->cache_data.n_outs);
     // If debug mode dump the UTXO
     if (dap_log_level_get() == L_DEBUG && s_debug_more) {

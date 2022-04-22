@@ -43,10 +43,10 @@
 #define DAP_CHAIN_TIMESTAMP_SIZE    8
 #define DAP_CHAIN_TICKER_SIZE_MAX   10
 
-#define DATOSHI_LD 1000000000.0L
-#define DATOSHI_DEGREE 9
-#define DATOSHI_DEGREE_18   18
+#define DATOSHI_LD 1000000000.0L    // Deprecated
+#define DATOSHI_DEGREE 18
 #define DATOSHI_POW 38
+#define DATOSHI_POW256 (DATOSHI_POW * 2)
 
 // Chain ID of the whole system
 typedef union dap_chain_id {
@@ -140,9 +140,6 @@ typedef struct dap_chain_addr{
     } data;
     dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
-
-typedef uint64_t dap_chain_time_t;
-dap_chain_time_t dap_chain_time_now();
 
 #define DAP_CHAIN_NET_SRV_UID_SIZE 8
 

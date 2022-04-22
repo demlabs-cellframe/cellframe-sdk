@@ -3,7 +3,10 @@
 #include <stdio.h>
 #include "assert.h"
 
+#ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
+#endif
+
 #include <inttypes.h>
 
 #include "dap_common.h"
@@ -434,8 +437,8 @@ static inline int ADD_128_INTO_256(uint128_t a_128_bit,uint256_t* c_256_bit) {
     int overflow_flag=0;
     uint128_t overflow_128 = uint128_0;
     uint128_t temp = uint128_0;
-    temp=c_256_bit->lo;
-    overflow_flag=SUM_128_128(a_128_bit,temp,&c_256_bit->lo);
+    overflow_flag=SUM_128_128(a_128_bit, c_256_bit->lo, &temp);
+    c_256_bit->lo = temp;
 
 #ifdef DAP_GLOBAL_IS_INT128
     overflow_128=overflow_flag;
@@ -443,31 +446,30 @@ static inline int ADD_128_INTO_256(uint128_t a_128_bit,uint256_t* c_256_bit) {
     overflow_128.lo=overflow_flag;
 #endif
 
-    temp=c_256_bit->hi;
-    overflow_flag=SUM_128_128(overflow_128,temp,&c_256_bit->hi);
+    overflow_flag=SUM_128_128(overflow_128, c_256_bit->hi, &temp);
+    c_256_bit->hi = temp;
     return overflow_flag;
 }
 
 static inline int SUM_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t* c_256_bit)
 {
     int overflow_flag=0;
+    uint128_t intermediate_value = uint128_0;
 #ifdef DAP_GLOBAL_IS_INT128
     int overflow_flag_intermediate;
-    overflow_flag=SUM_128_128(a_256_bit.lo,b_256_bit.lo,&c_256_bit->lo);
+    overflow_flag=SUM_128_128(a_256_bit.lo,b_256_bit.lo,&intermediate_value);
+    c_256_bit->lo = intermediate_value;
     uint128_t carry_in_128=overflow_flag;
-    uint128_t intermediate_value=0;
     overflow_flag=0;
     overflow_flag=SUM_128_128(carry_in_128,a_256_bit.hi,&intermediate_value);
-    overflow_flag_intermediate=SUM_128_128(intermediate_value,b_256_bit.hi,&c_256_bit->hi);
+    overflow_flag_intermediate=SUM_128_128(intermediate_value,b_256_bit.hi,&intermediate_value);
+    c_256_bit->hi = intermediate_value;
     overflow_flag=overflow_flag||overflow_flag_intermediate;
 #else
     overflow_flag=SUM_128_128(a_256_bit.lo,b_256_bit.lo,&c_256_bit->lo);
     uint128_t carry_in_128;
     carry_in_128.hi=0;
     carry_in_128.lo=overflow_flag;
-    uint128_t intermediate_value;
-    intermediate_value.hi=0;
-    intermediate_value.lo=0;
     overflow_flag=0;
     overflow_flag=SUM_128_128(carry_in_128,a_256_bit.hi,&intermediate_value);
     //we store overflow_flag in case there is already overflow
