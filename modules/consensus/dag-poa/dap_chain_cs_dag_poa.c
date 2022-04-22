@@ -69,7 +69,7 @@ typedef struct dap_chain_cs_dag_poa_pvt {
     uint32_t confirmations_timeout; // wait signs over min value (auth_certs_count_verify)
     bool auto_confirmation;
     bool auto_round_complete;
-    uint8_t padding[4];
+    uint32_t wait_sync_before_complete;
     dap_chain_callback_new_cfg_t prev_callback_created; // global network config init
 } dap_chain_cs_dag_poa_pvt_t;
 
@@ -353,6 +353,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_poa_pvt->confirmations_timeout = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","confirmations_timeout",600);
     l_poa_pvt->auto_confirmation = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_confirmation",true);
     l_poa_pvt->auto_round_complete = dap_config_get_item_bool_default(a_chain_cfg,"dag-poa","auto_round_complete",true);
+    l_poa_pvt->wait_sync_before_complete = dap_config_get_item_uint32_default(a_chain_cfg,"dag-poa","wait_sync_before_complete",180);
     l_poa_pvt->auth_certs_prefix = dap_strdup(dap_config_get_item_str(a_chain_cfg,"dag-poa","auth_certs_prefix"));
     if (l_poa_pvt->auth_certs_prefix) {
         l_poa_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number",0);
@@ -395,7 +396,13 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_chain_c
                 l_max_signs_count = l_event->header.signs_count;
         }
     }
-
+    for (dap_list_t *it = l_dups_list; it; it = it->next) {
+        dap_store_obj_t *l_obj = (dap_store_obj_t *)it->data;
+        dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)((dap_chain_cs_dag_event_round_item_t *)l_obj->value);
+        if (l_event->header.signs_count < l_max_signs_count) {
+            dap_chain_global_db_gr_del(l_obj->key, l_obj->group);
+        }
+    }
     uint64_t l_max_ts_update = 0;
     char * l_max_ts_update_hash = NULL;
     event_clean_dup_items_t *l_clean_item=NULL, *l_clean_tmp=NULL;
@@ -445,7 +452,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
 {
     dap_chain_cs_dag_poa_callback_timer_arg_t * l_callback_arg = DAP_NEW_Z(dap_chain_cs_dag_poa_callback_timer_arg_t);
     l_callback_arg->dag = a_dag;
-    l_callback_arg->l_event_hash_hex_str = dap_strdup(a_event_hash_hex_str);
+    l_callback_arg->round_id = a_round_id;
 
     if (a_event_round_info->ts_confirmations_minimum_completed == (uint64_t)0) {
         a_event_round_info->ts_confirmations_minimum_completed = (uint64_t)time(NULL);

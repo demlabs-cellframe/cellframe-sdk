@@ -584,27 +584,31 @@ dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_f
 dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_records_count_out)
 {
     size_t l_count = 0;
-    if (!a_records_count_out)
-        a_records_count_out = &l_count;
-    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, a_records_count_out);
+    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, &l_count);
     if(!l_store_obj)
         return NULL;
 
     dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
-                                                 (*a_records_count_out + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
+                                                 l_count * sizeof(dap_global_db_obj_t));
     if (!l_data) {
-        dap_store_obj_free(l_store_obj, *a_records_count_out);
+        dap_store_obj_free(l_store_obj, l_count);
         return NULL;
     }
 
-    for(size_t i = 0; i < *a_records_count_out; i++) {
+    size_t l_valid = 0;
+    for(size_t i = 0; i < l_count; i++) {
+        if (!l_store_obj[i].key)
+            continue;
         l_data[i] = (dap_global_db_obj_t) {
                 .key = dap_strdup(l_store_obj[i].key),
                 .value_len = l_store_obj[i].value_len,
                 .value = DAP_DUP_SIZE(l_store_obj[i].value, l_store_obj[i].value_len)
         };
+        l_valid++;
     }
-    dap_store_obj_free(l_store_obj, *a_records_count_out);
+    dap_store_obj_free(l_store_obj, l_count);
+    if (a_records_count_out)
+        *a_records_count_out = l_valid;
     return l_data;
 }
 

@@ -49,11 +49,11 @@ typedef struct dap_chain_cs_dag_event {
 
 typedef struct dap_chain_cs_dag_event_round_info {
     uint16_t confirmations_minimum; // param auth_certs_count_verify in PoA
+    uint16_t reject_count;
     uint32_t unused;
     uint64_t ts_confirmations_minimum_completed;
     uint64_t ts_update;
-    uint16_t reject_count;
-    dap_chain_hash_fast_t first_event_hash; // first event hash in round
+    dap_chain_hash_fast_t datum_hash; // for doubles finding
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_info_t;
 
 typedef struct dap_chain_cs_dag_event_round_item {

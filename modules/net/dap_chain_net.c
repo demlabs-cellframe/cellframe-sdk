@@ -511,7 +511,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
 {
     UNUSED(a_value);
     UNUSED(a_value_len);
-    if (!a_arg)
+    if (!a_arg || !a_group || !a_key)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (!HASH_COUNT(PVT(l_net)->downlinks)) {
