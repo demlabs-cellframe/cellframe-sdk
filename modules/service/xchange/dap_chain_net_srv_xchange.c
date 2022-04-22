@@ -50,15 +50,13 @@ static dap_chain_net_srv_xchange_t *s_srv_xchange;
 int dap_chain_net_srv_xchange_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
-    "srv_xchange price create -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>"
-                                        "-wallet <name> -coins <value> -rate <value>\n"
+    "srv_xchange price create -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker> -wallet <name> -coins <value> -rate <value>\n"
         "\tCreate a new price with specified amount of datoshi to exchange with specified rate (sell : buy)\n"
     "srv_xchange price remove -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>\n"
          "\tRemove price with specified tickers within specified net names\n"
     "srv_xchange price list\n"
          "\tList all active prices\n"
-    "srv_xchange price update -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>"
-                                        "{-coins <value> | rate <value> | -wallet <name>}\n"
+    "srv_xchange price update -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker> {-coins <value> | rate <value> | -wallet <name>}\n"
          "\tUpdate price with specified tickers within specified net names\n"
     "srv_xchange orders -net <net name>\n"
          "\tGet the exchange orders list within specified net name\n"
