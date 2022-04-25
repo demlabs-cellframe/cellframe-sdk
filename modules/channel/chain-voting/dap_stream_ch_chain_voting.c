@@ -142,10 +142,13 @@ static void s_callback_channel_pkt_free_unsafe(uint64_t a_node_addr_uint64) {
 			DAP_DELETE(l_pkt_addr->voting_pkt);
 			DAP_DELETE(l_pkt_addr);
 			s_pkt_items->pkts_out = dap_list_remove_link(s_pkt_items->pkts_out, l_list);
+			dap_list_t *l_list = dap_list_first(s_pkt_items->pkts_out);
+    	} else {
+    		l_list = l_list->next;
     	}
-    	l_list = l_list->next;
     }
 }
+
 
 // remove overflow in outbuf
 static void s_callback_channel_pkt_buf_limit(uint64_t a_node_addr_uint64) {
