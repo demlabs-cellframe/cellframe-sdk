@@ -18,9 +18,9 @@ typedef enum http_status_code
 {
     /*####### 1xx - Informational #######*/
     /* Indicates an interim response for communicating connection status
-             * or request progress prior to completing the requested action and
-             * sending a final response.
-             */
+     * or request progress prior to completing the requested action and
+     * sending a final response.
+     */
     Http_Status_Continue           = 100, /*!< Indicates that the initial part of a request has been received and has not yet been rejected by the server. */
     Http_Status_SwitchingProtocols = 101, /*!< Indicates that the server understands and is willing to comply with the client's request, via the Upgrade header field, for a change in the application protocol being used on this connection. */
     Http_Status_Processing         = 102, /*!< Is an interim response used to inform the client that the server has accepted the complete request, but has not yet completed it. */
@@ -28,8 +28,8 @@ typedef enum http_status_code
 
     /*####### 2xx - Successful #######*/
     /* Indicates that the client's request was successfully received,
-             * understood, and accepted.
-             */
+     * understood, and accepted.
+     */
     Http_Status_OK                          = 200, /*!< Indicates that the request has succeeded. */
     Http_Status_Created                     = 201, /*!< Indicates that the request has been fulfilled and has resulted in one or more new resources being created. */
     Http_Status_Accepted                    = 202, /*!< Indicates that the request has been accepted for processing, but the processing has not been completed. */
@@ -43,8 +43,8 @@ typedef enum http_status_code
 
     /*####### 3xx - Redirection #######*/
     /* Indicates that further action needs to be taken by the user agent
-             * in order to fulfill the request.
-             */
+     * in order to fulfill the request.
+     */
     Http_Status_MultipleChoices   = 300, /*!< Indicates that the target resource has more than one representation, each with its own more specific identifier, and information about the alternatives is being provided so that the user (or user agent) can select a preferred representation by redirecting its request to one or more of those identifiers. */
     Http_Status_MovedPermanently  = 301, /*!< Indicates that the target resource has been assigned a new permanent URI and any future references to this resource ought to use one of the enclosed URIs. */
     Http_Status_Found             = 302, /*!< Indicates that the target resource resides temporarily under a different URI. */
@@ -88,8 +88,8 @@ typedef enum http_status_code
 
     /*####### 5xx - Server Error #######*/
     /* Indicates that the server is aware that it has erred
-             * or is incapable of performing the requested method.
-             */
+     * or is incapable of performing the requested method.
+     */
     Http_Status_InternalServerError           = 500, /*!< Indicates that the server encountered an unexpected condition that prevented it from fulfilling the request. */
     Http_Status_NotImplemented                = 501, /*!< Indicates that the server does not support the functionality required to fulfill the request. */
     Http_Status_BadGateway                    = 502, /*!< Indicates that the server, while acting as a gateway or proxy, received an invalid response from an inbound server it accessed while attempting to fulfill the request. */
