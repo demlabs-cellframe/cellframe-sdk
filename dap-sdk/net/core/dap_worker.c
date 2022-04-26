@@ -186,7 +186,7 @@ void *dap_worker_thread(void *arg)
         l_selected_sockets = epoll_wait(l_worker->epoll_fd, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
         l_sockets_max = l_selected_sockets;
 #elif defined(DAP_EVENTS_CAPS_POLL)
-        l_selected_sockets = poll(l_worker->poll, l_worker->poll_count, -1);
+        l_selected_sockets = poll(l_worker->poll, l_worker->poll_count, 3000);  /* RRL: -1 -> 3000 */
         l_sockets_max = l_worker->poll_count;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
         l_selected_sockets = kevent(l_worker->kqueue_fd,NULL,0,l_worker->kqueue_events_selected,l_worker->kqueue_events_selected_count_max,
@@ -212,7 +212,7 @@ void *dap_worker_thread(void *arg)
 
         time_t l_cur_time = time( NULL);
         for(size_t n = 0; n < l_sockets_max; n++) {
-            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
+            int l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
             uint32_t l_cur_flags = l_epoll_events[n].events;
@@ -680,9 +680,15 @@ void *dap_worker_thread(void *arg)
                         }
                         break;
                         case DESCRIPTOR_TYPE_SOCKET_UDP:
+                            if ( (l_bytes_sent = l_cur->buf_out_size) )
+                            {
+                            log_it(L_DEBUG, "[UDP: #%d] l_cur->buf_out_size: %zu", l_cur->socket, l_cur->buf_out_size);
                             l_bytes_sent = sendto(l_cur->socket, (const char *)l_cur->buf_out,
                                                   l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
                                                   (struct sockaddr *)&l_cur->remote_addr, sizeof(l_cur->remote_addr));
+                            log_it(L_DEBUG, "[UDP: #%d] l_bytes_sent: %zu", l_cur->socket, l_bytes_sent);
+                            }
+
 #ifdef DAP_OS_WINDOWS
                             dap_events_socket_set_writable_unsafe(l_cur,false);
                             l_errno = WSAGetLastError();

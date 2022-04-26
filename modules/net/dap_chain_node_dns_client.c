@@ -200,11 +200,13 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
                            dap_dns_client_node_info_request_success_callback_t a_callback_success,
                            dap_dns_client_node_info_request_error_callback_t a_callback_error,void * a_callbacks_arg)
 {
+    struct dns_client *l_dns_client;
+
     log_it(L_INFO, "DNS request for bootstrap nodelist  %s : %d, net %s", inet_ntoa(a_addr), a_port, a_name);
 
-    struct dns_client * l_dns_client = DAP_NEW_Z(struct dns_client);
-    if(!l_dns_client)
-        return -1;
+    if( !(l_dns_client = DAP_NEW_Z(struct dns_client)) )
+        return -ENOMEM;
+
     l_dns_client->name = dap_strdup(a_name);
     l_dns_client->callback_error = a_callback_error;
     l_dns_client->callback_success = a_callback_success;
@@ -217,12 +219,14 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
         DAP_DELETE(l_dns_client);
         return -2;
     }
+
     l_dns_client->dns_request = DAP_NEW_Z(dap_dns_buf_t);
     if( ! l_dns_client->dns_request){
         DAP_DELETE(l_dns_client->buf);
         DAP_DELETE(l_dns_client);
         return -3;
     }
+
     l_dns_client->dns_request->data = (char *)l_dns_client->buf;
     l_dns_client->result = a_result;
     dap_dns_buf_put_uint16(l_dns_client->dns_request, rand() % 0xFFFF);     // ID
@@ -232,10 +236,12 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
     dap_dns_buf_put_uint16(l_dns_client->dns_request, 0);
     dap_dns_buf_put_uint16(l_dns_client->dns_request, 0);
     dap_dns_buf_put_uint16(l_dns_client->dns_request, 0);
-    size_t l_ptr = 0;
+
 
     uint8_t *l_cur = l_dns_client->buf + l_dns_client->dns_request->size;
-    for (size_t i = 0; i <= strlen(a_name); i++)
+    size_t l_ptr = 0, l_len = strlen(a_name);
+
+    for (size_t i = 0; i <= l_len; i++)
     {
         if (a_name[i] == '.' || a_name[i] == 0)
         {
@@ -244,11 +250,15 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
             {
                 *l_cur++ = a_name[l_ptr];
             }
+
             l_ptr++;
         }
     }
+
     *l_cur++='\0';
+
     l_dns_client->dns_request->size = l_cur - l_dns_client->buf;
+
     dap_dns_buf_put_uint16(l_dns_client->dns_request, DNS_RECORD_TYPE_A);
     dap_dns_buf_put_uint16(l_dns_client->dns_request, DNS_CLASS_TYPE_IN);
 

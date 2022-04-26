@@ -159,7 +159,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     l_timerfd->callback_arg     = a_callback_arg;
     l_timerfd->events_socket    = l_events_socket;
     l_timerfd->esocket_uuid = l_events_socket->uuid;
-    
+
 #if defined DAP_OS_LINUX
     struct itimerspec l_ts;
     int l_tfd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
@@ -245,8 +245,8 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     }
     l_events_socket->socket = l_tfd;
 #endif
-    
-#if defined (DAP_OS_LINUX) || defined (DAP_OS_WINDOWS)    
+
+#if defined (DAP_OS_LINUX) || defined (DAP_OS_WINDOWS)
     l_timerfd->tfd              = l_tfd;
 #endif
 //#ifdef DAP_OS_WINDOWS
@@ -330,9 +330,17 @@ void dap_timerfd_delete(dap_timerfd_t *a_timerfd)
 {
     if (!a_timerfd)
         return;
+
     #ifdef _WIN32
         DeleteTimerQueueTimer(hTimerQueue, (HANDLE)a_timerfd->th, NULL);
     #endif
+
+    if ( !a_timerfd->events_socket )
+    {
+        log_it(L_ERROR, "a_timerfd: %p, events_socket: %p !!!", a_timerfd, a_timerfd->events_socket);
+        return;
+    }
+
     if (a_timerfd->events_socket->worker)
         dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->worker, a_timerfd->esocket_uuid);
 }

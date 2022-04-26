@@ -1538,9 +1538,9 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 
 /**
  * @brief get type of chain
- * 
- * @param l_chain 
- * @return char* 
+ *
+ * @param l_chain
+ * @return char*
  */
 const char* dap_chain_net_get_type(dap_chain_t *l_chain)
 {
@@ -1562,14 +1562,14 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) 
+    DL_FOREACH(l_net->pub.chains, l_chain)
     {
-        if (l_chain->callback_purge) 
+        if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
 
-        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) 
+        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none"))
             dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
-        else 
+        else
             dap_chain_load_all(l_chain);
         }
     bool l_processed;
@@ -2053,7 +2053,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
     dap_string_t *l_cfg_path = dap_string_new("network/");
     dap_string_append(l_cfg_path,a_net_name);
 
-    if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
+     if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
         log_it(L_ERROR,"Can't open default network config");
         dap_string_free(l_cfg_path,true);
         return -1;
@@ -2497,7 +2497,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                             l_chain->id.uint64, l_chain->name,l_chain02->name);
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;
-                        } 
+                        }
                         if (!dap_strcmp(l_chain->name, l_chain02->name))
                         {
                             log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%"DAP_UINT64_FORMAT_U", chain02 id = 0x%"DAP_UINT64_FORMAT_U"",l_chain->net_name,
@@ -2505,9 +2505,9 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;
                         }
-                    }                         
+                    }
                 }
-            }         
+            }
 
             bool l_processed;
             do {
@@ -2551,7 +2551,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if (l_chain )
                    l_chain->is_datum_pool_proc = true;
                 l_net_pvt->only_static_links = true;
-                l_target_state = NET_STATE_ONLINE;     
+                l_target_state = NET_STATE_ONLINE;
                 log_it(L_INFO,"Root node role established");
             } break;
             case NODE_ROLE_CELL_MASTER:

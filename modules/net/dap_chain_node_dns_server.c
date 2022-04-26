@@ -33,6 +33,7 @@
 #include "dap_string.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_global_db_remote.h"
+#include "dap_enc_base64.h"
 
 #define LOG_TAG "dap_chain_node_dns_server"
 #define BUF_SIZE 1024
@@ -221,7 +222,7 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
         val = DNS_CLASS_TYPE_IN;
         dap_dns_buf_put_uint16(dns_reply, val);
         uint32_t ttl = DNS_TIME_TO_LIVE;
-        dap_dns_buf_put_uint32(dns_reply, ttl);                                    
+        dap_dns_buf_put_uint32(dns_reply, ttl);
         dap_dns_buf_put_uint16(dns_reply, 4);           // RD len for ipv4
         dap_dns_buf_put_uint32(dns_reply, l_node_info->hdr.ext_addr_v4.s_addr);
         val = 0xc000 | DNS_HEADER_SIZE;                // Link to host name
