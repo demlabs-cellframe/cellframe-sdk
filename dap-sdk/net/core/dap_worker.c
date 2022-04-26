@@ -142,6 +142,7 @@ void *dap_worker_thread(void *arg)
     l_worker->kqueue_events_count_max = DAP_EVENTS_SOCKET_MAX;
     l_worker->kqueue_events_selected = DAP_NEW_Z_SIZE(struct kevent, l_worker->kqueue_events_selected_count_max *sizeof(struct kevent));
 #elif defined(DAP_EVENTS_CAPS_POLL)
+    assert(!pthread_mutex_init(&l_worker->poll_mutex, 0));             /* @RRL: bugs-6138 */
     l_worker->poll_count_max = DAP_EVENTS_SOCKET_MAX;
     l_worker->poll = DAP_NEW_Z_SIZE(struct pollfd,l_worker->poll_count_max*sizeof (struct pollfd));
     l_worker->poll_esocket = DAP_NEW_Z_SIZE(dap_events_socket_t*,l_worker->poll_count_max*sizeof (dap_events_socket_t*));
@@ -887,6 +888,8 @@ void *dap_worker_thread(void *arg)
         /* of file descriptors.                                    */
         /***********************************************************/
         if ( l_worker->poll_compress){
+            assert(!pthread_mutex_lock(&l_worker->poll_mutex));             /* @RRL: bugs-6138 */
+
             l_worker->poll_compress = false;
             for (size_t i = 0; i < l_worker->poll_count ; i++)  {
                 if ( l_worker->poll[i].fd == -1){
@@ -904,6 +907,8 @@ void *dap_worker_thread(void *arg)
                     l_worker->poll_count--;
                 }
             }
+
+            assert(!pthread_mutex_unlock(&l_worker->poll_mutex));           /* @RRL: bugs-6138 */
         }
 #endif
     } // while
@@ -1206,6 +1211,9 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
         a_esocket->ev.data.ptr = a_esocket;
         return epoll_ctl(a_worker->epoll_fd, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
 #elif defined (DAP_EVENTS_CAPS_POLL)
+
+    assert(!pthread_mutex_lock(&a_worker->poll_mutex));                     /* @RRL: bugs-6138 */
+
     if (  a_worker->poll_count == a_worker->poll_count_max ){ // realloc
         a_worker->poll_count_max *= 2;
         log_it(L_WARNING, "Too many descriptors (%u), resizing array twice to %zu", a_worker->poll_count, a_worker->poll_count_max);
@@ -1223,6 +1231,9 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
 
     a_worker->poll_esocket[a_worker->poll_count] = a_esocket;
     a_worker->poll_count++;
+
+    assert(!pthread_mutex_unlock(&a_worker->poll_mutex));                   /* @RRL: bugs-6138 */
+
     return 0;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     a_esocket->worker = a_worker;

@@ -69,12 +69,15 @@ typedef struct dap_worker
 #if defined DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
-    int poll_fd;
-    struct pollfd * poll;
+
+    pthread_mutex_t poll_mutex;                                             /* @RRL: Protect poll's stuff */
+        int         poll_fd;
+    struct pollfd   *poll;
+
     dap_events_socket_t ** poll_esocket;
     atomic_uint poll_count;
     size_t poll_count_max;
-    bool poll_compress; // Some of fd's became NULL so arrays need to be reassigned
+    int poll_compress; // Some of fd's became NULL so arrays need to be reassigned
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     int kqueue_fd;
     struct kevent * kqueue_events_selected;
