@@ -296,24 +296,26 @@ static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg){
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     if (l_node_client) {
 	    dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(a_client, dap_stream_ch_chain_voting_get_id() );
-	    dap_list_t* l_pkts_list = dap_list_first(s_pkt_items->pkts_out);
-		while(l_pkts_list) {
-			dap_list_t *l_pkts_list_next = l_pkts_list->next;
-			voting_pkt_addr_t *l_pkt_addr = (voting_pkt_addr_t *)l_pkts_list->data;
-			dap_stream_ch_chain_voting_pkt_t * l_voting_pkt = l_pkt_addr->voting_pkt;
-		    size_t l_voting_pkt_size = sizeof(l_voting_pkt->hdr) + l_voting_pkt->hdr.data_size;
-			if ( l_pkt_addr->node_addr.uint64 == l_node_client->remote_node_addr.uint64 ) {
-				if (l_ch_chain) {
-		    		dap_stream_ch_pkt_write_unsafe(l_ch_chain, 
-		    						l_voting_pkt->hdr.pkt_type, l_voting_pkt, l_voting_pkt_size);
+	    if (l_ch_chain) {
+		    dap_list_t* l_pkts_list = dap_list_first(s_pkt_items->pkts_out);
+			while(l_pkts_list) {
+				dap_list_t *l_pkts_list_next = l_pkts_list->next;
+				voting_pkt_addr_t *l_pkt_addr = (voting_pkt_addr_t *)l_pkts_list->data;
+				dap_stream_ch_chain_voting_pkt_t * l_voting_pkt = l_pkt_addr->voting_pkt;
+			    size_t l_voting_pkt_size = sizeof(l_voting_pkt->hdr) + l_voting_pkt->hdr.data_size;
+				if ( l_pkt_addr->node_addr.uint64 == l_node_client->remote_node_addr.uint64 ) {
+					if (l_ch_chain) {
+			    		dap_stream_ch_pkt_write_unsafe(l_ch_chain, 
+			    						l_voting_pkt->hdr.pkt_type, l_voting_pkt, l_voting_pkt_size);
+			    	}
+			    	else {
+						//printf("---!!! s_callback_send_all_unsafe() l_ch_chain in null \n");
+			    	}
 		    	}
-		    	else {
-					//printf("---!!! s_callback_send_all_unsafe() l_ch_chain in null \n");
-		    	}
-	    	}
-	    	l_pkts_list = l_pkts_list_next;
+		    	l_pkts_list = l_pkts_list_next;
+		    }
+	        s_callback_channel_pkt_free_unsafe(l_node_client->remote_node_addr.uint64);
 	    }
-        s_callback_channel_pkt_free_unsafe(l_node_client->remote_node_addr.uint64);
 	}
     pthread_rwlock_unlock(&s_pkt_items->rwlock_out);
 }
