@@ -1538,8 +1538,6 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
     #elif defined (DAP_EVENTS_CAPS_POLL)
         if( a_esocket->worker && a_esocket->is_initalized){
 
-            assert(!pthread_mutex_lock(&a_esocket->worker->poll_mutex));    /* @RRL: bugs-6138 */
-
             if (a_esocket->poll_index < a_esocket->worker->poll_count ){
                 struct pollfd * l_poll = &a_esocket->worker->poll[a_esocket->poll_index];
                 l_poll->events = a_esocket->poll_base_flags | POLLERR ;
@@ -1552,8 +1550,6 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
                 log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_esocket->poll_index,
                        a_esocket->worker->poll_count);
             }
-
-            assert(!pthread_mutex_unlock(&a_esocket->worker->poll_mutex));  /* @RRL: bugs-6138 */
         }
     #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     if (a_esocket->socket != -1  ){ // Not everything we add in poll
@@ -1788,11 +1784,9 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 
 #ifdef DAP_EVENTS_CAPS_POLL
     if(a_es->worker){
-        assert(!pthread_mutex_lock(&a_es->worker->poll_mutex));             /* @RRL: bugs-6138 */
         assert (a_es->poll_index>=0);
         a_es->worker->poll[a_es->poll_index].fd=-1;
         a_es->worker->poll_esocket[a_es->poll_index]=NULL;
-        assert(!pthread_mutex_unlock(&a_es->worker->poll_mutex));           /* @RRL: bugs-6138 */
     }
 #endif
 
