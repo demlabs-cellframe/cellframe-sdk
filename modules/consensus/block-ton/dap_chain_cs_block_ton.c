@@ -1506,9 +1506,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 												(dap_chain_cs_block_ton_store_t *)dap_chain_global_db_gr_get(
 														l_candidate_hash_str, &l_store_size, l_session->gdb_group_store);
 						if (l_store) {
+log_it(L_MSG, "TON: found in store:%s ", l_candidate_hash_str);
 							l_store->hdr.approve_collected = true;
 							if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
 																l_store_size, l_session->gdb_group_store) ) {
+log_it(L_MSG, "TON: update store:%s ", l_candidate_hash_str);
 								// event Vote
 								dap_chain_cs_block_ton_message_vote_t *l_vote =
 																	DAP_NEW_Z(dap_chain_cs_block_ton_message_vote_t);
