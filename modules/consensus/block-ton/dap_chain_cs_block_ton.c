@@ -1505,26 +1505,32 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						dap_chain_cs_block_ton_store_t *l_store = 
 												(dap_chain_cs_block_ton_store_t *)dap_chain_global_db_gr_get(
 														l_candidate_hash_str, &l_store_size, l_session->gdb_group_store);
-						if (l_store) {
-log_it(L_MSG, "TON: found in store:%s ", l_candidate_hash_str);
+						if (l_store && !l_store->hdr.approve_collected) {
+							if (PVT(l_session->ton)->debug)
+								log_it(L_MSG, "TON: APPROVE: candidate found in store:%s & !approve_collected", l_candidate_hash_str);
 							l_store->hdr.approve_collected = true;
 							if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
-																l_store_size, l_session->gdb_group_store) ) {
-log_it(L_MSG, "TON: update store:%s ", l_candidate_hash_str);
-								// event Vote
-								dap_chain_cs_block_ton_message_vote_t *l_vote =
-																	DAP_NEW_Z(dap_chain_cs_block_ton_message_vote_t);
-								l_vote->round_id.uint64 = l_session->cur_round.id.uint64;
-								memcpy(&l_vote->candidate_hash, l_candidate_hash, sizeof(dap_chain_hash_fast_t));
-								l_vote->attempt_number = l_session->attempt_current_number;
-								s_message_send(l_session, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE, (uint8_t*)l_vote,
-									sizeof(dap_chain_cs_block_ton_message_vote_t), l_session->cur_round.validators_start);
-								DAP_DELETE(l_vote);
+																l_store_size, l_session->gdb_group_store) )
 								if (PVT(l_session->ton)->debug)
-                                    log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu This is first attempt, so to sent a VOTE for candidate:%s",
-											l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
-												l_session->attempt_current_number, l_candidate_hash_str );
-							}
+									log_it(L_MSG, "TON: APPROVE: candidate update:%s approve_collected=true", l_candidate_hash_str);
+							else
+								if (PVT(l_session->ton)->debug)
+									log_it(L_MSG, "TON: APPROVE: can`t update candidate:%s", l_candidate_hash_str);
+
+							// event Vote
+							dap_chain_cs_block_ton_message_vote_t *l_vote =
+																DAP_NEW_Z(dap_chain_cs_block_ton_message_vote_t);
+							l_vote->round_id.uint64 = l_session->cur_round.id.uint64;
+							memcpy(&l_vote->candidate_hash, l_candidate_hash, sizeof(dap_chain_hash_fast_t));
+							l_vote->attempt_number = l_session->attempt_current_number;
+							s_message_send(l_session, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE, (uint8_t*)l_vote,
+								sizeof(dap_chain_cs_block_ton_message_vote_t), l_session->cur_round.validators_start);
+							DAP_DELETE(l_vote);
+							if (PVT(l_session->ton)->debug)
+                                log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu This is first attempt, so to sent a VOTE for candidate:%s",
+										l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
+											l_session->attempt_current_number, l_candidate_hash_str );
+
 							DAP_DELETE(l_store);
 						}
 					}
