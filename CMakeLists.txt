@@ -92,6 +92,11 @@ if (ANDROID)
     include_directories(cellframe-sdk/3rdparty/)
 endif()
 
+if (BUILD_WITH_ZIP)
+    if(LINUX)
+        add_subdirectory(3rdparty/libzip)
+    endif()
+endif()
 
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
