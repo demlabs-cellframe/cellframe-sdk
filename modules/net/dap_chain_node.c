@@ -118,6 +118,28 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
 }
 
 /**
+ * Compare addresses of two dap_chain_node_info_t structures
+ *
+ * @return True if addresses are equal, otherwise false
+ */
+bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain_node_info_t *node_info2)
+{
+    if(!node_info1 || !node_info2) {
+        return false;
+    }
+    //if(memcmp(&node_info1->hdr.address, &node_info2->hdr.address, sizeof(dap_chain_addr_t))) {
+    //    return false;
+    //}
+    if(memcmp(&node_info1->hdr.ext_addr_v6, &node_info2->hdr.ext_addr_v6, sizeof(struct in6_addr)) ||
+            memcmp(&node_info1->hdr.ext_addr_v4, &node_info2->hdr.ext_addr_v4, sizeof(struct in_addr)) ||
+            (node_info1->hdr.ext_port != node_info2->hdr.ext_port)) {
+        return false;
+    }
+    return true;
+}
+
+
+/**
  * @brief dap_chain_node_info_save
  * @param node_info
  * @return
@@ -311,3 +333,53 @@ bool dap_chain_node_mempool_autoproc_init()
 void dap_chain_node_mempool_autoproc_deinit()
 {
 }
+
+
+/**
+ * @brief Find a_node_info in the a_node_list
+ */
+bool dap_chain_node_info_list_is_added(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info)
+{
+    while(a_node_list) {
+        dap_chain_node_info_t *l_node_info = a_node_list->data;
+        if(dap_chain_node_info_addr_match(l_node_info, a_node_info)) {
+            return true;
+        }
+        a_node_list = dap_list_next(a_node_list);
+    }
+    return false;
+}
+
+/**
+ * @brief Add a_node_info to the a_node_list
+ */
+dap_chain_node_info_list_t* dap_chain_node_info_list_add(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info)
+{
+    return dap_list_prepend(a_node_list, a_node_info);
+}
+
+/**
+ * @brief Remove a_node_info from the a_node_list
+ */
+dap_chain_node_info_list_t* dap_chain_node_info_list_del(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info)
+{
+    dap_chain_node_info_list_t *l_node_link = dap_list_find(a_node_list, a_node_info);
+    return dap_list_remove_link(a_node_list, l_node_link);
+}
+
+//static void s_chain_node_info_callback_destroyed(void* data)
+//{
+//    dap_chain_node_info_t *l_link_node_info = (dap_chain_node_info_t*)data;
+//    DAP_DELETE(l_link_node_info);
+//}
+
+/**
+ * @brief Free a_node_list
+ */
+
+void dap_chain_node_info_list_free(dap_chain_node_info_list_t *a_node_list)
+{
+    dap_list_free(a_node_list);
+    //dap_list_free_full(a_node_list, s_chain_node_info_callback_destroyed);
+}
+
