@@ -93,9 +93,7 @@ if (ANDROID)
 endif()
 
 if (BUILD_WITH_ZIP)
-    if(LINUX)
-        add_subdirectory(3rdparty/libzip)
-    endif()
+    add_subdirectory(3rdparty/libzip)
 endif()
 
 add_subdirectory(dap-sdk)
