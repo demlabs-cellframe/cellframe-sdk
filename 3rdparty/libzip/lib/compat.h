@@ -154,7 +154,7 @@ typedef char bool;
 #else
 // #include <limits.h>
 #define ZIP_FSEEK_MAX ZIP_OFF_MAX
-#define ZIP_FSEEK_MIN ZIP_OFF_MIM 
+#define ZIP_FSEEK_MIN ZIP_OFF_MIN
 #endif
 
 #ifndef SIZE_MAX
