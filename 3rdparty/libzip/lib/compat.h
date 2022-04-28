@@ -143,7 +143,8 @@ typedef char bool;
 #define ZIP_OFF_MAX ZIP_INT16_MAX
 #define ZIP_OFF_MIN ZIP_INT16_MIN
 #else
-#error unsupported size of off_t
+#define ZIP_OFF_MAX ZIP_INT64_MAX
+#define ZIP_OFF_MIN ZIP_INT64_MIN
 #endif
 
 #if defined(HAVE_FTELLO) && defined(HAVE_FSEEKO)
