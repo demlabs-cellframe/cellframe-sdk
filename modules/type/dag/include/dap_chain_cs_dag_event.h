@@ -35,7 +35,7 @@ typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 typedef struct dap_chain_class_dag_event_hdr {
         uint16_t version;
         uint64_t round_id;
-        uint64_t ts_created;
+        dap_gdb_time_t ts_created;
         dap_chain_id_t chain_id;
         dap_chain_cell_id_t cell_id; // Cell id if celled dag
         uint16_t hash_count; // Number of hashes
@@ -50,8 +50,8 @@ typedef struct dap_chain_cs_dag_event {
 typedef struct dap_chain_cs_dag_event_round_info {
     uint16_t confirmations_minimum; // param auth_certs_count_verify in PoA
     uint32_t confirmations_timeout; // wait confirmations over minimum value (confirmations_minimum)
-    uint64_t ts_confirmations_minimum_completed;
-    uint64_t ts_update;
+    dap_gdb_time_t ts_confirmations_minimum_completed;
+    dap_gdb_time_t ts_update;
     uint16_t reject_count;
     dap_chain_hash_fast_t datum_hash; // for duobles finding
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_info_t;
