@@ -19,10 +19,10 @@ option(ENABLE_BZIP2 "Enable use of BZip2" ON)
 option(ENABLE_LZMA "Enable use of LZMA" ON)
 option(ENABLE_ZSTD "Enable use of Zstandard" ON)
 
-option(BUILD_TOOLS "Build tools in the src directory (zipcmp, zipmerge, ziptool)" ON)
-option(BUILD_REGRESS "Build regression tests" ON)
-option(BUILD_EXAMPLES "Build examples" ON)
-option(BUILD_DOC "Build documentation" ON)
+#option(BUILD_TOOLS "Build tools in the src directory (zipcmp, zipmerge, ziptool)" ON)
+#option(BUILD_REGRESS "Build regression tests" ON)
+#option(BUILD_EXAMPLES "Build examples" ON)
+#option(BUILD_DOC "Build documentation" ON)
 
 include(CheckFunctionExists)
 include(CheckIncludeFiles)
@@ -54,10 +54,10 @@ if(WIN32)
   endif()
 endif()
 
-option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+#option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(LIBZIP_DO_INSTALL "Install libzip and the related files" ON)
 
-option(SHARED_LIB_VERSIONNING "Add SO version in .so build" ON)
+#option(SHARED_LIB_VERSIONNING "Add SO version in .so build" ON)
 
 find_program(MDOCTOOL NAMES mandoc groff)
 if (MDOCTOOL)
