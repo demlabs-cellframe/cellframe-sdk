@@ -171,7 +171,6 @@ static bool s_stream_ch_delete_in_proc(dap_proc_thread_t * a_thread, void * a_ar
     if (l_ch_chain->callback_notify_packet_out)
         l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
                                                l_ch_chain->callback_notify_arg);
-    dap_timerfd_delete(l_ch_chain->activity_timer);
     s_ch_chain_go_idle(l_ch_chain);
     s_free_log_list_gdb(l_ch_chain);
     pthread_rwlock_destroy(&l_ch_chain->idle_lock);
@@ -706,12 +705,13 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
-        uint64_t l_limit_time = l_time_store_lim_hours ? dap_gdb_time_now() - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
+        dap_gdb_time_t l_time_now = dap_gdb_time_now();
+        uint64_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
-            if (l_obj->timestamp >> 32 == 0)
-                continue;
+            if (l_obj->timestamp == 0 || l_obj->timestamp > l_time_now || l_obj->group == NULL)
+                continue;       // the object is broken
             if (s_list_white_groups) {
                 int l_ret = -1;
                 for (int i = 0; i < s_size_white_groups; i++) {
