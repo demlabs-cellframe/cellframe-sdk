@@ -9,7 +9,9 @@ project(libzip
   VERSION 1.8.0
   LANGUAGES C)
 
-option(ENABLE_COMMONCRYPTO "Enable use of CommonCrypto" ON)
+if(LINUX)
+  option(ENABLE_COMMONCRYPTO "Enable use of CommonCrypto" ON)
+endif()
 option(ENABLE_GNUTLS "Enable use of GnuTLS" ON)
 option(ENABLE_MBEDTLS "Enable use of mbed TLS" ON)
 option(ENABLE_OPENSSL "Enable use of OpenSSL" ON)
