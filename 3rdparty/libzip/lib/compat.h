@@ -143,9 +143,9 @@ typedef char bool;
 #define ZIP_OFF_MAX ZIP_INT16_MAX
 #define ZIP_OFF_MIN ZIP_INT16_MIN
 #else
-#define SIZEOF_OFF_T == 4
-#define ZIP_OFF_MAX ZIP_INT32_MAX
-#define ZIP_OFF_MIN ZIP_INT32_MIN
+#define SIZEOF_OFF_T == 8
+#define ZIP_OFF_MAX ZIP_INT64_MAX
+#define ZIP_OFF_MIN ZIP_INT64_MIN
 #endif
 
 #if defined(HAVE_FTELLO) && defined(HAVE_FSEEKO)
@@ -153,8 +153,8 @@ typedef char bool;
 #define ZIP_FSEEK_MIN ZIP_OFF_MIN
 #else
 #include <limits.h>
-#define ZIP_FSEEK_MAX LONG_MAX
-#define ZIP_FSEEK_MIN LONG_MIN
+#define ZIP_FSEEK_MAX ZIP_OFF_MAX
+#define ZIP_FSEEK_MIN ZIP_OFF_MIM 
 #endif
 
 #ifndef SIZE_MAX
