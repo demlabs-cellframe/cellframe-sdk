@@ -94,6 +94,7 @@ endif()
 
 if (BUILD_WITH_ZIP)
     add_subdirectory(3rdparty/libzip)
+    include_directories(3rdparty/libzip/lib)
 endif()
 
 add_subdirectory(dap-sdk)
