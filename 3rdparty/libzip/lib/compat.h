@@ -117,13 +117,13 @@ typedef char bool;
 #endif
 #endif
 
-#ifndef HAVE_FSEEKO
-#define fseeko(s, o, w) (fseek((s), (long int)(o), (w)))
-#endif
+// #ifndef HAVE_FSEEKO
+// #define fseeko(s, o, w) (fseek((s), (long int)(o), (w)))
+// #endif
 
-#ifndef HAVE_FTELLO
-#define ftello(s) ((long)ftell((s)))
-#endif
+// #ifndef HAVE_FTELLO
+// #define ftello(s) ((long)ftell((s)))
+// #endif
 
 #if !defined(HAVE_STRCASECMP)
 #if defined(HAVE__STRICMP)
@@ -152,7 +152,7 @@ typedef char bool;
 #define ZIP_FSEEK_MAX ZIP_OFF_MAX
 #define ZIP_FSEEK_MIN ZIP_OFF_MIN
 #else
-#include <limits.h>
+// #include <limits.h>
 #define ZIP_FSEEK_MAX ZIP_OFF_MAX
 #define ZIP_FSEEK_MIN ZIP_OFF_MIM 
 #endif
