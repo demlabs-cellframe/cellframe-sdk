@@ -95,6 +95,7 @@ endif()
 if (BUILD_WITH_ZIP)
     if(LINUX)
         add_subdirectory(3rdparty/libzip)
+        include_directories(3rdparty/libzip/lib)
     endif()
 endif()
 
