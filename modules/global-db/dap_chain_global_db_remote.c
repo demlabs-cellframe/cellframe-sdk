@@ -71,8 +71,10 @@ static void *s_list_thread_proc(void *arg)
             dap_list_t *l_list = NULL;
             for (size_t i = 0; i < l_item_count; i++) {
                 dap_store_obj_t *l_obj_cur = l_objs + i;
+                if (!l_obj_cur)
+                    continue;
                 l_obj_cur->type = l_obj_type;
-                if (l_obj_cur->timestamp == 0 ||
+                if (l_obj_cur->timestamp >> 32 == 0 ||
                         l_obj_cur->timestamp > l_time_now ||
                         l_obj_cur->group == NULL) {
                     dap_chain_global_db_driver_delete(l_obj_cur, 1);

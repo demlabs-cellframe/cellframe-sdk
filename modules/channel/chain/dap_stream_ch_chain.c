@@ -710,7 +710,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
-            if (l_obj->timestamp == 0 || l_obj->timestamp > l_time_now || l_obj->group == NULL)
+            if (l_obj->timestamp >> 32 == 0 || l_obj->timestamp > l_time_now || l_obj->group == NULL)
                 continue;       // the object is broken
             if (s_list_white_groups) {
                 int l_ret = -1;
