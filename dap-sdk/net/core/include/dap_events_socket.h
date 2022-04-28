@@ -106,6 +106,7 @@ typedef int SOCKET;
 #define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )
 #define DAP_SOCK_CONNECTING         BIT( 3 ) // When connection happens this flag is armed for outgoing connections until its establish the connection
 #define DAP_SOCK_REASSIGN_ONCE     BIT( 4 )   // This usable for FlowControl to prevent multiple reassigment
+#define DAP_SOCK_DROP_WRITE_IF_ZERO  BIT( 5 )   // Drop down WRITE flag from socket if reach zero bytes in output buffer
 
 // If set - queue limited to sizeof(void*) size of data transmitted
 #define DAP_SOCK_QUEUE_PTR         BIT( 8 )
