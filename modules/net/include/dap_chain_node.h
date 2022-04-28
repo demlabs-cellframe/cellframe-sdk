@@ -40,6 +40,7 @@
 
 
 #include "dap_common.h"
+#include "dap_list.h"
 #include "dap_worker.h"
 #include "dap_events_socket.h"
 
@@ -100,12 +101,28 @@ typedef struct dap_chain_node_publ{
     dap_chain_node_info_t node_info;
 } DAP_ALIGN_PACKED dap_chain_node_publ_t;
 
+
+typedef dap_list_t dap_chain_node_info_list_t;
+
 #define DAP_CHAIN_NODE_MEMPOOL_INTERVAL 1000    // milliseconds
 
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
 size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info);
+
+
+/**
+ * Compare addresses of two dap_chain_node_info_t structures
+ *
+ * @return True if addresses are equal, otherwise false
+ */
+bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain_node_info_t *node_info2);
+
+/**
+ * Compare two struct dap_chain_node_info_t
+ */
+bool dap_chain_node_info_match(dap_chain_node_info_t *node_info1, dap_chain_node_info_t *node_info2);
 
 /**
  * Serialize dap_chain_node_info_t
@@ -147,3 +164,22 @@ inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *addre
 int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 bool dap_chain_node_mempool_autoproc_init();
 void dap_chain_node_mempool_autoproc_deinit();
+
+/**
+ * @brief Find a_node_info in the a_node_list
+ */
+bool dap_chain_node_info_list_is_added(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info);
+
+/**
+ * @brief Add a_node_info to the a_node_list
+ */
+dap_chain_node_info_list_t* dap_chain_node_info_list_add(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info);
+/**
+ * @brief Remove a_node_info from the a_node_list
+ */
+dap_chain_node_info_list_t* dap_chain_node_info_list_del(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info);
+
+/**
+ * @brief Free a_node_list
+ */
+void dap_chain_node_info_list_free(dap_chain_node_info_list_t *a_node_list);
