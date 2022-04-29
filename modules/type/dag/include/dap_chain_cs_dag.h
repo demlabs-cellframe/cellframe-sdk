@@ -62,6 +62,7 @@ typedef struct dap_chain_cs_dag
 
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;
+    char *gdb_group_datums_queue;
 
     dap_chain_cs_dag_callback_t callback_delete;
     dap_chain_cs_dag_callback_event_create_t callback_cs_event_create;
@@ -87,3 +88,4 @@ void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag);
 
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag,
                                                               dap_chain_hash_fast_t * a_hash);
+void dap_chain_cs_new_event_add_datums(dap_chain_t *a_chain, bool a_round_check);
