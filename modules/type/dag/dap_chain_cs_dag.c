@@ -279,17 +279,17 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     char * l_round_new_str = dap_strdup( dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new", "new"));
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     
-    char *l_gdb_group = NULL;
     l_dag->broadcast_disable = true;
     if(!l_dag->is_celled){
-        l_gdb_group = dap_strdup_printf( "dag-%s-%s-round", l_net->pub.gdb_groups_prefix, a_chain->name);
+        char *l_gdb_group = dap_strdup_printf( "dag-%s-%s-round", l_net->pub.gdb_groups_prefix, a_chain->name);
         l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", l_gdb_group, l_round_new_str);
+        dap_chain_global_db_add_sync_group(l_net->pub.name, l_gdb_group, s_history_callback_round_notify, l_dag);
     } else {
-        l_gdb_group = dap_strdup_printf( "dag-%s-%s-%016llx-round", l_net->pub.gdb_groups_prefix, a_chain->name, 0);//a_chain->cells->id.uint64);
+        char *l_gdb_group = dap_strdup_printf( "dag-%s-%s-%016llx-round", l_net->pub.gdb_groups_prefix, a_chain->name, 0);//a_chain->cells->id.uint64);
         l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", l_gdb_group, l_round_new_str);
+        dap_chain_global_db_add_sync_group(l_net->pub.name, l_gdb_group, s_history_callback_round_notify, l_dag);
     }
-    dap_chain_global_db_gr_del(NULL, l_gdb_group);
-    dap_chain_global_db_add_sync_group(l_net->pub.name, l_gdb_group, s_history_callback_round_notify, l_dag);
+    dap_chain_global_db_gr_del(NULL, l_dag->gdb_group_events_round_new);
     l_dag->gdb_group_datums_queue = dap_strdup_printf("local.datums-queue.chain-%s.%s",
                                                         l_net->pub.gdb_groups_prefix, a_chain->name);
     DAP_DELETE(l_round_new_str);
