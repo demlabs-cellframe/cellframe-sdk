@@ -214,9 +214,15 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     a_chain->callback_atom_find_by_hash = s_callback_atom_iter_find_by_hash;
     a_chain->callback_tx_find_by_hash = s_callback_atom_iter_find_by_tx_hash;
 
+    // ---!!!
     a_chain->callback_add_datums = s_callback_add_datums;
     a_chain->callback_purge = s_callback_cs_blocks_purge;
 
+    //dap_strdup_printf("%s.chain-%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
+    //l_cs_blocks->gdb_group_datums_queue = "local.datums-queue.";
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    l_cs_blocks->gdb_group_datums_queue = dap_strdup_printf("local.datums-queue.chain-%s.%s",
+                                                        l_net->pub.gdb_groups_prefix, a_chain->name);
     l_cs_blocks->callback_new_block_del = s_new_block_delete;
 
     dap_chain_cs_blocks_pvt_t *l_cs_blocks_pvt = DAP_NEW_Z(dap_chain_cs_blocks_pvt_t);
@@ -1242,53 +1248,141 @@ static bool s_callback_datums_timer(void *a_arg)
 static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_datums, size_t a_datums_count)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
-    // IMPORTANT - all datums on input should be checked before for curruption because datum size is taken from datum's header
-    pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
-    if (!l_blocks->block_new) {
-        l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash, &l_blocks->block_new_size);
-        dap_chain_net_t *l_net = dap_chain_net_by_id(l_blocks->chain->net_id);
-        l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
-        l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
-    }
+    char *l_gdb_group = l_blocks->gdb_group_datums_queue;
 
-    size_t l_datum_processed = 0 ;
+    size_t l_datum_processed = 0;
     for (size_t i = 0; i < a_datums_count; i++) {
         size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
-
-        dap_chain_datum_t * l_datum = a_datums[i];
-        if(l_datum == NULL){ // Was wrong datum thats not passed checks
-            log_it(L_WARNING,"Datum in mempool processing comes NULL");
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_datums[i];
+        if (!l_datum_size || !l_datum)
             continue;
-        }
 
         // Verify for correctness
-        dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
-        int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum);
         if (l_verify_datum != 0 &&
                 l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
                 l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
             log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
                                      l_verify_datum);
             continue;
         }
 
-        // TODO: new blocks queue
-        if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum) {
-            continue;
-        //     // s_new_block_complete(l_blocks);
-        //     pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
-        //     s_callback_add_datums(a_chain, &a_datums[i], a_datums_count - i);
-        //     pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
+        dap_chain_hash_fast_t l_key_hash;
+        dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+        char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+
+        if (dap_chain_global_db_gr_set(l_key_str, l_datum, l_datum_size, l_gdb_group) ) {
+            l_datum_processed++;
         }
-        l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size,
-                                                             a_datums[i], l_datum_size);
-        l_datum_processed++;
     }
-    // if (!l_blocks_pvt->fill_timer)
-    //     l_blocks_pvt->fill_timer = dap_timerfd_start(l_blocks_pvt->fill_timeout, s_callback_datums_timer, l_blocks);
-    pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
-    // return l_blocks->block_new_size;
     return l_datum_processed;
 }
+
+void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
+
+    pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
+    char *l_gdb_group = l_blocks->gdb_group_datums_queue;
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
+    
+    if (l_objs_size) {
+        for (size_t i = 0; i < l_objs_size; i++) {
+            if (!l_objs[i].value_len) {
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group); // delete from datums queue
+                continue;
+            }
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            size_t l_datum_size = dap_chain_datum_size(l_datum);
+            if(!l_datum_size || l_datum == NULL){ // Was wrong datum thats not passed checks
+                log_it(L_WARNING,"Datum in mempool processing comes NULL");
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group); // delete from datums queue
+                continue;
+            }
+            // Verify for correctness
+            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+            int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum);
+            if (l_verify_datum != 0 &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
+                log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
+                                         l_verify_datum);
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group); // delete from datums queue
+                continue;
+            }
+            if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum)
+                continue;
+
+            if (!l_blocks->block_new) {
+                l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash, &l_blocks->block_new_size);
+                dap_chain_net_t *l_net = dap_chain_net_by_id(l_blocks->chain->net_id);
+                l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+                l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
+            }
+
+            l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size,
+                                                                    l_datum, l_datum_size);
+        }
+    }
+    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+    pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+}
+
+// static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_datums, size_t a_datums_count)
+// {
+//     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+//     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
+//     // IMPORTANT - all datums on input should be checked before for curruption because datum size is taken from datum's header
+//     pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
+//     if (!l_blocks->block_new) {
+//         l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash, &l_blocks->block_new_size);
+//         dap_chain_net_t *l_net = dap_chain_net_by_id(l_blocks->chain->net_id);
+//         l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+//         l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
+//     }
+
+//     size_t l_datum_processed = 0 ;
+//     for (size_t i = 0; i < a_datums_count; i++) {
+//         size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
+
+//         dap_chain_datum_t * l_datum = a_datums[i];
+//         if(l_datum == NULL){ // Was wrong datum thats not passed checks
+//             log_it(L_WARNING,"Datum in mempool processing comes NULL");
+//             continue;
+//         }
+
+//         // Verify for correctness
+//         dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
+//         int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+//         if (l_verify_datum != 0 &&
+//                 l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+//                 l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+//                 l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
+//             log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
+//                                      l_verify_datum);
+//             continue;
+//         }
+
+//         // TODO: new blocks queue
+//         if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum) {
+//             continue;
+//         //     // s_new_block_complete(l_blocks);
+//         //     pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+//         //     s_callback_add_datums(a_chain, &a_datums[i], a_datums_count - i);
+//         //     pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
+//         }
+//         l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size,
+//                                                              a_datums[i], l_datum_size);
+//         l_datum_processed++;
+//     }
+//     // if (!l_blocks_pvt->fill_timer)
+//     //     l_blocks_pvt->fill_timer = dap_timerfd_start(l_blocks_pvt->fill_timeout, s_callback_datums_timer, l_blocks);
+//     pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+//     // return l_blocks->block_new_size;
+//     return l_datum_processed;
+// }
