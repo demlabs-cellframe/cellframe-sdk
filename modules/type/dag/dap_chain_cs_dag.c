@@ -58,7 +58,7 @@
 
 typedef struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;
-    time_t ts_added;
+    dap_gdb_time_t ts_added;
     dap_chain_cs_dag_event_t *event;
     size_t event_size;
     UT_hash_handle hh;
@@ -113,6 +113,7 @@ static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_lasts( dap_chain_ato
 static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt event from dag
 
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_size);
+static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_datums, size_t a_datums_count);
 // Datum ops
 /*
 static dap_chain_datum_iter_t* s_chain_callback_datum_iter_create(dap_chain_t * a_chain );
@@ -130,6 +131,7 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
 
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
+
 /**
  * @brief dap_chain_cs_dag_init
  * @return
@@ -177,8 +179,18 @@ static void s_history_callback_round_notify(void *a_arg, const char a_op_code, c
         debug_if(s_debug_more, L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
             l_net->pub.name, l_dag->chain->name, a_op_code, a_group, a_key, a_value_size);
         if (a_op_code == DAP_DB$K_OPTYPE_ADD && 
-                l_dag->callback_cs_event_round_sync) {
+                            l_dag->callback_cs_event_round_sync) {
+            dap_chain_cs_dag_event_round_item_t *l_event_round_item =
+                                (dap_chain_cs_dag_event_round_item_t *)a_value;
+            if (l_event_round_item) {
+                char *l_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_event_round_item->round_info.datum_hash);
+                dap_chain_global_db_gr_del(l_datum_hash_str, l_dag->gdb_group_events_round_new);
+                DAP_DELETE(l_datum_hash_str);
+            }
             l_dag->callback_cs_event_round_sync(l_dag, a_op_code, a_group, a_key, a_value, a_value_size);
+        }
+        else if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
+            dap_chain_cs_new_event_add_datums(l_dag->chain, true);
         }
         dap_chain_cs_dag_event_broadcast(l_dag, a_op_code, a_group,
             a_key, a_value, a_value_size);
@@ -222,7 +234,9 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;
     a_chain->callback_tx_find_by_hash = s_chain_callback_atom_find_by_tx_hash;
 
-    a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
+    // ---!!! 
+    // a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
+    a_chain->callback_add_datums = s_callback_add_datums;
 
     // Datum operations callbacks
 /*
@@ -274,6 +288,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", gdb_group, l_round_new_str);
         dap_chain_global_db_add_sync_group(l_net->pub.name, gdb_group, s_history_callback_round_notify, l_dag);
     }
+    l_dag->gdb_group_datums_queue = dap_strdup_printf("local.datums-queue.chain-%s.%s",
+                                                        l_net->pub.gdb_groups_prefix, a_chain->name);
  
     DAP_DELETE(l_round_new_str);
 
@@ -282,7 +298,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     } else {
         log_it (L_NOTICE, "DAG chain initialized (multichain)");
     }
-
+    
+    // dap_chain_cs_new_event_add_datums(l_dag->chain, true);
     return 0;
 }
 
@@ -434,7 +451,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     pthread_rwlock_t * l_events_rwlock = &PVT(l_dag)->events_rwlock;
     l_event_item->event = l_event;
     l_event_item->event_size = a_atom_size;
-    l_event_item->ts_added = time(NULL);
+    l_event_item->ts_added = dap_time_now();
 
     dap_chain_hash_fast_t l_event_hash;
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
@@ -539,12 +556,119 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t 
     return NULL;
 }
 
+
+
+
 /**
  * @brief s_chain_callback_datums_add
  * @param a_chain
  * @param a_datums
  * @param a_datums_size
  */
+static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_datums, size_t a_datums_count)
+{
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    char *l_gdb_group = l_dag->gdb_group_datums_queue;
+
+    if (l_dag->is_add_directly) {
+        return s_chain_callback_datums_pool_proc(a_chain, a_datums, a_datums_count);
+    }
+
+    size_t l_datum_processed = 0;
+    for (size_t i = 0; i < a_datums_count; i++) {
+        size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_datums[i];
+        if (!l_datum_size || !l_datum)
+            continue;
+
+        // Verify for correctness
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum);
+        if (l_verify_datum != 0 &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
+            log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
+                                     l_verify_datum);
+            continue;
+        }
+
+        dap_chain_hash_fast_t l_key_hash;
+        dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+        char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+
+        if (dap_chain_global_db_gr_set(l_key_str, l_datum, l_datum_size, l_gdb_group) ) {
+            l_datum_processed++;
+        }
+    }
+    dap_chain_cs_new_event_add_datums(a_chain, true);
+    return l_datum_processed;
+}
+
+void dap_chain_cs_new_event_add_datums(dap_chain_t *a_chain, bool a_round_check)
+{
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    char *l_gdb_group_queue = l_dag->gdb_group_datums_queue;
+    char *l_gdb_group_round = l_dag->gdb_group_events_round_new;
+
+    if (l_dag->is_add_directly) {
+        return;
+    }
+
+    if (a_round_check) {
+        size_t l_round_objs_size = 0;
+        dap_global_db_obj_t *l_round_objs = dap_chain_global_db_gr_load(l_gdb_group_round, &l_round_objs_size);
+        if (l_round_objs_size) {
+            dap_chain_global_db_objs_delete(l_round_objs, l_round_objs_size);
+            return;
+        }
+    }
+
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_queue, &l_objs_size);
+    if (l_objs_size) {
+        for (size_t i = 0; i < l_objs_size; i++) {
+            if (!l_objs[i].value_len) {
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_queue); // delete from datums queue
+                continue;
+            }
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            size_t l_datum_size = dap_chain_datum_size(l_datum);
+            if(!l_datum_size || l_datum == NULL){ // Was wrong datum thats not passed checks
+                log_it(L_WARNING,"Datum in mempool processing comes NULL");
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_queue); // delete from datums queue
+                continue;
+            }
+
+            // dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
+            // if ( dap_time_now() -  ) 
+
+            // Verify for correctness
+            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+            int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum);
+            if (l_verify_datum != 0 &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
+                log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
+                                         l_verify_datum);
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_queue); // delete from datums queue
+                continue;
+            }
+
+            // if ( s_chain_callback_datums_pool_proc(a_chain, &l_datum, 1) ) {
+            //     break;
+            // }
+            if (s_chain_callback_datums_pool_proc(a_chain, &l_datum, 1)) {
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_queue);
+            }
+            break;
+        }
+        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+    }
+}
+
+
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count)
 {
 
@@ -565,16 +689,18 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             continue;
         }
 
-        // Verify for correctness
-        dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
-        int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-        if (l_verify_datum != 0 &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
-            log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
-                                     l_verify_datum);
-            continue;
+        if (l_dag->is_add_directly) {
+            // Verify for correctness
+            dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
+            int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+            if (l_verify_datum != 0 &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
+                log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
+                                         l_verify_datum);
+                continue;
+            }
         }
 
         // Prepare round
@@ -696,7 +822,7 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         }
     }
     DAP_DELETE(l_hashes);
-    return  l_datum_processed;
+    return l_datum_processed;
 }
 
 

@@ -54,7 +54,7 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id,
             + l_hashes_size
             + l_datum_size;
     l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, l_event_size);
-    l_event_new->header.ts_created = (uint64_t)time(NULL);
+    l_event_new->header.ts_created = dap_time_now();
     l_event_new->header.cell_id.uint64 = a_cell_id.uint64;
     l_event_new->header.chain_id.uint64 = a_chain_id.uint64;
     l_event_new->header.hash_count = a_hashes_count;
@@ -308,7 +308,7 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
     memcpy(l_round_item->event_n_signs,                 a_event, a_event_size);
     memcpy(l_round_item->event_n_signs + a_event_size,  l_signs, l_signs_size);
 
-    l_round_item->round_info.ts_update = (uint64_t)time(NULL);
+    l_round_item->round_info.ts_update = dap_time_now();
 
     bool ret = dap_chain_global_db_gr_set(a_event_hash_str, l_round_item,
             dap_chain_cs_dag_event_round_item_get_size(l_round_item),
