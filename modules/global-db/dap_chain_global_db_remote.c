@@ -56,6 +56,7 @@ static void *s_list_thread_proc(void *arg)
             l_obj_type = DAP_DB$K_OPTYPE_ADD;
         }
         uint64_t l_item_start = l_group_cur->last_id_synced + 1;
+        dap_gdb_time_t l_time_now = dap_gdb_time_now();
         while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
             size_t l_item_count = min(64, l_group_cur->count);
             dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
@@ -70,7 +71,15 @@ static void *s_list_thread_proc(void *arg)
             dap_list_t *l_list = NULL;
             for (size_t i = 0; i < l_item_count; i++) {
                 dap_store_obj_t *l_obj_cur = l_objs + i;
+                if (!l_obj_cur)
+                    continue;
                 l_obj_cur->type = l_obj_type;
+                if (l_obj_cur->timestamp >> 32 == 0 ||
+                        l_obj_cur->timestamp > l_time_now ||
+                        l_obj_cur->group == NULL) {
+                    dap_chain_global_db_driver_delete(l_obj_cur, 1);
+                    continue;       // the object is broken
+                }
                 if (l_obj_type == DAP_DB$K_OPTYPE_DEL) {
                     if (l_limit_time && l_obj_cur->timestamp < l_limit_time) {
                         dap_chain_global_db_driver_delete(l_obj_cur, 1);
