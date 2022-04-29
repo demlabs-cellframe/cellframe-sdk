@@ -408,22 +408,18 @@ static bool s_poa_round_check(dap_chain_t *a_chain) {
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(l_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
 
-printf("---!!! s_poa_round_check() 1 \n");
-
     char *l_gdb_group_round = l_dag->gdb_group_events_round_new;
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_round, &l_objs_size);
     size_t l_events_count = 0;
     if (l_objs_size) {
         for (size_t i = 0; i<l_objs_size; i++) {
-printf("---!!! s_poa_round_check() 2 \n");
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
             size_t l_event_size = l_event_round_item->event_size;
             dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs;
             if (  (dap_time_now() - l_event_round_item->round_info.ts_update) >   
                     (l_poa_pvt->confirmations_timeout+l_poa_pvt->wait_sync_before_complete+10)  ) {
                 dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_round);
-printf("---!!! s_poa_round_check() 3 \n");
                 log_it(L_MSG, "DAG-PoA: Remove event %s from round by timer.", l_objs[i].key);
             }
             else {
@@ -434,7 +430,6 @@ printf("---!!! s_poa_round_check() 3 \n");
     }
 
     if (!l_events_count) {
-printf("---!!! s_poa_round_check() 4 \n");
         dap_chain_cs_new_event_add_datums(a_chain, false);
     }
     return true;
@@ -906,9 +901,6 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             // Compare signature with auth_certs
             a_event->header.signs_count = i;
             for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
-printf("---!!! s_callback_event_verify() compare:%d verify:%d \n", 
-                dap_cert_compare_with_sign( l_poa_pvt->auth_certs[j], l_sign),
-                dap_sign_verify(l_sign, a_event, l_offset_from_beginning) );
                 if (dap_cert_compare_with_sign( l_poa_pvt->auth_certs[j], l_sign) == 0
                             && dap_sign_verify(l_sign, a_event, l_offset_from_beginning) == 1 ){
                     l_signs_verified_count++;
