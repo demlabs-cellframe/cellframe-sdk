@@ -1554,10 +1554,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 								log_it(L_MSG, "TON: APPROVE: candidate found in store:%s & !approve_collected", l_candidate_hash_str);
 							l_store->hdr.approve_collected = true;
 							if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
-																l_store_size, l_session->gdb_group_store) )
+                                                                l_store_size, l_session->gdb_group_store) ) {
 								if (PVT(l_session->ton)->debug)
 									log_it(L_MSG, "TON: APPROVE: candidate update:%s approve_collected=true", l_candidate_hash_str);
-							else
+                            } else
 								if (PVT(l_session->ton)->debug)
 									log_it(L_MSG, "TON: APPROVE: can`t update candidate:%s", l_candidate_hash_str);
 
