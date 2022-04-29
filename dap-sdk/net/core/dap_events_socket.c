@@ -598,6 +598,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
+    char l_errbuf[128] = {0};
     int l_pipe[2];
     l_errbuf[0]=0;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
@@ -605,6 +606,8 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 #elif defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     if( pipe(l_pipe) < 0 ){
 #endif
+        char l_errbuf[128] = {0};
+        int  l_errno;
         l_errno = errno;
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         switch (l_errno) {

@@ -10,7 +10,8 @@
  */
 
 #include "random_seed.h"
-#include <json-c/config.h>
+//#include <json-c/json.h>
+#include <json.h>
 #include "strerror_override.h"
 #include <stdio.h>
 

@@ -32,7 +32,7 @@
 #include <unistd.h>
 #include <limits.h>
 #ifdef DAP_BUILD_WITH_ZIP
-#include <zip.h>
+//#include <zip.h>
 #endif
 #if (OS_TARGET == OS_MACOS)
     #include <stdio.h>

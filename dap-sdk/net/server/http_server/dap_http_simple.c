@@ -40,8 +40,10 @@ See more details here <http://www.gnu.org/licenses/>.
 #include <pthread.h>
 
 #include "utlist.h"
-#include "json-c/json.h"
-#include "json-c/json_object.h"
+//#include "json-c/json.h"
+//#include "json-c/json_object.h"
+#include "json.h"
+#include "json_object.h"
 
 #include "dap_common.h"
 #include "dap_config.h"
