@@ -9,6 +9,7 @@
 #define __DAP_LIST_H__
 
 #include    <errno.h>                                                       /* <errno> codes */
+#include <stdatomic.h>
 
 #include    "dap_common.h"                                                  /* DAP_ALLOC, DAP_FREE */
 
@@ -28,15 +29,16 @@ typedef struct __dap_slist__ {
             dap_slist_elm_t   *head,                                         /* An address of first element */
                             *tail;                                          /* An address of last element */
                     int     nr;                                             /* A number of elements in list  */
+                    int     s_dap_insqtail_count,
+                            s_dap_remqhead_count;
+
 } dap_slist_t;
-
-
 
 static inline int    s_dap_insqtail    ( dap_slist_t *q, void *data, int datasz)
 {
 dap_slist_elm_t *elm;
 
-    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )                       /* Allocate memory for new element */
+    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )   /* Allocate memory for new element */
         return  -ENOMEM;
 
     elm->flink = NULL;                                                      /* This element is terminal */
@@ -50,16 +52,19 @@ dap_slist_elm_t *elm;
     q->tail = elm;                                                          /* Point list's tail to new element also */
 
     if ( !q->head )                                                         /* This is a first element in the list  ? */
-        q->head = elm;                                                     /* point head to the new element */
+        q->head = elm;                                                      /* point head to the new element */
 
     q->nr++;                                                                /* Adjust entries counter */
     //log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
+    q->s_dap_insqtail_count++;
+
     return  0;
 }
 
 static inline int    s_dap_remqhead    ( dap_slist_t *q, void **data, size_t *datasz)
 {
 dap_slist_elm_t *elm;
+static atomic_uint s_dap_remqhead_count;
 
     if ( !(elm = q->head) )                                                 /* Queue is empty - just return error code */
         return -ENOENT;
@@ -74,6 +79,9 @@ dap_slist_elm_t *elm;
 
     q->nr--;                                                                /* Adjust entries counter */
     //log_it(L_DEBUG, "Get data: %p, size: %d (qlen: %d)", *data, *datasz, q->nr);
+
+    q->s_dap_remqhead_count++;
+
     return  0;
 }
 

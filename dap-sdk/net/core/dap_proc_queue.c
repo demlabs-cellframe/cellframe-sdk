@@ -130,15 +130,18 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     pri = MIN(pri, DAP_QUE$K_PRIMAX - 1);
     pri = MAX(pri, 0);
 
-        l_item->callback = l_msg->callback;
-        l_item->callback_arg = l_msg->callback_arg;
+    l_item->callback = l_msg->callback;
+    l_item->callback_arg = l_msg->callback_arg;
 
-    pthread_mutex_lock(&l_queue->list[pri].lock);                           /* Protect list from other threads */
-    l_rc = s_dap_insqtail (&l_queue->list[pri].items, l_item, 1);
-    pthread_mutex_unlock(&l_queue->list[pri].lock);
+    assert ( (!pthread_mutex_lock(&l_queue->list[pri].lock)) );               /* Protect list from other threads */
+    assert ( !(l_rc = s_dap_insqtail (&l_queue->list[pri].items, l_item, 1))  );
+    assert ( (!pthread_mutex_unlock(&l_queue->list[pri].lock)) );
 
     if ( l_rc )
+    {
         log_it(L_CRITICAL, "Enqueue failed: %d, drop l_msg:%p, callback: %p/%p, pri: %d", l_rc, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+        DAP_DELETE(l_item);
+    }
     else
         debug_if(g_debug_reactor, L_DEBUG, "Enqueued l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
 

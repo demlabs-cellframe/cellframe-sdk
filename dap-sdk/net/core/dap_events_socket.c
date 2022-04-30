@@ -1189,17 +1189,14 @@ static void *dap_events_socket_buf_thread(void *arg)
 
 static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 {
-static atomic_uint_fast64_t l_thd_count;
+static uint64_t l_thd_count;
 int     l_rc;
 pthread_t l_thread;
 dap_events_socket_buf_item_t *l_item;
 
-    atomic_fetch_add(&l_thd_count, 1);                                      /* Count an every call of this routine */
-
     if ( !(l_item = DAP_NEW(dap_events_socket_buf_item_t)) )                /* Allocate new item - argument for new thread */
     {
-        log_it (L_ERROR, "[#%lu] No memory for new item, errno=%d,  drop: a_es: %p, a_arg: %p",
-                atomic_load(&l_thd_count), errno, a_es, a_arg);
+        log_it (L_ERROR, "[#%lu] No memory for new item, errno=%d,  drop: a_es: %p, a_arg: %p", l_thd_count, errno, a_es, a_arg);
         return;
     }
 
@@ -1208,13 +1205,15 @@ dap_events_socket_buf_item_t *l_item;
 
     if ( (l_rc = pthread_create(&l_thread, &s_attr_detached /* @RRL: #6157 */, dap_events_socket_buf_thread, l_item)) )
     {
-        log_it(L_ERROR, "[#%lu] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d",
-                 atomic_load(&l_thd_count), a_es, a_arg, l_rc);
+        log_it(L_ERROR, "[#%lu] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d", l_thd_count, a_es, a_arg, l_rc);
         return;
     }
 
-    debug_if(g_debug_reactor, L_DEBUG, "[#%lu] Created thread %lx, a_es: %p, a_arg: %p",
-             atomic_load(&l_thd_count), l_thread, a_es, a_arg);
+    debug_if(g_debug_reactor, L_DEBUG, "[#%lu] Created thread %lx, a_es: %p, a_arg: %p", l_thd_count, l_thread, a_es, a_arg);
+
+    l_thd_count++;                                                          /* We don't need to maintain atomic value
+                                                                              because this count for estimating of amount of
+                                                                              has been created threads */
 }
 
 /**

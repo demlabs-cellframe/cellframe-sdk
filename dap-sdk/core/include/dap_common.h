@@ -107,6 +107,46 @@ typedef uint8_t byte_t;
 #define DAP_CAST_REINT(t,v) ((t*) v)
 #endif
 
+
+#ifdef  __MEMORY_DEBUG__                                                    /* @RRL: #6157 */
+static  void *__malloc(const char *f, int l, size_t sz)
+{
+void    *p;
+    p = malloc(sz);
+    fprintf(stdout, "%p malloc %08zu [%s:%d] \n", p, sz, f, l);
+    fflush(stdout);
+
+    return  p;
+}
+
+
+static  void *__calloc(const char *f, int l, size_t n, size_t sz)
+{
+void    *p;
+    p = calloc(n, sz);
+    fprintf(stdout, "%p calloc %08zu [%s:%d] \n", p, n*sz, f, l);
+    fflush(stdout);
+
+    return  p;
+}
+
+
+static  void __free(const char *f, int l, void *p)
+{
+    free(p);
+    fprintf(stdout, "%p free            [%s:%d] \n", p, f, l);
+
+    fflush(stdout);
+}
+#else
+#define __malloc(f, l, sz)      malloc(sz)
+#define __calloc(f, l, n, sz)   calloc(n,sz)
+#define __free(f, l, p)         free(p)
+#endif
+
+
+
+
 #if DAP_USE_RPMALLOC
   #include "rpmalloc.h"
   #define DAP_MALLOC(a)         rpmalloc(a)
@@ -124,25 +164,26 @@ typedef uint8_t byte_t;
   #define DAP_DUP(a)            memcpy(rpmalloc(sizeof(*a)), a, sizeof(*a))
   #define DAP_DUP_SIZE(a, s)    memcpy(rpmalloc(s), a, s)
 #else
-  #define DAP_MALLOC(a)         malloc(a)
-  #define DAP_FREE(a)           free(a)
-  #define DAP_CALLOC(a, b)      calloc(a, b)
+  #define DAP_MALLOC(a)         __malloc(__PRETTY_FUNCTION__, __LINE__, a)
+  #define DAP_FREE(a)           __free(__PRETTY_FUNCTION__, __LINE__, a)
+  #define DAP_CALLOC(a, b)      __calloc(__PRETTY_FUNCTION__, __LINE__, a, b)
   #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
   #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
   #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
-  #define DAP_NEW( a )          DAP_CAST_REINT(a, malloc(sizeof(a)) )
-  #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, malloc(b) )
+  #define DAP_NEW( a )          DAP_CAST_REINT(a, __malloc(__PRETTY_FUNCTION__, __LINE__,sizeof(a)) )
+  #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, __malloc(__PRETTY_FUNCTION__, __LINE__,b) )
   #define DAP_NEW_S( a )        DAP_CAST_REINT(a, alloca(sizeof(a)) )
   #define DAP_NEW_S_SIZE(a, b)  DAP_CAST_REINT(a, alloca(b) )
-  #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, calloc(1,sizeof(a)))
-  #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, calloc(1,b))
+  #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, __calloc(__PRETTY_FUNCTION__, __LINE__, 1, sizeof(a)))
+  #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, __calloc(__PRETTY_FUNCTION__, __LINE__, 1, b))
   #define DAP_REALLOC(a, b)     realloc(a,b)
-  #define DAP_DELETE(a)         free((void *)a)
-  #define DAP_DUP(a)            memcpy(malloc(sizeof(*a)), a, sizeof(*a))
-  #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
+  #define DAP_DELETE(a)         __free(__PRETTY_FUNCTION__, __LINE__, (void *) a)
+  #define DAP_DUP(a)            memcpy(__malloc(__PRETTY_FUNCTION__, __LINE__, sizeof(*a)), (a), sizeof(*a))
+  #define DAP_DUP_SIZE(a, s)    memcpy(__malloc(__PRETTY_FUNCTION__, __LINE__, (s)), a, s)
 #endif
 
-#define DAP_DEL_Z(a)            if (a) { DAP_DELETE((void *)a); (a) = NULL; }
+//#define DAP_DEL_Z(a)            if (a) { DAP_DELETE((void *)a); (a) = NULL; }
+#define DAP_DEL_Z(a)            {DAP_DELETE((void *)a); (a) = NULL;}
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {

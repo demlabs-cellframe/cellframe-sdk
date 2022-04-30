@@ -34,6 +34,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <stdatomic.h>
 
 #include "dap_worker.h"
 #include "dap_file_utils.h"
@@ -166,9 +167,13 @@ int dap_db_driver_flush(void)
  * @param a_store_count a number of objects
  * @return A pointer to the copied objects.
  */
+
+static atomic_uint s_dap_store_obj_copy_count;
+
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
 dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
+
 
     if(!a_store_obj || !a_store_count)
         return NULL;
@@ -190,6 +195,8 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
         l_store_obj_dst->cb_arg = l_store_obj_src->cb_arg;
     }
 
+    atomic_fetch_add(&s_dap_store_obj_copy_count, 1);
+
     return l_store_obj;
 }
 
@@ -199,6 +206,8 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
  * @param a_store_count a number of objects
  * @return (none)
  */
+static atomic_uint s_dap_store_obj_free_count;
+
 void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
 {
     if(!a_store_obj)
@@ -212,7 +221,10 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
         DAP_DEL_Z(l_store_obj_cur->value);
     }
     DAP_DEL_Z(a_store_obj);
+
+    atomic_fetch_add(&s_dap_store_obj_free_count, 1);
 }
+
 
 /**
  * @brief Calculates a hash of data.
@@ -287,7 +299,8 @@ size_t l_store_obj_cnt;
     debug_if(s_dap_global_db_debug_more, L_DEBUG, "Entering, %d entries in the queue ...",  s_db_reqs_list.nr);
 
     if ( (l_ret = pthread_mutex_lock(&s_db_reqs_list_lock)) )               /* Get exclusive access to the request list */
-         return log_it(L_ERROR, "Cannot lock request queue, errno=%d",l_ret), 0;
+         return log_it(L_ERROR, "Cannot lock request queue, errno=%d",l_ret),
+                 0;                                                         /* Return 'zero' to be called again */
 
     if ( !s_db_reqs_list.nr )                                               /* Nothing to do ?! Just exit */
     {

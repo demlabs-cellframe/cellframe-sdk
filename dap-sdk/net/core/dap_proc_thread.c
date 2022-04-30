@@ -181,9 +181,9 @@ dap_proc_queue_t    *l_queue;
         if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
             continue;
 
-        pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
-        l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
-        pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+        assert ( !(pthread_mutex_lock(&l_queue->list[l_cur_pri].lock)) );   /* Protect list from other threads */
+        assert ( !(l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size)) );
+        assert ( !(pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock)) );
 
         if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
             debug_if (g_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
@@ -193,8 +193,8 @@ dap_proc_queue_t    *l_queue;
         debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
-        l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
-        l_is_anybody_for_repeat++;
+        l_is_finished = l_item->callback(l_thread, l_item->callback_arg);   /* De execute that task */
+        l_is_anybody_for_repeat++;                                          /* Arm "need to run this procedure again" */
 
         debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
                            l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
@@ -202,16 +202,15 @@ dap_proc_queue_t    *l_queue;
         if ( !(l_is_finished) ) {
                                                                             /* Rearm callback to be executed again */
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, 1);
+            assert ( !(l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, 1)) );
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
         }
-        else    {
-                    DAP_DELETE(l_item);
+        else {
+            DAP_DELETE(l_item);
     	}
 
-            l_is_anybody_for_repeat += (!l_is_finished);
-
-        }
+        l_is_anybody_for_repeat += (!l_is_finished);
+    }
 
     if ( l_is_anybody_for_repeat )                                          /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
