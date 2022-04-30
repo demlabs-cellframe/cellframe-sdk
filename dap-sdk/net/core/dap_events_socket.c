@@ -107,6 +107,7 @@ struct queue_ptr_input_pvt{
 static uint64_t s_delayed_ops_timeout_ms = 5000;
 bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
 
+static pthread_attr_t s_attr_detached;                                      /* Thread's creation attribute = DETACHED ! */
 
 
 /**
@@ -115,7 +116,17 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
  */
 int dap_events_socket_init( )
 {
+int l_rc;
+
     log_it(L_NOTICE,"Initialized events socket module");
+
+    /*
+     * @RRL: #6157
+     * Use this thread's attribute to eliminate resource consuming by terminated threads
+     */
+    assert ( !(l_rc = pthread_attr_init(&s_attr_detached)) );
+    assert ( !(l_rc = pthread_attr_setdetachstate(&s_attr_detached, PTHREAD_CREATE_DETACHED)) );
+
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -123,15 +134,15 @@ int dap_events_socket_init( )
     l_mqueue_limit.rlim_cur = RLIM_INFINITY;
     l_mqueue_limit.rlim_max = RLIM_INFINITY;
     setrlimit(RLIMIT_MSGQUEUE,&l_mqueue_limit);
-    char l_cmd[256];
-    snprintf(l_cmd,sizeof (l_cmd),"rm /dev/mqueue/%s-queue_ptr*", dap_get_appname());
+    char l_cmd[256] ={0};
+    snprintf(l_cmd, sizeof (l_cmd) - 1, "rm /dev/mqueue/%s-queue_ptr*", dap_get_appname());
     system(l_cmd);
     FILE *l_mq_msg_max = fopen("/proc/sys/fs/mqueue/msg_max", "w");
     if (l_mq_msg_max) {
         fprintf(l_mq_msg_max, "%d", DAP_QUEUE_MAX_MSGS);
         fclose(l_mq_msg_max);
     } else {
-        log_it(L_ERROR, "Сan't open /proc/sys/fs/mqueue/msg_max file for writing");
+        log_it(L_ERROR, "Сan't open /proc/sys/fs/mqueue/msg_max file for writing, errno=%d", errno);
     }
 #endif
     dap_timerfd_init();
@@ -1178,11 +1189,32 @@ static void *dap_events_socket_buf_thread(void *arg)
 
 static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 {
-    dap_events_socket_buf_item_t *l_item = DAP_NEW(dap_events_socket_buf_item_t); if (!l_item) return;
+static atomic_uint_fast64_t l_thd_count;
+int     l_rc;
+pthread_t l_thread;
+dap_events_socket_buf_item_t *l_item;
+
+    atomic_fetch_add(&l_thd_count, 1);                                      /* Count an every call of this routine */
+
+    if ( !(l_item = DAP_NEW(dap_events_socket_buf_item_t)) )                /* Allocate new item - argument for new thread */
+    {
+        log_it (L_ERROR, "[#%lu] No memory for new item, errno=%d,  drop: a_es: %p, a_arg: %p",
+                atomic_load(&l_thd_count), errno, a_es, a_arg);
+        return;
+    }
+
     l_item->es = a_es;
     l_item->arg = a_arg;
-    pthread_t l_thread;
-    pthread_create(&l_thread, NULL, dap_events_socket_buf_thread, l_item);
+
+    if ( (l_rc = pthread_create(&l_thread, &s_attr_detached /* @RRL: #6157 */, dap_events_socket_buf_thread, l_item)) )
+    {
+        log_it(L_ERROR, "[#%lu] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d",
+                 atomic_load(&l_thd_count), a_es, a_arg, l_rc);
+        return;
+    }
+
+    debug_if(g_debug_reactor, L_DEBUG, "[#%lu] Created thread %lx, a_es: %p, a_arg: %p",
+             atomic_load(&l_thd_count), l_thread, a_es, a_arg);
 }
 
 /**
