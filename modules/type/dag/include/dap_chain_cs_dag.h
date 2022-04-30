@@ -59,6 +59,7 @@ typedef struct dap_chain_cs_dag
 
     dap_chain_cs_dag_event_round_info_t event_round_info; // for verify function
     bool use_event_round_info;
+    bool broadcast_disable;
 
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;
