@@ -218,55 +218,53 @@ static int s_check_db_version(dap_config_t *g_config)
     if(l_gdb_version_p && l_gdb_version_len == sizeof(uint16_t)) {
         l_gdb_version = *l_gdb_version_p;
     }
-    if (l_gdb_version) {
-        if (l_gdb_version < GDB_VERSION) {
-#ifndef DAP_BUILD_WITH_ZIP
-            return -2;
-#else
-            log_it(L_NOTICE, "GlobalDB version %d, but %d required. The current database will be recreated",l_gdb_version, GDB_VERSION);
-            dap_chain_global_db_deinit();
-            // Database path
-            const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-            // Delete database
-            if(dap_file_test(l_storage_path) || dap_dir_test(l_storage_path)) {
-                // Backup filename: backup_global_db_ver.X_DATE_TIME.zip
-                char now[255];
-                time_t t = time(NULL);
-                strftime(now, 200, "%y.%m.%d-%H_%M_%S", localtime(&t));
-                char *l_output_file_name = dap_strdup_printf("backup_%s_ver.%d_%s.zip", dap_path_get_basename(l_storage_path), l_gdb_version, now);
-                char *l_output_file_path = dap_build_filename(l_storage_path, "../", l_output_file_name, NULL);
 
-                // Create backup
-                if(zip_directory(l_storage_path, l_output_file_path)) {
-                    // Delete database file or directory
-                    dap_rm_rf(l_storage_path);
-                }
-                else{
-                    log_it(L_ERROR, "Can't backup GlobalDB version %d", l_gdb_version);
-                    return -2;
-                }
-                DAP_DELETE(l_output_file_name);
-                DAP_DELETE(l_output_file_path);
-            }
-            // Reinitialize database
-            res = dap_chain_global_db_init(g_config);
-            // Save current db version
-            if(!res) {
-                l_gdb_version = GDB_VERSION;
-                dap_chain_global_db_set("gdb_version", &l_gdb_version, sizeof(uint16_t));
-            }
+    if(l_gdb_version < GDB_VERSION) {
+        log_it(L_NOTICE, "GlobalDB version %d, but %d required. The current database will be recreated", l_gdb_version, GDB_VERSION);
+        dap_chain_global_db_deinit();
+        // Database path
+        const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+        // Delete database
+        if(dap_file_test(l_storage_path) || dap_dir_test(l_storage_path)) {
+            // Backup filename: backup_global_db_ver.X_DATE_TIME.zip
+            char now[255];
+            time_t t = time(NULL);
+            strftime(now, 200, "%y.%m.%d-%H_%M_%S", localtime(&t));
+#ifdef DAP_BUILD_WITH_ZIP
+            char *l_output_file_name = dap_strdup_printf("backup_%s_ver.%d_%s.zip", dap_path_get_basename(l_storage_path), l_gdb_version, now);
+            char *l_output_file_path = dap_build_filename(l_storage_path, "../", l_output_file_name, NULL);
+            // Create backup as ZIP file
+            if(dap_zip_directory(l_storage_path, l_output_file_path)) {
+#else
+            char *l_output_file_name = dap_strdup_printf("backup_%s_ver.%d_%s.tar", dap_path_get_basename(l_storage_path), l_gdb_version, now);
+            char *l_output_file_path = dap_build_filename(l_storage_path, "../", l_output_file_name, NULL);
+            // Create backup as TAR file
+            if(dap_tar_directory(l_storage_path, l_output_file_path)) {
 #endif
-        } else if(l_gdb_version > GDB_VERSION) {
-            log_it(L_ERROR, "GlobalDB version %d is newer than supported version %d", l_gdb_version, GDB_VERSION);
-            res  =-1;
+                // Delete database file or directory
+                dap_rm_rf(l_storage_path);
+            }
+            else {
+                log_it(L_ERROR, "Can't backup GlobalDB version %d", l_gdb_version);
+                return -2;
+            }
+            DAP_DELETE(l_output_file_name);
+            DAP_DELETE(l_output_file_path);
         }
-        else {
-            log_it(L_NOTICE, "GlobalDB version %d", l_gdb_version);
+        // Reinitialize database
+        res = dap_chain_global_db_init(g_config);
+        // Save current db version
+        if(!res) {
+            l_gdb_version = GDB_VERSION;
+            dap_chain_global_db_set("gdb_version", &l_gdb_version, sizeof(uint16_t));
+            log_it(L_NOTICE, "GlobalDB version updated to %d", l_gdb_version);
         }
-    } else {
-        log_it(L_DEBUG, "GlobalDB version not set yet, set it to %d", GDB_VERSION);
-        l_gdb_version = GDB_VERSION;
-        dap_chain_global_db_set("gdb_version", &l_gdb_version, sizeof(uint16_t));
+    } else if(l_gdb_version > GDB_VERSION) {
+        log_it(L_ERROR, "GlobalDB version %d is newer than supported version %d", l_gdb_version, GDB_VERSION);
+        res = -1;
+    }
+    else {
+        log_it(L_NOTICE, "GlobalDB version %d", l_gdb_version);
     }
     if(l_gdb_version_p)
         DAP_DELETE(l_gdb_version_p);
