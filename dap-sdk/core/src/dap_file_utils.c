@@ -1434,7 +1434,7 @@ static bool walk_directory(const char *a_startdir, const char *a_inputdir, zip_t
  *
  * Returns: True, if successfully
  */
-bool zip_directory(const char *a_inputdir, const char *a_output_filename)
+bool dap_zip_directory(const char *a_inputdir, const char *a_output_filename)
 {
     int l_errorp;
     zip_t *l_zipper = zip_open(a_output_filename, ZIP_CREATE | ZIP_EXCL, &l_errorp);
@@ -1443,7 +1443,7 @@ bool zip_directory(const char *a_inputdir, const char *a_output_filename)
         zip_error_init_with_code(&l_ziperror, l_errorp);
         if(l_errorp == ZIP_ER_EXISTS) {
             if(!remove(a_output_filename))
-                return zip_directory(a_inputdir, a_output_filename);
+                return dap_zip_directory(a_inputdir, a_output_filename);
         }
         log_it(L_ERROR, "Failed to open output file %s: %s ", a_output_filename, zip_error_strerror(&l_ziperror));
         return false;
@@ -1455,3 +1455,255 @@ bool zip_directory(const char *a_inputdir, const char *a_output_filename)
     return l_ret;
 }
 #endif
+
+
+// For TAR
+/* values used in typeflag field */
+#define REGTYPE  '0'            /* regular file */
+#define AREGTYPE '\0'           /* regular file */
+#define LNKTYPE  '1'            /* link */
+#define SYMTYPE  '2'            /* reserved */
+#define CHRTYPE  '3'            /* character special */
+#define BLKTYPE  '4'            /* block special */
+#define DIRTYPE  '5'            /* directory */
+#define FIFOTYPE '6'            /* FIFO special */
+#define CONTTYPE '7'            /* reserved */
+
+#define BLOCKSIZE 512
+/* The checksum field is filled with this while the checksum is computed.  */
+#define CHKBLANKS   "        "  /* 8 blanks, no null */
+
+struct tar_header
+{ /* byte offset */
+    char name[100]; /*   0 */
+    char mode[8]; /* 100 */
+    char uid[8]; /* 108 */
+    char gid[8]; /* 116 */
+    char size[12]; /* 124 */
+    char mtime[12]; /* 136 */
+    char chksum[8]; /* 148 */
+    char typeflag; /* 156 */
+    char linkname[100]; /* 157 */
+    char magic[6]; /* 257 */
+    char version[2]; /* 263 */
+    char uname[32]; /* 265 */
+    char gname[32]; /* 297 */
+    char devmajor[8]; /* 329 */
+    char devminor[8]; /* 337 */
+    char prefix[155]; /* 345 */
+/* 500 */
+};
+
+union tar_buffer {
+    char buffer[BLOCKSIZE];
+    struct tar_header header;
+};
+
+/*
+ * Pack a directory with contents into a TAR archive
+ *
+ * @a_outfile: output file descriptor
+ * @a_fname: file path relative archive start
+ * @a_fpath: full dir path
+ *
+ * Returns: True, if successfully
+ */
+static bool s_tar_dir_add(int a_outfile, const char *a_fname, const char *a_fpath)
+{
+    union tar_buffer l_buffer;
+    if(!a_outfile)
+        return false;
+    char *l_filebuf = NULL;
+    size_t l_filelen = 0;
+    struct stat l_stat_info;
+    int remaining = l_filelen; // how much is left to write
+    // fill header
+    memset(&l_buffer, 0, BLOCKSIZE);
+    // Trim a directory name if it's over 100 bytes
+    size_t l_fname_len = MIN(dap_strlen(a_fname), sizeof(l_buffer.header.name) - 1);
+    strncpy(l_buffer.header.name, a_fname, l_fname_len);
+    l_buffer.header.name[l_fname_len] = '/';
+    sprintf(l_buffer.header.mode, "0000777");
+    sprintf(l_buffer.header.magic, "ustar");
+    l_buffer.header.typeflag = DIRTYPE;
+    sprintf(l_buffer.header.size, "%o", remaining);
+    stat(a_fpath, &l_stat_info);
+    sprintf(l_buffer.header.mtime, "%o", (unsigned int) l_stat_info.st_mtime);
+    // Checksum calculation
+    {
+        memcpy(l_buffer.header.chksum, CHKBLANKS, sizeof l_buffer.header.chksum);
+        int i, unsigned_sum = 0;
+        char *p;
+        p = (char*) &l_buffer;
+        for(i = sizeof l_buffer; i-- != 0;) {
+            unsigned_sum += 0xFF & *p++;
+        }
+        sprintf(l_buffer.header.chksum, "%6o", unsigned_sum);
+    }
+
+    // add header
+    write(a_outfile, &l_buffer, BLOCKSIZE);
+
+    return true;
+}
+
+/*
+ * Pack a file into a TAR archive
+ *
+ * @a_outfile: output file descriptor
+ * @a_fname: file path relative archive start
+ * @a_fpath: full file path
+ *
+ * Returns: True, if successfully
+ */
+static bool s_tar_file_add(int a_outfile, const char *a_fname, const char *a_fpath)
+{
+    union tar_buffer l_buffer;
+    if(!a_outfile)
+        return false;
+    char *l_filebuf = NULL;
+    size_t l_filelen = 0;
+    if(dap_file_get_contents(a_fpath, &l_filebuf, &l_filelen)) {
+        struct stat l_stat_info;
+        int remaining = l_filelen; // how much is left to write
+        // fill header
+        memset(&l_buffer, 0, BLOCKSIZE);
+        // Trim filename if it's over 100 bytes
+        strncpy(l_buffer.header.name, a_fname, MIN(dap_strlen(a_fname), sizeof(l_buffer.header.name) - 1));
+        sprintf(l_buffer.header.mode, "0100644");
+        sprintf(l_buffer.header.magic, "ustar");
+        l_buffer.header.typeflag = REGTYPE;
+        sprintf(l_buffer.header.size, "%o", remaining);
+        stat(a_fpath, &l_stat_info);
+        sprintf(l_buffer.header.mtime, "%o", (unsigned int) l_stat_info.st_mtime);
+        // Checksum calculation
+        {
+            memcpy(l_buffer.header.chksum, CHKBLANKS, sizeof l_buffer.header.chksum);
+            int i, unsigned_sum = 0;
+            char *p;
+            p = (char*) &l_buffer;
+            for(i = sizeof l_buffer; i-- != 0;) {
+                unsigned_sum += 0xFF & *p++;
+            }
+            sprintf(l_buffer.header.chksum, "%6o", unsigned_sum);
+        }
+
+        // add header
+        write(a_outfile, &l_buffer, BLOCKSIZE);
+        // add file body
+        while(remaining)
+        {
+            unsigned int bytes = (remaining > BLOCKSIZE) ? BLOCKSIZE : remaining;
+            memcpy(&l_buffer, l_filebuf + l_filelen - remaining, bytes);
+            write(a_outfile, &l_buffer, bytes);
+            remaining -= bytes;
+            // the file is already written, but not aligned to the BLOCKSIZE boundary
+            if(bytes != BLOCKSIZE && !remaining) {
+                memset(&l_buffer, 0, BLOCKSIZE - bytes);
+                write(a_outfile, &l_buffer, BLOCKSIZE - bytes);
+            }
+        }
+        DAP_DELETE(l_filebuf);
+        return true;
+    };
+    return false;
+}
+
+/*
+ * Pack a file or direcrory to TAR file
+ *
+ * @a_start_path: start path for archive
+ * @a_cur_path: current path for archive
+ * @a_outfile: output file descriptor
+ *
+ * Returns: True, if successfully
+ */
+static bool s_tar_walk_directory(const char *a_start_path, const char *a_cur_path, int a_outfile)
+{
+    //
+    char *l_start_basename = dap_path_get_basename(a_start_path);
+    size_t l_start_name_len = dap_strlen(l_start_basename);
+    size_t l_start_dir_len = dap_strlen(a_start_path);
+
+    // add root dir
+    if(dap_dir_test(a_start_path)) {
+
+        if(!s_tar_dir_add(a_outfile, l_start_basename, a_start_path)) {
+            log_it(L_ERROR, "Failed to add directory to tar");
+            DAP_DELETE(l_start_basename);
+            return false;
+        }
+    }
+    else if(dap_file_test(a_cur_path)) {
+        if(!s_tar_file_add(a_outfile, l_start_basename, a_cur_path)) {
+            log_it(L_ERROR, "Failed to add file to tar");
+            DAP_DELETE(l_start_basename);
+            return false;
+        }
+        // just one file, not a directory, finish walking
+        DAP_DELETE(l_start_basename);
+        return true;
+    }
+    DAP_DELETE(l_start_basename);
+
+    // add root content
+    DIR *l_dir = opendir(a_cur_path);
+    if(l_dir == NULL)
+    {
+        log_it(L_ERROR, "Failed to open input directory");
+        return false;
+    }
+    struct dirent *l_dirp;
+    while((l_dirp = readdir(l_dir)) != NULL) {
+        if(strcmp(l_dirp->d_name, ".") && strcmp(l_dirp->d_name, "..")) {
+            char *l_fullname = dap_build_filename(a_cur_path, l_dirp->d_name, NULL);
+            if(dap_dir_test(l_fullname)) {
+                if(!s_tar_dir_add(a_outfile, l_fullname - l_start_name_len + l_start_dir_len + 0, l_fullname)) {
+                    log_it(L_ERROR, "Failed to add directory to tar");
+                    closedir(l_dir);
+                    DAP_DELETE(l_fullname);
+                    return false;
+                }
+                // Pack subdirectory
+                s_tar_walk_directory(a_start_path, l_fullname, a_outfile);
+            } else {
+                if(!s_tar_file_add(a_outfile, l_fullname - l_start_name_len + l_start_dir_len + 0, l_fullname)) {
+                    log_it(L_ERROR, "Failed to add file to tar");
+                    closedir(l_dir);
+                    DAP_DELETE(l_fullname);
+                    return false;
+                }
+            }
+            DAP_DELETE(l_fullname);
+        }
+    }
+    closedir(l_dir);
+    return true;
+}
+
+/*
+ * Pack a directory to tar file
+ *
+ * @a_inputdir: input dir
+ * @a_output_filename: output tar file path
+ *
+ * Returns: True, if successfully
+ */
+bool dap_tar_directory(const char *a_inputdir, const char *a_output_tar_filename)
+{
+    int l_outfile = open(a_output_tar_filename, O_CREAT | O_WRONLY | O_BINARY);
+    if(l_outfile < 0) {
+        log_it(L_ERROR, "Failed to open output file");
+        return false;
+    }
+    // Pack all files to l_outfile
+    bool l_ret = s_tar_walk_directory(a_inputdir, a_inputdir, l_outfile);
+
+    // Write two empty blocks to the end
+    union tar_buffer buffer;
+    memset(&buffer, 0, BLOCKSIZE);
+    write(l_outfile, &buffer, BLOCKSIZE);
+    write(l_outfile, &buffer, BLOCKSIZE);
+    close(l_outfile);
+    return l_ret;
+}
