@@ -345,12 +345,11 @@ static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg) {
 static bool s_packet_in_callback_handler(void *a_arg)
 {
     UNUSED(a_arg);
+	pthread_rwlock_rdlock(&s_pkt_items->rwlock_in);
 	if (dap_list_length(s_pkt_items->pkts_in)) {
-		pthread_rwlock_rdlock(&s_pkt_items->rwlock_in);
 		dap_list_t* l_list_pkts = dap_list_copy(s_pkt_items->pkts_in);
 	    dap_list_free(s_pkt_items->pkts_in);
 	    s_pkt_items->pkts_in = NULL;
-		pthread_rwlock_unlock(&s_pkt_items->rwlock_in);
 
 		dap_list_t* l_list_temp = dap_list_first(l_list_pkts);
 		while(l_list_temp) {
@@ -379,6 +378,7 @@ static bool s_packet_in_callback_handler(void *a_arg)
 		}
 		dap_list_free(l_list_pkts);
 	}
+	pthread_rwlock_unlock(&s_pkt_items->rwlock_in);
 	return true;
 }
 
