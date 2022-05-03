@@ -39,6 +39,7 @@
 #include "dap_hash.h"
 #include "dap_strfuncs.h" // #include <dap_fnmatch.h>
 #include "dap_file_utils.h"
+#include "dap_config.h"
 
 #define LOG_TAG "dap_chain_global_db_cdb"
 
@@ -175,9 +176,15 @@ bool dap_cdb_get_count_iter_callback(void *arg, const char *key, int ksize, cons
    CDB_PAGEWARMUP
  * @return A pointer to CDB, if success. NULL, if error.
  */
-pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
+pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags)
+{
     pcdb_instance l_cdb_i = NULL;
-    char l_cdb_path[MAX_PATH + 2];
+    char l_cdb_path[MAX_PATH] = {0};
+    int  l_opt1 = 4096, l_opt2 = 16 , l_opt3 = 128;
+
+    l_opt1 = dap_config_get_item_uint32_default ( g_config, "resources", "dap_global_db_p1", 4096);
+    l_opt2 = dap_config_get_item_uint32_default ( g_config, "resources", "dap_global_db_p2", 16);
+    l_opt3 = dap_config_get_item_uint32_default ( g_config, "resources", "dap_global_db_p3", 128);
 
     pthread_mutex_lock(&cdb_mutex);
     HASH_FIND_STR(s_cdb, a_group, l_cdb_i);
@@ -193,9 +200,9 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
         l_cdb_i->local_group = dap_strdup(a_group);
         l_cdb_i->cdb = cdb_new();
     }
-    memset(l_cdb_path, '\0', sizeof(l_cdb_path));
-    dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, a_group);
-    cdb_options l_opts = { 4096, 128, 1024 };
+
+    dap_snprintf(l_cdb_path, sizeof(l_cdb_path) - 1, "%s/%s", s_cdb_path, a_group);
+    cdb_options l_opts = { l_opt1, l_opt2, l_opt2 };                        /* @RRL: 6157 { 4096, 128, 1024 }; */
     if (cdb_option(l_cdb_i->cdb, l_opts.hsize, l_opts.pcacheMB, l_opts.rcacheMB) != CDB_SUCCESS) {
         log_it(L_ERROR, "Options are inacceptable: \"%s\"", cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
         goto ERR;
