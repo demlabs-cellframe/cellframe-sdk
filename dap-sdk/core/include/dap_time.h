@@ -1,11 +1,7 @@
 #pragma once
 #include <stdint.h>
 #include <stddef.h>
-
-#ifdef DAP_OS_WINDOWS
-#define ctime_r(arg1, arg2) ctime_s(arg2, sizeof(arg2), arg1)
-//#define asctime_r(arg1, arg2) asctime_s(arg2, sizeof(arg2), arg1)
-#endif
+#include <time.h>
 
 #define DAP_END_OF_DAYS 4102444799
 // Constant to convert seconds to nanoseconds

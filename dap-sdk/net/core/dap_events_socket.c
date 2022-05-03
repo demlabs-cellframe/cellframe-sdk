@@ -1198,7 +1198,7 @@ dap_events_socket_buf_item_t *l_item;
 
     if ( !(l_item = DAP_NEW(dap_events_socket_buf_item_t)) )                /* Allocate new item - argument for new thread */
     {
-        log_it (L_ERROR, "[#%lu] No memory for new item, errno=%d,  drop: a_es: %p, a_arg: %p",
+        log_it (L_ERROR, "[#%"DAP_UINT64_FORMAT_U"] No memory for new item, errno=%d,  drop: a_es: %p, a_arg: %p",
                 atomic_load(&l_thd_count), errno, a_es, a_arg);
         return;
     }
@@ -1208,12 +1208,12 @@ dap_events_socket_buf_item_t *l_item;
 
     if ( (l_rc = pthread_create(&l_thread, &s_attr_detached /* @RRL: #6157 */, dap_events_socket_buf_thread, l_item)) )
     {
-        log_it(L_ERROR, "[#%lu] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d",
+        log_it(L_ERROR, "[#%"DAP_UINT64_FORMAT_U"] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d",
                  atomic_load(&l_thd_count), a_es, a_arg, l_rc);
         return;
     }
 
-    debug_if(g_debug_reactor, L_DEBUG, "[#%lu] Created thread %lx, a_es: %p, a_arg: %p",
+    debug_if(g_debug_reactor, L_DEBUG, "[#%"DAP_UINT64_FORMAT_U"] Created thread %"DAP_UINT64_FORMAT_x", a_es: %p, a_arg: %p",
              atomic_load(&l_thd_count), l_thread, a_es, a_arg);
 }
 

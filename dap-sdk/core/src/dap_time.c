@@ -176,7 +176,8 @@ int dap_gbd_time_to_str_rfc822(char *a_out, size_t a_out_size_max, dap_gdb_time_
  * @param a_buf The minimum buffer size is 26 elements.
  * @return
  */
-char* dap_ctime_r(dap_time_t *a_time, char* a_buf){
+char* dap_ctime_r(dap_time_t *a_time, char* a_buf)
+{
     char *l_fail_ret = "(null)\r\n";
     if (!a_buf)
         return l_fail_ret;
@@ -185,6 +186,18 @@ char* dap_ctime_r(dap_time_t *a_time, char* a_buf){
         return l_fail_ret;
     }
     struct tm l_time;
+#ifdef DAP_OS_WINDOWS
+    errno_t l_errno;
+    l_errno = localtime_s(&l_time, (time_t *)a_time);
+    if (!l_errno)
+        l_errno = asctime_s(a_buf, sizeof(l_time), &l_time);
+    if (!l_errno)
+        return a_buf;
+    else {
+        strcpy(a_buf, l_fail_ret);
+        return l_fail_ret;
+    }
+#else
     localtime_r((time_t*)a_time, &l_time);
     char *l_str_time = asctime_r(&l_time, a_buf);
     if (l_str_time)
@@ -193,6 +206,7 @@ char* dap_ctime_r(dap_time_t *a_time, char* a_buf){
         strcpy(a_buf, l_fail_ret);
         return l_fail_ret;
     }
+#endif
 }
 
 /**
