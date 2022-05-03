@@ -182,7 +182,7 @@ dap_proc_queue_t    *l_queue;
             continue;
 
         assert ( !(pthread_mutex_lock(&l_queue->list[l_cur_pri].lock)) );   /* Protect list from other threads */
-        assert ( !(l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size)) );
+        assert ( !(l_rc = dap_slist_get4head (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size)) );
         assert ( !(pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock)) );
 
         if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
@@ -202,7 +202,7 @@ dap_proc_queue_t    *l_queue;
         if ( !(l_is_finished) ) {
                                                                             /* Rearm callback to be executed again */
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            assert ( !(l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, 1)) );
+            assert ( !(l_rc = dap_slist_add2tail (&l_queue->list[l_cur_pri].items, l_item, 1)) );
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
         }
         else {

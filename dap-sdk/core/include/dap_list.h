@@ -1,7 +1,7 @@
 /*
  * Doubly-Linked Lists — linked lists that can be iterated over in both directions
  *
- * Nano API for Simple linked list - by BadAss SysMan
+ * Nano API for Simple Linked List - by BadAss SysMan
  * Attention!!! No internaly locking is performed !
  */
 
@@ -9,8 +9,6 @@
 #define __DAP_LIST_H__
 
 #include    <errno.h>                                                       /* <errno> codes */
-#include <stdatomic.h>
-
 #include    "dap_common.h"                                                  /* DAP_ALLOC, DAP_FREE */
 
 
@@ -26,61 +24,79 @@ typedef struct __dap_slist_elm__ {
 } dap_slist_elm_t;
 
 typedef struct __dap_slist__ {
-            dap_slist_elm_t   *head,                                         /* An address of first element */
+            dap_slist_elm_t   *head,                                        /* An address of first element */
                             *tail;                                          /* An address of last element */
                     int     nr;                                             /* A number of elements in list  */
-                    int     s_dap_insqtail_count,
-                            s_dap_remqhead_count;
-
 } dap_slist_t;
 
-static inline int    s_dap_insqtail    ( dap_slist_t *q, void *data, int datasz)
+/**
+ * @brief dap_slist_add2tail Insert new eleemnt at the tail of the list
+ *  Internaly allocate a memory for a new SLIST's element, form it, append to the tail.
+ *  Be advised that no any locking logic is used internaly. If u need to maintain a data consistency in
+ *  concurrent multithreading environment - use locking provided by the u platform.
+ *
+ * @param a_q       An address of the SLIST context
+ * @param a_data    An address of the data area
+ * @param a_datasz  A size of the data area
+ * @return
+ *  0 - no error, new element is inserted
+ *  -ENOMEM - no memory for new element
+ */
+static inline int    dap_slist_add2tail    ( dap_slist_t *a_q, void *a_data, int a_datasz)
 {
-dap_slist_elm_t *elm;
+dap_slist_elm_t *l_elm;
 
-    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )   /* Allocate memory for new element */
+    if ( !(l_elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) ) /* Allocate memory for new element */
         return  -ENOMEM;
 
-    elm->flink = NULL;                                                      /* This element is terminal */
-    elm->data  = data;                                                      /* Store pointer to carried data */
-    elm->datasz= datasz;                                                    /* A size of daa metric */
+    l_elm->flink = NULL;                                                    /* This element is terminal */
+    l_elm->data  = a_data;                                                  /* Store pointer to carried data */
+    l_elm->datasz= a_datasz;                                                /* A size of daa metric */
 
-    if ( q->tail )                                                          /* Queue is not empty ? */
-        (q->tail)->flink = elm;                                             /* Correct forward link of "previous last" element
+    if ( a_q->tail )                                                        /* Queue is not empty ? */
+        (a_q->tail)->flink = l_elm;                                         /* Correct forward link of "previous last" element
                                                                                to point to new element */
 
-    q->tail = elm;                                                          /* Point list's tail to new element also */
+    a_q->tail = l_elm;                                                      /* Point list's tail to new element also */
 
-    if ( !q->head )                                                         /* This is a first element in the list  ? */
-        q->head = elm;                                                      /* point head to the new element */
+    if ( !a_q->head )                                                       /* This is a first element in the list  ? */
+        a_q->head = l_elm;                                                  /* point head to the new element */
 
-    q->nr++;                                                                /* Adjust entries counter */
-    //log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
-    q->s_dap_insqtail_count++;
+    a_q->nr++;                                                              /* Adjust entries counter */
 
     return  0;
 }
 
-static inline int    s_dap_remqhead    ( dap_slist_t *q, void **data, size_t *datasz)
-{
-dap_slist_elm_t *elm;
-static atomic_uint s_dap_remqhead_count;
+/**
+ * @brief dap_slist_get4head Retrive an element from head of the simple list.
+ *  Remove element from the head, release unused memory.
+ *  Be advised that no any locking logic is used internaly. If u need to maintain a data consistency in
+ *  concurrent multithreading environment - use locking provided by the u platform.
+ *
+ * @param a_q       An address of the SLIST context
+ * @param a_data    A pointer to accept an address of the data area
+ * @param a_datasz  A pointer to variable to accept data area size
+ * @return
+ *  0 - no error
+ *  -ENOENT - SLIST is empty, no element
+ */
 
-    if ( !(elm = q->head) )                                                 /* Queue is empty - just return error code */
+static inline int    dap_slist_get4head    ( dap_slist_t *a_q, void **a_data, size_t *a_datasz)
+{
+dap_slist_elm_t *l_elm;
+
+    if ( !(l_elm = a_q->head) )                                             /* Queue is empty - just return error code */
         return -ENOENT;
 
-    if ( !(q->head = elm->flink) )                                          /* Last element in the queue ? */
-        q->tail = NULL;                                                     /* Reset tail to NULL */
+    if ( !(a_q->head = l_elm->flink) )                                      /* Last element in the queue ? */
+        a_q->tail = NULL;                                                   /* Reset tail to NULL */
 
-    *data = elm->data;
-    *datasz = elm->datasz;
+    *a_data = l_elm->data;
+    *a_datasz = l_elm->datasz;
 
-    DAP_FREE(elm);                                                          /* Release memory has been allocated for the queue's element */
+    DAP_FREE(l_elm);                                                        /* Release memory has been allocated for the queue's element */
 
-    q->nr--;                                                                /* Adjust entries counter */
-    //log_it(L_DEBUG, "Get data: %p, size: %d (qlen: %d)", *data, *datasz, q->nr);
-
-    q->s_dap_remqhead_count++;
+    a_q->nr--;                                                              /* Adjust entries counter */
 
     return  0;
 }

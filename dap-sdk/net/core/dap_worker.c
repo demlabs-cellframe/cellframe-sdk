@@ -669,13 +669,12 @@ void *dap_worker_thread(void *arg)
                     //if(l_cur->buf_out_size){
                         switch (l_cur->type){
                             case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
-                            if ( l_cur->buf_out_size ) {
                                 l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
                                                     l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
-                            }
-                            else    {
-                                l_bytes_sent = -1;
-                            }
+
+                                if ( l_bytes_sent == l_cur->buf_out_size )  /* @RRL: 6157 Disable POLLOUT generation for empty buffer */
+                                    dap_events_socket_set_writable_unsafe(l_cur, false);
+
 #ifdef DAP_OS_WINDOWS
                                 //dap_events_socket_set_writable_unsafe(l_cur,false); // enabling this will break windows server replies
                                 l_errno = WSAGetLastError();
@@ -685,14 +684,13 @@ void *dap_worker_thread(void *arg)
                             }
                             break;
                             case DESCRIPTOR_TYPE_SOCKET_UDP:
-                                if ( l_cur->buf_out_size ) {
-                                    l_bytes_sent = sendto(l_cur->socket, (const char *)l_cur->buf_out,
-                                                      l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
-                                                      (struct sockaddr *)&l_cur->remote_addr, sizeof(l_cur->remote_addr));
-                                }
-                                else    {
-                                    l_bytes_sent = -1;
-                                }
+                                l_bytes_sent = sendto(l_cur->socket, (const char *)l_cur->buf_out,
+                                                  l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
+                                                  (struct sockaddr *)&l_cur->remote_addr, sizeof(l_cur->remote_addr));
+
+                                if ( l_bytes_sent == l_cur->buf_out_size )  /* @RRL: 6157 Disable POLLOUT generation for empty buffer */
+                                        dap_events_socket_set_writable_unsafe(l_cur, false);
+
 #ifdef DAP_OS_WINDOWS
                                 dap_events_socket_set_writable_unsafe(l_cur,false);
                                 l_errno = WSAGetLastError();
