@@ -385,7 +385,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                         if ( strstr(l_query_string, "HTTP/1.1") ){
                             //Search for the first occurrence.
                             int i = 0;
-                            for (; i < strlen(l_query_string); i++){
+                            for (; i < (int)strlen(l_query_string); i++){
                                 if (l_query_string[i] == ' '){
                                     break;
                                 }
