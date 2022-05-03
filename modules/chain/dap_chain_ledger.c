@@ -3203,7 +3203,7 @@ unsigned dap_chain_ledger_count(dap_ledger_t *a_ledger)
  * @param a_ts_to
  * @return
  */
-uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, time_t a_ts_from, time_t a_ts_to )
+uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to)
 {
     uint64_t l_ret = 0;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);

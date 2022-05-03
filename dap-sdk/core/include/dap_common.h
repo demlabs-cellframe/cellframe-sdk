@@ -205,12 +205,12 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #define DAP_FORMAT_SOCKET "llu"
 #else
 #define DAP_FORMAT_SOCKET "lu"
-#endif
+#endif // _WIN64
 #define DAP_FORMAT_HANDLE "p"
 #else
 #define DAP_FORMAT_SOCKET "d"
 #define DAP_FORMAT_HANDLE "d"
-#endif
+#endif // DAP_OS_WINDOWS
 
 #ifndef LOWORD
   #define LOWORD( l ) ((uint16_t) (((uintptr_t) (l)) & 0xFFFF))

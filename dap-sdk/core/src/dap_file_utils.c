@@ -1691,7 +1691,7 @@ static bool s_tar_walk_directory(const char *a_start_path, const char *a_cur_pat
  */
 bool dap_tar_directory(const char *a_inputdir, const char *a_output_tar_filename)
 {
-    int l_outfile = open(a_output_tar_filename, O_CREAT | O_WRONLY | O_BINARY);
+    int l_outfile = open(a_output_tar_filename, O_CREAT | O_WRONLY | O_BINARY, 0644);
     if(l_outfile < 0) {
         log_it(L_ERROR, "Failed to open output file");
         return false;
