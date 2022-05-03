@@ -384,7 +384,7 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
                l_client_http_internal->response_size, l_client_http_internal->content_length);
             l_client_http_internal->error_callback(-666, l_client_http_internal->obj); // -666 means remote server disconnected before he sends all
         }else if (l_response_size){
-            log_it(L_INFO, "Remote server replied without no content legth but we have the response %zd bytes size",
+            log_it(L_INFO, "Remote server replied without no content length but we have the response %zd bytes size",
                l_response_size);
 
             //l_client_http_internal->error_callback(-10 , l_client_http_internal->obj);
