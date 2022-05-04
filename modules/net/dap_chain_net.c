@@ -460,7 +460,7 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
     DAP_DELETE(l_arg->key);
     DAP_DELETE(l_arg);
     pthread_rwlock_wrlock(&PVT(l_net)->rwlock);
-    if (PVT(l_net)->state != NET_STATE_SYNC_GDB) {
+    if (PVT(l_net)->state) {
         dap_list_t *it = NULL;
         do {
             dap_store_obj_t *l_obj_cur = it ? (dap_store_obj_t *)it->data : l_obj;

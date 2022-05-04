@@ -808,6 +808,9 @@ void *dap_worker_thread(void *arg)
                     }else{
                         //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
                         if (l_bytes_sent) {
+                            if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT  || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP) {
+                                l_cur->last_time_active = l_cur_time;
+                            }
                             if ( l_bytes_sent <= (ssize_t) l_cur->buf_out_size ){
                                 l_cur->buf_out_size -= l_bytes_sent;
                                 if (l_cur->buf_out_size ) {
