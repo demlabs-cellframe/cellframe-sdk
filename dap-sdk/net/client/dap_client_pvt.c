@@ -627,7 +627,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
             //    l_is_last_attempt = true;
             //}
 
-            log_it(L_ERROR, "Error state( %s), doing callback if present", dap_client_error_str(a_client_pvt->last_error));
+            log_it(L_ERROR, "Error state(%s), doing callback if present", dap_client_error_str(a_client_pvt->last_error));
             if(a_client_pvt->stage_status_error_callback)
                 a_client_pvt->stage_status_error_callback(a_client_pvt->client, (void*) l_is_last_attempt);
 

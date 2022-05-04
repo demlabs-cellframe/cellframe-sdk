@@ -372,33 +372,25 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                     break;
                 }
 
-                char *l_query_string;
-                if( (l_query_string = strchr(l_http_client->url_path, '?')) != NULL ) {
-                    size_t len_after = MIN(strlen( l_query_string + 1 ), sizeof (l_http_client->url_path)-1);
+                char *l_query_string = strchr(l_http_client->url_path, '?');
+                if (l_query_string++) {
+                    size_t len_after = MIN(strlen(l_query_string), sizeof(l_http_client->url_path) - 1);
 
                     if ( len_after ) {
                         if( len_after > (sizeof(l_http_client->in_query_string) - 1) ){
                             len_after = sizeof(l_http_client->in_query_string) - 1;
                         }
-
-                        //Search
-                        if ( strstr(l_query_string, "HTTP/1.1") ){
-                            //Search for the first occurrence.
-                            int i = 0;
-                            for (; i < (int)strlen(l_query_string); i++){
-                                if (l_query_string[i] == ' '){
-                                    break;
-                                }
-                            }
-                            strncpy( l_http_client->in_query_string, l_query_string + 1, i - 1 );
-                        }else{
-                            strncpy( l_http_client->in_query_string,l_query_string + 1, len_after );
+                        char *l_pos = strstr(l_query_string, "HTTP/1.1");
+                        //Search for the first occurrence.
+                        if (l_pos-- && *l_pos == ' ')
+                            strncpy(l_http_client->in_query_string, l_query_string, len_after - (l_pos - l_query_string));
+                        else
+                            strncpy( l_http_client->in_query_string, l_query_string, len_after);
+                        size_t l_in_query_len = strlen(l_http_client->in_query_string);
+                        if (l_in_query_len && l_http_client->in_query_string[l_in_query_len - 1] == ' ' ){
+                            l_http_client->in_query_string[l_in_query_len - 1] = 0;
                         }
-
-                        if ( l_http_client->in_query_string[strlen(l_http_client->in_query_string) - 1] == ' ' ){
-                            l_http_client->in_query_string[strlen(l_http_client->in_query_string) - 1] = 0;
-                        }
-                        l_query_string[0] = 0;
+                        *(l_query_string - 1) = 0;
                     }
                 }
 

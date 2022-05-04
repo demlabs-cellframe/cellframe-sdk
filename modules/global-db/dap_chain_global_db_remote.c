@@ -153,22 +153,23 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *l_net, dap_chain_node_
     }
     dap_list_free(l_groups_masks);
 
-    static uint16_t s_size_ban_list = 0;
+    static int16_t s_size_ban_list = -1;
     static char **s_ban_list = NULL;
 
-    static uint16_t s_size_white_list = 0;
+    static int16_t s_size_white_list = -1;
     static char **s_white_list = NULL;
+    static char **s_white_list_del = NULL;
 
-    static bool l_try_read_ban_list = false;
-    static bool l_try_read_white_list = false;
-
-    if (!l_try_read_ban_list) {
-            s_ban_list = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_list);
-            l_try_read_ban_list = true;
-    }
-    if (!l_try_read_white_list) {
-            s_white_list = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_list);
-            l_try_read_white_list = true;
+    if (s_size_ban_list == -1)
+        s_ban_list = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", (uint16_t *)&s_size_ban_list);
+    if (s_size_white_list == -1) {
+        s_white_list = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", (uint16_t *)&s_size_white_list);
+        if (s_size_white_list > 0) {
+            s_white_list_del = DAP_NEW_SIZE(char *, s_size_white_list);
+            for (int i = 0; i < s_size_white_list; i++) {
+                s_white_list_del[i] = dap_strdup_printf("%s.del", s_white_list[i]);
+            }
+        }
     }
 
     /* delete if not condition */
@@ -176,17 +177,18 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *l_net, dap_chain_node_
         for (dap_list_t *l_group = l_groups_names; l_group; ) {
             bool l_found = false;
             for (int i = 0; i < s_size_white_list; i++) {
-                if (!dap_fnmatch(s_white_list[i], l_group->data, FNM_NOESCAPE)) {
+                if (!dap_fnmatch(s_white_list[i], l_group->data, FNM_NOESCAPE) ||
+                        !dap_fnmatch(s_white_list_del[i], l_group->data, FNM_NOESCAPE)) {
                     l_found = true;
                     break;
                 }
             }
             if (!l_found) {
-                    dap_list_t *l_tmp = l_group->next;
-                    l_groups_names = dap_list_delete_link(l_dap_db_log_list->groups, l_group);
-                    l_group = l_tmp;
-            }
-            l_group = dap_list_next(l_group);
+                dap_list_t *l_tmp = l_group->next;
+                l_groups_names = dap_list_delete_link(l_groups_names, l_group);
+                l_group = l_tmp;
+            } else
+                l_group = dap_list_next(l_group);
         }
     } else if (s_size_ban_list > 0) {
         for (dap_list_t *l_group = l_groups_names; l_group; ) {
