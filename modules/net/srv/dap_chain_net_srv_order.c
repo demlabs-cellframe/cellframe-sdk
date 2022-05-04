@@ -437,7 +437,7 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
     log_it( L_DEBUG, "Loaded %zu orders", l_orders_count);
     dap_chain_net_srv_order_t *l_order = NULL;
     *a_output_orders = NULL;
-    *a_output_orders_count = 0;
+    size_t l_output_orders_count = 0;
     size_t l_orders_size = 0;
     for (size_t i = 0; i < l_orders_count; i++) {
         DAP_DEL_Z(l_order);
@@ -475,8 +475,9 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         *a_output_orders = DAP_REALLOC(*a_output_orders, l_orders_size + l_order_mem_size);
         memcpy((byte_t *)*a_output_orders + l_orders_size, l_order, l_order_mem_size);
         l_orders_size += l_order_mem_size;
-        a_output_orders_count++;
+        l_output_orders_count++;
     }
+    *a_output_orders_count = l_output_orders_count;
     DAP_DEL_Z(l_order);
     dap_chain_global_db_objs_delete(l_orders, l_orders_count);
     DAP_DELETE(l_gdb_group_str);
