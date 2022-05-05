@@ -130,7 +130,7 @@ typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_w
 
 
                                                                             /* A callback routine is supposed to be called on completion I/O */
-typedef void (*dap_events_socket_worker_complete_io_t) (dap_events_socket_t *, dap_worker_t *, void *a_arg, int a_errno);
+typedef void (*dap_events_socket_worker_complete_io_t) (dap_events_socket_t *, dap_worker_t *, int a_errno);
 
 typedef struct dap_events_socket_callbacks {
     union{ // Specific callbacks
@@ -222,31 +222,23 @@ typedef struct dap_events_socket {
     uint32_t buf_out_zero_count;
 
     // Input section
-        //uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
-        //char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
     byte_t  *buf_in;
     size_t buf_in_size_max; //  size of alloced buffer
         //char    *buf_in_str;
     size_t buf_in_size; // size of data that is in the input buffer
 
     // Output section
-
-    //byte_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
     byte_t *buf_out;
     size_t buf_out_size; // size of data that is in the output buffer
     size_t buf_out_size_max; // max size of data
     dap_events_socket_t * pipe_out; // Pipe socket with data for output
 
     // Stored string representation
-    //char hostaddr[1024]; // Address
-    //char service[128];
     char *hostaddr;
     char *service;
 
     // Remote address, port and others
     struct sockaddr_in remote_addr;
-    //char remote_addr_str[INET_ADDRSTRLEN];
-    //char remote_addr_str6[INET6_ADDRSTRLEN];
     char *remote_addr_str;
     char *remote_addr_str6;
     short remote_port;
@@ -279,9 +271,6 @@ typedef struct dap_events_socket {
 #endif
 
     dap_events_socket_callbacks_t callbacks;
-    void *user_cb_arg;                                                      /* @RRL: 6169  User provided context as input for write_finish_callback.
-                                                                            * Expiremental, can be removed in a near future
-                                                                            */
 
     time_t time_connection;
     time_t last_time_active;

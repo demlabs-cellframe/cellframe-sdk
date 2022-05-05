@@ -631,37 +631,30 @@ void *dap_worker_thread(void *arg)
                 }
             }
 
-            // Socket is ready to write and not going to close
-            if(   ( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
+            /*
+             * Socket is ready to write and not going to close
+             */
+            if ( !l_cur->buf_out_size )                                     /* Check firstly that output buffer is not empty */
+            {
+                dap_events_socket_set_writable_unsafe(l_cur, false);        /* Clear "enable write flag" */
+
+                if ( l_cur->callbacks.write_finished_callback )             /* Optionaly call I/O completion routine */
+                    l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_errno);
+
+                l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
+            }
+
+            l_bytes_sent = 0;
+
+            if (   ( l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
                  (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
-                if(g_debug_reactor)
-                    log_it(L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
+
+                debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
 
                 if(l_cur->callbacks.write_callback)
-                    l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
+                    l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
 
                 if ( l_cur->worker ){ // esocket wasn't unassigned in callback, we need some other ops with it
-                    if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
-
-                        static const uint32_t buf_out_zero_count_max = 2;
-                        //l_cur->buf_out[l_cur->buf_out_size] = 0;
-
-                        if(!l_cur->buf_out_size) {
-
-                            //log_it(L_WARNING, "Output: nothing to send. Why we are in write socket set?");
-                            l_cur->buf_out_zero_count++;
-
-                            if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
-                                //log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
-                                //        buf_out_zero_count_max);
-                                dap_events_socket_set_writable_unsafe(l_cur, false);
-                            }
-                        }
-                        else
-                            l_cur->buf_out_zero_count = 0;
-                    }
-                    //for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
-                    //if(l_cur->buf_out_size){
                         switch (l_cur->type){
                             case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                                 l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
@@ -821,7 +814,7 @@ void *dap_worker_thread(void *arg)
                     dap_events_socket_set_writable_unsafe(l_cur, false);/* Clear "enable write flag" */
 
                     if ( l_cur->callbacks.write_finished_callback )     /* Optionaly call I/O completion routine */
-                        l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_cur->user_cb_arg, l_errno);
+                        l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_errno);
                 }
             }
 
