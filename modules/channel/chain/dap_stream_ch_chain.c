@@ -1544,6 +1544,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
 
     bool l_go_idle = false;
+    bool l_timer_reset = false;
     pthread_rwlock_rdlock(&l_ch_chain->idle_lock);
     switch (l_ch_chain->state) {
         // Update list of global DB records to remote
@@ -1555,7 +1556,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
                 if (!l_obj || DAP_POINTER_TO_INT(l_obj) == 1)
                     break;
-                s_chain_timer_reset(l_ch_chain);
+                l_timer_reset = true;
                 memcpy(&l_data[i].hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
                 l_data[i].size = l_obj->pkt->data_size;
             }
@@ -1624,7 +1625,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 }
             }
             if (l_pkt_size) {
-                s_chain_timer_reset(l_ch_chain);
+                l_timer_reset = true;
                 // If request was from defined node_addr we update its state
                 if (s_debug_more)
                     log_it(L_INFO, "Send one global_db packet len=%zu (rest=%zu/%zu items)", l_pkt_size,
@@ -1654,7 +1655,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
         // Update list of atoms to remote
         case CHAIN_STATE_UPDATE_CHAINS:{
-            s_chain_timer_reset(l_ch_chain);
+            l_timer_reset = true;
             dap_stream_ch_chain_update_element_t *l_data = DAP_NEW_Z_SIZE(dap_stream_ch_chain_update_element_t,
                                                                           sizeof(dap_stream_ch_chain_update_element_t) * s_update_pack_size);
             size_t l_data_size=0;
@@ -1734,7 +1735,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 if (l_was_sent_smth)
                     break;
                 else
-                    s_chain_timer_reset(l_ch_chain);
+                    l_timer_reset = true;
             }
             if(!l_ch_chain->request_atom_iter || !l_ch_chain->request_atom_iter->cur)  { // All chains synced
                 dap_stream_ch_chain_sync_request_t l_request = {};
@@ -1760,4 +1761,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     pthread_rwlock_unlock(&l_ch_chain->idle_lock);
     if (l_go_idle)
         s_ch_chain_go_idle(l_ch_chain);
+    else if (l_timer_reset)
+        s_chain_timer_reset(l_ch_chain);
 }
