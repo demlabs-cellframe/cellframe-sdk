@@ -1257,7 +1257,8 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_chain_ledger_tx_spent_item_t *l_tx_spent_item = DAP_NEW_Z(dap_chain_ledger_tx_spent_item_t);
         dap_chain_hash_fast_from_str(l_objs[i].key, &l_tx_spent_item->tx_hash_fast);
-        strncpy(l_tx_spent_item->token_ticker, (char *)l_objs[i].value, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+        strncpy(l_tx_spent_item->token_ticker, (char *)l_objs[i].value,
+                min(l_objs[i].value_len, DAP_CHAIN_TICKER_SIZE_MAX - 1));
         HASH_ADD(hh, l_ledger_pvt->spent_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_spent_item);
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
