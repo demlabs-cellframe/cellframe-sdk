@@ -31,9 +31,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define DAP$SZ_MAXGROUPNAME     128                                         /* A maximum size of group name */
+#define DAP$K_MAXGROUPS         1024                                        /* A maximum number of groups */
+#define DAP$SZ_MAXKEY           512                                         /* A limit for the key's length in DB */
+
 enum    {
-    DAP_DB$K_OPTYPE_ADD  = 'a',                 /* Operation Type = INSERT/ADD */
-    DAP_DB$K_OPTYPE_DEL  = 'd',                 /*  -- // -- DELETE */
+    DAP_DB$K_OPTYPE_ADD  = 'a',                                             /* Operation Type = INSERT/ADD */
+    DAP_DB$K_OPTYPE_DEL  = 'd',                                             /*  -- // -- DELETE */
 
 };
 
@@ -45,15 +49,20 @@ enum RECORD_FLAGS {
 typedef struct dap_store_obj {
     uint64_t id;
     dap_gdb_time_t timestamp;
-    uint32_t type;                              /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
-    uint8_t flags;                              /* RECORD_FLAGS */
+    uint32_t type;                                                          /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
+    uint8_t flags;                                                          /* RECORD_FLAGS */
+
     char *group;
+    uint64_t group_len;
+
     const char *key;
+    uint64_t key_len;
+
     uint8_t *value;
     uint64_t value_len;
 
-    dap_proc_queue_callback_t cb;               /* (Async mode only!) A call back to be called on request completion */
-    const void *cb_arg;                         /* (Async mode only!) An argument of the callback rotine */
+    dap_proc_queue_callback_t cb;                                           /* (Async mode only!) A call back to be called on request completion */
+    const void *cb_arg;                                                     /* (Async mode only!) An argument of the callback rotine */
 } dap_store_obj_t, *pdap_store_obj_t;
 
 typedef struct dap_store_obj_pkt {
