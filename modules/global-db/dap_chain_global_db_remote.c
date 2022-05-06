@@ -165,7 +165,7 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *l_net, dap_chain_node_
     if (s_size_white_list == -1) {
         s_white_list = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", (uint16_t *)&s_size_white_list);
         if (s_size_white_list > 0) {
-            s_white_list_del = DAP_NEW_SIZE(char *, s_size_white_list);
+            s_white_list_del = DAP_NEW_SIZE(char *, s_size_white_list * sizeof(char *));
             for (int i = 0; i < s_size_white_list; i++) {
                 s_white_list_del[i] = dap_strdup_printf("%s.del", s_white_list[i]);
             }
