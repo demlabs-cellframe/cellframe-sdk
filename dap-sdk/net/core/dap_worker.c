@@ -639,16 +639,14 @@ void *dap_worker_thread(void *arg)
                 dap_events_socket_set_writable_unsafe(l_cur, false);        /* Clear "enable write flag" */
 
                 if ( l_cur->callbacks.write_finished_callback )             /* Optionaly call I/O completion routine */
-                    l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_errno);
+                    l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, l_errno);
 
                 l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
             }
 
             l_bytes_sent = 0;
 
-            if (   ( l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
-                 (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
-
+            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
 
                 if(l_cur->callbacks.write_callback)
@@ -812,12 +810,12 @@ void *dap_worker_thread(void *arg)
                  * If whole buffer has been sent (or it was clrered) - clear "write flag" for socket/file descriptor to prevent
                  * generation of unexpected I/O events like POLLOUT and consuming CPU by this.
                  */
-                if ( (l_cur->buf_out_size ) || (l_bytes_sent == l_cur->buf_out_size) )
+                if ( (l_cur->buf_out_size ) || ((size_t)l_bytes_sent == l_cur->buf_out_size) )
                 {
                     dap_events_socket_set_writable_unsafe(l_cur, false);/* Clear "enable write flag" */
 
                     if ( l_cur->callbacks.write_finished_callback )     /* Optionaly call I/O completion routine */
-                        l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_errno);
+                        l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, l_errno);
                 }
             }
 
