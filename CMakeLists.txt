@@ -47,7 +47,7 @@ if (CELLFRAME_MODULES MATCHES "modules-dynamic")
 endif()
 
 if (CELLFRAME_MODULES MATCHES "srv-stake")
-     add_definitions("-DDAP_SRV_STAKE_USED")
+    add_definitions("-DDAP_SRV_STAKE_USED")
 endif()
 
 if (CELLFRAME_MODULES MATCHES "core")
@@ -69,10 +69,10 @@ endif()
 
 if (BUILD_CRYPTO_TESTS)
     if ( NOT(DAPSDK_MODULES MATCHES "core"))
-	SET(DAPSDK_MODULES "${DAPSDK_MODULES} core")
+        SET(DAPSDK_MODULES "${DAPSDK_MODULES} core")
     endif()
     if ( NOT(DAPSDK_MODULES MATCHES "crypto"))
-	SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
+        SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
     endif()
     set(BUILD_TESTS ON)
 endif()
@@ -93,8 +93,11 @@ if (ANDROID)
 #    target_link_libraries(${PROJECT_NAME} ${LIB_MAGIC})
     #add_subdirectory(3rdparty/libmagic)
     add_subdirectory(3rdparty/libmagic-android)
+#        add_subdirectory(3rdparty/json-c-darwin)
+#        add_subdirectory(3rdparty/libmagic-darwin)
+#        include_directories(3rdparty/json-c-darwin)
     add_subdirectory(3rdparty/json-c)
-    include_directories(cellframe-sdk/3rdparty/)
+    include_directories(cellframe-sdk/3rdparty)
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -237,8 +240,8 @@ endif()
 
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
-					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
-                                         Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
+        Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi
+        Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
 endif()
 
 if (DARWIN)
@@ -250,5 +253,5 @@ target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 #    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/test/main_test.py
 #            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 #    enable_testing()
-    #add_subdirectory(test)
+#add_subdirectory(test)
 #endif()

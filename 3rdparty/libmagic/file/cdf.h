@@ -48,6 +48,7 @@
 typedef int32_t cdf_secid_t;
 
 #define CDF_LOOP_LIMIT					10000
+#define CDF_ELEMENT_LIMIT				100000
 
 #define CDF_SECID_NULL					0
 #define CDF_SECID_FREE					-1
@@ -76,9 +77,9 @@ typedef struct {
 	cdf_secid_t	h_master_sat[436/4];
 } cdf_header_t;
 
-#define CDF_SEC_SIZE(h) ((size_t)(1 << (h)->h_sec_size_p2))
+#define CDF_SEC_SIZE(h) CAST(size_t, 1 << (h)->h_sec_size_p2)
 #define CDF_SEC_POS(h, secid) (CDF_SEC_SIZE(h) + (secid) * CDF_SEC_SIZE(h))
-#define CDF_SHORT_SEC_SIZE(h)	((size_t)(1 << (h)->h_short_sec_size_p2))
+#define CDF_SHORT_SEC_SIZE(h)	CAST(size_t, 1 << (h)->h_short_sec_size_p2)
 #define CDF_SHORT_SEC_POS(h, secid) ((secid) * CDF_SHORT_SEC_SIZE(h))
 
 typedef int32_t cdf_dirid_t;
@@ -127,8 +128,9 @@ typedef struct {
 
 typedef struct {
 	void *sst_tab;
-	size_t sst_len;
-	size_t sst_dirlen;
+	size_t sst_len;		/* Number of sectors */
+	size_t sst_dirlen;	/* Directory sector size */
+	size_t sst_ss;		/* Sector size */
 } cdf_stream_t;
 
 typedef struct {
@@ -267,6 +269,19 @@ typedef struct {
 	size_t i_len;
 } cdf_info_t;
 
+
+typedef struct {
+	uint16_t ce_namlen;
+	uint32_t ce_num;
+	uint64_t ce_timestamp;
+	uint16_t ce_name[256];
+} cdf_catalog_entry_t;
+
+typedef struct {
+	size_t cat_num;
+	cdf_catalog_entry_t cat_e[1];
+} cdf_catalog_t;
+
 struct timespec;
 int cdf_timestamp_to_timespec(struct timespec *, cdf_timestamp_t);
 int cdf_timespec_to_timestamp(cdf_timestamp_t *, const struct timespec *);
@@ -298,11 +313,21 @@ int cdf_read_short_stream(const cdf_info_t *, const cdf_header_t *,
     const cdf_directory_t **);
 int cdf_read_property_info(const cdf_stream_t *, const cdf_header_t *, uint32_t,
     cdf_property_info_t **, size_t *, size_t *);
+int cdf_read_user_stream(const cdf_info_t *, const cdf_header_t *,
+    const cdf_sat_t *, const cdf_sat_t *, const cdf_stream_t *,
+    const cdf_dir_t *, const char *, cdf_stream_t *);
+int cdf_find_stream(const cdf_dir_t *, const char *, int);
+int cdf_zero_stream(cdf_stream_t *);
+int cdf_read_doc_summary_info(const cdf_info_t *, const cdf_header_t *,
+    const cdf_sat_t *, const cdf_sat_t *, const cdf_stream_t *,
+    const cdf_dir_t *, cdf_stream_t *);
 int cdf_read_summary_info(const cdf_info_t *, const cdf_header_t *,
     const cdf_sat_t *, const cdf_sat_t *, const cdf_stream_t *,
     const cdf_dir_t *, cdf_stream_t *);
 int cdf_unpack_summary_info(const cdf_stream_t *, const cdf_header_t *,
     cdf_summary_info_header_t *, cdf_property_info_t **, size_t *);
+int cdf_unpack_catalog(const cdf_header_t *, const cdf_stream_t *,
+    cdf_catalog_t **);
 int cdf_print_classid(char *, size_t, const cdf_classid_t *);
 int cdf_print_property_name(char *, size_t, uint32_t);
 int cdf_print_elapsed_time(char *, size_t, cdf_timestamp_t);
@@ -310,16 +335,18 @@ uint16_t cdf_tole2(uint16_t);
 uint32_t cdf_tole4(uint32_t);
 uint64_t cdf_tole8(uint64_t);
 char *cdf_ctime(const time_t *, char *);
+char *cdf_u16tos8(char *, size_t, const uint16_t *);
 
 #ifdef CDF_DEBUG
 void cdf_dump_header(const cdf_header_t *);
 void cdf_dump_sat(const char *, const cdf_sat_t *, size_t);
-void cdf_dump(void *, size_t);
-void cdf_dump_stream(const cdf_header_t *, const cdf_stream_t *);
+void cdf_dump(const void *, size_t);
+void cdf_dump_stream(const cdf_stream_t *);
 void cdf_dump_dir(const cdf_info_t *, const cdf_header_t *, const cdf_sat_t *,
     const cdf_sat_t *, const cdf_stream_t *, const cdf_dir_t *);
 void cdf_dump_property_info(const cdf_property_info_t *, size_t);
 void cdf_dump_summary_info(const cdf_header_t *, const cdf_stream_t *);
+void cdf_dump_catalog(const cdf_header_t *, const cdf_stream_t *);
 #endif
 
 

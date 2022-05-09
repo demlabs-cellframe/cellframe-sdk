@@ -149,6 +149,7 @@ typedef enum dap_chain_net_tx_search_type {
     /// Do the request for spent txs in cell
     TX_SEARCH_TYPE_CELL_SPENT,
     /// Do the search in whole
+    /// Do the search in whole network but search only spent
     TX_SEARCH_TYPE_NET_SPENT
 }dap_chain_net_tx_search_type_t;
 

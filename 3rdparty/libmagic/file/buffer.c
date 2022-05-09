@@ -1,7 +1,6 @@
 /*
- * Copyright (c) Ian F. Darwin 1986-1995.
- * Software written by Ian F. Darwin and others;
- * maintained 1995-present by Christos Zoulas and others.
+ * Copyright (c) Christos Zoulas 2017.
+ * All Rights Reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,21 +24,65 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
 #include "file.h"
 
-#ifndef lint
-FILE_RCSID("@(#)$File: asprintf.c,v 1.5 2018/09/09 20:33:28 christos Exp $")
-#endif
+#ifndef	lint
+FILE_RCSID("@(#)$File: buffer.c,v 1.8 2020/02/16 15:52:49 christos Exp $")
+#endif	/* lint */
 
-int asprintf(char **ptr, const char *fmt, ...)
+#include "magic.h"
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+
+void
+buffer_init(struct buffer *b, int fd, const struct stat *st, const void *data,
+    size_t len)
 {
-  va_list vargs;
-  int retval;
+	b->fd = fd;
+	if (st)
+		memcpy(&b->st, st, sizeof(b->st));
+	else if (b->fd == -1 || fstat(b->fd, &b->st) == -1)
+		memset(&b->st, 0, sizeof(b->st));
+	b->fbuf = data;
+	b->flen = len;
+	b->eoff = 0;
+	b->ebuf = NULL;
+	b->elen = 0;
+}
 
-  va_start(vargs, fmt);
-  retval = vasprintf(ptr, fmt, vargs);
-  va_end(vargs);
+void
+buffer_fini(struct buffer *b)
+{
+	free(b->ebuf);
+}
 
-  return retval;
+int
+buffer_fill(const struct buffer *bb)
+{
+	struct buffer *b = CCAST(struct buffer *, bb);
+
+	if (b->elen != 0)
+		return b->elen == FILE_BADSIZE ? -1 : 0;
+
+	if (!S_ISREG(b->st.st_mode))
+		goto out;
+
+	b->elen =  CAST(size_t, b->st.st_size) < b->flen ?
+	    CAST(size_t, b->st.st_size) : b->flen;
+	if ((b->ebuf = malloc(b->elen)) == NULL)
+		goto out;
+
+	b->eoff = b->st.st_size - b->elen;
+	if (pread(b->fd, b->ebuf, b->elen, b->eoff) == -1) {
+		free(b->ebuf);
+		b->ebuf = NULL;
+		goto out;
+	}
+
+	return 0;
+out:
+	b->elen = FILE_BADSIZE;
+	return -1;
 }
