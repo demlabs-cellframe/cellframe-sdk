@@ -343,7 +343,7 @@ char *dap_chain_balance_to_coins256(uint256_t a_balance)
 
     /* 123000...456 -> "123000...456" */
     if ( !(l_buf = dap_cvt_uint256_to_str(a_balance)) )
-        return  NULL;
+        return NULL;
 
     l_strlen = strlen(l_buf);
 
@@ -567,9 +567,9 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
     uint256_t l_nul = {0};
 
     /* "12300000000.0000456" */
-    if ( (l_len = strnlen(a_coins, 2*DATOSHI_POW + 2 )) > 2*DATOSHI_POW + 2)/* Check for legal length */
+    if ( (l_len = strnlen(a_coins, DATOSHI_POW256 + 2 )) > DATOSHI_POW256 + 2)/* Check for legal length */
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - too long (%d > %d)", a_coins,
-                       l_len, 2*DATOSHI_POW + 2), l_nul;
+                       l_len, DATOSHI_POW256 + 2), l_nul;
 
     /* Find , check and remove 'precision' dot symbol */
     memcpy (l_buf, a_coins, l_len);                                         /* Make local coy */
@@ -603,7 +603,7 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 
 
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
-    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW * 2 + 3);
+    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 3);
     int l_pos = 0;
     uint256_t l_value = a_uint256;
     uint256_t uint256_ten = {.hi = 0, .lo = 10};

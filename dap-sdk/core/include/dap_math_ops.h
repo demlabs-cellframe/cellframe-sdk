@@ -1010,6 +1010,16 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
 //    return l_ret;
 //}
 
+/**
+ * Multiplicates 256-bit value to fixed-point value, represented as 256-bit value
+ * @param a_val
+ * @param a_mult
+ * @return
+ */
+static inline uint256_t MULT_256_FLOAT(uint256_t a_val, uint256_t a_mult) {
+
+}
+
 #ifdef __cplusplus
 }
 #endif
