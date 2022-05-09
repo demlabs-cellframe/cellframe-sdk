@@ -278,11 +278,13 @@ void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, const char a_op
     l_arg->value = DAP_DUP_SIZE(a_value, a_value_size);
     l_arg->value_size = a_value_size;
     l_arg->attempts = 0;
-
-    if (dap_timerfd_start(3*1000,
+    /*if (dap_timerfd_start(3*1000,
                         (dap_timerfd_callback_t)s_event_broadcast_send,
                         l_arg) == NULL) {
         log_it(L_ERROR,"Can't run timer for broadcast Event %s", a_key);
+    }*/
+    if (!s_event_broadcast_send(l_arg)) {
+        log_it(L_ERROR,"Can't send broadcast event %s", a_key);
     }
 }
 
