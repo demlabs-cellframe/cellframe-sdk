@@ -927,7 +927,9 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         int l_sub_cmd = SUBCMD_NONE;
         dap_chain_hash_fast_t l_tx_threshold_hash;
         if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "coins", NULL ))
-                l_sub_cmd = SUBCMD_LIST_COIN;
+            l_sub_cmd = SUBCMD_LIST_COIN;
+        if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "balance", NULL ))
+            l_sub_cmd = SUB_CMD_LIST_LEDGER_BALANCE;
         if (dap_chain_node_cli_find_option_val(a_argv, 2, a_argc, "threshold", NULL)){
             l_sub_cmd = SUB_CMD_LIST_LEDGER_THRESHOLD;
             const char* l_tx_threshold_hash_str = NULL;
