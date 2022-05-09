@@ -87,15 +87,12 @@ if( DARWIN)
     include_directories(3rdparty/json-c-darwin)
 endif()
 if (ANDROID)
-    find_path(LIB_MAGIC_H "magic.h"
-        PATHS
-        /usr/include)
-    find_library(LIB_MAGIC libmagic.so
-        PATHS
-        /usr/lib/x86_64-linux-gnu)
-    target_include_directories(${PROJECT_NAME} ${LIB_MAGIC_H})
-    target_link_libraries(${PROJECT_NAME} ${LIB_MAGIC})
+    find_path(LIB_MAGIC_H "magic.h")
+    find_library(LIB_MAGIC libmagic.so)
+#    target_include_directories(${PROJECT_NAME} ${LIB_MAGIC_H})
+#    target_link_libraries(${PROJECT_NAME} ${LIB_MAGIC})
     #add_subdirectory(3rdparty/libmagic)
+    add_subdirectory(3rdparty/libmagic-android)
     add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
 endif()
