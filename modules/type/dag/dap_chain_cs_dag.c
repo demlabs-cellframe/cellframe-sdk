@@ -171,7 +171,7 @@ void dap_chain_cs_dag_deinit(void)
 }
 
 static void s_history_callback_round_notify(void *a_arg, const char a_op_code, const char *a_group,
-        const char *a_key, const void *a_value, const size_t a_value_size)
+                                        const char *a_key, const void *a_value, const size_t a_value_size)
 {
     dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
     if (a_arg && !l_dag->broadcast_disable){
@@ -192,9 +192,14 @@ static void s_history_callback_round_notify(void *a_arg, const char a_op_code, c
         else if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
             dap_chain_cs_new_event_add_datums(l_dag->chain, true);
         }
-        dap_chain_cs_dag_event_broadcast(l_dag, a_op_code, a_group,
-            a_key, a_value, a_value_size);
     }
+}
+
+static void s_dag_chain_cs_event_round_broadcast(dap_chain_cs_dag_t *a_dag, 
+                                    dap_chain_cs_dag_event_round_item_t *a_round_item, const char *a_key) {
+    size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(a_round_item);
+    dap_chain_cs_dag_event_broadcast(a_dag, DAP_DB$K_OPTYPE_ADD, a_dag->gdb_group_events_round_new,
+            a_key, a_round_item, l_round_item_size);
 }
 
 /**
@@ -276,6 +281,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->datum_add_hashes_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag","datum_add_hashes_count",1);
     l_dag->use_event_round_info = false;
     l_dag->callback_cs_set_event_round_info = s_dag_chain_cs_set_event_round_info;
+    l_dag->callback_broadcast = s_dag_chain_cs_event_round_broadcast;
     char * l_round_new_str = dap_strdup( dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new", "new"));
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     
