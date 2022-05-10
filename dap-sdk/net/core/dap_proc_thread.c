@@ -789,9 +789,6 @@ static void * s_proc_thread_function(void * a_arg)
                                 }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                     char * l_ptr = (char *) l_cur->buf_out;
-                                    void *l_ptr_in;
-                                    memcpy(&l_ptr_in,l_ptr, sizeof (l_ptr_in) );
-
                                     l_bytes_sent = mq_send(l_cur->mqd, l_ptr, sizeof (l_ptr),0);
                                     if (l_bytes_sent==0){
 //                                        log_it(L_DEBUG,"mq_send %p success", l_ptr_in);
@@ -801,7 +798,7 @@ static void * s_proc_thread_function(void * a_arg)
 //                                        log_it(L_DEBUG,"mq_send %p EAGAIN", l_ptr_in);
                                     }else{
                                         l_errno = errno;
-                                        log_it(L_WARNING,"mq_send %p errno: %d", l_ptr_in, l_errno);
+                                        log_it(L_WARNING,"mq_send %p errno: %d", l_ptr, l_errno);
                                     }
                                 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
 
@@ -936,6 +933,7 @@ static void * s_proc_thread_function(void * a_arg)
     for (size_t n=0; n<dap_events_worker_get_count(); n++){
         dap_events_socket_delete_unsafe(l_thread->queue_assign_input[n], false);
         dap_events_socket_delete_unsafe(l_thread->queue_io_input[n], false);
+        dap_events_socket_delete_unsafe(l_thread->queue_callback_input[n], false);
     }
 
     return NULL;

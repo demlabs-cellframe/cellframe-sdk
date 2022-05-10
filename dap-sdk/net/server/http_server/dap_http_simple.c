@@ -232,7 +232,7 @@ inline static void s_set_writable_flags(dap_http_simple_t * a_simple)
 {
     //  log_it(L_DEBUG,"_set_only_write_http_client_state");
     a_simple->http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-    dap_events_socket_set_writable_unsafe( a_simple->http_client->esocket,true);
+    dap_events_socket_set_writable_mt(a_simple->worker,a_simple->esocket->uuid, true);
 
 }
 
@@ -293,8 +293,8 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
         if (!header && !is_unknown_user_agents_pass) {
             const char error_msg[] = "Not found User-Agent HTTP header";
             s_write_response_bad_request(l_http_simple, error_msg);
-            s_set_writable_flags( l_http_simple);
             dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
+            s_set_writable_flags(l_http_simple);
             return true;
         }
 
@@ -303,8 +303,8 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
                 log_it(L_DEBUG, "Not supported user agent in request: %s", header->value);
                 const char* error_msg = "User-Agent version not supported. Update your software";
                 s_write_response_bad_request(l_http_simple, error_msg);
-                s_set_writable_flags( l_http_simple);
                 dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
+                s_set_writable_flags(l_http_simple);
                 return true;
             }
     }
@@ -321,9 +321,8 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
     }
     dap_http_client_out_header_generate(l_http_simple->http_client);
 
-
-    s_set_writable_flags( l_http_simple);
     dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
+    s_set_writable_flags(l_http_simple);
     return true;
 }
 

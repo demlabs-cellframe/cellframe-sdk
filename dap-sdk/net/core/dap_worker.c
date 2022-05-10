@@ -210,7 +210,7 @@ void *dap_worker_thread(void *arg)
         }
 
         time_t l_cur_time = time( NULL);
-        for(size_t n = 0; n < l_sockets_max; n++) {
+        for(ssize_t n = 0; n < l_sockets_max; n++) {
             bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -646,7 +646,7 @@ void *dap_worker_thread(void *arg)
 
             l_bytes_sent = 0;
 
-            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
+            if (/* l_flag_write && */(l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
 
                 if(l_cur->callbacks.write_callback)
