@@ -38,8 +38,7 @@
 FILE_RCSID("@(#)$File: encoding.c,v 1.37 2022/04/22 23:07:01 christos Exp $")
 #endif	/* lint */
 
-//#include "magic.h"
-#include "magic.h.in"
+#include "magic.h"
 #include <string.h>
 #include <stdlib.h>
 

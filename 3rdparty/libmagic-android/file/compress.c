@@ -38,8 +38,8 @@
 FILE_RCSID("@(#)$File: compress.c,v 1.135 2022/04/11 18:14:41 christos Exp $")
 #endif
 
-//#include "magic.h"
-#include "magic.h.in"
+#include "magic.h"
+#include <config.h>
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>

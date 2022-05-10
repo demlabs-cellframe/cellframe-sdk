@@ -35,8 +35,8 @@
 FILE_RCSID("@(#)$File: apprentice.c,v 1.323 2022/04/18 21:50:49 christos Exp $")
 #endif	/* lint */
 
-//#include "magic.h"
-#include "magic.h.in"
+#include "magic.h"
+#include <config.h>
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -3329,7 +3329,7 @@ check_buffer(struct magic_set *ms, struct magic_map *map, const char *dbname)
 		version = ptr[1];
 	if (version != VERSIONNO) {
 		file_error(ms, 0, "File %s supports only version %d magic "
-		    "files. `%s' is version %d", VERSION,
+            "files. `%s' is version %d", VERSION,
 		    VERSIONNO, dbname, version);
 		return -1;
 	}

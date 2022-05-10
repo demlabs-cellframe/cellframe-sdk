@@ -38,8 +38,7 @@
 FILE_RCSID("@(#)$File: ascmagic.c,v 1.110 2021/12/06 15:33:00 christos Exp $")
 #endif	/* lint */
 
-//#include "magic.h"
-#include "magic.h.in"
+#include "magic.h"
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
