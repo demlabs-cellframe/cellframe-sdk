@@ -772,6 +772,7 @@ MDBX_stat   l_stat;
 struct  __record_suffix__   *l_suff;
 
 
+
     if (!a_group)                                                           /* Sanity check */
         return NULL;
 
@@ -782,6 +783,7 @@ struct  __record_suffix__   *l_suff;
 
     if ( MDBX_SUCCESS != (l_rc = mdbx_txn_begin(s_mdbx_env, NULL, MDBX_TXN_RDONLY, &l_db_ctx->txn)) )
         return  log_it (L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), NULL;
+
 
 
 
@@ -827,6 +829,7 @@ struct  __record_suffix__   *l_suff;
 
         return ( l_rc == MDBX_SUCCESS ) ? l_obj : NULL;
     }
+
 
 
 
