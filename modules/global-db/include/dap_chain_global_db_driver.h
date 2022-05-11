@@ -106,9 +106,6 @@ typedef struct dap_db_driver_callbacks {
 
     dap_db_driver_callback_t            deinit;
     dap_db_driver_callback_t            flush;
-
-                        void            *db_ctx;                            /* A context is created and maintained internaly by the
-                                                                              partucular DB driver - don't touch until u understand how it works at all  */
 } dap_db_driver_callbacks_t;
 
 
