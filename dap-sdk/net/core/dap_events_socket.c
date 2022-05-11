@@ -1166,14 +1166,17 @@ static void *dap_events_socket_buf_thread(void *arg)
     int l_res = 0;
     int l_count = 0;
     while(l_res < 1 && l_count < 3) {
-    // wait max 5 min
-#ifdef DAP_OS_WINDOWS
-        log_it(L_INFO, "Wait 5 minutes");
-        l_res = wait_send_socket(l_item->es->socket, 300000);
-#else
-        l_res = wait_send_socket(l_item->es->fd2, 300000);
+        // wait max 5 min
+        SOCKET l_sock = INVALID_SOCKET;
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+        l_sock = l_item->es->fd2;
+#elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+        l_sock = l_item->es->mqd;
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+#error "Undefined waiting for KQUEUE CAPS"
 #endif
-        if (l_res == 0){
+        l_res = wait_send_socket(l_sock, 300000);
+        if (l_res == 0) {
             dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
             break;
         }
