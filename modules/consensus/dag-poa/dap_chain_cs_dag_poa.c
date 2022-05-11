@@ -822,6 +822,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         l_event_new_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_event_new_hash);
         if (dap_chain_cs_dag_event_gdb_set(a_dag, l_event_new_hash_hex_str, l_event,
                                             l_event_size_new, l_round_item, a_group)) {
+            // a_dag->callback_broadcast(a_dag, l_round_item);
             // dap_chain_global_db_gr_del(a_key, a_group); // Delete old event
         }
         bool l_event_is_ready = s_round_event_ready_minimum_check(a_dag, l_event, l_event_size_new,
