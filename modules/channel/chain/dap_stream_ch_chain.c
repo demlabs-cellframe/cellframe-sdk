@@ -1548,8 +1548,11 @@ struct chain_io_complete {
 static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int a_errno)
 {
     UNUSED(a_errno); // TODO process it
-    if (!a_arg)
+    if (!a_arg) {
+        if (a_es->callbacks.write_callback)
+            a_es->callbacks.write_callback(a_es, NULL);
         return;
+    }
     struct chain_io_complete *l_arg = (struct chain_io_complete *)a_arg;
     dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(a_es);
     if (l_client_pvt->stream) {
