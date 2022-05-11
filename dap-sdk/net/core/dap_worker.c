@@ -811,9 +811,7 @@ void *dap_worker_thread(void *arg)
                         }
                     }
                 }
-
             }
-
 
             if (l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)
             {
