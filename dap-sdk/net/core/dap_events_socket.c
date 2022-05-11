@@ -1156,10 +1156,9 @@ static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
  */
 static void *dap_events_socket_buf_thread(void *arg)
 {
-    dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t*) arg;
-    if(!l_item) {
+    dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t *)arg;
+    if (!l_item)
         pthread_exit(0);
-    }
     int l_res = 0;
     int l_count = 0;
     SOCKET l_sock = INVALID_SOCKET;
@@ -1178,7 +1177,7 @@ static void *dap_events_socket_buf_thread(void *arg)
             break;
         }
     }
-    if(l_res != 0)
+    if (l_res != 0)
         log_it(L_WARNING, "Lost data bulk in events socket buf thread");
 
     DAP_DELETE(l_item);
