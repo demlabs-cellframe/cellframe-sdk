@@ -314,6 +314,7 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
             dap_chain_cs_dag_event_round_item_get_size(l_round_item),
             a_group);
 
+    a_dag->callback_broadcast(a_dag, l_round_item, a_event_hash_str);
     DAP_DELETE(l_round_item);
     return ret;
 }
