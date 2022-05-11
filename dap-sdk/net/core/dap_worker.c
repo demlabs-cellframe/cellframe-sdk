@@ -824,7 +824,7 @@ void *dap_worker_thread(void *arg)
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
                                l_cur->type, l_tn);
 
-                    for(size_t nn=n+1; nn<l_sockets_max; nn++){ // Check for current selection if it has event duplication
+                    for (ssize_t nn = n + 1; nn < l_sockets_max; nn++) { // Check for current selection if it has event duplication
                         dap_events_socket_t *l_es_selected = NULL;
 #ifdef DAP_EVENTS_CAPS_EPOLL
                         l_es_selected = (dap_events_socket_t *) l_epoll_events[nn].data.ptr;
