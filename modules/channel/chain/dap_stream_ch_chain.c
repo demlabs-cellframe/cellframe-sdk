@@ -1801,11 +1801,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS, NULL,
                                                            0, l_ch_chain->callback_notify_arg);
             }
-            if (! l_was_sent_smth ){
+            if (!l_was_sent_smth)
                 l_ch_chain->timer_shots = -1;
-                // We need to return into the write callback
-                a_ch->stream->esocket->buf_out_zero_count = 0;
-            }
         } break;
         default: break;
     }

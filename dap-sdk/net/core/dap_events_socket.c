@@ -1708,21 +1708,10 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
         return;
     }
 
-    if ( a_is_ready ) {
+    if ( a_is_ready )
         a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
-#ifdef DAP_EVENTS_CAPS_EPOLL
-        if (a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-            a_esocket->ev_base_flags |= EPOLLONESHOT;
-#endif
-    }
-    else {
+    else
         a_esocket->flags ^= DAP_SOCK_READY_TO_WRITE;
-#ifdef DAP_EVENTS_CAPS_EPOLL
-        if (a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-            a_esocket->ev_base_flags ^= EPOLLONESHOT;
-#endif
-    }
-
 
 #ifdef DAP_EVENTS_CAPS_EVENT_KEVENT
     if( a_esocket->type != DESCRIPTOR_TYPE_EVENT &&

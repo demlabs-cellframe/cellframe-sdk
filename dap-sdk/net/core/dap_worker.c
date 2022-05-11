@@ -720,7 +720,6 @@ void *dap_worker_thread(void *arg)
                                              log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                          }
                                          l_bytes_sent = sizeof(void*);
-                                         dap_events_socket_set_writable_unsafe(l_cur,false);
 
                                      }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)

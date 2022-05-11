@@ -159,7 +159,7 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t __at
 {
 dap_proc_thread_t   *l_thread;
 dap_proc_queue_item_t *l_item;
-int     l_rc, l_is_anybody_for_repeat, l_is_finished, l_iter_cnt, l_cur_pri;
+int     l_rc, l_is_anybody_in_queue, l_is_finished, l_iter_cnt, l_cur_pri;
 size_t  l_size;
 dap_proc_queue_t    *l_queue;
 
@@ -171,12 +171,11 @@ dap_proc_queue_t    *l_queue;
         return;
         }
 
-    l_iter_cnt = l_is_anybody_for_repeat = 0;
+    l_iter_cnt = l_is_anybody_in_queue = 0;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
-    l_cur_pri = (DAP_QUE$K_PRIMAX - 1);
     l_queue = l_thread->proc_queue;
 
-    for ( ; l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
+    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
     {
         if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
             continue;
@@ -194,7 +193,6 @@ dap_proc_queue_t    *l_queue;
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
         l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
-        l_is_anybody_for_repeat++;
 
         debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
                            l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
@@ -206,17 +204,16 @@ dap_proc_queue_t    *l_queue;
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
         }
         else    {
-                    DAP_DELETE(l_item);
+            DAP_DELETE(l_item);
     	}
+    }
+    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)
+        l_is_anybody_in_queue += l_queue->list[l_cur_pri].items.nr;
 
-            l_is_anybody_for_repeat += (!l_is_finished);
-
-        }
-
-    if ( l_is_anybody_for_repeat )                                          /* Arm event if we have something to proc again */
+    if ( l_is_anybody_in_queue )                                          /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
 
-    debug_if(g_debug_reactor, L_DEBUG, "<-- Proc event callback end, repeat flag is: %d, iterations: %d", l_is_anybody_for_repeat, l_iter_cnt);
+    debug_if(g_debug_reactor, L_DEBUG, "<-- Proc event callback end, items rest: %d, iterations: %d", l_is_anybody_in_queue, l_iter_cnt);
 }
 
 

@@ -158,7 +158,7 @@ typedef struct dap_events_socket_callbacks {
 #define DAP_STREAM_PKT_SIZE_MAX     (1 * 1024 * 1024)
 #define DAP_EVENTS_SOCKET_BUF       DAP_STREAM_PKT_SIZE_MAX
 #define DAP_EVENTS_SOCKET_BUF_LIMIT (DAP_STREAM_PKT_SIZE_MAX * 4)
-#define DAP_QUEUE_MAX_MSGS          8
+#define DAP_QUEUE_MAX_MSGS          512
 
 typedef enum {
     DESCRIPTOR_TYPE_SOCKET_CLIENT = 0,
@@ -219,8 +219,6 @@ typedef struct dap_events_socket {
     bool no_close;
     atomic_bool is_initalized;
     bool was_reassigned; // Was reassigment at least once
-
-    uint32_t buf_out_zero_count;
 
     // Input section
     byte_t  *buf_in;
