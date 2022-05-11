@@ -68,7 +68,9 @@ int dap_chain_net_srv_stake_init()
     "srv_stake invalidate -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
          "\tInvalidate requested stake transaction by hash within net name and return stake to specified wallet\n"
     );
+
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
+    
     uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
@@ -150,11 +152,16 @@ void dap_chain_net_srv_stake_deinit()
 static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_authorized)
 {
     dap_chain_net_srv_stake_item_t *l_stake;
-    if (a_cond)
+    if (a_cond) {
         HASH_FIND(hh, s_srv_stake->itemlist, &a_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t), l_stake);
-    else
+    }
+    else {
         l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
-    assert(l_stake);
+    }
+    // assert(l_stake);
+    if (!l_stake) {
+        return;
+    }
     dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
     if (!l_out_cond || l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE) {
         // Stake tx is used out
@@ -167,7 +174,8 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
         // New stake transaction
         memcpy(&l_stake->signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t));
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
-    } else if (memcmp(&a_cond->subtype.srv_stake.signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t))) {
+    }
+    else if (memcmp(&a_cond->subtype.srv_stake.signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t))) {
         HASH_DEL(s_srv_stake->itemlist, l_stake);
         dap_chain_net_srv_stake_item_t *l_stake_cur = NULL;
         HASH_FIND(hh, s_srv_stake->itemlist, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t), l_stake_cur);
@@ -179,8 +187,9 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
         if (l_stake_cur)
             HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
     }
-    if (a_authorized)
+    if (a_authorized) {
         l_stake->is_active = true;
+    }
     memcpy(&l_stake->addr_hldr, &l_out_cond->subtype.srv_stake.hldr_addr, sizeof(dap_chain_addr_t));
     memcpy(&l_stake->addr_fee, &l_out_cond->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t));
     l_stake->fee_value = l_out_cond->subtype.srv_stake.fee_value;
@@ -233,11 +242,17 @@ static bool s_stake_conditions_calc(dap_chain_tx_out_cond_t *a_cond, dap_chain_d
 
 bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
+    if (!s_srv_stake) {
+        return false;
+    }
     return s_stake_conditions_calc(a_cond, a_tx, a_owner, false);
 }
 
 bool dap_chain_net_srv_stake_updater(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
+    if (!s_srv_stake) {
+        return false;
+    }
     return s_stake_conditions_calc(a_cond, a_tx, a_owner, true);
 }
 
@@ -416,7 +431,8 @@ static bool s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
     // Put the transaction to mempool or directly to chains
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
-    DAP_DELETE(a_tx);
+    // don't delete a_tx because in s_cli_srv_stake() after this function calc hash this tx
+    // DAP_DELETE(a_tx);
     dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     if (!l_chain) {
         return false;
@@ -1246,7 +1262,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             dap_chain_wallet_close(l_wallet);
             if (l_success) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Stake successfully returned to owner");
-                HASH_DEL(s_srv_stake->itemlist, l_stake);
+                // don't delete stake here because it delete in s_stake_update after invalidate tx approve
+                // HASH_DEL(s_srv_stake->itemlist, l_stake);
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't invalidate transaction %s", l_tx_hash_str);
                 return -21;
