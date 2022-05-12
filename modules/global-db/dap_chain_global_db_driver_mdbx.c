@@ -956,9 +956,11 @@ struct  __record_suffix__   *l_suff;
             log_it (L_ERROR, "mdbx_dbi_stat: (%d) %s", l_rc2, mdbx_strerror(l_rc2));
             break;
         }
+        else if ( !l_stat.ms_entries )                                      /* Nothing to retrieve , table contains no record */
+            break;
 
         if ( !(l_count_out = min(l_stat.ms_entries, l_count_out)) ) {
-            log_it(L_WARNING, "No object (-s) to be rtreived from the group '%s'", a_group);
+            debug_if(s_dap_global_db_debug_more, L_WARNING, "No object (-s) to be retrieved from the group '%s'", a_group);
             break;
         }
 
