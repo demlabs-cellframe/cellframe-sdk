@@ -170,6 +170,36 @@ char* dap_canonicalize_filename(const char *filename, const char *relative_to);
  */
 char* dap_get_current_dir(void);
 
+/**
+ * rm_rf
+ *
+ * A fairly naive `rm -rf` implementation
+ */
+void dap_rm_rf(const char *path);
+
+#ifdef DAP_BUILD_WITH_ZIP
+/*
+ * Pack a directory to zip file
+ *
+ * @a_inputdir: input dir
+ * @a_output_filename: output zip file path
+ *
+ * Returns: True, if successfully
+ */
+bool dap_zip_directory(const char *a_inputdir, const char * a_output_filename);
+#endif
+
+/*
+ * Pack a directory to tar file
+ *
+ * @a_inputdir: input dir
+ * @a_output_filename: output tar file path
+ *
+ * Returns: True, if successfully
+ */
+bool dap_tar_directory(const char *a_inputdir, const char *a_output_tar_filename);
+
+
 #ifdef __cplusplus
 }
 #endif

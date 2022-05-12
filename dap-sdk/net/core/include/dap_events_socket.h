@@ -101,11 +101,12 @@ typedef int SOCKET;
 #endif
 
 #define BIT( x ) ( 1 << x )
-#define DAP_SOCK_READY_TO_READ     BIT( 0 )
-#define DAP_SOCK_READY_TO_WRITE    BIT( 1 )
-#define DAP_SOCK_SIGNAL_CLOSE      BIT( 2 )
-#define DAP_SOCK_CONNECTING         BIT( 3 ) // When connection happens this flag is armed for outgoing connections until its establish the connection
-#define DAP_SOCK_REASSIGN_ONCE     BIT( 4 )   // This usable for FlowControl to prevent multiple reassigment
+#define DAP_SOCK_READY_TO_READ      BIT( 0 )
+#define DAP_SOCK_READY_TO_WRITE     BIT( 1 )
+#define DAP_SOCK_SIGNAL_CLOSE       BIT( 2 )
+#define DAP_SOCK_CONNECTING         BIT( 3 )    // When connection happens this flag is armed for outgoing connections until its establish the connection
+#define DAP_SOCK_REASSIGN_ONCE      BIT( 4 )    // This usable for FlowControl to prevent multiple reassigment
+//#define DAP_SOCK_DROP_WRITE_IF_ZERO BIT( 5 )    // Drop down WRITE flag from socket if reach zero bytes in output buffer
 
 // If set - queue limited to sizeof(void*) size of data transmitted
 #define DAP_SOCK_QUEUE_PTR         BIT( 8 )
@@ -127,29 +128,35 @@ typedef void (*dap_events_socket_callback_accept_t) (dap_events_socket_t * , SOC
 typedef void (*dap_events_socket_callback_connected_t) (dap_events_socket_t * ); // Callback for connected client connection
 typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_worker_t * ); // Callback for specific client operations
 
+
+                                                                            /* A callback routine is supposed to be called on completion I/O */
+typedef void (*dap_events_socket_worker_complete_io_t) (dap_events_socket_t *, dap_worker_t *, int a_errno);
+
 typedef struct dap_events_socket_callbacks {
     union{ // Specific callbacks
-        dap_events_socket_callback_connected_t connected_callback; // Connected callback for client socket
-        dap_events_socket_callback_accept_t accept_callback; // Accept callback for listening socket
-        dap_events_socket_callback_event_t event_callback; // Event callback for listening socket
-        dap_events_socket_callback_queue_t queue_callback; // Queue callback for listening socket
-        dap_events_socket_callback_queue_ptr_t queue_ptr_callback; // queue_ptr callback for listening socket
+        dap_events_socket_callback_connected_t connected_callback;          /* Connected callback for client socket */
+        dap_events_socket_callback_accept_t accept_callback;                /* Accept callback for listening socket */
+        dap_events_socket_callback_event_t event_callback;                  /* Event callback for listening socket */
+        dap_events_socket_callback_queue_t queue_callback;                  /* Queue callback for listening socket */
+        dap_events_socket_callback_queue_ptr_t queue_ptr_callback;          /* queue_ptr callback for listening socket */
     };
 
-    dap_events_socket_callback_timer_t timer_callback; // Timer callback for listening socket
-    dap_events_socket_callback_t new_callback; // Create new client callback
-    dap_events_socket_callback_t delete_callback; // Delete client callback
-    dap_events_socket_callback_t read_callback; // Read function
-    dap_events_socket_callback_t write_callback; // Write function
-    dap_events_socket_callback_error_t error_callback; // Error processing function
+    dap_events_socket_callback_timer_t timer_callback;                      /* Timer callback for listening socket */
+    dap_events_socket_callback_t new_callback;                              /* Create new client callback */
+    dap_events_socket_callback_t delete_callback;                           /* Delete client callback */
+    dap_events_socket_callback_t read_callback;                             /* Read function */
+    dap_events_socket_callback_t write_callback;                            /* Write function */
+    dap_events_socket_worker_complete_io_t write_finished_callback;         /* Called on completion Write operation */
+    dap_events_socket_callback_error_t error_callback;                      /* Error processing function */
 
-    dap_events_socket_worker_callback_t worker_assign_callback; // After successful worker assign
-    dap_events_socket_worker_callback_t worker_unassign_callback; // After successful worker unassign
+    dap_events_socket_worker_callback_t worker_assign_callback;             /* After successful worker assign */
+    dap_events_socket_worker_callback_t worker_unassign_callback;           /* After successful worker unassign */
 
 } dap_events_socket_callbacks_t;
 
-#define DAP_EVENTS_SOCKET_BUF       100000
-#define DAP_EVENTS_SOCKET_BUF_LIMIT 500000
+#define DAP_STREAM_PKT_SIZE_MAX     (1 * 1024 * 1024)
+#define DAP_EVENTS_SOCKET_BUF       DAP_STREAM_PKT_SIZE_MAX
+#define DAP_EVENTS_SOCKET_BUF_LIMIT (DAP_STREAM_PKT_SIZE_MAX * 4)
 #define DAP_QUEUE_MAX_MSGS          8
 
 typedef enum {
@@ -215,31 +222,23 @@ typedef struct dap_events_socket {
     uint32_t buf_out_zero_count;
 
     // Input section
-        //uint8_t buf_in[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for input data
-        //char buf_in_str[DAP_EVENTS_SOCKET_BUF+1];
     byte_t  *buf_in;
     size_t buf_in_size_max; //  size of alloced buffer
         //char    *buf_in_str;
     size_t buf_in_size; // size of data that is in the input buffer
 
     // Output section
-
-    //byte_t buf_out[DAP_EVENTS_SOCKET_BUF+1]; // Internal buffer for output data
     byte_t *buf_out;
     size_t buf_out_size; // size of data that is in the output buffer
     size_t buf_out_size_max; // max size of data
     dap_events_socket_t * pipe_out; // Pipe socket with data for output
 
     // Stored string representation
-    //char hostaddr[1024]; // Address
-    //char service[128];
     char *hostaddr;
     char *service;
 
     // Remote address, port and others
     struct sockaddr_in remote_addr;
-    //char remote_addr_str[INET_ADDRSTRLEN];
-    //char remote_addr_str6[INET6_ADDRSTRLEN];
     char *remote_addr_str;
     char *remote_addr_str6;
     short remote_port;

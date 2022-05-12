@@ -176,7 +176,7 @@ void dap_chain_ledger_load_end(dap_ledger_t *a_ledger);
  */
 unsigned dap_chain_ledger_count(dap_ledger_t *a_ledger);
 
-uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, time_t a_ts_from, time_t a_ts_to );
+uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to);
 size_t dap_chain_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_from, struct timespec *a_ts_to);
 
 /**

@@ -20,7 +20,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <assert.h>
 #include <errno.h>
 #include "dap_worker.h"
 #include "dap_proc_queue.h"
@@ -93,7 +92,10 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     dap_proc_queue_item_t *l_item;
 
     assert ( a_es );
-    assert( (l_queue = (dap_proc_queue_t*) a_es->_inheritor) );
+    if ( !(l_queue = (dap_proc_queue_t*) a_es->_inheritor) ) {
+        log_it(L_CRITICAL, "%s: a_es: %p, l_queue is NULL", __PRETTY_FUNCTION__, a_es);
+        return;
+    }
 
     if ( !(l_msg = (dap_proc_queue_msg_t*) a_msg) ) {
         log_it(L_CRITICAL, "%s: a_es: %p, a_msg is NULL", __PRETTY_FUNCTION__, a_es);
@@ -108,7 +110,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         return;
     }
 
-    log_it(L_DEBUG, "l_queue: %p, l_msg: %p, callback: %p/%p, pri: %d", l_queue, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+    debug_if(g_debug_reactor, L_DEBUG, "l_queue: %p, l_msg: %p, callback: %p/%p, pri: %d", l_queue, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
 
 
     if ( !(l_item = DAP_NEW_Z(dap_proc_queue_item_t)) ) {
@@ -131,14 +133,14 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         l_item->callback = l_msg->callback;
         l_item->callback_arg = l_msg->callback_arg;
 
-    assert ( !pthread_mutex_lock(&l_queue->list[pri].lock) );               /* Protect list from other threads */
+    pthread_mutex_lock(&l_queue->list[pri].lock);                           /* Protect list from other threads */
     l_rc = s_dap_insqtail (&l_queue->list[pri].items, l_item, 1);
-    assert ( !pthread_mutex_unlock(&l_queue->list[pri].lock) );
+    pthread_mutex_unlock(&l_queue->list[pri].lock);
 
     if ( l_rc )
         log_it(L_CRITICAL, "Enqueue failed: %d, drop l_msg:%p, callback: %p/%p, pri: %d", l_rc, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
     else
-        log_it(L_DEBUG, "Enqueued l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+        debug_if(g_debug_reactor, L_DEBUG, "Enqueued l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
 
     dap_events_socket_event_signal(l_queue->proc_thread->proc_event, 1);    /* Add on top so after call this callback will be executed first */
 

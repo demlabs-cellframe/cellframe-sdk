@@ -22,10 +22,11 @@
 */
 #pragma once
 
+#include <pthread.h>
 #include "dap_events_socket.h"
 #include "dap_proc_queue.h"
-#include <pthread.h>
 #include "dap_common.h"
+#include "dap_events.h"
 
 //typedef struct dap_proc_queue dap_proc_queue_t;
 typedef struct dap_timerfd dap_timerfd_t;

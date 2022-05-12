@@ -26,13 +26,13 @@
 #include <stdint.h>
 #include <pthread.h>
 #include <errno.h>
-#include <time.h>
 #include <assert.h>
-//#include <string.h>
 #include "dap_chain_global_db.h"
 #include "uthash.h"
 #include "dap_strfuncs.h"
+#include "dap_file_utils.h"
 #include "dap_chain_common.h"
+#include "dap_time.h"
 
 #ifdef WIN32
 #include "registry.h"
@@ -207,6 +207,70 @@ size_t i;
     DAP_DELETE(a_objs);                                     /* Finaly kill the the array */
 }
 
+
+static int s_check_db_version(dap_config_t *g_config)
+{
+    int res = 0;
+    // Read current version of database
+    size_t l_gdb_version_len = 0;
+    uint16_t l_gdb_version = 0;
+    uint16_t *l_gdb_version_p = (uint16_t*) dap_chain_global_db_get("gdb_version", &l_gdb_version_len);
+    if(l_gdb_version_p && l_gdb_version_len == sizeof(uint16_t)) {
+        l_gdb_version = *l_gdb_version_p;
+    }
+
+    if(l_gdb_version < GDB_VERSION) {
+        log_it(L_NOTICE, "GlobalDB version %d, but %d required. The current database will be recreated", l_gdb_version, GDB_VERSION);
+        dap_chain_global_db_deinit();
+        // Database path
+        const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+        // Delete database
+        if(dap_file_test(l_storage_path) || dap_dir_test(l_storage_path)) {
+            // Backup filename: backup_global_db_ver.X_DATE_TIME.zip
+            char now[255];
+            time_t t = time(NULL);
+            strftime(now, 200, "%y.%m.%d-%H_%M_%S", localtime(&t));
+#ifdef DAP_BUILD_WITH_ZIP
+            char *l_output_file_name = dap_strdup_printf("backup_%s_ver.%d_%s.zip", dap_path_get_basename(l_storage_path), l_gdb_version, now);
+            char *l_output_file_path = dap_build_filename(l_storage_path, "../", l_output_file_name, NULL);
+            // Create backup as ZIP file
+            if(dap_zip_directory(l_storage_path, l_output_file_path)) {
+#else
+            char *l_output_file_name = dap_strdup_printf("backup_%s_ver.%d_%s.tar", dap_path_get_basename(l_storage_path), l_gdb_version, now);
+            char *l_output_file_path = dap_build_filename(l_storage_path, "../", l_output_file_name, NULL);
+            // Create backup as TAR file
+            if(dap_tar_directory(l_storage_path, l_output_file_path)) {
+#endif
+                // Delete database file or directory
+                dap_rm_rf(l_storage_path);
+            }
+            else {
+                log_it(L_ERROR, "Can't backup GlobalDB version %d", l_gdb_version);
+                return -2;
+            }
+            DAP_DELETE(l_output_file_name);
+            DAP_DELETE(l_output_file_path);
+        }
+        // Reinitialize database
+        res = dap_chain_global_db_init(g_config);
+        // Save current db version
+        if(!res) {
+            l_gdb_version = GDB_VERSION;
+            dap_chain_global_db_set("gdb_version", &l_gdb_version, sizeof(uint16_t));
+            log_it(L_NOTICE, "GlobalDB version updated to %d", l_gdb_version);
+        }
+    } else if(l_gdb_version > GDB_VERSION) {
+        log_it(L_ERROR, "GlobalDB version %d is newer than supported version %d", l_gdb_version, GDB_VERSION);
+        res = -1;
+    }
+    else {
+        log_it(L_NOTICE, "GlobalDB version %d", l_gdb_version);
+    }
+    if(l_gdb_version_p)
+        DAP_DELETE(l_gdb_version_p);
+    return res;
+}
+
 /**
  * @brief Initializes a database by g_config structure.
  * @note You should call this function before calling any other functions in this library.
@@ -234,12 +298,19 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 
     if( res != 0 )
         log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, l_storage_path);
-    else
-        log_it(L_NOTICE, "GlobalDB initialized");
-
+    else {
+        static bool is_check_version = false;
+        if(!is_check_version){
+            is_check_version = true;
+            res = s_check_db_version(g_config);
+        }
+        if(!res)
+            log_it(L_NOTICE, "GlobalDB initialized");
+        else
+            log_it(L_ERROR, "GlobalDB version changed, please export or remove old version!");
+    }
     return res;
 }
-
 
 static void s_clear_sync_grp(void *a_elm)
 {
@@ -313,6 +384,36 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
     return l_store_data;
 }
 
+/**
+ * @brief Gets an object value with parameters from database by a_key and a_group.
+ *
+ * @param a_key an object key string
+ * @param a_data_len_out a length of values that were gotten
+ * @param a_flags_out record flags that were gotten
+ * @param a_group a group name string
+ * @return If successful, returns a pointer to the object value.
+ */
+uint8_t* dap_chain_global_db_gr_get_ext(const char *a_key, size_t *a_data_len_out, const char *a_group, uint8_t *a_flags_out)
+{
+    uint8_t *l_ret_value = NULL;
+    // read several items, 0 - no limits
+    size_t l_count_records = 0;
+    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, &l_count_records);
+    if(!l_store_data || l_count_records < 1) {
+        return NULL;
+    }
+    l_ret_value = l_store_data->value && l_store_data->value_len
+            ? DAP_DUP_SIZE(l_store_data->value, l_store_data->value_len)
+            : NULL;
+    // set length of output buffer
+    if(a_data_len_out)
+        *a_data_len_out = l_store_data->value_len;
+    // set flag of record
+    if(a_flags_out)
+        *a_flags_out = l_store_data->flags;
+    dap_store_obj_free(l_store_data, l_count_records);
+    return l_ret_value;
+}
 
 /**
  * @brief Gets an object value with parameters from database by a_key and a_group.
@@ -377,7 +478,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
  * @param a_timestamp an object time stamp
  * @return True if successful, false otherwise.
  */
-static int global_db_gr_del_add(const char *a_key, const char *a_group, time_t a_timestamp)
+static int global_db_gr_del_add(const char *a_key, const char *a_group, uint64_t a_timestamp)
 {
 dap_store_obj_t store_data = {0};
 char	l_group[DAP_DB_K_MAXGRPLEN];
@@ -430,13 +531,13 @@ int	l_res = 0;
  * @param a_key an object key string, looked like "0x8FAFBD00B..."
  * @return If successful, a time stamp, otherwise 0.
  */
-time_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
+uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
 {
-time_t l_timestamp = 0;
-dap_store_obj_t store_data = {0};
-char    l_group [512];
-size_t l_count_out = 0;
-dap_store_obj_t *l_obj;
+    uint64_t l_timestamp = 0;
+    dap_store_obj_t store_data = { 0 };
+    char l_group[512];
+    size_t l_count_out = 0;
+    dap_store_obj_t *l_obj;
 
     if(!a_key)
         return l_timestamp;
@@ -506,34 +607,38 @@ dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_f
 /**
  * @brief Gets all data from a database by a_group.
  * @param a_group a group name string
- * @param a_data_size[in] a poiter to return a number of data
- * @param a_data_size[out] a number of data
+ * @param a_records_count_out[in] a poiter to return a number of data
+ * @param a_records_count_out[out] a number of data
  * @return If successful, a pointer to data; otherwise NULL.
  */
-dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out)
+dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_records_count_out)
 {
     size_t l_count = 0;
-    if (!a_data_size_out)
-        a_data_size_out = &l_count;
-    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, a_data_size_out);
+    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, &l_count);
     if(!l_store_obj)
         return NULL;
 
     dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
-                                                 (*a_data_size_out + 1) * sizeof(dap_global_db_obj_t)); // last item in mass must be zero
+                                                 l_count * sizeof(dap_global_db_obj_t));
     if (!l_data) {
-        dap_store_obj_free(l_store_obj, *a_data_size_out);
+        dap_store_obj_free(l_store_obj, l_count);
         return NULL;
     }
 
-    for(size_t i = 0; i < *a_data_size_out; i++) {
+    size_t l_valid = 0;
+    for(size_t i = 0; i < l_count; i++) {
+        if (!l_store_obj[i].key)
+            continue;
         l_data[i] = (dap_global_db_obj_t) {
                 .key = dap_strdup(l_store_obj[i].key),
                 .value_len = l_store_obj[i].value_len,
                 .value = DAP_DUP_SIZE(l_store_obj[i].value, l_store_obj[i].value_len)
         };
+        l_valid++;
     }
-    dap_store_obj_free(l_store_obj, *a_data_size_out);
+    dap_store_obj_free(l_store_obj, l_count);
+    if (a_records_count_out)
+        *a_records_count_out = l_valid;
     return l_data;
 }
 
@@ -582,7 +687,7 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
  * @return True if successful, false otherwise.
  */
-bool dap_chain_global_db_gr_flags_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group, uint8_t a_flags)
+bool dap_chain_global_db_gr_set_ext(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group, uint8_t a_flags)
 {
     dap_store_obj_t store_data = { 0 };
 
@@ -591,7 +696,7 @@ bool dap_chain_global_db_gr_flags_set(const char *a_key, const void *a_value, si
     store_data.value_len = (a_value_len == (size_t) -1) ? dap_strlen(a_value) : a_value_len;
     store_data.value = store_data.value_len ? (void *)a_value : NULL;
     store_data.group = (char *)a_group;
-    store_data.timestamp = time(NULL);
+    store_data.timestamp = dap_gdb_time_now();
 
     lock();
     int l_res = dap_chain_global_db_driver_add(&store_data, 1);
@@ -625,13 +730,13 @@ bool dap_chain_global_db_gr_flags_set(const char *a_key, const void *a_value, si
 bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
 {
     uint8_t l_flags = RECORD_COMMON;
-    return dap_chain_global_db_gr_flags_set(a_key, a_value, a_value_len, a_group, l_flags);
+    return dap_chain_global_db_gr_set_ext(a_key, a_value, a_value_len, a_group, l_flags);
 }
 
 bool dap_chain_global_db_gr_pinned_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
 {
     uint8_t l_flags = RECORD_PINNED;
-    return dap_chain_global_db_gr_flags_set(a_key, a_value, a_value_len, a_group, l_flags);
+    return dap_chain_global_db_gr_set_ext(a_key, a_value, a_value_len, a_group, l_flags);
 }
 
 /**
@@ -653,7 +758,7 @@ bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_va
  */
 bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
 {
-dap_store_obj_t store_data = {0};
+    dap_store_obj_t store_data = {0};
 
     store_data.key = a_key;
     store_data.group = (char*)a_group;
@@ -665,7 +770,7 @@ dap_store_obj_t store_data = {0};
     if (a_key) {
         if (l_res >= 0) {
             // add to Del group
-            global_db_gr_del_add(a_key, store_data.group, time(NULL));
+            global_db_gr_del_add(a_key, store_data.group, dap_gdb_time_now());
         }
         // do not add to history if l_res=1 (already deleted)
         if (!l_res) {
@@ -710,7 +815,7 @@ dap_store_obj_t *l_store_obj;
         }
     }
 
-    return l_res;
+    return !(l_res & l_res_del);
 }
 
 /**
@@ -722,9 +827,9 @@ dap_store_obj_t *l_store_obj;
  */
 bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group)
 {
-dap_store_obj_t l_store_data[a_objs_count], *store_data_cur;
-dap_global_db_obj_t *l_obj_cur;
-time_t l_timestamp = time(NULL);
+    dap_store_obj_t l_store_data[a_objs_count], *store_data_cur;
+    dap_global_db_obj_t *l_obj_cur;
+    uint64_t l_timestamp = dap_gdb_time_now();
 
     store_data_cur = l_store_data;
     l_obj_cur = a_objs;

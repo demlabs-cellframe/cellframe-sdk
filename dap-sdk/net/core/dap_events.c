@@ -95,9 +95,11 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #include "dap_events.h"
 #include "dap_events_socket.h"
 #include "dap_proc_thread.h"
+#include "dap_config.h"
 
 #define LOG_TAG "dap_events"
 
+bool g_debug_reactor = false;
 static int s_workers_init = 0;
 static uint32_t s_threads_count = 1;
 static dap_worker_t **s_workers = NULL;
@@ -207,6 +209,9 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
  */
 int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
 {
+
+    g_debug_reactor = g_config ? dap_config_get_item_bool_default(g_config, "general", "debug_reactor", false) : false;
+
     uint32_t l_cpu_count = dap_get_cpu_count();
     if (a_threads_count > l_cpu_count)
         a_threads_count = l_cpu_count;

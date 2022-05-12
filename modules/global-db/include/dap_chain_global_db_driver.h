@@ -24,6 +24,7 @@
 
 #pragma once
 
+#include "dap_time.h"
 #include "dap_proc_thread.h"
 #include "dap_list.h"
 
@@ -43,22 +44,20 @@ enum RECORD_FLAGS {
 
 typedef struct dap_store_obj {
     uint64_t id;
-    uint64_t timestamp;
+    dap_gdb_time_t timestamp;
     uint32_t type;                              /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
     uint8_t flags;                              /* RECORD_FLAGS */
     char *group;
     const char *key;
-    const char *c_key;
     uint8_t *value;
     uint64_t value_len;
 
     dap_proc_queue_callback_t cb;               /* (Async mode only!) A call back to be called on request completion */
     const void *cb_arg;                         /* (Async mode only!) An argument of the callback rotine */
-
-} DAP_ALIGN_PACKED dap_store_obj_t, *pdap_store_obj_t;
+} dap_store_obj_t, *pdap_store_obj_t;
 
 typedef struct dap_store_obj_pkt {
-    uint64_t timestamp;
+    dap_gdb_time_t timestamp;
     uint64_t data_size;
     uint32_t obj_count;
     uint8_t data[];
@@ -93,6 +92,7 @@ void dap_db_driver_deinit(void);
 
 dap_store_obj_t* dap_store_obj_copy(dap_store_obj_t *a_store_obj, size_t a_store_count);
 void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count);
+DAP_STATIC_INLINE void dap_store_obj_free_one(dap_store_obj_t *a_store_obj) { return dap_store_obj_free(a_store_obj, 1); }
 int dap_db_driver_flush(void);
 
 char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size);

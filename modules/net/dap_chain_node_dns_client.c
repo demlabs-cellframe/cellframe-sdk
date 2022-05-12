@@ -260,7 +260,7 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
     l_esocket_callbacks.error_callback = s_dns_client_esocket_error_callback; // Error processing function
 
     dap_events_socket_t * l_esocket = dap_events_socket_create(DESCRIPTOR_TYPE_SOCKET_UDP,&l_esocket_callbacks);
-    l_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
+    // l_esocket->flags  |= DAP_SOCK_DROP_WRITE_IF_ZERO;
     l_esocket->remote_addr.sin_family = AF_INET;
     l_esocket->remote_addr.sin_port = htons(a_port);
     l_esocket->remote_addr.sin_addr = a_addr;

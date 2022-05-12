@@ -137,6 +137,19 @@ int dap_notify_server_send_f_inter(uint32_t a_worker_id, const char * a_format,.
  * @param a_format
  * @return
  */
+int dap_notify_server_send_mt(const char *a_data)
+{
+    if(!s_notify_server_queue) // If not initialized - nothing to notify
+        return 0;
+    return dap_events_socket_queue_ptr_send(s_notify_server_queue, dap_strdup(a_data));
+}
+
+
+/**
+ * @brief dap_notify_server_send_fmt_mt
+ * @param a_format
+ * @return
+ */
 int dap_notify_server_send_f_mt(const char * a_format,...)
 {
     if(!s_notify_server_queue) // If not initialized - nothing to notify

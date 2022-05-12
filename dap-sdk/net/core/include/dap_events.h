@@ -47,6 +47,8 @@ typedef struct dap_events {
 extern "C" {
 #endif
 
+extern bool g_debug_reactor;
+
 int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout ); // Init server module
 void dap_events_deinit( ); // Deinit server module
 

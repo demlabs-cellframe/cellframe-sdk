@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 #include "dap_common.h"
+#include "dap_time.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
@@ -62,7 +63,7 @@ typedef struct dap_chain_tx_out_cond {
         /// Number of Datoshis ( DAP/10^18 ) to be reserved for service
         uint256_t value;
         /// When time expires this output could be used only by transaction owner
-        dap_chain_time_t ts_expires;
+        dap_time_t ts_expires;
         /// Service uid that only could be used for this out
         dap_chain_net_srv_uid_t srv_uid;
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
@@ -122,7 +123,7 @@ typedef struct dap_chain_tx_out_cond_old {      // Obsolete
         /// Number of Datoshis ( DAP/10^9 ) to be reserver for service
         uint64_t value;
         /// When time expires this output could be used only by transaction owner
-        dap_chain_time_t ts_expires;
+        dap_time_t ts_expires;
     } header;
     union {
         /// Structure with specific for service pay condition subtype

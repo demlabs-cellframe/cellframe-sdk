@@ -250,7 +250,7 @@ char * dap_chain_net_srv_order_create(
         uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        dap_chain_time_t a_expires, // TS when the service expires
+        dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
         const char *a_region,
@@ -277,7 +277,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        dap_chain_time_t a_expires, // TS when the service expires
+        dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
         const char *a_region,
@@ -302,7 +302,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
     l_order->version = 3;
     l_order->srv_uid = a_srv_uid;
     l_order->direction = a_direction;
-    l_order->ts_created = (dap_chain_time_t) time(NULL);
+    l_order->ts_created = dap_time_now();
 
     if ( a_node_addr.uint64)
         l_order->node_addr.uint64 = a_node_addr.uint64;
@@ -437,7 +437,7 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
     log_it( L_DEBUG, "Loaded %zu orders", l_orders_count);
     dap_chain_net_srv_order_t *l_order = NULL;
     *a_output_orders = NULL;
-    *a_output_orders_count = 0;
+    size_t l_output_orders_count = 0;
     size_t l_orders_size = 0;
     for (size_t i = 0; i < l_orders_count; i++) {
         DAP_DEL_Z(l_order);
@@ -475,8 +475,9 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         *a_output_orders = DAP_REALLOC(*a_output_orders, l_orders_size + l_order_mem_size);
         memcpy((byte_t *)*a_output_orders + l_orders_size, l_order, l_order_mem_size);
         l_orders_size += l_order_mem_size;
-        a_output_orders_count++;
+        l_output_orders_count++;
     }
+    *a_output_orders_count = l_output_orders_count;
     DAP_DEL_Z(l_order);
     dap_chain_global_db_objs_delete(l_orders, l_orders_count);
     DAP_DELETE(l_gdb_group_str);

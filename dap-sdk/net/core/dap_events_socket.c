@@ -104,10 +104,10 @@ struct queue_ptr_input_pvt{
 };
 #define PVT_QUEUE_PTR_INPUT(a) ( (struct queue_ptr_input_pvt*) (a)->_pvt )
 
-static bool s_debug_reactor = false;
 static uint64_t s_delayed_ops_timeout_ms = 5000;
 bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
 
+static pthread_attr_t s_attr_detached;                                      /* Thread's creation attribute = DETACHED ! */
 
 
 /**
@@ -116,8 +116,17 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
  */
 int dap_events_socket_init( )
 {
+int l_rc;
+
     log_it(L_NOTICE,"Initialized events socket module");
-    s_debug_reactor = g_config? dap_config_get_item_bool_default(g_config, "general","debug_reactor", false) : false;
+
+    /*
+     * @RRL: #6157
+     * Use this thread's attribute to eliminate resource consuming by terminated threads
+     */
+    assert ( !(l_rc = pthread_attr_init(&s_attr_detached)) );
+    assert ( !(l_rc = pthread_attr_setdetachstate(&s_attr_detached, PTHREAD_CREATE_DETACHED)) );
+
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -125,15 +134,15 @@ int dap_events_socket_init( )
     l_mqueue_limit.rlim_cur = RLIM_INFINITY;
     l_mqueue_limit.rlim_max = RLIM_INFINITY;
     setrlimit(RLIMIT_MSGQUEUE,&l_mqueue_limit);
-    char l_cmd[256];
-    snprintf(l_cmd,sizeof (l_cmd),"rm /dev/mqueue/%s-queue_ptr*", dap_get_appname());
+    char l_cmd[256] ={0};
+    snprintf(l_cmd, sizeof (l_cmd) - 1, "rm /dev/mqueue/%s-queue_ptr*", dap_get_appname());
     system(l_cmd);
     FILE *l_mq_msg_max = fopen("/proc/sys/fs/mqueue/msg_max", "w");
     if (l_mq_msg_max) {
         fprintf(l_mq_msg_max, "%d", DAP_QUEUE_MAX_MSGS);
         fclose(l_mq_msg_max);
     } else {
-        log_it(L_ERROR, "Сan't open /proc/sys/fs/mqueue/msg_max file for writing");
+        log_it(L_ERROR, "Сan't open /proc/sys/fs/mqueue/msg_max file for writing, errno=%d", errno);
     }
 #endif
     dap_timerfd_init();
@@ -410,7 +419,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
         return NULL;
     }
     l_es->type = a_type ;
-    if(s_debug_reactor)
+    if(g_debug_reactor)
         log_it(L_DEBUG,"Created socket %"DAP_FORMAT_SOCKET" type %d", l_sock,l_es->type);
     return l_es;
 }
@@ -892,7 +901,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             }
 #elif defined DAP_EVENTS_CAPS_KQUEUE
         l_queue_ptr = (void*) a_esocket->kqueue_event_catched_data.data;
-        if(s_debug_reactor)
+        if(g_debug_reactor)
             log_it(L_INFO,"Queue ptr received %p ptr on input", l_queue_ptr);
         if(a_esocket->callbacks.queue_ptr_callback)
             a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
@@ -909,7 +918,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
         void * l_queue_ptr = a_esocket->kqueue_event_catched_data.data;
         size_t l_queue_ptr_size = a_esocket->kqueue_event_catched_data.size;
-        if(s_debug_reactor)
+        if(g_debug_reactor)
             log_it(L_INFO,"Queue received %z bytes on input", l_queue_ptr_size);
 
         a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
@@ -1180,11 +1189,32 @@ static void *dap_events_socket_buf_thread(void *arg)
 
 static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 {
-    dap_events_socket_buf_item_t *l_item = DAP_NEW(dap_events_socket_buf_item_t); if (!l_item) return;
+static atomic_uint_fast64_t l_thd_count;
+int     l_rc;
+pthread_t l_thread;
+dap_events_socket_buf_item_t *l_item;
+
+    atomic_fetch_add(&l_thd_count, 1);                                      /* Count an every call of this routine */
+
+    if ( !(l_item = DAP_NEW(dap_events_socket_buf_item_t)) )                /* Allocate new item - argument for new thread */
+    {
+        log_it (L_ERROR, "[#%"DAP_UINT64_FORMAT_U"] No memory for new item, errno=%d,  drop: a_es: %p, a_arg: %p",
+                atomic_load(&l_thd_count), errno, a_es, a_arg);
+        return;
+    }
+
     l_item->es = a_es;
     l_item->arg = a_arg;
-    pthread_t l_thread;
-    pthread_create(&l_thread, NULL, dap_events_socket_buf_thread, l_item);
+
+    if ( (l_rc = pthread_create(&l_thread, &s_attr_detached /* @RRL: #6157 */, dap_events_socket_buf_thread, l_item)) )
+    {
+        log_it(L_ERROR, "[#%"DAP_UINT64_FORMAT_U"] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d",
+                 atomic_load(&l_thd_count), a_es, a_arg, l_rc);
+        return;
+    }
+
+    debug_if(g_debug_reactor, L_DEBUG, "[#%"DAP_UINT64_FORMAT_U"] Created thread %"DAP_UINT64_FORMAT_x", a_es: %p, a_arg: %p",
+             atomic_load(&l_thd_count), l_thread, a_es, a_arg);
 }
 
 /**
@@ -1251,7 +1281,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
     int l_ret = -1024, l_errno;
 
-    if (s_debug_reactor)
+    if (g_debug_reactor)
         log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
@@ -1328,11 +1358,11 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     int l_n;
     if(a_es->pipe_out){ // If we have pipe out - we send events directly to the pipe out kqueue fd
         if(a_es->pipe_out->worker){
-            if( s_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to pipe_out worker on esocket %d",a_arg,a_es);
+            if( g_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to pipe_out worker on esocket %d",a_arg,a_es);
             l_n = kevent(a_es->pipe_out->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
         }else if (a_es->pipe_out->proc_thread){
             l_n = kevent(a_es->pipe_out->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
-            if( s_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to pipe_out proc_thread on esocket %d",a_arg,a_es);
+            if( g_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to pipe_out proc_thread on esocket %d",a_arg,a_es);
         }
         else {
             log_it(L_WARNING,"Trying to send pointer in pipe out queue thats not assigned to any worker or proc thread");
@@ -1341,10 +1371,10 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         }
     }else if(a_es->worker){
         l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
-        if( s_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to worker on esocket %d",a_arg,a_es);
+        if( g_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to worker on esocket %d",a_arg,a_es);
     }else if (a_es->proc_thread){
         l_n = kevent(a_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
-        if( s_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to proc_thread on esocket %d",a_arg,a_es);
+        if( g_debug_reactor) log_it(L_DEBUG, "Sent kevent() with ptr %p to proc_thread on esocket %d",a_arg,a_es);
     }else {
         log_it(L_WARNING,"Trying to send pointer in queue thats not assigned to any worker or proc thread");
         l_n = 0;

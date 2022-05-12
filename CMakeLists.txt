@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "3.1-0")
+set(CELLFRAME_SDK_NATIVE_VERSION "3.2-0")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
@@ -92,6 +92,10 @@ if (ANDROID)
     include_directories(cellframe-sdk/3rdparty/)
 endif()
 
+if (BUILD_WITH_ZIP)
+    add_subdirectory(3rdparty/libzip)
+    include_directories(3rdparty/libzip/lib)
+endif()
 
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)

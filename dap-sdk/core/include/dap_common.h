@@ -51,8 +51,6 @@
 #include <fcntl.h>
 #define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
 #define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
-#define ctime_r(arg1, arg2) ctime_s(arg2, sizeof(arg2), arg1)
-//#define asctime_r(arg1, arg2) asctime_s(arg2, sizeof(arg2), arg1)
 #endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
@@ -73,8 +71,6 @@ typedef uint8_t byte_t;
 #define DAP_SIZE_TO_POINTER(s) ((void*) (size_t) (s))
 // Extracts a size_t from a pointer
 #define DAP_POINTER_TO_SIZE(p) ((size_t) (p))
-
-#define DAP_END_OF_DAYS 4102444799
 
 #if defined(__GNUC__) ||defined (__clang__)
   #define DAP_ALIGN_PACKED  __attribute__((aligned(1),packed))
@@ -209,12 +205,12 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #define DAP_FORMAT_SOCKET "llu"
 #else
 #define DAP_FORMAT_SOCKET "lu"
-#endif
+#endif // _WIN64
 #define DAP_FORMAT_HANDLE "p"
 #else
 #define DAP_FORMAT_SOCKET "d"
 #define DAP_FORMAT_HANDLE "d"
-#endif
+#endif // DAP_OS_WINDOWS
 
 #ifndef LOWORD
   #define LOWORD( l ) ((uint16_t) (((uintptr_t) (l)) & 0xFFFF))
@@ -470,9 +466,6 @@ void dap_set_appname(const char * a_appname);
 
 char *dap_itoa(int i);
 
-int dap_time_to_str_rfc822(char * out, size_t out_size_max, time_t t);
-int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct timespec *a_result);
-
 int get_select_breaker(void);
 int send_select_break(void);
 int exec_with_ret(char**, const char*);
@@ -496,18 +489,6 @@ void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val);
 uint64_t dap_lendian_get64(const uint8_t *a_buf);
 void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val);
 
-
-// crossplatform usleep
-#define DAP_USEC_PER_SEC 1000000
-void dap_usleep(time_t a_microseconds);
-
-/**
- * @brief dap_ctime_r This function does the same as ctime_r, but if it returns (null), a line break is added.
- * @param a_time
- * @param a_buf The minimum buffer size is 26 elements.
- * @return
- */
-char* dap_ctime_r(time_t *a_time, char* a_buf);
 
 static inline void * dap_mempcpy(void * a_dest,const void * a_src,size_t n)
 {

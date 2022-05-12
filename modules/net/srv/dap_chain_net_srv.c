@@ -107,7 +107,7 @@ int dap_chain_net_srv_init()
         "\tOrder delete\n"
         "net_srv -net <chain net name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <chain net name> order create -direction <sell | buy> -srv_uid <Service UID> -price <Price>\n"
+        "net_srv -net <chain net name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
         "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
@@ -466,7 +466,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_node_addr_t l_node_addr={0};
                 dap_chain_hash_fast_t l_tx_cond_hash={{0}};
-                dap_chain_time_t l_expires=0; // TS when the service expires
+                dap_time_t l_expires=0; // TS when the service expires
                 uint256_t l_price = {};
                 char l_price_token[DAP_CHAIN_TICKER_SIZE_MAX]={0};
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
@@ -484,7 +484,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
 
                 if (l_expires_str)
-                    l_expires = (dap_chain_time_t ) atoll( l_expires_str);
+                    l_expires = (dap_time_t ) atoll( l_expires_str);
                 l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
                 if (l_node_addr_str){
 
