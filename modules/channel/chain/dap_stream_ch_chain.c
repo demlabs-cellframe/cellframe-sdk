@@ -1496,13 +1496,13 @@ static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
  */
 static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain)
 {
-    //pthread_rwlock_wrlock(&a_ch_chain->idle_lock);
+    pthread_rwlock_wrlock(&a_ch_chain->idle_lock);
     if (a_ch_chain->state == CHAIN_STATE_IDLE) {
-        //pthread_rwlock_unlock(&a_ch_chain->idle_lock);
+        pthread_rwlock_unlock(&a_ch_chain->idle_lock);
         return;
     }
     a_ch_chain->state = CHAIN_STATE_IDLE;
-    //pthread_rwlock_unlock(&a_ch_chain->idle_lock);
+    pthread_rwlock_unlock(&a_ch_chain->idle_lock);
 
     if(s_debug_more)
         log_it(L_INFO, "Go in CHAIN_STATE_IDLE");
@@ -1528,9 +1528,9 @@ static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain)
 
 static bool s_ch_chain_get_idle(dap_stream_ch_chain_t *a_ch_chain)
 {
-    //pthread_rwlock_wrlock(&a_ch_chain->idle_lock);
+    pthread_rwlock_wrlock(&a_ch_chain->idle_lock);
     bool ret = a_ch_chain->state == CHAIN_STATE_IDLE;
-    //pthread_rwlock_unlock(&a_ch_chain->idle_lock);
+    pthread_rwlock_unlock(&a_ch_chain->idle_lock);
     return ret;
 }
 
@@ -1602,7 +1602,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     bool l_go_idle = false;
     bool l_timer_reset = false;
-    //pthread_rwlock_rdlock(&l_ch_chain->idle_lock);
+    pthread_rwlock_rdlock(&l_ch_chain->idle_lock);
     switch (l_ch_chain->state) {
         // Update list of global DB records to remote
         case CHAIN_STATE_UPDATE_GLOBAL_DB: {
@@ -1806,7 +1806,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         } break;
         default: break;
     }
-    //pthread_rwlock_unlock(&l_ch_chain->idle_lock);
+    pthread_rwlock_unlock(&l_ch_chain->idle_lock);
     if (l_go_idle)
         s_ch_chain_go_idle(l_ch_chain);
     else if (l_timer_reset)
