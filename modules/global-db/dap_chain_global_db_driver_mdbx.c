@@ -20,12 +20,17 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 
-    DESCRIPTION: A database driver module provide an interface to MDBX API.
 
-    DESIGN ISSUE:
+    DESCRIPTION: A database driver module provide an interface to MDBX API.
+        https://gitflic.ru/project/erthink/libmdbx
+        TG group: @libmdbx
+
 
     MODIFICATION HISTORY:
-         4-MAY-2022 RRL Developing for actual version of the LibMDBX
+
+          4-MAY-2022    RRL Developing for actual version of the LibMDBX
+
+         12-MAY-2022    RRL Finished developing of preliminary version
  */
 
 #include <stddef.h>
@@ -80,12 +85,12 @@ static char s_db_path[MAX_PATH];                                            /* A
 /* Forward declarations of action routines */
 static int              s_db_mdbx_deinit();
 static int              s_db_mdbx_flush(void);
-static int              s_db_bdbx_apply_store_obj (dap_store_obj_t *a_store_obj);
+static int              s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj);
 static dap_store_obj_t  *s_db_mdbx_read_last_store_obj(const char* a_group);
 static int              s_db_mdbx_is_obj(const char *a_group, const char *a_key);
 static dap_store_obj_t  *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
-static size_t           s_db_dmbx_read_count_store(const char *a_group, uint64_t a_id);
+static size_t           s_db_mdbx_read_count_store(const char *a_group, uint64_t a_id);
 static dap_list_t       *s_db_mdbx_get_groups_by_mask(const char *a_group_mask);
 
 
@@ -93,8 +98,8 @@ static MDBX_env *s_mdbx_env;                                                /* M
 static char s_subdir [] = "";                                               /* Name of subdir for the MDBX's database files */
 
 static char s_db_master_tbl [] = "MDBX$MASTER";                             /* A name of master table in the MDBX
-                                                                              to keep and maintain application level information */
-static MDBX_dbi s_db_master_dbi;                                            /* A handle of the MDBX D of the master subDB */
+                                                                              to keep and maintains application level information */
+static MDBX_dbi s_db_master_dbi;                                            /* A handle of the MDBX' DBI of the master subDB */
 
 
 /*
@@ -108,6 +113,7 @@ struct  __record_suffix__ {
         dap_time_t      ts;                                                 /* Timestamp of the record */
 };
 
+#if     __SYS$DEBUG__
 /*
  *  DESCRIPTION: Dump all records from the table . Is supposed to be used at debug time.
  *
@@ -148,7 +154,7 @@ char    l_buf[1024] = {0};
     if (a_db_ctx->txn)
         mdbx_txn_abort(a_db_ctx->txn);
 }
-
+#endif     /* __SYS$DEBUG__ */
 
 
 static dap_db_ctx_t *s_cre_db_ctx_for_group(const char *a_group, int a_flags)
@@ -171,7 +177,7 @@ MDBX_val    l_key_iov, l_data_iov;
 //    if ( !(a_flags & MDBX_CREATE) )                                         /* Not found and we don't need to create it ? */
 //        return  NULL;
 
-    /* So , at this point we are going to create 'table' for new group */
+    /* So , at this point we are going to create (if not exist)  'table' for new group */
 
     if ( (l_rc = strlen(a_group)) > DAP_DB$SZ_MAXGROUPNAME )                /* Check length of the group name */
         return  log_it(L_ERROR, "Group name '%s' is too long (%d>%d)", a_group, l_rc, DAP_DB$SZ_MAXGROUPNAME), NULL;
@@ -180,7 +186,7 @@ MDBX_val    l_key_iov, l_data_iov;
         return  log_it(L_ERROR, "Cannot allocate DB context for '%s', errno=%d", a_group, errno), NULL;
 
     memcpy(l_db_ctx->name,  a_group, l_db_ctx->namelen = l_rc);             /* Store group name in the DB context */
-    pthread_mutex_init(&l_db_ctx->dbi_mutex, NULL);
+    assert ( !pthread_mutex_init(&l_db_ctx->dbi_mutex, NULL));
 
     /*
     ** Start transaction, create table, commit.
@@ -325,6 +331,8 @@ char        *l_cp;
     else if ( MDBX_SUCCESS != (l_rc = mdbx_cursor_open(l_txn, s_db_master_dbi, &l_cursor)) )
         log_it(L_ERROR, "mdbx_cursor_open: (%d) %s", l_rc, mdbx_strerror(l_rc));
     else{
+        debug_if(s_dap_global_db_debug_more, L_DEBUG, "--- List of stored groups ---");
+
         for ( int i = 0;  !(l_rc = mdbx_cursor_get (l_cursor, &l_key_iov, &l_data_iov, MDBX_NEXT )); i++ )
             {
             debug_if(s_dap_global_db_debug_more, L_DEBUG, "MDBX SubDB #%03d [0:%zu]: '%.*s' = [0:%zu]: '%.*s'", i,
@@ -336,6 +344,7 @@ char        *l_cp;
             l_data_iov.iov_len = strlen(l_cp);
             s_dap_insqtail(&l_slist, l_cp, l_data_iov.iov_len);
             }
+        debug_if(s_dap_global_db_debug_more, L_DEBUG, "--- End-Of-List  ---");
         }
 
     assert ( MDBX_SUCCESS == mdbx_txn_commit (l_txn) );
@@ -351,16 +360,24 @@ char        *l_cp;
     /*
     ** Fill the Driver Interface Table
     */
-    a_drv_callback->apply_store_obj     = s_db_bdbx_apply_store_obj;
+    a_drv_callback->apply_store_obj     = s_db_mdbx_apply_store_obj;
     a_drv_callback->read_last_store_obj = s_db_mdbx_read_last_store_obj;
 
     a_drv_callback->read_store_obj      = s_db_mdbx_read_store_obj;
     a_drv_callback->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
-    a_drv_callback->read_count_store    = s_db_dmbx_read_count_store;
+    a_drv_callback->read_count_store    = s_db_mdbx_read_count_store;
     a_drv_callback->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
     a_drv_callback->is_obj              = s_db_mdbx_is_obj;
     a_drv_callback->deinit              = s_db_mdbx_deinit;
     a_drv_callback->flush               = s_db_mdbx_flush;
+
+    /*
+     * MDBX support transactions but on the current circuimstance we will not get
+     * advantages of using DB Driver level BEGIN/END transactions
+     */
+    a_drv_callback->transaction_start   = NULL;
+    a_drv_callback->transaction_end     = NULL;
+
 
     return MDBX_SUCCESS;
 }
@@ -535,8 +552,6 @@ MDBX_val    l_key, l_data;
  * @param a_count[out] a count of items were got
  * @return If successful, pointer to items, otherwise NULL.
  */
-
-
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
 {
 int l_rc;
@@ -630,7 +645,7 @@ dap_store_obj_t *l_obj;
  * @param a_id id
  * @return If successful, count of store items; otherwise 0.
  */
-size_t  s_db_dmbx_read_count_store(const char *a_group, uint64_t a_id)
+size_t  s_db_mdbx_read_count_store(const char *a_group, uint64_t a_id)
 {
 int l_rc, l_count_out;
 dap_db_ctx_t *l_db_ctx;
@@ -709,7 +724,7 @@ dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
 
 
 
-static  int s_db_bdbx_apply_store_obj (dap_store_obj_t *a_store_obj)
+static  int s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj)
 {
 int     l_rc = 0, l_rc2;
 dap_db_ctx_t *l_db_ctx;
