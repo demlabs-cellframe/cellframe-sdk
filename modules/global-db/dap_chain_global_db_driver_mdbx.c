@@ -20,7 +20,7 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 
-    DESCRIPTION:
+    DESCRIPTION: A database driver module provide an interface to MDBX API.
 
     DESIGN ISSUE:
 
@@ -72,21 +72,21 @@ static pthread_mutex_t s_db_ctx_mutex = PTHREAD_MUTEX_INITIALIZER;          /* A
 
 
 
-static dap_db_ctx_t *s_db_ctxs = NULL;                                      /* A hash table of <group/subDB/table> == MDBX DB context */
+static dap_db_ctx_t *s_db_ctxs = NULL;                                      /* A hash table of <group/subDB/table> == <MDBX DB context> */
 static pthread_rwlock_t s_db_ctxs_rwlock = PTHREAD_RWLOCK_INITIALIZER;      /* A read-write lock for working with a <s_db_ctxs>. */
 
 static char s_db_path[MAX_PATH];                                            /* A root directory for the MDBX files */
 
 /* Forward declarations of action routines */
-static int              s_deinit();
-static int              s_flush(void);
-static int              s_apply_store_obj (dap_store_obj_t *a_store_obj);
-static dap_store_obj_t  *s_read_last_store_obj(const char* a_group);
-static int              s_is_obj(const char *a_group, const char *a_key);
-static dap_store_obj_t  *s_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
-static dap_store_obj_t  *s_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
-static size_t           s_read_count_store(const char *a_group, uint64_t a_id);
-static dap_list_t       *s_get_groups_by_mask(const char *a_group_mask);
+static int              s_db_mdbx_deinit();
+static int              s_db_mdbx_flush(void);
+static int              s_db_bdbx_apply_store_obj (dap_store_obj_t *a_store_obj);
+static dap_store_obj_t  *s_db_mdbx_read_last_store_obj(const char* a_group);
+static int              s_db_mdbx_is_obj(const char *a_group, const char *a_key);
+static dap_store_obj_t  *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
+static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
+static size_t           s_db_dmbx_read_count_store(const char *a_group, uint64_t a_id);
+static dap_list_t       *s_db_mdbx_get_groups_by_mask(const char *a_group_mask);
 
 
 static MDBX_env *s_mdbx_env;                                                /* MDBX's context area */
@@ -108,8 +108,18 @@ struct  __record_suffix__ {
         dap_time_t      ts;                                                 /* Timestamp of the record */
 };
 
-
-
+/*
+ *  DESCRIPTION: Dump all records from the table . Is supposed to be used at debug time.
+ *
+ *  INPUTS:
+ *      a_db_ctx:   DB context
+ *
+ *  OUTPUTS:
+ *      NONE:
+ *
+ *  RETURNS:
+ *      NONE
+ */
 static void s_db_dump (dap_db_ctx_t *a_db_ctx)
 {
 int l_rc;
@@ -228,29 +238,29 @@ MDBX_val    l_key_iov, l_data_iov;
 
 
 
-static  int s_deinit(void)
+static  int s_db_mdbx_deinit(void)
 {
 dap_db_ctx_t *l_db_ctx = NULL, *l_tmp;
 
-    assert ( !pthread_rwlock_wrlock(&s_db_ctxs_rwlock) );                       /* Prelock for WR */
+    assert ( !pthread_rwlock_wrlock(&s_db_ctxs_rwlock) );                   /* Prelock for WR */
 
-    HASH_ITER(hh, s_db_ctxs, l_db_ctx, l_tmp)                                   /* run over the hash table of the DB contexts */
+    HASH_ITER(hh, s_db_ctxs, l_db_ctx, l_tmp)                               /* run over the hash table of the DB contexts */
     {
-        HASH_DEL(s_db_ctxs, l_db_ctx);                                          /* Delete DB context from the hash-table */
+        HASH_DEL(s_db_ctxs, l_db_ctx);                                      /* Delete DB context from the hash-table */
 
         assert( !pthread_mutex_lock(&l_db_ctx->dbi_mutex) );
-        if (l_db_ctx->txn)                                                      /* Commit, close table */
+        if (l_db_ctx->txn)                                                  /* Commit, close table */
             mdbx_txn_commit(l_db_ctx->txn);
 
         if (l_db_ctx->dbi)
             mdbx_dbi_close(s_mdbx_env, l_db_ctx->dbi);
         assert( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
-        DAP_DELETE(l_db_ctx);
+        DAP_DELETE(l_db_ctx);                                               /* Release memory of DB context area */
     }
 
     if (s_mdbx_env)
-        mdbx_env_close(s_mdbx_env);
+        mdbx_env_close(s_mdbx_env);                                         /* Finaly close MDBX DB */
 
     assert ( !pthread_rwlock_unlock(&s_db_ctxs_rwlock) );
 
@@ -275,8 +285,11 @@ char        *l_cp;
     if ( MDBX_SUCCESS != (l_rc = mdbx_env_create(&s_mdbx_env)) )
         return  log_it(L_CRITICAL, "mdbx_env_create: (%d) %s", l_rc, mdbx_strerror(l_rc)), -ENOENT;
 
-    //if ( s_dap_global_db_debug_more )
-      //  mdbx_setup_debug	(	MDBX_LOG_VERBOSE, 0, 0);
+#if 0
+    if ( s_dap_global_db_debug_more )
+        mdbx_setup_debug	(	MDBX_LOG_VERBOSE, 0, 0);
+#endif
+
 
     log_it(L_NOTICE, "Set maximum number of local groups: %d", DAP_DB$K_MAXGROUPS);
     assert ( !mdbx_env_set_maxdbs (s_mdbx_env, DAP_DB$K_MAXGROUPS) );       /* Set maximum number of the file-tables (MDBX subDB)
@@ -291,7 +304,10 @@ char        *l_cp;
         return  log_it (L_CRITICAL, "mdbx_env_open (%s): (%d) %s", s_db_path, l_rc, mdbx_strerror(l_rc)),  -EINVAL;
 
     /*
-    ** Create (If)/Open a master DB (table) to keep a list of subDBs (group/table/subDB name)
+     * Since MDBX don't maintain a list of subDB with public API, we will use a "MASTER Table",
+     * be advised that this MASTER teble is not maintained accurately!!!
+     *
+     * So, Create (If)/Open a master DB (table) to keep  list of subDBs (group/table/subDB name)
     */
     if ( MDBX_SUCCESS != (l_rc = mdbx_txn_begin(s_mdbx_env, NULL, 0, &l_txn)) )
         return  log_it(L_CRITICAL, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), -EIO;
@@ -335,16 +351,16 @@ char        *l_cp;
     /*
     ** Fill the Driver Interface Table
     */
-    a_drv_callback->apply_store_obj     = s_apply_store_obj;
-    a_drv_callback->read_last_store_obj = s_read_last_store_obj;
+    a_drv_callback->apply_store_obj     = s_db_bdbx_apply_store_obj;
+    a_drv_callback->read_last_store_obj = s_db_mdbx_read_last_store_obj;
 
-    a_drv_callback->read_store_obj      = s_read_store_obj;
-    a_drv_callback->read_cond_store_obj = s_read_cond_store_obj;
-    a_drv_callback->read_count_store    = s_read_count_store;
-    a_drv_callback->get_groups_by_mask  = s_get_groups_by_mask;
-    a_drv_callback->is_obj              = s_is_obj;
-    a_drv_callback->deinit              = s_deinit;
-    a_drv_callback->flush               = s_flush;
+    a_drv_callback->read_store_obj      = s_db_mdbx_read_store_obj;
+    a_drv_callback->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
+    a_drv_callback->read_count_store    = s_db_dmbx_read_count_store;
+    a_drv_callback->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
+    a_drv_callback->is_obj              = s_db_mdbx_is_obj;
+    a_drv_callback->deinit              = s_db_mdbx_deinit;
+    a_drv_callback->flush               = s_db_mdbx_flush;
 
     return MDBX_SUCCESS;
 }
@@ -373,7 +389,7 @@ dap_db_ctx_t *l_db_ctx = NULL;
  * @brief Flushing CDB to the disk.
  * @return 0
  */
-static  int s_flush(void)
+static  int s_db_mdbx_flush(void)
 {
     return  log_it(L_DEBUG, "Flushing resident part of the MDBX to disk"), 0;
 }
@@ -383,7 +399,7 @@ static  int s_flush(void)
  * @param a_group a group name
  * @return If successful, a pointer to item, otherwise NULL.
  */
-dap_store_obj_t *s_read_last_store_obj(const char* a_group)
+dap_store_obj_t *s_db_mdbx_read_last_store_obj(const char* a_group)
 {
 int l_rc;
 dap_db_ctx_t *l_db_ctx;
@@ -396,7 +412,7 @@ dap_store_obj_t *l_obj;
     if (!a_group)                                                           /* Sanity check */
         return NULL;
 
-    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                    /* Get free DB Context */
+    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                    /* Get DB Context for group/table */
         return NULL;
 
     assert ( !pthread_mutex_lock(&l_db_ctx->dbi_mutex) );
@@ -417,7 +433,7 @@ dap_store_obj_t *l_obj;
           break;
         }
 
-        /* Iterate cursor to retieve records from DB - slect a <key> and <data> pair
+        /* Iterate cursor to retieve records from DB - select a <key> and <data> pair
         ** with maximal <id>
         */
         while ( MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT)) )
@@ -439,19 +455,19 @@ dap_store_obj_t *l_obj;
         mdbx_txn_commit(l_db_ctx->txn);
 
 
-    if ( !(l_last_key.iov_len | l_data.iov_len) )                           /* Not found anything  - return NULL */
+    if ( !(l_last_key.iov_len || l_data.iov_len) )                          /* Not found anything  - return NULL */
     {
         assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
         return  NULL;
     }
 
 
-    /* Found ! Allocate memory to <store object> < and <value> */
+    /* Found ! Allocate memory for  <store object>  and <value> */
     if ( (l_obj = DAP_CALLOC(1, sizeof( dap_store_obj_t ))) )
     {
         if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
             {
-            /* Fill the <store obj> by data from the retreived record */
+            /* Fill the <store obj> by data from the retrieved record */
             l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
             memcpy(l_obj->value, l_data.iov_base, l_obj->value_len);
 
@@ -471,12 +487,13 @@ dap_store_obj_t *l_obj;
 }
 
 /**
- * @brief Checks if CDB has a_key
- * @param a_group the group name
- * @param a_key the key
- * @return true or false
+ * @brief s_db_mdbx_is_obj  Check for existence of the record with a given group/key combination
+ * @param a_group   a group/table name
+ * @param a_key     a key to be check
+ * @return  0 - Record-Not-Found
+ *          1 - Record is found
  */
-int     s_is_obj(const char *a_group, const char *a_key)
+int     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
 {
 int l_rc, l_rc2;
 dap_db_ctx_t *l_db_ctx;
@@ -485,7 +502,7 @@ MDBX_val    l_key, l_data;
     if (!a_group)                                                           /* Sanity check */
         return 0;
 
-    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                      /* Get free DB Context */
+    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                    /* Get DB Context for group/table */
         return 0;
 
     assert ( !pthread_mutex_lock(&l_db_ctx->dbi_mutex) );
@@ -518,19 +535,21 @@ MDBX_val    l_key, l_data;
  * @param a_count[out] a count of items were got
  * @return If successful, pointer to items, otherwise NULL.
  */
-static dap_store_obj_t  *s_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
+
+
+static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
 {
 int l_rc;
 dap_db_ctx_t *l_db_ctx;
 MDBX_val    l_key, l_data;
-MDBX_cursor *l_cursor = NULL;
+MDBX_cursor *l_cursor;
 struct  __record_suffix__   *l_suff;
 dap_store_obj_t *l_obj;
 
     if (!a_group)                                                           /* Sanity check */
         return NULL;
 
-    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                      /* Get free DB Context */
+    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                    /* Get DB Context for group/table */
         return NULL;
 
     assert ( !pthread_mutex_lock(&l_db_ctx->dbi_mutex) );
@@ -542,16 +561,16 @@ dap_store_obj_t *l_obj;
     }
 
 
-    do {
-        l_cursor = NULL;
-        *a_count_out = 0;
+    l_cursor = NULL;
+    *a_count_out = 0;
 
+    do {
         if ( MDBX_SUCCESS != (l_rc = mdbx_cursor_open(l_db_ctx->txn, l_db_ctx->dbi, &l_cursor)) ) {
           log_it (L_ERROR, "mdbx_cursor_open: (%d) %s", l_rc, mdbx_strerror(l_rc));
           break;
         }
 
-        /* Iterate cursor to retieve records from DB - slect a <key> and <data> pair
+        /* Iterate cursor to retrieve records from DB - select a <key> and <data> pair
         ** with maximal <id>
         */
         l_key.iov_base = "";
@@ -611,18 +630,18 @@ dap_store_obj_t *l_obj;
  * @param a_id id
  * @return If successful, count of store items; otherwise 0.
  */
-size_t  s_read_count_store(const char *a_group, uint64_t a_id)
+size_t  s_db_dmbx_read_count_store(const char *a_group, uint64_t a_id)
 {
 int l_rc, l_count_out;
 dap_db_ctx_t *l_db_ctx;
 MDBX_val    l_key, l_data;
-MDBX_cursor *l_cursor = NULL;
+MDBX_cursor *l_cursor;
 struct  __record_suffix__   *l_suff;
 
     if (!a_group)                                                           /* Sanity check */
         return 0;
 
-    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                      /* Get free DB Context */
+    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                      /* Get DB Context for group/table */
         return 0;
 
     assert ( !pthread_mutex_lock(&l_db_ctx->dbi_mutex) );
@@ -633,16 +652,17 @@ struct  __record_suffix__   *l_suff;
         return  log_it (L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), 0;
     }
 
+    l_cursor = NULL;
+    l_count_out = 0;
+
     do {
-        l_cursor = NULL;
-        l_count_out = 0;
 
         if ( MDBX_SUCCESS != (l_rc = mdbx_cursor_open(l_db_ctx->txn, l_db_ctx->dbi, &l_cursor)) ) {
           log_it (L_ERROR, "mdbx_cursor_open: (%d) %s", l_rc, mdbx_strerror(l_rc));
           break;
         }
 
-                                                                            /* Iterate cursor to retieve records from DB */
+                                                                            /* Iterate cursor to retrieve records from DB */
         while ( MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT)) )
         {
             l_suff = (struct __record_suffix__ *) (l_data.iov_base + l_data.iov_len - sizeof(struct __record_suffix__));
@@ -659,13 +679,13 @@ struct  __record_suffix__   *l_suff;
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
     if ( l_count_out )
-        log_it(L_WARNING, "A count of records with id: %zu - more then 1 (%d)", a_id, l_count_out);
+        log_it(L_WARNING, "A count of records with id: %zu - more then 1 (%d) !!!", a_id, l_count_out);
 
     return  l_count_out;
 }
 
 
-static dap_list_t  *s_get_groups_by_mask(const char *a_group_mask)
+static dap_list_t  *s_db_mdbx_get_groups_by_mask(const char *a_group_mask)
 {
 dap_list_t *l_ret_list;
 dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
@@ -689,7 +709,7 @@ dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
 
 
 
-static  int s_apply_store_obj (dap_store_obj_t *a_store_obj)
+static  int s_db_bdbx_apply_store_obj (dap_store_obj_t *a_store_obj)
 {
 int     l_rc = 0, l_rc2;
 dap_db_ctx_t *l_db_ctx;
@@ -736,7 +756,7 @@ struct  __record_suffix__   *l_suff;
          * Now we are ready  to form a record in next format:
          * <value> + <suffix>
          */
-        l_rc = a_store_obj->value_len + sizeof(struct  __record_suffix__); /* Compute a length of the arrea to keep value+suffix */
+        l_rc = a_store_obj->value_len + sizeof(struct  __record_suffix__); /* Compute a length of the area to keep value+suffix */
 
         if ( !(l_val = DAP_NEW_Z_SIZE(char, l_rc)) )
         {
@@ -756,7 +776,7 @@ struct  __record_suffix__   *l_suff;
 
         memcpy(l_val, a_store_obj->value, a_store_obj->value_len);          /* Put <value> into the record */
 
-        /* So, finaly: start transaction, do INSERT, COMMIT or ABORT ... */
+        /* So, finaly: BEGIN transaction, do INSERT, COMMIT or ABORT ... */
         if ( MDBX_SUCCESS != (l_rc = mdbx_txn_begin(s_mdbx_env, NULL, 0, &l_db_ctx->txn)) )
         {
             assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
@@ -789,12 +809,9 @@ struct  __record_suffix__   *l_suff;
         else if ( MDBX_SUCCESS != (l_rc = mdbx_txn_commit(l_db_ctx->txn)) )
             log_it (L_ERROR, "mdbx_txn_commit: (%d) %s", l_rc, mdbx_strerror(l_rc));
 
-
-        DAP_FREE(l_val);
-
         assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
-        return ( l_rc == MDBX_SUCCESS ) ? 0 : -EIO;
+        return DAP_FREE(l_val), (( l_rc == MDBX_SUCCESS ) ? 0 : -EIO);
     } /* DAP_DB$K_OPTYPE_ADD */
 
 
@@ -817,11 +834,16 @@ struct  __record_suffix__   *l_suff;
                      && ( l_rc != MDBX_NOTFOUND) )
                     l_rc2 = -EIO, log_it (L_ERROR, "mdbx_del: (%d) %s", l_rc, mdbx_strerror(l_rc));
             }
-        else {                                                              /* Truncate whole table */
+        else {                                                              /* Truncate only  table */
                 if ( MDBX_SUCCESS != (l_rc = mdbx_drop(l_db_ctx->txn, l_db_ctx->dbi, 0))
                      && ( l_rc != MDBX_NOTFOUND) )
                     l_rc2 = -EIO, log_it (L_ERROR, "mdbx_drop: (%d) %s", l_rc, mdbx_strerror(l_rc));
             }
+
+
+        l_rc = (l_rc == MDBX_NOTFOUND) ? MDBX_SUCCESS : l_rc;               /* Not found ?! It's Okay !!! */
+
+
 
         if ( l_rc != MDBX_SUCCESS ) {                                       /* Check result of mdbx_drop/del */
             if ( MDBX_SUCCESS != (l_rc = mdbx_txn_abort(l_db_ctx->txn)) )
@@ -838,7 +860,7 @@ struct  __record_suffix__   *l_suff;
 
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
-    log_it (L_ERROR, "Unhandle/unknow DB opcode (%d/%#x)", a_store_obj->type, a_store_obj->type);
+    log_it (L_ERROR, "Unhandle/unknown DB opcode (%d/%#x)", a_store_obj->type, a_store_obj->type);
 
     return  -EIO;
 }
@@ -856,7 +878,7 @@ struct  __record_suffix__   *l_suff;
  * @param a_count_out IN. Count of read items. OUT Count of items was read
  * @return If successful, pointer to items; otherwise NULL.
  */
-static dap_store_obj_t *s_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
+static dap_store_obj_t *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
 int l_rc, l_rc2, l_count_out;
 dap_db_ctx_t *l_db_ctx;
@@ -870,7 +892,7 @@ struct  __record_suffix__   *l_suff;
     if (!a_group)                                                           /* Sanity check */
         return NULL;
 
-    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                    /* Get free DB Context */
+    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                    /* Get DB Context for group/table */
         return NULL;
 
 
