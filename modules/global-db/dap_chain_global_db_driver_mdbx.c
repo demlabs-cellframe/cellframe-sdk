@@ -364,7 +364,7 @@ dap_db_ctx_t *l_db_ctx = NULL;
     assert ( !pthread_rwlock_unlock(&s_db_ctxs_rwlock) );
 
     if ( !l_db_ctx )
-        log_it(L_ERROR, "No DB context for the group '%s'", a_group);
+        debug_if(s_dap_global_db_debug_more, L_WARNING, "No DB context for the group '%s'", a_group);
 
     return l_db_ctx;
 }
@@ -939,7 +939,7 @@ struct  __record_suffix__   *l_suff;
 
 
     /*
-    ** If a_key is NULL - retreive a requestd number of recrods from the table
+    ** If a_key is NULL - retrieve a requested number of records from the table
     */
     do  {
         l_count_out = a_count_out? *a_count_out : DAP_DB$K_MAXOBJS;             /* Limit a number of objects to be returned */
