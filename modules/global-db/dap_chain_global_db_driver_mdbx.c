@@ -789,8 +789,8 @@ struct  __record_suffix__   *l_suff;
         else if ( MDBX_SUCCESS != (l_rc = mdbx_txn_commit(l_db_ctx->txn)) )
             log_it (L_ERROR, "mdbx_txn_commit: (%d) %s", l_rc, mdbx_strerror(l_rc));
 
-        if ( l_rc != MDBX_SUCCESS )
-            DAP_FREE(l_val);
+
+        DAP_FREE(l_val);
 
         assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
