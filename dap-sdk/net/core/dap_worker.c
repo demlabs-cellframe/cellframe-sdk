@@ -109,13 +109,17 @@ void *dap_worker_thread(void *arg)
 {
     dap_events_socket_t *l_cur;
     dap_worker_t *l_worker = (dap_worker_t *) arg;
-    //time_t l_next_time_timeout_check = time( NULL) + s_connection_timeout / 2;
     uint32_t l_tn = l_worker->id;
+    int l_errno = 0, l_selected_sockets;
+    socklen_t l_error_len = sizeof(l_errno);
+    char l_error_buf[128] = {0};
+    ssize_t l_bytes_sent = 0, l_bytes_read = 0, l_sockets_max;
+    const struct sched_param l_shed_params = {0};
+
 
     dap_cpu_assign_thread_on(l_worker->id);
     pthread_setspecific(l_worker->events->pth_key_worker, l_worker);
-    struct sched_param l_shed_params;
-    l_shed_params.sched_priority = 0;
+
 #ifdef DAP_OS_WINDOWS
     if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL))
         log_it(L_ERROR, "Couldn'r set thread priority, err: %lu", GetLastError());
@@ -168,7 +172,6 @@ void *dap_worker_thread(void *arg)
         l_worker->queue_es_reassign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_reassign);
     }
 
-
     l_worker->queue_callback    = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_callback_callback);
     l_worker->event_exit        = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback);
 
@@ -180,8 +183,6 @@ void *dap_worker_thread(void *arg)
     pthread_mutex_unlock(&l_worker->started_mutex);
 
     while (1) {
-    int l_selected_sockets;
-    size_t l_sockets_max;
 #ifdef DAP_EVENTS_CAPS_EPOLL
         l_selected_sockets = epoll_wait(l_worker->epoll_fd, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
         l_sockets_max = l_selected_sockets;
@@ -201,10 +202,8 @@ void *dap_worker_thread(void *arg)
 #ifdef DAP_OS_WINDOWS
             log_it(L_ERROR, "Worker thread %d got errno %d", l_worker->id, WSAGetLastError());
 #else
-            int l_errno = errno;
-            char l_errbuf[128];
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it(L_ERROR, "Worker thread %d got errno:\"%s\" (%d)", l_worker->id, l_errbuf, l_errno);
+            strerror_r(l_errno, l_error_buf, sizeof (l_error_buf) - 1);
+            log_it(L_ERROR, "Worker thread %d got errno:\"%s\" (%d)", l_worker->id, l_error_buf, l_errno);
             assert(l_errno);
 #endif
             break;
@@ -213,6 +212,7 @@ void *dap_worker_thread(void *arg)
         time_t l_cur_time = time( NULL);
         for(size_t n = 0; n < l_sockets_max; n++) {
             bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
+
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
             uint32_t l_cur_flags = l_epoll_events[n].events;
@@ -232,6 +232,7 @@ void *dap_worker_thread(void *arg)
 
             if (!l_cur_flags) // No events for this socket
                 continue;
+
             l_flag_hup =  l_cur_flags& POLLHUP;
             l_flag_rdhup = l_cur_flags & POLLRDHUP;
             l_flag_write = (l_cur_flags & POLLOUT) || (l_cur_flags &POLLWRNORM)|| (l_cur_flags &POLLWRBAND ) ;
@@ -394,8 +395,6 @@ void *dap_worker_thread(void *arg)
                     l_cur->buf_in_size = 0;
                 }
 
-                int32_t l_bytes_read = 0;
-                int l_errno=0;
                 bool l_must_read_smth = false;
                 switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_PIPE:
@@ -520,7 +519,7 @@ void *dap_worker_thread(void *arg)
                         }
                         l_cur->buf_in_size += l_bytes_read;
                         if(g_debug_reactor)
-                            log_it(L_DEBUG, "Received %d bytes for fd %d ", l_bytes_read, l_cur->fd);
+                            log_it(L_DEBUG, "Received %zd bytes for fd %d ", l_bytes_read, l_cur->fd);
                         if(l_cur->callbacks.read_callback){
                             l_cur->callbacks.read_callback(l_cur, NULL); // Call callback to process read event. At the end of callback buf_in_size should be zero if everything was read well
                             if (l_cur->worker == NULL ){ // esocket was unassigned in callback, we don't need any ops with it now,
@@ -528,7 +527,7 @@ void *dap_worker_thread(void *arg)
                                 continue;
                             }
                         }else{
-                            log_it(L_WARNING, "We have incomming %d data but no read callback on socket %"DAP_FORMAT_SOCKET", removing from read set",
+                            log_it(L_WARNING, "We have incomming %zd data but no read callback on socket %"DAP_FORMAT_SOCKET", removing from read set",
                                    l_bytes_read, l_cur->socket);
                             dap_events_socket_set_readable_unsafe(l_cur,false);
                         }
@@ -587,10 +586,6 @@ void *dap_worker_thread(void *arg)
             // If its outgoing connection
             if ((l_flag_write && !l_cur->server && l_cur->flags & DAP_SOCK_CONNECTING && l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT) ||
                   (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_cur->flags & DAP_SOCK_CONNECTING)) {
-                int l_error = 0;
-                socklen_t l_error_len = sizeof(l_error);
-                char l_error_buf[128];
-                l_error_buf[0]='\0';
                 if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL) {
 #ifndef DAP_NET_CLIENT_NO_SSL
                     WOLFSSL *l_ssl = SSL(l_cur);
@@ -614,15 +609,17 @@ void *dap_worker_thread(void *arg)
                     }
 #endif
                 } else {
-                    getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_error, &l_error_len);
-                    if(l_error == EINPROGRESS) {
+                    l_error_len = sizeof(l_errno);
+
+                    getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_errno, &l_error_len);
+                    if(l_errno == EINPROGRESS) {
                         log_it(L_DEBUG, "Connecting with %s in progress...", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
-                    }else if (l_error){
-                        strerror_r(l_error, l_error_buf, sizeof (l_error_buf));
+                    }else if (l_errno){
+                        strerror_r(l_errno, l_error_buf, sizeof (l_error_buf));
                         log_it(L_ERROR,"Connecting error with %s: \"%s\" (code %d)", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)",
-                               l_error_buf, l_error);
+                               l_error_buf, l_errno);
                         if ( l_cur->callbacks.error_callback )
-                            l_cur->callbacks.error_callback(l_cur, l_error);
+                            l_cur->callbacks.error_callback(l_cur, l_errno);
                     }else{
                         if(g_debug_reactor)
                             log_it(L_NOTICE, "Connected with %s",l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
@@ -634,39 +631,30 @@ void *dap_worker_thread(void *arg)
                 }
             }
 
-            // Socket is ready to write and not going to close
-            if(   ( l_flag_write&&(l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
+            /*
+             * Socket is ready to write and not going to close
+             */
+            if ( !l_cur->buf_out_size )                                     /* Check firstly that output buffer is not empty */
+            {
+                dap_events_socket_set_writable_unsafe(l_cur, false);        /* Clear "enable write flag" */
+
+                if ( l_cur->callbacks.write_finished_callback )             /* Optionaly call I/O completion routine */
+                    l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_errno);
+
+                l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
+            }
+
+            l_bytes_sent = 0;
+
+            if (   ( l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
                  (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
-                if(g_debug_reactor)
-                    log_it(L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
+
+                debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
 
                 if(l_cur->callbacks.write_callback)
-                    l_cur->callbacks.write_callback(l_cur, NULL); // Call callback to process write event
+                    l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
 
                 if ( l_cur->worker ){ // esocket wasn't unassigned in callback, we need some other ops with it
-                    if(l_cur->flags & DAP_SOCK_READY_TO_WRITE) {
-
-                        static const uint32_t buf_out_zero_count_max = 2;
-                        //l_cur->buf_out[l_cur->buf_out_size] = 0;
-
-                        if(!l_cur->buf_out_size) {
-
-                            //log_it(L_WARNING, "Output: nothing to send. Why we are in write socket set?");
-                            l_cur->buf_out_zero_count++;
-
-                            if(l_cur->buf_out_zero_count > buf_out_zero_count_max) { // How many time buf_out on write event could be empty
-                                //log_it(L_WARNING, "Output: nothing to send %u times, remove socket from the write set",
-                                //        buf_out_zero_count_max);
-                                dap_events_socket_set_writable_unsafe(l_cur, false);
-                            }
-                        }
-                        else
-                            l_cur->buf_out_zero_count = 0;
-                    }
-                    //for(total_sent = 0; total_sent < cur->buf_out_size;) { // If after callback there is smth to send - we do it
-                    ssize_t l_bytes_sent =0;
-                    int l_errno=0;
-                    //if(l_cur->buf_out_size){
                         switch (l_cur->type){
                             case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                                 l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
@@ -777,10 +765,6 @@ void *dap_worker_thread(void *arg)
                                 log_it(L_WARNING, "Socket %"DAP_FORMAT_SOCKET" is not SOCKET, PIPE or FILE but has WRITE state on. Switching it off", l_cur->socket);
                                 dap_events_socket_set_writable_unsafe(l_cur,false);
                         }
-                    //else{ // If buffer for sending was empty we should drop off write flag
-                    //    l_bytes_sent = -1;
-                    //    l_errno = EINVAL;
-                    //}
 
                     if(l_bytes_sent < 0) {
 #ifdef DAP_OS_WINDOWS
@@ -823,12 +807,20 @@ void *dap_worker_thread(void *arg)
                         }
                     }
                 }
+
+                /*
+                 * If whole buffer has been sent (or it was clrered) - clear "write flag" for socket/file descriptor to prevent
+                 * generation of unexpected I/O events like POLLOUT and consuming CPU by this.
+                 */
+                if ( (l_cur->buf_out_size ) || (l_bytes_sent == l_cur->buf_out_size) )
+                {
+                    dap_events_socket_set_writable_unsafe(l_cur, false);/* Clear "enable write flag" */
+
+                    if ( l_cur->callbacks.write_finished_callback )     /* Optionaly call I/O completion routine */
+                        l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_errno);
+                }
             }
-            if (l_cur->buf_out_size) {
-                dap_events_socket_set_writable_unsafe(l_cur,true);
-            }else if( l_cur->flags & DAP_SOCK_DROP_WRITE_IF_ZERO){
-                dap_events_socket_set_writable_unsafe(l_cur,false);
-            }
+
 
             if (l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)
             {
