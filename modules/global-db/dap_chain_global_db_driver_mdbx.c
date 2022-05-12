@@ -813,11 +813,13 @@ struct  __record_suffix__   *l_suff;
                 l_key.iov_base = (void *) a_store_obj->key;
                 l_key.iov_len =  a_store_obj->key_len ? a_store_obj->key_len : strnlen(a_store_obj->key, DAP_DB$SZ_MAXKEY);
 
-                if ( MDBX_SUCCESS != (l_rc = mdbx_del(l_db_ctx->txn, l_db_ctx->dbi, &l_key, NULL)) )
+                if ( MDBX_SUCCESS != (l_rc = mdbx_del(l_db_ctx->txn, l_db_ctx->dbi, &l_key, NULL))
+                     && ( l_rc != MDBX_NOTFOUND) )
                     l_rc2 = -EIO, log_it (L_ERROR, "mdbx_del: (%d) %s", l_rc, mdbx_strerror(l_rc));
             }
         else {                                                              /* Truncate whole table */
-                if ( MDBX_SUCCESS != (l_rc = mdbx_drop(l_db_ctx->txn, l_db_ctx->dbi, 0)) )
+                if ( MDBX_SUCCESS != (l_rc = mdbx_drop(l_db_ctx->txn, l_db_ctx->dbi, 0))
+                     && ( l_rc != MDBX_NOTFOUND) )
                     l_rc2 = -EIO, log_it (L_ERROR, "mdbx_drop: (%d) %s", l_rc, mdbx_strerror(l_rc));
             }
 
