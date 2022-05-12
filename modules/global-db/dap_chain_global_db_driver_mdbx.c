@@ -77,7 +77,7 @@ static pthread_rwlock_t s_db_ctxs_rwlock = PTHREAD_RWLOCK_INITIALIZER;      /* A
 
 static char s_db_path[MAX_PATH];                                            /* A root directory for the MDBX files */
 
-/* Forward declarations of routines */
+/* Forward declarations of action routines */
 static int              s_deinit();
 static int              s_flush(void);
 static int              s_apply_store_obj (dap_store_obj_t *a_store_obj);
@@ -90,7 +90,12 @@ static dap_list_t       *s_get_groups_by_mask(const char *a_group_mask);
 
 
 static MDBX_env *s_mdbx_env;                                                /* MDBX's context area */
-static char s_subdir [] = "mdbx-db";                                        /* Name of subdir for the MDBX's database files */
+static char s_subdir [] = "";                                               /* Name of subdir for the MDBX's database files */
+
+static char s_db_master_tbl [] = "MDBX$MASTER";                             /* A name of master table in the MDBX
+                                                                              to keep and maintain application level information */
+static MDBX_dbi s_db_master_dbi;                                            /* A handle of the MDBX D of the master subDB */
+
 
 /*
  * Suffix structure is supposed to be added at end of MDBX record, so :
@@ -113,34 +118,25 @@ MDBX_cursor *l_cursor;
 char    l_buf[1024] = {0};
 
     if ( MDBX_SUCCESS != (l_rc = mdbx_txn_begin(s_mdbx_env, NULL, MDBX_TXN_RDONLY, &a_db_ctx->txn)) )
-        {
         log_it(L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc));
-        goto bailout;
-        }
-
-    if ( MDBX_SUCCESS != (l_rc = mdbx_cursor_open(a_db_ctx->txn, a_db_ctx->dbi, &l_cursor)) )
-        {
+    else if ( MDBX_SUCCESS != (l_rc = mdbx_cursor_open(a_db_ctx->txn, a_db_ctx->dbi, &l_cursor)) )
         log_it(L_ERROR, "mdbx_cursor_open: (%d) %s", l_rc, mdbx_strerror(l_rc));
-        goto bailout;
-        }
+    else {
+        while ( !(l_rc = mdbx_cursor_get (l_cursor, &l_key_iov, &l_data_iov, MDBX_NEXT )) )
+            {
+            l_rc = dap_bin2hex (l_buf, l_data_iov.iov_base, min(l_data_iov.iov_len, 72) );
 
-    while ( !(l_rc = mdbx_cursor_get (l_cursor, &l_key_iov, &l_data_iov, MDBX_NEXT )) )
-        {
-        l_rc = dap_bin2hex (l_buf, l_data_iov.iov_base, min(l_data_iov.iov_len, 72) );
+            debug_if(s_dap_global_db_debug_more, L_DEBUG, "[0:%zu]: '%.*s' = [0:%zu]: '%.*s'",
+                    l_key_iov.iov_len, (int) l_key_iov.iov_len, l_key_iov.iov_base,
+                    l_data_iov.iov_len, l_rc, l_buf);
+            }
+    }
 
-        debug_if(s_dap_global_db_debug_more, L_DEBUG, "[0:%zu]: '%.*s' = [0:%zu]: '%.*s'",
-                l_key_iov.iov_len, (int) l_key_iov.iov_len, l_key_iov.iov_base,
-                l_data_iov.iov_len, l_rc, l_buf);
-        }
-
-
-bailout:
     if (l_cursor)
         mdbx_cursor_close(l_cursor);
 
     if (a_db_ctx->txn)
         mdbx_txn_abort(a_db_ctx->txn);
-
 }
 
 
@@ -150,6 +146,7 @@ static dap_db_ctx_t *s_cre_db_ctx_for_group(const char *a_group, int a_flags)
 int l_rc;
 dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
 uint64_t l_seq;
+MDBX_val    l_key_iov, l_data_iov;
 
     debug_if(s_dap_global_db_debug_more, L_DEBUG, "Init group/table '%s', flags: %#x ...", a_group, a_flags);
 
@@ -161,8 +158,8 @@ uint64_t l_seq;
     if ( l_db_ctx )                                                         /* Found! Good job - return DB context */
         return  log_it(L_INFO, "Found DB context: %p for group: '%s'", l_db_ctx, a_group), l_db_ctx;
 
-    if ( !(a_flags & MDBX_CREATE) )                                         /* Not found and we don't need to create it ? */
-        return  NULL;
+//    if ( !(a_flags & MDBX_CREATE) )                                         /* Not found and we don't need to create it ? */
+//        return  NULL;
 
     /* So , at this point we are going to create 'table' for new group */
 
@@ -189,9 +186,24 @@ uint64_t l_seq;
      */
     mdbx_dbi_sequence (l_db_ctx->txn, l_db_ctx->dbi, &l_seq, 1);
 
+    /*
+     * Save new subDB name into the master table
+     */
+    l_data_iov.iov_base =  l_key_iov.iov_base = l_db_ctx->name;
+    l_data_iov.iov_len = l_key_iov.iov_len = l_db_ctx->namelen;
+    l_data_iov.iov_len += 1;    /* Count '\0' */
+
+    if ( MDBX_SUCCESS != (l_rc = mdbx_put(l_db_ctx->txn, s_db_master_dbi, &l_key_iov, &l_data_iov, MDBX_NOOVERWRITE ))
+         && (l_rc != MDBX_KEYEXIST) )
+    {
+        log_it (L_ERROR, "mdbx_put: (%d) %s", l_rc, mdbx_strerror(l_rc));
+
+        if ( MDBX_SUCCESS != (l_rc = mdbx_txn_abort(l_db_ctx->txn)) )
+            return  log_it(L_CRITICAL, "mdbx_txn_abort: (%d) %s", l_rc, mdbx_strerror(l_rc)), NULL;
+    }
+
     if ( MDBX_SUCCESS != (l_rc = mdbx_txn_commit(l_db_ctx->txn)) )
         return  log_it(L_CRITICAL, "mdbx_txn_commit: (%d) %s", l_rc, mdbx_strerror(l_rc)), NULL;
-
 
     /*
     ** Add new DB Context for the group into the hash for quick access
@@ -214,24 +226,24 @@ uint64_t l_seq;
 
 
 
+
+
 static  int s_deinit(void)
 {
 dap_db_ctx_t *l_db_ctx = NULL, *l_tmp;
 
-    assert ( !pthread_rwlock_wrlock(&s_db_ctxs_rwlock) );                        /* Prelock for WR */
+    assert ( !pthread_rwlock_wrlock(&s_db_ctxs_rwlock) );                       /* Prelock for WR */
 
-    HASH_ITER(hh, s_db_ctxs, l_db_ctx, l_tmp)
+    HASH_ITER(hh, s_db_ctxs, l_db_ctx, l_tmp)                                   /* run over the hash table of the DB contexts */
     {
-        HASH_DEL(s_db_ctxs, l_db_ctx);
+        HASH_DEL(s_db_ctxs, l_db_ctx);                                          /* Delete DB context from the hash-table */
 
         assert( !pthread_mutex_lock(&l_db_ctx->dbi_mutex) );
-
-        if (l_db_ctx->txn)
+        if (l_db_ctx->txn)                                                      /* Commit, close table */
             mdbx_txn_commit(l_db_ctx->txn);
 
         if (l_db_ctx->dbi)
             mdbx_dbi_close(s_mdbx_env, l_db_ctx->dbi);
-
         assert( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
         DAP_DELETE(l_db_ctx);
@@ -246,75 +258,79 @@ dap_db_ctx_t *l_db_ctx = NULL, *l_tmp;
 }
 
 
-int dap_db_driver_mdbx_init(const char *a_mdbx_path, dap_db_driver_callbacks_t *a_drv_callback)
+int     dap_db_driver_mdbx_init(const char *a_mdbx_path, dap_db_driver_callbacks_t *a_drv_callback)
 {
 int l_rc;
-struct dirent *d;
-DIR *dir;
+MDBX_txn    *l_txn;
+MDBX_cursor *l_cursor;
+MDBX_val    l_key_iov, l_data_iov;
+dap_slist_t l_slist = {0};
+char        *l_cp;
 
     snprintf(s_db_path, sizeof(s_db_path), "%s/%s", a_mdbx_path, s_subdir );/* Make a path to MDBX root */
     dap_mkdir_with_parents(s_db_path);                                      /* Create directory for the MDBX storage */
 
     log_it(L_NOTICE, "Directory '%s' will be used as an location for MDBX database files", s_db_path);
+    s_mdbx_env = NULL;
     if ( MDBX_SUCCESS != (l_rc = mdbx_env_create(&s_mdbx_env)) )
         return  log_it(L_CRITICAL, "mdbx_env_create: (%d) %s", l_rc, mdbx_strerror(l_rc)), -ENOENT;
 
-
-    mdbx_setup_debug	(	MDBX_LOG_VERBOSE, 0, 0);
-    l_rc = mdbx_env_set_geometry(s_mdbx_env, 0, -1, -1, -1,-1, -1);
-
+    //if ( s_dap_global_db_debug_more )
+      //  mdbx_setup_debug	(	MDBX_LOG_VERBOSE, 0, 0);
 
     log_it(L_NOTICE, "Set maximum number of local groups: %d", DAP_DB$K_MAXGROUPS);
     assert ( !mdbx_env_set_maxdbs (s_mdbx_env, DAP_DB$K_MAXGROUPS) );       /* Set maximum number of the file-tables (MDBX subDB)
-                                                                              according to number of supported groupes */
+                                                                              according to number of supported groups */
 
 
                                                                             /* We set "unlim" for all MDBX characteristics at the moment */
     if ( MDBX_SUCCESS != (l_rc = mdbx_env_set_geometry(s_mdbx_env, 0, -1, -1, -1,-1, -1)) )
         return  log_it (L_CRITICAL, "mdbx_env_set_geometry (%s): (%d) %s", s_db_path, l_rc, mdbx_strerror(l_rc)),  -EINVAL;
 
-    if ( MDBX_SUCCESS != (l_rc = mdbx_env_open(s_mdbx_env, s_db_path, MDBX_CREATE | MDBX_NOSUBDIR | MDBX_COALESCE | MDBX_LIFORECLAIM, 0664)) )
+    if ( MDBX_SUCCESS != (l_rc = mdbx_env_open(s_mdbx_env, s_db_path, MDBX_CREATE |  MDBX_COALESCE | MDBX_LIFORECLAIM, 0664)) )
         return  log_it (L_CRITICAL, "mdbx_env_open (%s): (%d) %s", s_db_path, l_rc, mdbx_strerror(l_rc)),  -EINVAL;
 
+    /*
+    ** Create (If)/Open a master DB (table) to keep a list of subDBs (group/table/subDB name)
+    */
+    if ( MDBX_SUCCESS != (l_rc = mdbx_txn_begin(s_mdbx_env, NULL, 0, &l_txn)) )
+        return  log_it(L_CRITICAL, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), -EIO;
 
-    /* Scan target MDBX directory and open MDBX database for every file-local-group */
-    if ( !(dir = opendir(s_db_path)) )
-        return log_it(L_ERROR, "Couldn't open DB directory '%s', errno=%d", s_db_path, errno), -errno;
+    if ( MDBX_SUCCESS != (l_rc = mdbx_dbi_open(l_txn, s_db_master_tbl, MDBX_CREATE, &s_db_master_dbi)) )
+        return  log_it(L_CRITICAL, "mdbx_dbi_open: (%d) %s", l_rc, mdbx_strerror(l_rc)), -EIO;
 
-    while ( (d = readdir(dir)))
-    {
-#ifdef _DIRENT_HAVE_D_TYPE
-        if (d->d_type != DT_DIR)
-            continue;
-#elif defined(DAP_OS_LINUX)
-        struct _stat buf;
-        int res = _stat(d->d_name, &buf);
-        if (!S_ISDIR(buf.st_mode) || !res) {
-            continue;
-        }
-#elif defined (DAP_OS_BSD)
-        struct stat buf;
-        int res = stat(d->d_name, &buf);
-        if (!S_ISDIR(buf.st_mode) || !res) {
-            continue;
-        }
-#endif
-        if ( (d->d_name[0] == '.') || !dap_strcmp(d->d_name, ".."))
-            continue;
+    assert ( MDBX_SUCCESS == (l_rc = mdbx_txn_commit (l_txn)) );
 
-        if ( !s_cre_db_ctx_for_group(d->d_name, 0) )
+    /*
+     * Run over records in the  MASTER table to get subDB names
+     */
+    if ( MDBX_SUCCESS != (l_rc = mdbx_txn_begin(s_mdbx_env, NULL, MDBX_TXN_RDONLY, &l_txn)) )
+        log_it(L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc));
+    else if ( MDBX_SUCCESS != (l_rc = mdbx_cursor_open(l_txn, s_db_master_dbi, &l_cursor)) )
+        log_it(L_ERROR, "mdbx_cursor_open: (%d) %s", l_rc, mdbx_strerror(l_rc));
+    else{
+        for ( int i = 0;  !(l_rc = mdbx_cursor_get (l_cursor, &l_key_iov, &l_data_iov, MDBX_NEXT )); i++ )
             {
-            s_deinit();
-            closedir(dir);
-            return -ENOENT;
-        }
-    }
-    closedir(dir);
+            debug_if(s_dap_global_db_debug_more, L_DEBUG, "MDBX SubDB #%03d [0:%zu]: '%.*s' = [0:%zu]: '%.*s'", i,
+                    l_key_iov.iov_len, (int) l_key_iov.iov_len, l_key_iov.iov_base,
+                    l_data_iov.iov_len, (int) l_data_iov.iov_len, l_data_iov.iov_base);
 
-#if     __SYS$STARLET__
-    s_db_ctx_init_by_group("test", 0);
-    s_db_ctx_init_by_group("test2", 0);
-#endif  /* __SYS$STARLET__ */
+            /* Form a simple list of the group/table name to be used after */
+            l_cp = dap_strdup(l_data_iov.iov_base);                         /* We expect an ASCIZ string as the table name */
+            l_data_iov.iov_len = strlen(l_cp);
+            s_dap_insqtail(&l_slist, l_cp, l_data_iov.iov_len);
+            }
+        }
+
+    assert ( MDBX_SUCCESS == mdbx_txn_commit (l_txn) );
+
+
+    /* Run over the list and create/open group/tables and DB context ... */
+    while ( !s_dap_remqhead (&l_slist, &l_data_iov.iov_base, &l_data_iov.iov_len) )
+    {
+        s_cre_db_ctx_for_group(l_data_iov.iov_base, MDBX_CREATE);
+        DAP_DELETE(l_data_iov.iov_base);
+    }
 
     /*
     ** Fill the Driver Interface Table
@@ -657,6 +673,8 @@ dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
     if(!a_group_mask)
         return NULL;
 
+    l_ret_list = NULL;
+
     assert ( !pthread_rwlock_rdlock(&s_db_ctxs_rwlock) );
 
     HASH_ITER(hh, s_db_ctxs, l_db_ctx, l_db_ctx2) {
@@ -691,9 +709,6 @@ struct  __record_suffix__   *l_suff;
             return  log_it(L_WARNING, "Cannot create DB context for the group '%s'", a_store_obj->group), -EIO;
 
         log_it(L_NOTICE, "DB context for the group '%s' has been created", a_store_obj->group);
-
-
-        s_db_dump(l_db_ctx);
 
         if ( a_store_obj->type == DAP_DB$K_OPTYPE_DEL )                     /* Nothing to do anymore */
             return  0;
@@ -777,9 +792,6 @@ struct  __record_suffix__   *l_suff;
         if ( l_rc != MDBX_SUCCESS )
             DAP_FREE(l_val);
 
-
-        s_db_dump (l_db_ctx);
-
         assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
         return ( l_rc == MDBX_SUCCESS ) ? 0 : -EIO;
@@ -857,7 +869,7 @@ struct  __record_suffix__   *l_suff;
     if (!a_group)                                                           /* Sanity check */
         return NULL;
 
-    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                      /* Get free DB Context */
+    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                    /* Get free DB Context */
         return NULL;
 
 
@@ -870,7 +882,8 @@ struct  __record_suffix__   *l_suff;
     }
 
 
-
+    if ( *a_count_out )
+        *a_count_out = 0;
 
     /*
      *  Perfroms a find/get a record with the given key
@@ -897,6 +910,9 @@ struct  __record_suffix__   *l_suff;
                     l_obj->timestamp = l_suff->ts;
                     l_obj->flags = l_suff->flags;
                     assert ( (l_obj->group = dap_strdup(a_group)) );
+
+                    if ( *a_count_out )
+                        *a_count_out = 0;
                 }
                 else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
             }
@@ -927,12 +943,11 @@ struct  __record_suffix__   *l_suff;
     */
     do  {
         l_count_out = a_count_out? *a_count_out : DAP_DB$K_MAXOBJS;             /* Limit a number of objects to be returned */
-        *a_count_out = 0;
         l_cursor = NULL;
         l_obj = NULL;
 
         /*
-         * Retrive statistic for group/table, we need to compute a number of records can be retreived
+         * Retrieve statistic for group/table, we need to compute a number of records can be retreived
          */
         l_rc2 = 0;
         if ( MDBX_SUCCESS != (l_rc = mdbx_dbi_stat	(l_db_ctx->txn, l_db_ctx->dbi, &l_stat, sizeof(MDBX_stat))) ) {
@@ -975,6 +990,9 @@ struct  __record_suffix__   *l_suff;
                 l_obj->timestamp = l_suff->ts;
                 l_obj->flags = l_suff->flags;
                 assert ( (l_obj->group = dap_strdup(a_group)) );
+
+                if ( *a_count_out )
+                    *a_count_out += 1;
                 }
             else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
         }
