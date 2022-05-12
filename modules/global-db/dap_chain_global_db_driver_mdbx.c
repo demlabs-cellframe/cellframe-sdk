@@ -882,7 +882,7 @@ struct  __record_suffix__   *l_suff;
     }
 
 
-    if ( *a_count_out )
+    if ( a_count_out )
         *a_count_out = 0;
 
     /*
@@ -911,7 +911,7 @@ struct  __record_suffix__   *l_suff;
                     l_obj->flags = l_suff->flags;
                     assert ( (l_obj->group = dap_strdup(a_group)) );
 
-                    if ( *a_count_out )
+                    if ( a_count_out )
                         *a_count_out = 0;
                 }
                 else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
@@ -991,7 +991,7 @@ struct  __record_suffix__   *l_suff;
                 l_obj->flags = l_suff->flags;
                 assert ( (l_obj->group = dap_strdup(a_group)) );
 
-                if ( *a_count_out )
+                if ( a_count_out )
                     *a_count_out += 1;
                 }
             else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
