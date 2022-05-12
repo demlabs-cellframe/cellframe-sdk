@@ -867,7 +867,6 @@ MDBX_stat   l_stat;
 struct  __record_suffix__   *l_suff;
 
 
-
     if (!a_group)                                                           /* Sanity check */
         return NULL;
 
@@ -914,7 +913,7 @@ struct  __record_suffix__   *l_suff;
                     assert ( (l_obj->group = dap_strdup(a_group)) );
 
                     if ( a_count_out )
-                        *a_count_out = 0;
+                        *a_count_out = 1;
                 }
                 else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
             }
