@@ -1116,29 +1116,25 @@ typedef struct dap_events_socket_buf_item
 static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
 {
     struct timeval l_tv;
-    fd_set l_outfd, l_errfd;
-
     l_tv.tv_sec = timeout_ms / 1000;
     l_tv.tv_usec = (timeout_ms % 1000) * 1000;
 
+    fd_set l_outfd;
     FD_ZERO(&l_outfd);
-    FD_ZERO(&l_errfd);
-    FD_SET(a_sockfd, &l_errfd);
     FD_SET(a_sockfd, &l_outfd);
 
-    while(1) {
+    while (1) {
 #ifdef DAP_OS_WINDOWS
-    int l_res = select(1, NULL, &l_outfd, &l_errfd, &l_tv);
+        int l_res = select(1, NULL, &l_outfd, NULL, &l_tv);
 #else
-        int l_res = select(a_sockfd + 1, NULL, &l_outfd, &l_errfd, &l_tv);
+        int l_res = select(a_sockfd + 1, NULL, &l_outfd, NULL, &l_tv);
 #endif
-        if(l_res == 0){
-            l_res = -2;
+        if (l_res == 0) {
             //log_it(L_DEBUG, "socket %d timed out", a_sockfd)
-            break;
+            return -2;
         }
-        if(l_res == -1) {
-            if(errno == EINTR)
+        if (l_res == -1) {
+            if (errno == EINTR)
                 continue;
             log_it(L_DEBUG, "socket %"DAP_FORMAT_SOCKET" waiting errno=%d", a_sockfd, errno);
             return l_res;
@@ -1146,7 +1142,7 @@ static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
         break;
     };
 
-    if(FD_ISSET(a_sockfd, &l_outfd))
+    if (FD_ISSET(a_sockfd, &l_outfd))
         return 0;
 
     return -1;
@@ -1159,27 +1155,28 @@ static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
  */
 static void *dap_events_socket_buf_thread(void *arg)
 {
-    dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t*) arg;
-    if(!l_item) {
+    dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t *)arg;
+    if (!l_item)
         pthread_exit(0);
-    }
     int l_res = 0;
     int l_count = 0;
-    while(l_res < 1 && l_count < 3) {
-    // wait max 5 min
-#ifdef DAP_OS_WINDOWS
-        log_it(L_INFO, "Wait 5 minutes");
-        l_res = wait_send_socket(l_item->es->socket, 300000);
-#else
-        l_res = wait_send_socket(l_item->es->fd2, 300000);
+    SOCKET l_sock = INVALID_SOCKET;
+    while (l_res < 1 && l_count++ < 3) {
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+        l_sock = l_item->es->fd2;
+#elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+        l_sock = l_item->es->mqd;
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+#error "Undefined waiting for KQUEUE CAPS"
 #endif
-        if (l_res == 0){
+        // wait max 5 min
+        l_res = wait_send_socket(l_sock, 300000);
+        if (l_res == 0) {
             dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
             break;
         }
-        l_count++;
     }
-    if(l_res != 0)
+    if (l_res != 0)
         log_it(L_WARNING, "Lost data bulk in events socket buf thread");
 
     DAP_DELETE(l_item);
@@ -1708,21 +1705,10 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
         return;
     }
 
-    if ( a_is_ready ) {
+    if ( a_is_ready )
         a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
-#ifdef DAP_EVENTS_CAPS_EPOLL
-        if (a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-            a_esocket->ev_base_flags |= EPOLLONESHOT;
-#endif
-    }
-    else {
+    else
         a_esocket->flags ^= DAP_SOCK_READY_TO_WRITE;
-#ifdef DAP_EVENTS_CAPS_EPOLL
-        if (a_esocket->type == DESCRIPTOR_TYPE_QUEUE)
-            a_esocket->ev_base_flags ^= EPOLLONESHOT;
-#endif
-    }
-
 
 #ifdef DAP_EVENTS_CAPS_EVENT_KEVENT
     if( a_esocket->type != DESCRIPTOR_TYPE_EVENT &&
