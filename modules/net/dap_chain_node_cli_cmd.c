@@ -1759,6 +1759,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-password", &l_pass_str);        /* @RRL: #6131 */
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
 
@@ -1775,6 +1776,10 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
             dap_chain_node_cli_set_reply_text(str_reply, "Wallet name option <-w>  not defined");
             return -1;
         }
+        /* Check password's symbos */
+        if (l_pass_str && (!dap_isstralnum(l_pass_str)) )
+            return  dap_chain_node_cli_set_reply_text(str_reply, "Password  must contains digits and aplhabetical symbols"), -1;
+
         // Check if wallet name has only digits and English letter
         if (!dap_isstralnum(l_wallet_name)){
             dap_chain_node_cli_set_reply_text(str_reply, "Wallet name must contains digits and aplhabetical symbols");
@@ -1854,7 +1859,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
                 size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
                 if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0)) {
                     char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
-                    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
+                    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp, l_pass_str);
                     if(l_wallet) {
                         dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                         char *l_addr_str = dap_chain_addr_to_str(l_addr);
