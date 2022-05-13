@@ -81,6 +81,7 @@
 
 typedef enum dap_stream_ch_chain_state{
     CHAIN_STATE_IDLE=0,
+    CHAIN_STATE_WAITING,
     CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE, // Downloadn GDB hashtable from remote
     CHAIN_STATE_UPDATE_GLOBAL_DB, // Update GDB hashtable to remote
     CHAIN_STATE_SYNC_GLOBAL_DB,
