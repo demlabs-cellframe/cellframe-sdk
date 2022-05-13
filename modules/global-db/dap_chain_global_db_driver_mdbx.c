@@ -50,9 +50,6 @@
 #include "dap_file_utils.h"
 #include "dap_common.h"
 
-#define DAP_CHAIN_GDB_ENGINE_MDBX   1
-//#ifdef DAP_CHAIN_GDB_ENGINE_MDBX
-
 #include "mdbx.h"                                                           /* LibMDBX API */
 #define LOG_TAG "dap_chain_global_db_mdbx"
 
@@ -87,7 +84,7 @@ static int              s_db_mdbx_deinit();
 static int              s_db_mdbx_flush(void);
 static int              s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj);
 static dap_store_obj_t  *s_db_mdbx_read_last_store_obj(const char* a_group);
-static int              s_db_mdbx_is_obj(const char *a_group, const char *a_key);
+static bool s_db_mdbx_is_obj(const char *a_group, const char *a_key);
 static dap_store_obj_t  *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
 static size_t           s_db_mdbx_read_count_store(const char *a_group, uint64_t a_id);
@@ -336,8 +333,8 @@ char        *l_cp;
         for ( int i = 0;  !(l_rc = mdbx_cursor_get (l_cursor, &l_key_iov, &l_data_iov, MDBX_NEXT )); i++ )
             {
             debug_if(s_dap_global_db_debug_more, L_DEBUG, "MDBX SubDB #%03d [0:%zu]: '%.*s' = [0:%zu]: '%.*s'", i,
-                    l_key_iov.iov_len, (int) l_key_iov.iov_len, l_key_iov.iov_base,
-                    l_data_iov.iov_len, (int) l_data_iov.iov_len, l_data_iov.iov_base);
+                    l_key_iov.iov_len, (int) l_key_iov.iov_len, (char *)l_key_iov.iov_base,
+                    l_data_iov.iov_len, (int) l_data_iov.iov_len, (char *)l_data_iov.iov_base);
 
             /* Form a simple list of the group/table name to be used after */
             l_cp = dap_strdup(l_data_iov.iov_base);                         /* We expect an ASCIZ string as the table name */
@@ -510,7 +507,7 @@ dap_store_obj_t *l_obj;
  * @return  0 - Record-Not-Found
  *          1 - Record is found
  */
-int     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
+bool     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
 {
 int l_rc, l_rc2;
 dap_db_ctx_t *l_db_ctx;
