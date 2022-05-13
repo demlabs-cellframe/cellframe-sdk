@@ -130,7 +130,7 @@ typedef void (*dap_events_socket_worker_callback_t) (dap_events_socket_t *,dap_w
 
 
                                                                             /* A callback routine is supposed to be called on completion I/O */
-typedef void (*dap_events_socket_worker_complete_io_t) (dap_events_socket_t *, dap_worker_t *, int a_errno);
+typedef void (*dap_events_socket_worker_complete_io_t) (dap_events_socket_t *, void *, int a_errno);
 
 typedef struct dap_events_socket_callbacks {
     union{ // Specific callbacks
@@ -152,12 +152,13 @@ typedef struct dap_events_socket_callbacks {
     dap_events_socket_worker_callback_t worker_assign_callback;             /* After successful worker assign */
     dap_events_socket_worker_callback_t worker_unassign_callback;           /* After successful worker unassign */
 
+    void *arg;                                                              /* Callbacks argument */
 } dap_events_socket_callbacks_t;
 
 #define DAP_STREAM_PKT_SIZE_MAX     (1 * 1024 * 1024)
 #define DAP_EVENTS_SOCKET_BUF       DAP_STREAM_PKT_SIZE_MAX
 #define DAP_EVENTS_SOCKET_BUF_LIMIT (DAP_STREAM_PKT_SIZE_MAX * 4)
-#define DAP_QUEUE_MAX_MSGS          8
+#define DAP_QUEUE_MAX_MSGS          512
 
 typedef enum {
     DESCRIPTOR_TYPE_SOCKET_CLIENT = 0,
@@ -218,8 +219,6 @@ typedef struct dap_events_socket {
     bool no_close;
     atomic_bool is_initalized;
     bool was_reassigned; // Was reassigment at least once
-
-    uint32_t buf_out_zero_count;
 
     // Input section
     byte_t  *buf_in;
@@ -342,9 +341,6 @@ void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, 
 void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
 
-
-size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void * data, size_t data_size);
-
 // Non-MT functions
 dap_events_socket_t * dap_worker_esocket_find_uuid(dap_worker_t * a_worker, dap_events_socket_uuid_t a_es_uuid);
 
@@ -376,7 +372,11 @@ void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_
 void dap_events_socket_descriptor_close(dap_events_socket_t *a_socket);
 
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker);
+
+// Buffer functions
+size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void * data, size_t data_size);
 void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size);
+DAP_STATIC_INLINE size_t dap_events_socket_get_free_buf_size(dap_events_socket_t *a_es) { return a_es->buf_out_size_max - a_es->buf_out_size; }
 
 #ifdef DAP_OS_WINDOWS
 DAP_STATIC_INLINE int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {

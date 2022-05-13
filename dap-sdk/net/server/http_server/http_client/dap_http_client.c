@@ -227,6 +227,8 @@ static bool s_request_line_parse( dap_http_client_t *a_http_client, char *a_buf,
 
   log_it( L_NOTICE, "dap_http_request_line_parse" );
 
+  a_http_client->url_path[0] = a_http_client->action[0] = '\0';
+
   for( l_pos = 0; l_pos < a_buf_length; l_pos ++ ) {
 
     if ( a_buf[l_pos] == '\n' )
@@ -253,8 +255,10 @@ static bool s_request_line_parse( dap_http_client_t *a_http_client, char *a_buf,
       case PS_URL:
       {
         size_t c_size = l_pos - l_pos_kw_begin;
-        if ( c_size + 1 > sizeof(a_http_client->action) )
-          c_size = sizeof( a_http_client->url_path ) - 1;
+        if ( c_size + 1 > sizeof(a_http_client->url_path) ) {
+            log_it(L_ERROR, "Too long URL with size %zu is truncated", c_size);
+            c_size = sizeof( a_http_client->url_path ) - 1;
+        }
 
         memcpy( a_http_client->url_path, a_buf + l_pos_kw_begin, c_size );
         a_http_client->url_path[c_size] = 0;
@@ -363,7 +367,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                 memcpy( l_buf_line, a_esocket->buf_in, eol + 1 ); // copy with LF
 
                 dap_events_socket_shrink_buf_in( a_esocket, eol + 1 );
-                l_buf_line[ eol + 2 ] = 0; // null terminate
+                l_buf_line[ eol + 1 ] = 0; // null terminate
 
                 // parse http_request_line
                 if ( !s_request_line_parse(l_http_client, l_buf_line, eol + 1) ) {
@@ -542,6 +546,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
 
     switch( l_http_client->state_write ) {
         case DAP_HTTP_CLIENT_STATE_NONE:
+        default:
             return;
         case DAP_HTTP_CLIENT_STATE_START:{
             if ( l_http_client->proc ){
@@ -563,9 +568,8 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
             log_it( L_INFO," HTTP response with %u status code", l_http_client->reply_status_code );
             dap_events_socket_write_f_unsafe(a_esocket, "HTTP/1.1 %u %s\r\n",l_http_client->reply_status_code, l_http_client->reply_reason_phrase[0] ?
                             l_http_client->reply_reason_phrase : http_status_reason_phrase(l_http_client->reply_status_code) );
-            dap_events_socket_set_writable_unsafe(a_esocket, true);
             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
-        } break;
+        }
 
         case DAP_HTTP_CLIENT_STATE_HEADERS: {
             dap_http_header_t *hdr = l_http_client->out_headers;
@@ -573,7 +577,6 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 log_it(L_DEBUG, "Output: headers are over (reply status code %hu content_lentgh %zu)",
                        l_http_client->reply_status_code, l_http_client->out_content_length);
                 dap_events_socket_write_f_unsafe(a_esocket, "\r\n");
-                dap_events_socket_set_writable_unsafe(a_esocket, true);
                 if ( l_http_client->out_content_length || l_http_client->out_content_ready ) {
                     l_http_client->state_write=DAP_HTTP_CLIENT_STATE_DATA;
                 } else {
@@ -581,16 +584,17 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                     l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                     dap_events_socket_set_writable_unsafe( a_esocket, false );
                     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    break;
                 }
                 dap_events_socket_set_readable_unsafe( a_esocket, true );
             } else {
                 //log_it(L_DEBUG,"Output: header %s: %s",hdr->name,hdr->value);
                 dap_events_socket_write_f_unsafe(a_esocket, "%s: %s\r\n", hdr->name, hdr->value);
-                dap_events_socket_set_writable_unsafe(a_esocket, true);
                 dap_http_header_remove( &l_http_client->out_headers, hdr );
             }
-        } break;
-        case DAP_HTTP_CLIENT_STATE_DATA:{
+        }
+
+        case DAP_HTTP_CLIENT_STATE_DATA: {
             if ( l_http_client->proc ){
                 pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                 if  ( ( l_http_client->proc->cache == NULL &&
