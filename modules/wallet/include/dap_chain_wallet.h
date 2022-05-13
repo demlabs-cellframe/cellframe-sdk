@@ -43,11 +43,17 @@ void dap_chain_wallet_deinit(void);
 const char* dap_chain_wallet_get_path(dap_config_t * a_config);
 
 dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_name, const char * a_wallets_path,
-        dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size);
-dap_chain_wallet_t * dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type); // Creates new one if not found
-dap_chain_wallet_t * dap_chain_wallet_open_file(const char * a_file_name);
-dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path);
-int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet);
+        dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size, const char *a_pass);
+
+dap_chain_wallet_t * dap_chain_wallet_create_with_pass(const char * a_wallet_name, const char * a_wallets_path,
+        const void* a_pass, size_t a_pass_sz);
+
+
+dap_chain_wallet_t *dap_chain_wallet_create(const char * a_wallet_name, const char * a_wallets_path, dap_sign_type_t a_sig_type, const char *a_pass); // Creates new one if not found
+dap_chain_wallet_t *dap_chain_wallet_open_file(const char * a_file_name, const char *a_pass);
+dap_chain_wallet_t *dap_chain_wallet_open(const char * a_wallet_name, const char * a_wallets_path);
+dap_chain_wallet_t *dap_chain_wallet_open_ext(const char * a_wallet_name, const char * a_wallets_path, const char *pass);
+int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass);
 
 void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet);
 
