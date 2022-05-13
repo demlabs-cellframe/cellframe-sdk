@@ -136,7 +136,7 @@ const unsigned char  *p = (unsigned char *) buf;
  */
 int dap_chain_wallet_init(void)
 {
-char *c_wallets_path, *l_file_name, l_fspec[MAX_PATH] = {'\0'};
+char *c_wallets_path, l_fspec[MAX_PATH] = {'\0'};
 DIR * l_dir;
 struct dirent * l_dir_entry;
 dap_chain_wallet_t *l_wallet;
@@ -167,7 +167,7 @@ size_t l_len;
 
         if ( (l_len > 8) && (strcmp(l_dir_entry->d_name + l_len - 8, ".dwallet") == 0) )
         {
-            dap_snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_file_name);
+            dap_snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name);
 
             if ( (l_wallet = dap_chain_wallet_open_file(l_fspec, NULL)) )
                 dap_chain_wallet_close(l_wallet);
