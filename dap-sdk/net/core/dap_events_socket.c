@@ -1166,8 +1166,6 @@ static void *dap_events_socket_buf_thread(void *arg)
         l_sock = l_item->es->fd2;
 #elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         l_sock = l_item->es->mqd;
-#elif defined(DAP_EVENTS_CAPS_KQUEUE)
-#error "Undefined waiting for KQUEUE CAPS"
 #endif
         // wait max 5 min
         l_res = wait_send_socket(l_sock, 300000);
@@ -1379,11 +1377,11 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     }
 
     if(l_n != -1 ){
-        l_ret = sizeof (a_arg);
+        return sizeof(a_arg);
     }else{
         l_errno = errno;
-        log_it(L_ERROR,"Sending kevent error code %d", l_n);
-        l_ret = -1;
+        log_it(L_ERROR,"Sending kevent error code %d", l_errno);
+        return l_errno;
     }
 
 #else
@@ -1854,6 +1852,9 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->buf_in)
     DAP_DEL_Z(a_esocket->buf_out)
     DAP_DEL_Z(a_esocket->remote_addr_str)
+    DAP_DEL_Z(a_esocket->remote_addr_str6)
+    DAP_DEL_Z(a_esocket->hostaddr)
+    DAP_DEL_Z(a_esocket->service)
 
     DAP_DEL_Z( a_esocket )
 }

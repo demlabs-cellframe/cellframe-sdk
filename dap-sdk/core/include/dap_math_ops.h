@@ -1019,9 +1019,9 @@ static inline int MULT_256_FRAC_FRAC(uint256_t a_val, uint256_t a_mult, uint256_
 static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* result) {
     uint256_t tmp;
     uint256_t rem;
-    uint256_t ten17 = {.hi = 0, .lo=100000000000000000ULL};
-    uint256_t ten = {.hi = 0, .lo=10ULL};
-    uint256_t five = {.hi = 0, .lo=500000000000000000};
+    uint256_t ten17 = GET_256_FROM_64(100000000000000000ULL);
+    uint256_t ten = GET_256_FROM_64(10ULL);
+    uint256_t five = GET_256_FROM_64(500000000000000000);
     int overflow = MULT_256_256(a_val, b_val, &tmp);
     divmod_impl_256(tmp, ten17, &tmp, &rem);
     if (compare256(rem, five) >= 0) {
@@ -1029,10 +1029,6 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
     }
     DIV_256(tmp, ten, result);
     return overflow;
-}
-
-static inline int MULT_256_FRAC_256(uint256_t a_val, uint256_t b_val, uint256_t* result) {
-    return MULT_256_COIN(a_val, b_val, result);
 }
 
 #ifdef __cplusplus
