@@ -1756,12 +1756,12 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_atoms, l_ch_chain->request_atom_iter->cur_hash,
                                       sizeof(dap_chain_hash_fast_t), l_hash_item_hashv, l_hash_item);
                 if( l_hash_item ){ // If found - skip it
-                    if(s_debug_more){
+                    /*if(s_debug_more){
                         char l_request_atom_hash_str[81]={[0]='\0'};
                         dap_chain_hash_fast_to_str(l_ch_chain->request_atom_iter->cur_hash,l_request_atom_hash_str,sizeof (l_request_atom_hash_str));
                         log_it(L_DEBUG, "Out CHAIN: skip atom hash %s because its already present in remote atom hash table",
                                         l_request_atom_hash_str);
-                    }
+                    }*/
                 }else{
                     l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
                     memcpy(&l_hash_item->hash, l_ch_chain->request_atom_iter->cur_hash, sizeof(dap_chain_hash_fast_t));
