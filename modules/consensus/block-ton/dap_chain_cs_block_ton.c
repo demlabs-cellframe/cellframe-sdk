@@ -1069,7 +1069,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     dap_time_t l_time = dap_time_now();
 	l_message->hdr.is_verified=false;
 
-    dap_chain_hash_fast_t l_data_hash;
+    dap_chain_hash_fast_t l_data_hash = {};
     dap_hash_fast(a_data, a_data_size, &l_data_hash);
     if (memcmp(a_data_hash, &l_data_hash, sizeof(dap_chain_hash_fast_t)) != 0) {
 		if (PVT(l_session->ton)->debug)
