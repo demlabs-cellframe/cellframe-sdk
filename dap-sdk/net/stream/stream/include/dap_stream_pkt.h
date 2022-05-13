@@ -31,6 +31,8 @@ typedef struct dap_stream_session dap_stream_session_t;
 #define STREAM_PKT_TYPE_ALIVE       0x12
 #define STREAM_PKT_SIG_SIZE         8
 
+#define DAP_STREAM_PKT_ENCRYPTION_OVERHEAD 200 //in fact is's about 2*16+15 for OAES
+
 typedef struct dap_stream_pkt_hdr{
     uint8_t sig[STREAM_PKT_SIG_SIZE];  // Signature to find out beginning of the frame
     uint32_t size;

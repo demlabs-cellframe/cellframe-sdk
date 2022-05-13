@@ -1317,25 +1317,14 @@ static void s_stream_es_callback_write(dap_events_socket_t * a_es, void * arg)
         return;
     switch (l_client_pvt->stage) {
         case STAGE_STREAM_STREAMING: {
-            size_t i;
-            bool ready_to_write = false;
             //  log_it(DEBUG,"Process channels data output (%u channels)",STREAM(sh)->channel_count);
-
-            for(i = 0; i < l_client_pvt->stream->channel_count; i++) {
+            for (size_t i = 0; i < l_client_pvt->stream->channel_count; i++) {
                 dap_stream_ch_t * ch = l_client_pvt->stream->channel[i];
-                if(ch->ready_to_write) {
+                if(ch->ready_to_write)
                     ch->proc->packet_out_callback(ch, NULL);
-                    ready_to_write |= ch->ready_to_write;
-                }
             }
-            //log_it(L_DEBUG,"stream_data_out (ready_to_write=%s)", ready_to_write?"true":"false");
-
-            dap_events_socket_set_writable_unsafe(l_client_pvt->stream_es, ready_to_write);
-            //log_it(ERROR,"No stream_data_write_callback is defined");
-        }
-            break;
-        default: {
-        }
+        } break;
+        default: {}
     }
 }
 

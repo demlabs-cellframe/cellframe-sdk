@@ -542,6 +542,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
 
     switch( l_http_client->state_write ) {
         case DAP_HTTP_CLIENT_STATE_NONE:
+        default:
             return;
         case DAP_HTTP_CLIENT_STATE_START:{
             if ( l_http_client->proc ){
@@ -563,9 +564,8 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
             log_it( L_INFO," HTTP response with %u status code", l_http_client->reply_status_code );
             dap_events_socket_write_f_unsafe(a_esocket, "HTTP/1.1 %u %s\r\n",l_http_client->reply_status_code, l_http_client->reply_reason_phrase[0] ?
                             l_http_client->reply_reason_phrase : http_status_reason_phrase(l_http_client->reply_status_code) );
-            dap_events_socket_set_writable_unsafe(a_esocket, true);
             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
-        } break;
+        }
 
         case DAP_HTTP_CLIENT_STATE_HEADERS: {
             dap_http_header_t *hdr = l_http_client->out_headers;
@@ -573,7 +573,6 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 log_it(L_DEBUG, "Output: headers are over (reply status code %hu content_lentgh %zu)",
                        l_http_client->reply_status_code, l_http_client->out_content_length);
                 dap_events_socket_write_f_unsafe(a_esocket, "\r\n");
-                dap_events_socket_set_writable_unsafe(a_esocket, true);
                 if ( l_http_client->out_content_length || l_http_client->out_content_ready ) {
                     l_http_client->state_write=DAP_HTTP_CLIENT_STATE_DATA;
                 } else {
@@ -581,16 +580,17 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                     l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                     dap_events_socket_set_writable_unsafe( a_esocket, false );
                     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                    break;
                 }
                 dap_events_socket_set_readable_unsafe( a_esocket, true );
             } else {
                 //log_it(L_DEBUG,"Output: header %s: %s",hdr->name,hdr->value);
                 dap_events_socket_write_f_unsafe(a_esocket, "%s: %s\r\n", hdr->name, hdr->value);
-                dap_events_socket_set_writable_unsafe(a_esocket, true);
                 dap_http_header_remove( &l_http_client->out_headers, hdr );
             }
-        } break;
-        case DAP_HTTP_CLIENT_STATE_DATA:{
+        }
+
+        case DAP_HTTP_CLIENT_STATE_DATA: {
             if ( l_http_client->proc ){
                 pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                 if  ( ( l_http_client->proc->cache == NULL &&
