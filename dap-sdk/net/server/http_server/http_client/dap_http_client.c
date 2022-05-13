@@ -227,6 +227,8 @@ static bool s_request_line_parse( dap_http_client_t *a_http_client, char *a_buf,
 
   log_it( L_NOTICE, "dap_http_request_line_parse" );
 
+  a_http_client->url_path[0] = a_http_client->action[0] = '\0';
+
   for( l_pos = 0; l_pos < a_buf_length; l_pos ++ ) {
 
     if ( a_buf[l_pos] == '\n' )
@@ -253,8 +255,10 @@ static bool s_request_line_parse( dap_http_client_t *a_http_client, char *a_buf,
       case PS_URL:
       {
         size_t c_size = l_pos - l_pos_kw_begin;
-        if ( c_size + 1 > sizeof(a_http_client->action) )
-          c_size = sizeof( a_http_client->url_path ) - 1;
+        if ( c_size + 1 > sizeof(a_http_client->url_path) ) {
+            log_it(L_ERROR, "Too long URL with size %zu is truncated", c_size);
+            c_size = sizeof( a_http_client->url_path ) - 1;
+        }
 
         memcpy( a_http_client->url_path, a_buf + l_pos_kw_begin, c_size );
         a_http_client->url_path[c_size] = 0;
@@ -363,7 +367,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                 memcpy( l_buf_line, a_esocket->buf_in, eol + 1 ); // copy with LF
 
                 dap_events_socket_shrink_buf_in( a_esocket, eol + 1 );
-                l_buf_line[ eol + 2 ] = 0; // null terminate
+                l_buf_line[ eol + 1 ] = 0; // null terminate
 
                 // parse http_request_line
                 if ( !s_request_line_parse(l_http_client, l_buf_line, eol + 1) ) {

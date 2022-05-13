@@ -999,19 +999,7 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
-
-// TODO replace it with fixed point MUL
-//#define CONV_256_FLOAT 10000000000000ULL // 10^13, so max float number to mult is 1.000.000
-//static inline uint256_t MULT_256_FRAC_FRAC(uint256_t a_val, long double a_mult)
-//{
-//    uint256_t l_ret = GET_256_FROM_64((uint64_t)(a_mult * CONV_256_FLOAT));
-//    MULT_256_256(l_ret, a_val, &l_ret);
-//    DIV_256(l_ret, GET_256_FROM_64(CONV_256_FLOAT), &l_ret);
-//    return l_ret;
-//}
-
-/**
- * Multiplicates 256-bit value to fixed-point value, represented as 256-bit value
+/* Multiplicates 256-bit value to fixed-point value, represented as 256-bit value
  * @param a_val
  * @param a_mult
  * @param result is a fixed-point value, represented as 256-bit value
@@ -1028,7 +1016,7 @@ static inline int MULT_256_FRAC_FRAC(uint256_t a_val, uint256_t a_mult, uint256_
  * @param result is a fixed-point value, represented as 256-bit value
  * @return
  */
-static inline int MULT_FRAC_FRAC_FRAC(uint256_t a_val, uint256_t b_val, uint256_t* result) {
+static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* result) {
     uint256_t tmp;
     uint256_t rem;
     uint256_t ten17 = {.hi = 0, .lo=100000000000000000ULL};
@@ -1044,7 +1032,7 @@ static inline int MULT_FRAC_FRAC_FRAC(uint256_t a_val, uint256_t b_val, uint256_
 }
 
 static inline int MULT_256_FRAC_256(uint256_t a_val, uint256_t b_val, uint256_t* result) {
-    return MULT_FRAC_FRAC_FRAC(a_val, b_val, result);
+    return MULT_256_COIN(a_val, b_val, result);
 }
 
 #ifdef __cplusplus
