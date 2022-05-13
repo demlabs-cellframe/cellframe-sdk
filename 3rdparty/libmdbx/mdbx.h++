@@ -129,35 +129,26 @@
 #endif
 #endif /* Byte Order */
 
-/** Workaround for old compilers without properly support for `C++17 constexpr`.
- */
-#if defined(DOXYGEN)
-#define MDBX_CXX17_CONSTEXPR constexpr
-#elif defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                \
-    ((defined(_MSC_VER) && _MSC_VER >= 1915) ||                                \
-     (defined(__clang__) && __clang_major__ > 5) ||                            \
-     (defined(__GNUC__) && __GNUC__ > 7) ||                                    \
-     (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)))
+#if defined(DOXYGEN) ||                                                        \
+    defined(__cpp_constexpr) && __cpp_constexpr >= 201603L &&                  \
+        ((defined(_MSC_VER) && _MSC_VER >= 1915) ||                            \
+         (defined(__clang__) && __clang_major__ > 5) ||                        \
+         (defined(__GNUC__) && __GNUC__ > 7) ||                                \
+         (!defined(__GNUC__) && !defined(__clang__) && !defined(_MSC_VER)))
 #define MDBX_CXX17_CONSTEXPR constexpr
 #else
 #define MDBX_CXX17_CONSTEXPR inline
 #endif /* MDBX_CXX17_CONSTEXPR */
 
-/** Workaround for old compilers without properly support for C++20 `constexpr`.
- */
-#if defined(DOXYGEN)
-#define MDBX_CXX20_CONSTEXPR constexpr
-#elif defined(__cpp_lib_is_constant_evaluated) &&                              \
-    __cpp_lib_is_constant_evaluated >= 201811L &&                              \
-    defined(__cpp_lib_constexpr_string) &&                                     \
-    __cpp_lib_constexpr_string >= 201907L
+#if defined(DOXYGEN) || defined(__cpp_lib_is_constant_evaluated) &&            \
+                            __cpp_lib_is_constant_evaluated >= 201811L &&      \
+                            defined(__cpp_lib_constexpr_string) &&             \
+                            __cpp_lib_constexpr_string >= 201907L
 #define MDBX_CXX20_CONSTEXPR constexpr
 #else
 #define MDBX_CXX20_CONSTEXPR inline
 #endif /* MDBX_CXX20_CONSTEXPR */
 
-/** Workaround for old compilers without support assertion inside `constexpr`
- * functions. */
 #if defined(CONSTEXPR_ASSERT)
 #define MDBX_CONSTEXPR_ASSERT(expr) CONSTEXPR_ASSERT(expr)
 #elif defined NDEBUG
@@ -187,11 +178,7 @@
 #endif
 #endif /* MDBX_UNLIKELY */
 
-/** Workaround for old compilers without properly support for C++20 `if
- * constexpr`. */
-#if defined(DOXYGEN)
-#define MDBX_IF_CONSTEXPR constexpr
-#elif defined(__cpp_if_constexpr) && __cpp_if_constexpr >= 201606L
+#if defined(__cpp_if_constexpr) && __cpp_if_constexpr >= 201606L
 #define MDBX_IF_CONSTEXPR constexpr
 #else
 #define MDBX_IF_CONSTEXPR
@@ -269,12 +256,10 @@
 #endif                          /* _MSC_VER (warnings) */
 
 //------------------------------------------------------------------------------
-/// \brief The libmdbx C++ API namespace
-/// \ingroup cxx_api
-namespace mdbx {
-
 /// \defgroup cxx_api C++ API
 /// @{
+
+namespace mdbx {
 
 // Functions whose signature depends on the `mdbx::byte` type
 // must be strictly defined as inline!
@@ -352,12 +337,6 @@ using filehandle = ::mdbx_filehandle_t;
      (!defined(__IPHONE_OS_VERSION_MIN_REQUIRED) ||                            \
       __IPHONE_OS_VERSION_MIN_REQUIRED >= 130100))
 namespace filesystem = ::std::filesystem;
-/// \brief Defined if `mdbx::filesystem::path` is available.
-/// \details If defined, it is always `mdbx::filesystem::path`,
-/// which in turn can be refs to `std::filesystem::path`
-/// or `std::experimental::filesystem::path`.
-/// Nonetheless `MDBX_STD_FILESYSTEM_PATH` not defined if the `::mdbx::path`
-/// is fallbacked to c `std::string` or `std::wstring`.
 #define MDBX_STD_FILESYSTEM_PATH ::mdbx::filesystem::path
 #elif defined(__cpp_lib_experimental_filesystem) &&                            \
     __cpp_lib_experimental_filesystem >= 201406L
@@ -372,9 +351,6 @@ using path = ::std::wstring;
 #else
 using path = ::std::string;
 #endif /* mdbx::path */
-
-/// \defgroup cxx_exceptions exceptions and errors
-/// @{
 
 /// \brief Transfers C++ exceptions thru C callbacks.
 /// \details Implements saving exceptions before returning
@@ -531,16 +507,10 @@ static MDBX_CXX14_CONSTEXPR size_t check_length(size_t headroom,
                                                 size_t payload);
 static MDBX_CXX14_CONSTEXPR size_t check_length(size_t headroom, size_t payload,
                                                 size_t tailroom);
-
-/// end of cxx_exceptions @}
-
 static MDBX_CXX17_CONSTEXPR size_t strlen(const char *c_str) noexcept;
 static MDBX_CXX20_CONSTEXPR void *memcpy(void *dest, const void *src,
                                          size_t bytes) noexcept;
 //------------------------------------------------------------------------------
-
-/// \defgroup cxx_data slices and buffers
-/// @{
 
 #if MDBX_HAVE_CXX20_CONCEPTS
 
@@ -2771,8 +2741,6 @@ struct pair_result : public pair {
   }
 };
 
-/// end of cxx_data @}
-
 //------------------------------------------------------------------------------
 
 /// \brief Loop control constants for readers enumeration functor and other
@@ -3212,7 +3180,7 @@ public:
   env &copy(const MDBX_STD_FILESYSTEM_PATH &destination, bool compactify,
             bool force_dynamic_size = false);
 #endif /* MDBX_STD_FILESYSTEM_PATH */
-#if defined(_WIN32) || defined(_WIN64) || defined(DOXYGEN)
+#if defined(_WIN32) || defined(_WIN64)
   env &copy(const ::std::wstring &destination, bool compactify,
             bool force_dynamic_size = false);
 #endif /* Windows */
@@ -3245,7 +3213,7 @@ public:
   static bool remove(const MDBX_STD_FILESYSTEM_PATH &,
                      const remove_mode mode = just_remove);
 #endif /* MDBX_STD_FILESYSTEM_PATH */
-#if defined(_WIN32) || defined(_WIN64) || defined(DOXYGEN)
+#if defined(_WIN32) || defined(_WIN64)
   static bool remove(const ::std::wstring &,
                      const remove_mode mode = just_remove);
 #endif /* Windows */
@@ -3490,7 +3458,7 @@ public:
   env_managed(const MDBX_STD_FILESYSTEM_PATH &, const operate_parameters &,
               bool accede = true);
 #endif /* MDBX_STD_FILESYSTEM_PATH */
-#if defined(_WIN32) || defined(_WIN64) || defined(DOXYGEN)
+#if defined(_WIN32) || defined(_WIN64)
   env_managed(const ::std::wstring &, const operate_parameters &,
               bool accede = true);
 #endif /* Windows */
@@ -3511,7 +3479,7 @@ public:
   env_managed(const MDBX_STD_FILESYSTEM_PATH &, const create_parameters &,
               const operate_parameters &, bool accede = true);
 #endif /* MDBX_STD_FILESYSTEM_PATH */
-#if defined(_WIN32) || defined(_WIN64) || defined(DOXYGEN)
+#if defined(_WIN32) || defined(_WIN64)
   env_managed(const ::std::wstring &, const create_parameters &,
               const operate_parameters &, bool accede = true);
 #endif /* Windows */
@@ -5909,17 +5877,11 @@ inline bool cursor::erase(const slice &key, const slice &value) {
   return data.done && erase();
 }
 
-/// end cxx_api @}
 } // namespace mdbx
 
 //------------------------------------------------------------------------------
 
-/// \brief The `std:: namespace part of libmdbx C++ API
-/// \ingroup cxx_api
 namespace std {
-
-/// \defgroup cxx_api C++ API
-/// @{
 
 inline string to_string(const ::mdbx::slice &value) {
   ostringstream out;
@@ -6012,9 +5974,10 @@ template <> struct hash<::mdbx::slice> {
   }
 };
 
-/// end cxx_api @}
 } // namespace std
 
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
+
+/// @} end of C++ API
