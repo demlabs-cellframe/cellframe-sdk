@@ -309,8 +309,10 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
     json_object_object_add(l_network, "name", json_object_new_string(a_ledger->net_name));
     char *pos = strrchr(a_bal->key, ' ');
     if (pos) {
-        char *l_addr_str = DAP_NEW_S_SIZE(char, pos - a_bal->key + 1);
+        size_t l_addr_len = pos - a_bal->key;
+        char *l_addr_str = DAP_NEW_S_SIZE(char, l_addr_len + 1);
         memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
+        *(l_addr_str + l_addr_len) = '\0';
         json_object_object_add(l_network, "address", json_object_new_string(l_addr_str));
     } else {
         json_object_object_add(l_network, "address", json_object_new_string("Unknown"));

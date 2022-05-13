@@ -40,6 +40,8 @@ typedef struct dap_chain_net_srv_xchange_price {
     long double rate;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
+    dap_enc_key_t *wallet_key;
+
     char *key_ptr;
     UT_hash_handle hh;
 } dap_chain_net_srv_xchange_price_t;

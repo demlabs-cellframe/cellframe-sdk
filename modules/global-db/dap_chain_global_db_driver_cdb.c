@@ -610,9 +610,7 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
     if(a_store_obj->type == DAP_DB$K_OPTYPE_ADD) {
         if(!a_store_obj->key) {
             return -2;
-        }
-        cdb_record l_rec;
-        l_rec.key = (char *)a_store_obj->key; //dap_strdup(a_store_obj->key);
+        };
         int offset = 0;
         char *l_val = DAP_NEW_Z_SIZE(char, sizeof(uint64_t) + sizeof(uint8_t) + sizeof(uint64_t) + a_store_obj->value_len + sizeof(uint64_t));
         dap_uint_to_hex(l_val, ++l_cdb_i->id, sizeof(uint64_t));
@@ -631,19 +629,20 @@ int dap_db_driver_cdb_apply_store_obj(pdap_store_obj_t a_store_obj) {
         // Add a timestamp
         dap_uint_to_hex(l_val + offset, a_store_obj->timestamp, sizeof(uint64_t));
         offset += sizeof(uint64_t);
-        l_rec.val = l_val;
-        if (cdb_set2(l_cdb_i->cdb, l_rec.key, (int)strlen(l_rec.key), l_rec.val, offset, CDB_INSERTCACHE | CDB_OVERWRITE, 0) != CDB_SUCCESS) {
-            log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", l_rec.key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
+        if (cdb_set2(l_cdb_i->cdb, a_store_obj->key, (int)strlen(a_store_obj->key), l_val, offset, CDB_INSERTCACHE | CDB_OVERWRITE, 0) != CDB_SUCCESS) {
+            log_it(L_ERROR, "Couldn't add record with key [%s] to CDB: \"%s\"", a_store_obj->key, cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
             ret = -1;
         }
         cdb_flushalldpage(l_cdb_i->cdb);
-        DAP_DELETE(l_rec.val);
+        DAP_DELETE(l_val);
     } else if(a_store_obj->type == DAP_DB$K_OPTYPE_DEL) {
         if(a_store_obj->key) {
             if(cdb_del(l_cdb_i->cdb, a_store_obj->key, (int) strlen(a_store_obj->key)) == -3)
                 ret = 1;
-        } else if (!dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP))
-            ret = -1;
+        } else {
+            dap_cdb_init_group(a_store_obj->group, CDB_TRUNC | CDB_PAGEWARMUP);
+            ret = 0;
+        }
     }
     return ret;
 }

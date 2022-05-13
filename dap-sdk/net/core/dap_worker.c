@@ -210,7 +210,7 @@ void *dap_worker_thread(void *arg)
         }
 
         time_t l_cur_time = time( NULL);
-        for(size_t n = 0; n < l_sockets_max; n++) {
+        for(ssize_t n = 0; n < l_sockets_max; n++) {
             bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -631,30 +631,27 @@ void *dap_worker_thread(void *arg)
                 }
             }
 
-            /*
-             * Socket is ready to write and not going to close
-             */
-            if ( !l_cur->buf_out_size )                                     /* Check firstly that output buffer is not empty */
-            {
-                dap_events_socket_set_writable_unsafe(l_cur, false);        /* Clear "enable write flag" */
-
-                if ( l_cur->callbacks.write_finished_callback )             /* Optionaly call I/O completion routine */
-                    l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_errno);
-
-                l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
-            }
-
             l_bytes_sent = 0;
 
-            if (   ( l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) ) ||
-                 (    (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) ) ) {
-
+            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
+                /*
+                 * Socket is ready to write and not going to close
+                 */
+                if ( !l_cur->buf_out_size )                                     /* Check firstly that output buffer is not empty */
+                {
+                    dap_events_socket_set_writable_unsafe(l_cur, false);        /* Clear "enable write flag" */
 
-                if(l_cur->callbacks.write_callback)
+                    if ( l_cur->callbacks.write_finished_callback )             /* Optionaly call I/O completion routine */
+                        l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, l_errno);
+
+                    l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
+                }
+
+                if (l_cur->callbacks.write_callback)
                     l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
 
-                if ( l_cur->worker ){ // esocket wasn't unassigned in callback, we need some other ops with it
+                if ( l_cur->worker && l_flag_write ){ // esocket wasn't unassigned in callback, we need some other ops with it
                         switch (l_cur->type){
                             case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                                 l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
@@ -723,7 +720,6 @@ void *dap_worker_thread(void *arg)
                                              log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                          }
                                          l_bytes_sent = sizeof(void*);
-                                         dap_events_socket_set_writable_unsafe(l_cur,false);
 
                                      }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
@@ -799,6 +795,14 @@ void *dap_worker_thread(void *arg)
                                 l_cur->buf_out_size -= l_bytes_sent;
                                 if (l_cur->buf_out_size ) {
                                     memmove(l_cur->buf_out, &l_cur->buf_out[l_bytes_sent], l_cur->buf_out_size);
+                                } else {
+                                    /*
+                                     * If whole buffer has been sent - clear "write flag" for socket/file descriptor to prevent
+                                     * generation of unexpected I/O events like POLLOUT and consuming CPU by this.
+                                     */
+                                    dap_events_socket_set_writable_unsafe(l_cur, false);/* Clear "enable write flag" */
+                                    if ( l_cur->callbacks.write_finished_callback )     /* Optionaly call I/O completion routine */
+                                        l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, l_errno);
                                 }
                             }else{
                                 log_it(L_ERROR, "Wrong bytes sent, %zd more then was in buffer %zd",l_bytes_sent, l_cur->buf_out_size);
@@ -807,20 +811,7 @@ void *dap_worker_thread(void *arg)
                         }
                     }
                 }
-
-                /*
-                 * If whole buffer has been sent (or it was clrered) - clear "write flag" for socket/file descriptor to prevent
-                 * generation of unexpected I/O events like POLLOUT and consuming CPU by this.
-                 */
-                if ( (l_cur->buf_out_size ) || (l_bytes_sent == l_cur->buf_out_size) )
-                {
-                    dap_events_socket_set_writable_unsafe(l_cur, false);/* Clear "enable write flag" */
-
-                    if ( l_cur->callbacks.write_finished_callback )     /* Optionaly call I/O completion routine */
-                        l_cur->callbacks.write_finished_callback(l_cur, l_worker, l_errno);
-                }
             }
-
 
             if (l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)
             {
@@ -830,7 +821,7 @@ void *dap_worker_thread(void *arg)
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
                                l_cur->type, l_tn);
 
-                    for(size_t nn=n+1; nn<l_sockets_max; nn++){ // Check for current selection if it has event duplication
+                    for (ssize_t nn = n + 1; nn < l_sockets_max; nn++) { // Check for current selection if it has event duplication
                         dap_events_socket_t *l_es_selected = NULL;
 #ifdef DAP_EVENTS_CAPS_EPOLL
                         l_es_selected = (dap_events_socket_t *) l_epoll_events[nn].data.ptr;
