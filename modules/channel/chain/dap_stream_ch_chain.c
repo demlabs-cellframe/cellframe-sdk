@@ -1554,7 +1554,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_db_log_list_obj_t *l_obj = NULL;
             for (i = 0; i < s_update_pack_size; i++) {
                 l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
-                if (!l_obj || DAP_POINTER_TO_INT(l_obj) == 1)
+                if (!l_obj || DAP_POINTER_TO_SIZE(l_obj) == 1)
                     break;
                 l_timer_reset = true;
                 memcpy(&l_data[i].hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
@@ -1593,7 +1593,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             size_t l_pkt_size = 0;
             for (uint_fast16_t l_skip_count = 0; l_skip_count < s_skip_in_reactor_count; ) {
                 l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
-                if (!l_obj || DAP_POINTER_TO_INT(l_obj) == 1) {
+                if (!l_obj || DAP_POINTER_TO_SIZE(l_obj) == 1) {
                     l_skip_count = s_skip_in_reactor_count;
                     break;
                 }

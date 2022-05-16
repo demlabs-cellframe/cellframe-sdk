@@ -423,7 +423,7 @@ void Rec(const uint32_t *x, const uint32_t* rvec, unsigned char *key)
 CRYPTO_MSRLN_STATUS get_error(int32_t* e, unsigned char* seed, unsigned int nonce, StreamOutput StreamOutputFunction)
 { // Error sampling
     (void) seed; (void) nonce; (void) StreamOutputFunction;
-    unsigned char stream[3 * PARAMETER_N];
+    uint32_t stream[3 * PARAMETER_N / sizeof(uint32_t)];
     uint32_t *pstream = (uint32_t *) &stream;
     uint32_t acc1, acc2, temp;
     uint8_t *pacc1 = (uint8_t *) &acc1, *pacc2 = (uint8_t *) &acc2;
