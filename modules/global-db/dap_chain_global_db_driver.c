@@ -46,8 +46,15 @@
 
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"
+
+#ifdef DAP_CHAIN_GDB_ENGINE_MDBX
 #include "dap_chain_global_db_driver_mdbx.h"
+#endif
+
+#ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
 #include "dap_chain_global_db_driver_pgsql.h"
+#endif
+
 #include "dap_chain_global_db_driver.h"
 
 #define LOG_TAG "db_driver"
@@ -109,8 +116,10 @@ int l_ret = -1;
         l_ret = dap_db_driver_sqlite_init(l_db_path_ext, &s_drv_callback);
     else if(!dap_strcmp(s_used_driver, "cdb"))
         l_ret = dap_db_driver_cdb_init(l_db_path_ext, &s_drv_callback);
+#ifdef DAP_CHAIN_GDB_ENGINE_MDBX
     else if(!dap_strcmp(s_used_driver, "mdbx"))
         l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback);
+#endif
 
 #ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
     else if(!dap_strcmp(s_used_driver, "pgsql"))
