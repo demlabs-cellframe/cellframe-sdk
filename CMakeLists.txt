@@ -100,7 +100,7 @@ endif()
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
-add_subdirectory(3rdparty/libmdbx)
+
 if(DAPSDK_MODULES MATCHES "ssl-support")
     add_subdirectory(3rdparty/wolfssl)
 endif()
