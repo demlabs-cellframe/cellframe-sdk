@@ -286,8 +286,15 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         )
 {
     UNUSED(a_expires);
-    if (!a_net && !a_key)   // Order must have network & sign
+     // Order must have network & sign
+    if (!a_net) {
+        log_it(L_WARNING, "Order mast have a network");
         return NULL;
+    }
+    if (!a_key) {
+        log_it(L_WARNING, "Order mast have a sign");
+        return NULL;
+    }
     dap_chain_net_srv_order_t *l_order;
     if (a_ext_size) {
         l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
