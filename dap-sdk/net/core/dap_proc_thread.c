@@ -24,6 +24,7 @@
 #include <stdatomic.h>
 
 #include "dap_config.h"
+#include "dap_list.h"
 #include "dap_events.h"
 #include "dap_events_socket.h"
 #include "dap_proc_thread.h"
@@ -59,6 +60,8 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 
 static size_t s_threads_count = 0;
 static dap_proc_thread_t * s_threads = NULL;
+static dap_list_t * s_custom_threads = NULL; // Customized proc threads out of the pool
+static pthread_rwlock_t s_custom_threads_rwlock =PTHREAD_RWLOCK_INITIALIZER;
 static void *s_proc_thread_function(void * a_arg);
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
@@ -104,6 +107,17 @@ void dap_proc_thread_deinit()
         dap_events_socket_event_signal(s_threads[i].event_exit, 1);
         pthread_join(s_threads[i].thread_id, NULL);
     }
+    // Cleaning custom proc threads
+    pthread_rwlock_wrlock(&s_custom_threads_rwlock);
+    for ( dap_list_t * i = s_custom_threads; i=dap_list_next(i); i){
+        dap_proc_thread_t * l_proc_thread = (dap_proc_thread_t*) i->data;
+        dap_events_socket_event_signal(l_proc_thread->event_exit, 1);
+        pthread_join(l_proc_thread->thread_id, NULL);
+        DAP_DELETE(l_proc_thread);
+    }
+    dap_list_free(s_custom_threads);
+    s_custom_threads = NULL;
+    pthread_rwlock_unlock(&s_custom_threads_rwlock);
 
     // Signal to cancel working threads and wait for finish
     // TODO: Android realization
@@ -145,6 +159,33 @@ unsigned l_id_min = 0, l_size_min = UINT32_MAX, l_queue_size;
     }
 
     return &s_threads[l_id_min];
+}
+
+/**
+ * @brief dap_proc_thread_run_custom Create custom proc thread for specified task
+ * @return
+ */
+dap_proc_thread_t * dap_proc_thread_run_custom()
+{
+    dap_proc_thread_t * l_proc_thread = DAP_NEW_Z(dap_proc_thread_t);
+    if (l_proc_thread == NULL){
+        log_it(L_CRITICAL,"Out of memory, can't create new proc thread");
+        return NULL;
+    }
+    int l_ret;
+    pthread_mutex_lock( &s_started_mutex );
+    if ( (l_ret = pthread_create( &l_proc_thread->thread_id ,NULL, s_proc_thread_function, l_proc_thread  )) ) {
+        log_it(L_CRITICAL, "Create thread failed with code %d", l_ret);
+        DAP_DEL_Z (l_proc_thread);
+    }else{
+        pthread_cond_wait( &s_started_cond, &s_started_mutex);
+        pthread_rwlock_wrlock(&s_custom_threads_rwlock);
+        s_custom_threads = dap_list_append(s_custom_threads, l_proc_thread );
+        pthread_rwlock_unlock(&s_custom_threads_rwlock);
+    }
+
+    pthread_mutex_unlock( &s_started_mutex );
+    return l_proc_thread;
 }
 
 /**
