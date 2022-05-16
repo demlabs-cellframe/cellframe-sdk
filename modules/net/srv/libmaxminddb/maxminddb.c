@@ -1770,7 +1770,7 @@ LOCAL float get_ieee754_float(const uint8_t *restrict p)
     q[1] = p[2];
     q[0] = p[3];
 #else
-    memcpy(q, p, 4);
+    memcpy(q, p, sizeof(float));
 #endif
     return f;
 }
@@ -1789,7 +1789,7 @@ LOCAL double get_ieee754_double(const uint8_t *restrict p)
     q[1] = p[6];
     q[0] = p[7];
 #else
-    memcpy(q, p, 8);
+    memcpy(q, p, sizeof(double));
 #endif
 
     return d;
