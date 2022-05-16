@@ -109,7 +109,7 @@ void dap_proc_thread_deinit()
     }
     // Cleaning custom proc threads
     pthread_rwlock_wrlock(&s_custom_threads_rwlock);
-    for ( dap_list_t * i = s_custom_threads; i=dap_list_next(i); i){
+    for ( dap_list_t * i = s_custom_threads; i; i=dap_list_next(i)){
         dap_proc_thread_t * l_proc_thread = (dap_proc_thread_t*) i->data;
         dap_events_socket_event_signal(l_proc_thread->event_exit, 1);
         pthread_join(l_proc_thread->thread_id, NULL);
