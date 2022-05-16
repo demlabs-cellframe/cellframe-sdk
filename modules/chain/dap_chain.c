@@ -143,9 +143,9 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
     l_ret->name = strdup (a_chain_name);
     l_ret->net_name = strdup (a_chain_net_name);
     l_ret->ledger = a_ledger;
+    pthread_rwlock_init(&l_ret->rwlock, NULL);
     pthread_rwlock_init(&l_ret->atoms_rwlock,NULL);
     pthread_rwlock_init(&l_ret->cell_rwlock,NULL);
-
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     l_ret_item->chain = l_ret;
     memcpy(l_ret_item->item_id.id.raw ,a_chain_id.raw,sizeof(a_chain_id));
@@ -548,10 +548,25 @@ void dap_chain_info_dump_log(dap_chain_t * a_chain)
  */
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_callback_arg)
 {
-    if(!a_chain)
+    if(!a_chain){
+        log_it(L_ERROR, "NULL chain passed to dap_chain_add_callback_notify()");
         return;
-    a_chain->callback_notify = a_callback;
-    a_chain->callback_notify_arg = a_callback_arg;
+    }
+    if(!a_callback){
+        log_it(L_ERROR, "NULL callback passed to dap_chain_add_callback_notify()");
+        return;
+    }
+    dap_chain_atom_notifier_t * l_notifier = DAP_NEW_Z(dap_chain_atom_notifier_t);
+    if (l_notifier == NULL){
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_add_callback_notify()");
+        return;
+    }
+
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_callback_arg;
+    pthread_rwlock_wrlock(&a_chain->rwlock);
+    a_chain->atom_notifiers = dap_list_append(a_chain->atom_notifiers, l_notifier);
+    pthread_rwlock_unlock(&a_chain->rwlock);
 }
 
 /**
