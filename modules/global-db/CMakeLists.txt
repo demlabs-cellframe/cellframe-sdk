@@ -6,7 +6,6 @@ file(GLOB DAP_CHAIN_GLOBAL_DB_HDR include/*.h)
 
 set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_crypto dap_chain sqlite3 dap_cuttdb json-c)
 
-set(BUILD_WITH_GDB_DRIVER_MDBX ON)
 if(BUILD_WITH_GDB_DRIVER_MDBX)
     set(DAP_CHAIN_GLOBAL_DB_LIBS ${DAP_CHAIN_GLOBAL_DB_LIBS} mdbx-static)
     add_definitions ("-DDAP_CHAIN_GDB_ENGINE_MDBX")
