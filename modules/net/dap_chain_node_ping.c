@@ -169,7 +169,7 @@ int start_node_ping(pthread_t *a_thread, struct in_addr a_addr, int a_port, int 
 // wait for ending ping within timeout_ms milliseconds
 int wait_node_ping(pthread_t l_thread, int timeout_ms)
 {
-    int l_ping_time = 0;
+    long int l_ping_time = 0;
     struct timespec l_wait_time;
     clock_gettime(CLOCK_REALTIME, &l_wait_time);
 
@@ -185,7 +185,7 @@ int wait_node_ping(pthread_t l_thread, int timeout_ms)
         pthread_kill(l_thread, 3); // SIGQUIT SIGABRT
     }
     else if(!res)
-        return l_ping_time;
+        return (int)l_ping_time;
     return -1;
 }
 

@@ -1990,7 +1990,7 @@ rpmalloc_thread_finalize(void) {
     while (span) {
       assert(span->span_count == (iclass + 1));
       size_t release_count = (!iclass ? _memory_span_release_count : _memory_span_release_count_large);
-      span_t* next = _memory_span_list_split(span, (uint32_t)release_count);
+      span_t* next = _memory_span_list_split(span, release_count);
 #if ENABLE_STATISTICS
       heap->thread_to_global += (size_t)span->list_size * span->span_count * _memory_span_size;
       heap->span_use[iclass].spans_to_global += span->list_size;
