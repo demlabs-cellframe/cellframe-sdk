@@ -325,7 +325,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
         pthread_mutex_unlock(&a_db_log_list->list_mutex);
         pthread_join(a_db_log_list->thread, NULL);
     }
-    dap_list_free_full(a_db_log_list->groups, free);
+    dap_list_free_full(a_db_log_list->groups, NULL);
     dap_list_free_full(a_db_log_list->list_write, (dap_callback_destroyed_t)dap_db_log_list_delete_item);
     pthread_mutex_destroy(&a_db_log_list->list_mutex);
     DAP_DELETE(a_db_log_list);

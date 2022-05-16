@@ -130,7 +130,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     {
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
         assert(EQUAL_256(l_value_to_items, l_value_transfer));
-        dap_list_free_full(l_list_used_out, free);
+        dap_list_free_full(l_list_used_out, NULL);
     }
     // add 'out' items
     {
@@ -332,7 +332,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
 
     }
-    dap_list_free_full(l_list_used_out, free);
+    dap_list_free_full(l_list_used_out, NULL);
 
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
 
@@ -514,7 +514,7 @@ static dap_chain_datum_t* dap_chain_tx_create_cond(dap_chain_net_t *a_net,
     {
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
         assert(EQUAL_256(l_value_to_items, l_value_transfer));
-        dap_list_free_full(l_list_used_out, free);
+        dap_list_free_full(l_list_used_out, NULL);
     }
     // add 'out_cond' and 'out' items
     {

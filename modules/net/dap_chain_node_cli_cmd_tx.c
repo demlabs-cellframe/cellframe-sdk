@@ -988,7 +988,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         for (dap_list_t *l_list = l_token_list; l_list; l_list = dap_list_next(l_list)) {
             dap_string_append(l_str_ret, (char *)l_list->data);
         }
-        dap_list_free_full(l_token_list, free);
+        dap_list_free_full(l_token_list, NULL);
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
         dap_string_free(l_str_ret, true);
         return 0;

@@ -274,7 +274,7 @@ static void* node_ping_background_proc(void *a_arg)
     memcpy(l_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
     DAP_DELETE(s_node_addr_ping);
     s_node_addr_ping = l_node_addr_tmp;
-    dap_list_free_full(l_node_list0, free);
+    dap_list_free_full(l_node_list0, NULL);
     return 0;
 }
 

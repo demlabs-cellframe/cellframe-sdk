@@ -2343,7 +2343,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     if (l_err_num) {
         DAP_DELETE(bound_item);
         if ( l_list_bound_items )
-            dap_list_free_full(l_list_bound_items, free);
+            dap_list_free_full(l_list_bound_items, NULL);
         HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
             HASH_DEL(l_values_from_prev_tx, l_value_cur);
             DAP_DELETE(l_value_cur);
@@ -2492,7 +2492,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         DAP_DELETE(l_value_cur);
     }
     if (!a_list_bound_items || l_err_num) {
-        dap_list_free_full(l_list_bound_items, free);
+        dap_list_free_full(l_list_bound_items, NULL);
     } else {
         *a_list_bound_items = l_list_bound_items;
     }
@@ -2966,7 +2966,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     ret = 1;
 FIN:
     if (l_list_bound_items)
-        dap_list_free_full(l_list_bound_items, free);
+        dap_list_free_full(l_list_bound_items, NULL);
     if (l_list_tx_out)
         dap_list_free(l_list_tx_out);
     for (size_t i = 1; i <= l_outs_used; i++) {
@@ -3699,7 +3699,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
 
     // nothing to tranfer (not enough funds)
     if(!l_list_used_out || compare256(l_value_transfer, a_value_need) == -1) {
-        dap_list_free_full(l_list_used_out, free);
+        dap_list_free_full(l_list_used_out, NULL);
         return NULL;
     }
 

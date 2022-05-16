@@ -58,7 +58,7 @@ void dap_list_free1(dap_list_t *list)
  * dap_list_free_full:
  * @list: a pointer to a DapList
  * @free_func: the function to be called to free each element's data
- *
+ *  if NULL it calls DAP_DELETE() for it
  * Convenience method, which frees all the memory used by a DapList,
  * and calls @free_func on every element's data.
  */
@@ -66,7 +66,10 @@ void dap_list_free_full(dap_list_t *a_list, dap_callback_destroyed_t a_free_func
 {
     dap_list_t *l_list = a_list;
     while (l_list) {
-        a_free_func(l_list->data);
+        if(a_free_func)
+            a_free_func(l_list->data);
+        else
+            DAP_DELETE(l_list->data);
         l_list = l_list->next;
     }
     dap_list_free(a_list);
