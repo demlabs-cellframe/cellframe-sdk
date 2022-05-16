@@ -125,9 +125,6 @@ size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a
     return ds;
 }
 
-
-#define DAP_STREAM_CH_PKT_ENCRYPTION_OVERHEAD 200 //in fact is's about 2*16+15 for OAES
-
 /**
  * @brief stream_ch_pkt_write
  * @param ch
@@ -144,7 +141,7 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
 
     uint8_t * l_buf_allocated = NULL;
     uint8_t * l_buf_selected = a_stream->buf;
-    size_t  l_buf_size_required = a_data_size + DAP_STREAM_CH_PKT_ENCRYPTION_OVERHEAD;
+    size_t  l_buf_size_required = a_data_size + DAP_STREAM_PKT_ENCRYPTION_OVERHEAD;
 
     if(l_buf_size_required > sizeof(a_stream->buf) ){
         l_buf_allocated = DAP_NEW_SIZE(uint8_t, l_buf_size_required);
