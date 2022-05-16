@@ -1386,7 +1386,7 @@ static void s_es_tun_write(dap_events_socket_t *a_es, void *arg)
     ch_vpn_pkt_t *l_vpn_pkt = (ch_vpn_pkt_t *)l_tun->fifo->data;
     if (!l_vpn_pkt)
         return;
-    a_es->buf_out_zero_count = 0;
+    //a_es->buf_out_zero_count = 0;     // TODO remake it with new writing logic
     size_t l_size_to_send = l_vpn_pkt->header.op_data.data_size;
     ssize_t l_ret = write(l_tun->es->fd, l_vpn_pkt->data, l_size_to_send);
     if (l_ret < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
