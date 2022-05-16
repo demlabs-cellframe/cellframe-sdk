@@ -168,6 +168,9 @@ void dap_chain_delete(dap_chain_t * a_chain)
         .id = a_chain->id,
         .net_id = a_chain->net_id,
     };
+
+    dap_list_free_full(a_chain->atom_notifiers,NULL);
+
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_FIND(hh,s_chain_items,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_item);
 
@@ -195,6 +198,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
     DAP_DELETE(a_chain->autoproc_datum_types);
     pthread_rwlock_destroy(&a_chain->atoms_rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
+    pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 

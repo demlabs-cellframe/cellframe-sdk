@@ -86,7 +86,7 @@ int dap_chain_net_srv_order_init(void)
  */
 void dap_chain_net_srv_order_deinit()
 {
-    dap_list_free_full(s_order_notify_callbacks, free);
+    dap_list_free_full(s_order_notify_callbacks, NULL);
 }
 
 size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)

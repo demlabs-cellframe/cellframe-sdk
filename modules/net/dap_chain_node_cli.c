@@ -376,7 +376,7 @@ char    *str_header;
 
                 DAP_DELETE(str_cmd);
             }
-            dap_list_free_full(cmd_param_list, free);
+            dap_list_free_full(cmd_param_list, NULL);
             break;
         }
     }

@@ -379,7 +379,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
                     dap_chain_node_alias_delete(a_net, alias);
                     list = dap_list_next(list);
                 }
-                dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
+                dap_list_free_full(list_aliases, NULL);
             }
             // set text response
             dap_chain_node_cli_set_reply_text(str_reply, "node deleted");
@@ -565,7 +565,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 dap_string_append_printf(aliases_string, "\nalias %s", alias);
                 list = dap_list_next(list);
             }
-            dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
+            dap_list_free_full(list_aliases, NULL);
         }
         else
             dap_string_append(aliases_string, "\nno aliases");
@@ -1180,7 +1180,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(l_is_auto) {
             //start background thread for testing connect to the nodes
             dap_chain_node_ping_background_start(l_net, l_node_list);
-            dap_list_free_full(l_node_list, free);
+            dap_list_free_full(l_node_list, NULL);
         }
 
 
@@ -4499,7 +4499,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
         json_object_array_add(l_json, l_json_group_inner);
         dap_store_obj_free(l_data, l_data_size);
     }
-    dap_list_free_full(l_groups_list, free);
+    dap_list_free_full(l_groups_list, NULL);
     if (json_object_to_file(l_path, l_json) == -1) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );

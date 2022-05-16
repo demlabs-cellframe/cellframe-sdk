@@ -1281,7 +1281,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
                 DAP_DEL_Z(((struct net_link *)l_tmp->data)->link_info);
                 l_tmp = l_next;
             }
-            dap_list_free_full(l_net_pvt->net_links, free);
+            dap_list_free_full(l_net_pvt->net_links, NULL);
             l_net_pvt->net_links = NULL;
             if ( l_net_pvt->state_target != NET_STATE_OFFLINE ){
                 l_net_pvt->state = NET_STATE_LINKS_PREPARE;
@@ -2611,7 +2611,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 DAP_DELETE (l_chain_prior->chains_path);
                 l_list = dap_list_next(l_list);
             }
-            dap_list_free_full(l_prior_list, free);
+            dap_list_free_full(l_prior_list, NULL);
 
             dap_chain_t *l_chain02;
 
