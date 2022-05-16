@@ -1166,11 +1166,11 @@ static void *dap_events_socket_buf_thread(void *arg)
         l_sock = l_item->es->fd2;
 #elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         l_sock = l_item->es->mqd;
-#elif defined(DAP_EVENTS_CAPS_KQUEUE)
-#error "Undefined waiting for KQUEUE CAPS"
 #endif
+#ifndef DAP_EVENTS_CAPS_KQUEUE
         // wait max 5 min
         l_res = wait_send_socket(l_sock, 300000);
+#endif
         if (l_res == 0) {
             dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
             break;
