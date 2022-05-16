@@ -84,7 +84,7 @@ static int              s_db_mdbx_deinit();
 static int              s_db_mdbx_flush(void);
 static int              s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj);
 static dap_store_obj_t  *s_db_mdbx_read_last_store_obj(const char* a_group);
-static bool s_db_mdbx_is_obj(const char *a_group, const char *a_key);
+static int              s_db_mdbx_is_obj(const char *a_group, const char *a_key);
 static dap_store_obj_t  *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
 static size_t           s_db_mdbx_read_count_store(const char *a_group, uint64_t a_id);
@@ -364,12 +364,12 @@ char        *l_cp;
     a_drv_callback->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
     a_drv_callback->read_count_store    = s_db_mdbx_read_count_store;
     a_drv_callback->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
-    a_drv_callback->is_obj              = s_db_mdbx_is_obj;
+    a_drv_callback->is_obj              = (dap_db_driver_is_obj_callback_t) s_db_mdbx_is_obj;
     a_drv_callback->deinit              = s_db_mdbx_deinit;
     a_drv_callback->flush               = s_db_mdbx_flush;
 
     /*
-     * MDBX support transactions but on the current circuimstance we will not get
+     * MDBX support transactions but under the current circuimstances we will not get
      * advantages of using DB Driver level BEGIN/END transactions
      */
     a_drv_callback->transaction_start   = NULL;
@@ -447,7 +447,7 @@ dap_store_obj_t *l_obj;
           break;
         }
 
-        /* Iterate cursor to retieve records from DB - select a <key> and <data> pair
+        /* Iterate cursor to retrieve records from DB - select a <key> and <data> pair
         ** with maximal <id>
         */
         while ( MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT)) )
@@ -491,9 +491,12 @@ dap_store_obj_t *l_obj;
             l_obj->flags = l_suff->flags;
             assert ( (l_obj->group = dap_strdup(a_group)) );
         }
-        else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
+        else {
+            DAP_DEL_Z(l_obj);
+            log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
+        }
     }
-    else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
+    else  log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
 
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
@@ -507,7 +510,7 @@ dap_store_obj_t *l_obj;
  * @return  0 - Record-Not-Found
  *          1 - Record is found
  */
-bool     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
+int     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
 {
 int l_rc, l_rc2;
 dap_db_ctx_t *l_db_ctx;
@@ -626,9 +629,12 @@ dap_store_obj_t *l_obj;
             l_obj->flags = l_suff->flags;
             assert ( (l_obj->group = dap_strdup(a_group)) );
         }
-        else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
+        else {
+            DAP_DEL_Z(l_obj);
+            log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
+        }
     }
-    else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
+    else log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
 
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
@@ -690,7 +696,10 @@ struct  __record_suffix__   *l_suff;
 
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
-    if ( l_count_out )
+    if ( l_count_out > 1 )                                                  /* We don't expect to retrieve more then 1 record
+                                                                              because we use unique generated sequence for the  <id> field for the
+                                                                              record. But this fucking shit is took place in the CDB so ...
+                                                                              */
         log_it(L_WARNING, "A count of records with id: %zu - more then 1 (%d) !!!", a_id, l_count_out);
 
     return  l_count_out;
