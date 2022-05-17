@@ -43,6 +43,7 @@
 #include "dap_events.h"
 #include "dap_list.h"
 #include "dap_common.h"
+#include "dap_chain_global_db.h"
 
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"
