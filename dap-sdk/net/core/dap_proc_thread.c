@@ -256,10 +256,10 @@ dap_proc_queue_t    *l_queue;
             DAP_DELETE(l_item);
     	}
     }
-    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)
+    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)        /* Really ?! */
         l_is_anybody_in_queue += l_queue->list[l_cur_pri].items.nr;
 
-    if ( l_is_anybody_in_queue )                                          /* Arm event if we have something to proc again */
+    if ( l_is_anybody_in_queue )                                            /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
 
     debug_if(g_debug_reactor, L_DEBUG, "<-- Proc event callback end, items rest: %d, iterations: %d", l_is_anybody_in_queue, l_iter_cnt);

@@ -10,13 +10,24 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 
-#define GDB_VERSION 1
-#define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
-#define GROUP_LOCAL_GENERAL "local.general"
-#define GROUP_LOCAL_NODE_ADDR "local.node-addr"
+#define GDB_VERSION                 1
+#define GROUP_LOCAL_NODE_LAST_ID    "local.node.last_id"
+#define GROUP_LOCAL_GENERAL         "local.general"
+#define GROUP_LOCAL_NODE_ADDR       "local.node-addr"
 
-#define	DAP_DB_K_MAXKEYLEN	128			/* @RRL: A maximum key's size */
-#define	DAP_DB_K_MAXGRPLEN	128			/* @RRL: A maximum group name  */
+#define DAP_DB$SZ_MAXGROUPNAME      128                                     /* A maximum size of group name */
+#define DAP_DB$K_MAXGROUPS          1024                                    /* A maximum number of groups */
+#define DAP_DB$SZ_MAXKEY            512                                     /* A limit for the key's length in DB */
+#define DAP_DB$K_MAXOBJS            8192                                    /* A maximum number of objects to be returned by
+                                                                            read_srore_obj() */
+
+enum    {
+    DAP_DB$K_OPTYPE_ADD  = 'a',                                             /* Operation Type = INSERT/ADD */
+    DAP_DB$K_OPTYPE_DEL  = 'd',                                             /*  -- // -- DELETE */
+
+};
+
+
 
 typedef struct dap_global_db_obj {
     uint64_t id;

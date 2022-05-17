@@ -481,7 +481,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
 static int global_db_gr_del_add(const char *a_key, const char *a_group, uint64_t a_timestamp)
 {
 dap_store_obj_t store_data = {0};
-char	l_group[DAP_DB_K_MAXGRPLEN];
+char	l_group[DAP_DB$SZ_MAXGROUPNAME];
 int l_res = -1;
 
     store_data.key = a_key;
@@ -507,7 +507,7 @@ int l_res = -1;
 static int global_db_gr_del_del(const char *a_key, const char *a_group)
 {
 dap_store_obj_t store_data = {0};
-char	l_group[DAP_DB_K_MAXGRPLEN];
+char	l_group[DAP_DB$SZ_MAXGROUPNAME];
 int	l_res = 0;
 
     if(!a_key)
