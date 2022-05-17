@@ -168,11 +168,11 @@ unsigned l_id_min = 0, l_size_min = UINT32_MAX, l_queue_size;
  * @brief dap_proc_thread_run_custom Create custom proc thread for specified task
  * @return
  */
-dap_proc_thread_t * dap_proc_thread_run_custom()
+dap_proc_thread_t * dap_proc_thread_run_custom(void)
 {
     dap_proc_thread_t * l_proc_thread = DAP_NEW_Z(dap_proc_thread_t);
     if (l_proc_thread == NULL){
-        log_it(L_CRITICAL,"Out of memory, can't create new proc thread");
+        log_it(L_CRITICAL,"Out of memory, can't create new proc thread, errno=%d", errno);
         return NULL;
     }
     int l_ret;
@@ -204,7 +204,7 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t __at
 dap_proc_thread_t   *l_thread;
 dap_proc_queue_item_t *l_item;
 int     l_rc, l_is_anybody_in_queue, l_is_finished, l_iter_cnt, l_cur_pri;
-size_t  l_size;
+size_t  l_item_sz;
 dap_proc_queue_t    *l_queue;
 
     debug_if (g_debug_reactor, L_DEBUG, "--> Proc event callback start, a_esocket:%p ", a_esocket);
@@ -219,13 +219,13 @@ dap_proc_queue_t    *l_queue;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_queue = l_thread->proc_queue;
 
-    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
+    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ ) /* Run from higest to lowest ... */
     {
         if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
             continue;
 
         pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
-        l_rc = s_dap_slist_get4head (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
+        l_rc = s_dap_slist_get4head (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_item_sz);
         pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
 
         if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
@@ -244,8 +244,13 @@ dap_proc_queue_t    *l_queue;
         if ( !(l_is_finished) ) {
                                                                             /* Rearm callback to be executed again */
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            l_rc = s_dap_slist_add2tail (&l_queue->list[l_cur_pri].items, l_item, 1);
+            l_rc = s_dap_slist_add2tail (&l_queue->list[l_cur_pri].items, l_item, l_item_sz );
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+
+            if ( l_rc ) {
+                log_it(L_ERROR, "Error requeue event callback: %p/%p, errno=%d", l_item->callback, l_item->callback_arg, l_rc);
+                DAP_DELETE(l_item);
+            }
         }
         else    {
             DAP_DELETE(l_item);
