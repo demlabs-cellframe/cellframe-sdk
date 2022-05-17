@@ -60,8 +60,11 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 
 static size_t s_threads_count = 0;
 static dap_proc_thread_t * s_threads = NULL;
-static dap_list_t * s_custom_threads = NULL; // Customized proc threads out of the pool
-static pthread_rwlock_t s_custom_threads_rwlock =PTHREAD_RWLOCK_INITIALIZER;
+
+static dap_list_t * s_custom_threads = NULL;                                   /* Customized proc threads out of the pool */
+static pthread_rwlock_t s_custom_threads_rwlock = PTHREAD_RWLOCK_INITIALIZER;   /* Lock to protect <s_custom_threads> */
+
+
 static void *s_proc_thread_function(void * a_arg);
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
@@ -222,7 +225,7 @@ dap_proc_queue_t    *l_queue;
             continue;
 
         pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
-        l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
+        l_rc = s_dap_slist_get4head (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
         pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
 
         if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
@@ -241,7 +244,7 @@ dap_proc_queue_t    *l_queue;
         if ( !(l_is_finished) ) {
                                                                             /* Rearm callback to be executed again */
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, 1);
+            l_rc = s_dap_slist_add2tail (&l_queue->list[l_cur_pri].items, l_item, 1);
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
         }
         else    {

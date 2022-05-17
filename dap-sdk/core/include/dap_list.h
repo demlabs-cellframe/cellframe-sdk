@@ -3,6 +3,11 @@
  *
  * Nano API for Simple linked list - by BadAss SysMan
  * Attention!!! No internaly locking is performed !
+ *
+ *  MODIFICATION HISTORY:
+ *      17-MAY-2022 RRL Added description for the SLIST's routines;
+ *                      renaming arguments to be relevant to the Dem Labs coding style. :-)
+ *
  */
 
 #ifndef __DAP_LIST_H__
@@ -25,58 +30,87 @@ typedef struct __dap_slist_elm__ {
 } dap_slist_elm_t;
 
 typedef struct __dap_slist__ {
-            dap_slist_elm_t   *head,                                         /* An address of first element */
+            dap_slist_elm_t   *head,                                        /* An address of first element */
                             *tail;                                          /* An address of last element */
                     int     nr;                                             /* A number of elements in list  */
 } dap_slist_t;
 
+#define     $DAP_SLIST_INITALIZER {NULL, NULL, 0}
 
+/*
+ *  DESCRIPTION: Form and add new element into the list with data.
+ *
+ *  INPUTS:
+ *      a_slist:    An address of the SLIST context
+ *      a_data:     An address of the data block to be carried as an element of the list
+ *      a_datasz:   A size of the data block
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS:
+ *      0       - SUCCESS
+ *      0 <>    - <errno>
+ */
 
-static inline int    s_dap_insqtail    ( dap_slist_t *q, void *data, int datasz)
+static inline int    s_dap_slist_add2tail    ( dap_slist_t *a_slist, void *a_data, int a_datasz)
 {
-dap_slist_elm_t *elm;
+dap_slist_elm_t *l_elm;
 
-    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )                       /* Allocate memory for new element */
+    if ( !(l_elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) ) /* Allocate memory for new element */
         return  -ENOMEM;
 
-    elm->flink = NULL;                                                      /* This element is terminal */
-    elm->data  = data;                                                      /* Store pointer to carried data */
-    elm->datasz= datasz;                                                    /* A size of daa metric */
+    l_elm->flink = NULL;                                                    /* This element is terminal */
+    l_elm->data  = a_data;                                                  /* Store pointer to carried data */
+    l_elm->datasz= a_datasz;                                                /* A size of daa metric */
 
-    if ( q->tail )                                                          /* Queue is not empty ? */
-        (q->tail)->flink = elm;                                             /* Correct forward link of "previous last" element
+    if ( a_slist->tail )                                                    /* Queue is not empty ? */
+        (a_slist->tail)->flink = l_elm;                                     /* Correct forward link of "previous last" element
                                                                                to point to new element */
 
-    q->tail = elm;                                                          /* Point list's tail to new element also */
+    a_slist->tail = l_elm;                                                  /* Point list's tail to new element also */
 
-    if ( !q->head )                                                         /* This is a first element in the list  ? */
-        q->head = elm;                                                     /* point head to the new element */
+    if ( !a_slist->head )                                                   /* This is a first element in the list  ? */
+        a_slist->head = l_elm;                                              /* point head to the new element */
 
-    q->nr++;                                                                /* Adjust entries counter */
-    //log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
+    a_slist->nr++;                                                          /* Adjust entries counter */
     return  0;
 }
 
-static inline int    s_dap_remqhead    ( dap_slist_t *q, void **data, size_t *datasz)
-{
-dap_slist_elm_t *elm;
 
-    if ( !(elm = q->head) )                                                 /* Queue is empty - just return error code */
+/*
+ *  DESCRIPTION: Get the data block has been carried by SLIST's element from the head of the list.
+ *
+ *  INPUTS:
+ *      a_slist:    An address of the SLIST context
+ *
+ *  OUTPUTS:
+ *      a_data:     An address of the data block, by reference
+ *      a_datasz:   A size of the data block, by reference
+ *
+ *  RETURNS:
+ *      0       - SUCCESS
+ *      0 <>    - <errno>
+ */
+
+static inline int    s_dap_slist_get4head    ( dap_slist_t *a_slist, void **a_data, size_t *a_datasz)
+{
+dap_slist_elm_t *l_elm;
+
+    if ( !(l_elm = a_slist->head) )                                         /* Queue is empty - just return error code */
         return -ENOENT;
 
-    if ( !(q->head = elm->flink) )                                          /* Last element in the queue ? */
-        q->tail = NULL;                                                     /* Reset tail to NULL */
+    if ( !(a_slist->head = l_elm->flink) )                                  /* Last element in the queue ? */
+        a_slist->tail = NULL;                                               /* Reset tail to NULL */
 
-    *data = elm->data;
-    *datasz = elm->datasz;
+    *a_data = l_elm->data;
+    *a_datasz = l_elm->datasz;
 
-    DAP_FREE(elm);                                                          /* Release memory has been allocated for the queue's element */
+    DAP_FREE(l_elm);                                                        /* Release memory has been allocated for the queue's element */
 
-    q->nr--;                                                                /* Adjust entries counter */
-    //log_it(L_DEBUG, "Get data: %p, size: %d (qlen: %d)", *data, *datasz, q->nr);
+    a_slist->nr--;                                                          /* Adjust entries counter */
     return  0;
 }
-
 
 typedef void (*dap_callback_destroyed_t)(void* data);
 typedef void (*dap_callback_t)(void* data, void* user_data);
