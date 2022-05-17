@@ -22,10 +22,23 @@
                                                                             read_srore_obj() */
 
 enum    {
-    DAP_DB$K_OPTYPE_ADD  = 'a',                                             /* Operation Type = INSERT/ADD */
-    DAP_DB$K_OPTYPE_DEL  = 'd',                                             /*  -- // -- DELETE */
-
+    DAP_DB$K_OPTYPE_ADD  = 0x61,    /* 'a', */                              /* Operation Type = INSERT/ADD */
+    DAP_DB$K_OPTYPE_DEL  = 0x64,    /* 'd', */                              /*  -- // -- DELETE */
+    DAP_DB$K_OPTYPE_RETR = 0x72,    /* 'r', */                              /*  -- // -- RETRIEVE/GET */
 };
+
+
+typedef struct dap_grobal_db_req {
+        int     req;                                                        /* A request type to DB driver, see:
+                                                                                DAP_DB$K_OPTYPE_ * constants */
+        int     status;                                                     /* A condition code - result of execution of requested
+                                                                            operation : errno, -1, and so on ... */
+        void * (*cb_rtn) (void *, ...);                                     /* A routine to be called at request comlition time */
+        void *cb_arg;                                                       /* A context is provide by caller of request */
+
+        dap_events_socket_t es;                                             /* A context to in wish callback routine should be called */
+
+} dap_grobal_db_req_t;
 
 
 
@@ -34,7 +47,7 @@ typedef struct dap_global_db_obj {
     char *key;
     uint8_t *value;
     size_t value_len;
-} DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
+} DAP_ALIGN_PACKED dap_global_db_obj_t;
 
 
 typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
@@ -48,19 +61,18 @@ typedef struct dap_sync_group_item {
     void * callback_arg;
 } dap_sync_group_item_t;
 
+
+
+
 /**
  * Flush DB
  */
 int dap_chain_global_db_flush(void);
 
 /**
- * Clean struct dap_global_db_obj_t
- */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj);
-/**
  * Delete struct dap_global_db_obj_t
  */
-void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj);
+void s_dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj);
 
 /**
  * Delete mass of struct dap_global_db_obj_t

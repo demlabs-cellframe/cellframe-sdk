@@ -163,31 +163,6 @@ dap_list_t* dap_chain_db_get_sync_extra_groups(const char *a_net_name)
 }
 
 /**
- * @brief Deallocates memory of a key and a value members of an obj structure.
- * @param obj a pointer to the structure
- * @return (none)
- */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *a_obj)
-{
-    if(!a_obj)
-        return;
-
-    DAP_DEL_Z(a_obj->key);
-    DAP_DEL_Z(a_obj->value);
-}
-
-/**
- * @brief Deallocates memory of an obj structure.
- * @param obj a pointer to the object
- * @return (none)
- */
-void dap_chain_global_db_obj_delete(dap_global_db_obj_t *a_obj)
-{
-    dap_chain_global_db_obj_clean(a_obj);
-    DAP_DEL_Z(a_obj);
-}
-
-/**
  * @brief Deallocates memory of an objs array.
  * @param objs a pointer to the first object of the array
  * @param a_count a number of objects in the array
@@ -195,16 +170,18 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *a_obj)
  */
 void dap_chain_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count)
 {
-dap_global_db_obj_t *l_objs;
-size_t i;
+dap_global_db_obj_t *l_obj;
 
-    if ( !a_objs || !a_count )                              /* Sanity checks */
+    if ( !a_objs || !a_count )                                              /* Sanity checks */
         return;
 
-    for(l_objs = a_objs, i = a_count; i--; l_objs++)        /* Run over array's elements */
-        dap_chain_global_db_obj_clean(a_objs);
+    for(l_obj = a_objs; a_count--; l_obj++)                                 /* Run over array's elements */
+    {
+        DAP_DELETE(l_obj->key);
+        DAP_DELETE(l_obj->value);
+    }
 
-    DAP_DELETE(a_objs);                                     /* Finaly kill the the array */
+    DAP_DELETE(a_objs);                                                     /* Finaly kill the the array */
 }
 
 
@@ -281,7 +258,6 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 {
     const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
-    //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
 
     s_track_history = dap_config_get_item_bool_default(g_config, "resources", "dap_global_db_track_history", s_track_history);
 
@@ -290,14 +266,12 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 
     s_dap_global_db_debug_more = dap_config_get_item_bool(g_config, "resources", "debug_more");
 
-    //debug_if(s_dap_global_db_debug_more, L_DEBUG, "Just a test for %d", 135);
-
     lock();
     int res = dap_db_driver_init(l_driver_name, l_storage_path, s_db_drvmode_async);
     unlock();
 
     if( res != 0 )
-        log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, l_storage_path);
+        log_it(L_CRITICAL, "Hadn't initialized DB driver \"%s\" on path \"%s\"", l_driver_name, l_storage_path);
     else {
         static bool is_check_version = false;
         if(!is_check_version){
@@ -535,7 +509,7 @@ uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
 {
     uint64_t l_timestamp = 0;
     dap_store_obj_t store_data = { 0 };
-    char l_group[512];
+    char l_group[DAP_DB$SZ_MAXGROUPNAME];
     size_t l_count_out = 0;
     dap_store_obj_t *l_obj;
 
