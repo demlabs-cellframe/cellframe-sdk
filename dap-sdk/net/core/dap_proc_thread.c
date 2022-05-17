@@ -200,7 +200,7 @@ dap_proc_queue_t    *l_queue;
         if ( !(l_is_finished) ) {
                                                                             /* Rearm callback to be executed again */
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, 1);
+            l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, l_size);
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
         }
         else    {
