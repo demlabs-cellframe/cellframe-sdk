@@ -28,15 +28,21 @@ enum    {
 };
 
 
+/* Follow structure is a container to carry an arguments set to DB API and back to the caller */
 typedef struct dap_grobal_db_req {
         int     req;                                                        /* A request type to DB driver, see:
                                                                                 DAP_DB$K_OPTYPE_ * constants */
         int     status;                                                     /* A condition code - result of execution of requested
                                                                             operation : errno, -1, and so on ... */
-        void * (*cb_rtn) (void *, ...);                                     /* A routine to be called at request comlition time */
+        void  (*cb_rtn) (void *, ...);                                      /* A routine to be called at request comlition time */
         void *cb_arg;                                                       /* A context is provide by caller of request */
 
-        dap_events_socket_t es;                                             /* A context to in wish callback routine should be called */
+        dap_events_socket_t *es;                                            /* A context to in wish callback routine should be called */
+
+        const char  *group,
+                    *key;
+            void    *value;
+            size_t   value_len;
 
 } dap_grobal_db_req_t;
 

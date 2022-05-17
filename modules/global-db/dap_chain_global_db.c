@@ -841,3 +841,51 @@ char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
 {
     return dap_chain_global_db_driver_hash(data, data_size);
 }
+
+
+
+
+
+int     dap_global_db_req_write_inter (
+        dap_events_socket_t *a_es,
+                        int a_req_type,
+                const char  *a_group,
+                const char  *a_key,
+                const void  *a_data,
+                    size_t  a_data_size,
+                    void  (*a_cb_rtn),
+                        void *a_cb_arg
+                                    )
+{
+dap_grobal_db_req_t     *l_db_req;
+int     l_rc;
+
+    switch (a_req_type)                                                     /* Sanity checks ... */
+    {
+        case    DAP_DB$K_OPTYPE_RETR:
+        case    DAP_DB$K_OPTYPE_ADD:
+        case    DAP_DB$K_OPTYPE_DEL:
+            break;
+        default:
+            return  log_it(L_ERROR, "Invalid/unhandled DB request code: %d/%#x", a_req_type, a_req_type), -EINVAL;
+    }
+
+    if ( !(l_db_req = DAP_NEW_Z(dap_grobal_db_req_t)) )                     /* Allocate memory for new DB Request context */
+        return  log_it(L_ERROR, "Cannot allocate memory for DB Request, errno=%d", errno), -errno;
+
+    l_db_req->req = a_req_type;                                             /* Fill by inputs data ... */
+    l_db_req->cb_rtn = a_cb_rtn;
+    l_db_req->cb_arg = a_cb_arg;
+    l_db_req->es = a_es;
+
+    l_db_req->group = a_group;
+    l_db_req->key = a_key;
+    l_db_req->value = (void *) a_data;
+    l_db_req->value_len = a_data_size;
+
+
+    if ( (l_rc = dap_events_socket_queue_ptr_send_to_input(a_es, l_db_req)) )/* Enqueue DB Request to processor */
+        return DAP_DELETE(l_db_req), log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_rc), 0;
+
+    return  l_rc;
+}
