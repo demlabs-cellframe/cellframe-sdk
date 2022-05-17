@@ -342,7 +342,7 @@ char        *l_cp;
             /* Form a simple list of the group/table name to be used after */
             l_cp = dap_strdup(l_data_iov.iov_base);                         /* We expect an ASCIZ string as the table name */
             l_data_iov.iov_len = strlen(l_cp);
-            s_dap_insqtail(&l_slist, l_cp, l_data_iov.iov_len);
+            s_dap_slist_add2tail(&l_slist, l_cp, l_data_iov.iov_len);
             }
         debug_if(s_dap_global_db_debug_more, L_DEBUG, "--- End-Of-List  ---");
         }
@@ -351,7 +351,7 @@ char        *l_cp;
 
 
     /* Run over the list and create/open group/tables and DB context ... */
-    while ( !s_dap_remqhead (&l_slist, &l_data_iov.iov_base, &l_data_iov.iov_len) )
+    while ( !s_dap_slist_get4head (&l_slist, &l_data_iov.iov_base, &l_data_iov.iov_len) )
     {
         s_cre_db_ctx_for_group(l_data_iov.iov_base, MDBX_CREATE);
         DAP_DELETE(l_data_iov.iov_base);
