@@ -104,7 +104,8 @@ dap_slist_elm_t *l_elm;
         a_slist->tail = NULL;                                               /* Reset tail to NULL */
 
     *a_data = l_elm->data;
-    *a_datasz = l_elm->datasz;
+    if ( a_datasz )
+        *a_datasz = l_elm->datasz;
 
     DAP_FREE(l_elm);                                                        /* Release memory has been allocated for the queue's element */
 
