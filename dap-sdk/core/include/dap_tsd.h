@@ -41,4 +41,4 @@ dap_tsd_t* dap_tsd_find(byte_t * a_data, size_t a_data_size,uint16_t a_type);
 #define dap_tsd_get_string(a)  ( ((char*) a->data )[a->size-1] == '\0'? (char*) a->data  : "<CORRUPTED STRING>" )
 #define dap_tsd_get_string_const(a)  ( ((const char*) a->data )[a->size-1] == '\0'? (const char*) a->data : "<CORRUPTED STRING>" )
 
-#define dap_tsd_size(a) (sizeof(*a)+a->size)
+#define dap_tsd_size(a) (sizeof(*a)+(size_t)a->size)
