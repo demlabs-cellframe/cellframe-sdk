@@ -1416,14 +1416,12 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value)
 {
 #if defined(DAP_EVENTS_CAPS_EVENT_EVENTFD)
-    int ret = eventfd_write( a_es->fd2,a_value);
-    int l_errno = errno;
-    if (ret == 0 )
-        return  0;
-    else if ( ret < 0)
-        return l_errno;
-    else
-        return 1;
+
+    if ( eventfd_write( a_es->fd2, a_value) )
+        return  log_it(L_ERROR, "eventfd_write(#%d, %zu), errno=%d", a_es->fd2, a_value, errno ), -errno;
+
+    return  0;
+
 #elif defined (DAP_OS_WINDOWS)
     a_es->buf_out[0] = (u_short)a_value;
     if(dap_sendto(a_es->socket, a_es->port, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
@@ -2026,6 +2024,35 @@ size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_event
     return  a_data_size;
 }
 
+
+
+/**
+ * @brief dap_events_socket_write_mt
+ * @param a_w
+ * @param a_es_uuid
+ * @param a_data
+ * @param l_data_size
+ * @return
+ */
+size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_uuid_t a_es_uuid, const void * data, size_t l_data_size)
+{
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return 0;
+    l_msg->esocket_uuid = a_es_uuid;
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data_size = l_data_size;
+    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    memcpy( l_msg->data, data, l_data_size);
+
+    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "wite mt: wasn't send pointer to queue input: code %d", l_ret);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return  l_data_size;
+}
+
+
 /**
  * @brief dap_events_socket_write_f_inter
  * @param a_es_input
@@ -2057,32 +2084,6 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
     int l_ret= dap_events_socket_queue_ptr_send_to_input(a_es_input, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "wite f inter: wasn't send pointer to queue input: code %d", l_ret);
-        DAP_DELETE(l_msg);
-        return 0;
-    }
-    return  l_data_size;
-}
-
-/**
- * @brief dap_events_socket_write_mt
- * @param a_w
- * @param a_es_uuid
- * @param a_data
- * @param l_data_size
- * @return
- */
-size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_uuid_t a_es_uuid, const void * data, size_t l_data_size)
-{
-    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return 0;
-    l_msg->esocket_uuid = a_es_uuid;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
-    l_msg->data_size = l_data_size;
-    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
-    memcpy( l_msg->data, data, l_data_size);
-
-    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
-    if (l_ret!=0){
-        log_it(L_ERROR, "wite mt: wasn't send pointer to queue input: code %d", l_ret);
         DAP_DELETE(l_msg);
         return 0;
     }
