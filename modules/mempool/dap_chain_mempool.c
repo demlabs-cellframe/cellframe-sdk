@@ -107,7 +107,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t a_value, uint256_t a_value_fee)
+        uint256_t a_value, uint256_t a_value_fee, uint256_t a_value_fee_stake)
 {
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
@@ -141,6 +141,8 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
             if (!IS_ZERO_256(a_value_fee)) {
                 if(dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) == 1)
                     SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+                if(dap_chain_datum_tx_add_fee_stake_item(&l_tx, a_value_fee_stake) == 1)
+                    SUM_256_256(l_value_pack, a_value_fee_stake, &l_value_pack);
             }
         }
         // coin back

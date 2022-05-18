@@ -107,6 +107,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
     l_blocks->callback_block_verify = s_callback_block_verify;
     l_blocks->callback_block_sign = s_callback_block_sign;
     l_ton->_pvt = DAP_NEW_Z(dap_chain_cs_block_ton_pvt_t);
+    l_ton->chain = a_chain;
+    l_ton->blocks = l_blocks;
 
     dap_chain_cs_block_ton_pvt_t *l_ton_pvt = PVT(l_ton);
 
@@ -1026,6 +1028,38 @@ static uint16_t s_session_message_count(
 }
 
 
+static bool s_session_sign_verify(dap_chain_cs_block_ton_t *a_ton,
+											dap_sign_t *a_sign, uint8_t *a_data, size_t a_data_size) {
+
+	dap_chain_net_t *l_net = dap_chain_net_by_id(a_ton->chain->net_id);
+	if ( !PVT(a_ton)->validators_list_by_stake ) {
+		for (uint16_t j = 0; j < PVT(a_ton)->auth_certs_count; j++) {
+
+// printf("---!!! s_session_sign_verify() 1:%d 2:%d \n", 
+// 		dap_cert_compare_with_sign(PVT(a_ton)->auth_certs[j], a_sign),
+// 		dap_sign_verify(a_sign, a_data, a_data_size));
+
+		    if ( dap_cert_compare_with_sign(PVT(a_ton)->auth_certs[j], a_sign) == 0
+		    		&& dap_sign_verify(a_sign, a_data, a_data_size) == 1 ) {
+		    	return true;
+		    }
+		}
+	}
+	else {
+        dap_chain_addr_t l_addr = {0};
+        dap_chain_hash_fast_t l_pkey_hash;
+        dap_sign_get_pkey_hash(a_sign, &l_pkey_hash);
+        dap_chain_addr_fill(&l_addr, a_sign->header.type, &l_pkey_hash, l_net->pub.id);
+        if (dap_chain_net_srv_stake_key_delegated(&l_addr)) {
+        	if ( dap_sign_verify(a_sign, a_data, a_data_size) == 1  ) {
+        		return true;
+        	}
+        }
+	}
+	return false;
+}
+
+
 static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_node_addr, 
 								dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size) {
 	bool l_message_delete = true;
@@ -1039,28 +1073,19 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 					l_session->attempt_current_number, l_message->hdr.type,
 						NODE_ADDR_FP_ARGS(a_sender_node_addr), NODE_ADDR_FP_ARGS(l_session->my_addr));
 
-	if ( !PVT(l_session->ton)->validators_list_by_stake ) {
-		size_t l_data_size = 0;
-		dap_sign_t *l_sign = (dap_sign_t*)l_message->sign_n_message;
-		uint8_t *l_data = s_message_data_sign(l_session, l_message, &l_data_size);
-		bool l_verify_passed = false;
-		for (uint16_t j = 0; j < PVT(l_session->ton)->auth_certs_count; j++) {
-		    if ( dap_cert_compare_with_sign(PVT(l_session->ton)->auth_certs[j], l_sign) == 0
-		    		&& dap_sign_verify(l_sign, l_data, l_data_size) == 1 ) {
-		    	l_verify_passed = true;
-		    	break;
-		    }
-		}
-		//DAP_DELETE(l_sign);
-		DAP_DELETE(l_data);
-		if (!l_verify_passed) {
-			if (PVT(l_session->ton)->debug)
-		        log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Message rejected from addr:"NODE_ADDR_FP_STR" not passed verification",
-						l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
-							l_session->attempt_current_number, NODE_ADDR_FP_ARGS(a_sender_node_addr));
-		    goto handler_finish;
-		}
+	size_t l_data_size = 0;
+	dap_sign_t *l_sign = (dap_sign_t*)l_message->sign_n_message;
+	uint8_t *l_data = s_message_data_sign(l_session, l_message, &l_data_size);
+	bool l_sign_verify = s_session_sign_verify(l_session->ton, l_sign, l_data, l_data_size);
+	DAP_DELETE(l_data);
+	if (!l_sign_verify) {
+		if (PVT(l_session->ton)->debug)
+	        log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Message rejected from addr:"NODE_ADDR_FP_STR" not passed verification",
+					l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
+						l_session->attempt_current_number, NODE_ADDR_FP_ARGS(a_sender_node_addr));
+	    goto handler_finish;
 	}
+
     
     if (l_message->hdr.chain_id.uint64 != l_session->chain->id.uint64 ) {
     	goto handler_finish;
@@ -1527,10 +1552,15 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
 							l_session->attempt_current_number, l_candidate_hash_str);
 
-			int l_sign_verified=0;
+			// int l_sign_verified=0;
 			// check candidate hash sign
-			if ( (l_sign_verified=dap_sign_verify( (dap_sign_t*)l_approve->candidate_hash_sign, 
-													l_candidate_hash, sizeof(dap_chain_hash_fast_t))) == 1 ) {
+			bool l_sign_verify = s_session_sign_verify(l_session->ton,
+								(dap_sign_t*)l_approve->candidate_hash_sign,
+										l_candidate_hash, sizeof(dap_chain_hash_fast_t));
+
+			// if ( (l_sign_verified=dap_sign_verify( (dap_sign_t*)l_approve->candidate_hash_sign, 
+			// 										l_candidate_hash, sizeof(dap_chain_hash_fast_t))) == 1 ) {
+			if (l_sign_verify) {
 				l_message->hdr.is_verified=true;
 				pthread_rwlock_rdlock(&l_session->rwlock);
 
@@ -1581,7 +1611,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 				}
 				pthread_rwlock_unlock(&l_session->rwlock);
 			} else {
-				log_it(L_WARNING, "Candidate hash sign is incorrect: code %d", l_sign_verified);
+				// log_it(L_WARNING, "Candidate hash sign is incorrect: code %d", l_sign_verified);
+				log_it(L_WARNING, "Candidate hash sign is incorrect");
 			}
 			DAP_DELETE(l_candidate_hash_str);
 		} break;
@@ -1873,10 +1904,14 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						(dap_chain_block_t *)DAP_DUP_SIZE(&l_store->candidate_n_signs, l_candidate_size);
 				size_t l_offset = dap_chain_block_get_sign_offset(l_candidate, l_candidate_size);
 
-				int l_sign_verified=0;
+				// int l_sign_verified=0;
 				// check candidate hash sign
-				if ( (l_sign_verified=dap_sign_verify((dap_sign_t*)l_commitsign->candidate_sign,
-												l_candidate, l_offset+sizeof(l_candidate->hdr))) == 1 ) {
+				bool l_sign_verify = s_session_sign_verify(l_session->ton,
+									(dap_sign_t*)l_commitsign->candidate_sign,
+											l_candidate, l_offset+sizeof(l_candidate->hdr));
+				// if ( (l_sign_verified=dap_sign_verify((dap_sign_t*)l_commitsign->candidate_sign,
+				// 								l_candidate, l_offset+sizeof(l_candidate->hdr))) == 1 ) {
+				if (l_sign_verify) {
 					l_message->hdr.is_verified = true;
 					l_store->hdr.sign_collected = true;
 					if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
@@ -1898,7 +1933,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 					}
 				}
 				else {
-					log_it(L_WARNING, "Candidate:%s sign is incorrect: code %d", l_candidate_hash_str, l_sign_verified);
+					// log_it(L_WARNING, "Candidate:%s sign is incorrect: code %d", l_candidate_hash_str, l_sign_verified);
+					log_it(L_WARNING, "Candidate:%s sign is incorrect", l_candidate_hash_str);
 				}
 			}
 			pthread_rwlock_unlock(&l_session->rwlock);
@@ -2081,14 +2117,20 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 	            break;
 	        }
 
+			bool l_sign_verify = s_session_sign_verify(l_ton, l_sign,
+												a_block, l_block_excl_sign_size);
+			if (l_sign_verify) {
+				l_signs_verified_count++;
+			}
+
 	        // Compare signature with auth_certs
-	        for (uint16_t j = 0; j < l_ton_pvt->auth_certs_count; j++) {
-	            if (dap_cert_compare_with_sign( l_ton_pvt->auth_certs[j], l_sign) == 0
-	            		&& dap_sign_verify(l_sign, a_block, l_block_excl_sign_size) == 1 ){
-	                l_signs_verified_count++;
-	                break;
-	            }
-	        }
+	        // for (uint16_t j = 0; j < l_ton_pvt->auth_certs_count; j++) {
+	        //     if (dap_cert_compare_with_sign( l_ton_pvt->auth_certs[j], l_sign) == 0
+	        //     		&& dap_sign_verify(l_sign, a_block, l_block_excl_sign_size) == 1 ){
+	        //         l_signs_verified_count++;
+	        //         break;
+	        //     }
+	        // }
 	    }
 		DAP_DELETE(l_signs);
 	    if ( l_ret != 0 ) {
