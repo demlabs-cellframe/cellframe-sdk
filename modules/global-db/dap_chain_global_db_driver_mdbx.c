@@ -300,7 +300,9 @@ char        *l_cp;
 
 
                                                                             /* We set "unlim" for all MDBX characteristics at the moment */
-    if ( MDBX_SUCCESS != (l_rc = mdbx_env_set_geometry(s_mdbx_env, 0, -1, -1, -1,-1, -1)) )
+
+
+    if ( MDBX_SUCCESS != (l_rc = mdbx_env_set_geometry(s_mdbx_env, -1, -1, DAP_DB$SZ_MAXDB, -1, -1, -1)) )
         return  log_it (L_CRITICAL, "mdbx_env_set_geometry (%s): (%d) %s", s_db_path, l_rc, mdbx_strerror(l_rc)),  -EINVAL;
 
     if ( MDBX_SUCCESS != (l_rc = mdbx_env_open(s_mdbx_env, s_db_path, MDBX_CREATE |  MDBX_COALESCE | MDBX_LIFORECLAIM, 0664)) )
