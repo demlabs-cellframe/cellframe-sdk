@@ -228,12 +228,19 @@ inline static bool s_is_supported_user_agents_list_setted()
   return cnt;
 }
 
-inline static void s_set_writable_flags(dap_http_simple_t * a_simple)
+inline static void s_write_data_to_socket(dap_proc_thread_t *a_thread, dap_http_simple_t * a_simple)
 {
-    //  log_it(L_DEBUG,"_set_only_write_http_client_state");
-    a_simple->http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-    dap_events_socket_set_writable_unsafe( a_simple->http_client->esocket,true);
-
+    a_simple->http_client->state_write = DAP_HTTP_CLIENT_STATE_START;
+    if (!a_simple->reply) {
+        a_simple->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        log_it( L_WARNING, "No reply to write, close connection" );
+    } else {
+        a_simple->reply_sent += dap_events_socket_write_unsafe(a_simple->esocket,
+                                                  a_simple->reply_byte + a_simple->reply_sent,
+                                                  a_simple->http_client->out_content_length - a_simple->reply_sent);
+        dap_events_socket_set_writable_unsafe(a_simple->esocket, true);
+    }
+    dap_proc_thread_assign_on_worker_inter(a_thread, a_simple->worker, a_simple->esocket);
 }
 
 static void s_copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
@@ -293,8 +300,7 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
         if (!header && !is_unknown_user_agents_pass) {
             const char error_msg[] = "Not found User-Agent HTTP header";
             s_write_response_bad_request(l_http_simple, error_msg);
-            s_set_writable_flags( l_http_simple);
-            dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
+            s_write_data_to_socket(a_thread, l_http_simple);
             return true;
         }
 
@@ -303,8 +309,7 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
                 log_it(L_DEBUG, "Not supported user agent in request: %s", header->value);
                 const char* error_msg = "User-Agent version not supported. Update your software";
                 s_write_response_bad_request(l_http_simple, error_msg);
-                s_set_writable_flags( l_http_simple);
-                dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
+                s_write_data_to_socket(a_thread, l_http_simple);
                 return true;
             }
     }
@@ -320,10 +325,7 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
         l_http_simple->http_client->reply_status_code = Http_Status_InternalServerError;
     }
     dap_http_client_out_header_generate(l_http_simple->http_client);
-
-
-    s_set_writable_flags( l_http_simple);
-    dap_proc_thread_assign_on_worker_inter(a_thread, l_http_simple->worker, l_http_simple->esocket);
+    s_write_data_to_socket(a_thread, l_http_simple);
     return true;
 }
 
@@ -377,34 +379,13 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     }
 }
 
-static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a_arg )
+static void s_http_client_data_write(dap_http_client_t * a_http_client, void *a_arg)
 {
     (void) a_arg;
     dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE( a_http_client );
-    //  log_it(L_DEBUG,"dap_http_simple_data_write");
-    //  Sleep(300);
-    if (!l_http_simple){
-        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-        log_it( L_WARNING, "No http_simple object in write callback, close connection" );
-        return;
-    }
-
-    if ( !l_http_simple->reply ) {
-        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-        log_it( L_WARNING, "No reply to write, close connection" );
-        return;
-    }
-
-    l_http_simple->reply_sent += dap_events_socket_write_unsafe( a_http_client->esocket,
-                                              l_http_simple->reply_byte + l_http_simple->reply_sent,
-                                              a_http_client->out_content_length - l_http_simple->reply_sent );
-
     if ( l_http_simple->reply_sent >= a_http_client->out_content_length ) {
         log_it(L_INFO, "All the reply (%zu) is sent out", a_http_client->out_content_length );
-        //cl_ht->client->signal_close=cl_ht->keep_alive;
         a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-        //dap_client_ready_to_write(cl_ht->client,false);
-        //DAP_DELETE(l_http_simple->reply );
     }
 }
 
