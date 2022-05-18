@@ -283,6 +283,12 @@ MDBX_cursor *l_cursor;
 MDBX_val    l_key_iov, l_data_iov;
 dap_slist_t l_slist = {0};
 char        *l_cp;
+size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
+
+    l_upper_limit_of_db_size = dap_config_get_item_uint32_default ( g_config,  "resources", "mdbx_upper_limit_of_db_size", l_upper_limit_of_db_size);
+    l_upper_limit_of_db_size  *= 1024*1024*1024;
+    log_it(L_INFO, "Set MDBX Upper Limit of DB Size to %zu octets", l_upper_limit_of_db_size);
+
 
     snprintf(s_db_path, sizeof(s_db_path), "%s/%s", a_mdbx_path, s_subdir );/* Make a path to MDBX root */
     dap_mkdir_with_parents(s_db_path);                                      /* Create directory for the MDBX storage */
@@ -304,7 +310,8 @@ char        *l_cp;
 
 
                                                                             /* We set "unlim" for all MDBX characteristics at the moment */
-    if ( MDBX_SUCCESS != (l_rc = mdbx_env_set_geometry(s_mdbx_env, 0, -1, -1, -1,-1, -1)) )
+
+    if ( MDBX_SUCCESS != (l_rc = mdbx_env_set_geometry(s_mdbx_env, -1, -1, l_upper_limit_of_db_size, -1, -1, -1)) )
         return  log_it (L_CRITICAL, "mdbx_env_set_geometry (%s): (%d) %s", s_db_path, l_rc, mdbx_strerror(l_rc)),  -EINVAL;
 
     if ( MDBX_SUCCESS != (l_rc = mdbx_env_open(s_mdbx_env, s_db_path, MDBX_CREATE |  MDBX_COALESCE | MDBX_LIFORECLAIM, 0664)) )
