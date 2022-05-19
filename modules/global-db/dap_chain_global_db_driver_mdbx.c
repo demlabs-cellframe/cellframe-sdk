@@ -344,8 +344,8 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
         for ( int i = 0;  !(l_rc = mdbx_cursor_get (l_cursor, &l_key_iov, &l_data_iov, MDBX_NEXT )); i++ )
             {
             debug_if(s_dap_global_db_debug_more, L_DEBUG, "MDBX SubDB #%03d [0:%zu]: '%.*s' = [0:%zu]: '%.*s'", i,
-                    l_key_iov.iov_len, (int) l_key_iov.iov_len, l_key_iov.iov_base,
-                    l_data_iov.iov_len, (int) l_data_iov.iov_len, l_data_iov.iov_base);
+                    l_key_iov.iov_len, (int) l_key_iov.iov_len, (char *) l_key_iov.iov_base,
+                    l_data_iov.iov_len, (int) l_data_iov.iov_len, (char *) l_data_iov.iov_base);
 
             /* Form a simple list of the group/table name to be used after */
             l_cp = dap_strdup(l_data_iov.iov_base);                         /* We expect an ASCIZ string as the table name */
@@ -375,7 +375,7 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
     a_drv_callback->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
     a_drv_callback->read_count_store    = s_db_mdbx_read_count_store;
     a_drv_callback->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
-    a_drv_callback->is_obj              = s_db_mdbx_is_obj;
+    a_drv_callback->is_obj              = (dap_db_driver_is_obj_callback_t)  s_db_mdbx_is_obj;
     a_drv_callback->deinit              = s_db_mdbx_deinit;
     a_drv_callback->flush               = s_db_mdbx_flush;
 
@@ -385,7 +385,6 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
      */
     a_drv_callback->transaction_start   = NULL;
     a_drv_callback->transaction_end     = NULL;
-
 
     return MDBX_SUCCESS;
 }
