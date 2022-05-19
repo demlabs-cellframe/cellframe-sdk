@@ -59,16 +59,17 @@ typedef struct dap_proc_queue_item{
 } dap_proc_queue_item_t;
 
 typedef struct dap_proc_queue{
-        dap_proc_thread_t   *proc_thread;                                   /* An assigned processor threads for the quueue's entries */
+        dap_proc_thread_t   *proc_thread;                                   /* An assigned processor threads for the queue's entries */
         dap_events_socket_t *esocket;
 
         struct {
         pthread_mutex_t     lock;                                           /* To coordinate access to the queuee's entries */
-        dap_slist_t         items;                                          /* An array of list according of priority numbers */
-        } list [DAP_QUE$K_PRIMAX];
+        dap_slist_t         items;                                          /* List of the queue' entries */
+        } list [DAP_QUE$K_PRIMAX];                                          /* An array of list according of priority numbers */
 } dap_proc_queue_t;
 
-dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread);
+dap_proc_queue_t *dap_proc_queue_create(dap_proc_thread_t * a_thread);
+dap_proc_queue_t *dap_proc_queue_create_ext(dap_proc_thread_t * a_thread);
 
 int dap_proc_queue_delete(dap_proc_queue_t * a_queue);
 int dap_proc_queue_add_callback(dap_worker_t * a_worker, dap_proc_queue_callback_t a_callback, void * a_callback_arg);
