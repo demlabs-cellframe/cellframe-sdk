@@ -848,7 +848,7 @@ dap_events_socket_t     *l_es;
     dap_events_socket_queue_ptr_send_to_input( l_thread->queue_callback_gdb_input, ...)
    */
 
-    if ( (l_rc = dap_events_socket_queue_ptr_send_to_input(l_es->callbacks., l_db_req)) )/* Enqueue DB Request to processor */
+    // if ( (l_rc = dap_events_socket_queue_ptr_send_to_input(l_es->callbacks, l_db_req)) )/* Enqueue DB Request to processor */
     {
         DAP_DELETE(l_db_req);
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_rc);
