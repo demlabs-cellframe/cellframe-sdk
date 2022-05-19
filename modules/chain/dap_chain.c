@@ -329,20 +329,27 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
 dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_chain_net_name,dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name)
 {
     log_it (L_DEBUG, "Loading chain from config \"%s\"", a_chain_cfg_name);
-    if ( a_chain_net_name){
-        dap_config_t * l_cfg = dap_config_open(a_chain_cfg_name);
-        if (l_cfg) {
-            dap_chain_t * l_chain = NULL;
-            dap_chain_id_t l_chain_id = {{0}};
-            uint64_t l_chain_id_u = 0;
-            const char * l_chain_id_str = NULL;
-            const char * l_chain_name = NULL;
+
+    if (a_chain_net_name)
+	{
+        dap_config_t *l_cfg = dap_config_open(a_chain_cfg_name);
+        if (l_cfg)
+		{
+            dap_chain_t		*l_chain		= NULL;
+            dap_chain_id_t	l_chain_id		= {{0}};
+            uint64_t		l_chain_id_u	= 0;
+            const char		*l_chain_id_str	= NULL;
+            const char 		*l_chain_name	= NULL;
 
             // Recognize chains id
-            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
-                if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
-                    if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
-                        if ( dap_sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_U,&l_chain_id_u ) !=1 ){
+            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL )
+			{
+                if (dap_sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_X, & l_chain_id_u)		!=1)
+				{
+                    if (dap_sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_x, &l_chain_id_u)		!=1)
+					{
+                        if (dap_sscanf(l_chain_id_str, "%"DAP_UINT64_FORMAT_U, &l_chain_id_u)	!=1)
+						{
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
@@ -352,60 +359,77 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
             l_chain_id.uint64 = l_chain_id_u;
 
-            if (l_chain_id_str ) {
-                log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )",l_chain_id.uint64 , l_chain_id_str) ;
-            }else {
-                log_it (L_ERROR,"Wasn't recognized '%s' string as chain net id, hex or dec",l_chain_id_str);
+            if (l_chain_id_str)
+                log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )", l_chain_id.uint64, l_chain_id_str);
+            else {
+                log_it (L_ERROR,"Wasn't recognized '%s' string as chain net id, hex or dec", l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
 
             }
+
             // Read chain name
-            if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL ){
-                log_it (L_ERROR,"Can't read chain net name %s",l_chain_id_str);
+            if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL )
+			{
+                log_it (L_ERROR,"Can't read chain net name %s", l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
             }
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
-            if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
-                log_it (L_NOTICE,"Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x,
-                        l_chain_id.uint64 );
+            if ( dap_chain_cs_create(l_chain, l_cfg) == 0 )
+			{
+                log_it (L_NOTICE, "Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x, l_chain_id.uint64);
 
-                if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) ) {
-                    DAP_CHAIN_PVT ( l_chain)->file_storage_dir = strdup (
-                                dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) ;
-                    if (dap_chain_load_all(l_chain) == 0) {
+                if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) )
+				{
+                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = strdup( dap_config_get_item_str( l_cfg , "files","storage_dir" ) );
+                    if (dap_chain_load_all(l_chain) == 0)
                         log_it (L_NOTICE, "Loaded chain files");
-                    } else {
+                    else {
                         dap_chain_save_all( l_chain );
                         log_it (L_NOTICE, "Initialized chain files");
                     }
-                } else{
+                } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
-                }
-                if (!l_chain->cells) {
+
+                if (!l_chain->cells)
+				{
                     dap_chain_cell_id_t l_cell_id = {.uint64 = 0};
                     dap_chain_cell_create_fill(l_chain, l_cell_id);
                 }
-            }else{
+            } else {
                 log_it (L_ERROR, "Can't init consensus \"%s\"",dap_config_get_item_str_default( l_cfg , "chain","consensus","NULL"));
                 dap_chain_delete(l_chain);
                 l_chain = NULL;
             }
-            // Read chain datum types
-            char** l_datum_types = NULL;
-            uint16_t l_datum_types_count = 0;
-            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain datum types for chain %s", l_chain_id_str);
+
+            char**		l_datum_types				= NULL;
+			char**		l_default_datum_types		= NULL;
+            uint16_t	l_datum_types_count			= 0;
+			uint16_t	l_default_datum_types_count = 0;
+
+			//		l_datum_types			=	(read chain datum types)
+			//	||	l_default_datum_types	=	(read chain default datum types if datum types readed and if present default datum types)
+
+            if (	(l_datum_types			= dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) 					== NULL
+			||		(l_default_datum_types	= dap_config_get_array_str(l_cfg, "chain", "default_datum_types", &l_default_datum_types_count))	== NULL )
+			{
+				if (!l_datum_types)
+                	log_it(L_WARNING, "Can't read chain datum types for chain %s", l_chain_id_str);
+				else
+					log_it(L_WARNING, "Can't read chain DEFAULT datum types for chain %s", l_chain_id_str);
                 //dap_config_close(l_cfg);
                 //return NULL;
             }
+
             // add datum types
-            if(l_chain && l_datum_types && l_datum_types_count > 0) {
-                l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
-                uint16_t l_count_recognized = 0;
-                for(uint16_t i = 0; i < l_datum_types_count; i++) {
+            if (l_chain && l_datum_types && l_datum_types_count > 0)
+			{
+                l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
+                uint16_t l_count_recognized = 0; // TODO: omg double init...
+                for (uint16_t i = 0; i < l_datum_types_count; i++)
+				{
                     dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
                     if (l_chain_type != CHAIN_TYPE_LAST) {
                         l_chain->datum_types[l_count_recognized] = l_chain_type;
@@ -414,22 +438,27 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 }
                 l_chain->datum_types_count = l_count_recognized;
             }
-            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL) {
+
+            if ((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL)
                 log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
-            }
-            // add datum types
-            if(l_chain && l_datum_types && l_datum_types_count) {
-                l_chain->autoproc_datum_types = DAP_NEW_Z_SIZE(uint16_t, l_chain->datum_types_count * sizeof(uint16_t));
-                uint16_t l_count_recognized = 0;
-                for(uint16_t i = 0; i < l_datum_types_count; i++) {
-                    if (!strcmp(l_datum_types[i], "all") && l_chain->datum_types_count) {
+
+            // add datum types for autoproc
+            if (l_chain && l_datum_types && l_datum_types_count)
+			{
+                l_chain->autoproc_datum_types = DAP_NEW_Z_SIZE(uint16_t, l_chain->datum_types_count * sizeof(uint16_t)); // TODO: pls check counter for recognized types before memory allocation!
+                uint16_t l_count_recognized = 0; // TODO: omg double init...
+                for (uint16_t i = 0; i < l_datum_types_count; i++)
+				{
+                    if (!dap_strcmp(l_datum_types[i], "all") && l_chain->datum_types_count)
+					{
                         for (int j = 0; j < l_chain->datum_types_count; j++)
                             l_chain->autoproc_datum_types[j] = s_chain_type_convert(l_chain->datum_types[j]);
                         l_count_recognized = l_chain->datum_types_count;
                         break;
                     }
                     uint16_t l_chain_type = s_datum_type_from_str(l_datum_types[i]);
-                    if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM) {
+                    if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM)
+					{
                         l_chain->autoproc_datum_types[l_count_recognized] = l_chain_type;
                         l_count_recognized++;
                     }
@@ -438,7 +467,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
             dap_config_close(l_cfg);
             return l_chain;
-        }else
+        } else
             return NULL;
 
     } else {
