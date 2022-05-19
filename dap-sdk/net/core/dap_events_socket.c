@@ -114,7 +114,7 @@ static pthread_attr_t s_attr_detached;                                      /* T
  * @brief dap_events_socket_init Init clients module
  * @return Zero if ok others if no
  */
-int dap_events_socket_init( )
+int     dap_events_socket_init( void )
 {
 int l_rc;
 
@@ -152,7 +152,7 @@ int l_rc;
 /**
  * @brief dap_events_socket_deinit Deinit clients module
  */
-void dap_events_socket_deinit( )
+void dap_events_socket_deinit(void)
 {
 }
 
