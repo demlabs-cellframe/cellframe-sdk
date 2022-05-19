@@ -569,7 +569,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
             dap_events_socket_write_f_unsafe(a_esocket, "HTTP/1.1 %u %s\r\n",l_http_client->reply_status_code, l_http_client->reply_reason_phrase[0] ?
                             l_http_client->reply_reason_phrase : http_status_reason_phrase(l_http_client->reply_status_code) );
             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
-        }
+        } break;
 
         case DAP_HTTP_CLIENT_STATE_HEADERS: {
             dap_http_header_t *hdr = l_http_client->out_headers;
@@ -592,17 +592,15 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 dap_events_socket_write_f_unsafe(a_esocket, "%s: %s\r\n", hdr->name, hdr->value);
                 dap_http_header_remove( &l_http_client->out_headers, hdr );
             }
-        }
+        } break;
 
         case DAP_HTTP_CLIENT_STATE_DATA: {
             if ( l_http_client->proc ){
-                pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
+                pthread_rwlock_wrlock(&l_http_client->proc->cache_rwlock);
                 if  ( ( l_http_client->proc->cache == NULL &&
                         l_http_client->proc->data_write_callback )
                     ){
                     if (l_http_client->proc->cache){
-                        pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
-                        pthread_rwlock_wrlock(&l_http_client->proc->cache_rwlock);
                         dap_http_cache_delete(l_http_client->proc->cache);
                         l_http_client->proc->cache = NULL;
                         if(s_debug_http)
@@ -632,9 +630,9 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
             }else{
                 log_it(L_WARNING, "No http proc, nothing to write");
             }
-        }
-        break;
-  }
+        } break;
+    }
+    dap_http_client_write(a_esocket, a_arg);
 }
 
 /**
