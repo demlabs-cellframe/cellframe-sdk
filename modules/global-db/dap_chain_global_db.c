@@ -912,7 +912,7 @@ static int is_check_version = 0;
         return  -EIO;
     }
 
-    if ( !(s_global_db_proc_queue = dap_proc_queue_create_ext (s_global_db_proc_thread)) )
+    if ( !(s_global_db_proc_queue = dap_proc_queue_create (s_global_db_proc_thread)) )
     {
         log_it(L_ERROR, "Error create queue for GDB request processing");
         log_it(L_ERROR, "Async DB processing is switched OFF");
