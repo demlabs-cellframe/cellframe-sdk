@@ -312,9 +312,44 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
         return DAP_CHAIN_DATUM_TX;
     case CHAIN_TYPE_CA:
         return DAP_CHAIN_DATUM_CA;
+	case CHAIN_TYPE_SIGNER:
+		return DAP_CHAIN_DATUM_SIGNER;
+
     default:
         return DAP_CHAIN_DATUM_CUSTOM;
     }
+}
+
+/**
+ * @brief s_chain_in_chain_types
+ * looks for a type (chain_type) in an array of types (*chain_types)
+ * @param chain_type		- the type we are looking for
+ * @param *chain_types		- array of types in which we are looking for
+ * @param chain_types_count	- number of elements in the array *chain_types
+ * @return true or false
+ */
+static bool s_chain_in_chain_types(dap_chain_type_t chain_type, dap_chain_type_t *chain_types, uint16_t chain_types_count)
+{
+	for (uint16_t i = 0; i < chain_types_count; i++)
+		if (chain_types[i] == chain_type)
+			return (true);
+	return (false);
+}
+
+/**
+ * @brief s_datum_in_chain_types
+ * looks for a type (chain_type) in an array of types (*chain_types)
+ * @param datum_type		- the type we are looking for
+ * @param *chain_types		- array of types in which we are looking for
+ * @param chain_types_count	- number of elements in the array *chain_types
+ * @return true or false
+ */
+static bool s_datum_in_chain_types(uint16_t datum_type, dap_chain_type_t *chain_types, uint16_t chain_types_count)
+{
+	for (uint16_t i = 0; i < chain_types_count; i++)
+		if (s_chain_type_convert(chain_types[i]) == datum_type)
+			return (true);
+	return (false);
 }
 
 /**
@@ -408,6 +443,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 			char**		l_default_datum_types		= NULL;
             uint16_t	l_datum_types_count			= 0;
 			uint16_t	l_default_datum_types_count = 0;
+			uint16_t	l_count_recognized			= 0;
 
 			//		l_datum_types			=	(read chain datum types)
 			//	||	l_default_datum_types	=	(read chain default datum types if datum types readed and if present default datum types)
@@ -427,17 +463,36 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             if (l_chain && l_datum_types && l_datum_types_count > 0)
 			{
                 l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
-                uint16_t l_count_recognized = 0; // TODO: omg double init...
+                l_count_recognized = 0;
                 for (uint16_t i = 0; i < l_datum_types_count; i++)
 				{
                     dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
-                    if (l_chain_type != CHAIN_TYPE_LAST) {
+                    if (l_chain_type != CHAIN_TYPE_LAST)
+					{
                         l_chain->datum_types[l_count_recognized] = l_chain_type;
                         l_count_recognized++;
                     }
                 }
                 l_chain->datum_types_count = l_count_recognized;
             }
+
+			// add default datum types present
+			if (l_chain && l_default_datum_types && l_default_datum_types_count > 0)
+			{
+				l_chain->default_datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_default_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
+				l_count_recognized = 0;
+				for (uint16_t i = 0; i < l_default_datum_types_count; i++)
+				{
+					dap_chain_type_t l_chain_type = s_chain_type_from_str(l_default_datum_types[i]);
+					if (l_chain_type != CHAIN_TYPE_LAST
+					&& s_chain_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_type in readed datum_types
+					{
+						l_chain->default_datum_types[l_count_recognized] = l_chain_type;
+						l_count_recognized++;
+					}
+				}
+				l_chain->default_datum_types_count = l_count_recognized;
+			}
 
             if ((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL)
                 log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
@@ -446,7 +501,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             if (l_chain && l_datum_types && l_datum_types_count)
 			{
                 l_chain->autoproc_datum_types = DAP_NEW_Z_SIZE(uint16_t, l_chain->datum_types_count * sizeof(uint16_t)); // TODO: pls check counter for recognized types before memory allocation!
-                uint16_t l_count_recognized = 0; // TODO: omg double init...
+                l_count_recognized = 0;
                 for (uint16_t i = 0; i < l_datum_types_count; i++)
 				{
                     if (!dap_strcmp(l_datum_types[i], "all") && l_chain->datum_types_count)
@@ -457,7 +512,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                         break;
                     }
                     uint16_t l_chain_type = s_datum_type_from_str(l_datum_types[i]);
-                    if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM)
+                    if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM
+					&&	s_datum_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_datum_type in readed datum_types
 					{
                         l_chain->autoproc_datum_types[l_count_recognized] = l_chain_type;
                         l_count_recognized++;
