@@ -50,7 +50,7 @@ typedef struct __dap_slist__ {
  *
  *  RETURNS:
  *      0       - SUCCESS
- *      0 <>    - <errno>
+ *      -ENOMEM - Cannot add new element
  */
 
 static inline int    s_dap_slist_add2tail    ( dap_slist_t *a_slist, void *a_data, int a_datasz)
@@ -90,7 +90,7 @@ dap_slist_elm_t *l_elm;
  *
  *  RETURNS:
  *      0       - SUCCESS
- *      0 <>    - <errno>
+ *      -ENOENT - List is empty
  */
 
 static inline int    s_dap_slist_get4head    ( dap_slist_t *a_slist, void **a_data, size_t *a_datasz)
@@ -103,13 +103,15 @@ dap_slist_elm_t *l_elm;
     if ( !(a_slist->head = l_elm->flink) )                                  /* Last element in the queue ? */
         a_slist->tail = NULL;                                               /* Reset tail to NULL */
 
+    a_slist->nr--;                                                          /* Adjust entries counter */
+
     *a_data = l_elm->data;
+
     if ( a_datasz )
         *a_datasz = l_elm->datasz;
 
     DAP_FREE(l_elm);                                                        /* Release memory has been allocated for the queue's element */
 
-    a_slist->nr--;                                                          /* Adjust entries counter */
     return  0;
 }
 
