@@ -317,12 +317,13 @@ int dap_chain_cell_file_append( dap_chain_cell_t * a_cell, const void* a_atom, s
             break;
         }
         l_total_wrote_bytes += l_atom_size;
-        if(a_cell->chain && a_cell->chain->callback_notify)
-            a_cell->chain->callback_notify(a_cell->chain->callback_notify_arg,
-                                           a_cell->chain,
-                                           a_cell->id,
-                                           (void *)l_atom,
-                                           l_atom_size);
+        if(a_cell->chain && a_cell->chain->atom_notifiers ){
+            for( dap_list_t * l_iter = a_cell->chain->atom_notifiers;l_iter; l_iter = dap_list_next(l_iter) ){
+                dap_chain_atom_notifier_t * i = (dap_chain_atom_notifier_t *) l_iter->data;
+                i->callback(i->arg, a_cell->chain, a_cell->id, (void *)l_atom, l_atom_size);
+            }
+        }
+
     }
     if (l_total_wrote_bytes > 0) {
         fflush(a_cell->file_storage);
