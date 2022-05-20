@@ -2149,6 +2149,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
     return  ret;
 }
 
+static void remove_duplicates_in_chain_by_priority(dap_chain_t *l_chain_1, dap_chain_t *l_chain_2)
+{
+	dap_chain_t *l_chain_high_priority = (l_chain_1->load_priority > l_chain_2->load_priority) ? l_chain_2 : l_chain_1; //such distribution is made for correct operation with the same priority
+	dap_chain_t *l_chain_low_priority = (l_chain_1->load_priority > l_chain_2->load_priority) ? l_chain_1 : l_chain_2; //...^...^...^...
+}
+
 // for sequential loading chains
 typedef struct list_priority_{
     uint16_t prior;
@@ -2632,6 +2638,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;
                         }
+						remove_duplicates_in_chain_by_priority(l_chain, l_chain02);
                     }
                 }
             }

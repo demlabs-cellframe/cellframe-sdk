@@ -418,7 +418,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 
                 if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) )
 				{
-                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = strdup( dap_config_get_item_str( l_cfg , "files","storage_dir" ) );
+                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = dap_strdup( dap_config_get_item_str( l_cfg , "files","storage_dir" ) );
                     if (dap_chain_load_all(l_chain) == 0)
                         log_it (L_NOTICE, "Loaded chain files");
                     else {
@@ -438,6 +438,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 dap_chain_delete(l_chain);
                 l_chain = NULL;
             }
+
+			// load priority for chain
+			l_chain->load_priority = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
 
             char**		l_datum_types				= NULL;
 			char**		l_default_datum_types		= NULL;
