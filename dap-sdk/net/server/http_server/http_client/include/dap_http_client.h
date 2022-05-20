@@ -41,9 +41,9 @@ typedef void (*dap_http_client_callback_error_t) (struct dap_http_client *,int);
 typedef struct dap_http_client
 {
     char action[32],                                                        /* HTTP method : GET, PUT and etc */
-        url_path[2048],                                                     /* URL path of requested document */
-        ht_args[2048];                                                      /* Arguments has been extracted from the request line */
-    uint32_t action_len, url_path_len, ht_args_len;
+        url_path[1024],                                                     /* URL path of requested document */
+        in_query_string[1024];                                              /* Arguments has been extracted from the request line */
+    uint32_t action_len, url_path_len, in_query_string_len;
 
     int     keep_alive;                                                     /* Connection: Keep-Alive */
 
@@ -53,9 +53,9 @@ typedef struct dap_http_client
     struct dap_http_header *in_headers;                                     /* List of HTTP's fields */
 
     char in_content_type[256],
-        in_query_string[1024],
         in_cookie[1024];
-    size_t in_content_length, in_query_string_len, in_cookie_len;
+    size_t in_content_length,
+        in_cookie_len;
 
     struct dap_http_header *out_headers;
 
