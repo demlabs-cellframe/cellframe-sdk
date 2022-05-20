@@ -894,10 +894,10 @@ static int is_check_version = 0;
 
     if(!is_check_version){
 
+        is_check_version = true;
+
         if ( (l_rc = s_check_db_version(g_config)) )
             return  log_it(L_ERROR, "GlobalDB version changed, please export or remove old version!"), l_rc;
-
-        is_check_version = true;
     }
 
     log_it(L_NOTICE, "GlobalDB initialized");

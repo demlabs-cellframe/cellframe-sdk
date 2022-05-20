@@ -106,11 +106,11 @@ static MDBX_dbi s_db_master_dbi;                                            /* A
 
 /*
  * Suffix structure is supposed to be added at end of MDBX record, so :
- * <value> + <suffix>
+ * <store_object.value> + <suffix>
  */
 struct  __record_suffix__ {
         uint64_t        mbz;                                                /* Must Be Zero ! */
-        uint64_t        id;                                                 /* An uniqe-like Id of the record - internaly created and maintained */
+        uint64_t        id;                                                 /* An unique-like Id of the record - internaly created and maintained */
         uint64_t        flags;                                              /* Flag of the record : see RECORD_FLAGS enums */
         dap_time_t      ts;                                                 /* Timestamp of the record */
 };
@@ -164,6 +164,7 @@ char    l_buf[1024] = {0};
  *   DESCRIPTION: Open or create (if a_flag=MDBX_CREATE) a DB context for a given group.
  *      Initialize an MDBX's internal context for the subDB (== a_group);
  *      Add new group/table name into the special MDBX subbDB named MDBX$MASTER.
+ *      Add new DB context into the internal hash table for quick access.
  *
  *   INPUTS:
  *      a_group:    A group name (in terms of MDBX it's subBD), ASCIZ
@@ -265,9 +266,9 @@ MDBX_val    l_key_iov, l_data_iov;
 
 
 /*
- *  DESCRIPTION: Action routine - cleanup this module's internal contexts, DB context hash table,
+ *  DESCRIPTION: Action routine - cleanup this module's internal contexts and DB contexts hash table,
  *      close MDBX context. After call this routine any DB operation of this module is impossible.
- *      You must/can perfroms initialization.
+ *      You must/can performs initialization.
  *
  *  INPUTS:
  *      NONE
@@ -338,7 +339,7 @@ MDBX_cursor *l_cursor;
 MDBX_val    l_key_iov, l_data_iov;
 dap_slist_t l_slist = {0};
 char        *l_cp;
-size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
+size_t     l_upper_limit_of_db_size = 32;
 
     l_upper_limit_of_db_size = dap_config_get_item_uint32_default ( g_config,  "resources", "mdbx_upper_limit_of_db_size", l_upper_limit_of_db_size);
     l_upper_limit_of_db_size  *= 1024*1024*1024;
@@ -447,8 +448,8 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
 
 
 /*
- *  DESCRIPTION: Get a DB context for the specified group/table name
- *      from the DB context hash table. This context is just pointer to the DB Context
+ *  DESCRIPTION: Get a pointer to DB context for the specified group/table name
+ *      in  the DB contexts hash table. This context is just pointer to the DB Context
  *      structure, so don't modify it.
  *
  *  INPUTS:
@@ -458,7 +459,7 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
  *      NONE
  *
  *  RETURNS
- *      address of DB Context
+ *      address of DB Context for a given group/table
  *      NULL    - no DB context has been craeted for the group
  *
  */
@@ -649,7 +650,7 @@ MDBX_val    l_key, l_data;
 
 
 /*
- *  DESCRIPTION: Action routine to read record with a give <id > from the table
+ *  DESCRIPTION: Action routine to read record with a given <id > from the group/table
  *
  *  INPUTS:
  *      a_group:    A group/table name to be looked in
@@ -807,7 +808,7 @@ struct  __record_suffix__   *l_suff;
 
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
-    if ( l_count_out )
+    if ( l_count_out > 1 )
         log_it(L_WARNING, "A count of records with id: %zu - more then 1 (%d) !!!", a_id, l_count_out);
 
     return  l_count_out;
@@ -900,6 +901,9 @@ struct  __record_suffix__   *l_suff;
     assert ( !pthread_mutex_lock(&l_db_ctx->dbi_mutex) );
 
 
+
+
+
     if (a_store_obj->type == DAP_DB$K_OPTYPE_ADD ) {
         if( !a_store_obj->key )
         {
@@ -934,15 +938,13 @@ struct  __record_suffix__   *l_suff;
 
         memcpy(l_val, a_store_obj->value, a_store_obj->value_len);          /* Put <value> into the record */
 
-        /* So, finaly: BEGIN transaction, do INSERT, COMMIT or ABORT ... */
+        /* So, finaly: BEGIN transaction, do generate id of record, INSERT, COMMIT or ABORT ... */
         if ( MDBX_SUCCESS != (l_rc = mdbx_txn_begin(s_mdbx_env, NULL, 0, &l_db_ctx->txn)) )
         {
             assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
             return  DAP_FREE(l_val), log_it (L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), -EIO;
         }
 
-
-                                                                            /* Generate <sequence number> for new record */
         if ( MDBX_SUCCESS != mdbx_dbi_sequence	(l_db_ctx->txn, l_db_ctx->dbi, &l_suff->id, 1) )
         {
             log_it (L_CRITICAL, "mdbx_dbi_sequence: (%d) %s", l_rc, mdbx_strerror(l_rc));
@@ -971,6 +973,10 @@ struct  __record_suffix__   *l_suff;
 
         return DAP_FREE(l_val), (( l_rc == MDBX_SUCCESS ) ? 0 : -EIO);
     } /* DAP_DB$K_OPTYPE_ADD */
+
+
+
+
 
 
 
