@@ -105,7 +105,9 @@ typedef enum dap_chain_type
     CHAIN_TYPE_LAST
 } dap_chain_type_t;
 
-typedef struct dap_chain{
+typedef struct dap_chain {
+    pthread_rwlock_t rwlock; // Common rwlock for the whole structure
+
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
     char * name;
@@ -157,8 +159,7 @@ typedef struct dap_chain{
     dap_chain_callback_get_count_tx callback_count_tx;
     dap_chain_callback_get_txs callback_get_txs;
 
-    dap_chain_callback_notify_t callback_notify;
-    void *callback_notify_arg;
+    dap_list_t * atom_notifiers;
 
     /*
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;
@@ -174,6 +175,11 @@ typedef struct dap_chain_gdb_notifier {
     dap_global_db_obj_callback_notify_t callback;
     void *cb_arg;
 } dap_chain_gdb_notifier_t;
+
+typedef struct dap_chain_atom_notifier {
+    dap_chain_callback_notify_t callback;
+    void *arg;
+} dap_chain_atom_notifier_t;
 
 #define DAP_CHAIN(a) ( (dap_chain_t *) (a)->_inheritor)
 
