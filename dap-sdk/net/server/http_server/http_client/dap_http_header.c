@@ -55,11 +55,12 @@ struct ht_field {
     char    name [128];                                                     /* Name of the HTTP Field */
     size_t  namelen;                                                        /* Length of the field */
 
-} ht_fields [HTTP_FLD$K_EOL] = {
+} ht_fields [HTTP_FLD$K_EOL + 1] = {
     {HTTP_FLD$K_CONNECTION,     $STRINI("Connection")},
     {HTTP_FLD$K_CONTENT_TYPE,   $STRINI("Content-Type")},
     {HTTP_FLD$K_CONTENT_LEN,    $STRINI("Content-Length")},
-    {HTTP_FLD$K_COOKIE,         $STRINI("Cookie")}
+    {HTTP_FLD$K_COOKIE,         $STRINI("Cookie")},
+    {-1, {0}, 0},
 };
 #undef  $STRINI
 
@@ -91,6 +92,8 @@ void dap_http_header_deinit()
  * @return Zero if parsed well -1 if it wasn't HTTP header 1 if its "\r\n" string
  */
 #define	CRLF    "\r\n"
+#define	CR    '\r'
+#define	LF    '\n'
 
 int dap_http_header_parse(struct dap_http_client * cl_ht, const char * ht_line, size_t ht_line_len)
 {
@@ -101,7 +104,12 @@ dap_http_header_t *l_new_header;
 
     s_debug_http = 1;
 
-    debug_if(s_debug_http, L_DEBUG, "Parse header string: '%s'", ht_line);
+    debug_if(s_debug_http, L_DEBUG, "Parse header string (%zu octets) : '%.*s'",  ht_line_len, (int) ht_line_len, ht_line);
+
+    /* Check for HTTP End-Of-Header sequence */
+    if ( (ht_line_len == 2) && (*ht_line == CR) && ( *(ht_line + 1) == LF) )
+        return  1;
+
 
     /*
      * "Content-Type: application/x-www-form-urlencoded"
@@ -148,7 +156,7 @@ dap_http_header_t *l_new_header;
     switch (l_ht->ht_field_code )
     {
         case    HTTP_FLD$K_CONNECTION:
-            cl_ht->keep_alive = !strncmp(l_pval, "Keep-Alive", l_valuelen);
+            cl_ht->keep_alive = !strncasecmp(l_pval, "Keep-Alive", l_valuelen);
             break;
 
         case    HTTP_FLD$K_CONTENT_TYPE:
@@ -176,10 +184,10 @@ dap_http_header_t *l_new_header;
                         (int) l_namelen, l_pname, (int) l_valuelen, l_pval), -ENOMEM;
 
     l_new_header->name = DAP_CALLOC(l_namelen + 1, sizeof(char));
-    memcpy(l_new_header->name, l_pname, l_namelen);
+    memcpy(l_new_header->name, l_pname, l_new_header->namesz = l_namelen);
 
     l_new_header->value = DAP_CALLOC(l_valuelen + 1, sizeof(char));
-    memcpy(l_new_header->value, l_pval, l_valuelen);
+    memcpy(l_new_header->value, l_pval, l_new_header->valuesz = l_valuelen);
 
     DL_APPEND(cl_ht->in_headers, l_new_header);
 
@@ -196,7 +204,7 @@ dap_http_header_t *l_new_header;
  * @return Pointer to the new HTTP header's structure
  */
 dap_http_header_t *dap_http_header_add(dap_http_header_t **a_top, const char *a_name, const char *a_value)
-{ 
+{
     dap_http_header_t *l_new_header = DAP_NEW_Z(dap_http_header_t);
     l_new_header->name = dap_strdup(a_name);
     l_new_header->value = dap_strdup(a_value);

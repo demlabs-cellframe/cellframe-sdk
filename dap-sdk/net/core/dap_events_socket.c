@@ -2219,20 +2219,18 @@ size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *a_es, void *a_data
  * @param cl Client instance
  * @param shrink_size Size on wich we shrink the buffer with shifting it left
  */
-void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size)
+void dap_events_socket_shrink_buf_in(dap_events_socket_t * a_cl, size_t a_shrink_size)
 {
-    if ( (!shrink_size) || (!cl->buf_in_size) )
+    if ( (!a_shrink_size) || (!a_cl->buf_in_size) )
         return;
 
-    if (cl->buf_in_size > shrink_size)
+    if (a_cl->buf_in_size > a_shrink_size)
     {
-        size_t buf_size=cl->buf_in_size-shrink_size;
-        uint8_t* tmp = cl->buf_in + shrink_size;
-        memmove(cl->buf_in,tmp,buf_size);
-        cl->buf_in_size=buf_size;
-    }else{
-        //log_it(WARNING,"Shrinking size of input buffer on amount bigger than actual buffer's size");
-        cl->buf_in_size=0;
+        memmove(a_cl->buf_in, a_cl->buf_in + a_shrink_size, (a_cl->buf_in_size -= a_shrink_size) );
+        a_cl->buf_in[a_cl->buf_in_size] = '\0';
+    } else {
+        // log_it(L_ERROR, "Shrinking size of input buffer on amount bigger than actual buffer's size - whole buffer is droped!!!");
+        a_cl->buf_in_size = 0;
     }
 
 }
