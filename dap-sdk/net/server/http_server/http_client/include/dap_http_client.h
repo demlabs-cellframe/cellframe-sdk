@@ -37,38 +37,44 @@ typedef enum dap_http_client_state{
 typedef void (*dap_http_client_callback_t) (struct dap_http_client *,void * arg); // Callback for specific client operations
 typedef void (*dap_http_client_callback_error_t) (struct dap_http_client *,int); // Callback for specific client operations
 
+
 typedef struct dap_http_client
 {
-    char action[128]; // Type of HTTP action (GET, PUT and etc)
-    char url_path[2048]; // URL path of requested document
-    uint32_t http_version_major; // Major version of HTTP protocol
-    uint32_t http_version_minor; // Minor version of HTTP protocol
-    uint32_t action_len;
-    uint32_t url_path_len;
-    bool keep_alive;
+    char action[32],                                                        /* HTTP method : GET, PUT and etc */
+        url_path[1024],                                                     /* URL path of requested document */
+        in_query_string[1024];                                              /* Arguments has been extracted from the request line */
+    uint32_t action_len, url_path_len, in_query_string_len;
+
+    int     keep_alive;                                                     /* Connection: Keep-Alive */
 
     dap_http_client_state_t state_read;
     dap_http_client_state_t state_write;
 
-    struct dap_http_header *in_headers;
-    size_t in_content_length;
-    char in_content_type[256];
-    char in_query_string[1024];
-    char in_cookie[1024];
+    struct dap_http_header *in_headers;                                     /* List of HTTP's fields */
+
+    char in_content_type[256],
+        in_cookie[1024];
+    size_t in_content_length,
+        in_cookie_len;
 
     struct dap_http_header *out_headers;
+
+    int     out_content_ready;
+
+    char    out_content_type[256];
     size_t out_content_length;
-    bool out_content_ready;
-    char out_content_type[256];
+
     time_t out_last_modified;
-    bool out_connection_close;
+    int     out_connection_close;
     size_t out_cache_position;
 
     dap_events_socket_t *esocket;
     struct dap_http * http;
 
     uint16_t reply_status_code;
+
     char reply_reason_phrase[256];
+    size_t reply_reason_phrase_len;
 
     struct dap_http_url_proc *proc;
 
