@@ -23,4 +23,4 @@
 
 #include "dap_chain_global_db_driver.h"
 
-int dap_db_driver_mdbx_init(const char*, dap_db_driver_callbacks_t*);
+int dap_db_driver_mdbx_init(const char*, dap_db_driver_callbacks_t *a_drv_dpt);

@@ -36,6 +36,36 @@ typedef struct dap_proc_queue_msg{
 
 static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg);
 
+
+
+
+/**
+ * @brief dap_proc_queue_create
+ * @param a_thread
+ * @return
+ */
+dap_proc_queue_t * dap_proc_queue_create_ext(dap_proc_thread_t * a_thread)
+{
+    dap_proc_queue_t * l_queue = DAP_NEW_Z(dap_proc_queue_t);
+
+    if (!l_queue)
+        return NULL;
+
+    for (int i = 0; i < DAP_QUE$K_PRIMAX; i++) {
+        assert ( !(pthread_mutex_init(&l_queue->list[i].lock, 0 )) );
+    }
+
+    l_queue->proc_thread = a_thread;
+    //l_queue->esocket = dap_events_socket_create_type_queue_ptr_unsafe(NULL,s_queue_esocket_callback);
+    l_queue->esocket->proc_thread = a_thread;
+    l_queue->esocket->_inheritor = l_queue;
+
+    return l_queue;
+}
+
+
+
+
 /**
  * @brief dap_proc_queue_create
  * @param a_thread
@@ -203,7 +233,7 @@ dap_proc_queue_msg_t *l_msg;
     l_msg->pri = a_pri;
 
     /*
-     * Send message to queueu with the given priority
+     * Send message to queue with the given priority
      */
     return  dap_events_socket_queue_ptr_send ( a_worker->proc_queue->esocket , l_msg);
 }
@@ -243,7 +273,7 @@ int dap_proc_queue_add_callback_inter( dap_events_socket_t * a_es_input, dap_pro
 int dap_proc_queue_add_callback_inter_ext( dap_events_socket_t * a_es_input, dap_proc_queue_callback_t a_callback, void * a_callback_arg,
                                            int a_pri)
 {
-dap_proc_queue_msg_t * l_msg;
+dap_proc_queue_msg_t *l_msg;
 
     if ( !(a_pri < DAP_QUE$K_PRIMAX) )                                      /* Check that priority level is in legal range */
     {

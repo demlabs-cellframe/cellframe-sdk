@@ -305,8 +305,8 @@ typedef struct dap_events_socket_handler_hh{
 extern "C" {
 #endif
 
-int dap_events_socket_init(); //  Init clients module
-void dap_events_socket_deinit(); // Deinit clients module
+int dap_events_socket_init(void); //  Init clients module
+void dap_events_socket_deinit(void); // Deinit clients module
 
 dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, dap_events_socket_callbacks_t* a_callbacks);
 
