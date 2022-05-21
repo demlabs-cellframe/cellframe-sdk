@@ -2149,10 +2149,31 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
     return  ret;
 }
 
+/**
+ * @brief remove_duplicates_in_chain_by_priority
+ * remove duplicates default datum types in chain by priority
+ * @param *l_chain_1 chain 1
+ * @param *l_chain_2 chain 2
+ * @return void
+ */
+
 static void remove_duplicates_in_chain_by_priority(dap_chain_t *l_chain_1, dap_chain_t *l_chain_2)
 {
 	dap_chain_t *l_chain_high_priority = (l_chain_1->load_priority > l_chain_2->load_priority) ? l_chain_2 : l_chain_1; //such distribution is made for correct operation with the same priority
 	dap_chain_t *l_chain_low_priority = (l_chain_1->load_priority > l_chain_2->load_priority) ? l_chain_1 : l_chain_2; //...^...^...^...
+
+	for (int i = 0; i < l_chain_high_priority->default_datum_types_count; i++)
+	{
+		for (int j = 0; j < l_chain_low_priority->default_datum_types_count; j++)
+		{
+			if (l_chain_high_priority->default_datum_types[i] == l_chain_low_priority->default_datum_types[j])
+			{
+				l_chain_low_priority->default_datum_types[j] = l_chain_low_priority->default_datum_types[l_chain_low_priority->default_datum_types_count - 1];
+				--l_chain_low_priority->default_datum_types_count;
+				--j;
+			}
+		}
+	}
 }
 
 // for sequential loading chains
