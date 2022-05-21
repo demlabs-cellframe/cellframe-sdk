@@ -1757,6 +1757,31 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 }
 
 /**
+ * @brief s_chain_type_convert
+ * convert dap_chain_type_t to  DAP_CNAIN* constants
+ * @param a_type - dap_chain_type_t a_type [CHAIN_TYPE_TOKEN, CHAIN_TYPE_EMISSION, CHAIN_TYPE_TX]
+ * @return uint16_t
+ */
+static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
+{
+	switch (a_type) {
+		case CHAIN_TYPE_TOKEN:
+			return ("token");
+		case CHAIN_TYPE_EMISSION:
+			return ("emission");
+		case CHAIN_TYPE_TX:
+			return ("transaction");
+		case CHAIN_TYPE_CA:
+			return ("ca");
+		case CHAIN_TYPE_SIGNER:
+			return ("signer");
+
+		default:
+			return ("custom");
+	}
+}
+
+/**
  * @brief
  * register net* command in cellframe-node-cli interface
  * @param argc arguments count
@@ -1811,6 +1836,13 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_t * l_chain = l_net->pub.chains;
                     while (l_chain) {
                         dap_string_append_printf(l_string_ret, "\t\t%s:\n", l_chain->name );
+						if (l_chain->default_datum_types_count)
+						{
+							dap_string_append_printf(l_string_ret, "\t\t");
+							for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++)
+								dap_string_append_printf(l_string_ret, "| %s ", s_chain_type_convert_to_string(l_chain->default_datum_types[i]) );
+							dap_string_append_printf(l_string_ret, "|\n");
+						}
                         l_chain = l_chain->next;
                     }
                 }
