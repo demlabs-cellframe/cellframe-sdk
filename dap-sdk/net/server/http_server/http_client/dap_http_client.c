@@ -458,7 +458,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
 
                         if ( l_http_client->proc->access_callback )
                         {
-                            bool isOk = true;
+                            int isOk = true;
                             l_http_client->proc->access_callback( l_http_client, &isOk );
                             if ( !isOk )
                             {
