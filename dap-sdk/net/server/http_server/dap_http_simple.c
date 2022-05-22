@@ -439,9 +439,9 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
  */
 size_t dap_http_simple_reply(dap_http_simple_t *a_http_simple, void *a_data, size_t a_data_size )
 {
-    size_t l_data_copy_size = (a_data_size > (a_http_simple->reply_size_max - a_http_simple->reply_size) ) ? (a_http_simple->reply_size_max - a_http_simple->reply_size) : a_data_size;
+size_t l_data_copy_size = (a_data_size > (a_http_simple->reply_size_max - a_http_simple->reply_size) ) ? (a_http_simple->reply_size_max - a_http_simple->reply_size) : a_data_size;
 
-    memcpy(a_http_simple->reply_byte+a_http_simple->reply_size, a_data,l_data_copy_size );
+    memcpy(a_http_simple->reply_byte + a_http_simple->reply_size, a_data, l_data_copy_size );
 
     a_http_simple->reply_size += l_data_copy_size;
 
