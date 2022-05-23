@@ -595,40 +595,33 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
         } break;
 
         case DAP_HTTP_CLIENT_STATE_DATA: {
-            if ( l_http_client->proc ){
+            if (l_http_client->proc && l_http_client->proc->data_write_callback) {
                 pthread_rwlock_wrlock(&l_http_client->proc->cache_rwlock);
-                if  ( ( l_http_client->proc->cache == NULL &&
-                        l_http_client->proc->data_write_callback )
-                    ){
-                    if (l_http_client->proc->cache){
-                        dap_http_cache_delete(l_http_client->proc->cache);
-                        l_http_client->proc->cache = NULL;
-                        if(s_debug_http)
-                            log_it(L_NOTICE,"Cache expired and dropped out");
-                    }else if (s_debug_http)
-                        log_it(L_DEBUG, "No cache so we call write callback");
-
+                if (!l_http_client->proc->cache) {
+                    debug_if(s_debug_http, L_DEBUG, "No cache so we call write callback");
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                     l_http_client->proc->data_write_callback( l_http_client, NULL );
-                }else if(l_http_client->proc->cache) {
+                } else {
                     size_t l_to_send=l_http_client->proc->cache->body_size-l_http_client->out_cache_position ;
                     size_t l_sent = dap_events_socket_write_unsafe(l_http_client->esocket,
                                                    l_http_client->proc->cache->body+l_http_client->out_cache_position,
                                                    l_to_send );
-                    if(l_sent){
-                        if ( l_http_client->out_cache_position + l_sent >= l_http_client->proc->cache->body_size ){ // All is sent
-                            if(s_debug_http)
-                                log_it(L_DEBUG,"Out %"DAP_FORMAT_SOCKET" All cached data over, signal to close connection", l_http_client->esocket->socket);
-                            l_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                            l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
-                            dap_events_socket_set_writable_unsafe( a_esocket, false );
-                        }else
-                            l_http_client->out_cache_position += l_sent;
-                    }
+                    if (!l_sent || l_http_client->out_cache_position + l_sent >= l_http_client->proc->cache->body_size) { // All is sent
+                        if (!l_sent)
+                            debug_if(s_debug_http, L_ERROR, "Can't send data to socket");
+                        else
+                            debug_if(s_debug_http, L_DEBUG, "Out %"DAP_FORMAT_SOCKET" All cached data over, signal to close connection",
+                                     l_http_client->esocket->socket);
+                        l_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                        l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
+                    } else
+                        l_http_client->out_cache_position += l_sent;
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                 }
-            }else{
+            } else {
                 log_it(L_WARNING, "No http proc, nothing to write");
+                l_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
             }
         } break;
     }
