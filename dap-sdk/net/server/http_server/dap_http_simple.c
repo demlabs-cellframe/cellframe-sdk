@@ -72,26 +72,13 @@ static void s_http_client_data_write( dap_http_client_t * a_http_client, void *a
 static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void *a_arg );
 
 typedef struct dap_http_simple_url_proc {
-
   dap_http_simple_callback_t proc_callback;
   size_t reply_size_max;
-
 } dap_http_simple_url_proc_t;
 
-//typedef struct tailq_entry {
-
-//  dap_http_simple_t *cl_sh;
-//  TAILQ_ENTRY(tailq_entry) entries;
-
-//} tailq_entry_t;
-
-//TAILQ_HEAD(, tailq_entry) tailq_head;
-
-///DAP_HTTP_SIMPLE_REQUEST_MAX
 
 typedef struct user_agents_item {
   dap_http_user_agent_ptr_t user_agent;
-  /* This is instead of "struct foo *next" */
   struct user_agents_item *next;
 } user_agents_item_t;
 
@@ -100,7 +87,7 @@ static int is_unknown_user_agents_pass = 0;
 
 #define DAP_HTTP_SIMPLE_URL_PROC(a) ((dap_http_simple_url_proc_t*) (a)->_inheritor)
 
-static void _free_user_agents_list( void );
+static void s_free_user_agents_list( void );
 
 int dap_http_simple_module_init( )
 {
@@ -109,7 +96,7 @@ int dap_http_simple_module_init( )
 
 void dap_http_simple_module_deinit( void )
 {
-    _free_user_agents_list( );
+    s_free_user_agents_list( );
 }
 
 /**
@@ -135,14 +122,16 @@ struct dap_http_url_proc * dap_http_simple_proc_add( dap_http_t *a_http, const c
                      NULL); // errror
 }
 
-static void _free_user_agents_list()
+static void s_free_user_agents_list()
 {
-  user_agents_item_t *elt, *tmp;
-  LL_FOREACH_SAFE( user_agents_list, elt, tmp ) {
-    LL_DELETE( user_agents_list, elt );
-    dap_http_user_agent_delete( elt->user_agent );
-    free( elt );
-  }
+user_agents_item_t *elt, *tmp;
+
+    LL_FOREACH_SAFE( user_agents_list, elt, tmp )
+    {
+        LL_DELETE( user_agents_list, elt );
+        dap_http_user_agent_delete( elt->user_agent );
+        free( elt );
+    }
 }
 
 static int s_is_user_agent_supported( const char *user_agent )
@@ -195,7 +184,7 @@ int dap_http_simple_set_supported_user_agents( const char *user_agents, ... )
     if ( user_agent == NULL ) {
       log_it(L_ERROR, "Can't parse user agent string");
       va_end(argptr);
-       _free_user_agents_list();
+       s_free_user_agents_list();
        return 0;
     }
 
@@ -219,7 +208,7 @@ void dap_http_simple_set_pass_unknown_user_agents(int pass)
     is_unknown_user_agents_pass = pass;
 }
 
-inline static bool s_is_supported_user_agents_list_setted()
+inline static bool s_is_supported_user_agents_list_setted(void)
 {
   user_agents_item_t * tmp;
   int cnt = 0;
@@ -230,56 +219,74 @@ inline static bool s_is_supported_user_agents_list_setted()
 
 inline static void s_write_data_to_socket(dap_proc_thread_t *a_thread, dap_http_simple_t * a_simple)
 {
-    a_simple->http_client->state_write = DAP_HTTP_CLIENT_STATE_START;
     if (!a_simple->reply) {
         a_simple->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         log_it( L_WARNING, "No reply to write, close connection" );
     } else {
+#if 0
         a_simple->reply_sent += dap_events_socket_write_unsafe(a_simple->esocket,
                                                   a_simple->reply_byte + a_simple->reply_sent,
                                                   a_simple->http_client->out_content_length - a_simple->reply_sent);
+#endif
         dap_events_socket_set_writable_unsafe(a_simple->esocket, true);
     }
+
     dap_proc_thread_assign_on_worker_inter(a_thread, a_simple->worker, a_simple->esocket);
 }
 
-static void s_copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
+
+static void s_http_client_data_write(dap_http_client_t * a_http_client, void *a_arg)
+{
+    (void) a_arg;
+    dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE( a_http_client );
+
+    if ( l_http_simple->reply_sent >= a_http_client->out_content_length ) {
+        log_it(L_INFO, "All the reply (%zu) is sent out", a_http_client->out_content_length );
+        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    } else {
+        l_http_simple->reply_sent += dap_events_socket_write_unsafe(l_http_simple->esocket,
+                                                  l_http_simple->reply_byte + l_http_simple->reply_sent,
+                                                  l_http_simple->http_client->out_content_length - l_http_simple->reply_sent);
+        dap_events_socket_set_writable_unsafe(l_http_simple->esocket, true);
+    }
+}
+
+
+
+inline static void s_copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
 {
 //  log_it(L_DEBUG,"_copy_reply_and_mime_to_response");
 //  Sleep(300);
 
-  if( !a_simple->reply_size ) {
+    if( !a_simple->reply_size )
+        return  log_it( L_WARNING, " cl_sh->reply_size equal 0" );
 
-    log_it( L_WARNING, " cl_sh->reply_size equal 0" );
+    a_simple->http_client->out_content_length = a_simple->reply_size;
+    strcpy( a_simple->http_client->out_content_type, a_simple->reply_mime );
+
     return;
-  }
-
-  a_simple->http_client->out_content_length = a_simple->reply_size;
-  strcpy( a_simple->http_client->out_content_type, a_simple->reply_mime );
-  return;
 }
 
 inline static void s_write_response_bad_request( dap_http_simple_t * a_http_simple,
                                                const char* error_msg )
 {
-//  log_it(L_DEBUG,"_write_response_bad_request");
-//  Sleep(300);
+    //  log_it(L_DEBUG,"_write_response_bad_request");
+    //  Sleep(300);
 
-  struct json_object *jobj = json_object_new_object( );
-  json_object_object_add( jobj, "error", json_object_new_string(error_msg) );
+    struct json_object *jobj = json_object_new_object( );
+    json_object_object_add( jobj, "error", json_object_new_string(error_msg) );
 
-  log_it( L_DEBUG, "error message %s",  json_object_to_json_string(jobj) );
-  a_http_simple->http_client->reply_status_code = Http_Status_BadRequest;
+    log_it( L_DEBUG, "error message %s",  json_object_to_json_string(jobj) );
+    a_http_simple->http_client->reply_status_code = Http_Status_BadRequest;
 
-  const char* json_str = json_object_to_json_string( jobj );
-  dap_http_simple_reply(a_http_simple, (void*) json_str,
-                          (size_t) strlen(json_str) );
+    const char* json_str = json_object_to_json_string( jobj );
+    dap_http_simple_reply(a_http_simple, (void*) json_str, (size_t) strlen(json_str) );
 
-  strcpy( a_http_simple->reply_mime, "application/json" );
+    strcpy( a_http_simple->reply_mime, "application/json" );
 
-  s_copy_reply_and_mime_to_response( a_http_simple );
+    s_copy_reply_and_mime_to_response( a_http_simple );
 
-  json_object_put( jobj ); // free obj
+    json_object_put( jobj ); // free obj
 }
 
 /**
@@ -325,6 +332,8 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
         l_http_simple->http_client->reply_status_code = Http_Status_InternalServerError;
     }
     dap_http_client_out_header_generate(l_http_simple->http_client);
+
+    l_http_simple->http_client->state_write = DAP_HTTP_CLIENT_STATE_START;
     s_write_data_to_socket(a_thread, l_http_simple);
     return true;
 }
@@ -332,9 +341,9 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
 static void s_http_client_delete( dap_http_client_t *a_http_client, void *arg )
 {
     dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
-    if (l_http_simple){
+
+    if (l_http_simple)
         DAP_DEL_Z(l_http_simple->reply_byte);
-    }
 }
 
 static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *a_arg )
@@ -379,15 +388,6 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     }
 }
 
-static void s_http_client_data_write(dap_http_client_t * a_http_client, void *a_arg)
-{
-    (void) a_arg;
-    dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE( a_http_client );
-    if ( l_http_simple->reply_sent >= a_http_client->out_content_length ) {
-        log_it(L_INFO, "All the reply (%zu) is sent out", a_http_client->out_content_length );
-        a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-    }
-}
 
 void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
 {
@@ -457,7 +457,7 @@ dap_http_cache_t * dap_http_simple_make_cache_from_reply(dap_http_simple_t * a_h
 {
     // Because we call it from callback, we have no headers ready for output
     s_copy_reply_and_mime_to_response(a_http_simple);
-    a_http_simple->http_client->reply_status_code = 200;
+    a_http_simple->http_client->reply_status_code = Http_Status_OK;
     dap_http_client_out_header_generate(a_http_simple->http_client);
     return dap_http_cache_update(a_http_simple->http_client->proc,
                                  a_http_simple->reply_byte,
@@ -486,31 +486,3 @@ size_t dap_http_simple_reply_f(dap_http_simple_t * shs, const char * data, ... )
   else
     return 0;
 }
-
-
-/* Key Expired deprecated code */
-
-//    bool key_is_expiried = false;
-
-//    dap_enc_key_t * key = dap_enc_ks_find_http(cl_sh->http);
-//    if(key){
-//        if( key->last_used_timestamp && ( (time(NULL) - key->last_used_timestamp  )
-//                                          > s_TTL_session_key ) ) {
-
-//            enc_http_delegate_t * dg = enc_http_request_decode(cl_sh);
-
-//            if( dg == NULL ) {
-//                log_it(L_ERROR, "dg is NULL");
-//                return NULL;
-//            }
-
-//            log_it(L_WARNING, "Key has been expiried");
-//            strcpy(cl_sh->reply_mime,"text/plain");
-//            enc_http_reply_f(dg,"Key has been expiried");
-//            enc_http_reply_encode(cl_sh,dg);
-//            enc_http_delegate_delete(dg);
-//            key_is_expiried = true;
-//        } else{
-//            key->last_used_timestamp = time(NULL);
-//        }
-//    }
