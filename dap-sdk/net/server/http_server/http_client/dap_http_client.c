@@ -522,63 +522,63 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
  */
 void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
 {
-    //  log_it( L_DEBUG, "dap_http_client_write..." );
+char    l_buf[128];
+dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
+dap_http_header_t *hdr = l_http_client->out_headers;
+size_t  l_to_send, l_sent;
 
     (void) a_arg;
-    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
-    //log_it(L_WARNING,"HTTP client write callback in state %d",l_http_client->state_write);
+
+    debug_if(s_debug_http, L_WARNING, "HTTP client write callback in state %d",l_http_client->state_write);
 
     switch( l_http_client->state_write ) {
         case DAP_HTTP_CLIENT_STATE_NONE:
         default:
             return;
-        case DAP_HTTP_CLIENT_STATE_START:{
-            if ( l_http_client->proc ){
+
+        case DAP_HTTP_CLIENT_STATE_START:
+            if ( l_http_client->proc )
+            {
                 // We check out_headers because if they are - we send only cached headers and don't call headers_write_callback at all
-                if ( l_http_client->out_headers==NULL && l_http_client->proc->headers_write_callback ){
+                if ( !l_http_client->out_headers  && l_http_client->proc->headers_write_callback ){
                         l_http_client->proc->headers_write_callback( l_http_client, NULL );
                         dap_http_client_out_header_generate( l_http_client );
-                }else if (l_http_client->out_headers){
+                } else if (l_http_client->out_headers) {
                     l_http_client->reply_status_code = Http_Status_OK; // Cached data are always OK... for now.
                     //TODO: make cached reply status code
                 }
             }
-            char buf[1024];
-            time_t current_time = time( NULL );
-            dap_time_to_str_rfc822( buf, sizeof(buf), current_time );
 
-            dap_http_header_add( &l_http_client->out_headers,"Date", buf );
 
             log_it( L_INFO," HTTP response with %u status code", l_http_client->reply_status_code );
-            dap_events_socket_write_f_unsafe(a_esocket, "HTTP/1.1 %u %s\r\n",l_http_client->reply_status_code, l_http_client->reply_reason_phrase[0] ?
+            l_http_client->esocket->buf_out_size = dap_snprintf((char *) l_http_client->esocket->buf_out, l_http_client->esocket->buf_out_size_max,
+                            "HTTP/1.1 %u %s" CRLF,
+                            l_http_client->reply_status_code, l_http_client->reply_reason_phrase[0] ?
                             l_http_client->reply_reason_phrase : http_status_reason_phrase(l_http_client->reply_status_code) );
-            dap_events_socket_set_writable_unsafe(a_esocket, true);
-            l_http_client->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
-        } break;
 
-        case DAP_HTTP_CLIENT_STATE_HEADERS: {
-            dap_http_header_t *hdr = l_http_client->out_headers;
-            if ( hdr == NULL ) {
-                log_it(L_DEBUG, "Output: headers are over (reply status code %hu content_lentgh %zu)",
-                       l_http_client->reply_status_code, l_http_client->out_content_length);
-                dap_events_socket_write_f_unsafe(a_esocket, "\r\n");
-                dap_events_socket_set_writable_unsafe(a_esocket, true);
-                if ( l_http_client->out_content_length || l_http_client->out_content_ready ) {
-                    l_http_client->state_write=DAP_HTTP_CLIENT_STATE_DATA;
-                } else {
-                    log_it( L_DEBUG, "Nothing to output" );
-                    l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
-                    dap_events_socket_set_writable_unsafe( a_esocket, false );
-                    a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                }
-                dap_events_socket_set_readable_unsafe( a_esocket, true );
-            } else {
-                //log_it(L_DEBUG,"Output: header %s: %s",hdr->name,hdr->value);
-                dap_events_socket_write_f_unsafe(a_esocket, "%s: %s\r\n", hdr->name, hdr->value);
-                dap_events_socket_set_writable_unsafe(a_esocket, true);
+
+            l_http_client->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
+            /* No break; Just jump to next step == DAP_HTTP_CLIENT_STATE_HEADERS */
+
+        case DAP_HTTP_CLIENT_STATE_HEADERS:
+            dap_time_to_str_rfc822( l_buf, sizeof(l_buf) - 1, time( NULL ) );
+            dap_http_header_add( &l_http_client->out_headers, "Date", l_buf );
+
+            for ( hdr = l_http_client->out_headers; hdr; hdr = l_http_client->out_headers )
+            {
+                l_http_client->esocket->buf_out_size += dap_snprintf((char *) l_http_client->esocket->buf_out + l_http_client->esocket->buf_out_size,
+                                                                    l_http_client->esocket->buf_out_size_max - l_http_client->esocket->buf_out_size,
+                                                                    "%s: %s" CRLF, hdr->name, hdr->value);
                 dap_http_header_remove( &l_http_client->out_headers, hdr );
             }
-        } break;
+
+
+            dap_events_socket_write_unsafe(l_http_client->esocket, CRLF, 2);/* Add final CRLF - HTTP's End-Of-Header */
+            dap_events_socket_set_writable_unsafe(l_http_client->esocket, true);
+
+            l_http_client->state_write = DAP_HTTP_CLIENT_STATE_DATA;
+            /* No break; Just jump to next step == DAP_HTTP_CLIENT_STATE_DATA */
+
         case DAP_HTTP_CLIENT_STATE_DATA: {
             if ( l_http_client->proc ){
                 pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
@@ -598,10 +598,10 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                     l_http_client->proc->data_write_callback( l_http_client, NULL );
                 }else if(l_http_client->proc->cache) {
-                    size_t l_to_send=l_http_client->proc->cache->body_size-l_http_client->out_cache_position ;
-                    size_t l_sent = dap_events_socket_write_unsafe(l_http_client->esocket,
-                                                   l_http_client->proc->cache->body+l_http_client->out_cache_position,
-                                                   l_to_send );
+                    l_to_send = l_http_client->proc->cache->body_size - l_http_client->out_cache_position;
+                    l_sent = dap_events_socket_write_unsafe(l_http_client->esocket,
+                                                   l_http_client->proc->cache->body + l_http_client->out_cache_position,
+                                                   l_to_send);
                     if(l_sent){
                         if ( l_http_client->out_cache_position + l_sent >= l_http_client->proc->cache->body_size ){ // All is sent
                             if(s_debug_http)
@@ -644,7 +644,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
         if ( a_http_client->out_content_length ) {
             dap_snprintf(buf,sizeof(buf),"%zu",a_http_client->out_content_length);
             dap_http_header_add(&a_http_client->out_headers,"Content-Length",buf);
-            log_it(L_DEBUG,"output: Content-Length = %zu",a_http_client->out_content_length);
+            log_it(L_DEBUG,"Output: Content-Length = %zu",a_http_client->out_content_length);
         }
     }else
         if (s_debug_http)

@@ -2219,20 +2219,48 @@ size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *a_es, void *a_data
  * @param cl Client instance
  * @param shrink_size Size on wich we shrink the buffer with shifting it left
  */
-void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size)
+void dap_events_socket_shrink_buf_in(dap_events_socket_t * a_es, size_t shrink_size)
 {
-    if ( (!shrink_size) || (!cl->buf_in_size) )
-        return;
+    if ( (!shrink_size) || (!a_es->buf_in_size) )
+        return;                                                             /* Nothing to do - OK */
 
-    if (cl->buf_in_size > shrink_size)
-    {
-        size_t buf_size=cl->buf_in_size-shrink_size;
-        uint8_t* tmp = cl->buf_in + shrink_size;
-        memmove(cl->buf_in,tmp,buf_size);
-        cl->buf_in_size=buf_size;
-    }else{
+    if (a_es->buf_in_size > shrink_size)
+        memmove(a_es->buf_in , a_es->buf_in + shrink_size, a_es->buf_in_size -= shrink_size);
+    else {
         //log_it(WARNING,"Shrinking size of input buffer on amount bigger than actual buffer's size");
-        cl->buf_in_size=0;
+        a_es->buf_in_size = 0;
     }
+}
 
+
+/*
+ *  DESCRIPTION: Insert specified data data block at beging of the <buf_out> area.
+ *      If there is not a room for inserting - no <buf_out> is changed.
+ *
+ *  INPUTS:
+ *      cl:         A events socket context area
+ *      data:       A buffer with data to be inserted
+ *      data_sz:    A size of the data in the buffer
+ *
+ *  IMPLICITE OUTPUTS:
+ *      a_es->buf_out
+ *      a_es->buf_out_sz
+ *
+ *  RETURNS:
+ *      0:          SUCCESS
+ *      -ENOMEM:    No room for data to be inserted
+ */
+size_t dap_events_socket_insert_buf_out(dap_events_socket_t * a_es, void *a_data, size_t a_data_size)
+{
+    if ( (!a_data_size) || (!a_data) )
+        return  0;                                                          /* Nothing to do - OK */
+
+    if ( (a_es->buf_out_size_max - a_es->buf_in_size) < a_data_size )
+        return  -ENOMEM;                                                    /* No room for data to be inserted */
+
+    memmove(a_es->buf_out + a_data_size, a_es->buf_out, a_es->buf_in_size); /* Move existing data to right */
+    memcpy(a_es->buf_out, a_data, a_data_size);                             /* Place new data at begin of the buffer */
+    a_es->buf_in_size += a_data_size;                                       /* Ajust buffer's data lenght */
+
+    return  a_data_size;
 }
