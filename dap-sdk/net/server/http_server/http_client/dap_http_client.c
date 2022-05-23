@@ -277,7 +277,7 @@ const char ht_ver [] = "HTTP/1.";                                           /* W
     ** HTTP/1.1
     */
     l_cp_start = l_cp_end;
-    for ( ; isspace(*l_cp_start) && l_len; l_cp_start++, l_buf_len--);      /* Skip possible anti-DPI whitespaces */
+    for ( ; isspace(*l_cp_start) && l_buf_len; l_cp_start++, l_buf_len--);      /* Skip possible anti-DPI whitespaces */
     if ( memcmp(l_cp_start, ht_ver, sizeof(ht_ver) -1) )
         return  log_it(L_WARNING, "This ('%s') is not HTTP/1.x like start-line, so ...", l_cp_start), -EINVAL;
 
@@ -549,13 +549,11 @@ size_t  l_to_send, l_sent;
                 }
             }
 
-
             log_it( L_INFO," HTTP response with %u status code", l_http_client->reply_status_code );
             l_http_client->esocket->buf_out_size = dap_snprintf((char *) l_http_client->esocket->buf_out, l_http_client->esocket->buf_out_size_max,
                             "HTTP/1.1 %u %s" CRLF,
                             l_http_client->reply_status_code, l_http_client->reply_reason_phrase[0] ?
                             l_http_client->reply_reason_phrase : http_status_reason_phrase(l_http_client->reply_status_code) );
-
 
             l_http_client->state_write = DAP_HTTP_CLIENT_STATE_HEADERS;
             /* No break; Just jump to next step == DAP_HTTP_CLIENT_STATE_HEADERS */
