@@ -30,16 +30,18 @@
 
 typedef struct dap_proc_thread{
     uint32_t    cpu_id;
-    pthread_t   thread_id;                              /* TID has been returned by pthread_create() */
+    pthread_t   thread_id;                                                  /* TID has been returned by pthread_create() */
 
-    dap_proc_queue_t *proc_queue;                       /* Queues  */
-    atomic_uint proc_queue_size;                        /* Thread's load factor - is not supported at the moment  */
+    dap_proc_queue_t *proc_queue;                                           /* Queues  */
+    atomic_uint proc_queue_size;                                            /* Thread's load factor - is not supported at the moment  */
 
-    dap_events_socket_t * proc_event;                   // Should be armed if we have to deal with it
+    dap_events_socket_t * proc_event;                                       /* Should be armed if we have to deal with it */
 
-    dap_events_socket_t ** queue_assign_input;          // Inputs for assign queues
-    dap_events_socket_t ** queue_io_input;              // Inputs for assign queues
-    dap_events_socket_t ** queue_callback_input;        // Inputs for worker context callback queues
+    dap_events_socket_t ** queue_assign_input;                              /* Inputs for assign queues */
+    dap_events_socket_t ** queue_io_input;                                  /* Inputs for assign queues */
+    dap_events_socket_t ** queue_callback_input;                            /* Inputs for worker context callback queues */
+
+    dap_events_socket_t *queue_gdb_input;                                   /* Inputs for request to GDB, @RRL: #6238 */
 
     int signal_kill;
     int signal_exit;
