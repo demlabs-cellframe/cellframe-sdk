@@ -786,7 +786,8 @@ char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
 
 
 
-int     dap_global_db_req_enqueue   (
+int     dap_global_db_write_inter   (
+        dap_events_socket_t * a_es_input,
                         int a_req_type,
                 const char  *a_group,
                 const char  *a_key,
