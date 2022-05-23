@@ -45,21 +45,23 @@ typedef struct dap_worker
     int signal_exit;
 
     // worker control queues
-    dap_events_socket_t * queue_es_new; // Queue socket for new socket
-    dap_events_socket_t ** queue_es_new_input; // Queue socket for new socket
+    dap_events_socket_t *queue_es_new; // Queue socket for new socket
+    dap_events_socket_t **queue_es_new_input; // Queue socket for new socket
 
-    dap_events_socket_t * queue_es_delete; // Queue socke
-    dap_events_socket_t ** queue_es_delete_input; // Queue socke
+    dap_events_socket_t *queue_es_delete; // Queue socke
+    dap_events_socket_t **queue_es_delete_input; // Queue socke
 
-    dap_events_socket_t * queue_es_reassign; // Queue for reassign between workers
-    dap_events_socket_t ** queue_es_reassign_input; // Queue for reassign between workers
+    dap_events_socket_t *queue_es_reassign; // Queue for reassign between workers
+    dap_events_socket_t **queue_es_reassign_input; // Queue for reassign between workers
 
-    dap_events_socket_t * queue_es_io; // Queue socket for io ops
-    dap_events_socket_t ** queue_es_io_input; // Queue socket for io ops between workers
+    dap_events_socket_t *queue_es_io; // Queue socket for io ops
+    dap_events_socket_t **queue_es_io_input; // Queue socket for io ops between workers
 
-    dap_events_socket_t * event_exit; // Events socket for exit
+    dap_events_socket_t *event_exit;                                        /* Events socket for exit */
 
-    dap_events_socket_t * queue_callback; // Queue for pure callback on worker
+    dap_events_socket_t *queue_callback;                                    /* Queue for pure callback on worker */
+
+    dap_events_socket_t *queue_gdb_input;                                   /* Inputs for request to GDB, @RRL: #6238 */
 
     dap_timerfd_t * timer_check_activity;
 #if defined DAP_EVENTS_CAPS_MSMQ

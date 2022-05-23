@@ -782,11 +782,14 @@ char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
     return dap_chain_global_db_driver_hash(data, data_size);
 }
 
+/*
+ *  DESCRIPTION:
+ *
+ */
 
 
-
-
-int     dap_global_db_req_enqueue   (
+int     dap_global_db_write_inter   (
+        dap_events_socket_t *a_es_input,
                         int a_req_type,
                 const char  *a_group,
                 const char  *a_key,
@@ -798,7 +801,7 @@ int     dap_global_db_req_enqueue   (
 {
 int     l_rc;
 dap_grobal_db_req_t     *l_db_req;
-dap_proc_queue_t        *l_que;
+dap_proc_queue_t        *l_proc_que;
 dap_worker_t            *l_wrk;
 dap_proc_thread_t       *l_proc_thd;
 dap_events_socket_t     *l_es;
@@ -813,11 +816,11 @@ dap_events_socket_t     *l_es;
             return  log_it(L_ERROR, "Invalid/unhandled DB request code: %d/%#x", a_req_type, a_req_type), -EINVAL;
     }
 
-    l_que = s_global_db_proc_thread->_inheritor;
-    l_es = l_que->esocket;
+    l_proc_que = s_global_db_proc_thread->_inheritor;
+    l_es = l_proc_que->esocket;
 
-    l_wrk = l_que->esocket->worker;
-    l_proc_thd = l_que->esocket->proc_thread;
+    l_wrk = l_proc_que->esocket->worker;
+    l_proc_thd = l_proc_que->esocket->proc_thread;
 
     if ( !l_wrk && !l_proc_thd )
         return  log_it(L_ERROR, "Both <worker> or <proc_thread> contexts are NULL"), -EINVAL;
@@ -846,9 +849,9 @@ dap_events_socket_t     *l_es;
     dap_events_socket_queue_ptr_send_to_input( l_worker->queue_callback_gdb_input, ...)
     Либо
     dap_events_socket_queue_ptr_send_to_input( l_thread->queue_callback_gdb_input, ...)
-   */
-
-    // if ( (l_rc = dap_events_socket_queue_ptr_send_to_input(l_es->callbacks, l_db_req)) )/* Enqueue DB Request to processor */
+    */
+    if ( (l_rc = dap_events_socket_queue_ptr_send_to_input(                 /* Enqueue DB Request to processor */
+              l_wrk ? l_wrk->queue_gdb_input : l_proc_thd->queue_gdb_input, l_db_req)) )
     {
         DAP_DELETE(l_db_req);
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_rc);
