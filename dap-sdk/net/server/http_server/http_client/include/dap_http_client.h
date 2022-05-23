@@ -28,10 +28,10 @@ struct dap_http;
 struct dap_http_url_proc;
 
 typedef enum dap_http_client_state{
-    DAP_HTTP_CLIENT_STATE_NONE=0,
-    DAP_HTTP_CLIENT_STATE_START=1,
-    DAP_HTTP_CLIENT_STATE_HEADERS=2,
-    DAP_HTTP_CLIENT_STATE_DATA=3
+    DAP_HTTP_CLIENT_STATE_NONE = 0,
+    DAP_HTTP_CLIENT_STATE_START = 1,
+    DAP_HTTP_CLIENT_STATE_HEADERS = 2,
+    DAP_HTTP_CLIENT_STATE_DATA = 3
 } dap_http_client_state_t;
 
 typedef void (*dap_http_client_callback_t) (struct dap_http_client *,void * arg); // Callback for specific client operations
