@@ -31,7 +31,6 @@
           4-MAY-2022    RRL Developing for actual version of the LibMDBX
 
          12-MAY-2022    RRL Finished developing of preliminary version
-
          19-MAY-2022    RRL Added routines' decsriptions
  */
 
@@ -52,8 +51,6 @@
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
 #include "dap_common.h"
-
-#ifdef DAP_CHAIN_GDB_ENGINE_MDBX
 
 #include "mdbx.h"                                                           /* LibMDBX API */
 #define LOG_TAG "dap_chain_global_db_mdbx"
@@ -157,8 +154,6 @@ char    l_buf[1024] = {0};
         mdbx_txn_abort(a_db_ctx->txn);
 }
 #endif     /* __SYS$DEBUG__ */
-
-
 
 /*
  *   DESCRIPTION: Open or create (if a_flag=MDBX_CREATE) a DB context for a given group.
@@ -308,7 +303,6 @@ dap_db_ctx_t *l_db_ctx = NULL, *l_tmp;
     return 0;
 }
 
-
 /*
  *  DESCRIPTION: Performs an initial module internal context creation and setup,
  *      Fill dispatch procedure table (a_drv_callback) by entries of this module;
@@ -343,7 +337,6 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
     l_upper_limit_of_db_size = dap_config_get_item_uint32_default ( g_config,  "resources", "mdbx_upper_limit_of_db_size", l_upper_limit_of_db_size);
     l_upper_limit_of_db_size  *= 1024*1024*1024;
     log_it(L_INFO, "Set MDBX Upper Limit of DB Size to %zu octets", l_upper_limit_of_db_size);
-
 
     snprintf(s_db_path, sizeof(s_db_path), "%s/%s", a_mdbx_path, s_subdir );/* Make a path to MDBX root */
     dap_mkdir_with_parents(s_db_path);                                      /* Create directory for the MDBX storage */
@@ -444,8 +437,6 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
     return MDBX_SUCCESS;
 }
 
-
-
 /*
  *  DESCRIPTION: Get a DB context for the specified group/table name
  *      from the DB context hash table. This context is just pointer to the DB Context
@@ -476,7 +467,6 @@ dap_db_ctx_t *l_db_ctx = NULL;
     return l_db_ctx;
 }
 
-
 /*
  *  DESCRIPTION: Action routine - perform flushing action. Actualy MDBX internaly maintain processes of the flushing
  *      and other things related to  data integrity.
@@ -494,7 +484,6 @@ static  int s_db_mdbx_flush(void)
 {
     return  log_it(L_DEBUG, "Flushing resident part of the MDBX to disk"), 0;
 }
-
 
 /*
  *  DESCRIPTION: Action routine - lookup in the group/table a last store record.
@@ -599,7 +588,6 @@ dap_store_obj_t *l_obj;
     return  l_obj;
 }
 
-
 /*
  *  DESCRIPTION: An action routine to check a presence specified key in the group/table
  *
@@ -646,7 +634,6 @@ MDBX_val    l_key, l_data;
 
     return ( l_rc == MDBX_SUCCESS );    /*0 - RNF, 1 - SUCCESS */
 }
-
 
 /*
  *  DESCRIPTION: Action routine to read record with a give <id > from the table
@@ -748,7 +735,6 @@ dap_store_obj_t *l_obj;
     return  l_obj;
 }
 
-
 /*
  *  DESCRIPTION: Action routine to retrieve a number of records for specified record's id.
  *
@@ -812,9 +798,6 @@ struct  __record_suffix__   *l_suff;
 
     return  l_count_out;
 }
-
-
-
 
 /*
  *  DESCRIPTION: Action routine - returns a list of group/table names in DB contexts hash table is matched
@@ -1069,7 +1052,6 @@ struct  __record_suffix__   *l_suff;
         return  log_it (L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), NULL;
     }
 
-
     if ( a_count_out )
         *a_count_out = 0;
 
@@ -1207,6 +1189,3 @@ struct  __record_suffix__   *l_suff;
 
     return l_obj_arr;
 }
-
-
-#endif  /* DAP_CHAIN_GDB_ENGINE_MDBX */

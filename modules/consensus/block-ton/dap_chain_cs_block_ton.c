@@ -338,7 +338,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 	DL_APPEND(s_session_items, l_session);
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if ( PVT(l_session->ton)->validators_list_by_stake ||
-    				(l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) ) {
+                    (l_role.enums == NODE_ROLE_MASTER || l_role.enums == NODE_ROLE_ROOT) ) {
 		if ( s_session_get_validator(l_session, l_session->my_addr, l_session->cur_round.validators_list) ) {
 			if (!s_session_cs_timer) {
 				s_session_cs_timer = dap_timerfd_start(1*1000, 

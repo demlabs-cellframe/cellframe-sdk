@@ -195,34 +195,38 @@ void dap_client_set_auth_cert_unsafe(dap_client_t * a_client, dap_cert_t *a_cert
  */
 void dap_client_set_auth_cert(dap_client_t *a_client, const char *a_chain_net_name)
 {
-    if(a_client == NULL || a_chain_net_name == NULL){
+    static dap_cert_t *l_cert = NULL;
+    static bool l_config_read = false;
+
+    if (a_client == NULL || a_chain_net_name == NULL) {
         log_it(L_ERROR,"Chain-net is NULL for dap_client_set_auth_cert");
         return;
     }
-    char *l_path = dap_strdup_printf("network/%s", a_chain_net_name);
-    if (!l_path) {
-        log_it(L_ERROR, "Can't allocate memory: file: %s line: %d", __FILE__, __LINE__);
-        return;
-    }
-    dap_config_t *l_cfg = dap_config_open(l_path);
-    free(l_path);
-    if (!l_cfg) {
-        log_it(L_ERROR, "Can't allocate memory: file: %s line: %d", __FILE__, __LINE__);
-        return;
-    }
-    const char *l_cert_name = dap_config_get_item_str(l_cfg, "general", "auth_cert");
-    if (!l_cert_name)
-        return;
-    dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
-    if (!l_cert) {
+    if (!l_config_read) {
+        char *l_path = dap_strdup_printf("network/%s", a_chain_net_name);
+        if (!l_path) {
+            log_it(L_ERROR, "Can't allocate memory: file: %s line: %d", __FILE__, __LINE__);
+            return;
+        }
+        dap_config_t *l_cfg = dap_config_open(l_path);
+        l_config_read = true;
+        free(l_path);
+        if (!l_cfg) {
+            log_it(L_ERROR, "Can't allocate memory: file: %s line: %d", __FILE__, __LINE__);
+            return;
+        }
+        const char *l_cert_name = dap_config_get_item_str(l_cfg, "general", "auth_cert");
         dap_config_close(l_cfg);
-        log_it(L_ERROR,"l_cert is NULL by dap_cert_find_by_name");
-        return;
+        if (!l_cert_name)
+            return;
+        dap_cert_find_by_name(l_cert_name);
+        if (!l_cert) {
+            log_it(L_ERROR,"l_cert is NULL by dap_cert_find_by_name");
+            return;
+        }
     }
-    dap_client_set_auth_cert_unsafe(a_client, l_cert);
-
-    //dap_cert_delete(l_cert);
-    dap_config_close(l_cfg);
+    if (l_cert)
+        dap_client_set_auth_cert_unsafe(a_client, l_cert);
 }
 
 /**
