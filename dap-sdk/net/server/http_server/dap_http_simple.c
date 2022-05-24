@@ -230,16 +230,9 @@ inline static bool s_is_supported_user_agents_list_setted()
 
 inline static void s_write_data_to_socket(dap_proc_thread_t *a_thread, dap_http_simple_t * a_simple)
 {
+    dap_http_client_out_header_generate(a_simple->http_client);
     a_simple->http_client->state_write = DAP_HTTP_CLIENT_STATE_START;
-    if (!a_simple->reply) {
-        a_simple->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-        log_it( L_WARNING, "No reply to write, close connection" );
-    } else {
-        a_simple->reply_sent += dap_events_socket_write_unsafe(a_simple->esocket,
-                                                  a_simple->reply_byte + a_simple->reply_sent,
-                                                  a_simple->http_client->out_content_length - a_simple->reply_sent);
-        dap_events_socket_set_writable_unsafe(a_simple->esocket, true);
-    }
+    dap_http_client_write(a_simple->esocket, NULL);
     dap_proc_thread_assign_on_worker_inter(a_thread, a_simple->worker, a_simple->esocket);
 }
 
@@ -324,7 +317,6 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
         log_it(L_ERROR, "Request was processed with ERROR");
         l_http_simple->http_client->reply_status_code = Http_Status_InternalServerError;
     }
-    dap_http_client_out_header_generate(l_http_simple->http_client);
     s_write_data_to_socket(a_thread, l_http_simple);
     return true;
 }

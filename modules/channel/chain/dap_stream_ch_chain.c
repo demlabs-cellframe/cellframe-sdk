@@ -1547,7 +1547,9 @@ struct chain_io_complete {
 
 static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int a_errno)
 {
-    UNUSED(a_errno); // TODO process it
+
+    if (a_errno)
+        return;
     if (!a_arg) {
         if (a_es->callbacks.write_callback)
             a_es->callbacks.write_callback(a_es, NULL);
