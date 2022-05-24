@@ -1268,6 +1268,35 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             continue;
         }
 
+		//Check minimum commission
+		bool tx_commission_valid = true;
+		if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)
+		{
+			dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+			uint32_t l_tx_items_count = 0;
+			uint32_t l_tx_items_size = l_tx->header.tx_items_size;
+			while (l_tx_items_count < l_tx_items_size)
+			{
+				uint8_t *item = l_tx->tx_items + l_tx_items_count;
+				size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
+				if(	dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_OUT_COND
+				&&	((dap_chain_tx_out_cond_t*)item)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+				{
+					if (((dap_chain_tx_out_cond_t*)item)->header.value.hi > dap_chain_coins_to_balance("1.0").hi)
+						;
+					else if (((dap_chain_tx_out_cond_t*)item)->header.value.hi < dap_chain_coins_to_balance("1.0").hi
+					||	((dap_chain_tx_out_cond_t*)item)->header.value.lo < dap_chain_coins_to_balance("1.0").lo )
+						tx_commission_valid = false;
+				}
+
+				l_tx_items_count += l_item_tx_size;
+				if(!l_item_tx_size)
+					break;
+			}
+		}
+		if (!tx_commission_valid)
+			continue;
+
         dap_chain_hash_fast_t l_key_hash;
         dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
         char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
