@@ -46,21 +46,6 @@
 #define LOG_TAG "dap_global_db"
 
 
-// for access from several streams
-//static pthread_mutex_t ldb_mutex_ = PTHREAD_MUTEX_INITIALIZER;
-
-// The function does nothing
-static inline void lock()
-{
-    //pthread_mutex_lock(&ldb_mutex_);
-}
-
-// The function does nothing
-static inline void unlock()
-{
-    //pthread_mutex_unlock(&ldb_mutex_);
-}
-
 // Tacked group callbacks
 static dap_list_t *s_sync_group_items = NULL;
 static dap_list_t *s_sync_group_extra_items = NULL;
@@ -70,6 +55,12 @@ static int s_track_history = 0;
 int     s_db_drvmode_async ,                                                /* Set a kind of processing requests to DB:
                                                                             <> 0 - Async mode should be used */
         s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
+
+
+
+static  dap_proc_thread_t   *s_global_db_proc_thread;                       /* Dedicated thread to process GDB Asyn requests */
+dap_proc_queue_t *s_global_db_proc_queue;
+
 
 int s_db_add_sync_group(dap_list_t **a_grp_list, dap_sync_group_item_t *a_item)
 {
@@ -127,9 +118,9 @@ void dap_chain_global_db_add_sync_extra_group(const char *a_net_name, const char
  */
 dap_list_t* dap_chain_db_get_sync_groups(const char *a_net_name)
 {
-    if(!a_net_name) {
+    if(!a_net_name)
         return dap_list_copy(s_sync_group_items);
-    }
+
     dap_list_t *l_list_out = NULL;
     dap_list_t *l_list_group = s_sync_group_items;
     while(l_list_group) {
@@ -148,9 +139,9 @@ dap_list_t* dap_chain_db_get_sync_groups(const char *a_net_name)
  */
 dap_list_t* dap_chain_db_get_sync_extra_groups(const char *a_net_name)
 {
-    if(!a_net_name) {
+    if(!a_net_name)
         return dap_list_copy(s_sync_group_extra_items);
-    }
+
     dap_list_t *l_list_out = NULL;
     dap_list_t *l_list_group = s_sync_group_extra_items;
     while(l_list_group) {
@@ -163,31 +154,6 @@ dap_list_t* dap_chain_db_get_sync_extra_groups(const char *a_net_name)
 }
 
 /**
- * @brief Deallocates memory of a key and a value members of an obj structure.
- * @param obj a pointer to the structure
- * @return (none)
- */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *a_obj)
-{
-    if(!a_obj)
-        return;
-
-    DAP_DEL_Z(a_obj->key);
-    DAP_DEL_Z(a_obj->value);
-}
-
-/**
- * @brief Deallocates memory of an obj structure.
- * @param obj a pointer to the object
- * @return (none)
- */
-void dap_chain_global_db_obj_delete(dap_global_db_obj_t *a_obj)
-{
-    dap_chain_global_db_obj_clean(a_obj);
-    DAP_DEL_Z(a_obj);
-}
-
-/**
  * @brief Deallocates memory of an objs array.
  * @param objs a pointer to the first object of the array
  * @param a_count a number of objects in the array
@@ -195,16 +161,18 @@ void dap_chain_global_db_obj_delete(dap_global_db_obj_t *a_obj)
  */
 void dap_chain_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count)
 {
-dap_global_db_obj_t *l_objs;
-size_t i;
+dap_global_db_obj_t *l_obj;
 
-    if ( !a_objs || !a_count )                              /* Sanity checks */
+    if ( !a_objs || !a_count )                                              /* Sanity checks */
         return;
 
-    for(l_objs = a_objs, i = a_count; i--; l_objs++)        /* Run over array's elements */
-        dap_chain_global_db_obj_clean(a_objs);
+    for(l_obj = a_objs; a_count--; l_obj++)                                 /* Run over array's elements */
+    {
+        DAP_DELETE(l_obj->key);
+        DAP_DELETE(l_obj->value);
+    }
 
-    DAP_DELETE(a_objs);                                     /* Finaly kill the the array */
+    DAP_DELETE(a_objs);                                                     /* Finaly kill the the array */
 }
 
 
@@ -271,48 +239,7 @@ static int s_check_db_version(dap_config_t *g_config)
     return res;
 }
 
-/**
- * @brief Initializes a database by g_config structure.
- * @note You should call this function before calling any other functions in this library.
- * @param g_config a pointer to the configuration structure
- * @return Returns 0 if successful; otherwise, <0.
- */
-int dap_chain_global_db_init(dap_config_t * g_config)
-{
-    const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
-    //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
-
-    s_track_history = dap_config_get_item_bool_default(g_config, "resources", "dap_global_db_track_history", s_track_history);
-
-    s_db_drvmode_async = dap_config_get_item_bool(g_config, "resources", "dap_global_db_drvmode_async");
-    log_it(L_NOTICE,"DB Driver Async mode: %s", s_db_drvmode_async ? "ON": "OFF");
-
-    s_dap_global_db_debug_more = dap_config_get_item_bool(g_config, "resources", "debug_more");
-
-    //debug_if(s_dap_global_db_debug_more, L_DEBUG, "Just a test for %d", 135);
-
-    lock();
-    int res = dap_db_driver_init(l_driver_name, l_storage_path, s_db_drvmode_async);
-    unlock();
-
-    if( res != 0 )
-        log_it(L_CRITICAL, "Hadn't initialized db driver \"%s\" on path \"%s\"", l_driver_name, l_storage_path);
-    else {
-        static bool is_check_version = false;
-        if(!is_check_version){
-            is_check_version = true;
-            res = s_check_db_version(g_config);
-        }
-        if(!res)
-            log_it(L_NOTICE, "GlobalDB initialized");
-        else
-            log_it(L_ERROR, "GlobalDB version changed, please export or remove old version!");
-    }
-    return res;
-}
-
-static void s_clear_sync_grp(void *a_elm)
+static inline  void s_clear_sync_grp(void *a_elm)
 {
     dap_sync_group_item_t *l_item = (dap_sync_group_item_t *)a_elm;
     DAP_DELETE(l_item->group_mask);
@@ -326,9 +253,7 @@ static void s_clear_sync_grp(void *a_elm)
  */
 void dap_chain_global_db_deinit(void)
 {
-    lock();
     dap_db_driver_deinit();
-    unlock();
 
     dap_list_free_full(s_sync_group_items, s_clear_sync_grp);
     dap_list_free_full(s_sync_group_extra_items, s_clear_sync_grp);
@@ -341,11 +266,7 @@ void dap_chain_global_db_deinit(void)
  */
 int dap_chain_global_db_flush(void)
 {
-    lock();
-    int res = dap_db_driver_flush();
-    unlock();
-
-    return res;
+    return  dap_db_driver_flush();
 }
 
 /**
@@ -393,7 +314,7 @@ dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_dat
  * @param a_group a group name string
  * @return If successful, returns a pointer to the object value.
  */
-uint8_t* dap_chain_global_db_flags_gr_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group)
+uint8_t* dap_chain_global_db_gr_get_ext(const char *a_key, size_t *a_data_len_out, const char *a_group, uint8_t *a_flags_out)
 {
     uint8_t *l_ret_value = NULL;
     // read several items, 0 - no limits
@@ -416,6 +337,37 @@ uint8_t* dap_chain_global_db_flags_gr_get(const char *a_key, size_t *a_data_len_
 }
 
 /**
+ * @brief Gets an object value with parameters from database by a_key and a_group.
+ *
+ * @param a_key an object key string
+ * @param a_data_len_out a length of values that were gotten
+ * @param a_flags_out record flags that were gotten
+ * @param a_group a group name string
+ * @return If successful, returns a pointer to the object value.
+ */
+uint8_t* dap_chain_global_db_gr_flags_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group)
+{
+    uint8_t *l_ret_value = NULL;
+    // read several items, 0 - no limits
+    size_t l_data_len_out = 0;
+    if(!a_data_len_out)
+        a_data_len_out = &l_data_len_out;
+    dap_store_obj_t *l_store_data = dap_chain_global_db_driver_read(a_group, a_key, a_data_len_out);
+    if (!l_store_data) {
+        return NULL;
+    }
+    l_ret_value = l_store_data->value && l_store_data->value_len
+            ? DAP_DUP_SIZE(l_store_data->value, l_store_data->value_len)
+            : NULL;
+    l_data_len_out = l_store_data->value_len;
+    if(a_flags_out)
+        *a_flags_out = l_store_data->flags;
+    dap_store_obj_free(l_store_data, *a_data_len_out);
+    *a_data_len_out = l_data_len_out;
+    return l_ret_value;
+}
+
+/**
  * @brief Gets an object value from database by a_key and a_group.
  *
  * @param a_key an object key string
@@ -425,7 +377,8 @@ uint8_t* dap_chain_global_db_flags_gr_get(const char *a_key, size_t *a_data_len_
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group)
 {
-    return dap_chain_global_db_flags_gr_get(a_key, a_data_len_out, NULL, a_group);
+    uint8_t l_flags_out = RECORD_COMMON;
+    return dap_chain_global_db_gr_flags_get(a_key, a_data_len_out, &l_flags_out, a_group);
 }
 
 /**
@@ -449,7 +402,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
 static int global_db_gr_del_add(const char *a_key, const char *a_group, uint64_t a_timestamp)
 {
 dap_store_obj_t store_data = {0};
-char	l_group[DAP_DB_K_MAXGRPLEN];
+char	l_group[DAP_DB$SZ_MAXGROUPNAME];
 int l_res = -1;
 
     store_data.key = a_key;
@@ -458,10 +411,8 @@ int l_res = -1;
     store_data.group = l_group;
     store_data.timestamp = a_timestamp;
 
-    lock();
     if (!dap_chain_global_db_driver_is(store_data.group, store_data.key))
         l_res = dap_chain_global_db_driver_add(&store_data, 1);
-    unlock();
 
     return  l_res;
 }
@@ -475,7 +426,7 @@ int l_res = -1;
 static int global_db_gr_del_del(const char *a_key, const char *a_group)
 {
 dap_store_obj_t store_data = {0};
-char	l_group[DAP_DB_K_MAXGRPLEN];
+char	l_group[DAP_DB$SZ_MAXGROUPNAME];
 int	l_res = 0;
 
     if(!a_key)
@@ -485,10 +436,8 @@ int	l_res = 0;
     dap_snprintf(l_group, sizeof(l_group) - 1, "%s.del", a_group);
     store_data.group = l_group;
 
-    lock();
     if ( dap_chain_global_db_driver_is(store_data.group, store_data.key) )
         l_res = dap_chain_global_db_driver_delete(&store_data, 1);
-    unlock();
 
     return  (l_res >= 0);    /*  ? true : false; */
 }
@@ -501,11 +450,11 @@ int	l_res = 0;
  */
 uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
 {
-    uint64_t l_timestamp = 0;
-    dap_store_obj_t store_data = { 0 };
-    char l_group[512];
-    size_t l_count_out = 0;
-    dap_store_obj_t *l_obj;
+uint64_t l_timestamp = 0;
+dap_store_obj_t store_data = { 0 };
+char l_group[DAP_DB$SZ_MAXGROUPNAME];
+size_t l_count_out = 0;
+dap_store_obj_t *l_obj;
 
     if(!a_key)
         return l_timestamp;
@@ -514,7 +463,6 @@ uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
     dap_snprintf(l_group, sizeof(l_group) - 1,  "%s.del", a_group);
     store_data.group = l_group;
 
-    lock();
     if (dap_chain_global_db_driver_is(store_data.group, store_data.key))
     {
         if ( (l_obj = dap_chain_global_db_driver_read(store_data.group, store_data.key, &l_count_out)) )
@@ -526,7 +474,6 @@ uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
             dap_store_obj_free(l_obj, l_count_out);
         }
     }
-    unlock();
 
     return l_timestamp;
 }
@@ -549,9 +496,9 @@ bool dap_chain_global_db_del(char *a_key)
 dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group)
 {
     // Read data
-    lock();
+
     dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read_last(a_group);
-    unlock();
+
     return l_store_obj;
 }
 
@@ -566,9 +513,9 @@ dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group)
 dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_first_id, size_t *a_objs_count)
 {
     // Read data
-    lock();
+
     dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_cond_read(a_group, a_first_id, a_objs_count);
-    unlock();
+
     return l_store_obj;
 }
 
@@ -579,15 +526,15 @@ dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_f
  * @param a_records_count_out[out] a number of data
  * @return If successful, a pointer to data; otherwise NULL.
  */
-dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_records_count_out)
+dap_global_db_obj_t *dap_chain_global_db_gr_load(const char *a_group, size_t *a_records_count_out)
 {
     size_t l_count = 0;
     dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, &l_count);
+
     if(!l_store_obj)
         return NULL;
 
-    dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
-                                                 l_count * sizeof(dap_global_db_obj_t));
+    dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t, l_count * sizeof(dap_global_db_obj_t));
     if (!l_data) {
         dap_store_obj_free(l_store_obj, l_count);
         return NULL;
@@ -604,9 +551,12 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
         };
         l_valid++;
     }
+
     dap_store_obj_free(l_store_obj, l_count);
+
     if (a_records_count_out)
         *a_records_count_out = l_valid;
+
     return l_data;
 }
 
@@ -628,6 +578,7 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
 {
     dap_store_obj_t *l_obj = a_store_data;
     dap_list_t *it = s_sync_group_items;
+
     while (it) {
         for (; it; it = it->next) {
             dap_sync_group_item_t *l_sync_group_item = (dap_sync_group_item_t *)it->data;
@@ -655,9 +606,9 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
  * @details Set one entry to base. IMPORTANT: a_key and a_value should be passed without free after (it will be released by gdb itself)
  * @return True if successful, false otherwise.
  */
-bool dap_chain_global_db_flags_gr_set(const char *a_key, const void *a_value, size_t a_value_len, uint8_t a_flags, const char *a_group)
+bool dap_chain_global_db_gr_set_ext(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group, uint8_t a_flags)
 {
-    dap_store_obj_t store_data = {0};
+    dap_store_obj_t store_data = { 0 };
 
     store_data.key = a_key;
     store_data.flags = a_flags;
@@ -666,14 +617,14 @@ bool dap_chain_global_db_flags_gr_set(const char *a_key, const void *a_value, si
     store_data.group = (char *)a_group;
     store_data.timestamp = dap_gdb_time_now();
 
-    lock();
+
     int l_res = dap_chain_global_db_driver_add(&store_data, 1);
-    unlock();
+
 
     // Extract prefix if added successfuly, add history log and call notify callback if present
     if(!l_res) {
         // delete info about the deleted entry from the base if one present
-        global_db_gr_del_del( a_key, a_group);
+        global_db_gr_del_del(a_key, a_group);
 
         store_data.value = (void *)a_value;
         store_data.key = a_key;
@@ -697,15 +648,12 @@ bool dap_chain_global_db_flags_gr_set(const char *a_key, const void *a_value, si
  */
 bool dap_chain_global_db_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
 {
-    uint8_t l_flags = RECORD_COMMON;
-    return dap_chain_global_db_flags_gr_set(a_key, a_value, a_value_len, l_flags, a_group);
+    return dap_chain_global_db_gr_set_ext(a_key, a_value, a_value_len, a_group, RECORD_COMMON);
 }
 
-bool dap_chain_global_db_pinned_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
+bool dap_chain_global_db_gr_pinned_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group)
 {
-    // Add a value to the database as a pinned record
-    uint8_t l_flags = RECORD_PINNED;
-    return dap_chain_global_db_flags_gr_set(a_key, a_value, a_value_len, l_flags, a_group);
+    return dap_chain_global_db_gr_set_ext(a_key, a_value, a_value_len, a_group, RECORD_PINNED);
 }
 
 /**
@@ -727,14 +675,12 @@ bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_va
  */
 bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
 {
-dap_store_obj_t store_data = {0};
+    dap_store_obj_t store_data = {0};
 
     store_data.key = a_key;
     store_data.group = (char*)a_group;
 
-    lock();
     int l_res = dap_chain_global_db_driver_delete(&store_data, 1);
-    unlock();
 
     if (a_key) {
         if (l_res >= 0) {
@@ -747,6 +693,7 @@ dap_store_obj_t store_data = {0};
             dap_global_db_change_notify(&store_data);
         }
     }
+
     return !l_res;
 }
 
@@ -764,9 +711,7 @@ dap_store_obj_t *l_store_obj;
     if(!a_objs_count)
         return true;
 
-    lock();
     int l_res = dap_chain_global_db_driver_apply(a_store_data, a_objs_count);
-    unlock();
 
     l_store_obj = (dap_store_obj_t *)a_store_data;
 
@@ -835,4 +780,152 @@ bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count)
 char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
 {
     return dap_chain_global_db_driver_hash(data, data_size);
+}
+
+/*
+ *  DESCRIPTION:
+ *
+ */
+
+int     dap_global_db_write_inter   (
+        dap_events_socket_t *a_es_input,
+                        int a_req_type,
+                const char  *a_group,
+                const char  *a_key,
+                const void  *a_data,
+                    size_t  a_data_size,
+                    void  (*a_cb_rtn),
+                        void *a_cb_arg
+                                    )
+{
+int     l_rc;
+dap_grobal_db_req_t     *l_db_req;
+dap_proc_queue_t        *l_proc_que;
+dap_worker_t            *l_wrk;
+dap_proc_thread_t       *l_proc_thd;
+dap_events_socket_t     *l_es;
+
+    switch (a_req_type)                                                     /* Sanity checks ... */
+    {
+        case    DAP_DB$K_OPTYPE_RETR:
+        case    DAP_DB$K_OPTYPE_ADD:
+        case    DAP_DB$K_OPTYPE_DEL:
+            break;
+        default:
+            return  log_it(L_ERROR, "Invalid/unhandled DB request code: %d/%#x", a_req_type, a_req_type), -EINVAL;
+    }
+
+    l_proc_que = s_global_db_proc_thread->_inheritor;
+    l_es = l_proc_que->esocket;
+
+    l_wrk = l_proc_que->esocket->worker;
+    l_proc_thd = l_proc_que->esocket->proc_thread;
+
+    if ( !l_wrk && !l_proc_thd )
+        return  log_it(L_ERROR, "Both <worker> or <proc_thread> contexts are NULL"), -EINVAL;
+
+    if ( l_wrk && l_proc_thd )
+        return  log_it(L_ERROR, "Both <worker> or <proc_thread> contexts are NOT NULL"), -EINVAL;
+
+    /* So, at this point we should decide a what <event socket> context will be used */
+    l_es = l_wrk ? l_wrk->esockets : l_proc_thd->esockets[0];
+
+    if ( !(l_db_req = DAP_NEW_Z(dap_grobal_db_req_t)) )                     /* Allocate memory for new DB Request context */
+        return  log_it(L_ERROR, "Cannot allocate memory for DB Request, errno=%d", errno), -errno;
+
+    /* Fill by data DB Request context - is supposed to be used at executor end */
+    l_db_req->req = a_req_type;
+    l_db_req->cb_rtn = a_cb_rtn;
+    l_db_req->cb_arg = a_cb_arg;
+    l_db_req->es = l_es;
+
+    l_db_req->group = a_group;
+    l_db_req->key = a_key;
+    l_db_req->value = (void *) a_data;
+    l_db_req->value_len = a_data_size;
+
+    /*
+    dap_events_socket_queue_ptr_send_to_input( l_worker->queue_callback_gdb_input, ...)
+    Либо
+    dap_events_socket_queue_ptr_send_to_input( l_thread->queue_callback_gdb_input, ...)
+    */
+    if ( (l_rc = dap_events_socket_queue_ptr_send_to_input(                 /* Enqueue DB Request to processor */
+              l_wrk ? l_wrk->queue_gdb_input : l_proc_thd->queue_gdb_input, l_db_req)) )
+    {
+        DAP_DELETE(l_db_req);
+        log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_rc);
+        log_it(L_ERROR, "Drop GDB Request [opcode:%d, group: '%s', key: '%s', value: %p, value_len: %zu",
+               a_req_type, a_group, a_key, a_data, a_data_size);
+    }
+
+    return  l_rc;
+}
+
+
+
+
+static void s_dap_chain_global_db_request_processor(dap_events_socket_t *a_es, void *a_arg)
+{
+
+}
+
+/**
+ * @brief Initializes a database by g_config structure.
+ * @note You should call this function before calling any other functions in this library.
+ * @param g_config a pointer to the configuration structure
+ * @return Returns 0 if successful; otherwise, <0.
+ */
+int dap_chain_global_db_init(dap_config_t * g_config)
+{
+int l_rc;
+static int is_check_version = 0;
+
+    const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
+
+    s_track_history = dap_config_get_item_bool_default(g_config, "resources", "dap_global_db_track_history", s_track_history);
+
+    s_db_drvmode_async = dap_config_get_item_bool(g_config, "resources", "dap_global_db_drvmode_async");
+    log_it(L_NOTICE,"DB Driver Async mode: %s", s_db_drvmode_async ? "ON": "OFF");
+
+    s_dap_global_db_debug_more = dap_config_get_item_bool(g_config, "resources", "debug_more");
+
+
+    if( (l_rc = dap_db_driver_init(l_driver_name, l_storage_path, s_db_drvmode_async)) )
+        return  log_it(L_CRITICAL, "Hadn't initialized DB driver \"%s\" on path \"%s\", code: %d", l_driver_name, l_storage_path, l_rc), l_rc;
+
+    if(!is_check_version){
+
+        is_check_version = true;
+
+        if ( (l_rc = s_check_db_version(g_config)) )
+            return  log_it(L_ERROR, "GlobalDB version changed, please export or remove old version!"), l_rc;
+    }
+
+    log_it(L_NOTICE, "GlobalDB initialized");
+
+#if 0   /* @RRL: #6238  - Frozen ... */
+    /*
+     * Create a dedicated thread to process request to GDB
+     */
+    if ( !(s_global_db_proc_thread =  dap_proc_thread_run_custom()) )
+    {
+        log_it(L_ERROR, "Error create dedicated thread for GDB request processing");
+        log_it(L_ERROR, "Async DB processing is switched OFF");
+        return  -EIO;
+    }
+
+    if ( !(s_global_db_proc_queue = dap_proc_queue_create (s_global_db_proc_thread)) )
+    {
+        log_it(L_ERROR, "Error create queue for GDB request processing");
+        log_it(L_ERROR, "Async DB processing is switched OFF");
+        return  -EIO;
+    }
+
+    s_global_db_proc_queue->esocket = dap_events_socket_create_type_queue_ptr_unsafe(NULL, s_dap_chain_global_db_request_processor);
+#endif
+
+
+    l_rc = 0;
+    return l_rc;
 }

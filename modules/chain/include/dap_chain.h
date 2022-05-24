@@ -110,6 +110,7 @@ typedef struct dap_chain {
 
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
+	uint16_t load_priority;
     char * name;
     char * net_name;
     dap_ledger_t * ledger; // If present - pointer to associated ledger
@@ -120,6 +121,8 @@ typedef struct dap_chain {
 
     uint16_t datum_types_count;
     dap_chain_type_t *datum_types;
+	uint16_t default_datum_types_count;
+	dap_chain_type_t *default_datum_types;
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
 
@@ -160,6 +163,8 @@ typedef struct dap_chain {
     dap_chain_callback_get_txs callback_get_txs;
 
     dap_list_t * atom_notifiers;
+//    dap_chain_callback_notify_t callback_notify;
+//    void *callback_notify_arg;
 
     /*
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;

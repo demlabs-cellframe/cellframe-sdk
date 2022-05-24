@@ -114,7 +114,7 @@ static pthread_attr_t s_attr_detached;                                      /* T
  * @brief dap_events_socket_init Init clients module
  * @return Zero if ok others if no
  */
-int dap_events_socket_init( )
+int     dap_events_socket_init( void )
 {
 int l_rc;
 
@@ -152,7 +152,7 @@ int l_rc;
 /**
  * @brief dap_events_socket_deinit Deinit clients module
  */
-void dap_events_socket_deinit( )
+void dap_events_socket_deinit(void)
 {
 }
 
@@ -1414,14 +1414,12 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value)
 {
 #if defined(DAP_EVENTS_CAPS_EVENT_EVENTFD)
-    int ret = eventfd_write( a_es->fd2,a_value);
-    int l_errno = errno;
-    if (ret == 0 )
-        return  0;
-    else if ( ret < 0)
-        return l_errno;
-    else
-        return 1;
+
+    if ( eventfd_write( a_es->fd2, a_value) )
+        return  log_it(L_ERROR, "eventfd_write(#%d, %zu), errno=%d", a_es->fd2, a_value, errno ), -errno;
+
+    return  0;
+
 #elif defined (DAP_OS_WINDOWS)
     a_es->buf_out[0] = (u_short)a_value;
     if(dap_sendto(a_es->socket, a_es->port, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
@@ -2027,6 +2025,35 @@ size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_event
     return  a_data_size;
 }
 
+
+
+/**
+ * @brief dap_events_socket_write_mt
+ * @param a_w
+ * @param a_es_uuid
+ * @param a_data
+ * @param l_data_size
+ * @return
+ */
+size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_uuid_t a_es_uuid, const void * data, size_t l_data_size)
+{
+    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return 0;
+    l_msg->esocket_uuid = a_es_uuid;
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data_size = l_data_size;
+    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
+    memcpy( l_msg->data, data, l_data_size);
+
+    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
+    if (l_ret!=0){
+        log_it(L_ERROR, "wite mt: wasn't send pointer to queue input: code %d", l_ret);
+        DAP_DELETE(l_msg);
+        return 0;
+    }
+    return  l_data_size;
+}
+
+
 /**
  * @brief dap_events_socket_write_f_inter
  * @param a_es_input
@@ -2058,32 +2085,6 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
     int l_ret= dap_events_socket_queue_ptr_send_to_input(a_es_input, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "wite f inter: wasn't send pointer to queue input: code %d", l_ret);
-        DAP_DELETE(l_msg);
-        return 0;
-    }
-    return  l_data_size;
-}
-
-/**
- * @brief dap_events_socket_write_mt
- * @param a_w
- * @param a_es_uuid
- * @param a_data
- * @param l_data_size
- * @return
- */
-size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_uuid_t a_es_uuid, const void * data, size_t l_data_size)
-{
-    dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return 0;
-    l_msg->esocket_uuid = a_es_uuid;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
-    l_msg->data_size = l_data_size;
-    l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
-    memcpy( l_msg->data, data, l_data_size);
-
-    int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
-    if (l_ret!=0){
-        log_it(L_ERROR, "wite mt: wasn't send pointer to queue input: code %d", l_ret);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -2140,8 +2141,8 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_uuid_t 
  */
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_data, size_t a_data_size)
 {
-    if (a_es->buf_out_size + a_data_size > a_es->buf_out_size_max) {
-        if (a_es->buf_out_size_max + a_data_size > DAP_EVENTS_SOCKET_BUF_LIMIT) {
+    if ( (a_es->buf_out_size + a_data_size) > a_es->buf_out_size_max) {
+        if ((a_es->buf_out_size_max + a_data_size) > DAP_EVENTS_SOCKET_BUF_LIMIT) {
             log_it(L_ERROR, "Write esocket (%p) buffer overflow size=%zu/max=%zu", a_es, a_es->buf_out_size_max, (size_t)DAP_EVENTS_SOCKET_BUF_LIMIT);
             return 0;
         } else {
@@ -2152,7 +2153,7 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_
             a_es->buf_out_size_max = l_new_size;
         }
      }
-     a_data_size = (a_es->buf_out_size + a_data_size < a_es->buf_out_size_max) ? a_data_size : (a_es->buf_out_size_max - a_es->buf_out_size);
+     a_data_size = ((a_es->buf_out_size + a_data_size) < a_es->buf_out_size_max) ? a_data_size : (a_es->buf_out_size_max - a_es->buf_out_size);
      memcpy(a_es->buf_out + a_es->buf_out_size, a_data, a_data_size);
      a_es->buf_out_size += a_data_size;
      dap_events_socket_set_writable_unsafe(a_es, true);
@@ -2219,20 +2220,48 @@ size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *a_es, void *a_data
  * @param cl Client instance
  * @param shrink_size Size on wich we shrink the buffer with shifting it left
  */
-void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_size)
+void dap_events_socket_shrink_buf_in(dap_events_socket_t * a_es, size_t shrink_size)
 {
-    if ( (!shrink_size) || (!cl->buf_in_size) )
-        return;
+    if ( (!shrink_size) || (!a_es->buf_in_size) )
+        return;                                                             /* Nothing to do - OK */
 
-    if (cl->buf_in_size > shrink_size)
-    {
-        size_t buf_size=cl->buf_in_size-shrink_size;
-        uint8_t* tmp = cl->buf_in + shrink_size;
-        memmove(cl->buf_in,tmp,buf_size);
-        cl->buf_in_size=buf_size;
-    }else{
+    if (a_es->buf_in_size > shrink_size)
+        memmove(a_es->buf_in , a_es->buf_in + shrink_size, a_es->buf_in_size -= shrink_size);
+    else {
         //log_it(WARNING,"Shrinking size of input buffer on amount bigger than actual buffer's size");
-        cl->buf_in_size=0;
+        a_es->buf_in_size = 0;
     }
+}
 
+
+/*
+ *  DESCRIPTION: Insert specified data data block at beging of the <buf_out> area.
+ *      If there is not a room for inserting - no <buf_out> is changed.
+ *
+ *  INPUTS:
+ *      cl:         A events socket context area
+ *      data:       A buffer with data to be inserted
+ *      data_sz:    A size of the data in the buffer
+ *
+ *  IMPLICITE OUTPUTS:
+ *      a_es->buf_out
+ *      a_es->buf_out_sz
+ *
+ *  RETURNS:
+ *      0:          SUCCESS
+ *      -ENOMEM:    No room for data to be inserted
+ */
+size_t dap_events_socket_insert_buf_out(dap_events_socket_t * a_es, void *a_data, size_t a_data_size)
+{
+    if ( (!a_data_size) || (!a_data) )
+        return  0;                                                          /* Nothing to do - OK */
+
+    if ( (a_es->buf_out_size_max - a_es->buf_in_size) < a_data_size )
+        return  -ENOMEM;                                                    /* No room for data to be inserted */
+
+    memmove(a_es->buf_out + a_data_size, a_es->buf_out, a_es->buf_in_size); /* Move existing data to right */
+    memcpy(a_es->buf_out, a_data, a_data_size);                             /* Place new data at begin of the buffer */
+    a_es->buf_in_size += a_data_size;                                       /* Ajust buffer's data lenght */
+
+    return  a_data_size;
 }

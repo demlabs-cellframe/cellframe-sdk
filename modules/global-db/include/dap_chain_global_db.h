@@ -10,20 +10,50 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 
-#define GDB_VERSION 1
-#define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
-#define GROUP_LOCAL_GENERAL "local.general"
-#define GROUP_LOCAL_NODE_ADDR "local.node-addr"
+#define GDB_VERSION                 1
+#define GROUP_LOCAL_NODE_LAST_ID    "local.node.last_id"
+#define GROUP_LOCAL_GENERAL         "local.general"
+#define GROUP_LOCAL_NODE_ADDR       "local.node-addr"
 
-#define	DAP_DB_K_MAXKEYLEN	128			/* @RRL: A maximum key's size */
-#define	DAP_DB_K_MAXGRPLEN	128			/* @RRL: A maximum group name  */
+#define DAP_DB$SZ_MAXGROUPNAME      128                                     /* A maximum size of group name */
+#define DAP_DB$K_MAXGROUPS          1024                                    /* A maximum number of groups */
+#define DAP_DB$SZ_MAXKEY            512                                     /* A limit for the key's length in DB */
+#define DAP_DB$K_MAXOBJS            8192                                    /* A maximum number of objects to be returned by
+                                                                            read_srore_obj() */
+
+enum    {
+    DAP_DB$K_OPTYPE_ADD  = 0x61,    /* 'a', */                              /* Operation Type = INSERT/ADD */
+    DAP_DB$K_OPTYPE_DEL  = 0x64,    /* 'd', */                              /*  -- // -- DELETE */
+    DAP_DB$K_OPTYPE_RETR = 0x72,    /* 'r', */                              /*  -- // -- RETRIEVE/GET */
+};
+
+
+/* Follow structure is a container to carry an arguments set to DB API and back to the caller */
+typedef struct dap_grobal_db_req {
+        int     req;                                                        /* A request type to DB driver, see:
+                                                                                DAP_DB$K_OPTYPE_ * constants */
+        int     status;                                                     /* A condition code - result of execution of requested
+                                                                            operation : errno, -1, and so on ... */
+        void  (*cb_rtn) (void *, ...);                                      /* A routine to be called at request comlition time */
+        void *cb_arg;                                                       /* A context is provide by caller of request */
+
+        dap_events_socket_t *es;                                            /* A context to in wish callback routine should be called */
+
+        const char  *group,
+                    *key;
+            void    *value;
+            size_t   value_len;
+
+} dap_grobal_db_req_t;
+
+
 
 typedef struct dap_global_db_obj {
     uint64_t id;
     char *key;
     uint8_t *value;
     size_t value_len;
-} DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
+} DAP_ALIGN_PACKED dap_global_db_obj_t;
 
 
 typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
@@ -37,19 +67,18 @@ typedef struct dap_sync_group_item {
     void * callback_arg;
 } dap_sync_group_item_t;
 
+
+
+
 /**
  * Flush DB
  */
 int dap_chain_global_db_flush(void);
 
 /**
- * Clean struct dap_global_db_obj_t
- */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj);
-/**
  * Delete struct dap_global_db_obj_t
  */
-void dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj);
+void s_dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj);
 
 /**
  * Delete mass of struct dap_global_db_obj_t
@@ -73,14 +102,14 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data);
  */
 dap_store_obj_t *dap_chain_global_db_obj_get(const char *a_key, const char *a_group);
 dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
-uint8_t* dap_chain_global_db_flags_gr_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group);
+uint8_t* dap_chain_global_db_gr_get_ext(const char *a_key, size_t *a_data_len_out, const char *a_group, uint8_t *a_flags_out);
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
 uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
 
 /**
  * Set one entry to base
  */
-bool dap_chain_global_db_flags_gr_set(const char *a_key, const void *a_value, size_t a_value_len, uint8_t a_flags, const char *a_group);
+bool dap_chain_global_db_gr_set_ext(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group, uint8_t a_flags);
 bool dap_chain_global_db_gr_set(const char *a_key,  const void *a_value, size_t a_value_len, const char *a_group);
 bool dap_chain_global_db_pinned_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group);
 bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len);

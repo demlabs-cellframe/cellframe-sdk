@@ -379,7 +379,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
                     dap_chain_node_alias_delete(a_net, alias);
                     list = dap_list_next(list);
                 }
-                dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
+                dap_list_free_full(list_aliases, NULL);
             }
             // set text response
             dap_chain_node_cli_set_reply_text(str_reply, "node deleted");
@@ -565,7 +565,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 dap_string_append_printf(aliases_string, "\nalias %s", alias);
                 list = dap_list_next(list);
             }
-            dap_list_free_full(list_aliases, (dap_callback_destroyed_t) free);
+            dap_list_free_full(list_aliases, NULL);
         }
         else
             dap_string_append(aliases_string, "\nno aliases");
@@ -859,7 +859,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group);
         size_t l_value_len = 0;
         uint8_t l_flags = 0;
-        uint8_t *l_value = dap_chain_global_db_flags_gr_get(l_key, &l_value_len, &l_flags, l_group);
+        uint8_t *l_value = dap_chain_global_db_gr_get_ext(l_key, &l_value_len, l_group, &l_flags);
         if(!l_value || !l_value_len) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Record not found\n\n");
             return -1;
@@ -893,7 +893,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply, "record already pinned");
                 break;
             }
-            if(dap_chain_global_db_flags_gr_set(l_key, l_value, l_value_len, l_flags | RECORD_PINNED, l_group)){
+            if(dap_chain_global_db_gr_set_ext(l_key, l_value, l_value_len,l_group, l_flags | RECORD_PINNED)){
                 dap_chain_node_cli_set_reply_text(a_str_reply, "record successfully pinned");
             }
             else{
@@ -909,7 +909,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 break;
             }
             l_flags &= ~RECORD_PINNED;
-            if(dap_chain_global_db_flags_gr_set(l_key, l_value, l_value_len, l_flags & ~RECORD_PINNED, l_group)) {
+            if(dap_chain_global_db_gr_set_ext(l_key, l_value, l_value_len, l_group, l_flags & ~RECORD_PINNED)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "record successfully unpinned");
             }
             else {
@@ -1180,7 +1180,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(l_is_auto) {
             //start background thread for testing connect to the nodes
             dap_chain_node_ping_background_start(l_net, l_node_list);
-            dap_list_free_full(l_node_list, free);
+            dap_list_free_full(l_node_list, NULL);
         }
 
 
@@ -2858,21 +2858,21 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 }
 
 /**
- * @brief 
- * 
- * @param a_tx_address 
- * @param l_tsd_list 
- * @param l_tsd_total_size 
- * @param flag 
- * @return dap_list_t* 
+ * @brief
+ *
+ * @param a_tx_address
+ * @param l_tsd_list
+ * @param l_tsd_total_size
+ * @param flag
+ * @return dap_list_t*
  */
 dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd_list, size_t *l_tsd_total_size, uint32_t flag)
-{     
+{
     if (!a_tx_address){
        log_it(L_DEBUG,"a_tx_address is null");
        return l_tsd_list;
-    }   
-    
+    }
+
     char ** l_str_wallet_addr = NULL;
     l_str_wallet_addr = dap_strsplit(a_tx_address,",",0xffff);
 
@@ -2899,13 +2899,13 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
 
 typedef struct _dap_cli_token_additional_params {
     const char* flags;
-    const char* total_signs_valid; 
+    const char* total_signs_valid;
     const char* datum_type_allowed;
     const char* datum_type_blocked;
     const char* tx_receiver_allowed;
     const char* tx_receiver_blocked;
     const char* tx_sender_allowed;
-    const char* tx_sender_blocked; 
+    const char* tx_sender_blocked;
 } dap_cli_token_additional_params;
 
 typedef struct _dap_sdk_cli_params {
@@ -2985,7 +2985,7 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-signs_total", &l_signs_total_str);
     // Signs total
     char* l_tmp = NULL;
-    if(l_signs_total_str){  
+    if(l_signs_total_str){
         if((l_params->l_signs_total = (uint16_t) strtol(l_signs_total_str, &l_tmp, 10)) == 0){
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "'signs_total' parameter must be unsigned integer value that fits in 2 bytes");
@@ -3016,7 +3016,7 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
 
     // Total supply value
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-decimals", &l_params->l_decimals_str);
-    
+
     return 0;
 }
 
@@ -3055,7 +3055,7 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
             return -3;
         }
     }
-  
+
     if (!l_params->l_signs_emission){
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_emission'");
         return -5;
@@ -3181,7 +3181,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     switch(l_params->l_type)
     {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: 
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
         { // 256
             dap_list_t *l_tsd_list = NULL;
             size_t l_tsd_total_size = 0;
@@ -3222,7 +3222,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             }
             if (l_params->ext.tx_receiver_allowed)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD);
-            
+
             if (l_params->ext.tx_receiver_blocked)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD);
 
@@ -3230,7 +3230,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD);
 
             if (l_params->ext.tx_sender_blocked)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);             
+                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);
 
 
             // Create new datum token
@@ -3287,7 +3287,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             }
             log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ?
                             "Private" : "CF20", l_datum_token->ticker);
-        }break;//end 
+        }break;//end
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
@@ -4499,7 +4499,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
         json_object_array_add(l_json, l_json_group_inner);
         dap_store_obj_free(l_data, l_data_size);
     }
-    dap_list_free_full(l_groups_list, free);
+    dap_list_free_full(l_groups_list, NULL);
     if (json_object_to_file(l_path, l_json) == -1) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );

@@ -43,11 +43,19 @@
 #include "dap_events.h"
 #include "dap_list.h"
 #include "dap_common.h"
+#include "dap_chain_global_db.h"
 
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_chain_global_db_driver_cdb.h"
+
+#ifdef DAP_CHAIN_GDB_ENGINE_MDBX
 #include "dap_chain_global_db_driver_mdbx.h"
+#endif
+
+#ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
 #include "dap_chain_global_db_driver_pgsql.h"
+#endif
+
 #include "dap_chain_global_db_driver.h"
 
 #define LOG_TAG "db_driver"
@@ -113,6 +121,7 @@ int l_ret = -1;
     else if(!dap_strcmp(s_used_driver, "mdbx"))
         l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback);
 #endif
+
 #ifdef DAP_CHAIN_GDB_ENGINE_PGSQL
     else if(!dap_strcmp(s_used_driver, "pgsql"))
         l_ret = dap_db_driver_pgsql_init(l_db_path_ext, &s_drv_callback);
@@ -294,7 +303,7 @@ size_t l_store_obj_cnt;
         return  1;                                                          /* 1 - Don't call it again */
     }
 
-    if ( (l_ret = s_dap_remqhead (&s_db_reqs_list, (void **)  &l_store_obj_cur, &l_store_obj_cnt)) )
+    if ( (l_ret = s_dap_slist_get4head (&s_db_reqs_list, (void **)  &l_store_obj_cur, &l_store_obj_cnt)) )
     {
         pthread_mutex_unlock(&s_db_reqs_list_lock);
         log_it(L_ERROR, "DB Request list is in incosistence state (code %d)", l_ret);
@@ -353,7 +362,7 @@ dap_worker_t        *l_dap_worker;
 
     if ( !(l_store_obj_cur = dap_store_obj_copy(a_store_obj, a_store_count)) )
         l_ret = - ENOMEM, log_it(L_ERROR, "[%p] No memory for DB Request for item %s/%s", a_store_obj, a_store_obj->group, a_store_obj->key);
-    else if ( (l_ret = s_dap_insqtail (&s_db_reqs_list, l_store_obj_cur, a_store_count)) )
+    else if ( (l_ret = s_dap_slist_add2tail (&s_db_reqs_list, l_store_obj_cur, a_store_count)) )
         log_it(L_ERROR, "[%p] Can't enqueue DB request for item %s/%s (code %d)", a_store_obj, a_store_obj->group, a_store_obj->key, l_ret);
 
     pthread_mutex_unlock(&s_db_reqs_list_lock);

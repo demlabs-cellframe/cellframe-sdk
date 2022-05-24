@@ -232,7 +232,7 @@ size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t
     dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_net->pub.id);
 
     size_t l_offset = (size_t)l_round_item->event_size;
-     while ( l_offset < (size_t)l_round_item->data_size ) {
+    while ( l_offset < (size_t)l_round_item->data_size ) {
          dap_sign_t * l_item_sign = (dap_sign_t *)(l_round_item->event_n_signs+l_offset);
          size_t l_sign_item_size = dap_sign_get_size(l_item_sign);
          dap_chain_addr_t l_item_addr = {0};

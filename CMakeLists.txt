@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "3.1-1")
+set(CELLFRAME_SDK_NATIVE_VERSION "3.2-0")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
@@ -103,6 +103,7 @@ add_subdirectory(3rdparty/cuttdb)
 if (BUILD_WITH_GDB_DRIVER_MDBX)
 add_subdirectory(3rdparty/libmdbx)
 endif()
+
 if(DAPSDK_MODULES MATCHES "ssl-support")
     add_subdirectory(3rdparty/wolfssl)
 endif()

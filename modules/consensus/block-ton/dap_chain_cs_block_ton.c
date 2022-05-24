@@ -453,7 +453,7 @@ static bool s_session_timer() {
 					l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
 					s_session_round_start(l_session);
 
-					dap_list_free_full(l_session->cur_round.validators_list, free);
+                    dap_list_free_full(l_session->cur_round.validators_list, NULL);
 					l_session->cur_round.validators_list = s_get_validators_addr_list(l_session);
 					l_session->cur_round.validators_count = dap_list_length(l_session->cur_round.validators_list);
 
@@ -610,7 +610,7 @@ static bool s_session_timer() {
 		                if (l_list_candidate) {
 							dap_chain_hash_fast_t *l_candidate_hash = dap_list_nth_data(l_list_candidate, (rand()%l_list_candidate_size));
 							memcpy(&l_votefor->candidate_hash, l_candidate_hash, sizeof(dap_chain_hash_fast_t));
-							dap_list_free_full(l_list_candidate, free);
+                            dap_list_free_full(l_list_candidate, NULL);
 						}
 						else {
 							dap_chain_hash_fast_t l_candidate_hash_null={0};
@@ -927,7 +927,7 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
 
     if ( a_session->old_round.validators_list ) {
     	// delete validators 
-		dap_list_free_full(a_session->old_round.validators_list, free);
+        dap_list_free_full(a_session->old_round.validators_list, NULL);
 	}
 	a_session->old_round.validators_list = NULL;
 

@@ -324,7 +324,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
         pthread_mutex_unlock(&a_db_log_list->list_mutex);
         pthread_join(a_db_log_list->thread, NULL);
     }
-    dap_list_free_full(a_db_log_list->groups, free);
+    dap_list_free_full(a_db_log_list->groups, NULL);
     dap_list_free_full(a_db_log_list->list_write, (dap_callback_destroyed_t)dap_db_log_list_delete_item);
     pthread_mutex_destroy(&a_db_log_list->list_mutex);
     DAP_DELETE(a_db_log_list);
@@ -338,7 +338,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
  */
 static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name, time_t a_expire_time)
 {
-char	l_key [DAP_DB_K_MAXKEYLEN];
+char	l_key [DAP_DB$SZ_MAXKEY];
 bool	l_ret;
 
     if(!a_net_name)
@@ -386,7 +386,7 @@ bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
  */
 uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 {
-char	l_key[DAP_DB_K_MAXKEYLEN], l_key_time[DAP_DB_K_MAXKEYLEN];
+char	l_key[DAP_DB$SZ_MAXKEY], l_key_time[DAP_DB$SZ_MAXKEY];
 uint8_t *l_node_addr_data, *l_node_time_data;
 size_t l_node_addr_len = 0, l_node_time_len = 0;
 uint64_t l_node_addr_ret = 0;
@@ -449,7 +449,7 @@ time_t l_node_time = 0;
  */
 bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group)
 {
-char	l_key[DAP_DB_K_MAXKEYLEN];
+char	l_key[DAP_DB$SZ_MAXKEY];
 
     dap_snprintf(l_key, sizeof(l_key) - 1, "%ju%s", a_node_addr, a_group);
     return  dap_chain_global_db_gr_set(l_key, &a_id, sizeof(uint64_t), GROUP_LOCAL_NODE_LAST_ID);
@@ -489,7 +489,7 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
  */
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
-char	l_key[DAP_DB_K_MAXKEYLEN];
+char	l_key[DAP_DB$SZ_MAXKEY];
 
     dap_snprintf(l_key, sizeof(l_key) - 1, "%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
     return dap_chain_global_db_gr_set(l_key, a_hash, sizeof(dap_chain_hash_fast_t), GROUP_LOCAL_NODE_LAST_ID);
@@ -673,7 +673,7 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
         if (l_offset + l_obj->value_len > a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field");
                                                           DAP_DELETE(l_obj->group); DAP_DELETE(l_obj->key);break;} // Check for buffer boundries
         l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
-        memcpy(l_obj->value, a_pkt->data + l_offset, l_obj->value_len);
+        memcpy((char*)l_obj->value, a_pkt->data + l_offset, l_obj->value_len);
         l_offset += l_obj->value_len;
     }
     if (a_pkt->data_size != l_offset) {

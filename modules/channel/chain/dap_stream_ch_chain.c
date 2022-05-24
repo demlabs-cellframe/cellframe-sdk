@@ -210,7 +210,7 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
 
     if (a_sync_request->gdb.db_iter) {
         a_sync_request->gdb.db_iter = dap_list_first( a_sync_request->gdb.db_iter);
-        dap_list_free_full( a_sync_request->gdb.db_iter, free);
+        dap_list_free_full( a_sync_request->gdb.db_iter, NULL);
         a_sync_request->gdb.db_iter = NULL;
     }
     DAP_DEL_Z(a_sync_request);
@@ -1547,7 +1547,8 @@ struct chain_io_complete {
 
 static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int a_errno)
 {
-    UNUSED(a_errno); // TODO process it
+    if (a_errno)
+        return;
     if (!a_arg) {
         if (a_es->callbacks.write_callback)
             a_es->callbacks.write_callback(a_es, NULL);

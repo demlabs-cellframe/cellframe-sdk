@@ -39,6 +39,7 @@ typedef struct dap_http_simple {
     dap_worker_t * worker;
     dap_http_client_t * http_client;
     uint128_t http_client_uuid;
+
     union {
         void *request;
         char *request_str;
@@ -47,15 +48,18 @@ typedef struct dap_http_simple {
 
     union {
         void *reply;
-        uint8_t *reply_byte;
         char *reply_str;
+        uint8_t *reply_byte;
     };
+
     size_t content_length;
 
     size_t request_size;
     size_t request_size_max;
+
     size_t reply_size;
     size_t reply_size_max;
+
     size_t reply_sent;
 
     char reply_mime[256];

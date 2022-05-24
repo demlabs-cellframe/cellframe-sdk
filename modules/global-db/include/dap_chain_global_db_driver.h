@@ -42,13 +42,6 @@
 #define DAP_DB$K_MAXOBJS            8192                                    /* A maximum number of objects to be returned by
                                                                             read_srore_obj() */
 
-#define DAP_DB$SZ_MAXDB             (32*1024*1034*1024)                     /* 32 GB */
-enum    {
-    DAP_DB$K_OPTYPE_ADD  = 'a',                                             /* Operation Type = INSERT/ADD */
-    DAP_DB$K_OPTYPE_DEL  = 'd',                                             /*  -- // -- DELETE */
-
-};
-
 enum RECORD_FLAGS {
     RECORD_COMMON = 0,    // 0000
     RECORD_PINNED = 1,    // 0001

@@ -177,7 +177,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
 
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
-    dap_list_free_full(l_list_used_out, free);
+    dap_list_free_full(l_list_used_out, NULL);
     if (compare256(l_value_to_items, l_value_sell) != 0) {
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_seller_addr);
@@ -252,7 +252,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     DAP_DELETE(l_receipt);
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
-    dap_list_free_full(l_list_used_out, free);
+    dap_list_free_full(l_list_used_out, NULL);
     if (compare256(l_value_to_items, l_value_buy) != 0) {
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_seller_addr);

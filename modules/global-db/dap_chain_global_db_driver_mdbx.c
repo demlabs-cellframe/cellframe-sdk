@@ -31,6 +31,7 @@
           4-MAY-2022    RRL Developing for actual version of the LibMDBX
 
          12-MAY-2022    RRL Finished developing of preliminary version
+         19-MAY-2022    RRL Added routines' decsriptions
  */
 
 #include <stddef.h>
@@ -44,6 +45,7 @@
 
 #define _GNU_SOURCE
 
+#include "dap_chain_global_db.h"
 #include "dap_chain_global_db_driver_mdbx.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
@@ -153,7 +155,27 @@ char    l_buf[1024] = {0};
 }
 #endif     /* __SYS$DEBUG__ */
 
-
+/*
+ *   DESCRIPTION: Open or create (if a_flag=MDBX_CREATE) a DB context for a given group.
+ *      Initialize an MDBX's internal context for the subDB (== a_group);
+ *      Add new group/table name into the special MDBX subbDB named MDBX$MASTER.
+ *
+ *   INPUTS:
+ *      a_group:    A group name (in terms of MDBX it's subBD), ASCIZ
+ *      a_flag:     A flag
+ *
+ *   IMPLICITE OUTPUTS:
+ *
+ *      s_db_ctxs:  Add new DB context into the hash table
+ *
+ *   OUTPUTS:
+ *      NONE
+ *
+ *   RETURNS:
+ *      A has been created DB Context
+ *      NULL in case of error
+ *
+ */
 static dap_db_ctx_t *s_cre_db_ctx_for_group(const char *a_group, int a_flags)
 {
 int l_rc;
@@ -171,8 +193,6 @@ MDBX_val    l_key_iov, l_data_iov;
     if ( l_db_ctx )                                                         /* Found! Good job - return DB context */
         return  log_it(L_INFO, "Found DB context: %p for group: '%s'", l_db_ctx, a_group), l_db_ctx;
 
-//    if ( !(a_flags & MDBX_CREATE) )                                         /* Not found and we don't need to create it ? */
-//        return  NULL;
 
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
@@ -239,7 +259,20 @@ MDBX_val    l_key_iov, l_data_iov;
 
 
 
-
+/*
+ *  DESCRIPTION: Action routine - cleanup this module's internal contexts, DB context hash table,
+ *      close MDBX context. After call this routine any DB operation of this module is impossible.
+ *      You must/can perfroms initialization.
+ *
+ *  INPUTS:
+ *      NONE
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS:
+ *      0   - SUCCESS
+ */
 
 static  int s_db_mdbx_deinit(void)
 {
@@ -270,8 +303,28 @@ dap_db_ctx_t *l_db_ctx = NULL, *l_tmp;
     return 0;
 }
 
+/*
+ *  DESCRIPTION: Performs an initial module internal context creation and setup,
+ *      Fill dispatch procedure table (a_drv_callback) by entries of this module;
+ *      Create MDBX data files on the specified path, open MDBX context area;
+ *      Load from the MDBX$MASTER table names of groups - create DB context
+ *
+ *      This is a first routine before any other calls of action routines in this module !!!
+ *
+ *
+ *  INPUTS:
+ *      a_mdbx_path:    A root directory for the MDBX database files
+ *      a_drv_callback
+ *
+ *  IMPLICITE OUTPUTS:
+ *      s_mdbx_env
+ *
+ *  RETURNS:
+ *      0       - SUCCESS
+ *      0>      - <errno>
+ */
 
-int     dap_db_driver_mdbx_init(const char *a_mdbx_path, dap_db_driver_callbacks_t *a_drv_callback)
+int     dap_db_driver_mdbx_init(const char *a_mdbx_path, dap_db_driver_callbacks_t *a_drv_dpt)
 {
 int l_rc;
 MDBX_txn    *l_txn;
@@ -279,6 +332,11 @@ MDBX_cursor *l_cursor;
 MDBX_val    l_key_iov, l_data_iov;
 dap_slist_t l_slist = {0};
 char        *l_cp;
+size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
+
+    l_upper_limit_of_db_size = dap_config_get_item_uint32_default ( g_config,  "resources", "mdbx_upper_limit_of_db_size", l_upper_limit_of_db_size);
+    l_upper_limit_of_db_size  *= 1024*1024*1024;
+    log_it(L_INFO, "Set MDBX Upper Limit of DB Size to %zu octets", l_upper_limit_of_db_size);
 
     snprintf(s_db_path, sizeof(s_db_path), "%s/%s", a_mdbx_path, s_subdir );/* Make a path to MDBX root */
     dap_mkdir_with_parents(s_db_path);                                      /* Create directory for the MDBX storage */
@@ -301,8 +359,7 @@ char        *l_cp;
 
                                                                             /* We set "unlim" for all MDBX characteristics at the moment */
 
-
-    if ( MDBX_SUCCESS != (l_rc = mdbx_env_set_geometry(s_mdbx_env, -1, -1, DAP_DB$SZ_MAXDB, -1, -1, -1)) )
+    if ( MDBX_SUCCESS != (l_rc = mdbx_env_set_geometry(s_mdbx_env, -1, -1, l_upper_limit_of_db_size, -1, -1, -1)) )
         return  log_it (L_CRITICAL, "mdbx_env_set_geometry (%s): (%d) %s", s_db_path, l_rc, mdbx_strerror(l_rc)),  -EINVAL;
 
     if ( MDBX_SUCCESS != (l_rc = mdbx_env_open(s_mdbx_env, s_db_path, MDBX_CREATE |  MDBX_COALESCE | MDBX_LIFORECLAIM, 0664)) )
@@ -335,13 +392,13 @@ char        *l_cp;
         for ( int i = 0;  !(l_rc = mdbx_cursor_get (l_cursor, &l_key_iov, &l_data_iov, MDBX_NEXT )); i++ )
             {
             debug_if(s_dap_global_db_debug_more, L_DEBUG, "MDBX SubDB #%03d [0:%zu]: '%.*s' = [0:%zu]: '%.*s'", i,
-                    l_key_iov.iov_len, (int) l_key_iov.iov_len, (char *)l_key_iov.iov_base,
-                    l_data_iov.iov_len, (int) l_data_iov.iov_len, (char *)l_data_iov.iov_base);
+                    l_key_iov.iov_len, (int) l_key_iov.iov_len, (char *) l_key_iov.iov_base,
+                    l_data_iov.iov_len, (int) l_data_iov.iov_len, (char *) l_data_iov.iov_base);
 
             /* Form a simple list of the group/table name to be used after */
             l_cp = dap_strdup(l_data_iov.iov_base);                         /* We expect an ASCIZ string as the table name */
             l_data_iov.iov_len = strlen(l_cp);
-            s_dap_insqtail(&l_slist, l_cp, l_data_iov.iov_len);
+            s_dap_slist_add2tail(&l_slist, l_cp, l_data_iov.iov_len);
             }
         debug_if(s_dap_global_db_debug_more, L_DEBUG, "--- End-Of-List  ---");
         }
@@ -350,7 +407,7 @@ char        *l_cp;
 
 
     /* Run over the list and create/open group/tables and DB context ... */
-    while ( !s_dap_remqhead (&l_slist, &l_data_iov.iov_base, &l_data_iov.iov_len) )
+    while ( !s_dap_slist_get4head (&l_slist, &l_data_iov.iov_base, &l_data_iov.iov_len) )
     {
         s_cre_db_ctx_for_group(l_data_iov.iov_base, MDBX_CREATE);
         DAP_DELETE(l_data_iov.iov_base);
@@ -359,33 +416,42 @@ char        *l_cp;
     /*
     ** Fill the Driver Interface Table
     */
-    a_drv_callback->apply_store_obj     = s_db_mdbx_apply_store_obj;
-    a_drv_callback->read_last_store_obj = s_db_mdbx_read_last_store_obj;
+    a_drv_dpt->apply_store_obj     = s_db_mdbx_apply_store_obj;
+    a_drv_dpt->read_last_store_obj = s_db_mdbx_read_last_store_obj;
 
-    a_drv_callback->read_store_obj      = s_db_mdbx_read_store_obj;
-    a_drv_callback->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
-    a_drv_callback->read_count_store    = s_db_mdbx_read_count_store;
-    a_drv_callback->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
-    a_drv_callback->is_obj              = (dap_db_driver_is_obj_callback_t) s_db_mdbx_is_obj;
-    a_drv_callback->deinit              = s_db_mdbx_deinit;
-    a_drv_callback->flush               = s_db_mdbx_flush;
+    a_drv_dpt->read_store_obj      = s_db_mdbx_read_store_obj;
+    a_drv_dpt->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
+    a_drv_dpt->read_count_store    = s_db_mdbx_read_count_store;
+    a_drv_dpt->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
+    a_drv_dpt->is_obj              = (dap_db_driver_is_obj_callback_t)  s_db_mdbx_is_obj;
+    a_drv_dpt->deinit              = s_db_mdbx_deinit;
+    a_drv_dpt->flush               = s_db_mdbx_flush;
 
     /*
-     * MDBX support transactions but under the current circuimstances we will not get
+     * MDBX support transactions but on the current circuimstance we will not get
      * advantages of using DB Driver level BEGIN/END transactions
      */
-    a_drv_callback->transaction_start   = NULL;
-    a_drv_callback->transaction_end     = NULL;
-
+    a_drv_dpt->transaction_start   = NULL;
+    a_drv_dpt->transaction_end     = NULL;
 
     return MDBX_SUCCESS;
 }
 
-
-/**
- * @brief Gets CDB by a_group.
- * @param a_group a group name
- * @return if CDB is found, a pointer to CDB, otherwise NULL.
+/*
+ *  DESCRIPTION: Get a DB context for the specified group/table name
+ *      from the DB context hash table. This context is just pointer to the DB Context
+ *      structure, so don't modify it.
+ *
+ *  INPUTS:
+ *      a_group:    Group/table name to be looked for DB context
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS
+ *      address of DB Context
+ *      NULL    - no DB context has been craeted for the group
+ *
  */
 static  dap_db_ctx_t  *s_get_db_ctx_for_group(const char *a_group)
 {
@@ -401,19 +467,39 @@ dap_db_ctx_t *l_db_ctx = NULL;
     return l_db_ctx;
 }
 
-/**
- * @brief Flushing CDB to the disk.
- * @return 0
+/*
+ *  DESCRIPTION: Action routine - perform flushing action. Actualy MDBX internaly maintain processes of the flushing
+ *      and other things related to  data integrity.
+ *
+ *  INPUTS:
+ *      NONE
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS:
+ *      0 - SUCCESS
  */
 static  int s_db_mdbx_flush(void)
 {
     return  log_it(L_DEBUG, "Flushing resident part of the MDBX to disk"), 0;
 }
 
-/**
- * @brief Read last store item from CDB.
- * @param a_group a group name
- * @return If successful, a pointer to item, otherwise NULL.
+/*
+ *  DESCRIPTION: Action routine - lookup in the group/table a last store record.
+ *      We mainatain internaly <id> of record (it's just sequence),
+ *      so actualy we need to performs a full scan of the table to reach a record with the bigest <id>.
+ *      In case of success create and return <store_object> for the has been found records.
+ *
+ *  INPUTS:
+ *      a_group:    A group/table name to be scanned
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS:
+ *      An address to the <store object> with the record
+ *      NULL - table is empty
  */
 dap_store_obj_t *s_db_mdbx_read_last_store_obj(const char* a_group)
 {
@@ -449,7 +535,7 @@ dap_store_obj_t *l_obj;
           break;
         }
 
-        /* Iterate cursor to retrieve records from DB - select a <key> and <data> pair
+        /* Iterate cursor to retieve records from DB - select a <key> and <data> pair
         ** with maximal <id>
         */
         while ( MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT)) )
@@ -493,24 +579,28 @@ dap_store_obj_t *l_obj;
             l_obj->flags = l_suff->flags;
             assert ( (l_obj->group = dap_strdup(a_group)) );
         }
-        else {
-            DAP_DEL_Z(l_obj);
-            log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
-        }
+        else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
     }
-    else  log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
+    else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
 
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
     return  l_obj;
 }
 
-/**
- * @brief s_db_mdbx_is_obj  Check for existence of the record with a given group/key combination
- * @param a_group   a group/table name
- * @param a_key     a key to be check
- * @return  0 - Record-Not-Found
- *          1 - Record is found
+/*
+ *  DESCRIPTION: An action routine to check a presence specified key in the group/table
+ *
+ *  INPUTS:
+ *      a_group:    A group/table to looking in
+ *      a_key:      A key of record to looked for
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS
+ *      1   -   SUCCESS, record is exist
+ *      0   - Record-No-Found
  */
 int     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
 {
@@ -545,14 +635,19 @@ MDBX_val    l_key, l_data;
     return ( l_rc == MDBX_SUCCESS );    /*0 - RNF, 1 - SUCCESS */
 }
 
-
-/**
- * @brief Gets items from CDB by a_group and a_id.
- * @param a_group the group name
- * @param a_id id
- * @param a_count_out[in] a count of items
- * @param a_count[out] a count of items were got
- * @return If successful, pointer to items, otherwise NULL.
+/*
+ *  DESCRIPTION: Action routine to read record with a give <id > from the table
+ *
+ *  INPUTS:
+ *      a_group:    A group/table name to be looked in
+ *      a_id:       An id of record to be looked for
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS:
+ *      An address to the <store object> with the record
+ *      NULL - table is empty
  */
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
 {
@@ -631,24 +726,24 @@ dap_store_obj_t *l_obj;
             l_obj->flags = l_suff->flags;
             assert ( (l_obj->group = dap_strdup(a_group)) );
         }
-        else {
-            DAP_DEL_Z(l_obj);
-            log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
-        }
+        else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
     }
-    else log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
+    else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
 
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
     return  l_obj;
 }
 
-
-/**
- * @brief Reads count of items in CDB by a_group and a_id.
- * @param a_group the group name
- * @param a_id id
- * @return If successful, count of store items; otherwise 0.
+/*
+ *  DESCRIPTION: Action routine to retrieve a number of records for specified record's id.
+ *
+ *  INPUTS:
+ *      a_group:    A table/group name to be scanned
+ *      a_id:       An id of record to be looked for
+ *
+ *  RETURNS:
+ *      count of has been found record
  */
 size_t  s_db_mdbx_read_count_store(const char *a_group, uint64_t a_id)
 {
@@ -698,15 +793,25 @@ struct  __record_suffix__   *l_suff;
 
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
-    if ( l_count_out > 1 )                                                  /* We don't expect to retrieve more then 1 record
-                                                                              because we use unique generated sequence for the  <id> field for the
-                                                                              record. But this fucking shit is took place in the CDB so ...
-                                                                              */
+    if ( l_count_out )
         log_it(L_WARNING, "A count of records with id: %zu - more then 1 (%d) !!!", a_id, l_count_out);
 
     return  l_count_out;
 }
 
+/*
+ *  DESCRIPTION: Action routine - returns a list of group/table names in DB contexts hash table is matched
+ *      to specified pattern.
+ *
+ *  INPUTS:
+ *      a_group_mask:   A pattern string
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS:
+ *      list of has been found groups
+ */
 
 static dap_list_t  *s_db_mdbx_get_groups_by_mask(const char *a_group_mask)
 {
@@ -731,7 +836,20 @@ dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
 }
 
 
-
+/*
+ *  DESCRIPTION:  Action routine - insert/delete a record with data from the <store_object>  to/from database.
+ *      Be advised that we performs a transaction processing to ensure DB consistency
+ *
+ *  INPUTS:
+ *      a_store_obj:    An object with data to be stored
+ *
+ *  OUTPUTS:
+ *      NONE:
+ *
+ *  RETURNS:
+ *      0   - SUCCESS
+ *      0>  - <errno>
+ */
 static  int s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj)
 {
 int     l_rc = 0, l_rc2;
@@ -893,13 +1011,20 @@ struct  __record_suffix__   *l_suff;
 
 
 
-
-/**
- * @brief Gets items from CDB by a_group and a_key. If a_key=NULL then gets a_count_out items.
- * @param a_group the group name
- * @param a_key the key or NULL
- * @param a_count_out IN. Count of read items. OUT Count of items was read
- * @return If successful, pointer to items; otherwise NULL.
+/*
+ *  DESCRIPTION: Action routin - retrieve from specified group/table a record with the given key,
+ *      theoreticaly we can return a set of records - but actualy we don't allow dupplicates in the DB,
+ *      so count of records is always == 1.
+ *
+ *  INPUTS:
+ *      a_group:    A group/table name to lokkind in
+ *      a_key:      A key's record to looked for
+ *
+ *  OUTPUTS:
+ *      a_count_out
+ *
+ *  RETURNS
+ *      Array of store objects
  */
 static dap_store_obj_t *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
@@ -926,7 +1051,6 @@ struct  __record_suffix__   *l_suff;
         assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
         return  log_it (L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), NULL;
     }
-
 
     if ( a_count_out )
         *a_count_out = 0;

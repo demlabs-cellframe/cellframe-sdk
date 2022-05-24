@@ -379,7 +379,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_srv_stake_item_t *a
 
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
-    dap_list_free_full(l_list_used_out, free);
+    dap_list_free_full(l_list_used_out, NULL);
     if (!EQUAL_256(l_value_to_items,l_value_sell)) {
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_owner_addr);

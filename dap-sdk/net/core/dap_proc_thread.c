@@ -24,6 +24,7 @@
 #include <stdatomic.h>
 
 #include "dap_config.h"
+#include "dap_list.h"
 #include "dap_events.h"
 #include "dap_events_socket.h"
 #include "dap_proc_thread.h"
@@ -59,6 +60,11 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 
 static size_t s_threads_count = 0;
 static dap_proc_thread_t * s_threads = NULL;
+
+static dap_slist_t s_custom_threads = $DAP_SLIST_INITALIZER;                    /* Customized proc threads out of the pool */
+static pthread_rwlock_t s_custom_threads_rwlock = PTHREAD_RWLOCK_INITIALIZER;   /* Lock to protect <s_custom_threads> */
+
+
 static void *s_proc_thread_function(void * a_arg);
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
@@ -100,10 +106,28 @@ int l_ret = 0;
  */
 void dap_proc_thread_deinit()
 {
-    for (uint32_t i = 0; i < s_threads_count; i++){
+int l_rc;
+size_t l_sz;
+dap_proc_thread_t *l_proc_thread;
+
+    for (uint32_t i = s_threads_count; i--; ){
         dap_events_socket_event_signal(s_threads[i].event_exit, 1);
         pthread_join(s_threads[i].thread_id, NULL);
     }
+
+    // Cleaning custom proc threads
+    pthread_rwlock_wrlock(&s_custom_threads_rwlock);
+
+    for ( uint32_t i = s_custom_threads.nr; i--; ) {
+        if ( s_dap_slist_get4head (&s_custom_threads, (void **) &l_proc_thread, &l_sz) )
+            break;
+
+        dap_events_socket_event_signal(l_proc_thread->event_exit, 1);
+        pthread_join(l_proc_thread->thread_id, NULL);
+        DAP_DELETE(l_proc_thread);
+    }
+
+    pthread_rwlock_unlock(&s_custom_threads_rwlock);
 
     // Signal to cancel working threads and wait for finish
     // TODO: Android realization
@@ -148,6 +172,34 @@ unsigned l_id_min = 0, l_size_min = UINT32_MAX, l_queue_size;
 }
 
 /**
+ * @brief dap_proc_thread_run_custom Create custom proc thread for specified task
+ * @return
+ */
+dap_proc_thread_t * dap_proc_thread_run_custom(void)
+{
+dap_proc_thread_t * l_proc_thread = DAP_NEW_Z(dap_proc_thread_t);
+int l_ret;
+
+    if (l_proc_thread == NULL)
+        return  log_it(L_CRITICAL,"Out of memory, can't create new proc thread, errno=%d", errno), NULL;
+
+    pthread_mutex_lock( &s_started_mutex );
+
+    if ( (l_ret = pthread_create( &l_proc_thread->thread_id ,NULL, s_proc_thread_function, l_proc_thread  )) ) {
+        log_it(L_CRITICAL, "Create thread failed with code %d", l_ret);
+        DAP_DEL_Z (l_proc_thread);
+    }else{
+        pthread_cond_wait( &s_started_cond, &s_started_mutex);
+        pthread_rwlock_wrlock(&s_custom_threads_rwlock);
+        assert ( !s_dap_slist_add2tail (&s_custom_threads, l_proc_thread, sizeof(l_proc_thread)) );
+        pthread_rwlock_unlock(&s_custom_threads_rwlock);
+    }
+
+    pthread_mutex_unlock( &s_started_mutex );
+    return l_proc_thread;
+}
+
+/**
  * @brief s_proc_event_callback - get from queue next element and execute action routine,
  *  repeat execution depending on status is returned by action routine.
  *
@@ -160,7 +212,7 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t __at
 dap_proc_thread_t   *l_thread;
 dap_proc_queue_item_t *l_item;
 int     l_rc, l_is_anybody_in_queue, l_is_finished, l_iter_cnt, l_cur_pri;
-size_t  l_size;
+size_t  l_item_sz;
 dap_proc_queue_t    *l_queue;
 
     debug_if (g_debug_reactor, L_DEBUG, "--> Proc event callback start, a_esocket:%p ", a_esocket);
@@ -175,13 +227,13 @@ dap_proc_queue_t    *l_queue;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_queue = l_thread->proc_queue;
 
-    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
+    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ ) /* Run from higest to lowest ... */
     {
         if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
             continue;
 
         pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
-        l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
+        l_rc = s_dap_slist_get4head (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_item_sz);
         pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
 
         if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
@@ -200,17 +252,22 @@ dap_proc_queue_t    *l_queue;
         if ( !(l_is_finished) ) {
                                                                             /* Rearm callback to be executed again */
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, l_size);
+            l_rc = s_dap_slist_add2tail (&l_queue->list[l_cur_pri].items, l_item, l_item_sz );
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+
+            if ( l_rc ) {
+                log_it(L_ERROR, "Error requeue event callback: %p/%p, errno=%d", l_item->callback, l_item->callback_arg, l_rc);
+                DAP_DELETE(l_item);
+            }
         }
         else    {
             DAP_DELETE(l_item);
     	}
     }
-    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)
+    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)        /* Really ?! */
         l_is_anybody_in_queue += l_queue->list[l_cur_pri].items.nr;
 
-    if ( l_is_anybody_in_queue )                                          /* Arm event if we have something to proc again */
+    if ( l_is_anybody_in_queue )                                            /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
 
     debug_if(g_debug_reactor, L_DEBUG, "<-- Proc event callback end, items rest: %d, iterations: %d", l_is_anybody_in_queue, l_iter_cnt);
