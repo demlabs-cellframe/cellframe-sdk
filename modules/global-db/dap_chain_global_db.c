@@ -896,14 +896,15 @@ static int is_check_version = 0;
 
     if(!is_check_version){
 
+        is_check_version = true;
+
         if ( (l_rc = s_check_db_version(g_config)) )
             return  log_it(L_ERROR, "GlobalDB version changed, please export or remove old version!"), l_rc;
-
-        is_check_version = true;
     }
 
     log_it(L_NOTICE, "GlobalDB initialized");
 
+#if 0   /* @RRL: #6238  - Frozen ... */
     /*
      * Create a dedicated thread to process request to GDB
      */
@@ -922,6 +923,9 @@ static int is_check_version = 0;
     }
 
     s_global_db_proc_queue->esocket = dap_events_socket_create_type_queue_ptr_unsafe(NULL, s_dap_chain_global_db_request_processor);
+#endif
 
+
+    l_rc = 0;
     return l_rc;
 }
