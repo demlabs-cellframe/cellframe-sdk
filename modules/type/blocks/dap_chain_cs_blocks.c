@@ -1282,7 +1282,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 				l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
 				if(	dap_chain_datum_tx_item_get_type(item) == TX_ITEM_TYPE_OUT_COND
 				&&	((dap_chain_tx_out_cond_t*)item)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-					if (compare256(((dap_chain_tx_out_cond_t*)item)->header.value, dap_chain_coins_to_balance("1.0")) == -1)
+					if (compare256(((dap_chain_tx_out_cond_t*)item)->header.value, a_chain->minimum_commission) == -1)
 						tx_commission_valid = false;
 				}
 
