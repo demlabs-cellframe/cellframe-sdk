@@ -343,7 +343,7 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
         }
     }
     dap_list_free(l_list_out_items);
-    uint256_t l_fee = {}; // TODO replace with fractional mult MULT_256_FLOAT(l_outs_sum, l_stake->fee_value / 100.0);
+    uint256_t l_fee = {}; // TODO replace with fractional mult MULT_256_FRAC_FRAC(l_outs_sum, l_stake->fee_value / 100.0);
     if (compare256(l_fee_sum, l_fee) == -1) {
         return false;
     }
