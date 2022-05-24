@@ -144,7 +144,6 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *l_net, dap_chain_node_
     if (a_flags & F_DB_LOG_ADD_EXTRA_GROUPS) {
         dap_list_t *l_extra_groups_masks = dap_chain_db_get_sync_extra_groups(l_net_name);
         l_groups_masks = dap_list_concat(l_groups_masks, l_extra_groups_masks);
-        dap_list_free(l_extra_groups_masks);
     }
     dap_list_t *l_groups_names = NULL;
     for (dap_list_t *l_cur_mask = l_groups_masks; l_cur_mask; l_cur_mask = dap_list_next(l_cur_mask)) {
@@ -659,7 +658,8 @@ dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, s
         memcpy(&l_str_length, a_pkt->data + l_offset, sizeof(uint16_t));
         l_offset += sizeof(uint16_t);
 
-        if (l_offset + l_str_length > a_pkt->data_size || !l_str_length) {log_it(L_ERROR, "Broken GDB element: can't read 'key' field");
+        if (l_offset + l_str_length > a_pkt->data_size || !l_str_length) {log_it(L_ERROR, "Broken GDB element: can't read 'key' field: len %s",
+                                                                                 l_str_length ? "OVER" : "NULL");
                                                                           DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
         l_obj->key = DAP_NEW_Z_SIZE(char, l_str_length + 1);
         memcpy((char *)l_obj->key, a_pkt->data + l_offset, l_str_length);

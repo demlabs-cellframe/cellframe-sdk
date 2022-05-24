@@ -54,8 +54,8 @@ typedef int128_t _dap_int128_t;
 typedef struct uint256_t {
     union {
         struct {
-        uint128_t hi;
-        uint128_t lo;
+            uint128_t hi;
+            uint128_t lo;
         };
         struct {
             struct {
@@ -256,8 +256,8 @@ static inline void LEFT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int n
         LEFT_SHIFT_256(a_256_bit,b_256_bit,n-128);
     }
     if (n == 0) {
-       b_256_bit->hi=a_256_bit.hi;
-       b_256_bit->lo=a_256_bit.lo;
+        b_256_bit->hi=a_256_bit.hi;
+        b_256_bit->lo=a_256_bit.lo;
     }
     else if (n<128) {
         uint128_t shift_temp=uint128_0;
@@ -279,8 +279,8 @@ static inline void RIGHT_SHIFT_256(uint256_t a_256_bit,uint256_t* b_256_bit,int 
         RIGHT_SHIFT_256(a_256_bit,b_256_bit,n-128);
     }
     if (n == 0) {
-       b_256_bit->hi=a_256_bit.hi;
-       b_256_bit->lo=a_256_bit.lo;
+        b_256_bit->hi=a_256_bit.hi;
+        b_256_bit->lo=a_256_bit.lo;
     }
     else if (n<128) {
         uint128_t shift_temp=uint128_0;
@@ -311,10 +311,10 @@ static inline void INCR_128(uint128_t *a_128_bit){
 static inline void DECR_128(uint128_t* a_128_bit){
 
 #ifdef DAP_GLOBAL_IS_INT128
-   (*a_128_bit)--;
+    (*a_128_bit)--;
 
 #else
-   a_128_bit->lo--;
+    a_128_bit->lo--;
    if(a_128_bit->hi == 0)
    {
        a_128_bit->hi--;
@@ -714,7 +714,7 @@ static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_
     //product of .hi terms - stored in .hi field of c_512_bit
     MULT_128_256(a_256_bit.hi,b_256_bit.hi, &c_512_bit->hi);
 
-   //product of .lo terms - stored in .lo field of c_512_bit
+    //product of .lo terms - stored in .lo field of c_512_bit
     MULT_128_256(a_256_bit.lo,b_256_bit.lo, &c_512_bit->lo);
 
     //cross product of .hi and .lo terms
@@ -846,7 +846,7 @@ static inline int compare128(uint128_t a, uint128_t b)
 static inline int compare256(uint256_t a, uint256_t b)
 {
     return    (( compare128(a.hi, b.hi) == 1 || (compare128(a.hi, b.hi) == 0 && compare128(a.lo, b.lo) == 1)) ? 1 : 0)
-         -    (( compare128(a.hi, b.hi) == -1 || (compare128(a.hi, b.hi) == 0 && compare128(a.lo, b.lo) == -1)) ? 1 : 0);
+              -    (( compare128(a.hi, b.hi) == -1 || (compare128(a.hi, b.hi) == 0 && compare128(a.lo, b.lo) == -1)) ? 1 : 0);
 }
 
 static inline int nlz64(uint64_t N)
@@ -999,16 +999,37 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
+/* Multiplicates 256-bit value to fixed-point value, represented as 256-bit value
+ * @param a_val
+ * @param a_mult
+ * @param result is a fixed-point value, represented as 256-bit value
+ * @return
+ */
+static inline int MULT_256_FRAC_FRAC(uint256_t a_val, uint256_t a_mult, uint256_t* result) {
+    return MULT_256_256(a_val, a_mult, result);
+}
 
-// TODO replace it with fixed point MUL
-//#define CONV_256_FLOAT 10000000000000ULL // 10^13, so max float number to mult is 1.000.000
-//static inline uint256_t MULT_256_FLOAT(uint256_t a_val, long double a_mult)
-//{
-//    uint256_t l_ret = GET_256_FROM_64((uint64_t)(a_mult * CONV_256_FLOAT));
-//    MULT_256_256(l_ret, a_val, &l_ret);
-//    DIV_256(l_ret, GET_256_FROM_64(CONV_256_FLOAT), &l_ret);
-//    return l_ret;
-//}
+/**
+ * Multiplicates to fixed-point values, represented as 256-bit values
+ * @param a_val
+ * @param b_val
+ * @param result is a fixed-point value, represented as 256-bit value
+ * @return
+ */
+static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* result) {
+    uint256_t tmp;
+    uint256_t rem;
+    uint256_t ten17 = GET_256_FROM_64(100000000000000000ULL);
+    uint256_t ten = GET_256_FROM_64(10ULL);
+    uint256_t five = GET_256_FROM_64(500000000000000000);
+    int overflow = MULT_256_256(a_val, b_val, &tmp);
+    divmod_impl_256(tmp, ten17, &tmp, &rem);
+    if (compare256(rem, five) >= 0) {
+        SUM_256_256(tmp, ten, &tmp);
+    }
+    DIV_256(tmp, ten, result);
+    return overflow;
+}
 
 #ifdef __cplusplus
 }
