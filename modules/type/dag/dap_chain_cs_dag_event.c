@@ -233,23 +233,23 @@ size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t
 
     size_t l_offset = (size_t)l_round_item->event_size;
     while ( l_offset < (size_t)l_round_item->data_size ) {
-        dap_sign_t * l_item_sign = (dap_sign_t *)(l_round_item->event_n_signs+l_offset);
-        size_t l_sign_item_size = dap_sign_get_size(l_item_sign);
-        dap_chain_addr_t l_item_addr = {0};
-        dap_chain_hash_fast_t l_item_pkey_hash;
-        dap_sign_get_pkey_hash(l_item_sign, &l_item_pkey_hash);
-        dap_chain_addr_fill(&l_item_addr, l_item_sign->header.type, &l_item_pkey_hash, a_net->pub.id);
-        if (memcmp(&l_addr, &l_item_addr, sizeof(l_item_addr)) == 0) {
-            DAP_DELETE(l_sign);
-            return 0;
-        }
-        l_offset += l_sign_item_size;
-    }
-    *a_round_item_ptr = l_round_item = DAP_REALLOC(l_round_item, a_round_item_size+l_sign_size);
-    memcpy(l_round_item->event_n_signs+l_offset, l_sign, l_sign_size);
-    DAP_DELETE(l_sign);
-    l_round_item->data_size += (uint32_t)l_sign_size;
-    return a_round_item_size+l_sign_size;
+         dap_sign_t * l_item_sign = (dap_sign_t *)(l_round_item->event_n_signs+l_offset);
+         size_t l_sign_item_size = dap_sign_get_size(l_item_sign);
+         dap_chain_addr_t l_item_addr = {0};
+         dap_chain_hash_fast_t l_item_pkey_hash;
+         dap_sign_get_pkey_hash(l_item_sign, &l_item_pkey_hash);
+         dap_chain_addr_fill(&l_item_addr, l_item_sign->header.type, &l_item_pkey_hash, a_net->pub.id);
+         if (memcmp(&l_addr, &l_item_addr, sizeof(l_item_addr)) == 0) {
+             DAP_DELETE(l_sign);
+             return 0;
+         }
+         l_offset += l_sign_item_size;
+     }
+     *a_round_item_ptr = l_round_item = DAP_REALLOC(l_round_item, a_round_item_size+l_sign_size);
+     memcpy(l_round_item->event_n_signs+l_offset, l_sign, l_sign_size);
+     DAP_DELETE(l_sign);
+     l_round_item->data_size += (uint32_t)l_sign_size;
+     return a_round_item_size+l_sign_size;
 }
 
 static bool s_event_broadcast_send(dap_chain_cs_dag_event_round_broadcast_t *l_arg) {

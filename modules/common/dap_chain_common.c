@@ -343,7 +343,7 @@ char *dap_chain_balance_to_coins256(uint256_t a_balance)
 
     /* 123000...456 -> "123000...456" */
     if ( !(l_buf = dap_cvt_uint256_to_str(a_balance)) )
-        return  NULL;
+        return NULL;
 
     l_strlen = strlen(l_buf);
 
@@ -567,9 +567,9 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
     uint256_t l_nul = {0};
 
     /* "12300000000.0000456" */
-    if ( (l_len = strnlen(a_coins, 2*DATOSHI_POW + 2 )) > 2*DATOSHI_POW + 2)/* Check for legal length */
+    if ( (l_len = strnlen(a_coins, DATOSHI_POW256 + 3)) > DATOSHI_POW256 + 2)/* Check for legal length */ /* 1 symbol for \0, one for '.', if more, there is an error */
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - too long (%d > %d)", a_coins,
-                       l_len, 2*DATOSHI_POW + 2), l_nul;
+                       l_len, DATOSHI_POW256 + 2), l_nul;
 
     /* Find , check and remove 'precision' dot symbol */
     memcpy (l_buf, a_coins, l_len);                                         /* Make local coy */
@@ -603,7 +603,7 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 
 
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
-    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW * 2 + 3);
+    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 3);
     int l_pos = 0;
     uint256_t l_value = a_uint256;
     uint256_t uint256_ten = {.hi = 0, .lo = 10};
@@ -688,7 +688,7 @@ const union __c_pow10_double__ {
         { .u64 = {0,                            29387358770557187ULL,        12898303124178706663ULL,   13150510911921848320ULL} },          // 55
         { .u64 = {0,                            293873587705571876ULL,       18302566799529756941ULL,   2377900603251621888ULL} },          // 56
         { .u64 = {0,                            2938735877055718769ULL,      17004971331911604867ULL,   5332261958806667264ULL} },          // 57
-        { .u64 = {0,                            10940614696847636083ULL,     4029016655730084128ULL,    16429131440647569408ULL} },          // 58
+        { .u64 = {1,                            10940614696847636083ULL,     4029016655730084128ULL,    16429131440647569408ULL} },          // 58
         { .u64 = {15ULL,                        17172426599928602752ULL,     3396678409881738056ULL,    16717361816799281152ULL} },          // 59
         { .u64 = {159ULL,                       5703569335900062977ULL,      15520040025107828953ULL,   1152921504606846976ULL} },          // 60
         { .u64 = {1593ULL,                      1695461137871974930ULL,      7626447661401876602ULL,    11529215046068469760ULL} },          // 61
