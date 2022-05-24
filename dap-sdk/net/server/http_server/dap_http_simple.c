@@ -386,6 +386,10 @@ static void s_http_client_data_write(dap_http_client_t * a_http_client, void *a_
     if ( l_http_simple->reply_sent >= a_http_client->out_content_length ) {
         log_it(L_INFO, "All the reply (%zu) is sent out", a_http_client->out_content_length );
         a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    } else {
+        l_http_simple->reply_sent += dap_events_socket_write_unsafe( a_http_client->esocket,
+                                                  l_http_simple->reply_byte + l_http_simple->reply_sent,
+                                                  a_http_client->out_content_length - l_http_simple->reply_sent);
     }
 }
 
