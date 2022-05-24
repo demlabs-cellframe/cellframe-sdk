@@ -600,7 +600,9 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 if (!l_http_client->proc->cache) {
                     debug_if(s_debug_http, L_DEBUG, "No cache so we call write callback");
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
-                    l_http_client->proc->data_write_callback( l_http_client, NULL );
+                    l_http_client->proc->data_write_callback( l_http_client, NULL );    
+                    if (l_http_client->esocket->flags & DAP_SOCK_SIGNAL_CLOSE)
+                        l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                 } else {
                     size_t l_to_send=l_http_client->proc->cache->body_size-l_http_client->out_cache_position ;
                     size_t l_sent = dap_events_socket_write_unsafe(l_http_client->esocket,
@@ -623,7 +625,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 l_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
                 l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
             }
-        } break;
+        } return;
     }
     dap_http_client_write(a_esocket, a_arg);
 }
