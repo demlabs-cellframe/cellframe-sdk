@@ -105,9 +105,7 @@ typedef enum dap_chain_type
     CHAIN_TYPE_LAST
 } dap_chain_type_t;
 
-
-
-typedef struct dap_chain{
+typedef struct dap_chain {
     pthread_rwlock_t rwlock; // Common rwlock for the whole structure
 
     dap_chain_id_t id;

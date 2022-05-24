@@ -196,6 +196,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
     DAP_DELETE(a_chain->datum_types);
     a_chain->autoproc_datum_types_count = 0;
     DAP_DELETE(a_chain->autoproc_datum_types);
+    pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->atoms_rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
     pthread_rwlock_destroy(&a_chain->rwlock);
@@ -439,7 +440,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 l_chain = NULL;
             }
 
-			if (l_chain)
+            if (l_chain)
 			{
 				// load priority for chain
 				l_chain->load_priority = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
@@ -666,6 +667,7 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
     a_chain->atom_notifiers = dap_list_append(a_chain->atom_notifiers, l_notifier);
     pthread_rwlock_unlock(&a_chain->rwlock);
 }
+
 
 /**
  * @brief dap_chain_get_last_atom_hash

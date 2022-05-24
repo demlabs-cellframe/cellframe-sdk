@@ -374,7 +374,6 @@ void dap_events_socket_descriptor_close(dap_events_socket_t *a_socket);
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker);
 
 // Buffer functions
-size_t dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void * data, size_t data_size);
 void    dap_events_socket_shrink_buf_in(dap_events_socket_t * a_es, size_t shrink_size);
 DAP_STATIC_INLINE size_t dap_events_socket_get_free_buf_size(dap_events_socket_t *a_es) { return a_es->buf_out_size_max - a_es->buf_out_size; }
 size_t  dap_events_socket_pop_from_buf_in(dap_events_socket_t *sc, void * data, size_t data_size);
