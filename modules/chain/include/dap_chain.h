@@ -112,6 +112,7 @@ typedef struct dap_chain{
 
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
+	uint16_t load_priority;
     char * name;
     char * net_name;
     dap_ledger_t * ledger; // If present - pointer to associated ledger
@@ -122,6 +123,8 @@ typedef struct dap_chain{
 
     uint16_t datum_types_count;
     dap_chain_type_t *datum_types;
+	uint16_t default_datum_types_count;
+	dap_chain_type_t *default_datum_types;
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
 
