@@ -126,6 +126,8 @@ typedef struct dap_chain {
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
 
+	uint256_t minimum_commission;
+
     // To hold it in double-linked lists
     struct dap_chain * next;
     struct dap_chain * prev;
