@@ -327,7 +327,8 @@ void *dap_worker_thread(void *arg)
                     l_cur->buf_out_size = 0;
                     l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     l_flag_error = l_flag_write = false;
-                    l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
+                    if (l_cur->callbacks.error_callback)
+                        l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
 #ifndef DAP_OS_WINDOWS
                         log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
                     }
