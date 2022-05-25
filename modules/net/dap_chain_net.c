@@ -2660,7 +2660,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 // Create chain object
                 l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
                                                   l_net->pub.id, l_chain_prior->chains_path);
-                if(l_chain) {
+                if(l_chain) {//add minimum commission from to which the master node agrees. if present (default = 1.0)
+					l_chain->minimum_commission = dap_chain_coins_to_balance(dap_config_get_item_str_default(l_cfg , "general" ,"minimum_commission","1.0"));
                     DL_APPEND(l_net->pub.chains, l_chain);
                     if(l_chain->callback_created)
                         l_chain->callback_created(l_chain, l_cfg);
