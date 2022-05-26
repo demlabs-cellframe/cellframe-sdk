@@ -103,7 +103,6 @@ add_subdirectory(3rdparty/cuttdb)
 if (BUILD_WITH_GDB_DRIVER_MDBX)
 add_subdirectory(3rdparty/libmdbx)
 endif()
-
 if(DAPSDK_MODULES MATCHES "ssl-support")
     add_subdirectory(3rdparty/wolfssl)
 endif()
