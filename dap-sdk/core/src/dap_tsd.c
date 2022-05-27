@@ -80,6 +80,7 @@ dap_tsd_t   *l_tsd;
  *  RETURNS:
  *      -EINVAL:        A value size of the TSD is out of source buffer
  *      -ENOMEM:        A value's buffer size is too small
+ *      0:              No data processed, may be source buffer is empty
  *      0+:             A size of the whole TSD has been processed
  */
 size_t  dap_tsd_get(void *a_src, size_t a_src_sz,
@@ -87,6 +88,10 @@ size_t  dap_tsd_get(void *a_src, size_t a_src_sz,
                     )
 {
 dap_tsd_t   *l_tsd = a_src;
+
+    if ( a_src_sz )
+        return  0;                                                          /* Nothing to do */
+
 
     assert ( a_data );
     assert ( (l_tsd = (dap_tsd_t *) a_src) );
