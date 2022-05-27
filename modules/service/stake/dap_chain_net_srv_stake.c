@@ -25,6 +25,7 @@
 #include <math.h>
 #include "dap_chain_node_cli.h"
 #include "dap_string.h"
+#include "dap_list.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
@@ -67,6 +68,8 @@ int dap_chain_net_srv_stake_init()
          "\tShow the list of requested, active and canceled stake transactions (optional delegated from addr)\n"
     "srv_stake invalidate -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
          "\tInvalidate requested stake transaction by hash within net name and return stake to specified wallet\n"
+    "srv_stake commit -net <net name> [-block <block hash> | [-tx <transaction hash>]\n"
+         "\tSend a staker fee from the block or transaction to the holder\n"
     );
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
@@ -350,6 +353,7 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
     return true;
 }
 
+// Freeze staker's funds when delegating an order
 static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_srv_stake_item_t *a_stake, dap_chain_wallet_t *a_wallet)
 {
     if (!a_stake || !a_stake->net || !a_stake->signing_addr.addr_ver || !a_stake->addr_hldr.addr_ver ||
@@ -363,7 +367,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_srv_stake_item_t *a
     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_stake->net->pub.name);
     dap_chain_addr_t *l_owner_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_stake->net->pub.id);
     if (memcmp(l_owner_addr, &a_stake->addr_hldr, sizeof(dap_chain_addr_t))) {
-        log_it(L_WARNING, "Odrer and wallet address do not match");
+        log_it(L_WARNING, "Order and wallet address do not match");
         return NULL;
     }
     dap_enc_key_t *l_owner_key = dap_chain_wallet_get_key(a_wallet, 0);
@@ -466,7 +470,7 @@ static dap_chain_datum_tx_t *s_stake_tx_approve(dap_chain_net_srv_stake_item_t *
         log_it(L_WARNING, "Requested conditional transaction not found");
         return NULL;
     }
-    int l_prev_cond_idx;
+    int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_stake->tx_hash, l_prev_cond_idx)) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
@@ -508,7 +512,7 @@ static bool s_stake_tx_invalidate(dap_chain_net_srv_stake_item_t *a_stake, dap_c
     dap_chain_addr_t *l_owner_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_stake->net->pub.id);
     dap_enc_key_t *l_owner_key = dap_chain_wallet_get_key(a_wallet, 0);
 
-    // create and add reciept
+    // create and add receipt
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_ID };
     dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, a_stake->value, NULL, 0);
@@ -521,7 +525,7 @@ static bool s_stake_tx_invalidate(dap_chain_net_srv_stake_item_t *a_stake, dap_c
         log_it(L_WARNING, "Requested conditional transaction not found");
         return false;
     }   
-    int l_prev_cond_idx;
+    int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_stake->tx_hash, l_prev_cond_idx)) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
@@ -607,6 +611,146 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     strcpy(l_item->token, a_order->price_ticker);
     memcpy(&l_item->node_addr, &a_order->node_addr, sizeof(dap_chain_node_addr_t));
     return l_item;
+}
+
+// Ledger verificator for DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE
+bool dap_chain_net_srv_fee_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+{
+    if (!s_srv_stake) {
+        return false;
+    }
+    return false;
+}
+
+static bool s_stake_block_commit(dap_chain_net_t *a_net, dap_list_t *a_tx_hash_list)
+{
+    size_t l_all_tx = 0, l_process_tx = 0;
+    // find all stake
+    dap_list_t *l_staker_list0 = dap_chain_net_srv_stake_get_validators();
+    if(!l_staker_list0){
+        return false;
+    }
+    // find all certs
+    size_t l_auth_certs_count = 0;
+    dap_cert_t **l_auth_certs = NULL;
+    for(dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        l_auth_certs = dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
+        if(l_auth_certs)
+            break;
+        l_auth_certs = dap_chain_cs_block_poa_get_auth_certs(l_chain, &l_auth_certs_count);
+        if(l_auth_certs)
+            break;
+    }
+    // create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    uint256_t l_fee_sum_total = {};
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    dap_enc_key_t *l_owner_key = NULL;
+    while(a_tx_hash_list)
+    {
+        l_all_tx++;
+        dap_chain_hash_fast_t *tx_hash = a_tx_hash_list->data;// = NULL;
+        // Get tx by hash
+        dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
+        dap_chain_datum_tx_t *l_tx_with_cond = l_ledger ? dap_chain_ledger_tx_find_by_hash(l_ledger, tx_hash) : NULL;
+        if(!l_tx_with_cond) {
+            // go to the next tx
+            a_tx_hash_list = dap_list_next(a_tx_hash_list);
+            continue;
+        }
+        // Get cond out with type=DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE within tx
+        dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+        int l_prev_cond_idx = 0;
+        do {
+            l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_with_cond, &l_prev_cond_idx);
+            if(l_tx_out_cond && l_tx_out_cond->header.subtype==DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE) {
+                break;
+            }
+        }
+        while(l_tx_out_cond);
+
+        if(!l_tx_out_cond) {
+            // go to the next tx
+            a_tx_hash_list = dap_list_next(a_tx_hash_list);
+            continue;
+        }
+
+        // Find stake
+        //dap_chain_net_srv_stake_item_t *l_stake = NULL;/
+        // Get all sig within tx
+        dap_list_t *l_sig_item_list0 = dap_chain_datum_tx_items_get(l_tx_with_cond, TX_ITEM_TYPE_SIG, NULL);
+        dap_list_t *l_sig_item_list = l_sig_item_list0;
+        while(l_sig_item_list) {
+            dap_chain_tx_sig_t *l_sign_item = (dap_chain_tx_sig_t*) l_sig_item_list->data;
+            dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sign_item);
+            // find stake by l_sign
+            for(size_t i = 0; i < l_auth_certs_count; i++) {
+                // if the tx is signed with a key from the l_auth_certs list
+                if(!dap_cert_compare_with_sign(l_auth_certs[i], l_sign)) {
+                    dap_chain_addr_t *l_signing_addr = dap_cert_to_addr(l_auth_certs[i], a_net->pub.id);
+                    HASH_FIND(hh, s_srv_stake->itemlist, l_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+                    DAP_DELETE(l_signing_addr);
+                    if(l_stake)
+                        break;
+                    else{
+                        l_owner_key = l_auth_certs[i]->enc_key;
+                    }
+                }
+            }
+            l_sig_item_list = dap_list_next(l_sig_item_list);
+        }
+        dap_list_free(l_sig_item_list0);
+
+        // tmp
+        //l_stake = (dap_chain_net_srv_stake_item_t*)l_staker_list0->data;
+        if(!l_stake || !l_stake->is_active) {
+            // go to the next tx
+            a_tx_hash_list = dap_list_next(a_tx_hash_list);
+            continue;
+        }
+
+        // add 'in' item from cond transaction
+        if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, tx_hash, l_prev_cond_idx)) {
+            log_it(L_WARNING, "Requested conditional transaction is already used out");
+            // go to the next tx
+            a_tx_hash_list = dap_list_next(a_tx_hash_list);
+            continue;
+        }
+        dap_chain_datum_tx_add_in_cond_item(&l_tx, tx_hash, l_prev_cond_idx, 0);
+        // Summ funds from all in items
+        uint256_t l_fee_sum = l_fee_sum_total;
+        SUM_256_256(l_fee_sum, l_tx_out_cond->header.value, &l_fee_sum_total);
+
+        l_process_tx++;
+        a_tx_hash_list = dap_list_next(a_tx_hash_list);
+    }
+    dap_list_free_full(l_staker_list0, free);
+    log_it(L_INFO, "Processed %ld tx from %ld", l_process_tx, l_all_tx);
+
+    if(!IS_ZERO_256(l_fee_sum_total)) {
+        dap_chain_addr_t l_holder_addr = l_stake->addr_hldr;
+
+        // add a 'out' item
+        if(dap_chain_datum_tx_add_out_item(&l_tx, &l_holder_addr, l_fee_sum_total) == -1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_ERROR, "Cant add returning coins output");
+            return false;
+        }
+        // add 'sign' items
+        if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_ERROR, "Can't add sign output");
+            return false;
+        }
+        if(!s_stake_tx_put(l_tx, a_net)) {
+            dap_chain_datum_tx_delete(l_tx);
+            return false;
+        }
+    }
+    dap_chain_datum_tx_delete(l_tx);
+    if(l_process_tx > 0)
+        return true;
+    return false;
 }
 
 static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply, const char *a_hash_out_type)
@@ -1023,7 +1167,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_TX, CMD_INVALIDATE
+        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_TX_LIST, CMD_INVALIDATE, CMD_COMMIT
     };
     int l_arg_index = 1;
 
@@ -1039,17 +1183,25 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
     if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "order", NULL)) {
         l_cmd_num = CMD_ORDER;
     }
+    // Create tx to freeze staker's funds and delete order
     else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "delegate", NULL)) {
         l_cmd_num = CMD_DELEGATE;
     }
+    // Create tx to approve staker's funds freeze
     else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "approve", NULL)) {
         l_cmd_num = CMD_APPROVE;
     }
+    // Show the tx list with frozen staker funds
     else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "transactions", NULL)) {
-        l_cmd_num = CMD_TX;
+        l_cmd_num = CMD_TX_LIST;
     }
+    // Return staker's funds
     else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "invalidate", NULL)) {
         l_cmd_num = CMD_INVALIDATE;
+    }
+    // Send a staker fee to staker
+    else if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "commit", NULL)) {
+        l_cmd_num = CMD_COMMIT;
     }
     switch (l_cmd_num) {
         case CMD_ORDER:
@@ -1180,7 +1332,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 l_stake->is_active = true;
             }
         } break;
-        case CMD_TX: {
+        case CMD_TX_LIST: {
             const char *l_net_str = NULL;
             l_arg_index++;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
@@ -1269,6 +1421,48 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 return -21;
             }
         } break;
+        case CMD_COMMIT: {
+            const char *l_net_str = NULL, *l_tx_hash_str = NULL, *l_block_hash_str = NULL;
+            l_arg_index++;
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+            if(!l_net_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'commit' required parameter -net");
+                return -3;
+            }
+            dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+            if(!l_net) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+                return -4;
+            }
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &l_tx_hash_str);
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-block", &l_block_hash_str);
+            if(!l_tx_hash_str && !l_block_hash_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'commit' required parameter -block or -tx");
+                return -22;
+            }
+            // list of tx hash
+            dap_list_t *l_tx_list = NULL;
+            if(l_block_hash_str) {
+                dap_chain_hash_fast_t l_block_hash = { };
+                dap_chain_hash_fast_from_str(l_block_hash_str, &l_block_hash);
+                // TODO add tx from block to tx_list
+            }
+            if(l_tx_hash_str) {
+                dap_chain_hash_fast_t *l_tx_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
+                dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash);
+                l_tx_list = dap_list_append(l_tx_list, l_tx_hash);
+            }
+            bool l_success = s_stake_block_commit(l_net, l_tx_list);
+            dap_list_free_full(l_tx_list, free);
+            if(l_success) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Stake successfully transfered to holder");
+            } else {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't transfered to holder");
+                return -23;
+            }
+        }
+        break;
+
         default: {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
             return -1;

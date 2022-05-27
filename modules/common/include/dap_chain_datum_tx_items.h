@@ -114,6 +114,13 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a_value);
 
 /**
+ * Create item dap_chain_tx_out_cond_t with fee stake subtype
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee_stake(uint256_t a_value);
+
+/**
  * Create item dap_chain_tx_out_cond_t
  *
  * return item, NULL Error
