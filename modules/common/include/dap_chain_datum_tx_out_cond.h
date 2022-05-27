@@ -30,11 +30,15 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 
+// Maximum fee stake, if the actual fee is less, the difference will be returned to the sender
+#define MAX_FEE_STAKE   GET_256_FROM_64(1000)
+
 enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY = 0x01,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE = 0x02,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE = 0x3,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE = 0x05,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE = 0xFA       // Virtual type for stake update verificator //TODO change it to new type of callback for ledger tx add
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
@@ -44,6 +48,7 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE";
+    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE";
     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: return "DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE";
     default: {}
     }
