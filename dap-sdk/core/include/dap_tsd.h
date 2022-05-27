@@ -25,13 +25,18 @@ This file is part of DAP SDK the open source project
 #include "dap_strfuncs.h"
 
 typedef struct dap_tsd {
-    uint16_t type;
-    uint32_t size;
-    byte_t data[];
+    uint16_t    type;
+    uint32_t    size;
+    byte_t      data[0];
 } DAP_ALIGN_PACKED dap_tsd_t;
 
-dap_tsd_t * dap_tsd_create(uint16_t a_type,  const void * a_data, size_t a_data_size);
-dap_tsd_t* dap_tsd_find(byte_t * a_data, size_t a_data_size,uint16_t a_type);
+
+size_t      dap_tsd_put(uint16_t a_type, const void * a_data, size_t a_data_size, void *a_dst, size_t a_dst_sz);
+size_t      dap_tsd_get(void *a_src, size_t a_src_sz, uint16_t *a_type, void *a_data, size_t *a_data_size);
+
+
+dap_tsd_t   *dap_tsd_create(uint16_t a_type,  const void * a_data, size_t a_data_size);
+dap_tsd_t   *dap_tsd_find(byte_t * a_data, size_t a_data_size,uint16_t a_type);
 
 #define dap_tsd_create_scalar(type,value) dap_tsd_create (type, &value, sizeof(value) )
 #define dap_tsd_get_scalar(a,typeconv)  *((typeconv*) a->data)
