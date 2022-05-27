@@ -3549,7 +3549,7 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_le
     bool is_search_enable = is_null_hash;
     dap_chain_ledger_tx_item_t *l_iter_current = NULL, *l_item_tmp = NULL;
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
-    int l_tx_out_cond_idx;
+    int l_tx_out_cond_idx = 0;
     pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
     HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp) {
         dap_chain_datum_tx_t *l_tx_tmp = l_iter_current->tx;
@@ -3630,7 +3630,7 @@ uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, d
  * @param a_addr_from
  * @param a_value_need
  * @param a_value_transfer
- * @return
+ * @return list of list_used_item_t
  */
 dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                                        uint256_t a_value_need, uint256_t *a_value_transfer)

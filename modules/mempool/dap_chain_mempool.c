@@ -117,7 +117,12 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need;
-    SUM_256_256(a_value, a_value_fee, &l_value_need);
+    // Full fee
+    uint256_t l_value_fee_full = {};
+    // Add fee stake
+    SUM_256_256(a_value_fee, MAX_FEE_STAKE, &l_value_fee_full);
+    // Add full fee
+    SUM_256_256(a_value, l_value_fee_full, &l_value_need);
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
@@ -141,6 +146,11 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
             if (!IS_ZERO_256(a_value_fee)) {
                 if(dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) == 1)
                     SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+            }
+            // Staker fee
+            if(!IS_ZERO_256(MAX_FEE_STAKE)) {
+                if(dap_chain_datum_tx_add_fee_stake_item(&l_tx, MAX_FEE_STAKE) == 1)
+                    SUM_256_256(l_value_pack, MAX_FEE_STAKE, &l_value_pack);
             }
         }
         // coin back
@@ -202,7 +212,12 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
     // Search unused out:
     uint256_t l_single_val = {};
-    SUM_256_256(a_value, a_value_fee, &l_single_val);
+    // Full fee
+    uint256_t l_value_fee_full = {};
+    // Add fee stake
+    SUM_256_256(a_value_fee, MAX_FEE_STAKE, &l_value_fee_full);
+    // Add full fee
+    SUM_256_256(a_value, l_value_fee_full, &l_single_val);
     uint256_t l_value_need = {};
     MULT_256_256(dap_chain_uint256_from(a_tx_num), l_single_val, &l_value_need);
     uint256_t l_value_transfer = {}; // how many coins to transfer
@@ -257,10 +272,15 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         uint256_t l_value_pack = {}; // how much coin add to 'out' items
         if(dap_chain_datum_tx_add_out_item(&l_tx_new, a_addr_to, a_value) == 1) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
-            // transaction fee
+            // Transaction fee
             if (!IS_ZERO_256(a_value_fee)) {
                 if (dap_chain_datum_tx_add_fee_item(&l_tx_new, a_value_fee) == 1)
                     SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+            }
+            // Staker fee
+            if(!IS_ZERO_256(MAX_FEE_STAKE)) {
+                if(dap_chain_datum_tx_add_fee_stake_item(&l_tx_new, MAX_FEE_STAKE) == 1)
+                    SUM_256_256(l_value_pack, MAX_FEE_STAKE, &l_value_pack);
             }
         }
         // coin back
@@ -375,7 +395,7 @@ dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_c
     // add 'in_cond' items
     dap_chain_hash_fast_t *l_tx_prev_hash = a_tx_prev_hash;
     dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_prev_hash);
-    int l_prev_cond_idx;
+    int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, &l_prev_cond_idx);
     if (!l_out_cond) {
         log_it(L_WARNING, "Requested conditioned transaction have no conditioned output");
