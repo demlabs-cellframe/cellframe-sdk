@@ -261,6 +261,22 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a
 }
 
 /**
+ * Create item dap_chain_tx_out_cond_t with fee stake subtype
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee_stake(uint256_t a_value)
+{
+    if (IS_ZERO_256(a_value))
+        return NULL;
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE;
+    return l_item;
+}
+
+/**
  * Create item dap_chain_tx_out_cond_t
  *
  * return item, NULL Error
@@ -415,7 +431,6 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
  * Get all item from transaction by type
  *
  * a_tx [in] transaction
- * a_item_idx_start[in/out] start index / found index of item in transaction, if 0 then from beginning
  * a_type[in] type of item being find, if TX_ITEM_TYPE_ANY - any item
  * a_item_count[out] count of returned item
  * return item data, NULL Error index or bad format transaction
@@ -426,7 +441,7 @@ dap_list_t *items_list = NULL;
 int l_items_count = 0, l_item_idx_start = 0;
 uint8_t *l_tx_item;
 
-    // Get sign item from transaction
+    // Get a_type item from transaction
     while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL)) != NULL)
     {
         items_list = dap_list_append(items_list, l_tx_item);
@@ -440,12 +455,22 @@ uint8_t *l_tx_item;
     return items_list;
 }
 
+/**
+ * Get tx_out_cond item from transaction
+ *
+ * a_tx [in] transaction
+ * a_out_num[in/out] start index / found index of item in transaction, if 0 then from beginning
+ * return tx_out_cond, or NULL
+ */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, int *a_out_num)
 {
     dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_prev_cond_idx = l_list_out_items ? 0 : -1;
     dap_chain_tx_out_cond_t *l_res = NULL;
     for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_prev_cond_idx++) {
+        // Start from *a_out_num item if a_out_num != NULL
+        if(a_out_num && *a_out_num && l_prev_cond_idx <= *a_out_num)
+            continue;
         if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT_COND) {
             l_res = l_list_tmp->data;
             break;
