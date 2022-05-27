@@ -142,7 +142,12 @@ static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_x
 {
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
     uint8_t *l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
-    uint256_t l_datoshi_buy = {}; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate);
+    uint256_t l_datoshi_buy = uint256_0; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate); +++
+	char rate_str[50];
+	memset(rate_str, 0, sizeof(rate_str));
+	dap_sprintf(rate_str, "%Lf", (1 / a_price->rate));
+	if (MULT_256_COIN(a_price->datoshi_sell, dap_chain_coins_to_balance(rate_str), &l_datoshi_buy);)
+		l_datoshi_buy = uint256_0;
     memcpy(l_ext, &l_datoshi_buy, sizeof(uint256_t));
     strcpy((char *)&l_ext[sizeof(uint256_t)], a_price->token_buy);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
