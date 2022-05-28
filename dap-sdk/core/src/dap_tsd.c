@@ -140,7 +140,7 @@ dap_tsd_t * dap_tsd_create(uint16_t a_type, const void * a_data, size_t a_data_s
  * @param a_typeid
  * @return
  */
-dap_tsd_t* dap_tsd_find(byte_t * a_data, size_t a_data_size,uint16_t a_type)
+dap_tsd_t* dap_tsd_find(byte_t *a_data, size_t a_data_size, uint16_t a_type)
 {
 dap_tsd_t *l_tsd;
 size_t l_tsd_size;
