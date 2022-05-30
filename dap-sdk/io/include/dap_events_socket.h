@@ -115,6 +115,7 @@ typedef struct dap_events dap_events_t;
 typedef struct dap_events_socket dap_events_socket_t;
 typedef struct dap_worker dap_worker_t;
 typedef struct dap_proc_thread dap_proc_thread_t ;
+typedef struct dap_context dap_context_t;
 
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
@@ -245,6 +246,7 @@ typedef struct dap_events_socket {
 
     // Links to related objects
     dap_events_t *events;
+    dap_context_t * context;
     dap_worker_t *worker;
     dap_proc_thread_t * proc_thread; // If assigned on dap_proc_thread_t object
     dap_server_t *server; // If this socket assigned with server
@@ -341,13 +343,8 @@ void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, 
 void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
 
-// Non-MT functions
-dap_events_socket_t * dap_worker_esocket_find_uuid(dap_worker_t * a_worker, dap_events_socket_uuid_t a_es_uuid);
-
 void dap_events_socket_set_readable_unsafe(dap_events_socket_t * sc,bool is_ready);
 void dap_events_socket_set_writable_unsafe(dap_events_socket_t * sc,bool is_ready);
-void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket);
-
 
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data, size_t data_size);
 size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * format,...);

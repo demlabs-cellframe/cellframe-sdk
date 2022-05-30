@@ -23,26 +23,24 @@
 #pragma once
 
 #include <pthread.h>
+#include <stdatomic.h>
 #include "dap_events_socket.h"
 #include "dap_proc_queue.h"
 #include "dap_common.h"
 #include "dap_events.h"
+#include "dap_context.h"
 
+typedef struct dap_context dap_context_t;
 //typedef struct dap_proc_queue dap_proc_queue_t;
 typedef struct dap_timerfd dap_timerfd_t;
 typedef struct dap_worker
 {
-    uint32_t id;
+    uint32_t  id;
     dap_events_t* events;
     dap_proc_queue_t* proc_queue;
     dap_events_socket_t *proc_queue_input;
 
-    uint32_t event_sockets_count;
-    pthread_rwlock_t esocket_rwlock;
-    dap_events_socket_t *esockets; // Hashmap of event sockets
-
-    // Signal to exit
-    int signal_exit;
+    atomic_uint event_sockets_count;
 
     // worker control queues
     dap_events_socket_t *queue_es_new; // Queue socket for new socket
@@ -64,30 +62,8 @@ typedef struct dap_worker
     dap_events_socket_t *queue_gdb_input;                                   /* Inputs for request to GDB, @RRL: #6238 */
 
     dap_timerfd_t * timer_check_activity;
-#if defined DAP_EVENTS_CAPS_MSMQ
-    HANDLE msmq_events[MAXIMUM_WAIT_OBJECTS];
-#endif
 
-#if defined DAP_EVENTS_CAPS_EPOLL
-    EPOLL_HANDLE epoll_fd;
-#elif defined ( DAP_EVENTS_CAPS_POLL)
-    int poll_fd;
-    struct pollfd * poll;
-    dap_events_socket_t ** poll_esocket;
-    atomic_uint poll_count;
-    size_t poll_count_max;
-    bool poll_compress; // Some of fd's became NULL so arrays need to be reassigned
-#elif defined (DAP_EVENTS_CAPS_KQUEUE)
-    int kqueue_fd;
-    struct kevent * kqueue_events_selected;
-    struct kevent * kqueue_events;
-    size_t kqueue_events_count;
-
-    int kqueue_events_count_max;
-    int kqueue_events_selected_count_max;
-#else
-#error "Not defined worker for your platform"
-#endif
+    dap_context_t *context;
     pthread_cond_t started_cond;
     pthread_mutex_t started_mutex;
     void * _inheritor;
@@ -124,7 +100,14 @@ extern "C" {
 int dap_worker_init( size_t a_conn_timeout );
 void dap_worker_deinit();
 
-int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker);
+static inline int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker)
+{
+    int l_ret = dap_context_add_esocket(a_worker->context, a_esocket);
+    if (l_ret == 0 )
+        a_esocket->worker = a_worker;
+    return l_ret;
+}
+
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
 void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_events_socket_t * a_events_socket);
 dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );

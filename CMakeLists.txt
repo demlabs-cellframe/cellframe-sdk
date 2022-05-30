@@ -51,7 +51,7 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
 endif()
 
 if (CELLFRAME_MODULES MATCHES "core")
-    SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto")
+    SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto io")
 endif()
 
 
@@ -61,7 +61,7 @@ endif()
 
 if (CELLFRAME_MODULES MATCHES "dap-sdk-net-client")
     set(DAPSDK_MODULES "core crypto network-core network-client network-server")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto dap_server_core dap_server dap_client m pthread)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto dap_io dap_server dap_client m pthread)
     if (SUPPORT_PYTHON_PLUGINS)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} core chains network cs-none srv-")
     endif()
@@ -129,7 +129,7 @@ endif()
 # Networking
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_server_core dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
         dap_stream dap_stream_ch dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_stream_ch_chain_voting dap_chain_mempool magic)
 endif()
 

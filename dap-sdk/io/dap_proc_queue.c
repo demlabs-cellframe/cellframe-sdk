@@ -51,7 +51,7 @@ dap_proc_queue_t * dap_proc_queue_create_ext(dap_proc_thread_t * a_thread)
     if (!l_queue)
         return NULL;
 
-    for (int i = 0; i < DAP_QUE$K_PRIMAX; i++) {
+    for (int i = 0; i < DAP_PROC_PRI_MAX; i++) {
         assert ( !(pthread_mutex_init(&l_queue->list[i].lock, 0 )) );
     }
 
@@ -78,7 +78,7 @@ dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread)
     if (!l_queue)
         return NULL;
 
-    for (int i = 0; i < DAP_QUE$K_PRIMAX; i++) {
+    for (int i = 0; i < DAP_PROC_PRI_MAX; i++) {
         assert ( !(pthread_mutex_init(&l_queue->list[i].lock, 0 )) );
     }
 
@@ -104,7 +104,7 @@ int dap_proc_queue_delete(dap_proc_queue_t * a_queue)
         return  -ENOMEM;
 
     l_msg->signal_kill = 1;             /* TRUE */
-    l_msg->pri = DAP_QUE$K_PRI_HIGH;    /* Assume that KILL must be delivered ASAP */
+    l_msg->pri = DAP_PROC_PRI_HIGH;    /* Assume that KILL must be delivered ASAP */
 
     return  dap_events_socket_queue_ptr_send( a_queue->esocket, l_msg );
 }
@@ -157,7 +157,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
      * So, all checks has been finished, now we can prepare new entry
      */
     pri = l_msg->pri;                                                       /* Validate priority */
-    pri = MIN(pri, DAP_QUE$K_PRIMAX - 1);
+    pri = MIN(pri, DAP_PROC_PRI_MAX - 1);
     pri = MAX(pri, 0);
 
         l_item->callback = l_msg->callback;
@@ -197,7 +197,7 @@ int dap_proc_queue_add_callback(dap_worker_t * a_worker,dap_proc_queue_callback_
 
     l_msg->callback = a_callback;
     l_msg->callback_arg = a_callback_arg;
-    l_msg->pri = DAP_QUE$K_PRI_NORMAL;
+    l_msg->pri = DAP_PROC_PRI_NORMAL;
     /*
      * Send message to queue with the DEFAULT priority
      */
@@ -219,10 +219,10 @@ int dap_proc_queue_add_callback_ext(dap_worker_t * a_worker,dap_proc_queue_callb
 {
 dap_proc_queue_msg_t *l_msg;
 
-    if ( !(a_pri < DAP_QUE$K_PRIMAX) )                                      /* Check that priority level is in legal range */
+    if ( !(a_pri < DAP_PROC_PRI_MAX) )                                      /* Check that priority level is in legal range */
     {
-        log_it(L_WARNING, "Priority level %d is incorrect (should be is in range %d-%d)", a_pri, DAP_QUE$K_PRI0 + 1, DAP_QUE$K_PRIMAX - 1);
-        a_pri = DAP_QUE$K_PRI_NORMAL;
+        log_it(L_WARNING, "Priority level %d is incorrect (should be is in range %d-%d)", a_pri, DAP_PROC_PRI_0 + 1, DAP_PROC_PRI_MAX - 1);
+        a_pri = DAP_PROC_PRI_NORMAL;
     }
 
     if ( !(l_msg = DAP_NEW_Z(dap_proc_queue_msg_t)) )                       /* Allocate memory for a new message */
@@ -256,7 +256,7 @@ int dap_proc_queue_add_callback_inter( dap_events_socket_t * a_es_input, dap_pro
 
     l_msg->callback = a_callback;
     l_msg->callback_arg = a_callback_arg;
-    l_msg->pri = DAP_QUE$K_PRI_NORMAL;
+    l_msg->pri = DAP_PROC_PRI_NORMAL;
 
     return  dap_events_socket_queue_ptr_send_to_input( a_es_input , l_msg );
 }
@@ -275,10 +275,10 @@ int dap_proc_queue_add_callback_inter_ext( dap_events_socket_t * a_es_input, dap
 {
 dap_proc_queue_msg_t *l_msg;
 
-    if ( !(a_pri < DAP_QUE$K_PRIMAX) )                                      /* Check that priority level is in legal range */
+    if ( !(a_pri < DAP_PROC_PRI_MAX) )                                      /* Check that priority level is in legal range */
     {
-        log_it(L_WARNING, "Priority level %d is incorrect (should be is in range %d-%d)", a_pri, DAP_QUE$K_PRI0 + 1, DAP_QUE$K_PRIMAX - 1);
-        a_pri = DAP_QUE$K_PRI_NORMAL;
+        log_it(L_WARNING, "Priority level %d is incorrect (should be is in range %d-%d)", a_pri, DAP_PROC_PRI_0 + 1, DAP_PROC_PRI_MAX - 1);
+        a_pri = DAP_PROC_PRI_NORMAL;
     }
 
     if ( !(l_msg = DAP_NEW_Z(dap_proc_queue_msg_t)) )                       /* Allocate memory for a new message */
@@ -290,3 +290,31 @@ dap_proc_queue_msg_t *l_msg;
 
     return  dap_events_socket_queue_ptr_send_to_input( a_es_input , l_msg );
 }
+
+/**
+ * @brief dap_proc_thread_add_callback_mt
+ * @param a_thread
+ * @param a_callback
+ * @param a_callback_arg
+ * @return
+ */
+int dap_proc_thread_add_callback_mt(dap_proc_thread_t * a_thread, dap_proc_queue_callback_t a_callback, void * a_callback_arg, int a_pri)
+{
+    dap_proc_queue_msg_t *l_msg;
+
+    if ( !(a_pri < DAP_PROC_PRI_MAX) )                                      /* Check that priority level is in legal range */
+    {
+        log_it(L_WARNING, "Priority level %d is incorrect (should be is in range %d-%d)", a_pri, DAP_PROC_PRI_0 + 1, DAP_PROC_PRI_MAX - 1);
+        a_pri = DAP_PROC_PRI_NORMAL;
+    }
+
+    if ( !(l_msg = DAP_NEW_Z(dap_proc_queue_msg_t)) )                       /* Allocate memory for a new message */
+        return  -ENOMEM;
+
+    l_msg->callback = a_callback;
+    l_msg->callback_arg = a_callback_arg;
+    l_msg->pri = a_pri;
+
+    dap_events_socket_queue_ptr_send(a_thread->proc_queue->esocket, l_msg);
+}
+

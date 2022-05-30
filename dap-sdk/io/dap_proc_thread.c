@@ -227,7 +227,7 @@ dap_proc_queue_t    *l_queue;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_queue = l_thread->proc_queue;
 
-    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ ) /* Run from higest to lowest ... */
+    for (l_cur_pri = (DAP_PROC_PRI_MAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ ) /* Run from higest to lowest ... */
     {
         if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
             continue;
@@ -264,7 +264,7 @@ dap_proc_queue_t    *l_queue;
             DAP_DELETE(l_item);
     	}
     }
-    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)        /* Really ?! */
+    for (l_cur_pri = (DAP_PROC_PRI_MAX - 1); l_cur_pri; l_cur_pri--)        /* Really ?! */
         l_is_anybody_in_queue += l_queue->list[l_cur_pri].items.nr;
 
     if ( l_is_anybody_in_queue )                                            /* Arm event if we have something to proc again */
@@ -858,7 +858,7 @@ static void * s_proc_thread_function(void * a_arg)
 
                                     // Select socket and kqueue fd to send the event
                                     dap_events_socket_t * l_es_output = l_cur->pipe_out ? l_cur->pipe_out : l_cur;
-                                    int l_kqueue_fd = l_es_output->worker ? l_es_output->worker->kqueue_fd : l_es_output->proc_thread ? l_es_output->proc_thread->kqueue_fd : -1;
+                                    int l_kqueue_fd = l_es_output->context ? l_es_output->context->kqueue_fd : -1;
 
                                     struct kevent l_event;
                                     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
@@ -1086,7 +1086,7 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
  * @param a_callback
  * @param a_arg
  */
-void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_worker_callback_t a_callback, void * a_arg)
+void dap_proc_thread_worker_exec_callback_inter(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_worker_callback_t a_callback, void * a_arg)
 {
     dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
@@ -1100,6 +1100,7 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
 #endif
 }
 
+
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
 {
     (void) a_flags;
@@ -1108,4 +1109,7 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
     if(g_debug_reactor)
         log_it(L_DEBUG, "Proc_thread :%u signaled to exit", l_thread->cpu_id);
 }
+
+
+
 

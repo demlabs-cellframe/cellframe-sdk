@@ -27,7 +27,7 @@
 #include "dap_proc_queue.h"
 #include "dap_worker.h"
 #include "dap_common.h"
-
+#include "dap_context.h"
 typedef struct dap_proc_thread{
     uint32_t    cpu_id;
     pthread_t   thread_id;                                                  /* TID has been returned by pthread_create() */
@@ -43,6 +43,7 @@ typedef struct dap_proc_thread{
 
     dap_events_socket_t *queue_gdb_input;                                   /* Inputs for request to GDB, @RRL: #6238 */
 
+    dap_context_t * context;
     int signal_kill;
     int signal_exit;
 
@@ -87,6 +88,8 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
 
 typedef void (*dap_proc_worker_callback_t)(dap_worker_t *,void *);
 
-void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_proc_worker_callback_t a_callback, void * a_arg);
+void dap_proc_thread_worker_exec_callback_inter(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_proc_worker_callback_t a_callback, void * a_arg);
 
 int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket);
+
+
