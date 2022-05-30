@@ -807,7 +807,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
                 dap_string_append_printf(l_reply_str, "%s %s %s %s %s %s %Lf %s\n", l_order_hash_str, l_price->token_sell,
                                          l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
-                                         dap_chain_balance_print(l_price->datoshi_sell), l_price->rate, l_price->wallet_str);
+                                         dap_chain_balance_print(l_price->datoshi_sell), dap_chain_balance_print(l_price->rate), l_price->wallet_str);
                 DAP_DELETE(l_order_hash_str);
             }
             if (!l_reply_str->len) {
@@ -874,7 +874,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 l_price = s_xchange_price_from_order(l_net, l_order);
                 dap_string_append_printf(l_reply_str, "%s %s %s %s %s %s %Lf\n", l_orders[i].key, l_price->token_sell,
                                          l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
-                                         dap_chain_balance_print(l_price->datoshi_sell), l_price->rate);
+                                         dap_chain_balance_print(l_price->datoshi_sell), dap_chain_balance_print(l_price->rate));
                 DAP_DELETE(l_price);
             }
             dap_chain_global_db_objs_delete(l_orders, l_orders_count);
