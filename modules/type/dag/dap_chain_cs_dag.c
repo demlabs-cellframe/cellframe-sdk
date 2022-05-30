@@ -286,15 +286,13 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     
     l_dag->broadcast_disable = true;
-    if(!l_dag->is_celled){
-        char *l_gdb_group = dap_strdup_printf( "dag-%s-%s-round", l_net->pub.gdb_groups_prefix, a_chain->name);
-        l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", l_gdb_group, l_round_new_str);
-        dap_chain_global_db_add_sync_extra_group(l_net->pub.name, l_gdb_group, s_history_callback_round_notify, l_dag);
-    } else {
-        char *l_gdb_group = dap_strdup_printf( "dag-%s-%s-%016llx-round", l_net->pub.gdb_groups_prefix, a_chain->name, 0);//a_chain->cells->id.uint64);
-        l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", l_gdb_group, l_round_new_str);
-        dap_chain_global_db_add_sync_extra_group(l_net->pub.name, l_gdb_group, s_history_callback_round_notify, l_dag);
-    }
+    char *l_gdb_group = NULL;
+    if (!l_dag->is_celled)
+        l_gdb_group = dap_strdup_printf( "dag-%s-%s-round", l_net->pub.gdb_groups_prefix, a_chain->name);
+    else
+        l_gdb_group = dap_strdup_printf( "dag-%s-%s-%016llx-round", l_net->pub.gdb_groups_prefix, a_chain->name, 0);//a_chain->cells->id.uint64);
+    l_dag->gdb_group_events_round_new = dap_strdup_printf( "%s.%s", l_gdb_group, l_round_new_str);
+    dap_chain_global_db_add_sync_extra_group(l_net->pub.name, l_dag->gdb_group_events_round_new, s_history_callback_round_notify, l_dag);
     dap_chain_global_db_gr_del(NULL, l_dag->gdb_group_events_round_new);
     l_dag->gdb_group_datums_queue = dap_strdup_printf("local.datums-queue.chain-%s.%s",
                                                         l_net->pub.gdb_groups_prefix, a_chain->name);
@@ -697,22 +695,20 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
             continue;
         }
 
-        if (l_dag->is_add_directly) {
-            // Verify for correctness
-            dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
-            int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-            if (l_verify_datum != 0 &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
-                log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
-                                         l_verify_datum);
-                continue;
-            }
+        // Verify for correctness
+        dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
+        int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+        if (l_verify_datum != 0 &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
+                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
+            log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
+                                     l_verify_datum);
+            continue;
         }
 
         // Prepare round
-        if (l_hashes_size) {
+        if (l_hashes_size & !s_seed_mode) {
             pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
             size_t l_rnd_steps = 0;
             // Linking events randomly with ones from previous round
