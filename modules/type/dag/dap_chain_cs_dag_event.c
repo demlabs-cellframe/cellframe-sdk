@@ -254,7 +254,7 @@ size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t
 
 static bool s_event_broadcast_send(dap_chain_cs_dag_event_round_broadcast_t *l_arg) {
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->dag->chain->net_id);
-    if (dap_chain_net_get_state(l_net) == NET_STATE_ONLINE) {
+    if (dap_chain_net_get_state(l_net) != NET_STATE_SYNC_GDB) {
         dap_chain_net_sync_gdb_broadcast((void *)l_net, l_arg->op_code, l_arg->group, l_arg->key, l_arg->value, l_arg->value_size);
     }
     else if ( l_arg->attempts < 10 ) {

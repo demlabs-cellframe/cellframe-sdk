@@ -655,7 +655,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
             log_it(L_NOTICE,"Loaded \"%s\" certificate to sign poa event", l_events_sign_cert);
 
     }
-    // Process events from GDB
+    /* Process events from GDB  - lead to segfault with previous group truncate
     dap_chain_net_t *l_cur_net = dap_chain_net_by_name(a_chain->net_name);
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
     if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
@@ -669,7 +669,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
             }
             dap_chain_global_db_objs_delete(l_round_objs, l_round_objs_count);
         }
-    }
+    } */
     return 0;
 }
 

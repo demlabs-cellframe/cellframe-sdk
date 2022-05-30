@@ -48,6 +48,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_global_db.h"
+#include "dap_chain_global_db_driver.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_cell.h"
@@ -112,7 +113,7 @@ static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_lasts( dap_chain_ato
 // Delete iterator
 static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt event from dag
 
-static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_size);
+static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t *a_datum);
 static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_datums, size_t a_datums_count);
 // Datum ops
 /*
@@ -239,7 +240,6 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;
     a_chain->callback_tx_find_by_hash = s_chain_callback_atom_find_by_tx_hash;
 
-    // a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
     a_chain->callback_add_datums = s_callback_add_datums;
 
     // Datum operations callbacks
@@ -576,10 +576,6 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     char *l_gdb_group = l_dag->gdb_group_datums_queue;
 
-    if (l_dag->is_add_directly) {
-        return s_chain_callback_datums_pool_proc(a_chain, a_datums, a_datums_count);
-    }
-
     size_t l_datum_processed = 0;
     for (size_t i = 0; i < a_datums_count; i++) {
         size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
@@ -599,15 +595,20 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             continue;
         }
 
-        dap_chain_hash_fast_t l_key_hash;
-        dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
-        char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+        if (l_dag->is_add_directly ||
+                !dap_chain_global_db_driver_count(l_dag->gdb_group_events_round_new, 1)) {
+            if (s_chain_callback_datums_pool_proc(a_chain, l_datum))
+                l_datum_processed++;
+        } else {
+            dap_chain_hash_fast_t l_key_hash;
+            dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+            char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
-        if (dap_chain_global_db_gr_set(l_key_str, l_datum, l_datum_size, l_gdb_group) ) {
-            l_datum_processed++;
+            if (dap_chain_global_db_gr_set(l_key_str, l_datum, l_datum_size, l_gdb_group) ) {
+                l_datum_processed++;
+            }
         }
     }
-    dap_chain_cs_new_event_add_datums(a_chain, true);
     return l_datum_processed;
 }
 
@@ -617,69 +618,38 @@ void dap_chain_cs_new_event_add_datums(dap_chain_t *a_chain, bool a_round_check)
     char *l_gdb_group_queue = l_dag->gdb_group_datums_queue;
     char *l_gdb_group_round = l_dag->gdb_group_events_round_new;
 
-    if (l_dag->is_add_directly) {
+    if (l_dag->is_add_directly)
         return;
-    }
 
-    if (a_round_check) {
-        size_t l_round_objs_size = 0;
-        dap_global_db_obj_t *l_round_objs = dap_chain_global_db_gr_load(l_gdb_group_round, &l_round_objs_size);
-        if (l_round_objs_size) {
-            dap_chain_global_db_objs_delete(l_round_objs, l_round_objs_size);
-            return;
-        }
-    }
+    if (a_round_check && dap_chain_global_db_driver_count(l_gdb_group_round, 1))
+        return;
 
-    size_t l_objs_size = 0;
-    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_queue, &l_objs_size);
-    if (l_objs_size) {
-        for (size_t i = 0; i < l_objs_size; i++) {
-            if (!l_objs[i].value_len) {
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_queue); // delete from datums queue
-                continue;
-            }
-            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            size_t l_datum_size = dap_chain_datum_size(l_datum);
-            if(!l_datum_size || l_datum == NULL){ // Was wrong datum thats not passed checks
-                log_it(L_WARNING,"Datum in mempool processing comes NULL");
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_queue); // delete from datums queue
-                continue;
-            }
-
-            // dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
-            // if ( dap_time_now() -  ) 
-
-            // Verify for correctness
-            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-            int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum);
-            if (l_verify_datum != 0 &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
-                log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
-                                         l_verify_datum);
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_queue); // delete from datums queue
-                continue;
-            }
-
-            // if ( s_chain_callback_datums_pool_proc(a_chain, &l_datum, 1) ) {
-            //     break;
-            // }
-            if (s_chain_callback_datums_pool_proc(a_chain, &l_datum, 1)) {
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_queue);
-            }
+    bool is_finished = false;
+    while (!is_finished) {
+        dap_store_obj_t *l_obj  = dap_chain_global_db_get_last(l_gdb_group_queue);
+        if (!l_obj)
             break;
+        if (l_obj->value_len) {
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_obj->value;
+            size_t l_datum_size = dap_chain_datum_size(l_datum);
+            if (!l_datum_size || l_datum == NULL) // Was wrong datum thats not passed checks
+                log_it(L_WARNING,"Datum in mempool processing comes NULL");
+            else if (s_chain_callback_datums_pool_proc(a_chain, l_datum))
+                is_finished = true;
         }
-        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+        dap_chain_global_db_driver_delete(l_obj, 1); // delete from datums queue
+        dap_store_obj_free_one(l_obj);
     }
 }
 
 
-static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count)
+static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t *a_datum)
 {
-
+    if (a_datum == NULL) { // Was wrong datum thats not passed checks
+        log_it(L_WARNING,"Datum in mempool processing comes NULL");
+        return false;
+    }
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
-    size_t l_datum_processed =0;
     // Prepare hashes
     size_t l_hashes_size = l_dag->datum_add_hashes_count;
     if (l_dag->is_single_line ) // If single line - only one link inside
@@ -688,145 +658,123 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
                                              sizeof(dap_chain_hash_fast_t) * l_hashes_size) : NULL;
     size_t l_hashes_linked = 0;
     dap_chain_cell_t *l_cell = NULL;
-    for (size_t d = 0; d <a_datums_count ; d++){
-        dap_chain_datum_t * l_datum = a_datums[d];
-        if(l_datum == NULL){ // Was wrong datum thats not passed checks
-            log_it(L_WARNING,"Datum in mempool processing comes NULL");
-            continue;
-        }
-
-        // Verify for correctness
-        dap_chain_net_t * l_net = dap_chain_net_by_id( a_chain->net_id);
-        int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-        if (l_verify_datum != 0 &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN){
-            log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
-                                     l_verify_datum);
-            continue;
-        }
-
-        // Prepare round
-        if (l_hashes_size & !s_seed_mode) {
-            pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-            size_t l_rnd_steps = 0;
-            // Linking events randomly with ones from previous round
-            do {
-                dap_chain_cs_dag_event_item_t *l_event_ext_item = NULL;
-                int l_unlinked_size = HASH_COUNT(PVT(l_dag)->events_lasts_unlinked);
-                if (!l_unlinked_size)
-                    break;
-                int l_index = rand() % l_unlinked_size;
-                l_event_ext_item = PVT(l_dag)->events_lasts_unlinked;
-                for (int i = 0; i < l_index; i++) {
-                    l_event_ext_item = l_event_ext_item->hh.next;
-                }
-                dap_chain_hash_fast_t *l_hash = &l_event_ext_item->hash;
-
-                bool l_is_already_in_event = false;
-                for (uint16_t i = 0; i < l_hashes_linked; i++) { // check if we already added it
-                    if (l_hashes && memcmp(&l_hashes[i], l_hash, sizeof(*l_hash)) ==0) {
-                        l_is_already_in_event = true;
-                        break;
-                    }
-                }
-                if (!l_is_already_in_event && l_hashes_linked < l_hashes_size) {
-                    memcpy(&l_hashes[l_hashes_linked], l_hash, sizeof(*l_hash));
-                    l_hashes_linked++;
-                }
-
-                l_rnd_steps++;
-                if (l_rnd_steps > 100) // Too many attempts
-                    break;
-            } while (l_hashes_linked < l_hashes_size);
-            pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-            // Check if we have enought hash links
-            if (l_hashes_linked < l_hashes_size) {
-                log_it(L_ERROR, "Can't link new events randomly for 100 attempts");
+    // Prepare round
+    if (l_hashes_size & !s_seed_mode) {
+        pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+        size_t l_rnd_steps = 0;
+        // Linking events randomly with ones from previous round
+        do {
+            dap_chain_cs_dag_event_item_t *l_event_ext_item = NULL;
+            int l_unlinked_size = HASH_COUNT(PVT(l_dag)->events_lasts_unlinked);
+            if (!l_unlinked_size)
                 break;
+            int l_index = rand() % l_unlinked_size;
+            l_event_ext_item = PVT(l_dag)->events_lasts_unlinked;
+            for (int i = 0; i < l_index; i++) {
+                l_event_ext_item = l_event_ext_item->hh.next;
             }
+            dap_chain_hash_fast_t *l_hash = &l_event_ext_item->hash;
+
+            bool l_is_already_in_event = false;
+            for (uint16_t i = 0; i < l_hashes_linked; i++) { // check if we already added it
+                if (l_hashes && memcmp(&l_hashes[i], l_hash, sizeof(*l_hash)) ==0) {
+                    l_is_already_in_event = true;
+                    break;
+                }
+            }
+            if (!l_is_already_in_event && l_hashes_linked < l_hashes_size) {
+                memcpy(&l_hashes[l_hashes_linked], l_hash, sizeof(*l_hash));
+                l_hashes_linked++;
+            }
+
+            l_rnd_steps++;
+            if (l_rnd_steps > 100) // Too many attempts
+                break;
+        } while (l_hashes_linked < l_hashes_size);
+        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+        // Check if we have enought hash links
+        if (l_hashes_linked < l_hashes_size) {
+            log_it(L_ERROR, "Can't link new events randomly for 100 attempts");
+            return false;
         }
-        if (l_hashes_linked || s_seed_mode ) {
-            dap_chain_cs_dag_event_t * l_event = NULL;
-            size_t l_event_size = 0;
-            if(l_dag->callback_cs_event_create)
-                l_event = l_dag->callback_cs_event_create(l_dag, l_datum, l_hashes, l_hashes_linked, &l_event_size);
-            if (l_event && l_event_size) { // Event is created
-                if (l_dag->is_add_directly) {
-                    l_cell = a_chain->cells;
-                    if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
-                        if (dap_chain_atom_save(a_chain, (uint8_t *)l_event, l_event_size, a_chain->cells->id) < 0) {
-                            log_it(L_ERROR, "Can't add new event to the file");
-                        }
-                        // add all atoms from treshold       
-                        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-                        dap_chain_t *l_cur_chain;
-                        bool l_processed;
-                        do {
-                            l_processed = false;
-                            DL_FOREACH(l_net->pub.chains, l_cur_chain) {
-                                if (l_cur_chain->callback_atom_add_from_treshold) {
-                                    dap_chain_atom_ptr_t l_atom_treshold;
-                                    do {
-                                        size_t l_atom_treshold_size;
-                                        // add in ledger
-                                        l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
-                                        // add into file
-                                        if (l_atom_treshold) {
-                                            int l_res = dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cur_chain->cells->id);
-                                            if (l_res < 0) {
-                                                log_it(L_ERROR, "Can't save event %p from treshold", l_atom_treshold);
-                                            }
+    }
+    if (l_hashes_linked || s_seed_mode ) {
+        dap_chain_cs_dag_event_t * l_event = NULL;
+        size_t l_event_size = 0;
+        if(l_dag->callback_cs_event_create)
+            l_event = l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size);
+        if (l_event && l_event_size) { // Event is created
+            if (l_dag->is_add_directly) {
+                l_cell = a_chain->cells;
+                if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
+                    if (dap_chain_atom_save(a_chain, (uint8_t *)l_event, l_event_size, a_chain->cells->id) < 0) {
+                        log_it(L_ERROR, "Can't add new event to the file");
+                    }
+                    // add all atoms from treshold
+                    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+                    dap_chain_t *l_cur_chain;
+                    bool l_processed;
+                    do {
+                        l_processed = false;
+                        DL_FOREACH(l_net->pub.chains, l_cur_chain) {
+                            if (l_cur_chain->callback_atom_add_from_treshold) {
+                                dap_chain_atom_ptr_t l_atom_treshold;
+                                do {
+                                    size_t l_atom_treshold_size;
+                                    // add in ledger
+                                    l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
+                                    // add into file
+                                    if (l_atom_treshold) {
+                                        int l_res = dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cur_chain->cells->id);
+                                        if (l_res < 0) {
+                                            log_it(L_ERROR, "Can't save event %p from treshold", l_atom_treshold);
                                         }
-                                    } while (l_atom_treshold);
-                                }
+                                    }
+                                } while (l_atom_treshold);
                             }
-                        } while (l_processed);
-                        l_datum_processed++;
-                    }
-                    else {
-                        log_it(L_ERROR, "Can't add new event");
-                        continue;
-                    }
+                        }
+                    } while (l_processed);
                 }
-                // add to new round into global_db
                 else {
-                    dap_chain_hash_fast_t l_event_hash, l_datum_hash;
-                    dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
-                    char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
-                    dap_chain_cs_dag_event_round_info_t l_event_round_info;
-                    if ( l_dag->callback_cs_get_round_info ) {
-                        l_dag->callback_cs_get_round_info(l_dag, &l_event_round_info);
-                    }
-                    // set datum hash for round
-                    dap_hash_fast(l_datum, dap_chain_datum_size(l_datum), &l_datum_hash);
-                    memcpy(&l_event_round_info.datum_hash, &l_datum_hash, sizeof(dap_chain_hash_fast_t));
-                    dap_chain_cs_dag_event_round_item_t * l_round_item = 
-                                DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t, 
-                                                sizeof(dap_chain_cs_dag_event_round_item_t)+l_event_size);
-                    memcpy(&l_round_item->round_info, &l_event_round_info, sizeof(dap_chain_cs_dag_event_round_info_t));
-                    l_round_item->data_size = l_round_item->event_size = 0; 
-
-                    if(dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event,
-                                l_event_size, l_round_item, l_dag->gdb_group_events_round_new)) {
-                                //&l_event_round_info)) {
-                        log_it(L_INFO, "Event %s placed in the new forming round", l_event_hash_str);
-                        DAP_DEL_Z(l_event_hash_str);
-                        l_datum_processed++;
-                    }else {
-                        log_it(L_ERROR,"Can't add new event to the new events round");
-                        break;
-                    }
+                    log_it(L_ERROR, "Can't add new event");
+                    return false;
                 }
-            }else {
-                log_it(L_ERROR,"Can't create new event!");
-                break;
             }
+            // add to new round into global_db
+            else {
+                dap_chain_hash_fast_t l_event_hash, l_datum_hash;
+                dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
+                char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
+                dap_chain_cs_dag_event_round_info_t l_event_round_info;
+                if ( l_dag->callback_cs_get_round_info ) {
+                    l_dag->callback_cs_get_round_info(l_dag, &l_event_round_info);
+                }
+                // set datum hash for round
+                dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_datum_hash);
+                memcpy(&l_event_round_info.datum_hash, &l_datum_hash, sizeof(dap_chain_hash_fast_t));
+                dap_chain_cs_dag_event_round_item_t * l_round_item =
+                            DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
+                                            sizeof(dap_chain_cs_dag_event_round_item_t)+l_event_size);
+                memcpy(&l_round_item->round_info, &l_event_round_info, sizeof(dap_chain_cs_dag_event_round_info_t));
+                l_round_item->data_size = l_round_item->event_size = 0;
+
+                if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event,
+                            l_event_size, l_round_item, l_dag->gdb_group_events_round_new)) {
+                            //&l_event_round_info)) {
+                    log_it(L_INFO, "Event %s placed in the new forming round", l_event_hash_str);
+                    DAP_DEL_Z(l_event_hash_str);
+                } else {
+                    log_it(L_ERROR,"Can't add new event to the new events round");
+                    return false;
+                }
+            }
+        }else {
+            log_it(L_ERROR,"Can't create new event!");
+            return false;
         }
     }
     DAP_DELETE(l_hashes);
-    return l_datum_processed;
+    return true;
 }
 
 
@@ -1617,7 +1565,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                                                                   &l_datum_size,
                                                                    l_gdb_group_mempool);
                 l_datums[0] = l_datum;
-                if ( s_chain_callback_datums_pool_proc(l_chain,l_datums,l_datums_count ) == l_datums_count ){
+                if (s_callback_add_datums(l_chain, l_datums, l_datums_count) == l_datums_count) {
                     for ( size_t i = 0; i <l_datums_count; i++){
                        dap_chain_hash_fast_t l_datum_hash;
                        dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
