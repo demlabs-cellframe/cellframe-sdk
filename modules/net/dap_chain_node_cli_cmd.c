@@ -2268,11 +2268,12 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         else
             dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
         for(size_t i = 0; i < l_objs_size; i++) {
-            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
             if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
                 log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s data_size:%u, value_len:%zu",
                         a_net->pub.name, a_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
                 continue;
             }
             char buf[50] = {[0]='\0'};
