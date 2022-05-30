@@ -93,6 +93,7 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #include "dap_strfuncs.h"
 #include "dap_server.h"
 #include "dap_events.h"
+#include "dap_context.h"
 #include "dap_events_socket.h"
 #include "dap_proc_thread.h"
 #include "dap_config.h"
@@ -223,6 +224,12 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
     if ( !s_workers || !s_threads )
         return -1;
 
+    if(dap_context_init() != 0){
+        log_it( L_CRITICAL, "Can't init client submodule dap_context( )" );
+        goto err;
+
+    }
+
     dap_worker_init(a_conn_timeout);
     if ( dap_events_socket_init() != 0 ) {
         log_it( L_CRITICAL, "Can't init client submodule dap_events_socket_init( )" );
@@ -333,8 +340,7 @@ int dap_events_start( dap_events_t *a_events )
 
         l_worker->id = i;
         l_worker->events = a_events;
-        l_worker->esockets = NULL;
-        pthread_rwlock_init(&l_worker->esocket_rwlock,NULL);
+        l_worker->context = dap_context_new();
         pthread_mutex_init(& l_worker->started_mutex, NULL);
         pthread_cond_init( & l_worker->started_cond, NULL);
 

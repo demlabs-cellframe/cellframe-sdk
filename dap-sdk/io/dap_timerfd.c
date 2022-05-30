@@ -255,7 +255,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     return l_timerfd;
 }
 
-static void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t *a_event_sock)
+static inline void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t *a_event_sock)
 {
 #if defined DAP_OS_LINUX
     struct itimerspec l_ts;
@@ -289,6 +289,9 @@ static void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t *a_eve
 #endif
 }
 
+
+
+
 /**
  * @brief s_es_callback_timer
  * @param a_event_sock
@@ -305,6 +308,38 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 }
 
 /**
+ * @brief s_timerfd_reset_worker_callback
+ * @param a_worker
+ * @param a_arg
+ */
+static void s_timerfd_reset_worker_callback( dap_worker_t * a_worker, void * a_arg )
+{
+    dap_timerfd_t *l_timerfd = (dap_timerfd_t *) a_arg;
+    dap_events_socket_t *l_sock = NULL;
+    l_sock = dap_context_esocket_find_by_uuid(a_worker->context, l_timerfd->esocket_uuid);
+    if (l_sock)
+        s_timerfd_reset(l_timerfd, l_sock);
+
+}
+
+/**
+ * @brief s_timerfd_reset_proc_thread_callback
+ * @param a_thread
+ * @param a_arg
+ * @return
+ */
+static bool s_timerfd_reset_proc_thread_callback( dap_proc_thread_t * a_thread, void * a_arg )
+{
+    dap_timerfd_t *l_timerfd = (dap_timerfd_t *) a_arg;
+    dap_events_socket_t *l_sock = NULL;
+    l_sock = dap_context_esocket_find_by_uuid(a_thread->context, l_timerfd->esocket_uuid);
+    if (l_sock)
+        s_timerfd_reset(l_timerfd, l_sock);
+    return true;
+}
+
+
+/**
  * @brief dap_timerfd_reset
  * @param a_tfd
  */
@@ -312,13 +347,12 @@ void dap_timerfd_reset(dap_timerfd_t *a_timerfd)
 {
     if (!a_timerfd)
         return;
-    dap_events_socket_t *l_sock = NULL;
-    if (a_timerfd->worker)
-        l_sock = dap_worker_esocket_find_uuid(a_timerfd->worker, a_timerfd->esocket_uuid);
-    else if (a_timerfd->proc_thread)
-        l_sock = a_timerfd->events_socket;
-    if (l_sock)
-        s_timerfd_reset(a_timerfd, l_sock);
+    if (a_timerfd->worker){
+        dap_worker_exec_callback_on(a_timerfd->worker,s_timerfd_reset_worker_callback, a_timerfd);
+    }else if (a_timerfd->proc_thread)
+        dap_proc_thread_add_callback_mt(a_timerfd->proc_thread,s_timerfd_reset_proc_thread_callback, a_timerfd, DAP_PROC_PRI_NORMAL );
+    else
+        log_it(L_WARNING,"Timer's context undefined, cant' reset it");
 }
 
 /**

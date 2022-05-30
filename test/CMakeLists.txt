@@ -50,7 +50,7 @@ target_link_libraries(dap_global_db_test -pthread -lrt)
 
 target_link_libraries(dap_global_db_test  ${DAP_LIBSDK_ROOT}/modules/global-db/libdap_chain_global_db.a)
 target_link_libraries(dap_global_db_test  ${DAP_LIBSDK_ROOT}/dap-sdk/crypto/libdap_crypto.a)
-target_link_libraries(dap_global_db_test  ${DAP_LIBSDK_ROOT}/dap-sdk/net/core/libdap_server_core.a)
+target_link_libraries(dap_global_db_test  ${DAP_LIBSDK_ROOT}/dap-sdk/net/core/libdap_io.a)
 target_link_libraries(dap_global_db_test  ${DAP_LIBSDK_ROOT}/dap-sdk/core/libdap_core.a)
 target_link_libraries(dap_global_db_test  ${DAP_LIBSDK_ROOT}/3rdparty/cuttdb/libdap_cuttdb.a)
 target_link_libraries(dap_global_db_test -lsqlite3)
