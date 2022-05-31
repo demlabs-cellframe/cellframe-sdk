@@ -68,7 +68,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     size_t l_addr_point = DNS_HEADER_SIZE + strlen(l_dns_client->name) + 2 + 2 * sizeof(uint16_t) + DNS_ANSWER_SIZE - sizeof(uint32_t);
     if (l_recieved < l_addr_point + sizeof(uint32_t)) {
         log_it(L_WARNING, "DNS answer incomplete");
-        l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EIO );
+        l_dns_client->callback_error(a_esocket->context->worker, l_dns_client->result,l_dns_client->callbacks_arg,EIO );
         l_dns_client->is_callbacks_called = true;
         a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
@@ -78,7 +78,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     int l_answers_count = ntohs(*(uint16_t *)l_cur);
     if (l_answers_count != 1) {
         log_it(L_WARNING, "Incorrect DNS answer format");
-        l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,EINVAL);
+        l_dns_client->callback_error(a_esocket->context->worker, l_dns_client->result,l_dns_client->callbacks_arg,EINVAL);
         l_dns_client->is_callbacks_called = true;
         a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
@@ -101,7 +101,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
         }
     }
 
-    l_dns_client->callback_success(a_esocket->worker,l_dns_client->result,l_dns_client->callbacks_arg);
+    l_dns_client->callback_success(a_esocket->context->worker,l_dns_client->result,l_dns_client->callbacks_arg);
     l_dns_client->is_callbacks_called = true;
     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
@@ -116,7 +116,7 @@ static void s_dns_client_esocket_error_callback(dap_events_socket_t * a_esocket,
 {
     struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
     log_it(L_ERROR,"DNS client esocket error %d", a_error);
-    l_dns_client->callback_error(a_esocket->worker, l_dns_client->result,l_dns_client->callbacks_arg,a_error);
+    l_dns_client->callback_error(a_esocket->context->worker, l_dns_client->result,l_dns_client->callbacks_arg,a_error);
     l_dns_client->is_callbacks_called = true;
 }
 
@@ -143,7 +143,7 @@ static bool s_dns_client_esocket_timeout_callback(void * a_arg)
         struct dns_client * l_dns_client = (struct dns_client*) l_es->_inheritor;
         log_it(L_WARNING,"DNS request timeout, bad network?");
         if(! l_dns_client->is_callbacks_called ){
-            l_dns_client->callback_error(l_es->worker,l_dns_client->result,l_dns_client->callbacks_arg,ETIMEDOUT);
+            l_dns_client->callback_error(l_es->context->worker,l_dns_client->result,l_dns_client->callbacks_arg,ETIMEDOUT);
             l_dns_client->is_callbacks_called = true;
         }
 
@@ -163,7 +163,7 @@ static void s_dns_client_esocket_delete_callback(dap_events_socket_t * a_esocket
     (void) a_arg;
     struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
     if(! l_dns_client->is_callbacks_called )
-        l_dns_client->callback_error(a_esocket->worker,l_dns_client->result,l_dns_client->callbacks_arg,EBUSY);
+        l_dns_client->callback_error(a_esocket->context->worker,l_dns_client->result,l_dns_client->callbacks_arg,EBUSY);
     if(l_dns_client->name)
         DAP_DELETE(l_dns_client->name);
     DAP_DEL_Z(l_dns_client->buf);

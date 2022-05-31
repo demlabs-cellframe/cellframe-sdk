@@ -104,7 +104,7 @@ void dap_server_delete(dap_server_t *a_server)
 {
     while (a_server->es_listeners) {
         dap_events_socket_t *l_es = (dap_events_socket_t *)a_server->es_listeners->data;
-        dap_events_socket_remove_and_delete_mt(l_es->worker, l_es->uuid); // TODO unsafe moment. Replace storage to uuids
+        dap_events_socket_remove_and_delete_mt(l_es->context->worker, l_es->uuid); // TODO unsafe moment. Replace storage to uuids
         dap_list_t *l_tmp = a_server->es_listeners;
         a_server->es_listeners = l_tmp->next;
         DAP_DELETE(l_tmp);
@@ -345,7 +345,7 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
  */
 static void s_es_server_new(dap_events_socket_t *a_es, void * a_arg)
 {
-    log_it(L_DEBUG, "Created server socket %p on worker %u", a_es, a_es->worker->id);
+    log_it(L_DEBUG, "Created server socket %p on worker %u", a_es, a_es->context->worker->id);
     dap_server_t *l_server = (dap_server_t*) a_es->_inheritor;
     pthread_mutex_lock( &l_server->started_mutex);
     pthread_mutex_unlock( &l_server->started_mutex);
@@ -383,7 +383,7 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
     dap_events_socket_t * l_es_new = NULL;
     log_it(L_DEBUG, "Listening socket (binded on %s:%u) got new incomming connection",l_server->address,l_server->port);
     log_it(L_DEBUG, "Accepted new connection (sock %"DAP_FORMAT_SOCKET" from %"DAP_FORMAT_SOCKET")", a_remote_socket, a_es->socket);
-    l_es_new = s_es_server_create(a_es->events,a_remote_socket,&l_server->client_callbacks,l_server);
+    l_es_new = s_es_server_create(dap_events_get_default(),a_remote_socket,&l_server->client_callbacks,l_server);
     //l_es_new->is_dont_reset_write_flag = true; // By default all income connection has this flag
     getnameinfo(a_remote_addr,a_remote_addr_size, l_es_new->hostaddr
                 ,256, l_es_new->service,sizeof(l_es_new->service),

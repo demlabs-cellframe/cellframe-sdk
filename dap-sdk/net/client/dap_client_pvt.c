@@ -215,7 +215,7 @@ static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
     dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
     assert(a_client_pvt->stream_es);
     *l_es_uuid_ptr = a_client_pvt->stream_es->uuid;
-    if( dap_timerfd_start_on_worker(a_client_pvt->stream_es->worker, s_client_timeout_active_after_connect_seconds * 1000, s_stream_timer_timeout_after_connected_check ,l_es_uuid_ptr) == NULL ){
+    if( dap_timerfd_start_on_worker(a_client_pvt->stream_es->context->worker, s_client_timeout_active_after_connect_seconds * 1000, s_stream_timer_timeout_after_connected_check ,l_es_uuid_ptr) == NULL ){
         log_it(L_ERROR,"Can't run timer for stream after connect check for esocket uuid %"DAP_UINT64_FORMAT_U, *l_es_uuid_ptr);
         DAP_DEL_Z(l_es_uuid_ptr);
     }

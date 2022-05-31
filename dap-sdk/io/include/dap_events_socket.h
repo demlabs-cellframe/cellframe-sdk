@@ -245,9 +245,8 @@ typedef struct dap_events_socket {
 
 
     // Links to related objects
-    dap_events_t *events;
+//    dap_events_t *events;
     dap_context_t * context;
-    dap_worker_t *worker;
     dap_proc_thread_t * proc_thread; // If assigned on dap_proc_thread_t object
     dap_server_t *server; // If this socket assigned with server
 
@@ -312,7 +311,6 @@ void dap_events_socket_deinit(void); // Deinit clients module
 
 dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, dap_events_socket_callbacks_t* a_callbacks);
 
-dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket);
 
@@ -331,6 +329,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg);
 int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value);
 
 void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_preserve_inheritor);
+void dap_events_socket_delete_mt(dap_worker_t * a_worker, dap_events_socket_uuid_t a_es_uuid);
 
 dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks );

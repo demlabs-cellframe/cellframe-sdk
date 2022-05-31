@@ -28,8 +28,14 @@
 #include "dap_events_socket.h"
 #include "dap_proc_queue.h"
 
+typedef struct dap_worker dap_worker_t;
+typedef struct dap_proc_thread dap_proc_thread_t;
 typedef struct dap_context {
-    uint32_t id;
+    uint32_t id;  // Context ID
+
+    // Compatibility fields, in future should be replaced with _inheritor
+    dap_proc_thread_t * proc_thread; // If the context belongs to proc_thread
+    dap_worker_t * worker; // If the context belongs to worker
 
 #if defined DAP_EVENTS_CAPS_MSMQ
     HANDLE msmq_events[MAXIMUM_WAIT_OBJECTS];
@@ -80,5 +86,8 @@ int dap_context_thread_init(dap_context_t * a_context);
 int dap_context_thread_loop(dap_context_t * a_context);
 
 int dap_context_add_esocket(dap_context_t * a_context, dap_events_socket_t * a_esocket );
-void dap_context_poll_update(dap_events_socket_t * a_esocket);
+int dap_context_poll_update(dap_events_socket_t * a_esocket);
 dap_events_socket_t *dap_context_esocket_find_by_uuid(dap_context_t * a_context, dap_events_socket_uuid_t a_es_uuid );
+dap_events_socket_t * dap_context_create_esocket_queue(dap_context_t * a_context, dap_events_socket_callback_queue_ptr_t a_callback);
+dap_events_socket_t * dap_context_create_esocket_event(dap_context_t * a_context, dap_events_socket_callback_event_t a_callback);
+dap_events_socket_t * dap_context_create_esocket_pipe(dap_context_t * a_context, dap_events_socket_callback_t a_callback, uint32_t a_flags);

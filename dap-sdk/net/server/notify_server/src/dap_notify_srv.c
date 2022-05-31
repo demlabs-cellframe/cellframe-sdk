@@ -182,7 +182,7 @@ static void s_notify_server_callback_queue(dap_events_socket_t * a_es, void * a_
         }
         size_t l_str_len = a_arg? strlen((char*)a_arg): 0;
         if(l_str_len){
-            dap_events_socket_write_mt(l_socket_handler->esocket->worker, //_inter(a_es->worker->queue_es_io_input[l_worker_id],
+            dap_events_socket_write_mt(l_socket_handler->esocket->context->worker, //_inter(a_es->worker->queue_es_io_input[l_worker_id],
                                           l_socket_handler->uuid,
                                           a_arg, l_str_len + 1);
         }
@@ -206,12 +206,12 @@ static void s_notify_server_callback_new(dap_events_socket_t * a_es, void * a_ar
         uint64_t *l_uuid_u64 =(uint64_t*) &a_es->uuid;
         log_it(L_WARNING,"Trying to add notify client with uuid 0x%016"DAP_UINT64_FORMAT_X" but already present this UUID in list, updating only esocket pointer if so", *l_uuid_u64);
         l_hh_new->esocket = a_es;
-        l_hh_new->worker_id = a_es->worker->id;
+        l_hh_new->worker_id = a_es->context->worker->id;
     }else {
         l_hh_new = DAP_NEW_Z(dap_events_socket_handler_hh_t);
         l_hh_new->esocket = a_es;
         l_hh_new->uuid = a_es->uuid;
-        l_hh_new->worker_id = a_es->worker->id;
+        l_hh_new->worker_id = a_es->context->worker->id;
         a_es->no_close = true;
         HASH_ADD(hh, s_notify_server_clients, uuid, sizeof (l_hh_new->uuid), l_hh_new);
     }

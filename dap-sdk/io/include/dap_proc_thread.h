@@ -44,27 +44,12 @@ typedef struct dap_proc_thread{
     dap_events_socket_t *queue_gdb_input;                                   /* Inputs for request to GDB, @RRL: #6238 */
 
     dap_context_t * context;
-    int signal_kill;
-    int signal_exit;
 
     dap_events_socket_t * event_exit;
 
+    pthread_cond_t  started_cond;
+    pthread_mutex_t started_mutex ;
 
-#ifdef DAP_EVENTS_CAPS_EPOLL
-    EPOLL_HANDLE epoll_ctl;
-#elif defined (DAP_EVENTS_CAPS_POLL)
-    int poll_fd;
-    struct pollfd * poll;
-    dap_events_socket_t ** esockets;
-    size_t poll_count;
-    size_t poll_count_max;
-#elif defined (DAP_EVENTS_CAPS_KQUEUE)
-    int kqueue_fd;
-    struct kevent * kqueue_events;
-    int kqueue_events_count_max;
-#else
-#error "No poll for proc thread for your platform"
-#endif
     void * _inheritor;
 } dap_proc_thread_t;
 
@@ -83,8 +68,6 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
                                         const void * a_data, size_t a_data_size);
 int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_uuid_t a_es_uuid,
                                         const char * a_format,...);
-
-int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket);
 
 typedef void (*dap_proc_worker_callback_t)(dap_worker_t *,void *);
 
