@@ -27,7 +27,7 @@
 #include "dap_proc_queue.h"
 #include "dap_worker.h"
 #include "dap_common.h"
-
+#include "dap_context.h"
 typedef struct dap_proc_thread{
     uint32_t    cpu_id;
     pthread_t   thread_id;                                                  /* TID has been returned by pthread_create() */
@@ -43,27 +43,13 @@ typedef struct dap_proc_thread{
 
     dap_events_socket_t *queue_gdb_input;                                   /* Inputs for request to GDB, @RRL: #6238 */
 
-    int signal_kill;
-    int signal_exit;
+    dap_context_t * context;
 
     dap_events_socket_t * event_exit;
 
+    pthread_cond_t  started_cond;
+    pthread_mutex_t started_mutex ;
 
-#ifdef DAP_EVENTS_CAPS_EPOLL
-    EPOLL_HANDLE epoll_ctl;
-#elif defined (DAP_EVENTS_CAPS_POLL)
-    int poll_fd;
-    struct pollfd * poll;
-    dap_events_socket_t ** esockets;
-    size_t poll_count;
-    size_t poll_count_max;
-#elif defined (DAP_EVENTS_CAPS_KQUEUE)
-    int kqueue_fd;
-    struct kevent * kqueue_events;
-    int kqueue_events_count_max;
-#else
-#error "No poll for proc thread for your platform"
-#endif
     void * _inheritor;
 } dap_proc_thread_t;
 
@@ -83,10 +69,10 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
 int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worker_t * a_worker,  dap_events_socket_uuid_t a_es_uuid,
                                         const char * a_format,...);
 
-int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket);
-
 typedef void (*dap_proc_worker_callback_t)(dap_worker_t *,void *);
 
-void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_proc_worker_callback_t a_callback, void * a_arg);
+void dap_proc_thread_worker_exec_callback_inter(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_proc_worker_callback_t a_callback, void * a_arg);
 
 int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket);
+
+

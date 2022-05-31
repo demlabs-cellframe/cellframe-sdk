@@ -26,7 +26,7 @@ if(DARWIN)
 endif()
 
 if(WIN32)
-  target_link_libraries(dap_http_server dap_core dap_crypto dap_server_core magic regex tre intl iconv
+  target_link_libraries(dap_http_server dap_core dap_crypto dap_io magic regex tre intl iconv
   KERNEL32
   USER32
   SHELL32
@@ -48,7 +48,7 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_server_core magic json-c)
+  target_link_libraries(${PROJECT_NAME} dap_core dap_io magic json-c)
   target_include_directories(${PROJECT_NAME} PUBLIC ${IPUTILS_INCLUDE_DIRS})
 endif()
 

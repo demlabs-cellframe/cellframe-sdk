@@ -211,7 +211,7 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
     dap_events_socket_t * l_es = NULL;
     dap_events_socket_uuid_t l_es_uuid = l_me->esocket_uuid;
     // check if esocket still in worker
-    if( (l_es = dap_worker_esocket_find_uuid(l_worker, l_es_uuid)) != NULL ) {
+    if( (l_es = dap_context_esocket_find_by_uuid(l_worker->context, l_es_uuid)) != NULL ) {
         dap_client_t * l_client = dap_client_from_esocket(l_es);
         if (l_client ) {
             dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;
@@ -330,9 +330,9 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             l_node_client->stream_worker = l_stream->stream_worker;
             if (l_node_client->keep_connection) {
                 dap_events_socket_uuid_t *l_uuid = DAP_DUP(&l_node_client->uuid);
-                dap_worker_exec_callback_on(l_stream->esocket->worker, s_node_client_connected_synchro_start_callback, l_uuid);
+                dap_worker_exec_callback_on(l_stream->esocket->context->worker, s_node_client_connected_synchro_start_callback, l_uuid);
                 dap_events_socket_uuid_t *l_uuid_timer = DAP_DUP(&l_node_client->uuid);
-                l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->worker,
+                l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->context->worker,
                                                                         s_timer_update_states * 1000,
                                                                         s_timer_update_states_callback,
                                                                         l_uuid_timer);

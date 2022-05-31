@@ -14,13 +14,18 @@ if (DAPSDK_MODULES MATCHES "crypto")
     add_subdirectory(crypto)
 endif()
 
+# I/O subsystem
+if (DAPSDK_MODULES MATCHES "io")
+    add_subdirectory(io)
+endif()
+
 # Networking core
 if (DAPSDK_MODULES MATCHES "network-core")
-    add_subdirectory(net/core)
     add_subdirectory(net/stream)
 endif()
 
 if (DAPSDK_MODULES MATCHES "network-pure")
+    add_subdirectory(io)
     add_subdirectory(net/core)
 endif()
 

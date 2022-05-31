@@ -1,6 +1,5 @@
 
 include (../net/client/libdap-net-client.pri)
-include (../net/core/libdap-net-core.pri)
 include (../net/server/libdap-net-server.pri)
 include (../net/stream/libdap-net-stream.pri)
 

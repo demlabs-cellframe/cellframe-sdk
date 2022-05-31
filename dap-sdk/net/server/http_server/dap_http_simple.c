@@ -343,7 +343,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
 
     l_http_simple->esocket = a_http_client->esocket;
     l_http_simple->http_client = a_http_client;
-    l_http_simple->worker = a_http_client->esocket->worker;
+    l_http_simple->worker = a_http_client->esocket->context->worker;
     l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
     l_http_simple->reply_byte = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
 
@@ -411,7 +411,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
 
         // bool isOK=true;
         log_it( L_INFO,"Data for http_simple_request collected" );
-        dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->worker);
+        dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->context->worker);
         dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input , s_proc_queue_callback, l_http_simple);
     }
 }

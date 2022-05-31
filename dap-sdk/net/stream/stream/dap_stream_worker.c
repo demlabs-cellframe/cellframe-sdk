@@ -96,7 +96,7 @@ int dap_stream_worker_init()
  */
 static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg)
 {
-    dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_es->worker );
+    dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER( a_es->context->worker );
     dap_stream_worker_msg_io_t * l_msg = (dap_stream_worker_msg_io_t*) a_msg;
 
     assert(l_msg);
