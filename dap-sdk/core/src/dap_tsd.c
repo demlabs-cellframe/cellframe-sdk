@@ -52,9 +52,8 @@ dap_tsd_t   *l_tsd;
     assert ( a_data );
     assert ( (l_tsd = (dap_tsd_t *) a_dst) );
 
-
     if ( a_dst_sz < (a_data_size + sizeof(dap_tsd_t)) )                     /* Check a space for new TSD/TLV in the output buffer */
-        return  log_it(L_ERROR, "No space for TSD, %d < %d", a_dst_sz, (a_data_size + sizeof(dap_tsd_t)) ), -ENOMEM;
+        return  log_it(L_ERROR, "No space for TSD, %zd < %zd", a_dst_sz, (a_data_size + sizeof(dap_tsd_t)) ), -ENOMEM;
 
     l_tsd->type = a_type;
     memcpy(l_tsd->data, a_data , l_tsd->size = (uint32_t) a_data_size );
@@ -92,25 +91,21 @@ dap_tsd_t   *l_tsd = a_src;
     if ( a_src_sz )
         return  0;                                                          /* Nothing to do */
 
-
     assert ( a_data );
     assert ( (l_tsd = (dap_tsd_t *) a_src) );
 
     if ( l_tsd->size > (a_src_sz - sizeof(dap_tsd_t)) )
-        return  log_it(L_ERROR, "TSD's data size is out of the source buffer, %d > %d",
+        return  log_it(L_ERROR, "TSD's data size is out of the source buffer, %u > %zu",
                        l_tsd->size, (a_src_sz - sizeof(dap_tsd_t))), -EINVAL;
 
-
     if ( *a_data_size < l_tsd->size )                                     /* Check a space for TSD's value */
-        return  log_it(L_ERROR, "No space for TSD's value, %d < %d", *a_data_size, l_tsd->size ), -ENOMEM;
+        return  log_it(L_ERROR, "No space for TSD's value, %zu < %d", *a_data_size, l_tsd->size ), -ENOMEM;
 
     *a_type = l_tsd->type;
     memcpy(a_data, l_tsd->data,*a_data_size =  l_tsd->size );
 
     return (*a_data_size + sizeof(dap_tsd_t));
 }
-
-
 
 
 /**
