@@ -143,10 +143,8 @@ static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_x
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
     uint8_t *l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
     uint256_t l_datoshi_buy = uint256_0; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate); +++
-	char rate_str[50];
-	memset(rate_str, 0, sizeof(rate_str));
-	dap_sprintf(rate_str, "%Lf", (1 / a_price->rate));
-	if (MULT_256_COIN(a_price->datoshi_sell, dap_chain_coins_to_balance(rate_str), &l_datoshi_buy)) {
+	DIV_256(dap_chain_coins_to_balance("1.0"), a_price->rate, &l_datoshi_buy);
+	if (MULT_256_COIN(a_price->datoshi_sell, l_datoshi_buy, &l_datoshi_buy)) {
 		log_it(L_WARNING, "DANGER: MULT_256_COIN overflow! in s_xchage_receipt_create()");
 		l_datoshi_buy = uint256_0;
 	}
@@ -245,10 +243,8 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     uint256_t l_value_buy = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
 	uint256_t l_datoshi_buy = uint256_0; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate); +++
-	char rate_str[50];
-	memset(rate_str, 0, sizeof(rate_str));
-	dap_sprintf(rate_str, "%Lf", (1 / a_price->rate));
-	if (MULT_256_COIN(a_price->datoshi_sell, dap_chain_coins_to_balance(rate_str), &l_datoshi_buy)) {
+	DIV_256(dap_chain_coins_to_balance("1.0"), a_price->rate, &l_datoshi_buy);
+	if (MULT_256_COIN(a_price->datoshi_sell, l_datoshi_buy, &l_datoshi_buy)) {
 		log_it(L_WARNING, "DANGER: MULT_256_COIN overflow! in s_xchange_tx_create_exchange()");
 		l_datoshi_buy = uint256_0;
 	}
@@ -429,10 +425,8 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
 	uint256_t l_datoshi_buy = uint256_0; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate); +++
-	char rate_str[50];
-	memset(rate_str, 0, sizeof(rate_str));
-	dap_sprintf(rate_str, "%Lf", (1 / a_price->rate));
-	if (MULT_256_COIN(a_price->datoshi_sell, dap_chain_coins_to_balance(rate_str), &l_datoshi_buy)) {
+	DIV_256(dap_chain_coins_to_balance("1.0"), a_price->rate, &l_datoshi_buy);
+	if (MULT_256_COIN(a_price->datoshi_sell, l_datoshi_buy, &l_datoshi_buy)) {
 		log_it(L_WARNING, "DANGER: MULT_256_COIN overflow! in s_xchange_order_create()");
 		l_datoshi_buy = uint256_0;
 	}
@@ -452,7 +446,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     strcpy(l_price->token_sell, l_ext->token_sell);
     l_price->net_buy = a_net;
     strcpy(l_price->token_buy, a_order->price_ticker);
-    l_price->rate = 1; // TODO (long double)l_price->datoshi_sell / a_order->price;
+    DIV_256(l_price->datoshi_sell, a_order->price, &l_price->rate);//l_price->rate = dap_chain_coins_to_balance("1.0");//1; // TODO (long double)l_price->datoshi_sell / a_order->price;
     return l_price;
 }
 
@@ -594,8 +588,8 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -rate");
                 return -8;
             }
-            long double l_rate = strtold(l_val_rate_str, NULL);
-            if (!l_rate) {
+			uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
+            if (!compare256(l_rate, uint256_0)) { // if (l_rate == 0)
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate <long double> = sell / buy");
                 return -9;
             }
@@ -705,7 +699,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             } else {    // CMD_UPDATE
                 const char *l_val_sell_str = NULL, *l_val_rate_str = NULL, *l_wallet_str = NULL, *l_new_wallet_str = NULL;
                 uint256_t l_datoshi_sell = {};
-                long double l_rate = 0;
+				uint256_t l_rate = uint256_0;
                 dap_chain_wallet_t *l_wallet = NULL;
                 dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
                 if (l_val_sell_str) {
@@ -717,8 +711,8 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
                 if (l_val_rate_str) {
-                    l_rate = strtold(l_val_rate_str, NULL);
-                    if (!l_rate) {
+                    l_rate = dap_chain_coins_to_balance(l_val_rate_str);
+                    if (!compare256(l_rate, uint256_0)) { // if (l_rate == 0)
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate <long double> = sell / buy");
                         return -9;
                     }
