@@ -415,8 +415,6 @@ static bool s_poa_round_check(dap_chain_t *a_chain) {
     if (l_objs_size) {
         for (size_t i = 0; i<l_objs_size; i++) {
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
-            size_t l_event_size = l_event_round_item->event_size;
-            dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs;
             if (  (dap_time_now() - l_event_round_item->round_info.ts_update) >   
                     (l_poa_pvt->confirmations_timeout+l_poa_pvt->wait_sync_before_complete+10)  ) {
                 dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_round);
@@ -454,7 +452,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     //char * l_max_signs_hash;
     for (size_t l_index = 0; l_index<l_events_round_size; l_index++) {
         dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_events_round[l_index].value;
-        if (!l_event_round_item || !l_events_round[l_index].value_len || !l_event_round_item->event_n_signs) {
+        if (!l_event_round_item || !l_events_round[l_index].value_len) {
             dap_chain_global_db_gr_del(l_events_round[l_index].key, l_gdb_group_events);
             continue;
         }

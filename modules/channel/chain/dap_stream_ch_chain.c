@@ -401,7 +401,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
 
     int l_flags = 0;
-    if (dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr))
+    if (dap_chain_net_get_extra_gdb_group(l_net, l_sync_request->request.node_addr))
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
@@ -461,7 +461,7 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
     dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid);
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     int l_flags = 0;
-    if (dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr))
+    if (dap_chain_net_get_extra_gdb_group(l_net, l_sync_request->request.node_addr))
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
