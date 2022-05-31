@@ -180,19 +180,10 @@ static void s_history_callback_round_notify(void *a_arg, const char a_op_code, c
         debug_if(s_debug_more, L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
             l_net->pub.name, l_dag->chain->name, a_op_code, a_group, a_key, a_value_size);
         if (a_op_code == DAP_DB$K_OPTYPE_ADD && 
-                            l_dag->callback_cs_event_round_sync) {
-            dap_chain_cs_dag_event_round_item_t *l_event_round_item =
-                                (dap_chain_cs_dag_event_round_item_t *)a_value;
-            if (l_event_round_item) {
-                char *l_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_event_round_item->round_info.datum_hash);
-                dap_chain_global_db_gr_del(l_datum_hash_str, l_dag->gdb_group_events_round_new);
-                DAP_DELETE(l_datum_hash_str);
-            }
+                            l_dag->callback_cs_event_round_sync)
             l_dag->callback_cs_event_round_sync(l_dag, a_op_code, a_group, a_key, a_value, a_value_size);
-        }
-        else if ( a_op_code == DAP_DB$K_OPTYPE_DEL ) {
+        else if ( a_op_code == DAP_DB$K_OPTYPE_DEL )
             dap_chain_cs_new_event_add_datums(l_dag->chain, true);
-        }
         dap_chain_cs_dag_event_broadcast(l_dag, a_op_code, a_group, a_key, a_value, a_value_size);
     }
 }
@@ -620,7 +611,7 @@ void dap_chain_cs_new_event_add_datums(dap_chain_t *a_chain, bool a_round_check)
 
     bool is_finished = false;
     while (!is_finished) {
-        dap_store_obj_t *l_obj  = dap_chain_global_db_get_last(l_gdb_group_queue);
+        dap_store_obj_t *l_obj = dap_chain_global_db_get_last(l_gdb_group_queue);
         if (!l_obj)
             break;
         if (l_obj->value_len) {
