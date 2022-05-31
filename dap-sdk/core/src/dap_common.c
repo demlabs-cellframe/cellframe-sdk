@@ -382,6 +382,75 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
     pthread_mutex_unlock(&s_log_mutex);
 }
 
+
+
+
+const	char spaces[64] = {"                                                                            "};
+#define PID_FMT "%6d"
+
+void	_log_it_ext   (
+		const char *	a_rtn_name,
+            unsigned	a_line_no,
+    enum dap_log_level  a_ll,
+        const char *	a_fmt,
+			...
+			)
+{
+va_list arglist;
+const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s  [%s\\%u] "};
+char	out[1024] = {0};
+int     olen, len;
+struct tm _tm;
+struct timespec now;
+
+	clock_gettime(CLOCK_REALTIME, &now);
+
+#ifdef	WIN32
+	localtime_s(&_tm, (time_t *)&now);
+#else
+	localtime_r((time_t *)&now, &_tm);
+#endif
+
+	olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
+			_tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
+			(unsigned) gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
+
+
+	if ( 0 < (len = (74 - olen)) )
+		{
+		memcpy(out + olen, spaces, len);
+		olen += len;
+		}
+
+	/*
+	** Format variable part of string line
+	*/
+	va_start (arglist, a_fmt);
+	olen += vsnprintf(out + olen, sizeof(out) - olen, a_fmt, arglist);
+	va_end (arglist);
+
+	olen = MIN(olen, sizeof(out) - 1);
+
+	/* Add <LF> at end of record*/
+	out[olen++] = '\n';
+
+    if(s_log_file)
+    {
+        fwrite(out, olen, 1,  s_log_file);
+        fflush(s_log_file);
+    }
+
+    len = write(STDOUT_FILENO, out, olen);
+}
+
+
+
+
+
+
+
+
+
 static int s_check_and_fill_buffer_log(char **m, struct tm *a_tm_st, char *a_tmp)
 {
 	char *s = *m;
