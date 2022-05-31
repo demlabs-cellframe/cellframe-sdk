@@ -818,8 +818,8 @@ dap_events_socket_t     *l_es;
     l_proc_que = s_global_db_proc_thread->_inheritor;
     l_es = l_proc_que->esocket;
 
-    l_wrk = l_proc_que->esocket->worker;
-    l_proc_thd = l_proc_que->esocket->proc_thread;
+    l_wrk = l_proc_que->esocket->context->worker;
+    l_proc_thd = l_proc_que->esocket->context->proc_thread;
 
     if ( !l_wrk && !l_proc_thd )
         return  log_it(L_ERROR, "Both <worker> or <proc_thread> contexts are NULL"), -EINVAL;

@@ -102,10 +102,7 @@ void dap_worker_deinit();
 
 static inline int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker)
 {
-    int l_ret = dap_context_add_esocket(a_worker->context, a_esocket);
-    if (l_ret == 0 )
-        a_esocket->worker = a_worker;
-    return l_ret;
+    return dap_context_add_esocket(a_worker->context, a_esocket);
 }
 
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);

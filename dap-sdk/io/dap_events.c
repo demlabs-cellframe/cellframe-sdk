@@ -341,6 +341,7 @@ int dap_events_start( dap_events_t *a_events )
         l_worker->id = i;
         l_worker->events = a_events;
         l_worker->context = dap_context_new();
+        l_worker->context->worker = l_worker;
         pthread_mutex_init(& l_worker->started_mutex, NULL);
         pthread_cond_init( & l_worker->started_cond, NULL);
 

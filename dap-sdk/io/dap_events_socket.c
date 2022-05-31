@@ -85,6 +85,7 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #include "dap_events.h"
 
 #include "dap_timerfd.h"
+#include "dap_context.h"
 #include "dap_events_socket.h"
 
 #define LOG_TAG "dap_events_socket"
@@ -192,7 +193,6 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
         return NULL;
 
     l_ret->socket = a_sock;
-    l_ret->events = a_events;
     l_ret->uuid = dap_uuid_generate_uint64();
     if (a_callbacks)
         memcpy(&l_ret->callbacks, a_callbacks, sizeof(l_ret->callbacks) );
@@ -254,7 +254,7 @@ void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, 
  */
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
 {
-    dap_worker_t * l_worker = a_es->worker;
+    dap_worker_t * l_worker = a_es->context->worker;
     dap_events_socket_t * l_queue_input= l_worker->queue_es_new_input[a_worker_new->id];
     log_it(L_DEBUG, "Reassign between %u->%u workers: %p (%d)  ", l_worker->id, a_worker_new->id, a_es, a_es->fd );
 
@@ -288,71 +288,7 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
     }
 }
 
-/**
- * @brief s_create_type_pipe
- * @param a_w
- * @param a_callback
- * @param a_flags
- * @return
- */
-dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
-{
-#ifdef DAP_OS_WINDOWS
-    UNUSED(a_w);
-    UNUSED(a_callback);
-    UNUSED(a_flags);
-    return NULL;
-#else
-    UNUSED(a_flags);
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
-    l_es->type = DESCRIPTOR_TYPE_PIPE;
-    l_es->worker = a_w;
-    l_es->events = a_w->events;
-    l_es->uuid = dap_uuid_generate_uint64();
-    l_es->callbacks.read_callback = a_callback; // Arm event callback
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-#elif defined(DAP_EVENTS_CAPS_POLL)
-    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
-#elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    l_es->kqueue_event_catched_data.esocket = l_es;
-    l_es->kqueue_base_flags = EV_ENABLE | EV_CLEAR;
-    l_es->kqueue_base_fflags = NOTE_DELETE | NOTE_REVOKE ;
-#if !defined(DAP_OS_DARWIN)
-    l_es->kqueue_base_fflags |= NOTE_CLOSE | NOTE_CLOSE_WRITE ;
-#endif
-    l_es->kqueue_base_filter = EVFILT_VNODE;
-#else
-#error "Not defined s_create_type_pipe for your platform"
-#endif
 
-#if defined(DAP_EVENTS_CAPS_PIPE_POSIX)
-    int l_pipe[2];
-    int l_errno;
-    char l_errbuf[128];
-    l_errbuf[0]=0;
-    if( pipe(l_pipe) < 0 ){
-        l_errno = errno;
-        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
-        DAP_DELETE(l_es);
-        return NULL;
-    }//else
-     //   log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
-    l_es->fd = l_pipe[0];
-    l_es->fd2 = l_pipe[1];
-#if defined DAP_OS_UNIX
-    fcntl( l_pipe[0], F_SETFL, O_NONBLOCK);
-    fcntl( l_pipe[1], F_SETFL, O_NONBLOCK);
-    // this sort of fd doesn't suit ioctlsocket()...
-#endif
-
-#else
-#error "No defined s_create_type_pipe() for your platform"
-#endif
-    return l_es;
-#endif
-}
 
 /**
  * @brief dap_events_socket_create_type_pipe_mt
@@ -363,7 +299,7 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
  */
 dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
-    dap_events_socket_t * l_es = s_create_type_pipe(a_w, a_callback, a_flags);
+    dap_events_socket_t * l_es = dap_context_create_esocket_pipe(NULL, a_callback, a_flags);
     dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
 }
@@ -433,7 +369,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
  */
 dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
-    dap_events_socket_t * l_es = s_create_type_pipe(a_w, a_callback, a_flags);
+    dap_events_socket_t * l_es = dap_context_create_esocket_pipe(NULL, a_callback, a_flags);
     dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
 }
@@ -470,7 +406,6 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->buf_in_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
     l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
     //l_es->buf_out_size  = 8 * sizeof(void*);
-    l_es->events = a_es->events;
     l_es->uuid = dap_uuid_generate_uint64();
 #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
@@ -566,232 +501,6 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     return l_es;
 }
 
-/**
- * @brief s_create_type_queue
- * @param a_w
- * @param a_flags
- * @return
- */
-dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
-{
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
-    if(!l_es){
-        log_it(L_ERROR,"Can't allocate esocket!");
-        return NULL;
-    }
-
-    l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->flags =  DAP_SOCK_QUEUE_PTR;
-    l_es->uuid = dap_uuid_generate_uint64();
-    if (a_w){
-        l_es->events = a_w->events;
-        l_es->worker = a_w;
-    }
-
-    l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
-    l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
-    l_es->buf_out = NULL;
-
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-#elif defined(DAP_EVENTS_CAPS_POLL)
-    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
-#elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    l_es->kqueue_event_catched_data.esocket = l_es;
-    l_es->kqueue_base_flags =  EV_CLEAR;
-    l_es->kqueue_base_fflags = 0;
-    l_es->kqueue_base_filter = EVFILT_USER;
-    l_es->socket = arc4random();
-#else
-#error "Not defined s_create_type_queue_ptr for your platform"
-#endif
-
-
-#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
-    int l_pipe[2];
-    l_errbuf[0]=0;
-#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-    if( pipe2(l_pipe,O_DIRECT | O_NONBLOCK ) < 0 ){
-#elif defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
-    if( pipe(l_pipe) < 0 ){
-#endif
-        l_errno = errno;
-        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        switch (l_errno) {
-            case EINVAL: log_it(L_CRITICAL, "Too old linux version thats doesn't support O_DIRECT flag for pipes (%s)", l_errbuf); break;
-            default: log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
-        }
-        DAP_DELETE(l_es);
-        return NULL;
-    }
-    //else
-     //   log_it(L_DEBUG, "Created one-way unnamed packet pipe %d->%d", l_pipe[0], l_pipe[1]);
-    l_es->fd = l_pipe[0];
-    l_es->fd2 = l_pipe[1];
-
-#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
-    // If we have no pipe2() we should set nonblock mode via fcntl
-    if (l_es->fd > 0 && l_es->fd2 > 0 ) {
-    int l_flags = fcntl(l_es->fd, F_GETFL, 0);
-    if (l_flags != -1){
-        l_flags |= O_NONBLOCK);
-        fcntl(l_es->fd, F_SETFL, l_flags) == 0);
-    }
-    l_flags = fcntl(l_es->fd2, F_GETFL, 0);
-    if (l_flags != -1){
-        l_flags |= O_NONBLOCK);
-        fcntl(l_es->fd2, F_SETFL, l_flags) == 0);
-    }
-    }
-#endif
-
-#if !defined (DAP_OS_ANDROID)
-    FILE* l_sys_max_pipe_size_fd = fopen("/proc/sys/fs/pipe-max-size", "r");
-    if (l_sys_max_pipe_size_fd) {
-        const int l_file_buf_size = 64;
-        char l_file_buf[l_file_buf_size];
-        memset(l_file_buf, 0, l_file_buf_size);
-        fread(l_file_buf, l_file_buf_size, 1, l_sys_max_pipe_size_fd);
-        uint64_t l_sys_max_pipe_size = strtoull(l_file_buf, 0, 10);
-        fcntl(l_pipe[0], F_SETPIPE_SZ, l_sys_max_pipe_size);
-        fclose(l_sys_max_pipe_size_fd);
-    }
-#endif
-
-#elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-    int  l_errno;
-    char l_errbuf[128] = {0}, l_mq_name[64] = {0};
-    struct mq_attr l_mq_attr;
-    static atomic_uint l_mq_last_number = 0;
-
-
-    l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
-    l_mq_attr.mq_msgsize = sizeof (void*);                                  // We send only pointer on memory (???!!!),
-                                                                            // so use it with shared memory if you do access from another process
-
-    l_es->mqd_id = atomic_fetch_add( &l_mq_last_number, 1);
-    snprintf(l_mq_name,sizeof (l_mq_name), "/%s-queue_ptr-%u", dap_get_appname(), l_es->mqd_id );
-    // if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
-    //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
-
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR |O_NONBLOCK, 0700, &l_mq_attr)) )
-    {
-        log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
-                           (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
-
-        DAP_DELETE(l_es->buf_in);
-        DAP_DELETE(l_es);
-        return NULL;
-    }
-
-#elif defined DAP_EVENTS_CAPS_MSMQ
-    l_es->socket        = socket(AF_INET, SOCK_DGRAM, 0);
-
-    if (l_es->socket == INVALID_SOCKET) {
-        log_it(L_ERROR, "Error creating socket for TYPE_QUEUE: %d", WSAGetLastError());
-        DAP_DELETE(l_es);
-        return NULL;
-    }
-
-    int buffsize = 1024;
-    setsockopt(l_es->socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int));
-
-    int reuse = 1;
-    if (setsockopt(l_es->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
-        log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket, err: %d", WSAGetLastError());
-
-    unsigned long l_mode = 1;
-    ioctlsocket(l_es->socket, FIONBIO, &l_mode);
-
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = 0; //l_es->socket  + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
-
-    if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
-        log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
-    } else {
-        int dummy = 100;
-        getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
-        l_es->port = l_addr.sin_port;
-        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
-    }
-
-    MQQUEUEPROPS   l_qps;
-    MQPROPVARIANT  l_qp_var[1];
-    QUEUEPROPID    l_qp_id[1];
-    HRESULT        l_q_status[1];
-
-    WCHAR l_pathname[MQ_MAX_Q_NAME_LEN - 10] = { 0 };
-    static atomic_uint s_queue_num = 0;
-    int pos = 0;
-#ifdef DAP_BRAND
-    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\" DAP_BRAND "mq%d", l_es->mq_num = s_queue_num++);
-#else
-    pos = _snwprintf_s(l_pathname, sizeof(l_pathname)/sizeof(l_pathname[0]), _TRUNCATE, L".\\PRIVATE$\\%hs_esmq%d", dap_get_appname(), l_es->mq_num = s_queue_num++);
-#endif
-    if (pos < 0) {
-        log_it(L_ERROR, "Message queue path error");
-        DAP_DELETE(l_es);
-        return NULL;
-    }
-    u_long l_p_id         = 0;
-    l_qp_id[l_p_id]       = PROPID_Q_PATHNAME;
-    l_qp_var[l_p_id].vt   = VT_LPWSTR;
-    l_qp_var[l_p_id].pwszVal = l_pathname;
-    l_p_id++;
-
-    l_qps.cProp     = l_p_id;
-    l_qps.aPropID   = l_qp_id;
-    l_qps.aPropVar  = l_qp_var;
-    l_qps.aStatus   = l_q_status;
-
-    WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN]      = { 0 };
-    WCHAR l_format_name[sizeof(l_direct_name) - 10] = { 0 };
-    DWORD l_buflen = sizeof(l_format_name);
-    HRESULT hr = MQCreateQueue(NULL, &l_qps, l_format_name, &l_buflen);
-    if ((hr != MQ_OK) && (hr != MQ_ERROR_QUEUE_EXISTS) && (hr != MQ_INFORMATION_PROPERTY)) {
-        log_it(L_ERROR, "Can't create message queue for queue type, error: %ld", hr);
-        DAP_DELETE(l_es);
-        return NULL;
-    }
-    _snwprintf_s(l_direct_name, sizeof(l_direct_name)/sizeof(l_direct_name[0]), _TRUNCATE, L"DIRECT=OS:%ls", l_pathname);
-
-    hr = MQOpenQueue(l_direct_name, MQ_SEND_ACCESS, MQ_DENY_NONE, &(l_es->mqh));
-    if (hr == MQ_ERROR_QUEUE_NOT_FOUND) {
-        log_it(L_INFO, "Queue still not created, wait a bit...");
-        Sleep(300);
-        hr = MQOpenQueue(l_direct_name, MQ_SEND_ACCESS, MQ_DENY_NONE, &(l_es->mqh));
-        if (hr != MQ_OK) {
-            log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
-            DAP_DELETE(l_es);
-            MQDeleteQueue(l_format_name);
-            return NULL;
-        }
-    }
-    hr = MQOpenQueue(l_direct_name, MQ_RECEIVE_ACCESS, MQ_DENY_NONE, &(l_es->mqh_recv));
-    if (hr != MQ_OK) {
-        log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
-        DAP_DELETE(l_es);
-        MQCloseQueue(l_es->mqh);
-        MQDeleteQueue(l_format_name);
-        return NULL;
-    }
-    hr = MQPurgeQueue(l_es->mqh_recv);
-    if (hr != MQ_OK) {
-        log_it(L_DEBUG, "Message queue %u NOT purged, possible data corruption, err %ld", l_es->mq_num, hr);
-    }
-#elif defined (DAP_EVENTS_CAPS_KQUEUE)
-    // We don't create descriptor for kqueue at all
-#else
-#error "Not implemented s_create_type_queue_ptr() on your platform"
-#endif
-    return l_es;
-}
 
 /**
  * @brief dap_events_socket_create_type_queue_mt
@@ -802,7 +511,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
  */
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
 {
-    dap_events_socket_t * l_es = s_create_type_queue_ptr(a_w, a_callback);
+    dap_events_socket_t * l_es = dap_context_create_esocket_queue(NULL, a_callback);
     assert(l_es);
     // If no worker - don't assign
     if ( a_w)
@@ -810,28 +519,6 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * 
     return  l_es;
 }
 
-
-/**
- * @brief dap_events_socket_create_type_queue
- * @param a_w
- * @param a_callback
- * @return
- */
-dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
-{
-    dap_events_socket_t * l_es = s_create_type_queue_ptr(a_w, a_callback);
-    assert(l_es);
-    // If no worker - don't assign
-    if ( a_w) {
-        if(dap_worker_add_events_socket_unsafe(l_es,a_w)) {
-#ifdef DAP_OS_WINDOWS
-            errno = WSAGetLastError();
-#endif
-            log_it(L_ERROR, "Can't add esocket %"DAP_FORMAT_SOCKET" to polling, err %d", l_es->socket, errno);
-        }
-    }
-    return  l_es;
-}
 
 /**
  * @brief dap_events_socket_queue_proc_input
@@ -919,7 +606,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
         void * l_queue_ptr = a_esocket->kqueue_event_catched_data.data;
         size_t l_queue_ptr_size = a_esocket->kqueue_event_catched_data.size;
         if(g_debug_reactor)
-            log_it(L_INFO,"Queue received %z bytes on input", l_queue_ptr_size);
+            log_it(L_INFO,"Queue received %zd bytes on input", l_queue_ptr_size);
 
         a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
 #else
@@ -933,101 +620,6 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
     return 0;
 }
 
-/**
- * @brief s_create_type_event
- * @param a_w
- * @param a_callback
- * @return
- */
-dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
-{
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t); if (!l_es) return NULL;
-    l_es->buf_out_size_max = l_es->buf_in_size_max = 1;
-    l_es->buf_out = DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max);
-    l_es->type = DESCRIPTOR_TYPE_EVENT;
-    l_es->uuid = dap_uuid_generate_uint64();
-    if (a_w){
-        l_es->events = a_w->events;
-        l_es->worker = a_w;
-    }
-    l_es->callbacks.event_callback = a_callback; // Arm event callback
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-    l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
-#elif defined(DAP_EVENTS_CAPS_POLL)
-    l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
-#elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    l_es->kqueue_base_flags =  EV_CLEAR;
-    l_es->kqueue_base_filter = EVFILT_USER;
-    l_es->socket = arc4random();
-    l_es->kqueue_event_catched_data.esocket = l_es;
-#else
-#error "Not defined s_create_type_event for your platform"
-#endif
-
-#ifdef DAP_EVENTS_CAPS_EVENT_EVENTFD
-    if((l_es->fd = eventfd(0,EFD_NONBLOCK) ) < 0 ){
-        int l_errno = errno;
-        char l_errbuf[128];
-        l_errbuf[0]=0;
-        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        switch (l_errno) {
-            case EINVAL: log_it(L_CRITICAL, "An unsupported value was specified in flags: \"%s\" (%d)", l_errbuf, l_errno); break;
-            case EMFILE: log_it(L_CRITICAL, "The per-process limit on the number of open file descriptors has been reached: \"%s\" (%d)", l_errbuf, l_errno); break;
-            case ENFILE: log_it(L_CRITICAL, "The system-wide limit on the total number of open files has been reached: \"%s\" (%d)", l_errbuf, l_errno); break;
-            case ENODEV: log_it(L_CRITICAL, "Could not mount (internal) anonymous inode device: \"%s\" (%d)", l_errbuf, l_errno); break;
-            case ENOMEM: log_it(L_CRITICAL, "There was insufficient memory to create a new eventfd file descriptor: \"%s\" (%d)", l_errbuf, l_errno); break;
-            default: log_it( L_ERROR, "Error detected, can't create eventfd: '%s' (%d)", l_errbuf, l_errno);
-        }
-        DAP_DELETE(l_es);
-        return NULL;
-    }else {
-        l_es->fd2 = l_es->fd;
-        //log_it(L_DEBUG, "Created eventfd descriptor %d", l_es->fd );
-    }
-#elif defined DAP_OS_WINDOWS
-
-
-    l_es->socket        = socket(AF_INET, SOCK_DGRAM, 0);
-
-    if (l_es->socket == INVALID_SOCKET) {
-        log_it(L_ERROR, "Error creating socket for TYPE_QUEUE: %d", WSAGetLastError());
-        DAP_DELETE(l_es);
-        return NULL;
-    }
-
-    int buffsize = 1024;
-    setsockopt(l_es->socket, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int));
-
-    unsigned long l_mode = 1;
-    ioctlsocket(l_es->socket, FIONBIO, &l_mode);
-
-    int reuse = 1;
-    if (setsockopt(l_es->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
-        log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket, err: %d", WSAGetLastError());
-
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = 0; //l_es->socket + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
-
-    if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
-        log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
-    } else {
-        int dummy = 100;
-        getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
-        l_es->port = l_addr.sin_port;
-        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
-    }
-#elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    // nothing to do
-#else
-#error "Not defined s_create_type_event() on your platform"
-#endif
-    return l_es;
-}
 
 /**
  * @brief dap_events_socket_create_type_event_mt
@@ -1037,7 +629,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
  */
 dap_events_socket_t * dap_events_socket_create_type_event_mt(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
-    dap_events_socket_t * l_es = s_create_type_event(a_w, a_callback);
+    dap_events_socket_t * l_es = dap_context_create_esocket_event(NULL, a_callback);
     // If no worker - don't assign
     if ( a_w)
         dap_events_socket_assign_on_worker_mt(l_es,a_w);
@@ -1052,7 +644,8 @@ dap_events_socket_t * dap_events_socket_create_type_event_mt(dap_worker_t * a_w,
  */
 dap_events_socket_t * dap_events_socket_create_type_event_unsafe(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
-    dap_events_socket_t * l_es = s_create_type_event(a_w, a_callback);
+
+    dap_events_socket_t * l_es = dap_context_create_esocket_event(NULL, a_callback);
     // If no worker - don't assign
     if ( a_w)
         dap_worker_add_events_socket_unsafe(l_es,a_w);
@@ -1455,12 +1048,12 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
  * @brief dap_events_socket_queue_on_remove_and_delete
  * @param a_es
  */
-void dap_events_socket_queue_on_remove_and_delete(dap_events_socket_t* a_es)
+void dap_events_socket_delete_mt(dap_worker_t * a_worker, dap_events_socket_uuid_t a_es_uuid)
 {
     dap_events_socket_uuid_t * l_es_uuid_ptr= DAP_NEW_Z(dap_events_socket_uuid_t);
-    *l_es_uuid_ptr = a_es->uuid;
+    *l_es_uuid_ptr = a_es_uuid;
 
-    int l_ret= dap_events_socket_queue_ptr_send( a_es->worker->queue_es_delete, l_es_uuid_ptr );
+    int l_ret= dap_events_socket_queue_ptr_send( a_worker->queue_es_delete, l_es_uuid_ptr );
     if( l_ret != 0 ){
         log_it(L_ERROR, "Queue send returned %d", l_ret);
         DAP_DELETE(l_es_uuid_ptr);
@@ -1486,7 +1079,6 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
     dap_events_socket_t * l_es = DAP_NEW_Z( dap_events_socket_t ); if (!l_es) return NULL;
 
     l_es->socket = a_sock;
-    l_es->events = a_events;
     l_es->server = a_server;
     l_es->uuid = dap_uuid_generate_uint64();
     memcpy(&l_es->callbacks,a_callbacks, sizeof ( l_es->callbacks) );
@@ -1636,7 +1228,7 @@ void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_
     l_es_handler->value = a_preserve_inheritor ? 1 : 0;
     dap_events_socket_descriptor_close(a_es);
 
-    dap_worker_t * l_worker = a_es->worker;
+    dap_worker_t * l_worker = a_es->context->worker;
     dap_events_socket_remove_from_worker_unsafe( a_es, l_worker);
     a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     dap_timerfd_start_on_worker(l_worker, s_delayed_ops_timeout_ms,
@@ -1660,7 +1252,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 #endif
 
     //log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
-    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->worker);
+    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->context->worker);
 
     if( a_es->callbacks.delete_callback )
         a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
@@ -1719,7 +1311,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
  */
 void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
 {
-    if (!a_es->worker) {
+    if (!a_es->context->worker) {
         log_it(L_INFO, "No worker assigned to esocket %"DAP_FORMAT_SOCKET, a_es->socket);
         return;
     }
@@ -1778,16 +1370,16 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         }
     }
 #elif defined (DAP_EVENTS_CAPS_POLL)
-    if (a_es->poll_index < a_worker->poll_count ){
-        a_worker->poll[a_es->poll_index].fd = -1;
-        a_worker->poll_compress = true;
+    if (a_es->poll_index < a_worker->context->poll_count ){
+        a_worker->context->poll[a_es->poll_index].fd = -1;
+        a_worker->context->poll_compress = true;
     }else{
         log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->poll_count);
     }
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
 #endif
-    a_es->worker = NULL;
+    a_es->context = NULL;
 }
 
 /**

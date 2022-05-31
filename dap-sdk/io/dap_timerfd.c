@@ -255,7 +255,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     return l_timerfd;
 }
 
-static inline void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t *a_event_sock)
+static inline void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t *a_es)
 {
 #if defined DAP_OS_LINUX
     struct itimerspec l_ts;
@@ -269,10 +269,10 @@ static inline void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t
         log_it(L_WARNING, "Reset timerfd failed: timerfd_settime() errno=%d\n", errno);
     }
 #elif defined (DAP_OS_BSD)
-    dap_worker_add_events_socket_unsafe(a_event_sock,a_event_sock->worker);
-//struct kevent * l_event = &a_event_sock->kqueue_event;
-//EV_SET(l_event, 0, a_event_sock->kqueue_base_filter, a_event_sock->kqueue_base_flags,a_event_sock->kqueue_base_fflags,a_event_sock->kqueue_data,a_event_sock);
-//kevent(a_event_sock->worker->kqueue_fd,l_event,1,NULL,0,NULL);
+    // Re-add timer in context
+    dap_context_t * l_context = a_es->context;
+    a_es->context = NULL;
+    dap_context_add_esocket(l_context,a_es);
 #elif defined (DAP_OS_WINDOWS)
     /*LARGE_INTEGER l_due_time;
     l_due_time.QuadPart = (long long)a_timerfd->timeout_ms * _MSEC;
@@ -285,7 +285,7 @@ static inline void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t
 #endif
 
 #ifndef DAP_OS_BSD
-    dap_events_socket_set_readable_unsafe(a_event_sock, true);
+    dap_events_socket_set_readable_unsafe(a_es, true);
 #endif
 }
 
@@ -367,6 +367,6 @@ void dap_timerfd_delete(dap_timerfd_t *a_timerfd)
     #ifdef _WIN32
         DeleteTimerQueueTimer(hTimerQueue, (HANDLE)a_timerfd->th, NULL);
     #endif
-    if (a_timerfd->events_socket->worker)
-        dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->worker, a_timerfd->esocket_uuid);
+    if (a_timerfd->events_socket->context->worker)
+        dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->context->worker, a_timerfd->esocket_uuid);
 }

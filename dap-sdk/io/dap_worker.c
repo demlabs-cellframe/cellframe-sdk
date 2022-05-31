@@ -77,7 +77,8 @@ void dap_worker_deinit( )
 void *dap_worker_thread(void *arg)
 {
     dap_worker_t *l_worker = (dap_worker_t *) arg;
-    uint32_t l_tn = l_worker->id;
+    assert(l_worker);
+    dap_context_t * l_context = l_worker->context;
     const struct sched_param l_shed_params = {0};
 
 
@@ -91,7 +92,7 @@ void *dap_worker_thread(void *arg)
     pthread_setschedparam(pthread_self(),SCHED_FIFO ,&l_shed_params);
 #endif
 
-    if(dap_context_thread_init(l_worker->context)!=0){
+    if(dap_context_thread_init(l_context)!=0){
         pthread_cond_broadcast(&l_worker->started_cond);
         return NULL;
     }
@@ -102,10 +103,10 @@ void *dap_worker_thread(void *arg)
     l_worker->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_worker_get_count() );
 
 
-    l_worker->queue_es_new      = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_add_es_callback);
-    l_worker->queue_es_delete   = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_delete_es_callback);
-    l_worker->queue_es_io       = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_es_io_callback);
-    l_worker->queue_es_reassign = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_es_reassign_callback );
+    l_worker->queue_es_new      = dap_context_create_esocket_queue(l_context, s_queue_add_es_callback);
+    l_worker->queue_es_delete   = dap_context_create_esocket_queue(l_context, s_queue_delete_es_callback);
+    l_worker->queue_es_io       = dap_context_create_esocket_queue(l_context, s_queue_es_io_callback);
+    l_worker->queue_es_reassign = dap_context_create_esocket_queue(l_context, s_queue_es_reassign_callback );
 
 
     for( size_t n = 0; n < dap_events_worker_get_count(); n++) {
@@ -115,17 +116,15 @@ void *dap_worker_thread(void *arg)
         l_worker->queue_es_reassign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_reassign);
     }
 
-    l_worker->queue_callback    = dap_events_socket_create_type_queue_ptr_unsafe(l_worker, s_queue_callback_callback);
-    l_worker->event_exit        = dap_events_socket_create_type_event_unsafe(l_worker, s_event_exit_callback);
+    l_worker->queue_callback    = dap_context_create_esocket_queue(l_context, s_queue_callback_callback);
+    l_worker->event_exit        = dap_context_create_esocket_event(l_context, s_event_exit_callback);
 
     l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
     dap_worker_add_events_socket_unsafe(  l_worker->timer_check_activity->events_socket, l_worker);
-    pthread_mutex_lock(&l_worker->started_mutex);
     pthread_cond_broadcast(&l_worker->started_cond);
-    pthread_mutex_unlock(&l_worker->started_mutex);
 
-    dap_context_thread_loop(l_worker->context);
+    dap_context_thread_loop(l_context);
     log_it(L_NOTICE,"Exiting thread #%u", l_worker->id);
     return NULL;
 }
@@ -137,7 +136,11 @@ void *dap_worker_thread(void *arg)
  */
 static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
 {
-    dap_worker_t * l_worker = a_es->worker;
+    assert(a_es);
+    dap_context_t * l_context = a_es->context;
+    assert(l_context);
+    dap_worker_t * l_worker = l_context->worker;
+    assert(l_worker);
     dap_events_socket_t * l_es_new =(dap_events_socket_t *) a_arg;
     if (!l_es_new){
         log_it(L_ERROR,"NULL esocket accepted to add on worker #%u", l_worker->id);
@@ -163,7 +166,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     if(l_es_new->socket!=0 && l_es_new->socket != INVALID_SOCKET)
 
 #endif
-    if(dap_context_esocket_find_by_uuid( l_worker->context, l_es_new->uuid)){
+    if(dap_context_esocket_find_by_uuid( l_context, l_es_new->uuid)){
         // Socket already present in worker, it's OK
         return;
     }
@@ -184,7 +187,6 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         default: {}
     }
 
-    l_es_new->worker = l_worker;
     l_es_new->last_time_active = time(NULL);
     // We need to differ new and reassigned esockets. If its new - is_initialized is false
     if ( ! l_es_new->is_initalized ){
@@ -193,7 +195,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         l_es_new->is_initalized = true;
     }
 
-    int l_ret = dap_worker_add_events_socket_unsafe(l_es_new,l_worker);
+    int l_ret =dap_context_add_esocket(l_context,l_es_new);
     if (  l_ret != 0 ){
         log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
     }else{
@@ -220,7 +222,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
     assert(a_arg);
     dap_events_socket_uuid_t * l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
     dap_events_socket_t * l_es;
-    if ( (l_es = dap_context_esocket_find_by_uuid(a_es->worker->context,*l_es_uuid_ptr)) != NULL ){
+    if ( (l_es = dap_context_esocket_find_by_uuid(a_es->context,*l_es_uuid_ptr)) != NULL ){
         //l_es->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
         dap_events_socket_remove_and_delete_unsafe(l_es,false);
     }else
@@ -236,15 +238,17 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     assert(a_es);
-    dap_worker_t * l_worker = a_es->worker;
+    dap_context_t * l_context = a_es->context;
+    assert(l_context);
+    dap_worker_t * l_worker = l_context->worker;
     assert(l_worker);
     dap_worker_msg_reassign_t * l_msg = (dap_worker_msg_reassign_t*) a_arg;
     assert(l_msg);
     dap_events_socket_t * l_es_reassign;
-    if ( ( l_es_reassign = dap_context_esocket_find_by_uuid(l_worker->context, l_msg->esocket_uuid))!= NULL ){
+    if ( ( l_es_reassign = dap_context_esocket_find_by_uuid(l_context, l_msg->esocket_uuid))!= NULL ){
         if( l_es_reassign->was_reassigned && l_es_reassign->flags & DAP_SOCK_REASSIGN_ONCE) {
             log_it(L_INFO, "Reassgment request with DAP_SOCK_REASSIGN_ONCE allowed only once, declined reassigment from %u to %u",
-                   l_es_reassign->worker->id, l_msg->worker_new->id);
+                   l_es_reassign->context->worker->id, l_msg->worker_new->id);
 
         }else{
             dap_events_socket_reassign_between_workers_unsafe(l_es_reassign,l_msg->worker_new);
@@ -265,7 +269,7 @@ static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_worker_msg_callback_t * l_msg = (dap_worker_msg_callback_t *) a_arg;
     assert(l_msg);
     assert(l_msg->callback);
-    l_msg->callback(a_es->worker, l_msg->arg);
+    l_msg->callback(a_es->context->worker, l_msg->arg);
     DAP_DELETE(l_msg);
 }
 
@@ -277,9 +281,9 @@ static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
 {
     (void) a_flags;
-    a_es->worker->context->signal_exit = true;
+    a_es->context->signal_exit = true;
     if(g_debug_reactor)
-        log_it(L_DEBUG, "Worker :%u signaled to exit", a_es->worker->id);
+        log_it(L_DEBUG, "Worker :%u signaled to exit", a_es->context->worker->id);
 }
 
 /**
@@ -290,7 +294,9 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
 static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     assert(a_es);
-    dap_worker_t * l_worker = a_es->worker;
+    dap_context_t * l_context = a_es->context;
+    assert(l_context);
+    dap_worker_t * l_worker = a_es->context->worker;
     dap_worker_msg_io_t * l_msg = a_arg;
     assert(l_msg);
     // Check if it was removed from the list
@@ -428,7 +434,6 @@ dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t *a_es)
 //  struct epoll_event ev = {0};
   dap_worker_t *l_worker = dap_events_worker_get_auto( );
 
-  a_es->events = l_worker->events;
   dap_worker_add_events_socket( a_es, l_worker);
   return l_worker;
 }

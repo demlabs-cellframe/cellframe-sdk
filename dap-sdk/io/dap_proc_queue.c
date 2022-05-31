@@ -83,10 +83,9 @@ dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread)
     }
 
     l_queue->proc_thread = a_thread;
-    l_queue->esocket = dap_events_socket_create_type_queue_ptr_unsafe(NULL,s_queue_esocket_callback);
+    l_queue->esocket = dap_context_create_esocket_queue(a_thread->context,s_queue_esocket_callback);
     l_queue->esocket->proc_thread = a_thread;
     l_queue->esocket->_inheritor = l_queue;
-
     return l_queue;
 }
 
@@ -315,6 +314,6 @@ int dap_proc_thread_add_callback_mt(dap_proc_thread_t * a_thread, dap_proc_queue
     l_msg->callback_arg = a_callback_arg;
     l_msg->pri = a_pri;
 
-    dap_events_socket_queue_ptr_send(a_thread->proc_queue->esocket, l_msg);
+    return dap_events_socket_queue_ptr_send(a_thread->proc_queue->esocket, l_msg);
 }
 
