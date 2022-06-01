@@ -1638,6 +1638,29 @@ void dap_chain_net_load_all()
     DAP_DELETE (l_net_dir_str);
 }
 
+dap_string_t* dap_cli_list_net()
+{
+    dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
+    dap_string_t *l_string_ret = dap_string_new("");
+    dap_chain_net_t * l_net = NULL;
+    int l_net_i = 0;
+    dap_string_append(l_string_ret,"Available networks and chains:\n");
+    pthread_rwlock_rdlock(&g_net_items_rwlock);
+    HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
+        l_net = l_net_item->chain_net;
+        dap_string_append_printf(l_string_ret, "\t%s:\n", l_net_item->name);
+        l_net_i++;
+
+        dap_chain_t * l_chain = l_net->pub.chains;
+        while (l_chain) {
+            dap_string_append_printf(l_string_ret, "\t\t%s\n", l_chain->name );
+            l_chain = l_chain->next;
+        }
+    }
+    pthread_rwlock_unlock(&g_net_items_rwlock);
+    return l_string_ret;
+}
+
 void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
     char* l_node_address_text_block = NULL;
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
