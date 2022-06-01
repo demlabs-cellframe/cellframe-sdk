@@ -258,8 +258,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
             }else {
                 size_t l_event_size = l_round_item->event_size;
                 dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
-                size_t l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size,
-                                                            l_chain_net, l_poa_pvt->events_sign_cert->enc_key);
+                size_t l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key);
 
                 if ( l_event_size_new ) {
                     dap_chain_hash_fast_t l_event_new_hash;
@@ -732,7 +731,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
             int ret = PVT(l_poa)->callback_pre_sign->callback(a_dag->chain, l_event, *a_event_size, PVT(l_poa)->callback_pre_sign->arg);
             if (ret)
                 return NULL;
-            *a_event_size = dap_chain_cs_dag_event_sign_add(&l_event, *a_event_size, l_net, PVT(l_poa)->events_sign_cert->enc_key);
+            *a_event_size = dap_chain_cs_dag_event_sign_add(&l_event, *a_event_size, PVT(l_poa)->events_sign_cert->enc_key);
             return l_event;
         }
     }
@@ -781,8 +780,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     if ( !PVT(l_poa)->callback_pre_sign || !PVT(l_poa)->callback_pre_sign->callback
             || (ret = PVT(l_poa)->callback_pre_sign->callback(a_dag->chain, 
                                 l_event, l_event_size, PVT(l_poa)->callback_pre_sign->arg)) == 0 ) {
-        l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size,
-                                                l_net, PVT(l_poa)->events_sign_cert->enc_key);
+        l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, PVT(l_poa)->events_sign_cert->enc_key);
     } else {
         size_t l_round_item_size_new = 0;
         bool l_deleted = false;

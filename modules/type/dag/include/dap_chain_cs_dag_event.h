@@ -92,11 +92,7 @@ static inline dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_d
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src, size_t a_event_size);
 
 // Important: returns new deep copy of event
-// dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_sign_add( dap_chain_cs_dag_event_t * a_event, size_t a_event_size,
-//                                                 size_t * a_event_size_new,
-//                                                 dap_chain_net_t * a_net, dap_enc_key_t * a_key);
-size_t dap_chain_cs_dag_event_sign_add( dap_chain_cs_dag_event_t **a_event_ptr, size_t a_event_size,
-                                                            dap_chain_net_t * a_net, dap_enc_key_t * a_key);
+size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, size_t a_event_size, dap_enc_key_t * a_key);
 size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t **a_round_item_ptr, size_t a_round_item_size,
                                         dap_chain_net_t * a_net, dap_enc_key_t * a_key);
 bool dap_chain_cs_dag_event_sign_exists(dap_chain_cs_dag_event_t *a_event, size_t a_event_size, dap_enc_key_t * a_key);

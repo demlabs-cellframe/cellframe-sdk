@@ -110,45 +110,32 @@ dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t 
  * @param l_key
  * @return
  */
-size_t dap_chain_cs_dag_event_sign_add( dap_chain_cs_dag_event_t **a_event_ptr, size_t a_event_size,
-                                                            dap_chain_net_t * a_net, dap_enc_key_t * a_key)
+size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, size_t a_event_size, dap_enc_key_t * a_key)
 {
     assert(a_event_ptr);
     dap_chain_cs_dag_event_t *l_event = *a_event_ptr;
-    size_t l_hashes_size = l_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
-    dap_chain_datum_t * l_datum = (dap_chain_datum_t*)(l_event->hashes_n_datum_n_signs + l_hashes_size);
-    size_t l_datum_size =  dap_chain_datum_size(l_datum);
-    size_t l_event_size_excl_sign = sizeof(l_event->header)+l_hashes_size+l_datum_size;
-    size_t l_event_size = a_event_size;
-    dap_sign_t * l_sign = dap_sign_create(a_key,l_event,l_event_size_excl_sign,0);
-    size_t l_sign_size = dap_sign_get_size(l_sign);
-    dap_chain_addr_t l_addr = {0};
-    dap_chain_hash_fast_t l_pkey_hash;
-    dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-    dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_net->pub.id);
-
-    size_t l_offset = l_hashes_size+l_datum_size;
-    // checking re-sign from one address and calc signs size
-    while ( l_offset+sizeof(l_event->header) < l_event_size  ) {
-        dap_sign_t * l_item_sign = (dap_sign_t *)(l_event->hashes_n_datum_n_signs +l_offset);
-        size_t l_sign_item_size = dap_sign_get_size(l_item_sign);
-        dap_chain_addr_t l_item_addr = {0};
-        dap_chain_hash_fast_t l_item_pkey_hash;
-        dap_sign_get_pkey_hash(l_item_sign, &l_item_pkey_hash);
-        dap_chain_addr_fill(&l_item_addr, l_item_sign->header.type, &l_item_pkey_hash, a_net->pub.id);
-        // checking re-sign from one address
-        if (memcmp(&l_addr, &l_item_addr, sizeof(l_item_addr)) == 0) {
-            char * l_addr_str = dap_chain_addr_to_str(&l_addr);
-            log_it(L_DEBUG, "Sign from this addr exists: %s", l_addr_str);
-            DAP_DELETE(l_sign);
-            DAP_DELETE(l_addr_str);
-            return 0;
-        }
-        l_offset += l_sign_item_size;
+    // check for re-sign with same key
+    if (dap_chain_cs_dag_event_sign_exists(l_event, a_event_size, a_key)) {
+        size_t l_pub_key_size = 0;
+        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+        dap_hash_fast_t l_pkey_hash = {};
+        dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+        DAP_DEL_Z(l_pub_key);
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&l_pkey_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_DEBUG, "Sign from this key exists: %s", l_hash_str);
+        return 0;
     }
-
+    size_t l_hashes_size = l_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)(l_event->hashes_n_datum_n_signs + l_hashes_size);
+    size_t l_datum_size =  dap_chain_datum_size(l_datum);
+    size_t l_event_size_excl_sign = sizeof(l_event->header) + l_hashes_size+l_datum_size;
+    size_t l_event_size = a_event_size;
+    dap_sign_t *l_sign = dap_sign_create(a_key, l_event, l_event_size_excl_sign, 0);
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    size_t l_offset = l_hashes_size + l_datum_size;
     *a_event_ptr = l_event = DAP_REALLOC(l_event, l_event_size+l_sign_size);
-    memcpy(l_event->hashes_n_datum_n_signs+l_offset, l_sign, l_sign_size);
+    memcpy(l_event->hashes_n_datum_n_signs + l_offset, l_sign, l_sign_size);
     l_event->header.signs_count++;
     DAP_DELETE(l_sign);
     return l_event_size+l_sign_size;
@@ -165,12 +152,13 @@ static bool s_sign_exists(uint8_t *a_pos, size_t a_len, dap_enc_key_t *a_key)
         size_t l_sign_key_size = 0;
         uint8_t *l_sign_key = dap_sign_get_pkey(l_item_sign, &l_sign_key_size);
         if (l_pub_key_size == l_sign_key_size &&
-                !memcmp(&l_pub_key, &l_sign_key, l_pub_key_size)) {
+                !memcmp(l_pub_key, l_sign_key, l_pub_key_size)) {
             DAP_DELETE(l_pub_key);
             return true;
         }
         l_offset += l_sign_item_size;
     }
+    assert(l_offset = a_pos + a_len);
     DAP_DELETE(l_pub_key);
     return false;
 }

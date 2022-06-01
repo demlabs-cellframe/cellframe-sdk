@@ -745,7 +745,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
 
                 if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event,
                             l_event_size, l_round_item, l_dag->gdb_group_events_round_new)) {
-                            //&l_event_round_info)) {
                     log_it(L_INFO, "Event %s placed in the new forming round", l_event_hash_str);
                     DAP_DEL_Z(l_event_hash_str);
                 } else {
@@ -1883,7 +1882,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     if (l_cert && l_cert->enc_key->priv_key_data) {
                         size_t l_event_size = l_round_item->event_size;
                         dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
-                        size_t l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_net, l_cert->enc_key);
+                        size_t l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_cert->enc_key);
                         if ( l_event_size_new ) {
                             dap_chain_hash_fast_t l_event_new_hash;
                             // dap_chain_cs_dag_event_calc_hash(l_event_new, l_event_size_new, &l_event_new_hash);
