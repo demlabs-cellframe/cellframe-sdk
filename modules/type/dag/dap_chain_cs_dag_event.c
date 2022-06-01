@@ -135,7 +135,7 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
     memcpy(l_event->hashes_n_datum_n_signs + l_event_size, l_sign, l_sign_size);
     l_event->header.signs_count++;
     DAP_DELETE(l_sign);
-    return l_event_size + l_sign_size;
+    return a_event_size + l_sign_size;
 }
 
 static bool s_sign_exists(uint8_t *a_pos, size_t a_len, dap_enc_key_t *a_key)
