@@ -802,8 +802,11 @@ void *dap_worker_thread(void *arg)
                                      * generation of unexpected I/O events like POLLOUT and consuming CPU by this.
                                      */
                                     dap_events_socket_set_writable_unsafe(l_cur, false);/* Clear "enable write flag" */
-                                    if ( l_cur->callbacks.write_finished_callback )     /* Optionaly call I/O completion routine */
+                                    if ( l_cur->callbacks.write_finished_callback ) {    /* Optionaly call I/O completion routine */
+                                        if (l_errno == EWOULDBLOCK || l_errno == EAGAIN || l_errno == EINTR)
+                                            l_errno = 0;
                                         l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, l_errno);
+                                    }
                                 }
                             }else{
                                 log_it(L_ERROR, "Wrong bytes sent, %zd more then was in buffer %zd",l_bytes_sent, l_cur->buf_out_size);
