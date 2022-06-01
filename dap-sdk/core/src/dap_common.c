@@ -31,6 +31,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <ctype.h>
 
 #include "utlist.h"
 //#include <errno.h>
@@ -385,7 +386,7 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
 
 
 
-const	char spaces[64] = {"                                                                            "};
+const	char spaces[74] = {"                                                                          "};
 #define PID_FMT "%6d"
 
 void	_log_it_ext   (
@@ -397,7 +398,7 @@ void	_log_it_ext   (
 			)
 {
 va_list arglist;
-const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s  [%s\\%u] "};
+const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
 char	out[1024] = {0};
 int     olen, len;
 struct tm _tm;
@@ -443,6 +444,117 @@ struct timespec now;
     len = write(STDOUT_FILENO, out, olen);
 }
 
+
+
+void	_dump_it	(
+		const char      *a_rtn_name,
+    		unsigned	a_line_no,
+        const char      *a_var_name,
+		const void      *src,
+		unsigned short	srclen
+			)
+{
+    /*
+     * 01-06-2022 08:54:49.787   22615   [DBG]  [thread_worker_function:346]     RD <-- NET: #21, 140 octets, errno=0
+01-06-2022 08:54:49.787   22615  [s_ch_sf_packet_in:250]  ----------------     %02u-%02u-%04u %02       +0000:  cb 2c 12 13 22 51 3f 34 d0 97 cd 34 0f 6e 1c 6b   .,.."Q?4...4.n.k
+        +0010:  63 c2 c1 b2 f5 c9 0e 1b 45 67 47 50 98 84 33 b2   c.......EgGP..3.
+        +0020:  ce 7b 1d b0 9b f4 e5 73 c6 6f 3e 6a a5 1e f6 de   .{.....s.o>j....
+        +0030:  da 56 78 d8 98 05 04 7a e5 83 cc f7 fd de 1d 29   .Vx....z.......)
+        +0040:  12 ba e3 f6 d1 59 cf 1b 0b da b3 8d f9 a4 d0 06   .....Y..........
+        +0050:  19 19 80 b5 13 ca 6b 7f e5 df 4c 34 d6 4f f0 e5   ......k...L4.O..
+        +0060:  a3 28 e3 3d                                       .(.=
+*/
+#define HEXDUMP$SZ_WIDTH    80
+const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  [%s:%u]  HEX Dump of <%.*s>, %u octets:\n"};
+char	out[512] = {0};
+unsigned char *srcp = (unsigned char *) src, low, high;
+unsigned olen = 0, i, j, len;
+struct tm _tm;
+struct timespec now;
+
+
+    clock_gettime(CLOCK_REALTIME, &now);
+
+    #ifdef	WIN32
+    localtime_s(&_tm, (time_t *)&now);
+    #else
+    localtime_r((time_t *)&now, &_tm);
+    #endif
+
+    olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
+            _tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
+            (unsigned) gettid(), a_rtn_name, a_line_no, 48, a_var_name, srclen);
+
+    if(s_log_file)
+    {
+        fwrite(out, olen, 1,  s_log_file);
+        fflush(s_log_file);
+    }
+
+    len = write(STDOUT_FILENO, out, olen);
+
+
+	/*
+	** Format variable part of string line
+	*/
+    memset(out, ' ', sizeof(out));
+
+	for (i = 0; i < ((srclen / 16));  i++)
+		{
+		olen = snprintf(out, HEXDUMP$SZ_WIDTH, "\t+%04x:  ", i * 16);
+		memset(out + olen, ' ', HEXDUMP$SZ_WIDTH - olen);
+
+		for (j = 0; j < 16; j++, srcp++)
+			{
+			high = (*srcp) >> 4;
+			low = (*srcp) & 0x0f;
+
+			out[olen + j * 3] = high + ((high < 10) ? '0' : 'a' - 10);
+			out[olen + j * 3 + 1] = low + ((low < 10) ? '0' : 'a' - 10);
+
+			out[olen + 16*3 + 2 + j] = isprint(*srcp) ? *srcp : '.';
+			}
+
+		/* Add <LF> at end of record*/
+		out[HEXDUMP$SZ_WIDTH - 1] = '\n';
+
+        if(s_log_file)
+        {
+            fwrite(out, HEXDUMP$SZ_WIDTH, 1,  s_log_file);
+            fflush(s_log_file);
+        }
+
+        len = write(STDOUT_FILENO, out, HEXDUMP$SZ_WIDTH);
+    }
+
+	if ( srclen % 16 )
+		{
+		olen = snprintf(out, HEXDUMP$SZ_WIDTH, "\t+%04x:  ", i * 16);
+		memset(out + olen, ' ', HEXDUMP$SZ_WIDTH - olen);
+
+		for (j = 0; j < srclen % 16; j++, srcp++)
+			{
+			high = (*srcp) >> 4;
+			low = (*srcp) & 0x0f;
+
+			out[olen + j * 3] = high + ((high < 10) ? '0' : 'a' - 10);
+			out[olen + j * 3 + 1] = low + ((low < 10) ? '0' : 'a' - 10);
+
+			out[olen + 16*3 + 2 + j] = isprint(*srcp) ? *srcp : '.';
+			}
+
+		/* Add <LF> at end of record*/
+		out[HEXDUMP$SZ_WIDTH - 1] = '\n';
+
+        if(s_log_file)
+        {
+            fwrite(out, HEXDUMP$SZ_WIDTH, 1,  s_log_file);
+            fflush(s_log_file);
+        }
+
+        len = write(STDOUT_FILENO, out, HEXDUMP$SZ_WIDTH);
+		}
+}
 
 
 
