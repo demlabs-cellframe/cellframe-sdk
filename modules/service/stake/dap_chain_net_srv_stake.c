@@ -346,7 +346,12 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
         }
     }
     dap_list_free(l_list_out_items);
-    uint256_t l_fee = {}; // TODO replace with fractional mult MULT_256_FRAC_FRAC(l_outs_sum, l_stake->fee_value / 100.0);
+    uint256_t l_fee = uint256_0; // TODO replace with fractional mult MULT_256_FRAC_FRAC(l_outs_sum, l_stake->fee_value / 100.0); +++
+	DIV_256(l_stake->fee_value, dap_chain_coins_to_balance("100.0"), &l_fee);
+	if (MULT_256_COIN(l_outs_sum, l_fee, &l_fee)) {
+		log_it(L_WARNING, "DANGER: MULT_256_COIN overflow! in dap_chain_net_srv_stake_validator()");
+		l_fee = uint256_0;
+	}
     if (compare256(l_fee_sum, l_fee) == -1) {
         return false;
     }
