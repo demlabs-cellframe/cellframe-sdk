@@ -36,8 +36,8 @@ bool dap_isstralnum(const char *c)
 /**
  * @brief strcat two strings with new char array in result
  * 
- * @param s1 
- * @param s2 
+ * @param s1 preallocated buffer with char string
+ * @param s2 char string
  * @return char* 
  */
 char* dap_strcat2(const char* s1, const char* s2)
@@ -62,6 +62,7 @@ char* dap_strcat2(const char* s1, const char* s2)
 
   memcpy(result, s1, size1);
   memcpy(result+size1, s2, size2);
+  free((void*)s1);
   result[size1 + size2] = '\0';
   return result;
 }
