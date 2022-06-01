@@ -714,7 +714,6 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t* a_event_size)
 {
     dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POA(a_dag), NULL);
-    dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     if ( PVT(l_poa)->events_sign_cert == NULL){
         log_it(L_ERROR, "Can't sign event with events_sign_cert in [dag-poa] section");
@@ -786,7 +785,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         bool l_deleted = false;
         // set sign for reject
         if ( (l_round_item_size_new = dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size,
-                                                l_net, PVT(l_poa)->events_sign_cert->enc_key)) ) {
+                                                                            PVT(l_poa)->events_sign_cert->enc_key))) {
             // event reject
             log_it(L_NOTICE,"Can't sign Event %s Sign rejected by pre_sign callback, ret code=%d", a_key, ret);
             l_round_item->round_info.reject_count++;
