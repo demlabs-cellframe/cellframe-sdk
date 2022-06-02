@@ -46,6 +46,7 @@ char *strptime( char *buff, const char *fmt, struct tm *tm );
 
 bool dap_isstralnum(const char *c);
 size_t dap_strlen(const char *a_str);
+char* dap_strcat2(const char* s1, const char* s2);
 // compare a_str1 and a_str2
 int dap_strcmp(const char *a_str1, const char *a_str2);
 // compare a_n characters of a_str1 and a_str2
