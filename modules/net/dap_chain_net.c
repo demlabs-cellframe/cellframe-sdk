@@ -302,12 +302,12 @@ int dap_chain_net_init()
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
         "net -net <chain net name> get status\n"
             "\tLook at current status\n"
-        "net -net <chain net name> stats tx [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
+        "net -net <chain net name> stats tx|tps [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
             "\tSyncronyze gdb, chains or everything\n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> link {list | add | del | info | establish}\n"
+        "net -net <chain net name> link {list | add | del | info | disconnect_all}\n"
             "\tList, add, del, dump or establish links\n"
         "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
             "\tAdd certificate to list of authority cetificates in GDB group\n"
@@ -1636,6 +1636,29 @@ void dap_chain_net_load_all()
         log_it(L_WARNING,"Can't open entries on path %s: \"%s\" (code %d)", l_net_dir_str, l_errbuf, l_errno);
     }
     DAP_DELETE (l_net_dir_str);
+}
+
+dap_string_t* dap_cli_list_net()
+{
+    dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
+    dap_string_t *l_string_ret = dap_string_new("");
+    dap_chain_net_t * l_net = NULL;
+    int l_net_i = 0;
+    dap_string_append(l_string_ret,"Available networks and chains:\n");
+    pthread_rwlock_rdlock(&g_net_items_rwlock);
+    HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
+        l_net = l_net_item->chain_net;
+        dap_string_append_printf(l_string_ret, "\t%s:\n", l_net_item->name);
+        l_net_i++;
+
+        dap_chain_t * l_chain = l_net->pub.chains;
+        while (l_chain) {
+            dap_string_append_printf(l_string_ret, "\t\t%s\n", l_chain->name );
+            l_chain = l_chain->next;
+        }
+    }
+    pthread_rwlock_unlock(&g_net_items_rwlock);
+    return l_string_ret;
 }
 
 void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
