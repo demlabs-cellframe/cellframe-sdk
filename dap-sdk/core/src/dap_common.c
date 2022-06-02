@@ -454,16 +454,6 @@ void	_dump_it	(
 		unsigned short	srclen
 			)
 {
-    /*
-     * 01-06-2022 08:54:49.787   22615   [DBG]  [thread_worker_function:346]     RD <-- NET: #21, 140 octets, errno=0
-01-06-2022 08:54:49.787   22615  [s_ch_sf_packet_in:250]  ----------------     %02u-%02u-%04u %02       +0000:  cb 2c 12 13 22 51 3f 34 d0 97 cd 34 0f 6e 1c 6b   .,.."Q?4...4.n.k
-        +0010:  63 c2 c1 b2 f5 c9 0e 1b 45 67 47 50 98 84 33 b2   c.......EgGP..3.
-        +0020:  ce 7b 1d b0 9b f4 e5 73 c6 6f 3e 6a a5 1e f6 de   .{.....s.o>j....
-        +0030:  da 56 78 d8 98 05 04 7a e5 83 cc f7 fd de 1d 29   .Vx....z.......)
-        +0040:  12 ba e3 f6 d1 59 cf 1b 0b da b3 8d f9 a4 d0 06   .....Y..........
-        +0050:  19 19 80 b5 13 ca 6b 7f e5 df 4c 34 d6 4f f0 e5   ......k...L4.O..
-        +0060:  a3 28 e3 3d                                       .(.=
-*/
 #define HEXDUMP$SZ_WIDTH    80
 const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  [%s:%u]  HEX Dump of <%.*s>, %u octets:\n"};
 char	out[512] = {0};
@@ -553,7 +543,7 @@ struct timespec now;
         }
 
         len = write(STDOUT_FILENO, out, HEXDUMP$SZ_WIDTH);
-		}
+    }
 }
 
 
