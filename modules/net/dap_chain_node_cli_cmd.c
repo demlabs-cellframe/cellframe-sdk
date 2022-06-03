@@ -1598,7 +1598,7 @@ int com_ping(int argc, char** argv, char **str_reply)
 
     int n = 4;
     if(argc < 2) {
-        dap_chain_node_cli_set_reply_text(str_reply, "host not specified");
+        dap_chain_node_cli_set_reply_text(str_reply, "Host not specified");
         return -1;
     }
     const char *n_str = NULL;
@@ -1625,24 +1625,24 @@ int com_ping(int argc, char** argv, char **str_reply)
     DAP_DELETE(l_ping_handle);
     if(res >= 0) {
         if(str_reply)
-            dap_chain_node_cli_set_reply_text(str_reply, "ping %s time=%.1lf ms", addr, res * 1. / 1000);
+            dap_chain_node_cli_set_reply_text(str_reply, "Ping %s time=%.1lf ms", addr, res * 1. / 1000);
     }
     else {
         if(str_reply) {
             switch (-res)
             {
             case EDESTADDRREQ:
-                dap_chain_node_cli_set_reply_text(str_reply, "ping %s error: %s", addr, "Destination address required");
+                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", addr, "Destination address required");
                 break;
             case EADDRNOTAVAIL:
-                dap_chain_node_cli_set_reply_text(str_reply, "ping %s error: %s", (addr) ? addr : "",
+                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", (addr) ? addr : "",
                         (addr) ? "Host not found" : "Host not defined");
                 break;
             case EPFNOSUPPORT:
-                dap_chain_node_cli_set_reply_text(str_reply, "ping %s error: %s", addr, "Unknown protocol family");
+                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", addr, "Unknown protocol family");
                 break;
             default:
-                dap_chain_node_cli_set_reply_text(str_reply, "ping %s error(%d)", addr, -res);
+                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error(%d)", addr, -res);
             }
         }
     }
@@ -1811,7 +1811,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
 
         if (l_sign_type.type == SIG_TYPE_TESLA)
         {
-                dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is not supported, please, use another variant");
+                dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is no longer supported, please, use another variant");
                 return -1;
         }
 
