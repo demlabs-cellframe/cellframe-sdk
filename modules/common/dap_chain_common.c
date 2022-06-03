@@ -272,7 +272,7 @@ uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
 
 char *dap_chain_balance_print128(uint128_t a_balance)
 {
-    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 3);
+    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 2);
     int l_pos = 0;
     uint128_t l_value = a_balance;
 #ifdef DAP_GLOBAL_IS_INT128
@@ -392,7 +392,7 @@ char *dap_chain_balance_to_coins256(uint256_t a_balance)
 const union __c_pow10__ {
     uint64_t u64[2];
     uint32_t u32[4];
-} DAP_ALIGN_PACKED c_pow10[DATOSHI_POW + 1] = {
+} DAP_ALIGN_PACKED c_pow10[DATOSHI_POW] = {
         { .u64 = {0,                         1ULL} },                          // 0
         { .u64 = {0,                         10ULL} },                         // 1
         { .u64 = {0,                         100ULL} },                        // 2
@@ -438,7 +438,7 @@ uint128_t dap_chain_balance_scan128(const char *a_balance)
 {
     int l_strlen = strlen(a_balance);
     uint128_t l_ret = uint128_0, l_nul = uint128_0;
-    if (l_strlen > DATOSHI_POW + 1)
+    if (l_strlen > DATOSHI_POW)
         return l_nul;
     for (int i = 0; i < l_strlen ; i++) {
         char c = a_balance[l_strlen - i - 1];
@@ -501,10 +501,10 @@ uint256_t dap_chain_balance_scan(const char *a_balance)
 
 uint128_t dap_chain_coins_to_balance128(const char *a_coins)
 {
-    char l_buf [DATOSHI_POW + 3] = {0};
+    char l_buf [DATOSHI_POW + 2] = {0};
     uint128_t l_ret = uint128_0, l_nul = uint128_0;
 
-    if (strlen(a_coins) > DATOSHI_POW + 2) {
+    if (strlen(a_coins) > DATOSHI_POW + 1) {
         log_it(L_WARNING, "Incorrect balance format - too long");
         return l_nul;
     }
@@ -526,7 +526,7 @@ uint128_t dap_chain_coins_to_balance128(const char *a_coins)
         }
         l_pos--;
     }
-    if (l_pos + DATOSHI_DEGREE - l_tail > DATOSHI_POW) {
+    if (l_pos + DATOSHI_DEGREE - l_tail > DATOSHI_POW-1) {
         log_it(L_WARNING, "Incorrect balance format - too long with point");
         return l_nul;
     }
@@ -567,9 +567,9 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
     uint256_t l_nul = {0};
 
     /* "12300000000.0000456" */
-    if ( (l_len = strnlen(a_coins, DATOSHI_POW256 + 3)) > DATOSHI_POW256 + 2)/* Check for legal length */ /* 1 symbol for \0, one for '.', if more, there is an error */
+    if ( (l_len = strnlen(a_coins, DATOSHI_POW256 + 1)) > DATOSHI_POW256)/* Check for legal length */ /* 1 symbol for \0, one for '.', if more, there is an error */
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - too long (%d > %d)", a_coins,
-                       l_len, DATOSHI_POW256 + 2), l_nul;
+                       l_len, DATOSHI_POW256), l_nul;
 
     /* Find , check and remove 'precision' dot symbol */
     memcpy (l_buf, a_coins, l_len);                                         /* Make local coy */
@@ -603,7 +603,7 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 
 
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
-    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 3);
+    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 1);
     int l_pos = 0;
     uint256_t l_value = a_uint256;
     uint256_t uint256_ten = {.hi = 0, .lo = 10};
@@ -629,7 +629,7 @@ char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
 const union __c_pow10_double__ {
     uint64_t u64[4];
     uint32_t u32[8];
-} DAP_ALIGN_PACKED c_pow10_double[DATOSHI_POW * 2 + 1] = {
+} DAP_ALIGN_PACKED c_pow10_double[DATOSHI_POW256] = {
         { .u64 = {0,                            0,                           0,                         1ULL} },                          // 0
         { .u64 = {0,                            0,                           0,                         10ULL} },                         // 1
         { .u64 = {0,                            0,                           0,                         100ULL} },                        // 2
