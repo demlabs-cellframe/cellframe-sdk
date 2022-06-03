@@ -1782,11 +1782,13 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
         }
 
         // check wallet existence
-        if(!l_is_force){
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
-            if(l_wallet) {
-                dap_chain_node_cli_set_reply_text(str_reply, "Wallet already exists");
-                dap_chain_wallet_close(l_wallet);
+        if (!l_is_force) {
+            char *l_file_name = dap_strdup_printf("%s/%s.dwallet", c_wallets_path, l_wallet_name);
+            FILE *l_exists = fopen(l_file_name, "rb");
+            DAP_DELETE(l_file_name);
+            if (l_exists) {
+                dap_chain_node_cli_set_reply_text(str_reply, "Wallet %s already exists", l_wallet_name);
+                fclose(l_exists);
                 return -1;
             }
         }
