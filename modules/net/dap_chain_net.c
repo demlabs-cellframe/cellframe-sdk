@@ -451,6 +451,10 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
         log_it(L_DEBUG, "Notified GDB event does not exist");
         return true;
     }
+    if (!l_obj->group || !l_obj->key) {
+        dap_store_obj_free_one(l_obj);
+        return true;
+    }
     l_obj->type = l_arg->type;
     if (l_obj->type == DAP_DB$K_OPTYPE_DEL) {
         DAP_DELETE(l_obj->group);
@@ -469,8 +473,6 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
                 l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
             dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
             dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-            if (!l_obj_cur->group)
-                break;
             dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj_cur);
             dap_store_obj_free_one(l_obj_cur);
             struct downlink *l_link, *l_tmp;
