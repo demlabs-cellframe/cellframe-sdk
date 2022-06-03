@@ -3175,12 +3175,12 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
 }
 
 /**
- * @brief dap_chain_net_get_add_gdb_group
+ * @brief dap_chain_net_get_extra_gdb_group
  * @param a_net
  * @param a_node_addr
  * @return
  */
-bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr)
+bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr)
 {
     if(!a_net || !PVT(a_net) || !PVT(a_net)->gdb_sync_nodes_addrs)
         return false;
