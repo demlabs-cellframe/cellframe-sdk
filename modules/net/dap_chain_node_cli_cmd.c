@@ -1989,7 +1989,13 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
     }
 
     if((*a_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-        dap_chain_node_cli_set_reply_text(a_str_reply, "%s can't find network \"%s\"", argv[0], l_net_str);
+        char l_str_to_reply_chain[500] = {0};
+        char *l_str_to_reply = NULL;
+        dap_sprintf(l_str_to_reply_chain, "%s can't find network \"%s\"\n", argv[0], l_net_str);
+        l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
+        dap_string_t* l_net_str = dap_cli_list_net();
+        l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
+        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_to_reply);
         return -102;
     }
 
@@ -2000,9 +2006,20 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
         // Select chain
         if(l_chain_str) {
             if((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
-                dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid",
+                char l_str_to_reply_chain[500] = {0};
+                char *l_str_to_reply = NULL;
+                dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
                         argv[0], l_net_str, l_chain_str);
+                l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
+                dap_chain_t * l_chain;
+                dap_chain_net_t * l_chain_net = *a_net;
+                l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chains:\n");
+                DL_FOREACH(l_chain_net->pub.chains, l_chain){
+                        l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
+                        l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
+                        l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
+                }
+                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_to_reply);
                 return -103;
             }
         }
