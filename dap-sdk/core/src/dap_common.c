@@ -30,7 +30,6 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stdint.h>
-#include <stdatomic.h>
 #include <ctype.h>
 
 #include "utlist.h"
@@ -414,7 +413,12 @@ struct timespec now;
 
 	olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
 			_tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
-			(unsigned) gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
+#ifndef _WIN32
+            (unsigned) gettid(),
+#else
+                     GetCurrentThreadId(),
+#endif
+                     s_log_level_tag[a_ll], a_rtn_name, a_line_no);
 
 
 	if ( 0 < (len = (74 - olen)) )
@@ -473,7 +477,12 @@ struct timespec now;
 
     olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
             _tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
-            (unsigned) gettid(), a_rtn_name, a_line_no, 48, a_var_name, srclen);
+#ifndef _WIN32
+                     (unsigned) gettid(),
+#else
+                     GetCurrentThreadId(),
+#endif
+                     a_rtn_name, a_line_no, 48, a_var_name, srclen);
 
     if(s_log_file)
     {
