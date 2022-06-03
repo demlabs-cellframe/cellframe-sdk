@@ -804,7 +804,7 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
             return l_nul;
         }
 
-        l_mul = (uint128_t) c_pow10_double->u64[0] * (uint128_t) l_digit;
+        l_mul = (uint128_t) c_pow10_double[i].u64[0] * (uint128_t) l_digit;
         if (l_mul >> 64) {
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
