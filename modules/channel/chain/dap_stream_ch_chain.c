@@ -401,7 +401,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
 
     int l_flags = 0;
-    if (dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr))
+    if (dap_chain_net_get_extra_gdb_group(l_net, l_sync_request->request.node_addr))
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
@@ -461,7 +461,7 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
     dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid);
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     int l_flags = 0;
-    if (dap_chain_net_get_add_gdb_group(l_net, l_sync_request->request.node_addr))
+    if (dap_chain_net_get_extra_gdb_group(l_net, l_sync_request->request.node_addr))
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
@@ -709,7 +709,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
-        dap_gdb_time_t l_time_now = dap_gdb_time_now();
+        dap_gdb_time_t l_time_now = dap_gdb_time_now() + dap_gdb_time_from_sec(120);    // time differnece consideration
         uint64_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
