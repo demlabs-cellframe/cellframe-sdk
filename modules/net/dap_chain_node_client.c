@@ -204,7 +204,7 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
     }
 
     dap_chain_node_client_t *l_me = l_client_found->client;
-    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_worker_t * l_worker = dap_worker_get_current();
     if (!l_worker)
         return NODE_SYNC_STATUS_FAILED;
     assert(l_me);
@@ -721,7 +721,6 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
 #endif
 
     pthread_mutex_init(&l_node_client->wait_mutex, NULL);
-    l_node_client->events = NULL; //dap_events_new();
     l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
     if (dap_chain_node_client_connect_internal(l_node_client, a_active_channels))
         return l_node_client;
@@ -738,7 +737,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
  */
 static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
 {
-    a_node_client->client = dap_client_new(a_node_client->events, s_stage_status_callback,
+    a_node_client->client = dap_client_new( s_stage_status_callback,
             s_stage_status_error_callback);
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;

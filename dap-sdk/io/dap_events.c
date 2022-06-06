@@ -104,8 +104,6 @@ bool g_debug_reactor = false;
 static int s_workers_init = 0;
 static uint32_t s_threads_count = 1;
 static dap_worker_t **s_workers = NULL;
-static dap_thread_t *s_threads = NULL;
-static dap_events_t * s_events_default = NULL;
 
 /**
  * @brief dap_get_cpu_count
@@ -220,8 +218,7 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
     s_threads_count = a_threads_count ? a_threads_count : l_cpu_count;
 
     s_workers =  DAP_NEW_Z_SIZE(dap_worker_t*,s_threads_count*sizeof (dap_worker_t*) );
-    s_threads = DAP_NEW_Z_SIZE(dap_thread_t, sizeof(dap_thread_t) * s_threads_count );
-    if ( !s_workers || !s_threads )
+    if ( !s_workers  )
         return -1;
 
     if(dap_context_init() != 0){
@@ -257,9 +254,7 @@ void dap_events_deinit( )
     dap_events_socket_deinit();
     dap_worker_deinit();
 
-    dap_events_wait(s_events_default);
-    if ( s_threads )
-        DAP_DELETE( s_threads );
+    dap_events_wait();
 
     if ( s_workers )
         DAP_DELETE( s_workers );
@@ -267,145 +262,59 @@ void dap_events_deinit( )
     s_workers_init = 0;
 }
 
-/**
- * @brief server_new Creates new empty instance of server_t
- * Additionally checking s_events_default and create thread (pthread_key_create)
- * @return New instance
- */
-dap_events_t * dap_events_new( )
-{
-    dap_events_t *ret = DAP_NEW_Z(dap_events_t);
-
-    if ( s_events_default == NULL)
-        s_events_default = ret;
-    pthread_key_create( &ret->pth_key_worker, NULL);
-
-    return ret;
-}
 
 /**
- * @brief dap_events_get_default
- * simply return s_events_default
- * @return dap_events_t*
- */
-dap_events_t* dap_events_get_default( )
-{
-    return s_events_default;
-}
-
-/**
- * @brief server_delete Delete event processor instance
- * @param sh Pointer to the server instance
- */
-void dap_events_delete( dap_events_t *a_events )
-{
-    if (a_events) {
-        if ( a_events->_inheritor )
-            DAP_DELETE( a_events->_inheritor );
-
-        DAP_DELETE( a_events );
-    }
-}
-
-/**
- * @brief dap_events_remove_and_delete_socket_unsafe
- * calls dap_events_socket_remove_and_delete_unsafe
- * @param a_events
- * @param a_socket
- * @param a_preserve_inheritor
- */
-void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
-{
-    (void) a_events;
-//    int l_sock = a_socket->socket;
-//    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
-//        log_it(L_DEBUG,"Remove timer %d", l_sock);
-
-    dap_events_socket_remove_and_delete_unsafe(a_socket, a_preserve_inheritor);
-}
-
-/**
- * @brief sa_server_loop Main server loop
- * @param sh Server instance
+ * @brief dap_events_start  Run main server loop
  * @return Zero if ok others if not
  */
-int dap_events_start( dap_events_t *a_events )
+int dap_events_start()
 {
-
-    if ( !s_workers_init )
+    int l_ret = -1;
+    if ( !s_workers_init ){
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
+        goto lb_err;
+    }
 
     for( uint32_t i = 0; i < s_threads_count; i++) {
         dap_worker_t * l_worker = DAP_NEW_Z(dap_worker_t);
 
         l_worker->id = i;
-        l_worker->events = a_events;
         l_worker->context = dap_context_new();
         l_worker->context->worker = l_worker;
-        pthread_mutex_init(& l_worker->started_mutex, NULL);
-        pthread_cond_init( & l_worker->started_cond, NULL);
 
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-        l_worker->epoll_fd = epoll_create( DAP_MAX_EVENTS_COUNT );
-        //log_it(L_DEBUG, "Created event_fd %d for worker %u", l_worker->epoll_fd,i);
-#ifdef DAP_OS_WINDOWS
-        if (!l_worker->epoll_fd) {
-            int l_errno = WSAGetLastError();
-#else
-        if ( l_worker->epoll_fd == -1 ) {
-            int l_errno = errno;
-#endif
-            char l_errbuf[128];
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it(L_CRITICAL, "Error create epoll fd: %s (%d)", l_errbuf, l_errno);
-            DAP_DELETE(l_worker);
-            return -1;
-        }
-#elif defined(DAP_EVENTS_CAPS_POLL)
-#elif defined(DAP_EVENTS_CAPS_KQUEUE)
-#else
-#error "Not defined worker init for your platform"
-#endif
+
         s_workers[i] = l_worker;
-        pthread_mutex_lock(&l_worker->started_mutex);
-        struct timespec l_timeout;
-        clock_gettime(CLOCK_REALTIME, &l_timeout);
-        l_timeout.tv_sec+=15;
 
-        pthread_create( &s_threads[i].tid, NULL, dap_worker_thread, l_worker );
-        int l_ret;
-        l_ret=pthread_cond_timedwait(&l_worker->started_cond, &l_worker->started_mutex, &l_timeout);
-        pthread_mutex_unlock(&l_worker->started_mutex);
-
-        if ( l_ret== ETIMEDOUT ){
-            log_it(L_CRITICAL, "Timeout 15 seconds is out: worker #%u thread don't respond", i);
-            return -2;
-        } else if (l_ret != 0){
-            log_it(L_CRITICAL, "Can't wait on condition: %d error code", l_ret);
-            return -3;
+        l_ret = dap_context_run(l_worker->context,i,DAP_CONTEXT_POLICY_FIFO,-1, 0, dap_worker_context_callback_started,
+                                dap_worker_context_callback_stopped, l_worker);
+        if(l_ret != 0){
+            log_it(L_CRITICAL, "Can't run worker #%u",i);
+            goto lb_err;
         }
     }
 
     // Init callback processor
     if (dap_proc_thread_init(s_threads_count) != 0 ){
         log_it( L_CRITICAL, "Can't init proc threads" );
-        return -4;
+        l_ret = -4;
+        goto lb_err;
     }
 
     return 0;
+lb_err:
+    log_it(L_CRITICAL,"Events init failed with code %d", l_ret);
+    return l_ret;
 }
 
 /**
  * @brief dap_events_wait
- * @param dap_events_t *a_events
  * @return
  */
-int dap_events_wait( dap_events_t *a_events )
+int dap_events_wait( )
 {
-    (void) a_events;
     for( uint32_t i = 0; i < s_threads_count; i++ ) {
         void *ret;
-        pthread_join( s_threads[i].tid, &ret );
+        pthread_join( s_workers[i]->context->thread_id  , &ret );
     }
     return 0;
 }
@@ -430,7 +339,7 @@ void dap_events_stop_all( )
  * @brief dap_worker_get_index_min
  * @return
  */
-uint32_t dap_events_worker_get_index_min( )
+uint32_t dap_events_thread_get_index_min( )
 {
     uint32_t min = 0;
 
@@ -445,7 +354,7 @@ uint32_t dap_events_worker_get_index_min( )
     return min;
 }
 
-uint32_t dap_events_worker_get_count()
+uint32_t dap_events_thread_get_count()
 {
     return  s_threads_count;
 }
@@ -459,7 +368,7 @@ dap_worker_t *dap_events_worker_get_auto( )
     if ( !s_workers_init )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
-    return s_workers[dap_events_worker_get_index_min()];
+    return s_workers[dap_events_thread_get_index_min()];
 }
 
 /**
@@ -478,7 +387,7 @@ dap_worker_t * dap_events_worker_get(uint8_t a_index)
 /**
  * @brief dap_worker_print_all
  */
-void dap_events_worker_print_all( )
+void dap_worker_print_all( )
 {
     if ( !s_workers_init )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");

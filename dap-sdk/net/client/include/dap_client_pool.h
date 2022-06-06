@@ -25,7 +25,7 @@
 #include "dap_client.h"
 #include "dap_events.h"
 
-int dap_client_pool_init(dap_events_t * a_events);
+int dap_client_pool_init();
 void dap_client_pool_deinit();
 
 dap_client_t * dap_client_pool_new (const char * a_client_id);

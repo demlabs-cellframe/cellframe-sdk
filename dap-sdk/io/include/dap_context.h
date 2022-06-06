@@ -30,14 +30,41 @@
 
 typedef struct dap_worker dap_worker_t;
 typedef struct dap_proc_thread dap_proc_thread_t;
+typedef struct dap_context dap_context_t;
+typedef void (*dap_context_callback_t) (dap_context_t *,void * ); // Callback for specific client operations
+typedef struct dap_context_msg_callback_{
+    dap_context_t * context;
+    dap_context_callback_t callback;
+    void * arg;
+} dap_context_msg_callback_t;
+
+typedef struct dap_context_msg_run{
+    dap_context_t * context;
+    dap_context_callback_t callback_started;
+    dap_context_callback_t callback_stopped;
+    int priority;
+    int sched_policy;
+    int cpu_id;
+    int flags;
+    void * callback_arg;
+} dap_context_msg_run_t;
+
 typedef struct dap_context {
     uint32_t id;  // Context ID
 
+    int cpu_id; // CPU id (if assigned)
     // Compatibility fields, in future should be replaced with _inheritor
     dap_proc_thread_t * proc_thread; // If the context belongs to proc_thread
     dap_worker_t * worker; // If the context belongs to worker
 
-#if defined DAP_EVENTS_CAPS_MSMQ
+    // pthread-related fields
+    pthread_cond_t started_cond; // Fires when thread started and pre-loop callback executes
+    pthread_mutex_t started_mutex; // related with started_cond
+    pthread_t thread_id; // Thread id
+
+
+    /// Platform-specific fields
+#if defined DAP_EVENTS_CAPS_MSMQqq
     HANDLE msmq_events[MAXIMUM_WAIT_OBJECTS];
 #endif
 
@@ -67,23 +94,57 @@ typedef struct dap_context {
 
     // Signal to exit
     bool signal_exit;
-
+    // Flags
+    bool is_running; // Is running
+    uint32_t running_flags; // Flags passed for _run function
 } dap_context_t;
 
+
+// Waiting for started before exit _run function/
+// ATTENTION: callback_started() executed just before exit a _run function
+
+#define DAP_CONTEXT_FLAG_WAIT_FOR_STARTED  0x00000001
+#define DAP_CONTEXT_FLAG_EXIT_IF_ERROR     0x00000100
+
+// Usual policies
+#define DAP_CONTEXT_POLICY_DEFAUT          0
+#define DAP_CONTEXT_POLICY_TIMESHARING     1
+// Real-time policies.
+#define DAP_CONTEXT_POLICY_FIFO            2
+#define DAP_CONTEXT_POLICY_ROUND_ROBIN     3
+
+// If set DAP_CONTEXT_FLAG_WAIT_FOR_STARTED thats time for waiting for (in seconds)
+#define DAP_CONTEXT_WAIT_FOR_STARTED_TIME   15
+
+// pthread kernel object for current context pointer
 extern pthread_key_t g_dap_context_pth_key;
-static inline dap_context_t * dap_context_current(){
+
+
+/// Next functions are thread-safe
+int dap_context_init(); // Init
+void dap_context_deinit(); // Deinit
+
+// New context create and run.
+dap_context_t * dap_context_new();
+
+// Run new context in dedicated thread.
+// ATTENTION: after running the context nobody have to access it outside its own running thread
+// Please use queues for access if need it
+int dap_context_run(dap_context_t * a_context,int a_cpu_id, int a_sched_policy, int a_priority,uint32_t a_flags,
+                    dap_context_callback_t a_callback_started,
+                    dap_context_callback_t a_callback_stopped,
+                    void * a_callback_arg );
+
+/**
+ * @brief dap_context_current Get current context
+ * @return Returns current context(if present, if not returns NULL)
+ */
+static inline dap_context_t * dap_context_current()
+{
     return (dap_context_t*) pthread_getspecific(g_dap_context_pth_key);
 }
 
-
-int dap_context_init(); // Init
-
-// New context create. Thread-safe functions
-dap_context_t * dap_context_new();
-
 /// ALL THIS FUNCTIONS ARE UNSAFE ! CALL THEM ONLY INSIDE THEIR OWN CONTEXT!!
-int dap_context_thread_init(dap_context_t * a_context);
-int dap_context_thread_loop(dap_context_t * a_context);
 
 int dap_context_add_esocket(dap_context_t * a_context, dap_events_socket_t * a_esocket );
 int dap_context_poll_update(dap_events_socket_t * a_esocket);

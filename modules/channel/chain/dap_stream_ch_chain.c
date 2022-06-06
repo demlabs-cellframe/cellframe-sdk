@@ -853,7 +853,7 @@ static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net
 
 static bool s_chain_timer_callback(void *a_arg)
 {
-    dap_worker_t *l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_worker_t *l_worker = dap_worker_get_current();
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t *)a_arg);
     if (!l_ch) {
         DAP_DELETE(a_arg);

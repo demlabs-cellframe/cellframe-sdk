@@ -29,8 +29,6 @@
 #include "dap_common.h"
 #include "dap_context.h"
 typedef struct dap_proc_thread{
-    uint32_t    cpu_id;
-    pthread_t   thread_id;                                                  /* TID has been returned by pthread_create() */
 
     dap_proc_queue_t *proc_queue;                                           /* Queues  */
     atomic_uint proc_queue_size;                                            /* Thread's load factor - is not supported at the moment  */
@@ -47,16 +45,12 @@ typedef struct dap_proc_thread{
 
     dap_events_socket_t * event_exit;
 
-    pthread_cond_t  started_cond;
-    pthread_mutex_t started_mutex ;
-
     void * _inheritor;
 } dap_proc_thread_t;
 
 int dap_proc_thread_init(uint32_t a_threads_count);
 void dap_proc_thread_deinit();
 
-dap_proc_thread_t *dap_proc_thread_run_custom(void);
 
 dap_proc_thread_t *dap_proc_thread_get(uint32_t a_thread_number);
 dap_proc_thread_t *dap_proc_thread_get_auto();

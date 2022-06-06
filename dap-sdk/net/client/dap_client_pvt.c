@@ -153,7 +153,6 @@ void dap_client_pvt_new(dap_client_pvt_t * a_client_pvt)
     a_client_pvt->stage = STAGE_BEGIN; // start point of state machine
     a_client_pvt->stage_status = STAGE_STATUS_DONE;
     a_client_pvt->uplink_protocol_version = DAP_PROTOCOL_VERSION;
-    a_client_pvt->events = dap_events_get_default();
     // add to list
     dap_client_pvt_hh_add_unsafe(a_client_pvt);
 }
@@ -230,7 +229,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
 {
     assert(a_arg);
     dap_events_socket_uuid_t *l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
-    dap_worker_t *l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_worker_t *l_worker = dap_worker_get_current();
     assert(l_worker);
 
     dap_events_socket_t * l_es = dap_context_esocket_find_by_uuid(l_worker->context, *l_es_uuid_ptr);
@@ -272,7 +271,7 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
     assert(a_arg);
     dap_events_socket_uuid_t *l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
 
-    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_worker_t * l_worker = dap_worker_get_current();
     assert(l_worker);
 
     dap_events_socket_t * l_es = dap_context_esocket_find_by_uuid(l_worker->context, *l_es_uuid_ptr);
@@ -314,7 +313,7 @@ static bool s_enc_init_delay_before_request_timer_callback(void * a_arg)
 {
     assert (a_arg);
     dap_events_socket_uuid_t* l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
-    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_worker_t * l_worker = dap_worker_get_current();
     dap_events_socket_t * l_es = dap_context_esocket_find_by_uuid(l_worker->context, *l_es_uuid_ptr);
     if(l_es){
         dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(l_es);
@@ -483,8 +482,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                         .delete_callback = s_stream_es_callback_delete,
                         .connected_callback = s_stream_es_callback_connected
                     };//
-                    a_client_pvt->stream_es = dap_events_socket_wrap_no_add(a_client_pvt->events,
-                            (int)a_client_pvt->stream_socket, &l_s_callbacks);
+                    a_client_pvt->stream_es = dap_events_socket_wrap_no_add( (int) a_client_pvt->stream_socket,
+                                                                             &l_s_callbacks);
                     a_client_pvt->stream_es->flags |= DAP_SOCK_CONNECTING ; // To catch non-blocking error when connecting we should up WRITE flag
                     //a_client_pvt->stream_es->flags |= DAP_SOCK_READY_TO_WRITE;
                     a_client_pvt->stream_es->_inheritor = a_client_pvt;

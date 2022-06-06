@@ -71,7 +71,7 @@ void dap_client_deinit()
  * @param a_stage_status_error_callback
  * @return
  */
-dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_stage_status_callback
+dap_client_t * dap_client_new( dap_client_callback_t a_stage_status_callback
                               ,dap_client_callback_t a_stage_status_error_callback )
 {
     // ALLOC MEM FOR dap_client
@@ -88,7 +88,6 @@ dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_s
     // CONSTRUCT dap_client object
     dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(l_client);
     l_client_pvt->client = l_client;
-    l_client_pvt->events = a_events;
     l_client_pvt->stage_status_callback = a_stage_status_callback;
     l_client_pvt->stage_status_error_callback = a_stage_status_error_callback;
     l_client_pvt->worker = dap_events_worker_get_auto();

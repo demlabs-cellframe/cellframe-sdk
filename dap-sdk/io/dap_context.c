@@ -84,8 +84,12 @@
 #include "dap_context.h"
 #include "dap_worker.h"
 #include "dap_events_socket.h"
-pthread_key_t g_dap_context_pth_key;
 
+pthread_key_t g_dap_context_pth_key; // Thread-specific object with pointer on current context
+
+static void *s_context_thread(void *arg); // Context thread
+static int s_thread_init(dap_context_t * a_context);
+static int s_thread_loop(dap_context_t * a_context);
 
 /**
  * @brief dap_context_init
@@ -114,18 +118,163 @@ int dap_context_init()
 dap_context_t * dap_context_new()
 {
    dap_context_t * l_context = DAP_NEW_Z(dap_context_t);
-   static uint32_t s_context_id_max = 0;
+   static atomic_uint_fast64_t s_context_id_max = 0;
    l_context->id = s_context_id_max;
    s_context_id_max++;
    return l_context;
 }
 
 /**
+ * @brief dap_context_run     Run new context in dedicated thread.
+ * @param a_context           Context object
+ * @param a_cpu_id            CPU id on wich it will be assigned (if platform allows). -1 means no CPU affinity
+ * @param a_sched_policy      Schedule policy
+ * @param a_priority          Thread priority. 0 means default
+ * @param a_flags             Flags specified context. 0 if default
+ * @param a_callback_loop_before  Callback thats executes in thread just after initializetion but before main loop begins
+ * @param a_callback_loop_after  Callback thats executes in thread just after main loop stops
+ * @param a_callback_arg Custom argument for callbacks
+ * @return Returns zero if succes, others if error (pthread_create() return code)
+ */
+int dap_context_run(dap_context_t * a_context,int a_cpu_id, int a_sched_policy, int a_priority,
+                    uint32_t a_flags,
+                    dap_context_callback_t a_callback_loop_before,
+                    dap_context_callback_t a_callback_loop_after,
+                    void * a_callback_arg )
+{
+    dap_context_msg_run_t * l_msg = DAP_NEW_Z(dap_context_msg_run_t);
+    int l_ret;
+
+    // Check for OOM
+    if(! l_msg){
+        log_it(L_CRITICAL, "Can't allocate memory for context create message");
+        return ENOMEM;
+    }
+
+    // Prefill message structure for new context's thread
+    l_msg->context = a_context;
+    l_msg->priority = a_priority;
+    l_msg->sched_policy = a_sched_policy;
+    l_msg->cpu_id = a_cpu_id;
+    l_msg->flags = a_flags;
+    l_msg->callback_started = a_callback_loop_before;
+    l_msg->callback_stopped = a_callback_loop_after;
+    l_msg->callback_arg = a_callback_arg;
+
+    // If we have to wait for started thread (and initialization inside )
+    if( a_flags & DAP_CONTEXT_FLAG_WAIT_FOR_STARTED){
+        // Init kernel objects
+        pthread_mutex_init(&a_context->started_mutex, NULL);
+        pthread_cond_init( &a_context->started_cond, NULL);
+
+        // Prepare timer
+        struct timespec l_timeout;
+        clock_gettime(CLOCK_REALTIME, &l_timeout);
+        l_timeout.tv_sec+=DAP_CONTEXT_WAIT_FOR_STARTED_TIME;
+        // Lock started mutex and try to run a thread
+        pthread_mutex_lock(&a_context->started_mutex);
+
+        l_ret = pthread_create( &a_context->thread_id , NULL, s_context_thread, l_msg);
+
+        if(l_ret == 0){ // If everything is good we're waiting for DAP_CONTEXT_WAIT_FOR_STARTED_TIME seconds
+            l_ret=pthread_cond_timedwait(&a_context->started_cond, &a_context->started_mutex, &l_timeout);
+            if ( l_ret== ETIMEDOUT ){ // Timeout
+                log_it(L_CRITICAL, "Timeout %d seconds is out: context #%u thread don't respond", DAP_CONTEXT_WAIT_FOR_STARTED_TIME,a_context->id);
+            } else if (l_ret != 0){ // Another error
+                log_it(L_CRITICAL, "Can't wait on condition: %d error code", l_ret);
+            } else // All is good
+                log_it(L_NOTICE, "Context %u started", a_context->id);
+        }else{ // Thread haven't started
+            log_it(L_ERROR,"Can't create new thread for context %u", a_context->id );
+            DAP_DELETE(l_msg);
+        }
+        pthread_mutex_unlock(&a_context->started_mutex);
+    }else{ // Here we wait for nothing, just run it
+        l_ret = pthread_create( &a_context->thread_id , NULL, s_context_thread, l_msg);
+        if(l_ret != 0){ // Check for error, if present lets cleanup the memory for l_msg
+            log_it(L_ERROR,"Can't create new thread for context %u", a_context->id );
+            DAP_DELETE(l_msg);
+        }
+    }
+    return l_ret;
+}
+
+/**
+ * @brief s_context_thread Context working thread
+ * @param arg
+ * @return
+ */
+static void *s_context_thread(void *a_arg)
+{
+    dap_context_msg_run_t * l_msg = (dap_context_msg_run_t*) a_arg;
+    dap_context_t * l_context = l_msg->context;
+
+    l_context->cpu_id = l_msg->cpu_id;
+    if(l_msg->cpu_id!=-1)
+        dap_cpu_assign_thread_on(l_msg->cpu_id );
+
+
+#ifdef DAP_OS_WINDOWS
+    if (!SetThreadPriority(GetCurrentThread(), l_msg->priority ))
+        log_it(L_ERROR, "Couldn'r set thread priority, err: %lu", GetLastError());
+#else
+    if(l_msg->priority != 0 && l_msg->sched_policy != DAP_CONTEXT_POLICY_DEFAUT ){
+        struct sched_param l_sched_params = {0};
+#if defined (DAP_OS_LINUX)
+        int l_sched_policy= SCHED_BATCH;
+#else
+        int l_sched_policy= SCHED_OTHER;
+#endif
+
+        l_sched_params.sched_priority = l_msg->priority;
+        switch(l_msg->sched_policy){
+            case DAP_CONTEXT_POLICY_FIFO: l_sched_policy = SCHED_FIFO; break;
+            case DAP_CONTEXT_POLICY_ROUND_ROBIN: l_sched_policy = SCHED_RR; break;
+            default:;
+        }
+
+        pthread_setschedparam(pthread_self(), l_sched_policy,&l_sched_params);
+    }
+#endif
+
+    if(s_thread_init(l_context)!=0){
+        // Can't initialize
+        if(l_msg->flags & DAP_CONTEXT_FLAG_WAIT_FOR_STARTED )
+            pthread_cond_broadcast(&l_context->started_cond);
+        return NULL;
+    }
+    // Now we're running and initalized for sure, so we can assign flags to the current context
+    l_context->running_flags = l_msg->flags;
+
+    // Started callback execution
+    l_msg->callback_started(l_context, l_msg->callback_arg);
+
+    // Initialization success
+    if(l_msg->flags & DAP_CONTEXT_FLAG_WAIT_FOR_STARTED )
+        pthread_cond_broadcast(&l_context->started_cond);
+
+    s_thread_loop(l_context);
+
+    // Stopped callback execution
+    l_msg->callback_stopped(l_context, l_msg->callback_arg);
+
+    log_it(L_NOTICE,"Exiting context #%u", l_context->id);
+
+    // Free memory. Because nobody expected to work with context outside itself it have to be safe
+    pthread_cond_destroy(&l_context->started_cond);
+    pthread_mutex_destroy(&l_context->started_mutex);
+    DAP_DELETE(l_context);
+
+    return NULL;
+}
+
+
+/**
  * @brief dap_context_thread_init
  * @param a_context
  * @return
  */
-int dap_context_thread_init(dap_context_t * a_context)
+static int s_thread_init(dap_context_t * a_context)
 {
     pthread_setspecific(g_dap_context_pth_key, a_context);
 
@@ -147,18 +296,33 @@ int dap_context_thread_init(dap_context_t * a_context)
     a_context->poll_count_max = DAP_EVENTS_SOCKET_MAX;
     a_context->poll = DAP_NEW_Z_SIZE(struct pollfd,a_context->poll_count_max*sizeof (struct pollfd));
     a_context->poll_esocket = DAP_NEW_Z_SIZE(dap_events_socket_t*,a_context->poll_count_max*sizeof (dap_events_socket_t*));
+#elif defined(DAP_EVENTS_CAPS_EPOLL)
+        a_context->epoll_fd = epoll_create( DAP_MAX_EVENTS_COUNT );
+        //log_it(L_DEBUG, "Created event_fd %d for context %u", a_context->epoll_fd,i);
+#ifdef DAP_OS_WINDOWS
+        if (!a_context->epoll_fd) {
+            int l_errno = WSAGetLastError();
 #else
-#error "Unimplemented socket array for this platform"
+        if ( a_context->epoll_fd == -1 ) {
+            int l_errno = errno;
+#endif
+            char l_errbuf[128];
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it(L_CRITICAL, "Error create epoll fd: %s (%d)", l_errbuf, l_errno);
+            return -1;
+        }
+#else
+#error "Unimplemented dap_context_init for this platform"
 #endif
     return 0;
 }
 
 /**
- * @brief dap_context_thread_loop
+ * @brief s_thread_loop
  * @param a_context
  * @return
  */
-int dap_context_thread_loop(dap_context_t * a_context)
+static int s_thread_loop(dap_context_t * a_context)
 {
     int l_errno = 0, l_selected_sockets = 0;
     dap_events_socket_t *l_cur = NULL;
@@ -835,8 +999,7 @@ int dap_context_thread_loop(dap_context_t * a_context)
                                   // Here we expect thats event duplicates goes together in it. If not - we lose some events between.
                         }
                     }
-                    //dap_events_socket_remove_and_delete_unsafe( l_cur, false);
-                    dap_events_remove_and_delete_socket_unsafe(dap_events_get_default(), l_cur, false);
+                    dap_events_socket_remove_and_delete_unsafe( l_cur, false);
 #ifdef DAP_EVENTS_CAPS_KQUEUE
                     a_context->kqueue_events_count--;
 #endif

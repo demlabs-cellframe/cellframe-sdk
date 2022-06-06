@@ -182,10 +182,8 @@ void __stdcall mq_receive_cb(HRESULT hr, QUEUEHANDLE qh, DWORD timeout
  * @param a_callbacks
  * @return
  */
-dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
-                                            int a_sock, dap_events_socket_callbacks_t *a_callbacks )
+dap_events_socket_t *dap_events_socket_wrap_no_add( int a_sock, dap_events_socket_callbacks_t *a_callbacks )
 {
-    assert(a_events);
     assert(a_callbacks);
 
     dap_events_socket_t *l_ret = DAP_NEW_Z( dap_events_socket_t );
@@ -349,7 +347,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
         return NULL;
     }
 #endif
-    dap_events_socket_t * l_es =dap_events_socket_wrap_no_add(dap_events_get_default(),l_sock,a_callbacks);
+    dap_events_socket_t * l_es =dap_events_socket_wrap_no_add(l_sock,a_callbacks);
     if(!l_es){
         log_it(L_CRITICAL,"Can't allocate memory for the new esocket");
         return NULL;
@@ -1061,17 +1059,14 @@ void dap_events_socket_delete_mt(dap_worker_t * a_worker, dap_events_socket_uuid
 }
 
 /**
- * @brief dap_events_socket_wrap
- * @param a_events
- * @param w
- * @param s
+ * @brief dap_events_socket_wrap2
+ * @param a_server
+ * @param a_sock
  * @param a_callbacks
  * @return
  */
-dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,
-                                            int a_sock, dap_events_socket_callbacks_t *a_callbacks )
+dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, int a_sock, dap_events_socket_callbacks_t *a_callbacks )
 {
-    assert( a_events );
     assert( a_callbacks );
     assert( a_server );
 
@@ -1203,14 +1198,14 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
  */
 bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg)
 {
-    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
+    dap_worker_t * l_worker = dap_worker_get_current();
     dap_events_socket_uuid_w_data_t * l_es_handler = (dap_events_socket_uuid_w_data_t*) a_arg;
     assert(l_es_handler);
     assert(l_worker);
     dap_events_socket_t * l_es;
     if( (l_es = dap_context_esocket_find_by_uuid(l_worker->context, l_es_handler->esocket_uuid)) != NULL)
         //dap_events_socket_remove_and_delete_unsafe(l_es,l_es_handler->value == 1);
-        dap_events_remove_and_delete_socket_unsafe(dap_events_get_default(), l_es, l_es_handler->value == 1);
+        dap_events_socket_remove_and_delete_unsafe( l_es, l_es_handler->value == 1);
     DAP_DELETE(l_es_handler);
 
     return false;
