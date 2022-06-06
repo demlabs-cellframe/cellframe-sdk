@@ -5,7 +5,8 @@ HEADERS += $$PWD/include/dap_events.h \
     $$PWD/include/dap_proc_thread.h \
     $$PWD/include/dap_server.h \
     $$PWD/include/dap_timerfd.h \
-    $$PWD/include/dap_worker.h 
+    $$PWD/include/dap_context.h \
+    $$PWD/include/dap_worker.h
 
 SOURCES += $$PWD/dap_events.c \
     $$PWD/dap_events_socket.c \
@@ -14,6 +15,7 @@ SOURCES += $$PWD/dap_events.c \
     $$PWD/dap_proc_thread.c \
     $$PWD/dap_server.c \
     $$PWD/dap_timerfd.c \
-    $$PWD/dap_worker.c 
+    $$PWD/dap_context.c \
+    $$PWD/dap_worker.c
 
 INCLUDEPATH += $$PWD/include

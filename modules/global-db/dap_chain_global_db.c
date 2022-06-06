@@ -818,8 +818,8 @@ dap_events_socket_t     *l_es;
     l_proc_que = s_global_db_proc_thread->_inheritor;
     l_es = l_proc_que->esocket;
 
-    l_wrk = l_proc_que->esocket->worker;
-    l_proc_thd = l_proc_que->esocket->proc_thread;
+    l_wrk = l_proc_que->esocket->context->worker;
+    l_proc_thd = l_proc_que->esocket->context->proc_thread;
 
     if ( !l_wrk && !l_proc_thd )
         return  log_it(L_ERROR, "Both <worker> or <proc_thread> contexts are NULL"), -EINVAL;
@@ -827,8 +827,6 @@ dap_events_socket_t     *l_es;
     if ( l_wrk && l_proc_thd )
         return  log_it(L_ERROR, "Both <worker> or <proc_thread> contexts are NOT NULL"), -EINVAL;
 
-    /* So, at this point we should decide a what <event socket> context will be used */
-    l_es = l_wrk ? l_wrk->esockets : l_proc_thd->esockets[0];
 
     if ( !(l_db_req = DAP_NEW_Z(dap_grobal_db_req_t)) )                     /* Allocate memory for new DB Request context */
         return  log_it(L_ERROR, "Cannot allocate memory for DB Request, errno=%d", errno), -errno;

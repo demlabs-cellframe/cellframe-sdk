@@ -115,6 +115,7 @@ typedef struct dap_events dap_events_t;
 typedef struct dap_events_socket dap_events_socket_t;
 typedef struct dap_worker dap_worker_t;
 typedef struct dap_proc_thread dap_proc_thread_t ;
+typedef struct dap_context dap_context_t;
 
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
@@ -244,8 +245,8 @@ typedef struct dap_events_socket {
 
 
     // Links to related objects
-    dap_events_t *events;
-    dap_worker_t *worker;
+//    dap_events_t *events;
+    dap_context_t * context;
     dap_proc_thread_t * proc_thread; // If assigned on dap_proc_thread_t object
     dap_server_t *server; // If this socket assigned with server
 
@@ -310,7 +311,6 @@ void dap_events_socket_deinit(void); // Deinit clients module
 
 dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, dap_events_socket_callbacks_t* a_callbacks);
 
-dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback);
 int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket);
 
@@ -329,6 +329,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t * a_es, void* a_arg);
 int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value);
 
 void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_preserve_inheritor);
+void dap_events_socket_delete_mt(dap_worker_t * a_worker, dap_events_socket_uuid_t a_es_uuid);
 
 dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
                                             int a_sock, dap_events_socket_callbacks_t *a_callbacks );
@@ -341,13 +342,8 @@ void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, 
 void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new);
 
-// Non-MT functions
-dap_events_socket_t * dap_worker_esocket_find_uuid(dap_worker_t * a_worker, dap_events_socket_uuid_t a_es_uuid);
-
 void dap_events_socket_set_readable_unsafe(dap_events_socket_t * sc,bool is_ready);
 void dap_events_socket_set_writable_unsafe(dap_events_socket_t * sc,bool is_ready);
-void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket);
-
 
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *sc, const void * data, size_t data_size);
 size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * format,...);

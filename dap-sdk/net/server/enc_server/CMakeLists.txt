@@ -19,7 +19,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../3rdparty/uthash/src)
 
 if(WIN32)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server json-c
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_io dap_http_server json-c
   KERNEL32
   USER32
   SHELL32
@@ -41,6 +41,6 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server json-c )
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_io dap_http_server json-c )
 endif()
 

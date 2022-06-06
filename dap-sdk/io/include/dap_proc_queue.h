@@ -31,21 +31,21 @@ typedef bool (*dap_proc_queue_callback_t)(dap_proc_thread_t *, void *);     // C
                                                                             // we want to stop callback execution and
                                                                             // not to go on next loop
 enum    {
-        DAP_QUE$K_PRI0 = 0,                                                 /* Lowest priority (Idle)  */
-        DAP_QUE$K_PRI_IDLE = DAP_QUE$K_PRI0,                                /* Don't use Idle if u are not sure that understand how it works */
+        DAP_PROC_PRI_0 = 0,                                                 /* Lowest priority (Idle)  */
+        DAP_PROC_PRI_IDLE = DAP_PROC_PRI_0,                                /* Don't use Idle if u are not sure that understand how it works */
 
-        DAP_QUE$K_PRI1 = 1,                                                 /* Low priority */
-        DAP_QUE$K_PRI_LOW = DAP_QUE$K_PRI1,
+        DAP_PROC_PRI_1 = 1,                                                 /* Low priority */
+        DAP_PROC_PRI_LOW = DAP_PROC_PRI_1,
 
 
-        DAP_QUE$K_PRI2 = 2,
-        DAP_QUE$K_PRI_NORMAL = DAP_QUE$K_PRI2,                              /* Default priority for any queue's entry;
+        DAP_PROC_PRI_2 = 2,
+        DAP_PROC_PRI_NORMAL = DAP_PROC_PRI_2,                              /* Default priority for any queue's entry;
                                                                             has assigned implicitly */
 
-        DAP_QUE$K_PRI3 = 3,                                                 /* Higest priority */
-        DAP_QUE$K_PRI_HIGH = DAP_QUE$K_PRI3,
+        DAP_PROC_PRI_3 = 3,                                                 /* Higest priority */
+        DAP_PROC_PRI_HIGH = DAP_PROC_PRI_3,
 
-        DAP_QUE$K_PRIMAX = 4                                                /* End-of-list marker */
+        DAP_PROC_PRI_MAX = 4                                                /* End-of-list marker */
 };
 
 #define DAP_QUE$K_ITER_NR   7
@@ -63,9 +63,9 @@ typedef struct dap_proc_queue{
         dap_events_socket_t *esocket;
 
         struct {
-        pthread_mutex_t     lock;                                           /* To coordinate access to the queuee's entries */
-        dap_slist_t         items;                                          /* List of the queue' entries */
-        } list [DAP_QUE$K_PRIMAX];                                          /* An array of list according of priority numbers */
+            pthread_mutex_t     lock;                                           /* To coordinate access to the queuee's entries */
+            dap_slist_t         items;                                          /* List of the queue' entries */
+        } list [DAP_PROC_PRI_MAX];                                          /* An array of list according of priority numbers */
 } dap_proc_queue_t;
 
 dap_proc_queue_t *dap_proc_queue_create(dap_proc_thread_t * a_thread);
@@ -77,4 +77,5 @@ int dap_proc_queue_add_callback_inter(dap_events_socket_t * a_es_input, dap_proc
 
 int dap_proc_queue_add_callback_ext(dap_worker_t * a_worker, dap_proc_queue_callback_t a_callback, void * a_callback_arg, int a_pri);
 int dap_proc_queue_add_callback_inter_ext(dap_events_socket_t * a_es_input, dap_proc_queue_callback_t a_callback, void * a_callback_arg, int );
+int dap_proc_thread_add_callback_mt(dap_proc_thread_t * a_thread, dap_proc_queue_callback_t a_callback, void * a_callback_arg, int a_pri);
 

@@ -266,7 +266,7 @@ dap_stream_t *s_stream_new(dap_http_client_t *a_http_client)
     dap_stream_t *l_ret = DAP_NEW_Z(dap_stream_t);
 
     l_ret->esocket = a_http_client->esocket;
-    l_ret->stream_worker = (dap_stream_worker_t *)a_http_client->esocket->worker->_inheritor;
+    l_ret->stream_worker = (dap_stream_worker_t *)a_http_client->esocket->context->worker->_inheritor;
     l_ret->conn_http = a_http_client;
     l_ret->buf_defrag_size = 0;
     l_ret->seq_id = 0;
@@ -274,7 +274,7 @@ dap_stream_t *s_stream_new(dap_http_client_t *a_http_client)
     // Start server keep-alive timer
     dap_events_socket_uuid_t *l_es_uuid = DAP_NEW_Z(dap_events_socket_uuid_t);
     *l_es_uuid = l_ret->esocket->uuid;
-    l_ret->keepalive_timer = dap_timerfd_start_on_worker(l_ret->esocket->worker,
+    l_ret->keepalive_timer = dap_timerfd_start_on_worker(l_ret->esocket->context->worker,
                                                          STREAM_KEEPALIVE_TIMEOUT * 1000,
                                                          (dap_timerfd_callback_t)s_callback_server_keepalive,
                                                          l_es_uuid);
@@ -889,7 +889,7 @@ static bool s_callback_keepalive(void *a_arg, bool a_server_side)
         return false;
     dap_events_socket_uuid_t * l_es_uuid = (dap_events_socket_uuid_t*) a_arg;
     dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default());
-    dap_events_socket_t * l_es = dap_worker_esocket_find_uuid(l_worker, *l_es_uuid);
+    dap_events_socket_t * l_es = dap_context_esocket_find_by_uuid(l_worker->context, *l_es_uuid);
     if(l_es) {
         dap_stream_t *l_stream = NULL;
         if (a_server_side) {
