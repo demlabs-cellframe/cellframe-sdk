@@ -409,9 +409,7 @@ dap_chain_wallet_t * dap_chain_wallet_open(const char * a_wallet_name, const cha
 {
     if(!a_wallet_name || !a_wallets_path)
         return NULL;
-    size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
-    char *l_file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
-    dap_snprintf(l_file_name, l_file_name_size, "%s/%s.dwallet", a_wallets_path, a_wallet_name);
+    char *l_file_name = dap_strdup_printf("%s/%s.dwallet", a_wallets_path, a_wallet_name);
     dap_chain_wallet_t * l_wallet = dap_chain_wallet_open_file(l_file_name);
     DAP_DELETE(l_file_name);
     return l_wallet;
