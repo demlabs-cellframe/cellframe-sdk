@@ -76,3 +76,4 @@ void dap_proc_thread_worker_exec_callback_inter(dap_proc_thread_t * a_thread, si
 int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_events_socket_t * a_esocket);
 
 
+#define dap_proc_thread_esocket_update_poll_flags(a, b) dap_context_poll_update(b)

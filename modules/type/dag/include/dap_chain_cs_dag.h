@@ -29,8 +29,6 @@
 typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
 typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *);
-typedef void (*dap_chain_cs_dag_callback_broadcast_t)(dap_chain_cs_dag_t *,
-                                    dap_chain_cs_dag_event_round_item_t *, const char *a_key);
 typedef int (*dap_chain_cs_dag_callback_event_t)(dap_chain_cs_dag_t *, dap_chain_cs_dag_event_t *,size_t);
 
 typedef dap_chain_cs_dag_event_t * (*dap_chain_cs_dag_callback_event_create_t)(dap_chain_cs_dag_t *,
@@ -68,7 +66,6 @@ typedef struct dap_chain_cs_dag
     char *gdb_group_datums_queue;
 
     dap_chain_cs_dag_callback_t callback_delete;
-    dap_chain_cs_dag_callback_broadcast_t callback_broadcast;
     dap_chain_cs_dag_callback_event_create_t callback_cs_event_create;
     dap_chain_cs_dag_callback_event_t callback_cs_verify;
     dap_chain_cs_dag_callback_get_round_info_t callback_cs_get_round_info;

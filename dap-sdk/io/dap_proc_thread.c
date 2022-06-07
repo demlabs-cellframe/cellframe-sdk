@@ -291,26 +291,18 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
     a_esocket->proc_thread = a_thread;
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
-        // Init events for EPOLL
-        a_esocket->ev.events = a_esocket->ev_base_flags ;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-            a_esocket->ev.events |= EPOLLIN;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-            a_esocket->ev.events |= EPOLLOUT;
-        a_esocket->ev.data.ptr = a_esocket;
-        return epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
+    // Init events for EPOLL
+    a_esocket->ev.events = a_esocket->ev_base_flags ;
+    if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
+        a_esocket->ev.events |= EPOLLIN;
+    if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
+        a_esocket->ev.events |= EPOLLOUT;
+    a_esocket->ev.data.ptr = a_esocket;
+    return epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
 #elif defined (DAP_EVENTS_CAPS_POLL)
-    if (  a_thread->poll_count == a_thread->poll_count_max ){ // realloc
-        a_thread->poll_count_max *= 2;
-        log_it(L_WARNING, "Too many descriptors (%zu), resizing array twice to %zu", a_thread->poll_count, a_thread->poll_count_max);
-        a_thread->poll =DAP_REALLOC(a_thread->poll, a_thread->poll_count_max * sizeof(*a_thread->poll));
-        a_thread->esockets =DAP_REALLOC(a_thread->esockets, a_thread->poll_count_max * sizeof(*a_thread->esockets));
-    }
-
-    a_thread->poll[a_thread->poll_count].fd = a_thread->proc_queue->esocket->fd;
-    a_thread->poll[a_thread->poll_count].events = a_thread->proc_queue->esocket->poll_base_flags;
-    a_thread->esockets[a_thread->poll_count] = a_thread->proc_queue->esocket;
-    a_thread->poll_count++;
+    int l_ret = dap_context_add_esocket(a_thread->context, a_esocket);
+    if (l_ret)
+        log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
 /*    u_short l_flags = a_esocket->kqueue_base_flags;
     u_int   l_fflags = a_esocket->kqueue_base_fflags;

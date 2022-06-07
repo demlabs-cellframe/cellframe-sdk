@@ -1,5 +1,5 @@
-project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.10)
+project(cellframe-sdk C)
 
 set(CMAKE_C_STANDARD 11)
 set(CELLFRAME_SDK_NATIVE_VERSION "3.2-0")
