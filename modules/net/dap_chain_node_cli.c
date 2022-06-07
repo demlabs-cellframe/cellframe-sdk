@@ -1096,7 +1096,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list balance -net <network name>\n"
             "ledger info -hash <tx_hash> -net <network name> [-unspent]\n"
             "ledger tx -all -net <network name>\n"
-            "ledger tx [-addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
+            "ledger tx {-addr <addr> | -w <wallet name> | -tx <tx_hash>} [-chain <chain name>] -net <network name>\n");
 
     // Token info
     dap_chain_node_cli_cmd_item_create("token", com_token, "Token info",
