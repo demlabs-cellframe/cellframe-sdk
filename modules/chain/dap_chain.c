@@ -66,11 +66,11 @@ int s_prepare_env();
  */
 int dap_chain_init(void)
 {
+    dap_cert_init();
     // Cell sharding init
     dap_chain_cell_init();
     dap_chain_ledger_init();
     dap_chain_cs_init();
-    dap_cert_init();
     dap_chain_vf_init();
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
