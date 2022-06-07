@@ -577,10 +577,9 @@ dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out)
 void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
 {
     dap_store_obj_t *l_obj = a_store_data;
-    dap_list_t *it = s_sync_group_items;
-
-    while (it) {
-        for (; it; it = it->next) {
+    dap_list_t *l_items_list = s_sync_group_items;
+    while (l_items_list) {
+        for (dap_list_t *it = l_items_list; it; it = it->next) {
             dap_sync_group_item_t *l_sync_group_item = (dap_sync_group_item_t *)it->data;
             if (dap_fnmatch(l_sync_group_item->group_mask, l_obj->group, 0))
                 continue;
@@ -592,7 +591,7 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
             }
             return;
         }
-        it = it == s_sync_group_items ? s_sync_group_extra_items : NULL;
+        l_items_list = (l_items_list == s_sync_group_items) ? s_sync_group_extra_items : NULL;
     }
 }
 

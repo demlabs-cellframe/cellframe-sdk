@@ -279,8 +279,7 @@ typedef struct dap_events_socket {
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
     void *_pvt; //Private section, different for different types
     struct dap_events_socket * me; // pointer on itself
-    UT_hash_handle hh;
-    UT_hash_handle hh_worker; // Handle for local CPU storage on worker
+    UT_hash_handle hh; // Handle for local CPU storage on worker or proc_thread
 } dap_events_socket_t; // Node of bidirectional list of clients
 
 #define SSL(a) (a ? (WOLFSSL *) (a)->_pvt : NULL)
