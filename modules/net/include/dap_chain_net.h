@@ -28,7 +28,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <stdint.h>
 #include <string.h>
 #include "dap_net.h"
-#include "dap_stream.h"
+#include "dap_stream_ch.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
@@ -185,7 +185,7 @@ DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_from_chain(dap_chain_t * l_
 dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
 char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
-bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr);
+bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
 void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);

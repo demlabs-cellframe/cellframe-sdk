@@ -302,7 +302,7 @@ int dap_chain_net_init()
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
         "net -net <chain net name> get status\n"
             "\tLook at current status\n"
-        "net -net <chain net name> stats tx|tps [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
+        "net -net <chain net name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
             "\tSyncronyze gdb, chains or everything\n"
@@ -451,6 +451,10 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
         log_it(L_DEBUG, "Notified GDB event does not exist");
         return true;
     }
+    if (!l_obj->group || !l_obj->key) {
+        dap_store_obj_free_one(l_obj);
+        return true;
+    }
     l_obj->type = l_arg->type;
     if (l_obj->type == DAP_DB$K_OPTYPE_DEL) {
         DAP_DELETE(l_obj->group);
@@ -469,8 +473,6 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
                 l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
             dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
             dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-            if (!l_obj_cur->group)
-                break;
             dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj_cur);
             dap_store_obj_free_one(l_obj_cur);
             struct downlink *l_link, *l_tmp;
@@ -3236,12 +3238,12 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
 }
 
 /**
- * @brief dap_chain_net_get_add_gdb_group
+ * @brief dap_chain_net_get_extra_gdb_group
  * @param a_net
  * @param a_node_addr
  * @return
  */
-bool dap_chain_net_get_add_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr)
+bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr)
 {
     if(!a_net || !PVT(a_net) || !PVT(a_net)->gdb_sync_nodes_addrs)
         return false;
