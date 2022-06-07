@@ -26,28 +26,18 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <pthread.h>
-
+#include "dap_http.h"
 #include "dap_events_socket.h"
 #include "dap_config.h"
 #include "dap_stream_session.h"
-#include "dap_stream_ch.h"
 #include "dap_timerfd.h"
 
 #define CHUNK_SIZE_MAX (3 * 1024)
-
-typedef struct dap_client_remote dap_client_remote_t;
-typedef struct dap_udp_server dap_udp_server_t;
-
-
-typedef struct dap_http_client dap_http_client_t;
-typedef struct dap_http dap_http_t;
-typedef struct dap_stream dap_stream_t;
-typedef struct dap_stream_pkt dap_stream_pkt_t;
-typedef struct dap_events_socket dap_events_socket_t;
 #define STREAM_BUF_SIZE_MAX DAP_STREAM_PKT_SIZE_MAX * 4
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 
-typedef void (*dap_stream_callback)( dap_stream_t *,void*);
+typedef struct dap_stream_ch dap_stream_ch_t;
+typedef struct dap_stream_worker dap_stream_worker_t;
 
 typedef struct dap_stream {
     int id;
@@ -86,6 +76,8 @@ typedef struct dap_stream {
     struct dap_stream *prev, *next;
 
 } dap_stream_t;
+
+typedef void (*dap_stream_callback)(dap_stream_t *, void *);
 
 #define DAP_STREAM(a) ((dap_stream_t *) (a)->_inheritor )
 
