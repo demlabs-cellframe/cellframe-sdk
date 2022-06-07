@@ -30,7 +30,6 @@
 #include "dap_events.h"
 #include "dap_context.h"
 
-typedef struct dap_context dap_context_t;
 //typedef struct dap_proc_queue dap_proc_queue_t;
 typedef struct dap_timerfd dap_timerfd_t;
 typedef struct dap_worker
@@ -39,8 +38,6 @@ typedef struct dap_worker
     dap_events_t* events;
     dap_proc_queue_t* proc_queue;
     dap_events_socket_t *proc_queue_input;
-
-    atomic_uint event_sockets_count;
 
     // worker control queues
     dap_events_socket_t *queue_es_new; // Queue socket for new socket
