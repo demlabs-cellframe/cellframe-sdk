@@ -200,11 +200,11 @@ void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * ch,bool is_ready)
 
 static void s_print_workers_channels()
 {
-    uint32_t l_worker_count = dap_events_worker_get_count();
+    uint32_t l_worker_count = dap_events_thread_get_count();
     dap_stream_ch_t* l_msg_ch = NULL;
     dap_stream_ch_t* l_msg_ch_tmp = NULL;
     //print all worker connections
-    dap_events_worker_print_all();
+    dap_worker_print_all();
     for (uint32_t i = 0; i < l_worker_count; i++){
         uint32_t l_channel_count = 0;
         dap_worker_t* l_worker = dap_events_worker_get(i);

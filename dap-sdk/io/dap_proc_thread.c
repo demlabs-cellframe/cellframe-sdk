@@ -61,12 +61,11 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 static size_t s_threads_count = 0;
 static dap_proc_thread_t * s_threads = NULL;
 
-static dap_slist_t s_custom_threads = $DAP_SLIST_INITALIZER;                    /* Customized proc threads out of the pool */
-static pthread_rwlock_t s_custom_threads_rwlock = PTHREAD_RWLOCK_INITIALIZER;   /* Lock to protect <s_custom_threads> */
-
-
 static void *s_proc_thread_function(void * a_arg);
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
+
+static void s_context_callback_started( dap_context_t * a_context, void *a_arg);
+static void s_context_callback_stopped( dap_context_t * a_context, void *a_arg);
 
 /**
  * @brief dap_proc_thread_init
@@ -84,26 +83,21 @@ int l_ret = 0;
     for (uint32_t i = 0; i < s_threads_count; i++ )
     {
         dap_proc_thread_t * l_thread = s_threads + i;
-        l_thread->cpu_id = i;
         l_thread->context = dap_context_new();
         l_thread->context->proc_thread = l_thread;
-        pthread_cond_init(&l_thread->started_cond, NULL);
-        pthread_mutex_init( &l_thread->started_mutex,NULL);
 
-        pthread_mutex_lock( &l_thread->started_mutex );
-
-        if ( (l_ret = pthread_create( &l_thread->thread_id,NULL, s_proc_thread_function, &s_threads[i] )) ) {
+        if ( (l_ret = dap_context_run(l_thread->context,i,DAP_CONTEXT_POLICY_TIMESHARING,2,
+                                      DAP_CONTEXT_FLAG_WAIT_FOR_STARTED, s_context_callback_started,
+                                      s_context_callback_stopped,l_thread)  ) ) {
             log_it(L_CRITICAL, "Create thread failed with code %d", l_ret);
-            pthread_mutex_unlock( &l_thread->started_mutex );
             return l_ret;
         }
 
-        pthread_cond_wait( &l_thread->started_cond, &l_thread->started_mutex);
-        pthread_mutex_unlock( &l_thread->started_mutex);
     }
 
     return l_ret;
 }
+
 
 /**
  * @brief dap_proc_thread_deinit
@@ -116,22 +110,9 @@ void dap_proc_thread_deinit()
 
     for (uint32_t i = s_threads_count; i--; ){
         dap_events_socket_event_signal(s_threads[i].event_exit, 1);
-        pthread_join(s_threads[i].thread_id, NULL);
+        pthread_join(s_threads[i].context->thread_id, NULL);
     }
 
-    // Cleaning custom proc threads
-    pthread_rwlock_wrlock(&s_custom_threads_rwlock);
-
-    for ( uint32_t i = s_custom_threads.nr; i--; ) {
-        if ( s_dap_slist_get4head (&s_custom_threads, (void **) &l_proc_thread, &l_sz) )
-            break;
-
-        dap_events_socket_event_signal(l_proc_thread->event_exit, 1);
-        pthread_join(l_proc_thread->thread_id, NULL);
-        DAP_DELETE(l_proc_thread);
-    }
-
-    pthread_rwlock_unlock(&s_custom_threads_rwlock);
 
     // Signal to cancel working threads and wait for finish
     // TODO: Android realization
@@ -173,34 +154,6 @@ unsigned l_id_min = 0, l_size_min = UINT32_MAX, l_queue_size;
     }
 
     return &s_threads[l_id_min];
-}
-
-/**
- * @brief dap_proc_thread_run_custom Create custom proc thread for specified task
- * @return
- */
-dap_proc_thread_t * dap_proc_thread_run_custom(void)
-{
-    dap_proc_thread_t * l_proc_thread = DAP_NEW_Z(dap_proc_thread_t);
-    int l_ret;
-
-    if (l_proc_thread == NULL)
-        return  log_it(L_CRITICAL,"Out of memory, can't create new proc thread, errno=%d", errno), NULL;
-
-    pthread_mutex_lock( &l_proc_thread->started_mutex );
-
-    if ( (l_ret = pthread_create( &l_proc_thread->thread_id ,NULL, s_proc_thread_function, l_proc_thread  )) ) {
-        log_it(L_CRITICAL, "Create thread failed with code %d", l_ret);
-        DAP_DEL_Z (l_proc_thread);
-    }else{
-        pthread_cond_wait( &l_proc_thread->started_cond, &l_proc_thread->started_mutex);
-        pthread_rwlock_wrlock(&s_custom_threads_rwlock);
-        assert ( !s_dap_slist_add2tail (&s_custom_threads, l_proc_thread, sizeof(l_proc_thread)) );
-        pthread_rwlock_unlock(&s_custom_threads_rwlock);
-    }
-
-    pthread_mutex_unlock( &l_proc_thread->started_mutex );
-    return l_proc_thread;
 }
 
 /**
@@ -344,55 +297,34 @@ dap_events_socket_t * dap_proc_thread_create_queue_ptr(dap_proc_thread_t * a_thr
 }
 
 /**
- * @brief s_proc_thread_function
+ * @brief s_context_callback_started
+ * @param a_context
  * @param a_arg
- * @return
  */
-static void * s_proc_thread_function(void * a_arg)
+static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
 {
-
     dap_proc_thread_t * l_thread = (dap_proc_thread_t*) a_arg;
     assert(l_thread);
-    dap_context_t * l_context = l_thread->context;
-    assert(l_context);
-    dap_cpu_assign_thread_on(l_thread->cpu_id);
-
-    struct sched_param l_shed_params;
-    l_shed_params.sched_priority = 0;
-#if defined(DAP_OS_WINDOWS)
-    if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST))
-        log_it(L_ERROR, "Couldn't set thread priority, err: %lu", GetLastError());
-#elif defined (DAP_OS_LINUX)
-    pthread_setschedparam(pthread_self(),SCHED_BATCH ,&l_shed_params);
-#elif defined (DAP_OS_BSD)
-    pthread_setschedparam(pthread_self(),SCHED_OTHER ,&l_shed_params);
-#else
-#error "Undefined set sched param"
-#endif
-    if(dap_context_thread_init(l_thread->context)!=0){
-        pthread_cond_broadcast(&l_thread->started_cond);
-        return NULL;
-    }
-
     l_thread->proc_queue = dap_proc_queue_create(l_thread);
 
     // Init proc_queue for related worker
-    dap_worker_t * l_worker_related = dap_events_worker_get(l_thread->cpu_id);
+    dap_worker_t * l_worker_related = dap_events_worker_get(l_thread->context->cpu_id);
     assert(l_worker_related);
+
     l_worker_related->proc_queue = l_thread->proc_queue;
     l_worker_related->proc_queue_input = dap_events_socket_queue_ptr_create_input(l_worker_related->proc_queue->esocket);
 
     dap_events_socket_assign_on_worker_mt(l_worker_related->proc_queue_input,l_worker_related);
 
-    l_thread->proc_event = dap_context_create_esocket_event( l_context , s_proc_event_callback);
+    l_thread->proc_event = dap_context_create_esocket_event( a_context , s_proc_event_callback);
     l_thread->proc_event->proc_thread = l_thread;
-    l_thread->event_exit = dap_context_create_esocket_event(l_context, s_event_exit_callback);
+    l_thread->event_exit = dap_context_create_esocket_event( a_context, s_event_exit_callback);
     l_thread->event_exit->proc_thread = l_thread;
 
     l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
     l_thread->event_exit->_inheritor = l_thread;
 
-    size_t l_workers_count= dap_events_worker_get_count();
+    size_t l_workers_count= dap_events_thread_get_count();
     assert(l_workers_count);
     l_thread->queue_assign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
     l_thread->queue_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)*l_workers_count  );
@@ -408,7 +340,7 @@ static void * s_proc_thread_function(void * a_arg)
     }
 
 
-    for (size_t n = 0; n< dap_events_worker_get_count(); n++){
+    for (size_t n = 0; n< dap_events_thread_get_count(); n++){
         // Queue asssign
         dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_assign_input[n]);
 
@@ -419,24 +351,26 @@ static void * s_proc_thread_function(void * a_arg)
         dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_callback_input[n]);
     }
 
+}
 
-    //We've started!
-    pthread_cond_broadcast(&l_thread->started_cond);
-
-
-
-    dap_context_thread_loop(l_thread->context);
-
-    log_it(L_ATT, "Stop processing thread #%u", l_thread->cpu_id);
+/**
+ * @brief s_context_callback_stopped
+ * @param a_context
+ * @param a_arg
+ */
+static void s_context_callback_stopped( dap_context_t * a_context, void *a_arg)
+{
+    dap_proc_thread_t * l_thread = (dap_proc_thread_t*) a_arg;
+    assert(l_thread);
+    log_it(L_ATT, "Stop processing thread #%u", l_thread->context->cpu_id);
     // cleanip inputs
-    for (size_t n=0; n<dap_events_worker_get_count(); n++){
+    for (size_t n=0; n<dap_events_thread_get_count(); n++){
         dap_events_socket_delete_unsafe(l_thread->queue_assign_input[n], false);
         dap_events_socket_delete_unsafe(l_thread->queue_io_input[n], false);
         dap_events_socket_delete_unsafe(l_thread->queue_callback_input[n], false);
     }
-
-    return NULL;
 }
+
 
 /**
  * @brief dap_proc_thread_assign_on_worker_inter
@@ -552,7 +486,7 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
     dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_es->_inheritor;
     l_thread->context->signal_exit = true;
     if(g_debug_reactor)
-        log_it(L_DEBUG, "Proc_thread :%u signaled to exit", l_thread->cpu_id);
+        log_it(L_DEBUG, "Proc_thread :%u signaled to exit", l_thread->context->cpu_id);
 }
 
 

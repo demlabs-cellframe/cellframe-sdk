@@ -185,7 +185,7 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
     assert(a_arg);
     dap_events_socket_uuid_t * l_es_uuid_ptr = (dap_events_socket_uuid_t *) a_arg;
 
-    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default()); // We're in own esocket context
+    dap_worker_t * l_worker = dap_worker_get_current(); // We're in own esocket context
     assert(l_worker);
     dap_events_socket_t * l_es = dap_context_esocket_find_by_uuid( l_worker->context, *l_es_uuid_ptr);
     if(l_es){
@@ -222,7 +222,7 @@ static bool s_timer_timeout_check(void * a_arg)
     dap_events_socket_uuid_t *l_es_uuid = (dap_events_socket_uuid_t*) a_arg;
     assert(l_es_uuid);
 
-    dap_worker_t * l_worker = dap_events_get_current_worker(dap_events_get_default()); // We're in own esocket context
+    dap_worker_t * l_worker = dap_worker_get_current(); // We're in own esocket context
     assert(l_worker);
     dap_events_socket_t * l_es = dap_context_esocket_find_by_uuid(l_worker->context, *l_es_uuid);
     if(l_es){
@@ -521,7 +521,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
     timeout.tv_sec = 10;
     timeout.tv_usec = 0;
 
-    dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), l_socket, &l_s_callbacks);
+    dap_events_socket_t *l_ev_socket = dap_events_socket_wrap_no_add(l_socket, &l_s_callbacks);
 
     log_it(L_DEBUG,"Created client request socket %"DAP_FORMAT_SOCKET, l_socket);
     // create private struct

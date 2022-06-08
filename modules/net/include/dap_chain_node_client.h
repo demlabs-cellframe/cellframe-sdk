@@ -108,7 +108,6 @@ typedef struct dap_chain_node_client {
     dap_stream_ch_uuid_t ch_chain_net_srv_uuid;
 
     dap_chain_node_info_t * info;
-    dap_events_t *events;
 
     dap_chain_net_t * net;
     char last_error[128];
