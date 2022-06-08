@@ -192,20 +192,13 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         l_es_new->is_initalized = true;
     }
 
-    int l_ret =dap_context_add_esocket(l_context,l_es_new);
+    int l_ret = dap_context_add_esocket(l_context, l_es_new);
     if (  l_ret != 0 ){
         log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
     }else{
-        // Add in worker
-        l_es_new->me = l_es_new;
-        if (l_es_new->socket!=0 && l_es_new->socket != INVALID_SOCKET){
-            HASH_ADD(hh_worker, l_worker->context->esockets, uuid, sizeof(l_es_new->uuid), l_es_new );
-            l_worker->event_sockets_count++;
-        }
         //log_it(L_DEBUG, "Added socket %d on worker %u", l_es_new->socket, w->id);
         if (l_es_new->callbacks.worker_assign_callback)
             l_es_new->callbacks.worker_assign_callback(l_es_new, l_worker);
-
     }
 }
 
@@ -340,11 +333,10 @@ static bool s_socket_all_check_activity( void * a_arg)
     dap_worker_t *l_worker = (dap_worker_t*) a_arg;
     assert(l_worker);
     dap_events_socket_t *l_es = NULL, *tmp = NULL;
-    char l_curtimebuf[64];
     time_t l_curtime= time(NULL);
     //dap_ctime_r(&l_curtime, l_curtimebuf);
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
-    HASH_ITER(hh_worker, l_worker->context->esockets, l_es, tmp ) {
+    HASH_ITER(hh, l_worker->context->esockets, l_es, tmp ) {
         if (l_es->type == DESCRIPTOR_TYPE_SOCKET_CLIENT){
             if ( !(l_es->flags & DAP_SOCK_SIGNAL_CLOSE) &&
                  (  l_curtime >=  (l_es->last_time_active + s_connection_timeout) ) && !l_es->no_close ) {

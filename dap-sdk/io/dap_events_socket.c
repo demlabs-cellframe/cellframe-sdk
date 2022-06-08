@@ -1239,10 +1239,10 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
     assert(a_es);
 
 #ifdef DAP_EVENTS_CAPS_POLL
-    if(a_es->worker){
+    if(a_es->context->worker){
         assert (a_es->poll_index>=0);
-        a_es->worker->poll[a_es->poll_index].fd=-1;
-        a_es->worker->poll_esocket[a_es->poll_index]=NULL;
+        a_es->context->poll[a_es->poll_index].fd=-1;
+        a_es->context->poll_esocket[a_es->poll_index]=NULL;
     }
 #endif
 
@@ -1311,8 +1311,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         return;
     }
 
-    a_worker->event_sockets_count--;
-    HASH_DELETE(hh_worker,a_worker->context->esockets, a_es);
+    a_worker->context->event_sockets_count--;
+    HASH_DELETE(hh,a_worker->context->esockets, a_es);
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 
@@ -1369,7 +1369,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         a_worker->context->poll[a_es->poll_index].fd = -1;
         a_worker->context->poll_compress = true;
     }else{
-        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->poll_count);
+        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->context->poll_count);
     }
 #else
 #error "Unimplemented new esocket on worker callback for current platform"

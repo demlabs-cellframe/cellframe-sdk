@@ -394,6 +394,8 @@ dap_store_obj_t *dap_db_driver_cdb_read_last_store_obj(const char* a_group) {
     CDB *l_cdb = l_cdb_i->cdb;
     CDBSTAT l_cdb_stat;
     cdb_stat(l_cdb, &l_cdb_stat);
+    if (!l_cdb_stat.rnum)
+        return NULL;
     void *l_iter = cdb_iterate_new(l_cdb, 0);
     obj_arg l_arg;
     l_arg.o = DAP_NEW_Z(dap_store_obj_t);

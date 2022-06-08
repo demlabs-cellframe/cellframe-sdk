@@ -485,7 +485,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     a_client_pvt->stream_es = dap_events_socket_wrap_no_add( (int) a_client_pvt->stream_socket,
                                                                              &l_s_callbacks);
                     a_client_pvt->stream_es->flags |= DAP_SOCK_CONNECTING ; // To catch non-blocking error when connecting we should up WRITE flag
-                    //a_client_pvt->stream_es->flags |= DAP_SOCK_READY_TO_WRITE;
+                    a_client_pvt->stream_es->flags |= DAP_SOCK_READY_TO_WRITE;
                     a_client_pvt->stream_es->_inheritor = a_client_pvt;
                     a_client_pvt->stream = dap_stream_new_es_client(a_client_pvt->stream_es);
                     assert(a_client_pvt->stream);

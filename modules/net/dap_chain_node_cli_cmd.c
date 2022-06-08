@@ -1598,7 +1598,7 @@ int com_ping(int argc, char** argv, char **str_reply)
 
     int n = 4;
     if(argc < 2) {
-        dap_chain_node_cli_set_reply_text(str_reply, "host not specified");
+        dap_chain_node_cli_set_reply_text(str_reply, "Host not specified");
         return -1;
     }
     const char *n_str = NULL;
@@ -1625,24 +1625,24 @@ int com_ping(int argc, char** argv, char **str_reply)
     DAP_DELETE(l_ping_handle);
     if(res >= 0) {
         if(str_reply)
-            dap_chain_node_cli_set_reply_text(str_reply, "ping %s time=%.1lf ms", addr, res * 1. / 1000);
+            dap_chain_node_cli_set_reply_text(str_reply, "Ping %s time=%.1lf ms", addr, res * 1. / 1000);
     }
     else {
         if(str_reply) {
             switch (-res)
             {
             case EDESTADDRREQ:
-                dap_chain_node_cli_set_reply_text(str_reply, "ping %s error: %s", addr, "Destination address required");
+                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", addr, "Destination address required");
                 break;
             case EADDRNOTAVAIL:
-                dap_chain_node_cli_set_reply_text(str_reply, "ping %s error: %s", (addr) ? addr : "",
+                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", (addr) ? addr : "",
                         (addr) ? "Host not found" : "Host not defined");
                 break;
             case EPFNOSUPPORT:
-                dap_chain_node_cli_set_reply_text(str_reply, "ping %s error: %s", addr, "Unknown protocol family");
+                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", addr, "Unknown protocol family");
                 break;
             default:
-                dap_chain_node_cli_set_reply_text(str_reply, "ping %s error(%d)", addr, -res);
+                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error(%d)", addr, -res);
             }
         }
     }
@@ -1782,11 +1782,13 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
         }
 
         // check wallet existence
-        if(!l_is_force){
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
-            if(l_wallet) {
-                dap_chain_node_cli_set_reply_text(str_reply, "Wallet already exists");
-                dap_chain_wallet_close(l_wallet);
+        if (!l_is_force) {
+            char *l_file_name = dap_strdup_printf("%s/%s.dwallet", c_wallets_path, l_wallet_name);
+            FILE *l_exists = fopen(l_file_name, "rb");
+            DAP_DELETE(l_file_name);
+            if (l_exists) {
+                dap_chain_node_cli_set_reply_text(str_reply, "Wallet %s already exists", l_wallet_name);
+                fclose(l_exists);
                 return -1;
             }
         }
@@ -1809,7 +1811,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
 
         if (l_sign_type.type == SIG_TYPE_TESLA)
         {
-                dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is not supported, please, use another variant");
+                dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is no longer supported, please, use another variant");
                 return -1;
         }
 
@@ -2013,7 +2015,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
                 dap_chain_t * l_chain;
                 dap_chain_net_t * l_chain_net = *a_net;
                 l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chains:\n");
-                DL_FOREACH(l_chain_net->pub.chains, l_chain){
+                DL_FOREACH(l_chain_net->pub.chains, l_chain) {
                         l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
                         l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
                         l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
@@ -2286,11 +2288,12 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         else
             dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
         for(size_t i = 0; i < l_objs_size; i++) {
-            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
             if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
                 log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s data_size:%u, value_len:%zu",
                         a_net->pub.name, a_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
                 continue;
             }
             char buf[50] = {[0]='\0'};

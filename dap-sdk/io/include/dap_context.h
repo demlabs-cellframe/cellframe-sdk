@@ -90,6 +90,7 @@ typedef struct dap_context {
 #error "Not defined worker for your platform"
 #endif
 
+    atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
     // Signal to exit

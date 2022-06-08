@@ -953,8 +953,11 @@ static int s_thread_loop(dap_context_t * a_context)
                                      * generation of unexpected I/O events like POLLOUT and consuming CPU by this.
                                      */
                                     dap_events_socket_set_writable_unsafe(l_cur, false);/* Clear "enable write flag" */
-                                    if ( l_cur->callbacks.write_finished_callback )     /* Optionaly call I/O completion routine */
+                                    if ( l_cur->callbacks.write_finished_callback ) {    /* Optionaly call I/O completion routine */
+                                        if (l_errno == EWOULDBLOCK || l_errno == EAGAIN || l_errno == EINTR)
+                                            l_errno = 0;
                                         l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, l_errno);
+                                    }
                                 }
                             }else{
                                 log_it(L_ERROR, "Wrong bytes sent, %zd more then was in buffer %zd",l_bytes_sent, l_cur->buf_out_size);
@@ -1275,7 +1278,12 @@ int dap_context_add_esocket(dap_context_t * a_context, dap_events_socket_t * a_e
 #else
 #error "Unimplemented new esocket on context callback for current platform"
 #endif
-
+    // Add in context HT
+    a_esocket->me = a_esocket;
+    if (a_esocket->socket!=0 && a_esocket->socket != INVALID_SOCKET){
+        HASH_ADD(hh, a_context->esockets, uuid, sizeof(a_esocket->uuid), a_esocket );
+        a_context->event_sockets_count++;
+    }
 }
 
 
@@ -1294,7 +1302,7 @@ dap_events_socket_t *dap_context_esocket_find_by_uuid(dap_context_t * a_context,
     dap_events_socket_t * l_ret = NULL;
     if(a_context->esockets ) {
         //HASH_FIND_PTR( a_worker->context->esockets, &a_es_uuid,l_ret );
-        HASH_FIND(hh_worker, a_context->esockets, &a_es_uuid, sizeof(a_es_uuid), l_ret );
+        HASH_FIND(hh, a_context->esockets, &a_es_uuid, sizeof(a_es_uuid), l_ret );
     }
     return l_ret;
 }
