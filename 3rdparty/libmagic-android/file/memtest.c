@@ -88,56 +88,56 @@ usage(void)
 	exit(EXIT_FAILURE);
 }
 
-int
-main(int argc, char *argv[])
-{
-	bool buf = false;
-	int c;
+//int
+//main(int argc, char *argv[])
+//{
+//	bool buf = false;
+//	int c;
 
-	while ((c = getopt(argc, argv, "b")) != -1)
-		switch (c) {
-		case 'b':
-			buf = true;
-			break;
-		default:
-			usage();
-		}
+//	while ((c = getopt(argc, argv, "b")) != -1)
+//		switch (c) {
+//		case 'b':
+//			buf = true;
+//			break;
+//		default:
+//			usage();
+//		}
 
-	argc -= optind;
-	argv += optind;
+//	argc -= optind;
+//	argv += optind;
 
-	if (argc == 0)
-		usage();
+//	if (argc == 0)
+//		usage();
 
-	magic_t m = magic_open(0);
-	if (m == NULL)
-		err(EXIT_FAILURE, "magic_open");
+//	magic_t m = magic_open(0);
+//	if (m == NULL)
+//		err(EXIT_FAILURE, "magic_open");
 
-	magic_load(m, NULL);
+//	magic_load(m, NULL);
 
-	const char *r;
-	if (buf) {
-		int fd = open(argv[0], O_RDONLY);
-		if (fd == -1)
-			err(EXIT_FAILURE, "Cannot open `%s'", argv[0]);
+//	const char *r;
+//	if (buf) {
+//		int fd = open(argv[0], O_RDONLY);
+//		if (fd == -1)
+//			err(EXIT_FAILURE, "Cannot open `%s'", argv[0]);
 
-		struct stat st;
-		if (fstat(fd, &st) == -1)
-			err(EXIT_FAILURE, "Cannot stat `%s'", argv[0]);
-		size_t l = (size_t)st.st_size;
-		void *p = mmap(NULL, l, PROT_READ, MAP_FILE | MAP_PRIVATE, fd,
-		    (off_t)0);
-		if (p == MAP_FAILED)
-			err(EXIT_FAILURE, "Cannot map `%s'", argv[0]);
-		close(fd);
-		r = magic_buffer(m, p, l);
-		munmap(p, l);
-	} else {
-		r = magic_file(m, argv[0]);
-	}
-	magic_close(m);
+//		struct stat st;
+//		if (fstat(fd, &st) == -1)
+//			err(EXIT_FAILURE, "Cannot stat `%s'", argv[0]);
+//		size_t l = (size_t)st.st_size;
+//		void *p = mmap(NULL, l, PROT_READ, MAP_FILE | MAP_PRIVATE, fd,
+//		    (off_t)0);
+//		if (p == MAP_FAILED)
+//			err(EXIT_FAILURE, "Cannot map `%s'", argv[0]);
+//		close(fd);
+//		r = magic_buffer(m, p, l);
+//		munmap(p, l);
+//	} else {
+//		r = magic_file(m, argv[0]);
+//	}
+//	magic_close(m);
 
-	printf("%s\n", r ? r : "(null)");
+//	printf("%s\n", r ? r : "(null)");
 
-	return 0;
-}
+//	return 0;
+//}

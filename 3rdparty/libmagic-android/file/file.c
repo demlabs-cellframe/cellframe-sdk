@@ -36,6 +36,7 @@ FILE_RCSID("@(#)$File: file.c,v 1.193 2022/04/18 21:42:34 christos Exp $")
 #endif	/* lint */
 
 #include "magic.h"
+#include "config.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -362,7 +363,7 @@ main(int argc, char *argv[])
 	if (MAGIC_VERSION != magic_version())
 		file_warnx("Compiled magic version [%d] "
 		    "does not match with shared library magic version [%d]\n",
-		    MAGIC_VERSION, magic_version());
+                    MAGIC_VERSION, magic_version());
 
 	switch(action) {
 	case FILE_CHECK:

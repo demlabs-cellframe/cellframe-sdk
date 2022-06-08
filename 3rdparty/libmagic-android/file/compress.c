@@ -72,7 +72,8 @@ typedef void (*sig_t)(int);
 
 #if defined(HAVE_BZLIB_H) && defined(BZLIBSUPPORT)
 #define BUILTIN_BZLIB
-#include <bzlib.h>
+//#include <bzlib.h>
+#include "/root/cellframe-dashboard/cellframe-node/cellframe-sdk/3rdparty/bzlib/src/bzlib.h"
 #endif
 
 #if defined(HAVE_LZMA_H) && defined(XZLIBSUPPORT)
