@@ -523,8 +523,7 @@ static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, 
     l_s_callbacks.delete_callback = s_es_tun_delete;
     l_s_callbacks.write_callback = s_es_tun_write;
 
-    dap_events_socket_t * l_es = dap_events_socket_wrap_no_add(a_worker->events ,
-                                          a_tun_fd, &l_s_callbacks);
+    dap_events_socket_t * l_es = dap_events_socket_wrap_no_add( a_tun_fd, &l_s_callbacks);
     l_es->type = DESCRIPTOR_TYPE_FILE;
     l_es->no_close = true;
     dap_events_socket_assign_on_worker_mt(l_es, a_worker);
@@ -1477,7 +1476,7 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
         s_tun_sockets[l_worker_id] = l_tun_socket;
 
         l_tun_socket->queue_tun_msg_input = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof(dap_events_socket_t*)*
-                                                            dap_events_worker_get_count());
+                                                            dap_events_thread_get_count());
         a_es->_inheritor = l_tun_socket;
         s_tun_attach_queue( a_es->fd );
 
