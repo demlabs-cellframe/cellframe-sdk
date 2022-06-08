@@ -35,7 +35,6 @@ typedef struct dap_timerfd dap_timerfd_t;
 typedef struct dap_worker
 {
     uint32_t  id;
-    dap_events_t* events;
     dap_proc_queue_t* proc_queue;
     dap_events_socket_t *proc_queue_input;
 
@@ -61,8 +60,6 @@ typedef struct dap_worker
     dap_timerfd_t * timer_check_activity;
 
     dap_context_t *context;
-    pthread_cond_t started_cond;
-    pthread_mutex_t started_mutex;
     void * _inheritor;
 } dap_worker_t;
 
@@ -90,12 +87,18 @@ typedef struct dap_worker_msg_callback{
 } dap_worker_msg_callback_t;
 
 
+extern pthread_key_t g_pth_key_worker;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 int dap_worker_init( size_t a_conn_timeout );
 void dap_worker_deinit();
+
+static inline dap_worker_t * dap_worker_get_current(){
+    return (dap_worker_t*) pthread_getspecific(g_pth_key_worker);
+}
 
 static inline int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker)
 {
@@ -108,8 +111,10 @@ dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_
 void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t a_callback, void * a_arg);
 
 bool dap_worker_check_esocket_polled_now(); // Check if esocket is right now polled and present in list
-// Thread function
+// Context callbacks
 void *dap_worker_thread(void *arg);
+void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg);
+void dap_worker_context_callback_stopped( dap_context_t * a_context, void *a_arg);
 
 
 #ifdef __cplusplus

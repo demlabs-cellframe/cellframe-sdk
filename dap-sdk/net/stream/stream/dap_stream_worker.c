@@ -43,7 +43,7 @@ static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg);
  */
 int dap_stream_worker_init()
 {
-    uint32_t l_worker_count = dap_events_worker_get_count();
+    uint32_t l_worker_count = dap_events_thread_get_count();
     for (uint32_t i = 0; i < l_worker_count; i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
         if (!l_worker) {

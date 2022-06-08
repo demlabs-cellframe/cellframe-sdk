@@ -147,7 +147,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     memset(&l_s_callbacks,0,sizeof (l_s_callbacks));
     l_s_callbacks.timer_callback = s_es_callback_timer;
 
-    dap_events_socket_t * l_events_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), -1, &l_s_callbacks);
+    dap_events_socket_t * l_events_socket = dap_events_socket_wrap_no_add(-1, &l_s_callbacks);
     l_events_socket->type = DESCRIPTOR_TYPE_TIMER;
 
     // pass l_timerfd to events_socket

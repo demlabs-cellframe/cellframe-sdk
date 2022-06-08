@@ -111,7 +111,6 @@ typedef int SOCKET;
 // If set - queue limited to sizeof(void*) size of data transmitted
 #define DAP_SOCK_QUEUE_PTR         BIT( 8 )
 
-typedef struct dap_events dap_events_t;
 typedef struct dap_events_socket dap_events_socket_t;
 typedef struct dap_worker dap_worker_t;
 typedef struct dap_proc_thread dap_proc_thread_t ;
@@ -245,7 +244,6 @@ typedef struct dap_events_socket {
 
 
     // Links to related objects
-//    dap_events_t *events;
     dap_context_t * context;
     dap_proc_thread_t * proc_thread; // If assigned on dap_proc_thread_t object
     dap_server_t *server; // If this socket assigned with server
@@ -278,7 +276,6 @@ typedef struct dap_events_socket {
 
     void *_inheritor; // Inheritor data to specific client type, usualy states for state machine
     void *_pvt; //Private section, different for different types
-    struct dap_events_socket * me; // pointer on itself
     UT_hash_handle hh; // Handle for local CPU storage on worker or proc_thread
 } dap_events_socket_t; // Node of bidirectional list of clients
 
@@ -330,10 +327,8 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
 void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_preserve_inheritor);
 void dap_events_socket_delete_mt(dap_worker_t * a_worker, dap_events_socket_uuid_t a_es_uuid);
 
-dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
-                                            int a_sock, dap_events_socket_callbacks_t *a_callbacks );
-dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct dap_events *a_events,
-                                            int a_sock, dap_events_socket_callbacks_t *a_callbacks );
+dap_events_socket_t *dap_events_socket_wrap_no_add( int a_sock, dap_events_socket_callbacks_t *a_callbacks );
+dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, int a_sock, dap_events_socket_callbacks_t *a_callbacks );
 
 void dap_events_socket_assign_on_worker_mt(dap_events_socket_t * a_es, struct dap_worker * a_worker);
 void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, dap_events_socket_t * a_es);

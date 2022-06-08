@@ -48,7 +48,6 @@ typedef struct dap_client_internal
     dap_stream_t* stream;
     dap_stream_worker_t* stream_worker;
     dap_worker_t * worker;
-    dap_events_t * events;
 
     dap_enc_key_type_t session_key_type;
     dap_enc_key_type_t session_key_open_type;

@@ -97,7 +97,7 @@ extern "C" {
 int dap_client_init();
 void dap_client_deinit();
 
-dap_client_t * dap_client_new(dap_events_t * a_events, dap_client_callback_t a_stage_status_callback
+dap_client_t * dap_client_new( dap_client_callback_t a_stage_status_callback
                               , dap_client_callback_t a_stage_status_error_callback );
 
 void dap_client_set_uplink_unsafe(dap_client_t * a_client,const char* a_addr, uint16_t a_port);

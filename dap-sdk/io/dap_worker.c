@@ -41,6 +41,8 @@
 
 #define LOG_TAG "dap_worker"
 
+pthread_key_t g_pth_key_worker;
+
 static time_t s_connection_timeout = 60;    // seconds
 
 static bool s_socket_all_check_activity( void * a_arg);
@@ -62,6 +64,8 @@ int dap_worker_init( size_t a_conn_timeout )
     if ( a_conn_timeout )
       s_connection_timeout = a_conn_timeout;
 
+    pthread_key_create( &g_pth_key_worker, NULL);
+
     return 0;
 }
 
@@ -70,64 +74,57 @@ void dap_worker_deinit( )
 }
 
 /**
- * @brief dap_worker_thread
- * @param arg
+ * @brief dap_worker_context_callback_started
+ * @param a_context
+ * @param a_arg
  * @return
  */
-void *dap_worker_thread(void *arg)
+void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg)
 {
-    dap_worker_t *l_worker = (dap_worker_t *) arg;
+    dap_worker_t *l_worker = (dap_worker_t *) a_arg;
     assert(l_worker);
-    dap_context_t * l_context = l_worker->context;
-    const struct sched_param l_shed_params = {0};
+    pthread_setspecific(g_pth_key_worker, l_worker);
+    l_worker->queue_es_new_input      = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
+    l_worker->queue_es_delete_input   = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
+    l_worker->queue_es_io_input       = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
+    l_worker->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
 
 
-    dap_cpu_assign_thread_on(l_worker->id);
-    pthread_setspecific(l_worker->events->pth_key_worker, l_worker);
-
-#ifdef DAP_OS_WINDOWS
-    if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL))
-        log_it(L_ERROR, "Couldn'r set thread priority, err: %lu", GetLastError());
-#else
-    pthread_setschedparam(pthread_self(),SCHED_FIFO ,&l_shed_params);
-#endif
-
-    if(dap_context_thread_init(l_context)!=0){
-        pthread_cond_broadcast(&l_worker->started_cond);
-        return NULL;
-    }
-
-    l_worker->queue_es_new_input      = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_worker_get_count() );
-    l_worker->queue_es_delete_input   = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_worker_get_count() );
-    l_worker->queue_es_io_input       = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_worker_get_count() );
-    l_worker->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_worker_get_count() );
+    l_worker->queue_es_new      = dap_context_create_esocket_queue(a_context, s_queue_add_es_callback);
+    l_worker->queue_es_delete   = dap_context_create_esocket_queue(a_context, s_queue_delete_es_callback);
+    l_worker->queue_es_io       = dap_context_create_esocket_queue(a_context, s_queue_es_io_callback);
+    l_worker->queue_es_reassign = dap_context_create_esocket_queue(a_context, s_queue_es_reassign_callback );
 
 
-    l_worker->queue_es_new      = dap_context_create_esocket_queue(l_context, s_queue_add_es_callback);
-    l_worker->queue_es_delete   = dap_context_create_esocket_queue(l_context, s_queue_delete_es_callback);
-    l_worker->queue_es_io       = dap_context_create_esocket_queue(l_context, s_queue_es_io_callback);
-    l_worker->queue_es_reassign = dap_context_create_esocket_queue(l_context, s_queue_es_reassign_callback );
-
-
-    for( size_t n = 0; n < dap_events_worker_get_count(); n++) {
+    for( size_t n = 0; n < dap_events_thread_get_count(); n++) {
         l_worker->queue_es_new_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_new);
         l_worker->queue_es_delete_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_delete);
         l_worker->queue_es_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io);
         l_worker->queue_es_reassign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_reassign);
     }
 
-    l_worker->queue_callback    = dap_context_create_esocket_queue(l_context, s_queue_callback_callback);
-    l_worker->event_exit        = dap_context_create_esocket_event(l_context, s_event_exit_callback);
+    l_worker->queue_callback    = dap_context_create_esocket_queue(a_context, s_queue_callback_callback);
+    l_worker->event_exit        = dap_context_create_esocket_event(a_context, s_event_exit_callback);
 
     l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
     dap_worker_add_events_socket_unsafe(  l_worker->timer_check_activity->events_socket, l_worker);
-    pthread_cond_broadcast(&l_worker->started_cond);
 
-    dap_context_thread_loop(l_context);
-    log_it(L_NOTICE,"Exiting thread #%u", l_worker->id);
-    return NULL;
 }
+
+/**
+ * @brief dap_worker_context_callback_stopped
+ * @param a_context
+ * @param a_arg
+ * @return
+ */
+void dap_worker_context_callback_stopped( dap_context_t * a_context, void *a_arg)
+{
+    dap_worker_t *l_worker = (dap_worker_t *) a_arg;
+    assert(l_worker);
+    log_it(L_NOTICE,"Exiting thread #%u", l_worker->id);
+}
+
 
 /**
  * @brief s_new_es_callback

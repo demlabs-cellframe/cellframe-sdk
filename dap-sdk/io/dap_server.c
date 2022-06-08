@@ -73,7 +73,7 @@
 
 #define LOG_TAG "dap_server"
 
-static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_sock,
+static dap_events_socket_t * s_es_server_create(int a_sock,
                                              dap_events_socket_callbacks_t * a_callbacks, dap_server_t * a_server);
 static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *a_callbacks );
 static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket, struct sockaddr* a_remote_addr);
@@ -128,14 +128,12 @@ void dap_server_delete(dap_server_t *a_server)
  * @param a_callbacks
  * @return
  */
-dap_server_t* dap_server_new_local(dap_events_t *a_events, const char * a_path, const char* a_mode, dap_events_socket_callbacks_t *a_callbacks)
+dap_server_t* dap_server_new_local(const char * a_path, const char* a_mode, dap_events_socket_callbacks_t *a_callbacks)
 {
-    assert(a_events);
 #ifdef DAP_OS_UNIX
     dap_server_t *l_server =  DAP_NEW_Z(dap_server_t);
     l_server->socket_listener=-1; // To diff it from 0 fd
     l_server->type = SERVER_LOCAL;
-    l_server->events = a_events;
     l_server->socket_listener = socket(AF_LOCAL, SOCK_STREAM, 0);
     if (l_server->socket_listener < 0) {
         int l_errno = errno;
@@ -180,9 +178,8 @@ dap_server_t* dap_server_new_local(dap_events_t *a_events, const char * a_path, 
  * @param a_type
  * @return
  */
-dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16_t a_port, dap_server_type_t a_type, dap_events_socket_callbacks_t *a_callbacks)
+dap_server_t* dap_server_new(const char * a_addr, uint16_t a_port, dap_server_type_t a_type, dap_events_socket_callbacks_t *a_callbacks)
 {
-    assert(a_events);
     dap_server_t *l_server =  DAP_NEW_Z(dap_server_t);
 #ifndef DAP_OS_WINDOWS
     l_server->socket_listener=-1; // To diff it from 0 fd
@@ -190,7 +187,6 @@ dap_server_t* dap_server_new(dap_events_t *a_events, const char * a_addr, uint16
     l_server->address = a_addr ? strdup(a_addr) : strdup("0.0.0.0"); // If NULL we listen everything
     l_server->port = a_port;
     l_server->type = a_type;
-    l_server->events = a_events;
 
     if(l_server->type == SERVER_TCP)
         l_server->socket_listener = socket(AF_INET, SOCK_STREAM, 0);
@@ -321,7 +317,7 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
     // or not
     dap_worker_t *l_w = dap_events_worker_get_auto();
     assert(l_w);
-    dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->events, a_server->socket_listener, &l_callbacks);
+    dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->socket_listener, &l_callbacks);
     if (l_es) {
         a_server->es_listeners = dap_list_append(a_server->es_listeners, l_es);
         l_es->type = a_server->type == SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
@@ -383,7 +379,7 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
     dap_events_socket_t * l_es_new = NULL;
     log_it(L_DEBUG, "Listening socket (binded on %s:%u) got new incomming connection",l_server->address,l_server->port);
     log_it(L_DEBUG, "Accepted new connection (sock %"DAP_FORMAT_SOCKET" from %"DAP_FORMAT_SOCKET")", a_remote_socket, a_es->socket);
-    l_es_new = s_es_server_create(dap_events_get_default(),a_remote_socket,&l_server->client_callbacks,l_server);
+    l_es_new = s_es_server_create(a_remote_socket,&l_server->client_callbacks,l_server);
     //l_es_new->is_dont_reset_write_flag = true; // By default all income connection has this flag
     getnameinfo(a_remote_addr,a_remote_addr_size, l_es_new->hostaddr
                 ,256, l_es_new->service,sizeof(l_es_new->service),
@@ -406,15 +402,15 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
  * @param a_server
  * @return
  */
-static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_sock,
-                                             dap_events_socket_callbacks_t * a_callbacks, dap_server_t * a_server)
+static dap_events_socket_t * s_es_server_create(int a_sock, dap_events_socket_callbacks_t * a_callbacks,
+                                                dap_server_t * a_server)
 {
     dap_events_socket_t * ret = NULL;
     if (a_sock > 0)  {
         // set it nonblock
         //fcntl(a_sock, F_SETFL, O_NONBLOCK);
 
-        ret = dap_events_socket_wrap_no_add(a_events, a_sock, a_callbacks);
+        ret = dap_events_socket_wrap_no_add(a_sock, a_callbacks);
         ret->type = DESCRIPTOR_TYPE_SOCKET_CLIENT;
         ret->server = a_server;
         ret->hostaddr   = DAP_NEW_Z_SIZE(char, 256);

@@ -132,10 +132,8 @@ static bool s_dns_client_esocket_timeout_callback(void * a_arg)
     dap_events_socket_uuid_t * l_es_uuid_ptr = (dap_events_socket_uuid_t *) a_arg;
     assert(l_es_uuid_ptr);
 
-    dap_events_t * l_events = dap_events_get_default();
-    assert(l_events);
 
-    dap_worker_t * l_worker = dap_events_get_current_worker(l_events); // We're in own esocket context
+    dap_worker_t * l_worker = dap_worker_get_current(); // We're in own esocket context
     assert(l_worker);
 
     dap_events_socket_t * l_es;
