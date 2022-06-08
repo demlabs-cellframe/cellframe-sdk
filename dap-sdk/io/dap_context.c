@@ -1271,19 +1271,18 @@ int dap_context_add_esocket(dap_context_t * a_context, dap_events_socket_t * a_e
         log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
             a_esocket->socket, l_errbuf, l_errno);
         return l_errno;
-    }else{
-        a_esocket->context = a_context;
-        return 0;
     }
+
 #else
 #error "Unimplemented new esocket on context callback for current platform"
 #endif
+    a_esocket->context = a_context;
     // Add in context HT
-    a_esocket->me = a_esocket;
     if (a_esocket->socket!=0 && a_esocket->socket != INVALID_SOCKET){
         HASH_ADD(hh, a_context->esockets, uuid, sizeof(a_esocket->uuid), a_esocket );
         a_context->event_sockets_count++;
     }
+    return 0;
 }
 
 

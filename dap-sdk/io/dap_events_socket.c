@@ -1312,7 +1312,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     }
 
     a_worker->context->event_sockets_count--;
-    HASH_DELETE(hh,a_worker->context->esockets, a_es);
+    if(a_es->socket != 0 && a_es->socket != INVALID_SOCKET )
+       HASH_DELETE(hh,a_worker->context->esockets, a_es);
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 
