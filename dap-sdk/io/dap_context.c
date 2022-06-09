@@ -1377,6 +1377,7 @@ int dap_context_remove( dap_events_socket_t * a_es)
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (a_es->poll_index < l_context->poll_count ){
         l_context->poll[a_es->poll_index].fd = -1;
+        a_es->context->poll_esocket[a_es->poll_index]=NULL;
         l_context->poll_compress = true;
     }else{
         log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, l_context->poll_count);

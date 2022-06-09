@@ -1238,14 +1238,6 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 {
     assert(a_es);
 
-#ifdef DAP_EVENTS_CAPS_POLL
-    if(a_es->context->worker){
-        assert (a_es->poll_index>=0);
-        a_es->context->poll[a_es->poll_index].fd=-1;
-        a_es->context->poll_esocket[a_es->poll_index]=NULL;
-    }
-#endif
-
     //log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
     dap_context_remove(a_es);
 
