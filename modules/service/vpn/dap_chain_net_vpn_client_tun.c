@@ -449,7 +449,7 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
             .delete_callback = m_client_tun_delete
     };
 
-    s_tun_events_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), s_fd_tun, &l_s_callbacks);
+    s_tun_events_socket = dap_events_socket_wrap_no_add(s_fd_tun, &l_s_callbacks);
     s_tun_events_socket->type = DESCRIPTOR_TYPE_FILE;
     dap_worker_add_events_socket_auto(s_tun_events_socket);
     //dap_events_socket_assign_on_worker_mt(l_es, a_worker);
