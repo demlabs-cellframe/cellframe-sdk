@@ -90,10 +90,10 @@ void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg
     l_worker->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
 
 
-    l_worker->queue_es_new      = dap_context_create_esocket_queue(a_context, s_queue_add_es_callback);
-    l_worker->queue_es_delete   = dap_context_create_esocket_queue(a_context, s_queue_delete_es_callback);
-    l_worker->queue_es_io       = dap_context_create_esocket_queue(a_context, s_queue_es_io_callback);
-    l_worker->queue_es_reassign = dap_context_create_esocket_queue(a_context, s_queue_es_reassign_callback );
+    l_worker->queue_es_new      = dap_context_create_queue(a_context, s_queue_add_es_callback);
+    l_worker->queue_es_delete   = dap_context_create_queue(a_context, s_queue_delete_es_callback);
+    l_worker->queue_es_io       = dap_context_create_queue(a_context, s_queue_es_io_callback);
+    l_worker->queue_es_reassign = dap_context_create_queue(a_context, s_queue_es_reassign_callback );
 
 
     for( size_t n = 0; n < dap_events_thread_get_count(); n++) {
@@ -103,8 +103,8 @@ void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg
         l_worker->queue_es_reassign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_reassign);
     }
 
-    l_worker->queue_callback    = dap_context_create_esocket_queue(a_context, s_queue_callback_callback);
-    l_worker->event_exit        = dap_context_create_esocket_event(a_context, s_event_exit_callback);
+    l_worker->queue_callback    = dap_context_create_queue(a_context, s_queue_callback_callback);
+    l_worker->event_exit        = dap_context_create_event(a_context, s_event_exit_callback);
 
     l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
@@ -163,7 +163,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     if(l_es_new->socket!=0 && l_es_new->socket != INVALID_SOCKET)
 
 #endif
-    if(dap_context_esocket_find_by_uuid( l_context, l_es_new->uuid)){
+    if(dap_context_find( l_context, l_es_new->uuid)){
         // Socket already present in worker, it's OK
         return;
     }
@@ -192,7 +192,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         l_es_new->is_initalized = true;
     }
 
-    int l_ret = dap_context_add_esocket(l_context, l_es_new);
+    int l_ret = dap_context_add(l_context, l_es_new);
     if (  l_ret != 0 ){
         log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
     }else{
@@ -212,7 +212,7 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
     assert(a_arg);
     dap_events_socket_uuid_t * l_es_uuid_ptr = (dap_events_socket_uuid_t*) a_arg;
     dap_events_socket_t * l_es;
-    if ( (l_es = dap_context_esocket_find_by_uuid(a_es->context,*l_es_uuid_ptr)) != NULL ){
+    if ( (l_es = dap_context_find(a_es->context,*l_es_uuid_ptr)) != NULL ){
         //l_es->flags |= DAP_SOCK_SIGNAL_CLOSE; // Send signal to socket to kill
         dap_events_socket_remove_and_delete_unsafe(l_es,false);
     }else
@@ -235,7 +235,7 @@ static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_a
     dap_worker_msg_reassign_t * l_msg = (dap_worker_msg_reassign_t*) a_arg;
     assert(l_msg);
     dap_events_socket_t * l_es_reassign;
-    if ( ( l_es_reassign = dap_context_esocket_find_by_uuid(l_context, l_msg->esocket_uuid))!= NULL ){
+    if ( ( l_es_reassign = dap_context_find(l_context, l_msg->esocket_uuid))!= NULL ){
         if( l_es_reassign->was_reassigned && l_es_reassign->flags & DAP_SOCK_REASSIGN_ONCE) {
             log_it(L_INFO, "Reassgment request with DAP_SOCK_REASSIGN_ONCE allowed only once, declined reassigment from %u to %u",
                    l_es_reassign->context->worker->id, l_msg->worker_new->id);
@@ -290,7 +290,7 @@ static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg)
     dap_worker_msg_io_t * l_msg = a_arg;
     assert(l_msg);
     // Check if it was removed from the list
-    dap_events_socket_t *l_msg_es = dap_context_esocket_find_by_uuid(l_worker->context, l_msg->esocket_uuid);
+    dap_events_socket_t *l_msg_es = dap_context_find(l_worker->context, l_msg->esocket_uuid);
     if ( l_msg_es == NULL){
         log_it(L_INFO, "We got i/o message for esocket %"DAP_UINT64_FORMAT_U" thats now not in list. Lost %zu data", l_msg->esocket_uuid, l_msg->data_size);
         DAP_DELETE(l_msg);

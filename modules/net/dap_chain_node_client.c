@@ -211,7 +211,7 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
     dap_events_socket_t * l_es = NULL;
     dap_events_socket_uuid_t l_es_uuid = l_me->esocket_uuid;
     // check if esocket still in worker
-    if( (l_es = dap_context_esocket_find_by_uuid(l_worker->context, l_es_uuid)) != NULL ) {
+    if( (l_es = dap_context_find(l_worker->context, l_es_uuid)) != NULL ) {
         dap_client_t * l_client = dap_client_from_esocket(l_es);
         if (l_client ) {
             dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t*) l_client->_inheritor;

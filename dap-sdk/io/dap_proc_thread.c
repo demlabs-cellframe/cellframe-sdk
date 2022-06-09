@@ -289,7 +289,7 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
  */
 dap_events_socket_t * dap_proc_thread_create_queue_ptr(dap_proc_thread_t * a_thread, dap_events_socket_callback_queue_ptr_t a_callback)
 {
-    dap_events_socket_t * l_es = dap_context_create_esocket_queue(a_thread->context,a_callback);
+    dap_events_socket_t * l_es = dap_context_create_queue(a_thread->context,a_callback);
     if(l_es == NULL)
         return NULL;
     l_es->proc_thread = a_thread;
@@ -316,9 +316,9 @@ static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
 
     dap_events_socket_assign_on_worker_mt(l_worker_related->proc_queue_input,l_worker_related);
 
-    l_thread->proc_event = dap_context_create_esocket_event( a_context , s_proc_event_callback);
+    l_thread->proc_event = dap_context_create_event( a_context , s_proc_event_callback);
     l_thread->proc_event->proc_thread = l_thread;
-    l_thread->event_exit = dap_context_create_esocket_event( a_context, s_event_exit_callback);
+    l_thread->event_exit = dap_context_create_event( a_context, s_event_exit_callback);
     l_thread->event_exit->proc_thread = l_thread;
 
     l_thread->proc_event->_inheritor = l_thread; // we pass thread through it

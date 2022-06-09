@@ -83,7 +83,7 @@ dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread)
     }
 
     l_queue->proc_thread = a_thread;
-    l_queue->esocket = dap_context_create_esocket_queue(a_thread->context,s_queue_esocket_callback);
+    l_queue->esocket = dap_context_create_queue(a_thread->context,s_queue_esocket_callback);
     l_queue->esocket->proc_thread = a_thread;
     l_queue->esocket->_inheritor = l_queue;
     return l_queue;

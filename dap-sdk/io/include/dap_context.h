@@ -147,9 +147,10 @@ static inline dap_context_t * dap_context_current()
 
 /// ALL THIS FUNCTIONS ARE UNSAFE ! CALL THEM ONLY INSIDE THEIR OWN CONTEXT!!
 
-int dap_context_add_esocket(dap_context_t * a_context, dap_events_socket_t * a_esocket );
-int dap_context_poll_update(dap_events_socket_t * a_esocket);
-dap_events_socket_t *dap_context_esocket_find_by_uuid(dap_context_t * a_context, dap_events_socket_uuid_t a_es_uuid );
-dap_events_socket_t * dap_context_create_esocket_queue(dap_context_t * a_context, dap_events_socket_callback_queue_ptr_t a_callback);
-dap_events_socket_t * dap_context_create_esocket_event(dap_context_t * a_context, dap_events_socket_callback_event_t a_callback);
-dap_events_socket_t * dap_context_create_esocket_pipe(dap_context_t * a_context, dap_events_socket_callback_t a_callback, uint32_t a_flags);
+int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es );
+int dap_context_remove( dap_events_socket_t * a_es);
+int dap_context_poll_update(dap_events_socket_t * a_es);
+dap_events_socket_t *dap_context_find(dap_context_t * a_context, dap_events_socket_uuid_t a_es_uuid );
+dap_events_socket_t * dap_context_create_queue(dap_context_t * a_context, dap_events_socket_callback_queue_ptr_t a_callback);
+dap_events_socket_t * dap_context_create_event(dap_context_t * a_context, dap_events_socket_callback_event_t a_callback);
+dap_events_socket_t * dap_context_create_pipe(dap_context_t * a_context, dap_events_socket_callback_t a_callback, uint32_t a_flags);

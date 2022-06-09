@@ -272,7 +272,7 @@ static inline void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t
     // Re-add timer in context
     dap_context_t * l_context = a_es->context;
     a_es->context = NULL;
-    dap_context_add_esocket(l_context,a_es);
+    dap_context_add(l_context,a_es);
 #elif defined (DAP_OS_WINDOWS)
     /*LARGE_INTEGER l_due_time;
     l_due_time.QuadPart = (long long)a_timerfd->timeout_ms * _MSEC;
@@ -316,7 +316,7 @@ static void s_timerfd_reset_worker_callback( dap_worker_t * a_worker, void * a_a
 {
     dap_timerfd_t *l_timerfd = (dap_timerfd_t *) a_arg;
     dap_events_socket_t *l_sock = NULL;
-    l_sock = dap_context_esocket_find_by_uuid(a_worker->context, l_timerfd->esocket_uuid);
+    l_sock = dap_context_find(a_worker->context, l_timerfd->esocket_uuid);
     if (l_sock)
         s_timerfd_reset(l_timerfd, l_sock);
 
@@ -332,7 +332,7 @@ static bool s_timerfd_reset_proc_thread_callback( dap_proc_thread_t * a_thread, 
 {
     dap_timerfd_t *l_timerfd = (dap_timerfd_t *) a_arg;
     dap_events_socket_t *l_sock = NULL;
-    l_sock = dap_context_esocket_find_by_uuid(a_thread->context, l_timerfd->esocket_uuid);
+    l_sock = dap_context_find(a_thread->context, l_timerfd->esocket_uuid);
     if (l_sock)
         s_timerfd_reset(l_timerfd, l_sock);
     return true;

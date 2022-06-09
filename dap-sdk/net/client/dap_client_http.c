@@ -187,7 +187,7 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
 
     dap_worker_t * l_worker = dap_worker_get_current(); // We're in own esocket context
     assert(l_worker);
-    dap_events_socket_t * l_es = dap_context_esocket_find_by_uuid( l_worker->context, *l_es_uuid_ptr);
+    dap_events_socket_t * l_es = dap_context_find( l_worker->context, *l_es_uuid_ptr);
     if(l_es){
         dap_client_http_pvt_t * l_http_pvt = PVT(l_es);
         assert(l_http_pvt);
@@ -224,7 +224,7 @@ static bool s_timer_timeout_check(void * a_arg)
 
     dap_worker_t * l_worker = dap_worker_get_current(); // We're in own esocket context
     assert(l_worker);
-    dap_events_socket_t * l_es = dap_context_esocket_find_by_uuid(l_worker->context, *l_es_uuid);
+    dap_events_socket_t * l_es = dap_context_find(l_worker->context, *l_es_uuid);
     if(l_es){
         if (l_es->flags & DAP_SOCK_CONNECTING ){
             dap_client_http_pvt_t * l_http_pvt = PVT(l_es);

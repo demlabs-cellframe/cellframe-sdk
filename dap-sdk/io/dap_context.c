@@ -106,7 +106,7 @@ int dap_context_init()
     l_fdlimit.rlim_cur = l_fdlimit.rlim_max;
     if (setrlimit(RLIMIT_NOFILE, &l_fdlimit))
         return -2;
-    log_it(L_INFO, "Set maximum opened descriptors from %lu to %lu", l_oldlimit, l_fdlimit.rlim_cur);
+    log_it(L_INFO, "Set maximum opened descriptors from %" DAP_UINT64_FORMAT_U " to %"DAP_UINT64_FORMAT_U, l_oldlimit, l_fdlimit.rlim_cur);
 #endif
     return 0;
 }
@@ -1139,8 +1139,8 @@ int dap_context_poll_update(dap_events_socket_t * a_esocket)
             }
         }
         if (l_is_error && l_errno == EBADF){
-            log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_U":%" DAP_UINT64_FORMAT_U
-                         " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
+            log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %zd:%zd bytes",
+                   a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
             a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
             a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
         }else if ( l_is_error && l_errno != EINPROGRESS && l_errno != ENOENT){
@@ -1165,24 +1165,39 @@ int dap_context_poll_update(dap_events_socket_t * a_esocket)
  * @param IOa_context
  * @param a_esocket
  */
-int dap_context_add_esocket(dap_context_t * a_context, dap_events_socket_t * a_esocket )
+int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
 {
-    if(a_context == NULL || a_esocket == NULL)
+    // Check & add
+    bool l_is_error=false;
+    int l_errno=0;
+
+    if(a_es == NULL){
+        log_it(L_WARNING, "Can't add NULL esocket to the context");
         return -1;
+    }
+    if(a_context == NULL){
+        log_it(L_WARNING, "Can't add esocket to the NULL context");
+        return -1;
+    }
 
     if(g_debug_reactor){
-        log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET")", a_esocket, a_esocket->socket);
+        log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET")", a_es, a_es->socket);
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
         // Init events for EPOLL
-        a_esocket->ev.events = a_esocket->ev_base_flags ;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-            a_esocket->ev.events |= EPOLLIN;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-            a_esocket->ev.events |= EPOLLOUT;
-        a_esocket->ev.data.ptr = a_esocket;
-        a_esocket->context = a_context;
-        return epoll_ctl(a_context->epoll_fd, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
+        a_es->ev.events = a_es->ev_base_flags ;
+        if(a_es->flags & DAP_SOCK_READY_TO_READ )
+            a_es->ev.events |= EPOLLIN;
+        if(a_es->flags & DAP_SOCK_READY_TO_WRITE )
+            a_es->ev.events |= EPOLLOUT;
+        a_es->ev.data.ptr = a_es;
+        a_es->context = a_context;
+        int l_ret = epoll_ctl(a_context->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev);
+        if (l_ret != 0 ){
+            l_is_error = true;
+            l_errno = l_ret;
+        }
+
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (  a_context->poll_count == a_context->poll_count_max ){ // realloc
         a_context->poll_count_max *= 2;
@@ -1190,109 +1205,197 @@ int dap_context_add_esocket(dap_context_t * a_context, dap_events_socket_t * a_e
         a_context->poll =DAP_REALLOC(a_context->poll, a_context->poll_count_max * sizeof(*a_context->poll));
         a_context->poll_esocket =DAP_REALLOC(a_context->poll_esocket, a_context->poll_count_max * sizeof(*a_context->poll_esocket));
     }
-    a_context->poll[a_context->poll_count].fd = a_esocket->socket;
-    a_esocket->poll_index = a_context->poll_count;
-    a_context->poll[a_context->poll_count].events = a_esocket->poll_base_flags;
-    if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+    a_context->poll[a_context->poll_count].fd = a_es->socket;
+    a_es->poll_index = a_context->poll_count;
+    a_context->poll[a_context->poll_count].events = a_es->poll_base_flags;
+    if( a_es->flags & DAP_SOCK_READY_TO_READ )
         a_context->poll[a_context->poll_count].events |= POLLIN;
-    if( (a_esocket->flags & DAP_SOCK_READY_TO_WRITE) || (a_esocket->flags & DAP_SOCK_CONNECTING) )
+    if( (a_es->flags & DAP_SOCK_READY_TO_WRITE) || (a_es->flags & DAP_SOCK_CONNECTING) )
         a_context->poll[a_context->poll_count].events |= POLLOUT;
 
 
-    a_context->poll_esocket[a_context->poll_count] = a_esocket;
+    a_context->poll_esocket[a_context->poll_count] = a_es;
     a_context->poll_count++;
-    a_esocket->context = a_context;
-    return 0;
+    a_es->context = a_context;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
-        a_esocket->context = a_context;
-        return 0;
+    if ( a_es->type == DESCRIPTOR_TYPE_QUEUE ){
+        goto lb_exit;
     }
-    if ( a_esocket->type == DESCRIPTOR_TYPE_EVENT && a_esocket->pipe_out){
-        a_esocket->context = a_context;
-        return 0;
+    if ( a_es->type == DESCRIPTOR_TYPE_EVENT && a_es->pipe_out){
+        goto lb_exit;
     }
     struct kevent l_event;
-    u_short l_flags = a_esocket->kqueue_base_flags;
-    u_int   l_fflags = a_esocket->kqueue_base_fflags;
-    short l_filter = a_esocket->kqueue_base_filter;
+    u_short l_flags = a_es->kqueue_base_flags;
+    u_int   l_fflags = a_es->kqueue_base_fflags;
+    short l_filter = a_es->kqueue_base_filter;
     int l_kqueue_fd =a_context->kqueue_fd;
     if ( l_kqueue_fd == -1 ){
         log_it(L_ERROR, "Esocket is not assigned with anything ,exit");
-        return -1;
+        l_is_error = true;
+        l_errno = -1;
+        goto lb_exit;
     }
-    // Check & add
-    bool l_is_error=false;
-    int l_errno=0;
-    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
-        EV_SET(&l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
+    if (a_es->type == DESCRIPTOR_TYPE_EVENT ){
+        EV_SET(&l_event, a_es->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_es->kqueue_event_catched_data );
         if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL)!=0){
             l_is_error = true;
             l_errno = errno;
+            goto lb_exit;
         }
     }else{
         if( l_filter){
-            EV_SET(&l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+            EV_SET(&l_event, a_es->socket, l_filter,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
             if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
                 l_is_error = true;
                 l_errno = errno;
+                goto lb_exit;
             }else if (g_debug_reactor){
-                log_it(L_DEBUG, "kevent set custom filter %d on fd %d",l_filter, a_esocket->socket);
+                log_it(L_DEBUG, "kevent set custom filter %d on fd %d",l_filter, a_es->socket);
             }
         }else{
-            if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
-                EV_SET(&l_event, a_esocket->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+            if( a_es->flags & DAP_SOCK_READY_TO_READ ){
+                EV_SET(&l_event, a_es->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
                 if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
                     l_is_error = true;
                     l_errno = errno;
+                    goto lb_exit;
                 }else if (g_debug_reactor){
-                    log_it(L_DEBUG, "kevent set EVFILT_READ on fd %d", a_esocket->socket);
+                    log_it(L_DEBUG, "kevent set EVFILT_READ on fd %d", a_es->socket);
                 }
 
             }
             if( !l_is_error){
-                if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING ){
-                    EV_SET(&l_event, a_esocket->socket, EVFILT_WRITE,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+                if( a_es->flags & DAP_SOCK_READY_TO_WRITE || a_es->flags &DAP_SOCK_CONNECTING ){
+                    EV_SET(&l_event, a_es->socket, EVFILT_WRITE,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
                     if(kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0){
                         l_is_error = true;
                         l_errno = errno;
+                        goto lb_exit;
                     }else if (g_debug_reactor){
-                        log_it(L_DEBUG, "kevent set EVFILT_WRITE on fd %d", a_esocket->socket);
+                        log_it(L_DEBUG, "kevent set EVFILT_WRITE on fd %d", a_es->socket);
                     }
                 }
             }
         }
     }
 
+
+#else
+#error "Unimplemented new esocket on context callback for current platform"
+#endif
+lb_exit:
     if ( l_is_error ){
         char l_errbuf[128];
         l_errbuf[0]=0;
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
-            a_esocket->socket, l_errbuf, l_errno);
+            a_es->socket, l_errbuf, l_errno);
         return l_errno;
+    }else{
+        a_es->context = a_context;
+        // Add in context HT
+        if (a_es->socket!=0 && a_es->socket != INVALID_SOCKET){
+            HASH_ADD(hh, a_context->esockets, uuid, sizeof(a_es->uuid), a_es );
+            a_context->event_sockets_count++;
+        }
+        return 0;
     }
-
-#else
-#error "Unimplemented new esocket on context callback for current platform"
-#endif
-    a_esocket->context = a_context;
-    // Add in context HT
-    if (a_esocket->socket!=0 && a_esocket->socket != INVALID_SOCKET){
-        HASH_ADD(hh, a_context->esockets, uuid, sizeof(a_esocket->uuid), a_esocket );
-        a_context->event_sockets_count++;
-    }
-    return 0;
 }
 
+/**
+ * @brief dap_context_remove Removes esocket from its own context
+ * @param a_esocket Esocket to remove from its own context (if present
+ * @return Zero if everything is ok, others if error
+ */
+int dap_context_remove( dap_events_socket_t * a_es)
+{
+    dap_context_t * l_context = a_es->context;
+    int l_ret = 0;
+    if (!l_context) {
+        log_it(L_WARNING, "No context assigned to esocket %"DAP_FORMAT_SOCKET, a_es->socket);
+        return -1;
+    }
+
+    l_context->event_sockets_count--;
+    if(a_es->socket != 0 && a_es->socket != INVALID_SOCKET )
+       HASH_DELETE(hh,l_context->esockets, a_es);
+
+#if defined(DAP_EVENTS_CAPS_EPOLL)
+
+    if ( epoll_ctl( l_context->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
+        int l_errno = errno;
+        char l_errbuf[128];
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd %"DAP_FORMAT_HANDLE"  \"%s\" (%d)",
+                l_context->epoll_fd, l_errbuf, l_errno);
+        l_ret = l_errno;
+    } //else
+      //  log_it( L_DEBUG,"Removed epoll's event from context #%u", l_context->id );
+#elif defined(DAP_EVENTS_CAPS_KQUEUE)
+    if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
+        struct kevent * l_event = &a_es->kqueue_event;
+        if (a_es->kqueue_base_filter){
+            EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);
+            if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+                int l_errno = errno;
+                char l_errbuf[128];
+                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter %d \"%s\" (%d)", a_es->socket,
+                    l_context->kqueue_fd,a_es->kqueue_base_filter,  l_errbuf, l_errno);
+                l_ret = l_errno;
+            }
+        }else{
+            EV_SET(l_event, a_es->socket, EVFILT_EXCEPT ,EV_DELETE, 0,0,a_es);
+            kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL); // If this filter is not set up - no warnings
+
+
+            if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
+                EV_SET(l_event, a_es->socket, EVFILT_WRITE ,EV_DELETE, 0,0,a_es);
+                if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+                    int l_errno = errno;
+                    char l_errbuf[128];
+                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                    log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_WRITE \"%s\" (%d)", a_es->socket,
+                        l_context->kqueue_fd, l_errbuf, l_errno);
+                    l_ret = l_errno;
+                }
+            }
+            if(a_es->flags & DAP_SOCK_READY_TO_READ){
+                EV_SET(l_event, a_es->socket, EVFILT_READ ,EV_DELETE, 0,0,a_es);
+                if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+                    int l_errno = errno;
+                    char l_errbuf[128];
+                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                    log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_READ \"%s\" (%d)", a_es->socket,
+                        l_context->kqueue_fd, l_errbuf, l_errno);
+                    l_ret = l_errno;
+                }
+            }
+
+        }
+    }
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    if (a_es->poll_index < l_context->poll_count ){
+        l_context->poll[a_es->poll_index].fd = -1;
+        l_context->poll_compress = true;
+    }else{
+        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, l_context->poll_count);
+        l_ret = -2;
+    }
+#else
+#error "Unimplemented new esocket on worker callback for current platform"
+#endif
+    a_es->context = NULL;
+    return l_ret;
+}
 
 /**
- * @brief dap_context_esocket_find_by_uuid
+ * @brief dap_context_find
  * @param a_context
  * @param a_es_uuid
  * @return
  */
-dap_events_socket_t *dap_context_esocket_find_by_uuid(dap_context_t * a_context, dap_events_socket_uuid_t a_es_uuid )
+dap_events_socket_t *dap_context_find(dap_context_t * a_context, dap_events_socket_uuid_t a_es_uuid )
 {
     if(a_context == NULL){
         log_it(L_ERROR, "Worker is NULL, can't fund esocket by UUID");
@@ -1307,12 +1410,12 @@ dap_events_socket_t *dap_context_esocket_find_by_uuid(dap_context_t * a_context,
 }
 
 /**
- * @brief dap_context_create_esocket_queue
+ * @brief dap_context_create_queue
  * @param a_context
  * @param a_callback
  * @return
  */
- dap_events_socket_t * dap_context_create_esocket_queue(dap_context_t * a_context, dap_events_socket_callback_queue_ptr_t a_callback)
+ dap_events_socket_t * dap_context_create_queue(dap_context_t * a_context, dap_events_socket_callback_queue_ptr_t a_callback)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
     if(!l_es){
@@ -1528,7 +1631,7 @@ dap_events_socket_t *dap_context_esocket_find_by_uuid(dap_context_t * a_context,
 #endif
 
     if ( a_context) {
-        if(dap_context_add_esocket(a_context, l_es)) {
+        if(dap_context_add(a_context, l_es)) {
 #ifdef DAP_OS_WINDOWS
             errno = WSAGetLastError();
 #endif
@@ -1545,7 +1648,7 @@ dap_events_socket_t *dap_context_esocket_find_by_uuid(dap_context_t * a_context,
  * @param a_callback
  * @return
  */
-dap_events_socket_t * dap_context_create_esocket_event(dap_context_t * a_context, dap_events_socket_callback_event_t a_callback)
+dap_events_socket_t * dap_context_create_event(dap_context_t * a_context, dap_events_socket_callback_event_t a_callback)
 {
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t); if (!l_es) return NULL;
     l_es->buf_out_size_max = l_es->buf_in_size_max = 1;
@@ -1627,22 +1730,22 @@ dap_events_socket_t * dap_context_create_esocket_event(dap_context_t * a_context
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     // nothing to do
 #else
-#error "Not defined dap_context_create_esocket_event() on your platform"
+#error "Not defined dap_context_create_event() on your platform"
 #endif
     if(a_context)
-        dap_context_add_esocket(a_context,l_es);
+        dap_context_add(a_context,l_es);
     return l_es;
 }
 
 
 /**
- * @brief dap_context_create_esocket_pipe
+ * @brief dap_context_create_pipe
  * @param a_context
  * @param a_callback
  * @param a_flags
  * @return
  */
-dap_events_socket_t * dap_context_create_esocket_pipe(dap_context_t * a_context, dap_events_socket_callback_t a_callback, uint32_t a_flags)
+dap_events_socket_t * dap_context_create_pipe(dap_context_t * a_context, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
 #ifdef DAP_OS_WINDOWS
     UNUSED(a_w);
@@ -1695,7 +1798,7 @@ dap_events_socket_t * dap_context_create_esocket_pipe(dap_context_t * a_context,
 #else
 #error "No defined s_create_type_pipe() for your platform"
 #endif
-    dap_context_add_esocket(a_context,l_es);
+    dap_context_add(a_context,l_es);
     return l_es;
 #endif
 }

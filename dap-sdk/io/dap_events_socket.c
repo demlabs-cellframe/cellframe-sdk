@@ -256,7 +256,7 @@ void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_e
     dap_events_socket_t * l_queue_input= l_worker->queue_es_new_input[a_worker_new->id];
     log_it(L_DEBUG, "Reassign between %u->%u workers: %p (%d)  ", l_worker->id, a_worker_new->id, a_es, a_es->fd );
 
-    dap_events_socket_remove_from_worker_unsafe( a_es, l_worker );
+    dap_context_remove(a_es);
     a_es->was_reassigned = true;
     if (a_es->callbacks.worker_unassign_callback)
         a_es->callbacks.worker_unassign_callback(a_es, l_worker);
@@ -297,7 +297,7 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
  */
 dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
-    dap_events_socket_t * l_es = dap_context_create_esocket_pipe(NULL, a_callback, a_flags);
+    dap_events_socket_t * l_es = dap_context_create_pipe(NULL, a_callback, a_flags);
     dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
 }
@@ -367,7 +367,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
  */
 dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
-    dap_events_socket_t * l_es = dap_context_create_esocket_pipe(NULL, a_callback, a_flags);
+    dap_events_socket_t * l_es = dap_context_create_pipe(NULL, a_callback, a_flags);
     dap_worker_add_events_socket_unsafe(l_es,a_w);
     return  l_es;
 }
@@ -509,7 +509,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
  */
 dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
 {
-    dap_events_socket_t * l_es = dap_context_create_esocket_queue(NULL, a_callback);
+    dap_events_socket_t * l_es = dap_context_create_queue(NULL, a_callback);
     assert(l_es);
     // If no worker - don't assign
     if ( a_w)
@@ -627,7 +627,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
  */
 dap_events_socket_t * dap_events_socket_create_type_event_mt(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
-    dap_events_socket_t * l_es = dap_context_create_esocket_event(NULL, a_callback);
+    dap_events_socket_t * l_es = dap_context_create_event(NULL, a_callback);
     // If no worker - don't assign
     if ( a_w)
         dap_events_socket_assign_on_worker_mt(l_es,a_w);
@@ -643,7 +643,7 @@ dap_events_socket_t * dap_events_socket_create_type_event_mt(dap_worker_t * a_w,
 dap_events_socket_t * dap_events_socket_create_type_event_unsafe(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
 
-    dap_events_socket_t * l_es = dap_context_create_esocket_event(NULL, a_callback);
+    dap_events_socket_t * l_es = dap_context_create_event(NULL, a_callback);
     // If no worker - don't assign
     if ( a_w)
         dap_worker_add_events_socket_unsafe(l_es,a_w);
@@ -1203,7 +1203,7 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg)
     assert(l_es_handler);
     assert(l_worker);
     dap_events_socket_t * l_es;
-    if( (l_es = dap_context_esocket_find_by_uuid(l_worker->context, l_es_handler->esocket_uuid)) != NULL)
+    if( (l_es = dap_context_find(l_worker->context, l_es_handler->esocket_uuid)) != NULL)
         //dap_events_socket_remove_and_delete_unsafe(l_es,l_es_handler->value == 1);
         dap_events_socket_remove_and_delete_unsafe( l_es, l_es_handler->value == 1);
     DAP_DELETE(l_es_handler);
@@ -1224,7 +1224,7 @@ void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_
     dap_events_socket_descriptor_close(a_es);
 
     dap_worker_t * l_worker = a_es->context->worker;
-    dap_events_socket_remove_from_worker_unsafe( a_es, l_worker);
+    dap_context_remove(a_es);
     a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
     dap_timerfd_start_on_worker(l_worker, s_delayed_ops_timeout_ms,
                                 s_remove_and_delete_unsafe_delayed_delete_callback, l_es_handler );
@@ -1247,7 +1247,7 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 #endif
 
     //log_it( L_DEBUG, "es is going to be removed from the lists and free the memory (0x%016X)", a_es );
-    dap_events_socket_remove_from_worker_unsafe(a_es, a_es->context->worker);
+    dap_context_remove(a_es);
 
     if( a_es->callbacks.delete_callback )
         a_es->callbacks.delete_callback( a_es, NULL ); // Init internal structure
@@ -1300,83 +1300,6 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z( a_esocket )
 }
 
-/**
- * @brief dap_events_socket_delete
- * @param a_es
- */
-void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap_worker_t * a_worker)
-{
-    if (!a_es->context->worker) {
-        log_it(L_INFO, "No worker assigned to esocket %"DAP_FORMAT_SOCKET, a_es->socket);
-        return;
-    }
-
-    a_worker->context->event_sockets_count--;
-    if(a_es->socket != 0 && a_es->socket != INVALID_SOCKET )
-       HASH_DELETE(hh,a_worker->context->esockets, a_es);
-
-#if defined(DAP_EVENTS_CAPS_EPOLL)
-
-    if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
-        int l_errno = errno;
-        char l_errbuf[128];
-        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        log_it( L_ERROR,"Can't remove event socket's handler from the epoll_fd %"DAP_FORMAT_HANDLE"  \"%s\" (%d)",
-                a_worker->epoll_fd, l_errbuf, l_errno);
-    } //else
-      //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
-#elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
-        struct kevent * l_event = &a_es->kqueue_event;
-        if (a_es->kqueue_base_filter){
-            EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);
-            if ( kevent( a_worker->context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-                int l_errno = errno;
-                char l_errbuf[128];
-                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter %d \"%s\" (%d)", a_es->socket,
-                    a_worker->context->kqueue_fd,a_es->kqueue_base_filter,  l_errbuf, l_errno);
-            }
-        }else{
-            EV_SET(l_event, a_es->socket, EVFILT_EXCEPT ,EV_DELETE, 0,0,a_es);
-            kevent( a_worker->context->kqueue_fd,l_event,1,NULL,0,NULL); // If this filter is not set up - no warnings
-
-
-            if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
-                EV_SET(l_event, a_es->socket, EVFILT_WRITE ,EV_DELETE, 0,0,a_es);
-                if ( kevent( a_worker->context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-                    int l_errno = errno;
-                    char l_errbuf[128];
-                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                    log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_WRITE \"%s\" (%d)", a_es->socket,
-                        a_worker->context->kqueue_fd, l_errbuf, l_errno);
-                }
-            }
-            if(a_es->flags & DAP_SOCK_READY_TO_READ){
-                EV_SET(l_event, a_es->socket, EVFILT_READ ,EV_DELETE, 0,0,a_es);
-                if ( kevent( a_worker->context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-                    int l_errno = errno;
-                    char l_errbuf[128];
-                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                    log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_READ \"%s\" (%d)", a_es->socket,
-                        a_worker->context->kqueue_fd, l_errbuf, l_errno);
-                }
-            }
-
-        }
-    }
-#elif defined (DAP_EVENTS_CAPS_POLL)
-    if (a_es->poll_index < a_worker->context->poll_count ){
-        a_worker->context->poll[a_es->poll_index].fd = -1;
-        a_worker->context->poll_compress = true;
-    }else{
-        log_it(L_ERROR, "Wrong poll index when remove from worker (unsafe): %u when total count %u", a_es->poll_index, a_worker->context->poll_count);
-    }
-#else
-#error "Unimplemented new esocket on worker callback for current platform"
-#endif
-    a_es->context = NULL;
-}
 
 /**
  * @brief dap_events_socket_remove_and_delete

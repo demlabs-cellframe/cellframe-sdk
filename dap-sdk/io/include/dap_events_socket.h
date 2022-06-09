@@ -187,6 +187,7 @@ typedef struct dap_events_socket_w_data{
 } dap_events_socket_w_data_t;
 
 typedef uint64_t dap_events_socket_uuid_t;
+#define DAP_FORMAT_ESOCKET_UUID "0x%016"DAP_UINT64_FORMAT_X
 
 typedef struct dap_events_socket {
     union {

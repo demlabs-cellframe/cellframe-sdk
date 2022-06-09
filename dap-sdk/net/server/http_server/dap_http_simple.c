@@ -369,7 +369,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
             log_it(L_ERROR, "Not defined content-length %zu in request", a_http_client->in_content_length);
     } else {
         log_it( L_DEBUG, "No data section, execution proc callback" );
-        dap_events_socket_remove_from_worker_unsafe(l_http_simple->esocket ,l_http_simple->worker);
+        dap_context_remove(l_http_simple->esocket );
         dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple);
 
     }
@@ -411,7 +411,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
 
         // bool isOK=true;
         log_it( L_INFO,"Data for http_simple_request collected" );
-        dap_events_socket_remove_from_worker_unsafe(a_http_client->esocket,a_http_client->esocket->context->worker);
+        dap_context_remove(a_http_client->esocket);
         dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input , s_proc_queue_callback, l_http_simple);
     }
 }

@@ -137,7 +137,7 @@ static bool s_dns_client_esocket_timeout_callback(void * a_arg)
     assert(l_worker);
 
     dap_events_socket_t * l_es;
-    if((l_es = dap_context_esocket_find_by_uuid(l_worker->context,*l_es_uuid_ptr) ) != NULL){ // If we've not closed this esocket
+    if((l_es = dap_context_find(l_worker->context,*l_es_uuid_ptr) ) != NULL){ // If we've not closed this esocket
         struct dns_client * l_dns_client = (struct dns_client*) l_es->_inheritor;
         log_it(L_WARNING,"DNS request timeout, bad network?");
         if(! l_dns_client->is_callbacks_called ){
