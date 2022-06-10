@@ -701,10 +701,9 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
             log_it(L_WARNING, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                    dap_chain_datum_type_id_to_str(l_datum->header.type_id),
                                       a_block_cache->block_hash_str, l_res);
-            break;
         } 
         else {
-            l_ret = 1;
+            l_ret++;
         }
     }
     return l_ret;
@@ -727,7 +726,7 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         log_it(L_DEBUG,"Block %s checked, add it to ledger", a_block_cache->block_hash_str );
         pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
         res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
-        if (res != 1) {
+        if (!res) {
             log_it(L_INFO,"Block %s checked, but ledger declined", a_block_cache->block_hash_str );
         }
         //All correct, no matter for result
