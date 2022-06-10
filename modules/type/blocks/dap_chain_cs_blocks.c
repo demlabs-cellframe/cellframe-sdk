@@ -1366,6 +1366,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
         if (l_counter >= l_offset){
             dap_chain_block_t *l_block = ptr->block;
             l_list = dap_list_append(l_list, l_block);
+            l_list = dap_list_append(l_list, &ptr->block_size);
         }
         l_counter++;
     }
