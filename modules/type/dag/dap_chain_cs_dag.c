@@ -129,6 +129,9 @@ static void s_dag_chain_cs_set_event_round_info(dap_chain_cs_dag_t * a_dag, dap_
 static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
 static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page);
 
+static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page);
+
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
@@ -254,6 +257,11 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_get_txs = s_dap_chain_callback_get_txs;
     // Get tx count
     a_chain->callback_count_tx = s_dap_chain_callback_get_count_tx;
+
+    // Get atom count in chain
+    a_chain->callback_count_atom = s_dap_chain_callback_get_count_atom;
+    // Get atom list in chain
+    a_chain->callback_get_atoms = s_callback_get_atoms;
 
     // Others
     a_chain->_inheritor = l_dag;
@@ -2048,6 +2056,45 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
         }
         l_counter++;
     }
+    return l_list;
+}
+
+static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain){
+    dap_chain_cs_dag_t  *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+    size_t l_count = HASH_COUNT(PVT(l_dag)->events);
+    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+    return l_count;
+}
+
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page) {
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);
+    size_t l_offset = a_count * (a_page - 1);
+    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+    size_t l_count = HASH_COUNT(l_dag_pvt->events);
+    if (a_page < 2)
+        l_offset = 0;
+    if (l_offset > l_count) {
+        return NULL;
+    }
+    dap_list_t *l_list = NULL;
+    size_t l_counter = 0;
+    size_t l_end = l_offset + a_count;
+    dap_chain_cs_dag_event_item_t *l_ptr = l_dag_pvt->events->hh.tbl->tail->prev;
+    if (!l_ptr)
+        l_ptr = l_dag_pvt->events;
+    else
+        l_ptr = l_ptr->hh.next;
+    for (dap_chain_cs_dag_event_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev) {
+        if (l_counter >= l_offset) {
+            dap_chain_cs_dag_event_t *l_event = ptr->event;
+            l_list = dap_list_append(l_list, l_event);
+            l_list = dap_list_append(l_list, &ptr->event_size);
+        }
+        l_counter++;
+    }
+    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
     return l_list;
 }
 
