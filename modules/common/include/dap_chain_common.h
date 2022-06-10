@@ -45,7 +45,7 @@
 
 #define DATOSHI_LD 1000000000.0L    // Deprecated
 #define DATOSHI_DEGREE 18
-#define DATOSHI_POW 38
+#define DATOSHI_POW 39
 #define DATOSHI_POW256 (DATOSHI_POW * 2)
 
 // Chain ID of the whole system
