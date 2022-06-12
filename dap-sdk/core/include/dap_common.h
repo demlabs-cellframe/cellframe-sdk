@@ -504,6 +504,25 @@ int dap_is_alpha(char e);
 int dap_is_digit(char e);
 char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit);
 
+
+
+#define CRC32_POLY      (0xEDB88320)
+extern const unsigned int g_crc32c_table[];
+
+static inline unsigned int	dap_crc32c (unsigned int crc, const void *buf, size_t buflen)
+{
+const unsigned char  *p = (unsigned char *) buf;
+
+	crc = crc ^ ~0U;
+
+	while (buflen--)
+		crc = g_crc32c_table[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
+
+	return crc ^ ~0U;
+}
+
+
+
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);
 #endif
