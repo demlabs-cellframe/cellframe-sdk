@@ -1466,6 +1466,8 @@ dap_events_socket_t *dap_context_find(dap_context_t * a_context, dap_events_sock
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     int l_pipe[2];
+    char l_errbuf[255];
+    int l_errno;
     l_errbuf[0]=0;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     if( pipe2(l_pipe,O_DIRECT | O_NONBLOCK ) < 0 ){

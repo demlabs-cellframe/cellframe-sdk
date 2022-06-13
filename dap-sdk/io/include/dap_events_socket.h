@@ -54,9 +54,11 @@ typedef int SOCKET;
     //#define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_PIPE_POSIX
-    //#define DAP_EVENTS_CAPS_QUEUE_PIPE2
-    #define DAP_EVENTS_CAPS_QUEUE_MQUEUE
+    #define DAP_EVENTS_CAPS_QUEUE_PIPE2
+    //#define DAP_EVENTS_CAPS_QUEUE_MQUEUE
     #define DAP_EVENTS_CAPS_EVENT_EVENTFD
+    #define DAP_EVENTS_CAPS_AIO
+//    #define DAP_EVENTS_CAPS_AIO_THREADS
     #include <netinet/in.h>
     #include <sys/eventfd.h>
     #include <mqueue.h>
@@ -78,6 +80,7 @@ typedef int SOCKET;
     #define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_QUEUE_WEVENT
     #define DAP_EVENTS_CAPS_EVENT_WEVENT
+    #define DAP_EVENTS_CAPS_AIO_THREADS
     //#define DAP_EVENTS_CAPS_PIPE_POSIX
     #define DAP_EVENTS_CAPS_MSMQ
     #ifndef INET_ADDRSTRLEN

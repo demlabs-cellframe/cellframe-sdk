@@ -88,6 +88,18 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #include "dap_context.h"
 #include "dap_events_socket.h"
 
+#ifdef DAP_EVENTS_CAPS_AIO
+#include <aio.h>
+
+struct queue_ptr_aio{ // Pointer on buffer with pointer on itself
+    void * ptr;
+    struct queue_ptr_aio * self;
+    struct aiocb * aiocb;
+};
+
+#endif
+
+
 #define LOG_TAG "dap_events_socket"
 
 // Item for QUEUE_PTR input esocket
@@ -405,6 +417,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
     //l_es->buf_out_size  = 8 * sizeof(void*);
     l_es->uuid = dap_uuid_generate_uint64();
+    l_es->pipe_out = a_es;
 #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
 #elif defined(DAP_EVENTS_CAPS_POLL)
@@ -412,7 +425,6 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     // Here we have event identy thats we copy
     l_es->fd = a_es->fd; //
-    l_es->pipe_out = a_es;
     l_es->kqueue_base_flags = EV_CLEAR;
     l_es->kqueue_base_fflags = 0;
     l_es->kqueue_base_filter = EVFILT_USER;
@@ -528,14 +540,41 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
         if (a_esocket->flags & DAP_SOCK_QUEUE_PTR){
             void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+#if defined (DAP_EVENTS_CAPS_AIO)
+            struct queue_ptr_aio l_queue_ptr_aio={0};
+            ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr_aio,sizeof (l_queue_ptr_aio ));
+#else
             ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr,sizeof (void *));
+#endif
             int l_read_errno = errno;
+#if defined (DAP_EVENTS_CAPS_AIO)
+            if( l_read_ret == (ssize_t) sizeof (l_queue_ptr_aio) ){
+                if(g_debug_reactor)
+                    log_it(L_DEBUG,"Queue ptr received %p", l_queue_ptr_aio.ptr);
+                a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr_aio.ptr);
+                if(l_queue_ptr_aio.aiocb)
+                   DAP_DELETE(l_queue_ptr_aio.aiocb);
+                DAP_DELETE(l_queue_ptr_aio.self);
+            } else if ( (l_read_errno != EAGAIN) && (l_read_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+                log_it(L_WARNING,"Queue ptr recieved %zd when expected to see %zd", l_read_ret,
+                       sizeof (l_queue_ptr_aio));
+            else if (g_debug_reactor)
+                log_it(L_DEBUG, "%s code received, do nothing on this loop",
+                       l_read_errno == EAGAIN? "EAGAIN": l_read_errno == EWOULDBLOCK ? "EWOULDBLOCK": "UNKNOWN" );
+#else
             if( l_read_ret == (ssize_t) sizeof (void *))
                 a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
-            else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+            else if ( (l_read_errno != EAGAIN) && (l_read_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                 log_it(L_WARNING, "Can't read packet from pipe");
+#endif
+
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+#if defined (DAP_EVENTS_CAPS_AIO)
+            struct queue_ptr_aio l_queue_ptr_aio;
+            ssize_t l_ret = mq_receive(a_esocket->mqd,(char*) &l_queue_ptr_aio, sizeof (l_queue_ptr_aio),NULL);
+#else
             ssize_t l_ret = mq_receive(a_esocket->mqd,(char*) &l_queue_ptr, sizeof (l_queue_ptr),NULL);
+#endif
             if (l_ret == -1){
                 int l_errno = errno;
                 char l_errbuf[128];
@@ -544,6 +583,15 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                 log_it(L_ERROR, "Error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
                 return -1;
             }
+            #if defined (DAP_EVENTS_CAPS_AIO)
+            if(l_ret != sizeof(l_queue_ptr_aio) ){
+                log_it(L_ERROR, "Wrong AIO message in MQ, expected to have %zd but received %zd",
+                       sizeof (l_queue_ptr_aio), l_ret);
+                return -1;
+            }
+            l_queue_ptr = l_queue_ptr_aio.ptr;
+            DAP_DELETE(l_queue_ptr_aio.self); // Clear send buffer
+            #endif
             a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
 #elif defined DAP_EVENTS_CAPS_MSMQ
             DWORD l_mp_id = 0;
@@ -739,6 +787,8 @@ static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
     return -1;
 }
 
+#ifndef DAP_EVENTS_CAPS_AIO
+
 /**
  * @brief dap_events_socket_buf_thread
  * @param arg
@@ -802,6 +852,7 @@ dap_events_socket_buf_item_t *l_item;
     debug_if(g_debug_reactor, L_DEBUG, "[#%"DAP_UINT64_FORMAT_U"] Created thread %"DAP_UINT64_FORMAT_x", a_es: %p, a_arg: %p",
              atomic_load(&l_thd_count), l_thread, a_es, a_arg);
 }
+#endif
 
 /**
  * @brief dap_events_socket_queue_ptr_send_to_input
@@ -843,14 +894,22 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
         return -2;
     }
 
+#elif defined(DAP_EVENTS_CAPS_AIO)
+    return dap_events_socket_queue_ptr_send(a_es_input->pipe_out,a_arg);
+
+/*    void * l_arg = a_arg;
+    struct queue_ptr_aio * l_ptr_aio = DAP_NEW_Z(struct queue_ptr_aio);
+    l_ptr_aio->self = l_ptr_aio;
+    l_ptr_aio->aiocb = NULL;
+    l_ptr_aio->ptr = l_arg;
+    size_t l_ret = dap_events_socket_write_unsafe(a_es_input, &l_ptr_aio, sizeof(struct queue_ptr_aio));
+    if(l_ret != sizeof(struct queue_ptr_aio)){
+        DAP_DELETE(l_ptr_aio);
+        return -1;
+    }else
+        return 0;*/
 #else
     void * l_arg = a_arg;
-    /*if (a_es_input->buf_out_size >= sizeof(void*)) {
-        if (memcmp(a_es_input->buf_out + a_es_input->buf_out_size - sizeof(void*), a_arg, sizeof(void*))) {
-            log_it(L_INFO, "Ptr 0x%x already present in input, drop it", a_arg);
-            return 2;
-        }
-    }*/
     return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))
             == sizeof(l_arg) ? 0 : -1;
 #endif
@@ -869,12 +928,36 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+
+#if defined (DAP_EVENTS_CAPS_AIO)
+    struct queue_ptr_aio * l_ptr_aio = DAP_NEW_Z(struct queue_ptr_aio);
+    l_ptr_aio->self = l_ptr_aio;
+    l_ptr_aio->ptr = a_arg;
+    l_ptr_aio->aiocb = DAP_NEW_Z(struct aiocb);
+    l_ptr_aio->aiocb->aio_fildes = a_es->fd2;
+    l_ptr_aio->aiocb->aio_buf = l_ptr_aio;
+    l_ptr_aio->aiocb->aio_nbytes = sizeof(*l_ptr_aio);
+    l_ret =  aio_write(l_ptr_aio->aiocb) == 0? sizeof(a_arg) : 0;
+#else
     l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg));
+#endif
     l_errno = errno;
+
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
     assert(a_es);
     assert(a_es->mqd);
 
+#if defined (DAP_EVENTS_CAPS_AIO)
+    struct aiocb l_aio_op = {0};
+    struct queue_ptr_aio * l_ptr_aio = DAP_NEW(struct queue_ptr_aio);
+    l_ptr_aio->self = l_ptr_aio;
+    l_ptr_aio->ptr = a_arg;
+    l_aio_op.aio_fildes = a_es->mqd;
+    l_aio_op.aio_buf = l_ptr_aio;
+    l_aio_op.aio_nbytes = sizeof(*l_ptr_aio);
+    l_ret =  aio_write(&l_aio_op) == 0? sizeof(a_arg) : 0;
+    l_errno = errno;
+#else
     l_ret = mq_send(a_es->mqd, (const char *)&a_arg, sizeof (a_arg), 0);
     l_errno = errno;
     if ( l_ret == EPERM){
@@ -887,6 +970,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         l_ret = sizeof(a_arg);
     else if (l_ret > 0)
         l_ret = -l_ret;
+#endif
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     struct timespec l_timeout;
@@ -960,16 +1044,17 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     }
 
     if(l_n != -1 ){
-        return 0;
+        l_ret = sizeof(a_arg);
     }else{
         l_errno = errno;
-        log_it(L_ERROR,"Sending kevent error code %d", l_errno);
-        return l_errno;
+        l_ret = 0;
     }
 
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
+#if defined(DAP_EVENTS_CAPS_AIO_THREADS)
+
     if (l_ret == sizeof(a_arg) ){
         return 0;
     }else{
@@ -984,6 +1069,16 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
             return l_errno;
         }
     }
+#else
+    if(l_ret == sizeof(a_arg) )
+        return 0;
+    else{
+        char l_errbuf[128];
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR,"Send queue ptr error: \"%s\" code %d", l_errbuf, l_errno);
+        return l_errno;
+    }
+#endif
 }
 
 
