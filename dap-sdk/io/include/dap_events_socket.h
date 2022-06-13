@@ -118,6 +118,7 @@ typedef struct dap_context dap_context_t;
 
 typedef struct dap_server dap_server_t;
 typedef void (*dap_events_socket_callback_t) (dap_events_socket_t *,void * ); // Callback for specific client operations
+typedef void (*dap_events_socket_callback_error_ptr_t) (dap_events_socket_t *, int, void * ); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_error_t) (dap_events_socket_t *, int ); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_queue_t) (dap_events_socket_t *,const void * , size_t); // Callback for specific client operations
 typedef void (*dap_events_socket_callback_event_t) (dap_events_socket_t *, uint64_t); // Callback for specific client operations
@@ -279,6 +280,7 @@ typedef struct dap_events_socket {
     void *_pvt; //Private section, different for different types
     UT_hash_handle hh; // Handle for local CPU storage on worker or proc_thread
 } dap_events_socket_t; // Node of bidirectional list of clients
+typedef dap_events_socket_t dap_esocket_t;
 
 #define SSL(a) (a ? (WOLFSSL *) (a)->_pvt : NULL)
 
@@ -346,6 +348,12 @@ size_t dap_events_socket_write_f_unsafe(dap_events_socket_t *sc, const char * fo
 // MT variants less
 void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_uuid_t a_es_uuid, bool a_is_ready);
 void dap_events_socket_set_writable_mt(dap_worker_t * a_w, dap_events_socket_uuid_t a_es_uuid, bool a_is_ready);
+
+// Universal variant thats trying to detect context, if found uses _inter if not uses _mt
+size_t dap_events_socket_write(dap_events_socket_uuid_t a_es_uuid, const void * a_data, size_t a_data_size,
+                               dap_events_socket_callback_t a_callback_success,
+                               dap_events_socket_callback_error_t a_callback_error, void * a_arg);
+
 
 size_t dap_events_socket_write_mt(dap_worker_t * a_w, dap_events_socket_uuid_t a_es_uuid, const void * a_data, size_t a_data_size);
 size_t dap_events_socket_write_f_mt(dap_worker_t * a_w, dap_events_socket_uuid_t a_es_uuid, const char * a_format,...);

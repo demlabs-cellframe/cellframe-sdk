@@ -52,15 +52,12 @@ static dap_list_t *s_sync_group_extra_items = NULL;
 
 static int s_track_history = 0;
 
-int     s_db_drvmode_async ,                                                /* Set a kind of processing requests to DB:
-                                                                            <> 0 - Async mode should be used */
+int     s_db_drvmode_async ,                                                /* Set a kind of processing requests to DB:                                                                            <> 0 - Async mode should be used */
         s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
 
 
-
-static  dap_proc_thread_t   *s_global_db_proc_thread;                       /* Dedicated thread to process GDB Asyn requests */
-dap_proc_queue_t *s_global_db_proc_queue;
-
+static dap_context_t * s_gdb_context = NULL;
+static dap_esocket_t  *s_gdb_context_queue = NULL;
 
 int s_db_add_sync_group(dap_list_t **a_grp_list, dap_sync_group_item_t *a_item)
 {
@@ -187,8 +184,8 @@ static int s_check_db_version(dap_config_t *g_config)
         l_gdb_version = *l_gdb_version_p;
     }
 
-    if(l_gdb_version < GDB_VERSION) {
-        log_it(L_NOTICE, "GlobalDB version %d, but %d required. The current database will be recreated", l_gdb_version, GDB_VERSION);
+    if(l_gdb_version < DAP_GLOBAL_DB_VERSION) {
+        log_it(L_NOTICE, "GlobalDB version %d, but %d required. The current database will be recreated", l_gdb_version, DAP_GLOBAL_DB_VERSION);
         dap_chain_global_db_deinit();
         // Database path
         const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
@@ -223,12 +220,12 @@ static int s_check_db_version(dap_config_t *g_config)
         res = dap_chain_global_db_init(g_config);
         // Save current db version
         if(!res) {
-            l_gdb_version = GDB_VERSION;
+            l_gdb_version = DAP_GLOBAL_DB_VERSION;
             dap_chain_global_db_set("gdb_version", &l_gdb_version, sizeof(uint16_t));
             log_it(L_NOTICE, "GlobalDB version updated to %d", l_gdb_version);
         }
-    } else if(l_gdb_version > GDB_VERSION) {
-        log_it(L_ERROR, "GlobalDB version %d is newer than supported version %d", l_gdb_version, GDB_VERSION);
+    } else if(l_gdb_version > DAP_GLOBAL_DB_VERSION) {
+        log_it(L_ERROR, "GlobalDB version %d is newer than supported version %d", l_gdb_version, DAP_GLOBAL_DB_VERSION);
         res = -1;
     }
     else {
@@ -389,7 +386,7 @@ uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, 
  */
 uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
 {
-    return dap_chain_global_db_gr_get(a_key, a_data_len_out, GROUP_LOCAL_GENERAL);
+    return dap_chain_global_db_gr_get(a_key, a_data_len_out, DAP_GLOBAL_DB_LOCAL_GENERAL);
 }
 
 /**
@@ -402,7 +399,7 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out)
 static int global_db_gr_del_add(const char *a_key, const char *a_group, uint64_t a_timestamp)
 {
 dap_store_obj_t store_data = {0};
-char	l_group[DAP_DB$SZ_MAXGROUPNAME];
+char	l_group[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
 int l_res = -1;
 
     store_data.key = a_key;
@@ -426,7 +423,7 @@ int l_res = -1;
 static int global_db_gr_del_del(const char *a_key, const char *a_group)
 {
 dap_store_obj_t store_data = {0};
-char	l_group[DAP_DB$SZ_MAXGROUPNAME];
+char	l_group[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
 int	l_res = 0;
 
     if(!a_key)
@@ -452,7 +449,7 @@ uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key)
 {
 uint64_t l_timestamp = 0;
 dap_store_obj_t store_data = { 0 };
-char l_group[DAP_DB$SZ_MAXGROUPNAME];
+char l_group[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
 size_t l_count_out = 0;
 dap_store_obj_t *l_obj;
 
@@ -485,7 +482,7 @@ dap_store_obj_t *l_obj;
  */
 bool dap_chain_global_db_del(char *a_key)
 {
-    return dap_chain_global_db_gr_del(a_key, GROUP_LOCAL_GENERAL);
+    return dap_chain_global_db_gr_del(a_key, DAP_GLOBAL_DB_LOCAL_GENERAL);
 }
 
 /**
@@ -565,7 +562,7 @@ dap_global_db_obj_t *dap_chain_global_db_gr_load(const char *a_group, size_t *a_
  */
 dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out)
 {
-    return dap_chain_global_db_gr_load(GROUP_LOCAL_GENERAL, a_data_size_out);
+    return dap_chain_global_db_gr_load(DAP_GLOBAL_DB_LOCAL_GENERAL, a_data_size_out);
 }
 
 /**
@@ -663,7 +660,7 @@ bool dap_chain_global_db_gr_pinned_set(const char *a_key, const void *a_value, s
  */
 bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len)
 {
-    return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, GROUP_LOCAL_GENERAL);
+    return dap_chain_global_db_gr_set(a_key, a_value, a_value_len, DAP_GLOBAL_DB_LOCAL_GENERAL);
 }
 
 /**
@@ -767,7 +764,7 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
  */
 bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count)
 {
-    return dap_chain_global_db_gr_save(a_objs, a_objs_count, GROUP_LOCAL_GENERAL);
+    return dap_chain_global_db_gr_save(a_objs, a_objs_count, DAP_GLOBAL_DB_LOCAL_GENERAL);
 }
 
 /**
@@ -814,18 +811,6 @@ dap_events_socket_t     *l_es;
             return  log_it(L_ERROR, "Invalid/unhandled DB request code: %d/%#x", a_req_type, a_req_type), -EINVAL;
     }
 
-    l_proc_que = s_global_db_proc_thread->_inheritor;
-    l_es = l_proc_que->esocket;
-
-    l_wrk = l_proc_que->esocket->context->worker;
-    l_proc_thd = l_proc_que->esocket->context->proc_thread;
-
-    if ( !l_wrk && !l_proc_thd )
-        return  log_it(L_ERROR, "Both <worker> or <proc_thread> contexts are NULL"), -EINVAL;
-
-    if ( l_wrk && l_proc_thd )
-        return  log_it(L_ERROR, "Both <worker> or <proc_thread> contexts are NOT NULL"), -EINVAL;
-
 
     if ( !(l_db_req = DAP_NEW_Z(dap_grobal_db_req_t)) )                     /* Allocate memory for new DB Request context */
         return  log_it(L_ERROR, "Cannot allocate memory for DB Request, errno=%d", errno), -errno;
@@ -834,21 +819,13 @@ dap_events_socket_t     *l_es;
     l_db_req->req = a_req_type;
     l_db_req->cb_rtn = a_cb_rtn;
     l_db_req->cb_arg = a_cb_arg;
-    l_db_req->es = l_es;
 
     l_db_req->group = a_group;
     l_db_req->key = a_key;
     l_db_req->value = (void *) a_data;
     l_db_req->value_len = a_data_size;
 
-    /*
-    dap_events_socket_queue_ptr_send_to_input( l_worker->queue_callback_gdb_input, ...)
-    Либо
-    dap_events_socket_queue_ptr_send_to_input( l_thread->queue_callback_gdb_input, ...)
-    */
-    if ( (l_rc = dap_events_socket_queue_ptr_send_to_input(                 /* Enqueue DB Request to processor */
-              l_wrk ? l_wrk->queue_gdb_input : l_proc_thd->queue_gdb_input, l_db_req)) )
-    {
+    if ( (l_rc = dap_events_socket_queue_ptr_send_to_input(a_es_input, l_db_req)) ){
         DAP_DELETE(l_db_req);
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_rc);
         log_it(L_ERROR, "Drop GDB Request [opcode:%d, group: '%s', key: '%s', value: %p, value_len: %zu",
@@ -900,28 +877,6 @@ static int is_check_version = 0;
     }
 
     log_it(L_NOTICE, "GlobalDB initialized");
-
-#if 0   /* @RRL: #6238  - Frozen ... */
-    /*
-     * Create a dedicated thread to process request to GDB
-     */
-    if ( !(s_global_db_proc_thread =  dap_proc_thread_run_custom()) )
-    {
-        log_it(L_ERROR, "Error create dedicated thread for GDB request processing");
-        log_it(L_ERROR, "Async DB processing is switched OFF");
-        return  -EIO;
-    }
-
-    if ( !(s_global_db_proc_queue = dap_proc_queue_create (s_global_db_proc_thread)) )
-    {
-        log_it(L_ERROR, "Error create queue for GDB request processing");
-        log_it(L_ERROR, "Async DB processing is switched OFF");
-        return  -EIO;
-    }
-
-    s_global_db_proc_queue->esocket = dap_events_socket_create_type_queue_ptr_unsafe(NULL, s_dap_chain_global_db_request_processor);
-#endif
-
 
     l_rc = 0;
     return l_rc;

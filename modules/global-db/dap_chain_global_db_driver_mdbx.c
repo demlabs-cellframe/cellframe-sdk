@@ -63,7 +63,7 @@ extern  int s_db_drvmode_async ,                                            /* S
 /** Struct for a MDBX DB context */
 typedef struct __db_ctx__ {
         size_t  namelen;                                                    /* Group name length */
-        char name[DAP_DB$SZ_MAXGROUPNAME + 1];                              /* Group's name */
+        char name[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX + 1];                              /* Group's name */
 
         pthread_mutex_t dbi_mutex;                                          /* Coordinate access the MDBX's <dbi> */
         MDBX_dbi    dbi;                                                    /* MDBX's internal context id */
@@ -196,8 +196,8 @@ MDBX_val    l_key_iov, l_data_iov;
 
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
-    if ( (l_rc = strlen(a_group)) > DAP_DB$SZ_MAXGROUPNAME )                /* Check length of the group name */
-        return  log_it(L_ERROR, "Group name '%s' is too long (%d>%d)", a_group, l_rc, DAP_DB$SZ_MAXGROUPNAME), NULL;
+    if ( (l_rc = strlen(a_group)) > DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX )                /* Check length of the group name */
+        return  log_it(L_ERROR, "Group name '%s' is too long (%d>%d)", a_group, l_rc, DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX), NULL;
 
     if ( !(l_db_ctx = DAP_NEW_Z(dap_db_ctx_t)) )                            /* Allocate zeroed memory for new DB context */
         return  log_it(L_ERROR, "Cannot allocate DB context for '%s', errno=%d", a_group, errno), NULL;
@@ -352,8 +352,8 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
 #endif
 
 
-    log_it(L_NOTICE, "Set maximum number of local groups: %d", DAP_DB$K_MAXGROUPS);
-    assert ( !mdbx_env_set_maxdbs (s_mdbx_env, DAP_DB$K_MAXGROUPS) );       /* Set maximum number of the file-tables (MDBX subDB)
+    log_it(L_NOTICE, "Set maximum number of local groups: %d", DAP_GLOBAL_DB_GROUPS_COUNT_MAX);
+    assert ( !mdbx_env_set_maxdbs (s_mdbx_env, DAP_GLOBAL_DB_GROUPS_COUNT_MAX) );       /* Set maximum number of the file-tables (MDBX subDB)
                                                                               according to number of supported groups */
 
 
@@ -794,7 +794,7 @@ struct  __record_suffix__   *l_suff;
     assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
     if ( l_count_out )
-        log_it(L_WARNING, "A count of records with id: %zu - more then 1 (%d) !!!", a_id, l_count_out);
+        log_it(L_WARNING, "A count of records with id: %" DAP_UINT64_FORMAT_U "  - more then 1 (%d) !!!", a_id, l_count_out);
 
     return  l_count_out;
 }
@@ -891,7 +891,7 @@ struct  __record_suffix__   *l_suff;
         }
 
         l_key.iov_base = (void *) a_store_obj->key;                         /* Fill IOV for MDBX key */
-        l_key.iov_len =  a_store_obj->key_len ? a_store_obj->key_len : strnlen(a_store_obj->key, DAP_DB$SZ_MAXKEY);
+        l_key.iov_len =  a_store_obj->key_len ? a_store_obj->key_len : strnlen(a_store_obj->key, DAP_GLOBAL_DB_KEY_MAX);
 
         /*
          * Now we are ready  to form a record in next format:
@@ -969,7 +969,7 @@ struct  __record_suffix__   *l_suff;
 
         if ( a_store_obj->key ) {                                           /* Delete record */
                 l_key.iov_base = (void *) a_store_obj->key;
-                l_key.iov_len =  a_store_obj->key_len ? a_store_obj->key_len : strnlen(a_store_obj->key, DAP_DB$SZ_MAXKEY);
+                l_key.iov_len =  a_store_obj->key_len ? a_store_obj->key_len : strnlen(a_store_obj->key, DAP_GLOBAL_DB_KEY_MAX);
 
                 if ( MDBX_SUCCESS != (l_rc = mdbx_del(l_db_ctx->txn, l_db_ctx->dbi, &l_key, NULL))
                      && ( l_rc != MDBX_NOTFOUND) )
@@ -1112,7 +1112,7 @@ struct  __record_suffix__   *l_suff;
     ** If a_key is NULL - retrieve a requested number of records from the table
     */
     do  {
-        l_count_out = a_count_out? *a_count_out : DAP_DB$K_MAXOBJS;             /* Limit a number of objects to be returned */
+        l_count_out = a_count_out? *a_count_out : DAP_GLOBAL_DB_MAX_OBJS;             /* Limit a number of objects to be returned */
         l_cursor = NULL;
         l_obj = NULL;
 

@@ -39,6 +39,19 @@
 
 //static dap_sign_t * s_sign_null = NULL;
 static bliss_signature_t s_sign_bliss_null = {0};
+static uint8_t s_sign_hash_type_default = DAP_SIGN_HASH_TYPE_SHA3;
+
+/**
+ * @brief dap_sign_init
+ * @param a_sign_hash_type_default Wich hash type will be used for new created signatures
+ * @return
+ */
+int dap_sign_init(uint8_t a_sign_hash_type_default)
+{
+    s_sign_hash_type_default = a_sign_hash_type_default;
+    return 0;
+}
+
 
 /**
  * @brief get signature size (different for specific crypto algorithm)
@@ -218,6 +231,23 @@ static int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, con
 dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
         const size_t a_data_size, size_t a_output_wish_size)
 {
+    const void * l_sign_data;
+    size_t l_sign_data_size;
+
+    dap_chain_hash_fast_t l_sign_data_hash;
+
+    if(s_sign_hash_type_default == DAP_SIGN_HASH_TYPE_NONE){
+        l_sign_data = a_data;
+        l_sign_data_size = a_data_size;
+    }else{
+        l_sign_data = &l_sign_data_hash;
+        l_sign_data_size = sizeof(l_sign_data_hash);
+        switch(s_sign_hash_type_default){
+            case DAP_SIGN_HASH_TYPE_SHA3: dap_hash_fast(a_data,a_data_size,&l_sign_data_hash); break;
+            default: log_it(L_CRITICAL, "We can't hash with hash type 0x%02x",s_sign_hash_type_default);
+        }
+    }
+
     // calculate max signature size
     size_t l_sign_unserialized_size = dap_sign_create_output_unserialized_calc_size(a_key, a_output_wish_size);
     if(l_sign_unserialized_size > 0) {
@@ -227,7 +257,7 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
             return NULL;
         uint8_t* l_sign_unserialized = DAP_NEW_Z_SIZE(uint8_t, l_sign_unserialized_size);
         // calc signature [sign_size may decrease slightly]
-        if( dap_sign_create_output(a_key, a_data, a_data_size,
+        if( dap_sign_create_output(a_key, l_sign_data, l_sign_data_size,
                                          l_sign_unserialized, &l_sign_unserialized_size) != 0) {
             dap_enc_key_signature_delete(a_key->type, l_sign_unserialized);
             DAP_DELETE(l_pub_key);
@@ -431,17 +461,34 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
 
     int l_ret;
     //uint8_t * l_sign = a_chain_sign->pkey_n_sign + a_chain_sign->header.sign_pkey_size;
+    const void * l_verify_data;
+    size_t l_verify_data_size;
+    dap_chain_hash_fast_t l_verify_data_hash;
+
+    if(a_chain_sign->header.hash_type == DAP_SIGN_HASH_TYPE_NONE){
+        l_verify_data = a_data;
+        l_verify_data_size = a_data_size;
+    }else{
+        l_verify_data = &l_verify_data_hash;
+        l_verify_data_size = sizeof(l_verify_data_hash);
+        switch(s_sign_hash_type_default){
+            case DAP_SIGN_HASH_TYPE_SHA3: dap_hash_fast(a_data,a_data_size,&l_verify_data_hash); break;
+            default: log_it(L_CRITICAL, "Incorrect signature: we can't check hash with hash type 0x%02x",s_sign_hash_type_default);
+            return -5;
+        }
+    }
+
     switch (l_key->type) {
         case DAP_ENC_KEY_TYPE_SIG_TESLA:
         case DAP_ENC_KEY_TYPE_SIG_PICNIC:
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-            if((ssize_t)l_key->dec_na(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) < 0)
+            if((ssize_t)l_key->dec_na(l_key, l_verify_data, l_verify_data_size, l_sign_data, l_sign_data_size) < 0)
                 l_ret = 0;
             else
                 l_ret = 1;
             break;
         case DAP_ENC_KEY_TYPE_SIG_BLISS:
-            if(dap_enc_sig_bliss_verify_sign(l_key, a_data, a_data_size, l_sign_data, l_sign_data_size) != BLISS_B_NO_ERROR)
+            if(dap_enc_sig_bliss_verify_sign(l_key, l_verify_data, l_verify_data_size, l_sign_data, l_sign_data_size) != BLISS_B_NO_ERROR)
                 l_ret = 0;
             else
                 l_ret = 1;

@@ -13,23 +13,23 @@
 // time in seconds
 typedef uint64_t dap_time_t;
 // time in nanoseconds
-typedef uint64_t dap_gdb_time_t;
+typedef uint64_t dap_nanotime_t;
 
 // Create gdb time from second
-dap_gdb_time_t dap_gdb_time_from_sec(uint32_t a_time);
+dap_nanotime_t dap_gdb_time_from_sec(uint32_t a_time);
 // Get seconds from gdb time
-long dap_gdb_time_to_sec(dap_gdb_time_t a_time);
+long dap_gdb_time_to_sec(dap_nanotime_t a_time);
 
 /**
  * @brief dap_chain_time_now Get current time in seconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in seconds.
  */
-dap_gdb_time_t dap_time_now(void);
+dap_nanotime_t dap_time_now(void);
 /**
  * @brief dap_clock_gettime Get current time in nanoseconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in nanoseconds.
  */
-dap_gdb_time_t dap_gdb_time_now(void);
+dap_nanotime_t dap_gdb_time_now(void);
 
 
 // crossplatform usleep
@@ -42,11 +42,11 @@ void dap_usleep(dap_time_t a_microseconds);
  * @return
  */
 char* dap_ctime_r(dap_time_t *a_time, char* a_buf);
-char* dap_gdb_ctime_r(dap_gdb_time_t *a_time, char* a_buf);
+char* dap_gdb_ctime_r(dap_nanotime_t *a_time, char* a_buf);
 
 
 int dap_time_to_str_rfc822(char * out, size_t out_size_max, dap_time_t t);
-int dap_gbd_time_to_str_rfc822(char *a_out, size_t a_out_size_max, dap_gdb_time_t a_chain_time);
+int dap_gbd_time_to_str_rfc822(char *a_out, size_t a_out_size_max, dap_nanotime_t a_chain_time);
 int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct timespec *a_result);
 
 

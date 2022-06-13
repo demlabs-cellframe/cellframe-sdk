@@ -348,7 +348,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         //continue;
         l_objs[i].value = (uint8_t *)l_datum;
         l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
-        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
+        log_it(L_DEBUG, "Prepared obj with key %s (value_len = %zd)",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
 
     }

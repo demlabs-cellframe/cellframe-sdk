@@ -1382,6 +1382,26 @@ size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_event
     return  a_data_size;
 }
 
+/**
+ * @brief dap_events_socket_write
+ * @param a_es_uuid
+ * @param a_data
+ * @param a_data_size
+ * @param a_callback_success
+ * @param a_callback_error
+ * @return
+ */
+size_t dap_events_socket_write(dap_events_socket_uuid_t a_es_uuid, const void * a_data, size_t a_data_size,
+                               dap_events_socket_callback_t a_callback_success,
+                               dap_events_socket_callback_error_t a_callback_error, void * a_arg)
+{
+   dap_context_t * l_context = dap_context_current();
+   if(l_context){ // We found it
+       dap_events_socket_t * l_queue;
+       // TODO complete things
+   }
+   return 0;
+}
 
 
 /**

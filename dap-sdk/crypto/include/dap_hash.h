@@ -41,7 +41,7 @@
 
 typedef enum dap_hash_type {
     DAP_HASH_TYPE_KECCAK = 0,
-    DAP_HASH_TYPE_SLOW_0 = 1,
+    DAP_HASH_TYPE_SLOW_0 = 1
 } dap_hash_type_t;
 
 typedef union dap_chain_hash_fast{

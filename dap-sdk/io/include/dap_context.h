@@ -1,7 +1,7 @@
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
- * DeM Labs Ltd.   https://demlabs.net
+ * Demlabs Ltd.   https://demlabs.net
  * Copyright  (c) 2022
  * All rights reserved.
 
@@ -93,6 +93,10 @@ typedef struct dap_context {
     atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
+    dap_events_socket_t **queue_es; // Queues
+    dap_events_socket_t ***queue_es_input; // Input for others queues
+    size_t queues_es_count;
+
     // Signal to exit
     bool signal_exit;
     // Flags
@@ -154,3 +158,6 @@ dap_events_socket_t *dap_context_find(dap_context_t * a_context, dap_events_sock
 dap_events_socket_t * dap_context_create_queue(dap_context_t * a_context, dap_events_socket_callback_queue_ptr_t a_callback);
 dap_events_socket_t * dap_context_create_event(dap_context_t * a_context, dap_events_socket_callback_event_t a_callback);
 dap_events_socket_t * dap_context_create_pipe(dap_context_t * a_context, dap_events_socket_callback_t a_callback, uint32_t a_flags);
+
+// Create queues and inputs for them for all contexts
+void dap_context_create_queues( dap_events_socket_callback_queue_ptr_t a_callback);

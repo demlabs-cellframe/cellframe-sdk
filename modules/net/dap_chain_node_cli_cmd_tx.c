@@ -69,7 +69,6 @@ void _dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_ha
     dap_chain_tx_hash_processed_ht_t *l_tmp;
     dap_chain_tx_hash_processed_ht_t *l_current_hash;
     HASH_ITER(hh, l_hash_processed, l_current_hash, l_tmp){
-        DAP_FREE(&l_current_hash->hash);
         DAP_FREE(l_current_hash);
     }
     DAP_FREE(l_hash_processed);

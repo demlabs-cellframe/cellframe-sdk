@@ -45,13 +45,13 @@ int clock_gettime(clockid_t clock_id, struct timespec *spec)
 
 
 // Create time from second
-dap_gdb_time_t dap_gdb_time_from_sec(uint32_t a_time)
+dap_nanotime_t dap_gdb_time_from_sec(uint32_t a_time)
 {
-    return (dap_gdb_time_t)a_time << 32;
+    return (dap_nanotime_t)a_time << 32;
 }
 
 // Get seconds from time
-long dap_gdb_time_to_sec(dap_gdb_time_t a_time)
+long dap_gdb_time_to_sec(dap_nanotime_t a_time)
 {
     return a_time >> 32;
 }
@@ -60,7 +60,7 @@ long dap_gdb_time_to_sec(dap_gdb_time_t a_time)
  * @brief dap_chain_time_now Get current time in seconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in seconds.
  */
-dap_gdb_time_t dap_time_now(void)
+dap_nanotime_t dap_time_now(void)
 {
     time_t l_time = time(NULL);
     return l_time;
@@ -70,12 +70,12 @@ dap_gdb_time_t dap_time_now(void)
  * @brief dap_chain_time_now Get current time in nanoseconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in nanoseconds.
  */
-dap_gdb_time_t dap_gdb_time_now(void)
+dap_nanotime_t dap_gdb_time_now(void)
 {
-    dap_gdb_time_t l_time_nsec;
+    dap_nanotime_t l_time_nsec;
     struct timespec cur_time;
     clock_gettime(CLOCK_REALTIME, &cur_time);
-    l_time_nsec = ((dap_gdb_time_t)cur_time.tv_sec << 32) + cur_time.tv_nsec;
+    l_time_nsec = ((dap_nanotime_t)cur_time.tv_sec << 32) + cur_time.tv_nsec;
     return l_time_nsec;
 }
 
@@ -164,7 +164,7 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
  * @param[in] t UNIX time
  * @return Length of resulting string if ok or lesser than zero if not
  */
-int dap_gbd_time_to_str_rfc822(char *a_out, size_t a_out_size_max, dap_gdb_time_t a_chain_time)
+int dap_gbd_time_to_str_rfc822(char *a_out, size_t a_out_size_max, dap_nanotime_t a_chain_time)
 {
     time_t l_time = dap_gdb_time_to_sec(a_chain_time);
     return dap_time_to_str_rfc822(a_out, a_out_size_max, l_time);
@@ -215,7 +215,7 @@ char* dap_ctime_r(dap_time_t *a_time, char* a_buf)
  * @param a_buf The minimum buffer size is 26 elements.
  * @return
  */
-char* dap_gdb_ctime_r(dap_gdb_time_t *a_chain_time, char* a_buf){
+char* dap_gdb_ctime_r(dap_nanotime_t *a_chain_time, char* a_buf){
     dap_time_t l_time = dap_gdb_time_to_sec(*a_chain_time);
     return dap_ctime_r(&l_time, a_buf);
 }

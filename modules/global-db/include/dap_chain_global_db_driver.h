@@ -36,10 +36,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define DAP_DB$SZ_MAXGROUPNAME     128                                      /* A maximum size of group name */
-#define DAP_DB$K_MAXGROUPS         1024                                     /* A maximum number of groups */
-#define DAP_DB$SZ_MAXKEY           512                                      /* A limit for the key's length in DB */
-#define DAP_DB$K_MAXOBJS            8192                                    /* A maximum number of objects to be returned by
+#define DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX     128                                      /* A maximum size of group name */
+#define DAP_GLOBAL_DB_GROUPS_COUNT_MAX         1024                                     /* A maximum number of groups */
+#define DAP_GLOBAL_DB_KEY_MAX           512                                      /* A limit for the key's length in DB */
+#define DAP_GLOBAL_DB_MAX_OBJS            8192                                    /* A maximum number of objects to be returned by
                                                                             read_srore_obj() */
 
 enum RECORD_FLAGS {
@@ -49,7 +49,7 @@ enum RECORD_FLAGS {
 
 typedef struct dap_store_obj {
     uint64_t id;
-    dap_gdb_time_t timestamp;
+    dap_nanotime_t timestamp;
     uint32_t type;                                                          /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
     uint8_t flags;                                                          /* RECORD_FLAGS */
 
@@ -67,7 +67,7 @@ typedef struct dap_store_obj {
 } dap_store_obj_t, *pdap_store_obj_t;
 
 typedef struct dap_store_obj_pkt {
-    dap_gdb_time_t timestamp;
+    dap_nanotime_t timestamp;
     uint64_t data_size;
     uint32_t obj_count;
     uint8_t data[];

@@ -58,7 +58,7 @@
 
 typedef struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;
-    dap_gdb_time_t ts_added;
+    dap_nanotime_t ts_added;
     dap_chain_cs_dag_event_t *event;
     size_t event_size;
     UT_hash_handle hh;

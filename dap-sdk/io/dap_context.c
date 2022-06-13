@@ -82,6 +82,7 @@
 #include "dap_common.h"
 #include "dap_uuid.h"
 #include "dap_context.h"
+#include "dap_list.h"
 #include "dap_worker.h"
 #include "dap_events_socket.h"
 
@@ -91,6 +92,8 @@ static void *s_context_thread(void *arg); // Context thread
 static int s_thread_init(dap_context_t * a_context);
 static int s_thread_loop(dap_context_t * a_context);
 
+pthread_rwlock_t s_contexts_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+dap_list_t * s_contexts;
 /**
  * @brief dap_context_init
  * @return
@@ -121,6 +124,9 @@ dap_context_t * dap_context_new()
    static atomic_uint_fast64_t s_context_id_max = 0;
    l_context->id = s_context_id_max;
    s_context_id_max++;
+   pthread_rwlock_wrlock(&s_contexts_rwlock);
+   s_contexts = dap_list_prepend(s_contexts,l_context);
+   pthread_rwlock_unlock(&s_contexts_rwlock);
    return l_context;
 }
 
@@ -250,8 +256,11 @@ static void *s_context_thread(void *a_arg)
     l_msg->callback_started(l_context, l_msg->callback_arg);
 
     // Initialization success
-    if(l_msg->flags & DAP_CONTEXT_FLAG_WAIT_FOR_STARTED )
+    if(l_msg->flags & DAP_CONTEXT_FLAG_WAIT_FOR_STARTED ){
+        pthread_mutex_lock(&l_context->started_mutex); // If we're too fast and calling thread haven't switched on cond_wait line
+        pthread_mutex_unlock(&l_context->started_mutex);
         pthread_cond_broadcast(&l_context->started_cond);
+    }
 
     s_thread_loop(l_context);
 
@@ -260,10 +269,16 @@ static void *s_context_thread(void *a_arg)
 
     log_it(L_NOTICE,"Exiting context #%u", l_context->id);
 
+    // Removes from the list
+    pthread_rwlock_wrlock(&s_contexts_rwlock);
+    s_contexts = dap_list_remove (s_contexts,l_context);
+    pthread_rwlock_unlock(&s_contexts_rwlock);
+
     // Free memory. Because nobody expected to work with context outside itself it have to be safe
     pthread_cond_destroy(&l_context->started_cond);
     pthread_mutex_destroy(&l_context->started_mutex);
     DAP_DELETE(l_context);
+
 
     return NULL;
 }
@@ -1803,3 +1818,13 @@ dap_events_socket_t * dap_context_create_pipe(dap_context_t * a_context, dap_eve
     return l_es;
 #endif
 }
+
+/**
+ * @brief dap_context_create_queues
+ * @param a_callback
+ */
+void dap_context_create_queues( dap_events_socket_callback_queue_ptr_t a_callback)
+{
+    // TODO complete queues create
+}
+

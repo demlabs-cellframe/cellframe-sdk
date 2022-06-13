@@ -449,11 +449,6 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
     va_end(ap_copy);
 
     dap_events_socket_write_inter(l_es_io_input, a_es_uuid, l_data, l_data_size);
-    // TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
-    l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
-    dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
-#endif
     DAP_DELETE(l_data);
     return 0;
 }
@@ -471,12 +466,6 @@ void dap_proc_thread_worker_exec_callback_inter(dap_proc_thread_t * a_thread, si
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
-
-    // TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
-    a_thread->queue_callback_input[a_worker_id]->flags |= DAP_SOCK_READY_TO_WRITE;
-    dap_proc_thread_esocket_update_poll_flags(a_thread, a_thread->queue_callback_input[a_worker_id]);
-#endif
 }
 
 

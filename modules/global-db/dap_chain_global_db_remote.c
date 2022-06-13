@@ -56,7 +56,7 @@ static void *s_list_thread_proc(void *arg)
             l_obj_type = DAP_DB$K_OPTYPE_ADD;
         }
         uint64_t l_item_start = l_group_cur->last_id_synced + 1;
-        dap_gdb_time_t l_time_now = dap_gdb_time_now();
+        dap_nanotime_t l_time_now = dap_gdb_time_now();
         while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
             size_t l_item_count = min(64, l_group_cur->count);
             dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
@@ -338,7 +338,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
  */
 static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name, time_t a_expire_time)
 {
-char	l_key [DAP_DB$SZ_MAXKEY];
+char	l_key [DAP_GLOBAL_DB_KEY_MAX];
 bool	l_ret;
 
     if(!a_net_name)
@@ -346,9 +346,9 @@ bool	l_ret;
 
     dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s", a_net_name);
 
-    if ( !(l_ret = dap_chain_global_db_gr_set(l_key, &a_address, sizeof(a_address), GROUP_LOCAL_GENERAL)) ) {
+    if ( !(l_ret = dap_chain_global_db_gr_set(l_key, &a_address, sizeof(a_address), DAP_GLOBAL_DB_LOCAL_GENERAL)) ) {
         dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s_time", a_net_name);
-        l_ret = dap_chain_global_db_gr_set(l_key, &a_expire_time, sizeof(time_t), GROUP_LOCAL_GENERAL);
+        l_ret = dap_chain_global_db_gr_set(l_key, &a_expire_time, sizeof(time_t), DAP_GLOBAL_DB_LOCAL_GENERAL);
     }
 
     return l_ret;
@@ -386,7 +386,7 @@ bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
  */
 uint64_t dap_db_get_cur_node_addr(char *a_net_name)
 {
-char	l_key[DAP_DB$SZ_MAXKEY], l_key_time[DAP_DB$SZ_MAXKEY];
+char	l_key[DAP_GLOBAL_DB_KEY_MAX], l_key_time[DAP_GLOBAL_DB_KEY_MAX];
 uint8_t *l_node_addr_data, *l_node_time_data;
 size_t l_node_addr_len = 0, l_node_time_len = 0;
 uint64_t l_node_addr_ret = 0;
@@ -398,8 +398,8 @@ time_t l_node_time = 0;
     dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s", a_net_name);
     dap_snprintf(l_key_time, sizeof(l_key_time) - 1, "cur_node_addr_%s_time", a_net_name);
 
-    l_node_addr_data = dap_chain_global_db_gr_get(l_key, &l_node_addr_len, GROUP_LOCAL_GENERAL);
-    l_node_time_data = dap_chain_global_db_gr_get(l_key_time, &l_node_time_len, GROUP_LOCAL_GENERAL);
+    l_node_addr_data = dap_chain_global_db_gr_get(l_key, &l_node_addr_len, DAP_GLOBAL_DB_LOCAL_GENERAL);
+    l_node_time_data = dap_chain_global_db_gr_get(l_key_time, &l_node_time_len, DAP_GLOBAL_DB_LOCAL_GENERAL);
 
     if(l_node_addr_data && (l_node_addr_len == sizeof(uint64_t)) )
         l_node_addr_ret = *( (uint64_t *) l_node_addr_data );
@@ -449,7 +449,7 @@ time_t l_node_time = 0;
  */
 bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group)
 {
-char	l_key[DAP_DB$SZ_MAXKEY];
+char	l_key[DAP_GLOBAL_DB_KEY_MAX];
 
     dap_snprintf(l_key, sizeof(l_key) - 1, "%ju%s", a_node_addr, a_group);
     return  dap_chain_global_db_gr_set(l_key, &a_id, sizeof(uint64_t), GROUP_LOCAL_NODE_LAST_ID);
@@ -489,7 +489,7 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
  */
 bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash)
 {
-char	l_key[DAP_DB$SZ_MAXKEY];
+char	l_key[DAP_GLOBAL_DB_KEY_MAX];
 
     dap_snprintf(l_key, sizeof(l_key) - 1, "%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
     return dap_chain_global_db_gr_set(l_key, a_hash, sizeof(dap_chain_hash_fast_t), GROUP_LOCAL_NODE_LAST_ID);
