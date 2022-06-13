@@ -214,6 +214,7 @@ static void *s_context_thread(void *a_arg)
 {
     dap_context_msg_run_t * l_msg = (dap_context_msg_run_t*) a_arg;
     dap_context_t * l_context = l_msg->context;
+    assert(l_context);
 
     l_context->cpu_id = l_msg->cpu_id;
     if(l_msg->cpu_id!=-1)
@@ -258,8 +259,8 @@ static void *s_context_thread(void *a_arg)
     // Initialization success
     if(l_msg->flags & DAP_CONTEXT_FLAG_WAIT_FOR_STARTED ){
         pthread_mutex_lock(&l_context->started_mutex); // If we're too fast and calling thread haven't switched on cond_wait line
-        pthread_mutex_unlock(&l_context->started_mutex);
         pthread_cond_broadcast(&l_context->started_cond);
+        pthread_mutex_unlock(&l_context->started_mutex);
     }
 
     s_thread_loop(l_context);

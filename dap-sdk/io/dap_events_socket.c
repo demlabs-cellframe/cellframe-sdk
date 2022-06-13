@@ -884,7 +884,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     if (l_errno == EINVAL || l_errno == EINTR || l_errno == ETIMEDOUT)
         l_errno = EAGAIN;
     if (l_ret == 0)
-        l_ret = 0;
+        l_ret = sizeof(a_arg);
     else if (l_ret > 0)
         l_ret = -l_ret;
 
