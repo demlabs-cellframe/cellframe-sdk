@@ -183,6 +183,7 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         } break;
         default: {}
     }
+    int l_ret = dap_context_add(l_context, l_es_new);
 
     l_es_new->last_time_active = time(NULL);
     // We need to differ new and reassigned esockets. If its new - is_initialized is false
@@ -192,7 +193,6 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         l_es_new->is_initalized = true;
     }
 
-    int l_ret = dap_context_add(l_context, l_es_new);
     if (  l_ret != 0 ){
         log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
     }else{

@@ -253,7 +253,7 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
     a_esocket->ev.data.ptr = a_esocket;
     return epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
 #elif defined (DAP_EVENTS_CAPS_POLL)
-    int l_ret = dap_context_add_esocket(a_thread->context, a_esocket);
+    int l_ret = dap_context_add(a_thread->context, a_esocket);
     if (l_ret)
         log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)

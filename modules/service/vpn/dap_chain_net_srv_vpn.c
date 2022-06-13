@@ -246,7 +246,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
 
     if(l_ch_vpn_info->is_on_this_worker){
         dap_events_socket_t * l_es = NULL;
-        if( (l_es= dap_context_esocket_find_by_uuid(l_ch_vpn_info->worker->context, l_ch_vpn_info->esocket_uuid)) != NULL ){
+        if( (l_es= dap_context_find(l_ch_vpn_info->worker->context, l_ch_vpn_info->esocket_uuid)) != NULL ){
             if(l_es != l_ch_vpn_info->esocket){
                 log_it(L_WARNING, "Was wrong esocket %p on worker #%u, lost %zd data",l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id,a_data_size );
                 DAP_DELETE(l_pkt_out);
@@ -386,7 +386,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 log_it(L_DEBUG, "Tun:%u message: send %u bytes for ch vpn protocol",a_esocket_queue->context->worker->id,
                        l_msg->ch_vpn_send.pkt->header.op_data.data_size );
             }
-            if (dap_context_esocket_find_by_uuid(a_esocket_queue->context, l_msg->esocket_uuid) == l_msg->esocket)
+            if (dap_context_find(a_esocket_queue->context, l_msg->esocket_uuid) == l_msg->esocket)
                 s_tun_client_send_data_unsafe(l_msg->ch_vpn, l_msg->ch_vpn_send.pkt);
             DAP_DELETE(l_msg->ch_vpn_send.pkt);
         }break;
@@ -1472,7 +1472,7 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
         uint32_t l_worker_id = l_tun_socket->worker_id = l_worker->id;
         l_tun_socket->es = a_es;
 
-        s_tun_sockets_queue_msg[l_worker_id] = dap_context_create_esocket_queue(l_worker->context, s_tun_recv_msg_callback );
+        s_tun_sockets_queue_msg[l_worker_id] = dap_context_create_queue(l_worker->context, s_tun_recv_msg_callback );
         s_tun_sockets[l_worker_id] = l_tun_socket;
 
         l_tun_socket->queue_tun_msg_input = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof(dap_events_socket_t*)*
