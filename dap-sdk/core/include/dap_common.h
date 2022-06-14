@@ -452,8 +452,16 @@ char *dap_log_get_item(time_t a_start_time, int a_limit);
 
 
 DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
+void    _log_it_ext( const char *, unsigned, enum dap_log_level, const char * format, ... );
+void    _dump_it (const char *, unsigned , const char *a_var_name, const void *src, unsigned short srclen);
+#ifndef     SYS_DEBUG
 #define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
+#else
+#define log_it( _log_level, ...) _log_it_ext( __func__, __LINE__, (_log_level), ##__VA_ARGS__)
+#endif
 #define debug_if( flg, lvl, ...) _log_it( ((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
+#define dump_it(v,s,l) _dump_it( __func__, __LINE__, (v), (s), (l))
+
 
 
 const char * log_error(void);
@@ -499,6 +507,28 @@ int dap_is_alpha_and_(char e);
 int dap_is_alpha(char e);
 int dap_is_digit(char e);
 char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit);
+
+
+
+#define CRC32_POLY      (0xEDB88320)
+extern const unsigned int g_crc32c_table[];
+
+static inline unsigned int	dap_crc32c (unsigned int crc, const void *buf, size_t buflen)
+{
+const unsigned char  *p = (unsigned char *) buf;
+
+	crc = crc ^ ~0U;
+
+	while (buflen--)
+		crc = g_crc32c_table[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
+
+	return crc ^ ~0U;
+}
+
+
+
+
+
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);
