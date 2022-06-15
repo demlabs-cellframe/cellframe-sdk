@@ -301,7 +301,7 @@ char        *l_cp;
 
                                                                             /* We set "unlim" for all MDBX characteristics at the moment */
 
-
+    log_it(L_NOTICE, "Upper limit = %lu", DAP_DB$SZ_MAXDB);
     if ( MDBX_SUCCESS != (l_rc = mdbx_env_set_geometry(s_mdbx_env, -1, -1, DAP_DB$SZ_MAXDB, -1, -1, -1)) )
         return  log_it (L_CRITICAL, "mdbx_env_set_geometry (%s): (%d) %s", s_db_path, l_rc, mdbx_strerror(l_rc)),  -EINVAL;
 
