@@ -32,7 +32,6 @@
 #include <string.h>
 #include <stdbool.h>
 #include <errno.h>
-#include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <magic.h>
@@ -2274,41 +2273,55 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
  * @param a_str_tmp
  * @param a_hash_out_type
  */
-void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, dap_string_t * a_str_tmp, const char *a_hash_out_type){
+void s_com_mempool_list_print_for_chain (
+                    dap_chain_net_t * a_net,
+                    dap_chain_t * a_chain,
+                    dap_string_t * a_str_tmp,
+                    const char *a_hash_out_type
+                )
+{
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
-    if(!l_gdb_group_mempool){
-        dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
-    }else{
-        size_t l_objs_size = 0;
-        dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
-        if(l_objs_size > 0)
-            dap_string_append_printf(a_str_tmp, "%s.%s: Found %zu records :\n", a_net->pub.name, a_chain->name,
-                    l_objs_size);
-        else
-            dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
-        for(size_t i = 0; i < l_objs_size; i++) {
-            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
-            if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
-                log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s data_size:%u, value_len:%zu",
-                        a_net->pub.name, a_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
-                continue;
-            }
-            char buf[50] = {[0]='\0'};
-            dap_hash_fast_t l_data_hash;
-            char l_data_hash_str[70] = {[0]='\0'};
-            dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
-            dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
-            const char *l_type = NULL;
-            DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
-            dap_string_append_printf(a_str_tmp, "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
-                    l_objs[i].key, l_type,
-                    l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
-            dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
+
+    if(!l_gdb_group_mempool)
+        return  dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
+
+
+    size_t l_objs_size = 0;
+    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+
+    if(l_objs_size > 0)
+        dap_string_append_printf(a_str_tmp, "%s.%s: Found %zu records :\n", a_net->pub.name, a_chain->name, l_objs_size);
+    else
+        dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
+
+
+    for(size_t i = 0; i < l_objs_size; i++)
+    {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+        dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
+
+        if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
+            log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s data_size:%u, value_len:%zu",
+                    a_net->pub.name, a_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
+            continue;
         }
-        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+
+        char buf[50] = {[0]='\0'};
+        dap_hash_fast_t l_data_hash;
+        char l_data_hash_str[70] = {[0]='\0'};
+        dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
+        dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
+        const char *l_type = NULL;
+        DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
+        dap_string_append_printf(a_str_tmp, "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
+                l_objs[i].key, l_type,
+                l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
+
+        dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
     }
+
+    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
 
     DAP_DELETE(l_gdb_group_mempool);
 }
@@ -2324,39 +2337,38 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
 int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
 {
     int arg_index = 1;
-    dap_chain_t * l_chain = NULL;
-    dap_chain_net_t * l_net = NULL;
+    dap_chain_t *l_chain = NULL;
+    dap_chain_net_t *l_net = NULL;
+    dap_string_t *l_str_tmp;
 
     const char * l_hash_out_type = "hex";
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
     if(!l_net)
         return -1;
-    else {
-        if(*a_str_reply) {
-            DAP_DELETE(*a_str_reply);
-            *a_str_reply = NULL;
-        }
-    }
 
-    if(l_net) {
-        dap_string_t * l_str_tmp = dap_string_new(NULL);
+    if(*a_str_reply)
+        DAP_DEL_Z(*a_str_reply);
 
-        if(l_chain)
-            s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp, l_hash_out_type);
-        else
-            DL_FOREACH(l_net->pub.chains, l_chain)
-                    s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp, l_hash_out_type);
 
-        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-        dap_string_free(l_str_tmp, false);
-
-        return 0;
-    } else {
-        dap_chain_node_cli_set_reply_text(a_str_reply,
-                "Error! Need both -net <network name> and -chain <chain name> params\n");
+    if( !l_net)
+    {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
         return -2;
     }
+
+    l_str_tmp = dap_string_new(NULL);
+
+    if(l_chain)
+        s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp, l_hash_out_type);
+    else
+        DL_FOREACH(l_net->pub.chains, l_chain)
+                s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp, l_hash_out_type);
+
+    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+    dap_string_free(l_str_tmp, false);
+
+    return 0;
 }
 
 /**
@@ -2878,21 +2890,21 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 }
 
 /**
- * @brief 
- * 
- * @param a_tx_address 
- * @param l_tsd_list 
- * @param l_tsd_total_size 
- * @param flag 
- * @return dap_list_t* 
+ * @brief
+ *
+ * @param a_tx_address
+ * @param l_tsd_list
+ * @param l_tsd_total_size
+ * @param flag
+ * @return dap_list_t*
  */
 dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd_list, size_t *l_tsd_total_size, uint32_t flag)
-{     
+{
     if (!a_tx_address){
        log_it(L_DEBUG,"a_tx_address is null");
        return l_tsd_list;
-    }   
-    
+    }
+
     char ** l_str_wallet_addr = NULL;
     l_str_wallet_addr = dap_strsplit(a_tx_address,",",0xffff);
 
@@ -2919,13 +2931,13 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
 
 typedef struct _dap_cli_token_additional_params {
     const char* flags;
-    const char* total_signs_valid; 
+    const char* total_signs_valid;
     const char* datum_type_allowed;
     const char* datum_type_blocked;
     const char* tx_receiver_allowed;
     const char* tx_receiver_blocked;
     const char* tx_sender_allowed;
-    const char* tx_sender_blocked; 
+    const char* tx_sender_blocked;
 } dap_cli_token_additional_params;
 
 typedef struct _dap_sdk_cli_params {
@@ -3005,7 +3017,7 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-signs_total", &l_signs_total_str);
     // Signs total
     char* l_tmp = NULL;
-    if(l_signs_total_str){  
+    if(l_signs_total_str){
         if((l_params->l_signs_total = (uint16_t) strtol(l_signs_total_str, &l_tmp, 10)) == 0){
             dap_chain_node_cli_set_reply_text(a_str_reply,
                     "'signs_total' parameter must be unsigned integer value that fits in 2 bytes");
@@ -3036,7 +3048,7 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
 
     // Total supply value
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-decimals", &l_params->l_decimals_str);
-    
+
     return 0;
 }
 
@@ -3075,7 +3087,7 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
             return -3;
         }
     }
-  
+
     if (!l_params->l_signs_emission){
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_emission'");
         return -5;
@@ -3201,7 +3213,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     switch(l_params->l_type)
     {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: 
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
         { // 256
             dap_list_t *l_tsd_list = NULL;
             size_t l_tsd_total_size = 0;
@@ -3242,7 +3254,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             }
             if (l_params->ext.tx_receiver_allowed)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD);
-            
+
             if (l_params->ext.tx_receiver_blocked)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD);
 
@@ -3250,7 +3262,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD);
 
             if (l_params->ext.tx_sender_blocked)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);             
+                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);
 
 
             // Create new datum token
@@ -3307,7 +3319,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             }
             log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ?
                             "Private" : "CF20", l_datum_token->ticker);
-        }break;//end 
+        }break;//end
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
