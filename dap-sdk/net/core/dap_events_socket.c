@@ -28,7 +28,6 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
-#include <stdatomic.h>
 
 #if defined (DAP_OS_LINUX)
 #include <sys/epoll.h>
