@@ -504,7 +504,7 @@ void	_dump_it	(
 {
 #define HEXDUMP$SZ_WIDTH    80
 const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  [%s:%u]  HEX Dump of <%.*s>, %u octets:\n"};
-char	out[512] = {0};
+char	out[8192] = {0};
 unsigned char *srcp = (unsigned char *) src, low, high;
 unsigned olen = 0, i, j, len;
 struct tm _tm;
