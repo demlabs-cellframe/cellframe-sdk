@@ -47,7 +47,7 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_new(a_blocks, (dap_chain_block_t*)l_objs[n].value, l_objs[n].value_len);
         dap_chain_block_chunks_add(l_ret, l_block_cache );
     }
-    dap_chain_global_db_objs_delete(l_objs,l_objs_count);
+    dap_global_db_objs_delete(l_objs,l_objs_count);
     return l_ret;
 }
 

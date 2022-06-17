@@ -81,7 +81,7 @@ int dap_chain_net_srv_xchange_init()
         dap_chain_net_srv_xchange_price_t *l_price = s_xchange_db_load(l_prices[i].key, l_prices[i].value);
         HASH_ADD_KEYPTR(hh, s_srv_xchange->pricelist, l_price->key_ptr, strlen(l_price->key_ptr), l_price);
     }
-    dap_chain_global_db_objs_delete(l_prices, l_prices_count);
+    dap_global_db_objs_delete(l_prices, l_prices_count);
     return 1;
 }
 
@@ -871,7 +871,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                          dap_chain_balance_print(l_price->datoshi_sell), dap_chain_balance_print(l_price->rate));
                 DAP_DELETE(l_price);
             }
-            dap_chain_global_db_objs_delete(l_orders, l_orders_count);
+            dap_global_db_objs_delete(l_orders, l_orders_count);
             DAP_DELETE( l_gdb_group_str);
             if (!l_reply_str->len) {
                 dap_string_append(l_reply_str, "No orders found");

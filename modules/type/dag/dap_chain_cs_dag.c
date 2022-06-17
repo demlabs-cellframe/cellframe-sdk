@@ -626,7 +626,7 @@ void dap_chain_cs_new_event_add_datums(dap_chain_t *a_chain, bool a_round_check)
         size_t l_round_objs_size = 0;
         dap_global_db_obj_t *l_round_objs = dap_chain_global_db_gr_load(l_gdb_group_round, &l_round_objs_size);
         if (l_round_objs_size) {
-            dap_chain_global_db_objs_delete(l_round_objs, l_round_objs_size);
+            dap_global_db_objs_delete(l_round_objs, l_round_objs_size);
             return;
         }
     }
@@ -671,7 +671,7 @@ void dap_chain_cs_new_event_add_datums(dap_chain_t *a_chain, bool a_round_check)
             }
             break;
         }
-        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+        dap_global_db_objs_delete(l_objs, l_objs_size);
     }
 }
 
@@ -1549,7 +1549,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             }
 
             // Cleaning up
-            dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+            dap_global_db_objs_delete(l_objs, l_objs_size);
             dap_chain_node_cli_set_reply_text(a_str_reply,l_str_ret_tmp->str);
             dap_string_free(l_str_ret_tmp,false);
 
@@ -1898,7 +1898,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
                         }
                         if (l_objs && l_objs_count )
-                            dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+                            dap_global_db_objs_delete(l_objs, l_objs_count);
                         ret = 0;
                     } else {
                         dap_string_append_printf(l_str_tmp,"%s.%s: Error! No GlobalDB group!\n",l_net->pub.name,l_chain->name);

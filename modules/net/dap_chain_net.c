@@ -2163,7 +2163,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_string_append(l_reply, l_objs[i].key);
                     dap_string_append(l_reply, "\n");
                 }
-                dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+                dap_global_db_objs_delete(l_objs, l_objs_count);
                 *a_str_reply = l_reply->len ? l_reply->str : dap_strdup("No entries found");
                 dap_string_free(l_reply, false);
                 return 0;
@@ -3091,7 +3091,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
         l_address->uint64 = l_node_info->hdr.address.uint64;
         l_node_list = dap_list_append(l_node_list, l_address);
     }
-    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+    dap_global_db_objs_delete(l_objs, l_nodes_count);
     return l_node_list;
 }
 
@@ -3172,7 +3172,7 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
             if(l_objs_processed < l_datums_size)
                 log_it(L_WARNING, "%s.%s: %zu records not processed", a_net->pub.name, l_chain->name,
                         l_datums_size - l_objs_processed);
-            dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+            dap_global_db_objs_delete(l_objs, l_objs_size);
 
             // Cleanup datums array
             if(l_datums){
@@ -3324,7 +3324,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
                         break;
                     }
                 }
-                dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+                dap_global_db_objs_delete(l_objs, l_objs_count);
             }
         }
         if (!l_authorized) {

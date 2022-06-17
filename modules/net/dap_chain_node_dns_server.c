@@ -322,7 +322,7 @@ dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
         return NULL;
     dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
-    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+    dap_global_db_objs_delete(l_objs, l_nodes_count);
     log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(l_node_info->hdr.ext_addr_v4));
     return l_node_info;
 }

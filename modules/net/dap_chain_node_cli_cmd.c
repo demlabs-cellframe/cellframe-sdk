@@ -164,7 +164,7 @@ static dap_list_t* get_aliases_by_name(dap_chain_net_t * l_net, dap_chain_node_a
             list_aliases = dap_list_prepend(list_aliases, strdup(obj->key));
         }
     }
-    dap_chain_global_db_objs_delete(objs, data_size);
+    dap_global_db_objs_delete(objs, data_size);
     return list_aliases;
 }
 
@@ -626,7 +626,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             dap_string_append_printf(l_string_reply, "No records\n");
             dap_chain_node_cli_set_reply_text(a_str_reply, l_string_reply->str);
             dap_string_free(l_string_reply, true);
-            dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+            dap_global_db_objs_delete(l_objs, l_nodes_count);
             return -1;
         } else {
             dap_string_append_printf(l_string_reply, "Got %zu records:\n", l_nodes_count);
@@ -702,9 +702,9 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 dap_string_free(aliases_string, true);
                 dap_string_free(links_string, true);
             }
-            dap_chain_global_db_objs_delete(l_aliases_objs, l_data_size);
+            dap_global_db_objs_delete(l_aliases_objs, l_data_size);
         }
-        dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+        dap_global_db_objs_delete(l_objs, l_nodes_count);
     }
     dap_chain_node_cli_set_reply_text(a_str_reply, l_string_reply->str);
     dap_string_free(l_string_reply, true);
@@ -2308,7 +2308,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
             dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
         }
-        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+        dap_global_db_objs_delete(l_objs, l_objs_size);
     }
 
     DAP_DELETE(l_gdb_group_mempool);

@@ -423,7 +423,7 @@ static bool s_poa_round_check(dap_chain_t *a_chain) {
                 l_events_count++;
             }
         }
-        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+        dap_global_db_objs_delete(l_objs, l_objs_size);
     }
 
     if (!l_events_count) {

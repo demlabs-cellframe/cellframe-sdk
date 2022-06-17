@@ -1354,7 +1354,7 @@ void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
                                                                     l_datum, l_datum_size);
         }
     }
-    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+    dap_global_db_objs_delete(l_objs, l_objs_size);
     pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
 }
 

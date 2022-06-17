@@ -1210,7 +1210,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         }
         memcpy(&l_token_item->current_supply, l_objs[i].value, sizeof(uint256_t));
     }
-    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
 
     l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_EMISSIONS_STR);
@@ -1236,7 +1236,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         HASH_ADD(hh, l_token_item->token_emissions, datum_token_emission_hash,
                  sizeof(dap_chain_hash_fast_t), l_emission_item);
     }
-    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
 
     l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
@@ -1250,7 +1250,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         memcpy(&l_tx_item->cache_data, l_objs[i].value, sizeof(l_tx_item->cache_data));
         HASH_ADD(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item);
     }
-    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
 
     l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_SPENT_TXS_STR);
@@ -1263,7 +1263,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
                 min(l_objs[i].value_len, DAP_CHAIN_TICKER_SIZE_MAX - 1));
         HASH_ADD(hh, l_ledger_pvt->spent_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_spent_item);
     }
-    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
 
     l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_BALANCES_STR);
@@ -1285,7 +1285,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);*/ // TODO: unstable and spammy
     }
-    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+    dap_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
 }
 

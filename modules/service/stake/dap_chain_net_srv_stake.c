@@ -1154,7 +1154,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 DAP_DELETE(l_addr);
                 DAP_DELETE(l_stake);
             }
-            dap_chain_global_db_objs_delete(l_orders, l_orders_count);
+            dap_global_db_objs_delete(l_orders, l_orders_count);
             DAP_DELETE( l_gdb_group_str);
             if (!l_reply_str->len) {
                 dap_string_append(l_reply_str, "No orders found");

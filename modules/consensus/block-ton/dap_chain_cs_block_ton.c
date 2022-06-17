@@ -396,7 +396,7 @@ static void s_session_round_start(dap_chain_cs_block_ton_items_t *a_session) {
         	s_session_candidate_to_chain(a_session, &l_store_candidate_ready->hdr.candidate_hash, 
         					(dap_chain_block_t*)l_store_candidate_ready->candidate_n_signs, l_store_candidate_ready->hdr.candidate_size);
         }
-        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+        dap_global_db_objs_delete(l_objs, l_objs_size);
     }
 }
 
@@ -602,7 +602,7 @@ static bool s_session_timer() {
 		                       		l_list_candidate = dap_list_append(l_list_candidate, l_hash);
 		                       	}
 		                    }
-		                    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+		                    dap_global_db_objs_delete(l_objs, l_objs_size);
 		                }
 		                size_t l_list_candidate_size = (size_t)dap_list_length(l_list_candidate);
 						dap_chain_cs_block_ton_message_votefor_t *l_votefor =
@@ -908,7 +908,7 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
         // 	s_session_candidate_to_chain(a_session, &l_store_candidate_ready->hdr.candidate_hash, 
         // 					(dap_chain_block_t*)l_store_candidate_ready->candidate_n_signs, l_store_candidate_ready->hdr.candidate_size);
         // }
-        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+        dap_global_db_objs_delete(l_objs, l_objs_size);
     }
 
     dap_chain_cs_block_ton_message_item_t *l_message_item=NULL, *l_message_tmp=NULL;
@@ -1696,7 +1696,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 					}
 					DAP_DELETE(l_vote);
                 }
-                dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+                dap_global_db_objs_delete(l_objs, l_objs_size);
             }
             pthread_rwlock_unlock(&l_session->rwlock);
 		} break;

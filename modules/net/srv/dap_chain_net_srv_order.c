@@ -486,7 +486,7 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
     }
     *a_output_orders_count = l_output_orders_count;
     DAP_DEL_Z(l_order);
-    dap_chain_global_db_objs_delete(l_orders, l_orders_count);
+    dap_global_db_objs_delete(l_orders, l_orders_count);
     DAP_DELETE(l_gdb_group_str);
     return 0;
 }

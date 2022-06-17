@@ -317,7 +317,7 @@ bool dap_chain_node_mempool_autoproc_init()
                         dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
                     }
                 }
-                dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+                dap_global_db_objs_delete(l_objs, l_objs_size);
             }
             DAP_DELETE(l_gdb_group_mempool);
             dap_chain_add_mempool_notify_callback(l_chain, s_chain_node_mempool_autoproc_notify, l_chain);

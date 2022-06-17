@@ -44,7 +44,7 @@ void s_dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj);
 /**
  * Delete mass of struct dap_global_db_obj_t
  */
-void dap_chain_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count);
+void dap_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count);
 
 int dap_chain_global_db_init(dap_config_t * a_config);
 

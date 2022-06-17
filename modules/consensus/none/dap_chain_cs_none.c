@@ -285,7 +285,7 @@ int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain)
     for(size_t i = 0; i < l_data_size; i++) {
         s_chain_callback_atom_add(a_chain, data[i].value, data[i].value_len);
     }
-    dap_chain_global_db_objs_delete(data, l_data_size);
+    dap_global_db_objs_delete(data, l_data_size);
     PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = false;
     return 0;
 }

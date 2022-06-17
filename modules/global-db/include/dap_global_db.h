@@ -81,3 +81,6 @@ int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_val
 int dap_global_db_pin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_unpin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_delete(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
+int dap_global_db_flush( dap_global_db_callback_result_t a_callback, void * a_arg );
+
+void dap_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count);

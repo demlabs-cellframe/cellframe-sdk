@@ -136,7 +136,7 @@ static bool s_msg_opcode_set_multiple(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_pin(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_unpin(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_delete(struct queue_io_msg * a_msg);
-
+static bool s_msg_opcode_flush(struct queue_io_msg * a_msg);
 // Free memor for queue i/o message
 static void s_queue_io_msg_delete( struct queue_io_msg * a_msg);
 
@@ -593,7 +593,7 @@ static bool s_msg_opcode_set_multiple(struct queue_io_msg * a_msg)
             int l_ret = dap_chain_global_db_driver_add(&l_store_obj,1);
 
             if(a_msg->callback_result){
-                a_msg->callback_result( l_ret ? DAP_GLOBAL_DB_RC_SUCCESS:
+                a_msg->callback_result( l_ret==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
                                                 DAP_GLOBAL_DB_RC_ERROR, a_msg->group, a_msg->key,
                                        a_msg->value, a_msg->value_length, l_store_obj.timestamp ,
                                        a_msg->value_is_pinned , a_msg->callback_arg );
@@ -723,7 +723,7 @@ static bool s_msg_opcode_delete(struct queue_io_msg * a_msg)
     if (a_msg->key) {
         if (l_res >= 0) {
             // add to Del group
-            s_record_del_history_add(a_msg->group, a_msg->key, dap_nanotime_now() );
+            l_res = s_record_del_history_add(a_msg->group, a_msg->key, dap_nanotime_now() );
         }
         // do not add to history if l_res=1 (already deleted)
         if (!l_res) {
@@ -732,7 +732,74 @@ static bool s_msg_opcode_delete(struct queue_io_msg * a_msg)
         }
     }
 
+    if(a_msg->callback_result){
+        a_msg->callback_result( l_res==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
+                                        DAP_GLOBAL_DB_RC_ERROR,
+                                a_msg->group, a_msg->key,
+                               NULL, 0, 0 , false, a_msg->callback_arg );
+    }
 
+    return true;
+}
+
+/**
+ * @brief Deallocates memory of an objs array.
+ * @param objs a pointer to the first object of the array
+ * @param a_count a number of objects in the array
+ * @return (none)
+ */
+void dap_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count)
+{
+dap_global_db_obj_t *l_obj;
+
+    if ( !a_objs || !a_count )                                              /* Sanity checks */
+        return;
+
+    for(l_obj = a_objs; a_count--; l_obj++)                                 /* Run over array's elements */
+    {
+        DAP_DELETE(l_obj->key);
+        DAP_DELETE(l_obj->value);
+    }
+
+    DAP_DELETE(a_objs);                                                     /* Finaly kill the the array */
+}
+
+/**
+ * @brief dap_global_db_flush
+ * @param a_callback
+ * @param a_arg
+ * @return
+ */
+int dap_global_db_flush( dap_global_db_callback_result_t a_callback, void * a_arg )
+{
+    if(s_context_global_db == NULL){
+        log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_delete");
+        return -666;
+    }
+    struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
+    l_msg->opcode = MSG_OPCODE_DELETE;
+    l_msg->callback_arg = a_arg;
+    l_msg->callback_result = a_callback;
+
+    int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
+    if (l_ret != 0)
+        s_queue_io_msg_delete(l_msg);
+    return l_ret;
+}
+
+/**
+ * @brief s_msg_opcode_flush
+ * @param a_msg
+ * @return
+ */
+static bool s_msg_opcode_flush(struct queue_io_msg * a_msg)
+{
+    int l_res = dap_db_driver_flush();
+    if(a_msg->callback_result){
+        a_msg->callback_result( l_res==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
+                                        DAP_GLOBAL_DB_RC_ERROR,
+                                NULL,NULL,NULL, 0, 0 , false, a_msg->callback_arg );
+    }
     return true;
 }
 
@@ -756,12 +823,10 @@ static void s_queue_io_callback( dap_events_socket_t * a_es, void * a_arg)
         case MSG_OPCODE_GET_ALL: l_msg_delete = s_msg_opcode_get_all(l_msg); break;
         case MSG_OPCODE_SET: l_msg_delete = s_msg_opcode_set(l_msg); break;
         case MSG_OPCODE_SET_MULTIPLE: l_msg_delete = s_msg_opcode_set_multiple(l_msg); break;
-        case MSG_OPCODE_PIN:{
-        } break;
-        case MSG_OPCODE_UNPIN:{
-        } break;
-        case MSG_OPCODE_DELETE:{
-        } break;
+        case MSG_OPCODE_PIN: l_msg_delete = s_msg_opcode_pin(l_msg); break;
+        case MSG_OPCODE_UNPIN: l_msg_delete = s_msg_opcode_unpin(l_msg); break;
+        case MSG_OPCODE_DELETE: l_msg_delete = s_msg_opcode_delete(l_msg); break;
+        case MSG_OPCODE_FLUSH: l_msg_delete = s_msg_opcode_flush(l_msg); break;
         default:{
             log_it(L_WARNING, "Message with undefined opcode %d received in queue_io",
                    l_msg->opcode);
