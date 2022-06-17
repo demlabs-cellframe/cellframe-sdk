@@ -10,6 +10,7 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_global_db.h"
+#include "dap_global_db_sync.h"
 
 #define GROUP_LOCAL_NODE_LAST_ID    "local.node.last_id"
 #define GROUP_LOCAL_NODE_ADDR       "local.node-addr"
@@ -26,45 +27,6 @@ enum    {
     DAP_DB$K_OPTYPE_RETR = 0x72,    /* 'r', */                              /*  -- // -- RETRIEVE/GET */
 };
 
-
-/* Follow structure is a container to carry an arguments set to DB API and back to the caller */
-typedef struct dap_grobal_db_req {
-        int     req;                                                        /* A request type to DB driver, see:
-                                                                                DAP_DB$K_OPTYPE_ * constants */
-        int     status;                                                     /* A condition code - result of execution of requested
-                                                                            operation : errno, -1, and so on ... */
-        void  (*cb_rtn) (void *, ...);                                      /* A routine to be called at request comlition time */
-        void *cb_arg;                                                       /* A context is provide by caller of request */
-
-        dap_events_socket_t *es;                                            /* A context to in wish callback routine should be called */
-
-        const char  *group,
-                    *key;
-            void    *value;
-            size_t   value_len;
-
-} dap_grobal_db_req_t;
-
-
-
-typedef struct dap_global_db_obj {
-    uint64_t id;
-    char *key;
-    uint8_t *value;
-    size_t value_len;
-} DAP_ALIGN_PACKED dap_global_db_obj_t;
-
-
-typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
-                                                     const char * a_key, const void * a_value, const size_t a_value_len);
-
-// Callback table item
-typedef struct dap_sync_group_item {
-    char *group_mask;
-    char *net_name;
-    dap_global_db_obj_callback_notify_t callback_notify;
-    void * callback_arg;
-} dap_sync_group_item_t;
 
 
 
@@ -87,15 +49,6 @@ void dap_chain_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count
 int dap_chain_global_db_init(dap_config_t * a_config);
 
 void dap_chain_global_db_deinit(void);
-/**
- * Setup callbacks and filters
- */
-// Add group name that will be synchronized
-void dap_chain_global_db_add_sync_group(const char *a_net_name, const char *a_group_prefix, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
-void dap_chain_global_db_add_sync_extra_group(const char *a_net_name, const char *a_group_mask, dap_global_db_obj_callback_notify_t a_callback, void *a_arg);
-dap_list_t *dap_chain_db_get_sync_groups(const char *a_net_name);
-dap_list_t *dap_chain_db_get_sync_extra_groups(const char *a_net_name);
-void dap_global_db_change_notify(dap_store_obj_t *a_store_data);
 
 /**
  * Get entry from base
@@ -145,10 +98,3 @@ dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out);
 bool dap_chain_global_db_obj_save(dap_store_obj_t *a_store_data, size_t a_objs_count);
 bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group);
 bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count);
-/**
- * Calc hash for data
- *
- * return hash or NULL
- */
-char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size);
-char* dap_chain_global_db_hash_fast(const uint8_t *data, size_t data_size);

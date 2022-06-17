@@ -314,7 +314,8 @@ int dap_events_wait( )
 {
     for( uint32_t i = 0; i < s_threads_count; i++ ) {
         void *ret;
-        pthread_join( s_workers[i]->context->thread_id  , &ret );
+        pthread_t l_thread_id = s_workers[i]->context->thread_id;
+        pthread_join(l_thread_id , &ret );
     }
     return 0;
 }
@@ -329,7 +330,7 @@ void dap_events_stop_all( )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
     for( uint32_t i = 0; i < s_threads_count; i++ ) {
-        dap_events_socket_event_signal( s_workers[i]->event_exit, 1);
+        dap_events_socket_event_signal( s_workers[i]->context->event_exit, 1);
     }
     // TODO implement signal to stop the workers
 }

@@ -60,7 +60,7 @@ long dap_gdb_time_to_sec(dap_nanotime_t a_time)
  * @brief dap_chain_time_now Get current time in seconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in seconds.
  */
-dap_nanotime_t dap_time_now(void)
+dap_time_t dap_time_now(void)
 {
     time_t l_time = time(NULL);
     return l_time;
@@ -70,7 +70,7 @@ dap_nanotime_t dap_time_now(void)
  * @brief dap_chain_time_now Get current time in nanoseconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in nanoseconds.
  */
-dap_nanotime_t dap_gdb_time_now(void)
+dap_nanotime_t dap_nanotime_now(void)
 {
     dap_nanotime_t l_time_nsec;
     struct timespec cur_time;

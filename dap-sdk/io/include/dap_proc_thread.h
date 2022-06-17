@@ -43,8 +43,6 @@ typedef struct dap_proc_thread{
 
     dap_context_t * context;
 
-    dap_events_socket_t * event_exit;
-
     void * _inheritor;
 } dap_proc_thread_t;
 

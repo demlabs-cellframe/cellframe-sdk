@@ -51,8 +51,6 @@ typedef struct dap_worker
     dap_events_socket_t *queue_es_io; // Queue socket for io ops
     dap_events_socket_t **queue_es_io_input; // Queue socket for io ops between workers
 
-    dap_events_socket_t *event_exit;                                        /* Events socket for exit */
-
     dap_events_socket_t *queue_callback;                                    /* Queue for pure callback on worker */
 
     dap_events_socket_t *queue_gdb_input;                                   /* Inputs for request to GDB, @RRL: #6238 */

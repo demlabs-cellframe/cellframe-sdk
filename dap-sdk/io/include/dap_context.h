@@ -93,6 +93,8 @@ typedef struct dap_context {
     atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets
 
+    dap_events_socket_t * event_exit;
+
     dap_events_socket_t **queue_es; // Queues
     dap_events_socket_t ***queue_es_input; // Input for others queues
     size_t queues_es_count;
@@ -102,6 +104,9 @@ typedef struct dap_context {
     // Flags
     bool is_running; // Is running
     uint32_t running_flags; // Flags passed for _run function
+
+    // Inheritor
+    void * _inheritor;
 } dap_context_t;
 
 
@@ -112,7 +117,7 @@ typedef struct dap_context {
 #define DAP_CONTEXT_FLAG_EXIT_IF_ERROR     0x00000100
 
 // Usual policies
-#define DAP_CONTEXT_POLICY_DEFAUT          0
+#define DAP_CONTEXT_POLICY_DEFAULT          0
 #define DAP_CONTEXT_POLICY_TIMESHARING     1
 // Real-time policies.
 #define DAP_CONTEXT_POLICY_FIFO            2
@@ -139,6 +144,9 @@ int dap_context_run(dap_context_t * a_context,int a_cpu_id, int a_sched_policy, 
                     dap_context_callback_t a_callback_started,
                     dap_context_callback_t a_callback_stopped,
                     void * a_callback_arg );
+
+void dap_context_stop_n_kill(dap_context_t * a_context);
+void dap_context_wait(dap_context_t * a_context);
 
 /**
  * @brief dap_context_current Get current context

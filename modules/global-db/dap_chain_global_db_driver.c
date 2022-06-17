@@ -194,8 +194,8 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
         l_store_obj_dst->group = dap_strdup(l_store_obj_src->group);
         l_store_obj_dst->key = dap_strdup(l_store_obj_src->key);
         l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
-        l_store_obj_dst->cb = l_store_obj_src->cb;
-        l_store_obj_dst->cb_arg = l_store_obj_src->cb_arg;
+        l_store_obj_dst->callback_proc_thread = l_store_obj_src->callback_proc_thread;
+        l_store_obj_dst->callback_proc_thread_arg = l_store_obj_src->callback_proc_thread_arg;
     }
 
     return l_store_obj;
@@ -221,31 +221,6 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
     }
     DAP_DEL_Z(a_store_obj);
 }
-
-/**
- * @brief Calculates a hash of data.
- * @param data a pointer to data
- * @param data_size a size of data
- * @return Returns a hash string if successful; otherwise NULL.
- */
-char* dap_chain_global_db_driver_hash(const uint8_t *data, size_t data_size)
-{
-    if(!data || !data_size)
-        return NULL;
-
-    dap_chain_hash_fast_t l_hash;
-    memset(&l_hash, 0, sizeof(dap_chain_hash_fast_t));
-    dap_hash_fast(data, data_size, &l_hash);
-    size_t a_str_max = (sizeof(l_hash.raw) + 1) * 2 + 2; /* heading 0x */
-    char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
-    size_t hash_len = (size_t)dap_chain_hash_fast_to_str(&l_hash, a_str, a_str_max);
-    if(!hash_len) {
-        DAP_DELETE(a_str);
-        return NULL;
-    }
-    return a_str;
-}
-
 
 /**
  * @brief Applies objects to database.
@@ -317,12 +292,12 @@ size_t l_store_obj_cnt;
 
 
     /* Is there a callback  ? */
-    if ( s_db_drvmode_async && l_store_obj_cur->cb )
+    if ( s_db_drvmode_async && l_store_obj_cur->callback_proc_thread )
         {
         /* Enqueue "Exec Complete" callback routine */
         l_dap_worker = dap_events_worker_get_auto ();
 
-        if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, l_store_obj_cur->cb, (void *)l_store_obj_cur->cb_arg)) )
+        if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, l_store_obj_cur->callback_proc_thread, (void *callback_proc_thread_argre_obj_cur->cb_arg)) )
             log_it(L_ERROR, "[%p] Enqueue completion callback for item %s/%s (code %d)", l_store_obj_cur,
                    l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
         }

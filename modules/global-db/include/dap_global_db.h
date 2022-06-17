@@ -25,23 +25,46 @@
 #include <stdbool.h>
 #include "dap_common.h"
 #include "dap_time.h"
-
+#include "dap_proc_queue.h"
 #define DAP_GLOBAL_DB_VERSION                 1
 #define DAP_GLOBAL_DB_LOCAL_GENERAL         "local.general"
 
-typedef struct dap_global_db_record{
-        uint64_t        id;                                                 /* An uniqe-like Id of the record - internaly created and maintained */
-        uint32_t        flags;                                              /* Flag of the record  */
-        uint32_t        length;
-        dap_nanotime_t  ts; /* Timestamp of the record */
-        uint64_t        padding;
-        byte_t          data[];
-} DAP_ALIGN_PACKED dap_global_db_record_t;
+typedef struct dap_store_obj {
+    uint64_t id;
+    dap_nanotime_t timestamp;
+    uint32_t type;                                                          /* Operation type: ADD/DELETE, see DAP_DB$K_OPTYPE_* constants */
+    uint8_t flags;                                                          /* RECORD_FLAGS */
+
+    char *group;
+    uint64_t group_len;
+
+    char *key;
+    uint64_t key_len;
+
+    uint8_t *value;
+    uint64_t value_len;
+
+    dap_proc_queue_callback_t callback_proc_thread;                                           /* (Async mode only!) A call back to be called on request completion */
+    const void *callback_proc_thread_arg;                                                     /* (Async mode only!) An argument of the callback rotine */
+} dap_store_obj_t, *pdap_store_obj_t;
+
+typedef struct dap_global_db_obj {
+    uint64_t id;
+    char *key;
+    uint8_t *value;
+    size_t value_len;
+    bool is_pinned;
+} DAP_ALIGN_PACKED dap_global_db_obj_t;
 
 
-typedef void (*dap_global_db_callback_result_t) (int a_errno, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, void * a_arg);
-typedef void (*dap_global_db_callback_results_t) (int a_errno, const char * a_group, const char * a_key, const size_t a_values_total, const size_t, const size_t a_values_shift, const size_t a_value_count,
-                                                 dap_global_db_record_t ** values, void * a_arg);
+
+typedef void (*dap_global_db_callback_result_t) (int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg);
+typedef void (*dap_global_db_callback_results_t) (int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift, const size_t a_value_count,
+                                                 dap_global_db_obj_t * a_values, void * a_arg);
+// Return codes
+#define DAP_GLOBAL_DB_RC_SUCCESS         0
+#define DAP_GLOBAL_DB_RC_NO_RESULTS     -1
+#define DAP_GLOBAL_DB_RC_ERROR           -666
 
 extern bool g_dap_global_db_debug_more;
 
@@ -49,10 +72,12 @@ int dap_global_db_init(const char * a_path, const char * a_driver);
 void dap_global_db_deinit();
 
 int dap_global_db_get(const char * a_group, const char *a_key,dap_global_db_callback_result_t a_callback, void * a_arg );
+int dap_global_db_get_del_ts(const char * a_group, const char *a_key,dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_get_last(const char * a_group, dap_global_db_callback_result_t a_callback, void * a_arg );
-int dap_global_db_get_all(const char * a_group, dap_global_db_callback_results_t a_callback, void * a_arg );
+int dap_global_db_get_all(const char * a_group, size_t l_results_page_size, dap_global_db_callback_results_t a_callback, void * a_arg );
 
 int dap_global_db_set(const char * a_group, const char *a_key, const void * a_value, const size_t a_value_length, bool a_pin_value, dap_global_db_callback_result_t a_callback, void * a_arg );
+int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_values, size_t a_values_count, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_pin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_unpin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_delete(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );

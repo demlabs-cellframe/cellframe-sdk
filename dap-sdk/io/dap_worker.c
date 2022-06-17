@@ -51,7 +51,6 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg);
-static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
 /**
  * @brief dap_worker_init
@@ -104,7 +103,6 @@ void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg
     }
 
     l_worker->queue_callback    = dap_context_create_queue(a_context, s_queue_callback_callback);
-    l_worker->event_exit        = dap_context_create_event(a_context, s_event_exit_callback);
 
     l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
@@ -261,19 +259,6 @@ static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
     assert(l_msg->callback);
     l_msg->callback(a_es->context->worker, l_msg->arg);
     DAP_DELETE(l_msg);
-}
-
-/**
- * @brief s_event_exit_callback
- * @param a_es
- * @param a_flags
- */
-static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
-{
-    (void) a_flags;
-    a_es->context->signal_exit = true;
-    if(g_debug_reactor)
-        log_it(L_DEBUG, "Worker :%u signaled to exit", a_es->context->worker->id);
 }
 
 /**

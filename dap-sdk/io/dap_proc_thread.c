@@ -109,8 +109,7 @@ void dap_proc_thread_deinit()
     dap_proc_thread_t *l_proc_thread = NULL;
 
     for (uint32_t i = s_threads_count; i--; ){
-        dap_events_socket_event_signal(s_threads[i].event_exit, 1);
-        pthread_join(s_threads[i].context->thread_id, NULL);
+        dap_context_stop_n_kill(s_threads[i].context);
     }
 
 
@@ -318,11 +317,8 @@ static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
 
     l_thread->proc_event = dap_context_create_event( a_context , s_proc_event_callback);
     l_thread->proc_event->proc_thread = l_thread;
-    l_thread->event_exit = dap_context_create_event( a_context, s_event_exit_callback);
-    l_thread->event_exit->proc_thread = l_thread;
 
     l_thread->proc_event->_inheritor = l_thread; // we pass thread through it
-    l_thread->event_exit->_inheritor = l_thread;
 
     size_t l_workers_count= dap_events_thread_get_count();
     assert(l_workers_count);
@@ -466,16 +462,6 @@ void dap_proc_thread_worker_exec_callback_inter(dap_proc_thread_t * a_thread, si
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
-}
-
-
-static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
-{
-    (void) a_flags;
-    dap_proc_thread_t * l_thread = (dap_proc_thread_t *) a_es->_inheritor;
-    l_thread->context->signal_exit = true;
-    if(g_debug_reactor)
-        log_it(L_DEBUG, "Proc_thread :%u signaled to exit", l_thread->context->cpu_id);
 }
 
 

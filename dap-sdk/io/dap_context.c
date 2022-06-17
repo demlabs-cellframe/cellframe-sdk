@@ -91,6 +91,7 @@ pthread_key_t g_dap_context_pth_key; // Thread-specific object with pointer on c
 static void *s_context_thread(void *arg); // Context thread
 static int s_thread_init(dap_context_t * a_context);
 static int s_thread_loop(dap_context_t * a_context);
+static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
 pthread_rwlock_t s_contexts_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 dap_list_t * s_contexts;
@@ -124,6 +125,9 @@ dap_context_t * dap_context_new()
    static atomic_uint_fast64_t s_context_id_max = 0;
    l_context->id = s_context_id_max;
    s_context_id_max++;
+
+   l_context->event_exit = dap_context_create_event( NULL, s_event_exit_callback);
+
    pthread_rwlock_wrlock(&s_contexts_rwlock);
    s_contexts = dap_list_prepend(s_contexts,l_context);
    pthread_rwlock_unlock(&s_contexts_rwlock);
@@ -206,6 +210,19 @@ int dap_context_run(dap_context_t * a_context,int a_cpu_id, int a_sched_policy, 
 }
 
 /**
+ * @brief dap_context_stop_n_kill
+ * @param a_context
+ */
+void dap_context_stop_n_kill(dap_context_t * a_context)
+{
+    pthread_t l_thread_id = a_context->thread_id;
+    dap_events_socket_event_signal(a_context->event_exit, 1);
+    pthread_join(l_thread_id, NULL);
+}
+
+
+
+/**
  * @brief s_context_thread Context working thread
  * @param arg
  * @return
@@ -225,7 +242,7 @@ static void *s_context_thread(void *a_arg)
     if (!SetThreadPriority(GetCurrentThread(), l_msg->priority ))
         log_it(L_ERROR, "Couldn'r set thread priority, err: %lu", GetLastError());
 #else
-    if(l_msg->priority != 0 && l_msg->sched_policy != DAP_CONTEXT_POLICY_DEFAUT ){
+    if(l_msg->priority != 0 && l_msg->sched_policy != DAP_CONTEXT_POLICY_DEFAULT ){
         struct sched_param l_sched_params = {0};
 #if defined (DAP_OS_LINUX)
         int l_sched_policy= SCHED_BATCH;
@@ -253,6 +270,9 @@ static void *s_context_thread(void *a_arg)
     // Now we're running and initalized for sure, so we can assign flags to the current context
     l_context->running_flags = l_msg->flags;
 
+    // Add pre-defined queues and events
+    dap_context_add(l_context, l_context->event_exit);
+
     // Started callback execution
     l_msg->callback_started(l_context, l_msg->callback_arg);
 
@@ -269,6 +289,8 @@ static void *s_context_thread(void *a_arg)
     l_msg->callback_stopped(l_context, l_msg->callback_arg);
 
     log_it(L_NOTICE,"Exiting context #%u", l_context->id);
+    dap_context_remove(l_context->event_exit);
+    dap_events_socket_delete_unsafe(l_context->event_exit, false);
 
     // Removes from the list
     pthread_rwlock_wrlock(&s_contexts_rwlock);
@@ -1061,6 +1083,19 @@ static int s_thread_loop(dap_context_t * a_context)
 
     log_it(L_ATT,"Context :%u finished", a_context->id);
     return 0;
+}
+
+/**
+ * @brief s_event_exit_callback
+ * @param a_es
+ * @param a_flags
+ */
+static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
+{
+    (void) a_flags;
+    a_es->context->signal_exit = true;
+    if(g_debug_reactor)
+        log_it(L_DEBUG, "Context #%u signaled to exit", a_es->context->id);
 }
 
 

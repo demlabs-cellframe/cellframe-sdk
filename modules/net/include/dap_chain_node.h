@@ -157,7 +157,7 @@ dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t * l_net, dap_cha
 
 inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *address)
 {
-    char *a_key = dap_chain_global_db_hash((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
+    char *a_key = dap_hash_fast_str_new((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
     return a_key;
 }
 

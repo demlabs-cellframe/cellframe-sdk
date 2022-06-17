@@ -439,7 +439,7 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
 {
     UNUSED(a_thread);
     dap_store_obj_t *l_obj, *l_arg = (dap_store_obj_t *)a_arg;
-    dap_chain_net_t *l_net = (dap_chain_net_t *)l_arg->cb_arg;
+    dap_chain_net_t *l_net = (dap_chain_net_t *)l_arg->callback_proc_thread_arg;
     if (l_arg->type == DAP_DB$K_OPTYPE_DEL) {
         char *l_group = dap_strdup_printf("%s.del", l_arg->group);
         l_obj = dap_chain_global_db_obj_get(l_arg->key, l_group);
@@ -532,7 +532,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     l_obj->type = a_op_code;
     l_obj->key = dap_strdup(a_key);
     l_obj->group = dap_strdup(a_group);
-    l_obj->cb_arg = a_arg;
+    l_obj->callback_proc_thread_arg = a_arg;
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_records, l_obj);
 }
 
@@ -547,7 +547,7 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
 {
     UNUSED(a_thread);
     dap_store_obj_t *l_arg = (dap_store_obj_t *)a_arg;
-    dap_chain_net_t *l_net = (dap_chain_net_t *)l_arg->cb_arg;
+    dap_chain_net_t *l_net = (dap_chain_net_t *)l_arg->callback_proc_thread_arg;
     pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
     if (PVT(l_net)->state != NET_STATE_SYNC_CHAINS) {
         dap_list_t *it = NULL;
@@ -605,7 +605,7 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
     l_obj->value = DAP_DUP_SIZE(a_atom, a_atom_size);
     l_obj->value_len = a_atom_size;
     l_obj->group = (char *)a_chain;
-    l_obj->cb_arg = a_arg;
+    l_obj->callback_proc_thread_arg = a_arg;
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_atoms, l_obj);
 }
 
