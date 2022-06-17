@@ -423,9 +423,9 @@ static int _vio_apnd2_open(CDBVIO *vio, const char *filepath, int flags)
     if (flags & CDB_TRUNC)
         rflags |= O_TRUNC;
 
-    if (_vio_apnd2_checkpid(vio) < 0) {
+    /*if (_vio_apnd2_checkpid(vio) < 0) {
         goto ERRRET;
-    }
+    }*/
 
     snprintf(filename, MAX_PATH_LEN, "%s/mainindex.cdb", myio->filepath);
     myio->hfd = open(filename, rflags, 0644);
