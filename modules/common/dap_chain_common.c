@@ -785,9 +785,9 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         l_tmp.hi = 0;
         l_tmp.lo = (uint128_t)c_pow10_double[i].u64[3] * (uint128_t) l_digit;
         SUM_256_256(l_ret, l_tmp, &l_ret);
-        if (l_ret.hi == 0 && l_ret.lo == 0) {
-            return l_nul;
-        }
+//        if (l_ret.hi == 0 && l_ret.lo == 0) {
+//            return l_nul;
+//        }
         uint128_t l_mul = (uint128_t) c_pow10_double[i].u64[2] * (uint128_t) l_digit;
         l_tmp.lo = l_mul << 64;
         l_tmp.hi = l_mul >> 64;
