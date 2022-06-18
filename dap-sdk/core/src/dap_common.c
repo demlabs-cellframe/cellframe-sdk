@@ -31,6 +31,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdatomic.h>
+#include <ctype.h>
 
 
 #include "utlist.h"
@@ -357,7 +358,7 @@ static void *s_log_thread_proc(void *arg) {
 
 
 
-
+#ifdef  SYS_DEBUG
 const	char spaces[74] = {"                                                                          "};
 #define PID_FMT "%6d"
 
@@ -428,7 +429,7 @@ void	_dump_it	(
 {
 #define HEXDUMP$SZ_WIDTH    80
 const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  [%s:%u]  HEX Dump of <%.*s>, %u octets:\n"};
-char	out[512] = {0};
+char	out[8192] = {0};
 unsigned char *srcp = (unsigned char *) src, low, high;
 unsigned olen = 0, i, j, len;
 struct tm _tm;
@@ -518,7 +519,7 @@ struct timespec now;
     }
 }
 
-
+#endif  /* SYS_DEBUG */
 
 
 
