@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <stdatomic.h>
 
+
 #include "utlist.h"
 //#include <errno.h>
 
@@ -348,6 +349,182 @@ static void *s_log_thread_proc(void *arg) {
     }
     return NULL;
 }
+
+
+
+
+
+
+
+
+
+const	char spaces[74] = {"                                                                          "};
+#define PID_FMT "%6d"
+
+void	_log_it_ext   (
+		const char *	a_rtn_name,
+            unsigned	a_line_no,
+    enum dap_log_level  a_ll,
+        const char *	a_fmt,
+			...
+			)
+{
+va_list arglist;
+const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
+char	out[1024] = {0};
+int     olen, len;
+struct tm _tm;
+struct timespec now;
+
+	clock_gettime(CLOCK_REALTIME, &now);
+
+#ifdef	WIN32
+	localtime_s(&_tm, (time_t *)&now);
+#else
+	localtime_r((time_t *)&now, &_tm);
+#endif
+
+	olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
+			_tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
+			(unsigned) gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
+
+
+	if ( 0 < (len = (74 - olen)) )
+		{
+		memcpy(out + olen, spaces, len);
+		olen += len;
+		}
+
+	/*
+	** Format variable part of string line
+	*/
+	va_start (arglist, a_fmt);
+	olen += vsnprintf(out + olen, sizeof(out) - olen, a_fmt, arglist);
+	va_end (arglist);
+
+	olen = MIN(olen, sizeof(out) - 1);
+
+	/* Add <LF> at end of record*/
+	out[olen++] = '\n';
+
+    if(s_log_file)
+    {
+        fwrite(out, olen, 1,  s_log_file);
+        fflush(s_log_file);
+    }
+
+    len = write(STDOUT_FILENO, out, olen);
+}
+
+
+
+void	_dump_it	(
+		const char      *a_rtn_name,
+    		unsigned	a_line_no,
+        const char      *a_var_name,
+		const void      *src,
+		unsigned short	srclen
+			)
+{
+#define HEXDUMP$SZ_WIDTH    80
+const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  [%s:%u]  HEX Dump of <%.*s>, %u octets:\n"};
+char	out[512] = {0};
+unsigned char *srcp = (unsigned char *) src, low, high;
+unsigned olen = 0, i, j, len;
+struct tm _tm;
+struct timespec now;
+
+
+    clock_gettime(CLOCK_REALTIME, &now);
+
+    #ifdef	WIN32
+    localtime_s(&_tm, (time_t *)&now);
+    #else
+    localtime_r((time_t *)&now, &_tm);
+    #endif
+
+    olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
+            _tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
+            (unsigned) gettid(), a_rtn_name, a_line_no, 48, a_var_name, srclen);
+
+    if(s_log_file)
+    {
+        fwrite(out, olen, 1,  s_log_file);
+        fflush(s_log_file);
+    }
+
+    len = write(STDOUT_FILENO, out, olen);
+
+
+	/*
+	** Format variable part of string line
+	*/
+    memset(out, ' ', sizeof(out));
+
+	for (i = 0; i < ((srclen / 16));  i++)
+		{
+		olen = snprintf(out, HEXDUMP$SZ_WIDTH, "\t+%04x:  ", i * 16);
+		memset(out + olen, ' ', HEXDUMP$SZ_WIDTH - olen);
+
+		for (j = 0; j < 16; j++, srcp++)
+			{
+			high = (*srcp) >> 4;
+			low = (*srcp) & 0x0f;
+
+			out[olen + j * 3] = high + ((high < 10) ? '0' : 'a' - 10);
+			out[olen + j * 3 + 1] = low + ((low < 10) ? '0' : 'a' - 10);
+
+			out[olen + 16*3 + 2 + j] = isprint(*srcp) ? *srcp : '.';
+			}
+
+		/* Add <LF> at end of record*/
+		out[HEXDUMP$SZ_WIDTH - 1] = '\n';
+
+        if(s_log_file)
+        {
+            fwrite(out, HEXDUMP$SZ_WIDTH, 1,  s_log_file);
+            fflush(s_log_file);
+        }
+
+        len = write(STDOUT_FILENO, out, HEXDUMP$SZ_WIDTH);
+    }
+
+	if ( srclen % 16 )
+		{
+		olen = snprintf(out, HEXDUMP$SZ_WIDTH, "\t+%04x:  ", i * 16);
+		memset(out + olen, ' ', HEXDUMP$SZ_WIDTH - olen);
+
+		for (j = 0; j < srclen % 16; j++, srcp++)
+			{
+			high = (*srcp) >> 4;
+			low = (*srcp) & 0x0f;
+
+			out[olen + j * 3] = high + ((high < 10) ? '0' : 'a' - 10);
+			out[olen + j * 3 + 1] = low + ((low < 10) ? '0' : 'a' - 10);
+
+			out[olen + 16*3 + 2 + j] = isprint(*srcp) ? *srcp : '.';
+			}
+
+		/* Add <LF> at end of record*/
+		out[HEXDUMP$SZ_WIDTH - 1] = '\n';
+
+        if(s_log_file)
+        {
+            fwrite(out, HEXDUMP$SZ_WIDTH, 1,  s_log_file);
+            fflush(s_log_file);
+        }
+
+        len = write(STDOUT_FILENO, out, HEXDUMP$SZ_WIDTH);
+    }
+}
+
+
+
+
+
+
+
+
 
 /**
  * @brief _log_it
