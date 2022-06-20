@@ -113,6 +113,9 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg);
 
 static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
+static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
+                                               const size_t a_value_count, dap_store_obj_t * a_values, void * a_arg);
+
 static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_arg);
 static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain);
 
@@ -674,11 +677,11 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
     dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
 
-    if(l_pkt_item->pkt_data_size >= sizeof(dap_store_obj_pkt_t)) {
+    if(l_pkt_item->pkt_data_size >= sizeof(dap_global_db_pkt_t)) {
 
         // Validate size of received packet
-        dap_store_obj_pkt_t *l_obj_pkt = (dap_store_obj_pkt_t*)l_pkt_item->pkt_data;
-        size_t l_obj_pkt_size = l_obj_pkt ? l_obj_pkt->data_size + sizeof(dap_store_obj_pkt_t) : 0;
+        dap_global_db_pkt_t *l_obj_pkt = (dap_global_db_pkt_t*)l_pkt_item->pkt_data;
+        size_t l_obj_pkt_size = l_obj_pkt ? l_obj_pkt->data_size + sizeof(dap_global_db_pkt_t) : 0;
         if(l_pkt_item->pkt_data_size != l_obj_pkt_size) {
             log_it(L_WARNING, "In: s_gdb_in_pkt_proc_callback: received size=%zu is not equal to obj_pkt_size=%zu",
                     l_pkt_item->pkt_data_size, l_obj_pkt_size);
@@ -689,7 +692,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
         size_t l_data_obj_count = 0;
         // deserialize data & Parse data from dap_db_log_pack()
-        dap_store_obj_t *l_store_obj = dap_store_unpacket_multiple(l_obj_pkt, &l_data_obj_count);
+        dap_store_obj_t *l_store_obj = dap_global_db_pkt_deserialize(l_obj_pkt, &l_data_obj_count);
         if (!l_store_obj) {
             debug_if(s_debug_more, L_ERROR, "Invalid synchronization packet format");
             DAP_DEL_Z(l_pkt_item->pkt_data);
@@ -804,12 +807,13 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                             l_store_obj[i].group);
             } else {
                 // save data to global_db
-                if(!dap_chain_global_db_obj_save(l_obj, 1)) {
-                    struct sync_request *l_sync_req_err = DAP_DUP(l_sync_request);
-                    dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id,
-                                                    s_gdb_in_pkt_error_worker_callback, l_sync_req_err);
-                } else if (s_debug_more)
-                    log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
+                dap_store_obj_t * l_obj_copy = dap_store_obj_copy(l_obj,1);
+                struct sync_request *l_sync_req_copy = DAP_DUP(l_sync_request);
+                if( dap_global_db_set_raw(l_obj_copy, 1,s_gdb_in_pkt_proc_set_raw_callback, l_sync_req_copy) != 0) {
+                    log_it(L_ERROR, "Can't send save GlobalDB request");
+                    DAP_DELETE(l_obj_copy);
+                    DAP_DELETE(l_sync_req_copy);
+                }
             }
         }
         if(l_store_obj) {
@@ -824,6 +828,36 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
     DAP_DELETE(l_sync_request);
     return true;
 }
+
+/**
+ * @brief s_gdb_in_pkt_proc_set_raw_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_values_current
+ * @param a_values_shift
+ * @param a_value_count
+ * @param a_values
+ * @param a_arg
+ */
+static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
+                                               const size_t a_value_count, dap_store_obj_t * a_values, void * a_arg)
+{
+
+    struct sync_request *l_sync_req = (struct sync_request*) a_arg;
+    if( a_rc != 0){
+        log_it(L_ERROR, "Can't save GlobalDB request, code %d", a_rc);
+        dap_worker_exec_callback_inter(a_global_db_context->queue_worker_callback_input[l_sync_req->worker->id],
+                                    s_gdb_in_pkt_error_worker_callback, l_sync_req);
+    }else{
+        if (s_debug_more)
+                            log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
+        DAP_DELETE(l_sync_req);
+    }
+
+}
+
 
 /**
  * @brief dap_stream_ch_chain_create_sync_request_gdb
@@ -1643,7 +1677,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         // Synchronize GDB
         case CHAIN_STATE_SYNC_GLOBAL_DB: {
             // Get global DB record
-            dap_store_obj_pkt_t *l_pkt = NULL;
+            dap_global_db_pkt_t *l_pkt = NULL;
             dap_db_log_list_obj_t *l_obj = NULL;
             size_t l_pkt_size = 0;
             for (uint_fast16_t l_skip_count = 0; l_skip_count < s_skip_in_reactor_count; ) {
@@ -1674,7 +1708,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                          l_hash_item_hashv, l_hash_item);
                     l_pkt = dap_store_packet_multiple(l_pkt, l_obj->pkt);
                     l_ch_chain->stats_request_gdb_processed++;
-                    l_pkt_size = sizeof(dap_store_obj_pkt_t) + l_pkt->data_size;
+                    l_pkt_size = sizeof(dap_global_db_pkt_t) + l_pkt->data_size;
                     if (l_pkt_size >= DAP_CHAIN_PKT_EXPECT_SIZE)
                         break;
                 }

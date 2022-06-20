@@ -378,6 +378,27 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
     }
 }
 
+/**
+ * @brief Send callback to the worker queue's input
+ * @param a_es_input Queue's input
+ * @param a_callback Callback
+ * @param a_arg Argument for callback
+ */
+void dap_worker_exec_callback_inter(dap_events_socket_t * a_es_input, dap_worker_callback_t a_callback, void * a_arg)
+{
+    dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
+    l_msg->callback = a_callback;
+    l_msg->arg = a_arg;
+    int l_ret=dap_events_socket_queue_ptr_send_to_input (a_es_input ,l_msg );
+    if(l_ret != 0 ){
+        char l_errbuf[128];
+        *l_errbuf = 0;
+        strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR, "Cant send pointer in queue input: \"%s\"(code %d)", l_errbuf, l_ret);
+    }
+
+}
+
 
 /**
  * @brief dap_worker_exec_callback_on

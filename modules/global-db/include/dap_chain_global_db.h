@@ -89,11 +89,3 @@ dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group);
 dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_first_id, size_t *a_objs_count);
 dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out);
 dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out);
-
-/**
- * Write to the database from an array of data_size bytes
- *
- * @return
- */
-bool dap_chain_global_db_obj_save(dap_store_obj_t *a_store_data, size_t a_objs_count);
-bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_count, const char *a_group);

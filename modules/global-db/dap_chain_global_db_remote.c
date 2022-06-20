@@ -91,7 +91,7 @@ static void *s_list_thread_proc(void *arg)
                 dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
                 uint64_t l_cur_id = l_obj_cur->id;
                 l_obj_cur->id = 0;
-                dap_store_obj_pkt_t *l_pkt = dap_store_packet_single(l_obj_cur);
+                dap_global_db_pkt_t *l_pkt = dap_store_packet_single(l_obj_cur);
                 dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_list_obj->hash);
                 dap_store_packet_change_id(l_pkt, l_cur_id);
                 l_list_obj->pkt = l_pkt;
@@ -532,15 +532,15 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
  * @param a_new_pkt a pointer to the new object
  * @return Returns a pointer to the multiple object
  */
-dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt)
+dap_global_db_pkt_t *dap_store_packet_multiple(dap_global_db_pkt_t *a_old_pkt, dap_global_db_pkt_t *a_new_pkt)
 {
     if (!a_new_pkt)
         return a_old_pkt;
     if (a_old_pkt)
-        a_old_pkt = (dap_store_obj_pkt_t *)DAP_REALLOC(a_old_pkt,
-                                                       a_old_pkt->data_size + a_new_pkt->data_size + sizeof(dap_store_obj_pkt_t));
+        a_old_pkt = (dap_global_db_pkt_t *)DAP_REALLOC(a_old_pkt,
+                                                       a_old_pkt->data_size + a_new_pkt->data_size + sizeof(dap_global_db_pkt_t));
     else
-        a_old_pkt = DAP_NEW_Z_SIZE(dap_store_obj_pkt_t, a_new_pkt->data_size + sizeof(dap_store_obj_pkt_t));
+        a_old_pkt = DAP_NEW_Z_SIZE(dap_global_db_pkt_t, a_new_pkt->data_size + sizeof(dap_global_db_pkt_t));
     memcpy(a_old_pkt->data + a_old_pkt->data_size, a_new_pkt->data, a_new_pkt->data_size);
     a_old_pkt->data_size += a_new_pkt->data_size;
     a_old_pkt->obj_count++;
@@ -554,7 +554,7 @@ dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, d
  * @param a_id id
  * @return (none)
  */
-void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
+void dap_store_packet_change_id(dap_global_db_pkt_t *a_pkt, uint64_t a_id)
 {
     uint16_t l_gr_len;
     memcpy(&l_gr_len, a_pkt->data + sizeof(uint32_t), sizeof(uint16_t));
@@ -567,7 +567,7 @@ void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
  * @param a_store_obj a pointer to the object to be serialized
  * @return Returns a pointer to the packed sructure if successful, otherwise NULL.
  */
-dap_store_obj_pkt_t *dap_store_packet_single(dap_store_obj_t *a_store_obj)
+dap_global_db_pkt_t *dap_store_packet_single(dap_store_obj_t *a_store_obj)
 {
 int len;
 unsigned char *pdata;
@@ -576,7 +576,7 @@ unsigned char *pdata;
         return NULL;
 
     uint32_t l_data_size_out = dap_db_get_size_pdap_store_obj_t(a_store_obj);
-    dap_store_obj_pkt_t *l_pkt = DAP_NEW_SIZE(dap_store_obj_pkt_t, l_data_size_out + sizeof(dap_store_obj_pkt_t));
+    dap_global_db_pkt_t *l_pkt = DAP_NEW_SIZE(dap_global_db_pkt_t, l_data_size_out + sizeof(dap_global_db_pkt_t));
 
     /* Fill packet header */
     l_pkt->data_size = l_data_size_out;
@@ -605,85 +605,3 @@ unsigned char *pdata;
     return l_pkt;
 }
 
-/**
- * @brief Deserializes some objects from a packed structure into an array of objects.
- * @param pkt a pointer to the serialized packed structure
- * @param store_obj_count[out] a number of deserialized objects in the array
- * @return Returns a pointer to the first object in the array, if successful; otherwise NULL.
- */
-dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, size_t *a_store_obj_count)
-{
-    if(!a_pkt || a_pkt->data_size < sizeof(dap_store_obj_pkt_t))
-        return NULL;
-    uint64_t l_offset = 0;
-    uint32_t l_count = a_pkt->obj_count, l_cur_count;
-    uint64_t l_size = l_count <= UINT16_MAX ? l_count * sizeof(struct dap_store_obj) : 0;
-    dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_size);
-    if (!l_store_obj || !l_size) {
-        log_it(L_ERROR, "Invalid size: can't allocate %"DAP_UINT64_FORMAT_U" bytes", l_size);
-        DAP_DEL_Z(l_store_obj)
-        return NULL;
-    }
-    for(l_cur_count = 0; l_cur_count < l_count; ++l_cur_count) {
-        dap_store_obj_t *l_obj = l_store_obj + l_cur_count;
-        uint16_t l_str_length;
-
-        uint32_t l_type;
-        if (l_offset+sizeof (uint32_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'type' field"); break;} // Check for buffer boundries
-        memcpy(&l_type, a_pkt->data + l_offset, sizeof(uint32_t));
-        l_obj->type = l_type;
-        l_offset += sizeof(uint32_t);
-
-        if (l_offset+sizeof (uint16_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'group_length' field"); break;} // Check for buffer boundries
-        memcpy(&l_str_length, a_pkt->data + l_offset, sizeof(uint16_t));
-        l_offset += sizeof(uint16_t);
-
-        if (l_offset + l_str_length > a_pkt->data_size || !l_str_length) {log_it(L_ERROR, "Broken GDB element: can't read 'group' field"); break;} // Check for buffer boundries
-        l_obj->group = DAP_NEW_Z_SIZE(char, l_str_length + 1);
-        memcpy(l_obj->group, a_pkt->data + l_offset, l_str_length);
-        l_offset += l_str_length;
-
-        if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'id' field");
-                                                           DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
-        memcpy(&l_obj->id, a_pkt->data + l_offset, sizeof(uint64_t));
-        l_offset += sizeof(uint64_t);
-
-        if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'timestamp' field");
-                                                           DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
-        memcpy(&l_obj->timestamp, a_pkt->data + l_offset, sizeof(uint64_t));
-        l_offset += sizeof(uint64_t);
-
-        if (l_offset+sizeof (uint16_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'key_length' field");
-                                                           DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
-        memcpy(&l_str_length, a_pkt->data + l_offset, sizeof(uint16_t));
-        l_offset += sizeof(uint16_t);
-
-        if (l_offset + l_str_length > a_pkt->data_size || !l_str_length) {log_it(L_ERROR, "Broken GDB element: can't read 'key' field: len %s",
-                                                                                 l_str_length ? "OVER" : "NULL");
-                                                                          DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
-        l_obj->key = DAP_NEW_Z_SIZE(char, l_str_length + 1);
-        memcpy((char *)l_obj->key, a_pkt->data + l_offset, l_str_length);
-        l_offset += l_str_length;
-
-        if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field");
-                                                           DAP_DELETE(l_obj->group); DAP_DELETE(l_obj->key); break;} // Check for buffer boundries
-        memcpy(&l_obj->value_len, a_pkt->data + l_offset, sizeof(uint64_t));
-        l_offset += sizeof(uint64_t);
-
-        if (l_offset + l_obj->value_len > a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field");
-                                                          DAP_DELETE(l_obj->group); DAP_DELETE(l_obj->key);break;} // Check for buffer boundries
-        l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
-        memcpy((char*)l_obj->value, a_pkt->data + l_offset, l_obj->value_len);
-        l_offset += l_obj->value_len;
-    }
-    if (a_pkt->data_size != l_offset) {
-        if (l_cur_count)
-            dap_store_obj_free(l_store_obj, l_cur_count);
-        return NULL;
-    }
-    // Return the number of completely filled dap_store_obj_t structures
-    // because l_cur_count may be less than l_count due to too little memory
-    if(a_store_obj_count)
-        *a_store_obj_count = l_cur_count;
-    return l_store_obj;
-}

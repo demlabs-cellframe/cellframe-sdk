@@ -4,6 +4,7 @@ project (dap_chain_global_db C)
 file(GLOB DAP_CHAIN_GLOBAL_DB_SRC
     dap_global_db.c
     dap_global_db_sync.c
+    dap_global_db_pkt.c
     dap_chain_global_db_driver_cdb.c
     dap_chain_global_db_driver_sqlite.c
     dap_chain_global_db.c
@@ -14,6 +15,7 @@ file(GLOB DAP_CHAIN_GLOBAL_DB_SRC
 file(GLOB DAP_CHAIN_GLOBAL_DB_HDR
     include/dap_global_db.h
     include/dap_global_db_sync.h
+    include/dap_global_db_pkt.h
     include/dap_chain_global_db.h
     include/dap_chain_global_db_remote.h
     include/dap_chain_global_db_driver.h

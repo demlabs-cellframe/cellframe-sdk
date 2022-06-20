@@ -473,7 +473,7 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
                 l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
             dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
             dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-            dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj_cur);
+            dap_global_db_pkt_t *l_data_out = dap_store_packet_single(l_obj_cur);
             dap_store_obj_free_one(l_obj_cur);
             struct downlink *l_link, *l_tmp;
             HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
@@ -485,7 +485,7 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
                 }
                 dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                      l_chain_id.uint64, l_cell_id.uint64, l_data_out,
-                                                     sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
+                                                     sizeof(dap_global_db_pkt_t) + l_data_out->data_size);
             }
             DAP_DELETE(l_data_out);
             if (it)

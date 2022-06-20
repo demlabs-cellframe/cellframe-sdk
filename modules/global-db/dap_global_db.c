@@ -43,10 +43,14 @@ bool g_dap_global_db_debug_more = false;                                        
 enum queue_io_msg_opcode{
     MSG_OPCODE_UNDEFINED = 0,
     MSG_OPCODE_GET,
+    MSG_OPCODE_GET_RAW,
     MSG_OPCODE_GET_DEL_TS,
     MSG_OPCODE_GET_LAST,
+    MSG_OPCODE_GET_LAST_RAW,
     MSG_OPCODE_GET_ALL,
+    MSG_OPCODE_GET_ALL_RAW,
     MSG_OPCODE_SET,
+    MSG_OPCODE_SET_RAW,
     MSG_OPCODE_SET_MULTIPLE,
     MSG_OPCODE_PIN,
     MSG_OPCODE_UNPIN,
@@ -58,39 +62,48 @@ enum queue_io_msg_opcode{
 // Queue i/o message
 struct queue_io_msg{
     enum queue_io_msg_opcode opcode; // Opcode
-    char * group;  // Group
-    char * key; // Key
 
     // For each message opcode we have only one callback
     union{
         dap_global_db_callback_result_t callback_result;
         dap_global_db_callback_results_t callback_results;
+        dap_global_db_callback_results_raw_t callback_results_raw;
     };
     // Custom argument passed to the callback
     void *  callback_arg;
 
-    // Different variant of message params
     union{
-
-        // Values for get multiple request
-        struct{
-            uint64_t values_shift; // For multiple records request here stores next request id
-            uint64_t values_total; // Total values
-            size_t values_page_size; // Maximum size of results page request. 0 means unlimited
-            // TODO implement processing of this value
+        struct{ // Raw request
+            dap_store_obj_t * values_raw;
+            size_t values_raw_count;
         };
+        struct{ //deserialized requests
+            // Different variant of message params
+            union{
+                // values for multile set
+                struct{
+                    dap_global_db_obj_t * values;
+                    size_t values_count;
+                };
 
-        // Value for singe request
-        struct{
-            void *  value;
-            size_t  value_length;
-            bool    value_is_pinned;
-        };
+                // Values for get multiple request
+                struct{
+                    uint64_t values_shift; // For multiple records request here stores next request id
+                    uint64_t values_total; // Total values
+                    size_t values_page_size; // Maximum size of results page request. 0 means unlimited
+                    // TODO implement processing of this value
+                };
 
-        // values for multile set
-        struct{
-            dap_global_db_obj_t * values;
-            size_t values_count;
+                // Value for singe request
+                struct{
+                    void *  value;
+                    size_t  value_length;
+                    bool    value_is_pinned;
+                };
+
+            };
+            char * group;  // Group
+            char * key; // Key
         };
     };
 
@@ -128,7 +141,10 @@ static bool s_msg_opcode_get(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_del_ts(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_last(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg);
+static bool s_msg_opcode_get_all_raw(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_set(struct queue_io_msg * a_msg);
+static bool s_msg_opcode_set_raw(struct queue_io_msg * a_msg);
+
 static bool s_msg_opcode_set_multiple(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_pin(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_unpin(struct queue_io_msg * a_msg);
@@ -400,8 +416,9 @@ static bool s_msg_opcode_get_last(struct queue_io_msg * a_msg)
  * @param a_arg
  * @return
  */
-int dap_global_db_get_all(const char * a_group,size_t l_results_page_size, dap_global_db_callback_results_t a_callback, void * a_arg )
+int dap_global_db_get_all(const char * a_group,size_t a_results_page_size, dap_global_db_callback_results_t a_callback, void * a_arg )
 {
+    // TODO make usable a_results_page_size
     if(s_context_global_db == NULL){
         log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_get_all");
         return -666;
@@ -413,8 +430,10 @@ int dap_global_db_get_all(const char * a_group,size_t l_results_page_size, dap_g
     l_msg->callback_results = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec get_all request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -440,6 +459,7 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
             l_objs[i].is_pinned = l_store_objs[i].flags & RECORD_PINNED;
             l_objs[i].key = l_store_objs[i].key;
             l_objs[i].value = l_store_objs[i].value;
+            l_objs[i].timestamp = l_store_objs[i].timestamp;
         }
     }
 
@@ -475,15 +495,90 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
 }
 
 /**
- * @brief dap_global_db_set
+ * @brief dap_global_db_get_all_raw
  * @param a_group
- * @param a_key
- * @param a_value
- * @param a_value_length
- * @param a_pin_value
+ * @param a_results_page_size
  * @param a_callback
  * @param a_arg
  * @return
+ */
+int dap_global_db_get_all_raw(const char * a_group,size_t a_results_page_size, dap_global_db_callback_results_raw_t a_callback, void * a_arg )
+{
+    // TODO make usable a_results_page_size
+
+    if(s_context_global_db == NULL){
+        log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_get_all");
+        return -666;
+    }
+    struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
+    l_msg->opcode = MSG_OPCODE_GET_ALL;
+    l_msg->group = dap_strdup(a_group);
+    l_msg->callback_arg = a_arg;
+    l_msg->callback_results_raw = a_callback;
+
+    int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec get_all_raw request, code %d", l_ret);
+        s_queue_io_msg_delete(l_msg);
+    }
+    return l_ret;
+}
+
+/**
+ * @brief Get all records in raw format inside GlobalDB context
+ * @param a_msg
+ * @return
+ */
+static bool s_msg_opcode_get_all_raw(struct queue_io_msg * a_msg)
+{
+    size_t l_values_count = 0;
+    if(! a_msg->values_total){ // First msg process
+        a_msg->values_total = dap_chain_global_db_driver_count(a_msg->group,0);
+    }
+    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, a_msg->values_shift , &l_values_count);
+
+
+    // Call callback if present
+    if(a_msg->callback_results_raw)
+        a_msg->callback_results_raw(s_context_global_db,  l_store_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
+                                , a_msg->group, a_msg->key, a_msg->values_total, l_values_count,
+                                 a_msg->values_shift,
+                                 l_store_objs, a_msg->callback_arg );
+    // Clean memory
+    if(l_store_objs)
+        dap_store_obj_free(l_store_objs,l_values_count);
+
+    // Check for values_shift overflow and update it
+    if(l_values_count && a_msg->values_shift< UINT64_MAX - l_values_count &&
+            l_values_count + a_msg->values_shift < a_msg->values_total ){
+        a_msg->values_shift += l_values_count;
+
+    }
+
+    if( a_msg->values_shift < a_msg->values_total){ // Have to process callback again
+        int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,a_msg);
+        if ( l_ret ){
+            log_it(L_ERROR,"Can't resend i/o message for opcode GET_ALL_RAW after value shift %"
+                   DAP_UINT64_FORMAT_U" error code %d", a_msg->values_shift,l_ret);
+            return true;
+        }else
+            return false; // Don't delete it because it just sent again to the queue
+    }else // All values are sent
+        return true;
+
+}
+
+
+/**
+ * @brief Set GlobalDB record, identified with group and key
+ * @param a_group Group name
+ * @param a_key Key string
+ * @param a_value Value data's pointer
+ * @param a_value_length Value data's length
+ * @param a_pin_value Pin value or not
+ * @param a_callback  Callback executed after request processing
+ * @param a_arg Argument passed to the callback
+ * @return 0 if success, error code if not
  */
 int dap_global_db_set(const char * a_group, const char *a_key, const void * a_value, const size_t a_value_length, bool a_pin_value, dap_global_db_callback_result_t a_callback, void * a_arg )
 {
@@ -541,6 +636,64 @@ static bool s_msg_opcode_set(struct queue_io_msg * a_msg)
 }
 
 /**
+ * @brief dap_global_db_set_raw
+ * @param a_store_objs
+ * @param a_store_objs_count
+ * @param a_callback
+ * @param a_arg
+ * @return
+ */
+int dap_global_db_set_raw(dap_store_obj_t * a_store_objs, size_t a_store_objs_count, dap_global_db_callback_results_raw_t a_callback, void * a_arg )
+{
+    if(s_context_global_db == NULL){
+        log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_set");
+        return -666;
+    }
+    struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
+    l_msg->opcode = MSG_OPCODE_SET_RAW;
+    l_msg->callback_arg = a_arg;
+    l_msg->callback_results_raw = a_callback;
+
+    l_msg->values_raw = a_store_objs;
+    l_msg->values_raw_count = a_store_objs_count;
+
+    int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
+    if (l_ret != 0)
+        s_queue_io_msg_delete(l_msg);
+    return l_ret;
+
+}
+
+/**
+ * @brief s_msg_opcode_set_raw
+ * @param a_msg
+ * @return
+ */
+static bool s_msg_opcode_set_raw(struct queue_io_msg * a_msg)
+{
+    int l_ret = -1;
+    size_t i=0;
+    if(a_msg->values_raw_count>0){
+        l_ret = dap_chain_global_db_driver_add(a_msg->values_raw,a_msg->values_raw_count);
+        if(l_ret == 0){
+            for(;  i < a_msg->values_raw_count ; i++ ) {
+                s_record_del_history_del(a_msg->values_raw[i].key , a_msg->values_raw[i].group);
+                s_change_notify(&a_msg->values_raw[i] , a_msg->values_raw[i].type );
+            }
+        }else
+            log_it(L_ERROR,"Can't save raw gdb data, code %d ", l_ret);
+    }
+    if(a_msg->callback_results_raw){
+        a_msg->callback_results_raw (s_context_global_db,  l_ret==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
+                                        DAP_GLOBAL_DB_RC_ERROR, a_msg->group, a_msg->key,
+                               a_msg->values_raw_count, 0, a_msg->values_raw_count, a_msg->values_raw ,
+                                a_msg->callback_arg );
+    }
+
+    return true;
+}
+
+/**
  * @brief dap_global_db_set_multiple
  * @param a_group
  * @param a_values
@@ -589,7 +742,7 @@ static bool s_msg_opcode_set_multiple(struct queue_io_msg * a_msg)
             l_store_obj.group = a_msg->group;
             l_store_obj.value = a_msg->values[i].value;
             l_store_obj.value_len = a_msg->values[i].value_len;
-            l_store_obj.timestamp = dap_nanotime_now();
+            l_store_obj.timestamp = a_msg->values[i].timestamp;
             s_record_del_history_del(a_msg->values[i].key, a_msg->group);
             l_ret = dap_chain_global_db_driver_add(&l_store_obj,1);
             s_change_notify(&l_store_obj , DAP_DB$K_OPTYPE_ADD);
@@ -822,8 +975,10 @@ static void s_queue_io_callback( dap_events_socket_t * a_es, void * a_arg)
         case MSG_OPCODE_GET: l_msg_delete = s_msg_opcode_get(l_msg); break;
         case MSG_OPCODE_GET_LAST: l_msg_delete = s_msg_opcode_get_last(l_msg); break;
         case MSG_OPCODE_GET_ALL: l_msg_delete = s_msg_opcode_get_all(l_msg); break;
+        case MSG_OPCODE_GET_ALL_RAW: l_msg_delete = s_msg_opcode_get_all_raw(l_msg); break;
         case MSG_OPCODE_SET: l_msg_delete = s_msg_opcode_set(l_msg); break;
         case MSG_OPCODE_SET_MULTIPLE: l_msg_delete = s_msg_opcode_set_multiple(l_msg); break;
+        case MSG_OPCODE_SET_RAW: l_msg_delete = s_msg_opcode_set_raw(l_msg); break;
         case MSG_OPCODE_PIN: l_msg_delete = s_msg_opcode_pin(l_msg); break;
         case MSG_OPCODE_UNPIN: l_msg_delete = s_msg_opcode_unpin(l_msg); break;
         case MSG_OPCODE_DELETE: l_msg_delete = s_msg_opcode_delete(l_msg); break;

@@ -382,7 +382,7 @@ void s_tx_create_massive_gdb_save_callback( dap_global_db_context_t * a_global_d
                                             const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                             const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
-    DAP_DELETE(a_values); // Delete objs thats passed as arg;
+    dap_global_db_objs_delete(a_values, a_values_total); // Delete objs thats passed as arg;
     if( a_rc ==0  ) {
         log_it(L_NOTICE, "%zu transaction are placed in mempool", a_values_total);
     }else{

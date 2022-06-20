@@ -47,12 +47,7 @@ enum RECORD_FLAGS {
 };
 
 
-typedef struct dap_store_obj_pkt {
-    dap_nanotime_t timestamp;
-    uint64_t data_size;
-    uint32_t obj_count;
-    uint8_t data[];
-}__attribute__((packed)) dap_store_obj_pkt_t;
+
 
 typedef int (*dap_db_driver_write_callback_t)(dap_store_obj_t*);
 typedef dap_store_obj_t* (*dap_db_driver_read_callback_t)(const char *,const char *, size_t *);

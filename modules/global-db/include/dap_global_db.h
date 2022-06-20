@@ -64,9 +64,11 @@ typedef struct dap_store_obj {
 typedef struct dap_global_db_obj {
     uint64_t id;
     char *key;
+    dap_nanotime_t timestamp;
     uint8_t *value;
     size_t value_len;
     bool is_pinned;
+
 } DAP_ALIGN_PACKED dap_global_db_obj_t;
 
 
@@ -74,6 +76,8 @@ typedef struct dap_global_db_obj {
 typedef void (*dap_global_db_callback_result_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg);
 typedef void (*dap_global_db_callback_results_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg);
+typedef void (*dap_global_db_callback_results_raw_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
+                                                  const size_t a_value_count, dap_store_obj_t * a_values, void * a_arg);
 // Return codes
 #define DAP_GLOBAL_DB_RC_SUCCESS         0
 #define DAP_GLOBAL_DB_RC_NO_RESULTS     -1
@@ -85,11 +89,16 @@ int dap_global_db_init(const char * a_path, const char * a_driver);
 void dap_global_db_deinit();
 
 int dap_global_db_get(const char * a_group, const char *a_key,dap_global_db_callback_result_t a_callback, void * a_arg );
+
 int dap_global_db_get_del_ts(const char * a_group, const char *a_key,dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_get_last(const char * a_group, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_get_all(const char * a_group, size_t l_results_page_size, dap_global_db_callback_results_t a_callback, void * a_arg );
+int dap_global_db_get_all_raw(const char * a_group, size_t l_results_page_size, dap_global_db_callback_results_raw_t a_callback, void * a_arg );
 
 int dap_global_db_set(const char * a_group, const char *a_key, const void * a_value, const size_t a_value_length, bool a_pin_value, dap_global_db_callback_result_t a_callback, void * a_arg );
+int dap_global_db_set_raw(dap_store_obj_t * a_store_objs, size_t a_store_objs_count, dap_global_db_callback_results_raw_t a_callback, void * a_arg );
+
+// Set multiple. In callback writes total processed objects to a_values_total and a_values_count to the a_values_count as well
 int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_values, size_t a_values_count, dap_global_db_callback_results_t a_callback, void * a_arg );
 int dap_global_db_pin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_unpin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
