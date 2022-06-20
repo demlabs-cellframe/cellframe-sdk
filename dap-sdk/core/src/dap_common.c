@@ -351,14 +351,7 @@ static void *s_log_thread_proc(void *arg) {
     return NULL;
 }
 
-
-
-
-
-
-
-
-#ifdef  SYS_DEBUG
+#ifdef DAP_SYS_DEBUG
 const	char spaces[74] = {"                                                                          "};
 #define PID_FMT "%6d"
 
@@ -519,13 +512,7 @@ struct timespec now;
     }
 }
 
-#endif  /* SYS_DEBUG */
-
-
-
-
-
-
+#endif  /* DAP_SYS_DEBUG */
 
 /**
  * @brief _log_it
