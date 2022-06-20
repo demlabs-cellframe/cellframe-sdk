@@ -28,6 +28,8 @@
 #include "dap_chain_common.h"
 #include "dap_time.h"
 #include "dap_context.h"
+#include "dap_worker.h"
+#include "dap_proc_thread.h"
 #define LOG_TAG "dap_global_db"
 
 #include "dap_chain_global_db.h"
@@ -36,11 +38,6 @@
 
 bool g_dap_global_db_debug_more = false;                                         /* Enable extensible debug output */
 
-// GlobalDB own context custom extension
-struct context_global_db
-{
-    dap_events_socket_t * queue_io; // I/O queue for GlobalDB i/o requests
-};
 
 // Queue I/O message op code
 enum queue_io_msg_opcode{
@@ -108,14 +105,14 @@ static const char * s_storage_path = NULL; // GlobalDB storage path
 static const char * s_driver_name = NULL; // GlobalDB driver name
 
 static dap_context_t * s_context = NULL;  // GlobalDB own context
-static struct context_global_db * s_context_global_db = NULL; // GlobalDB own context custom extension
+static struct dap_global_db_context * s_context_global_db = NULL; // GlobalDB own context custom extension
 
 // Version check& update functiosn
 static int s_check_db_version();
-static void s_check_db_version_callback_get (int a_errno, const char * a_group, const char * a_key,
+static void s_check_db_version_callback_get (dap_global_db_context_t * a_global_db_context, int a_errno, const char * a_group, const char * a_key,
                                              const void * a_value, const size_t a_value_len,
                                              dap_nanotime_t value_ts,bool a_is_pinned, void * a_arg);
-static void s_check_db_version_callback_set (int a_errno, const char * a_group, const char * a_key,
+static void s_check_db_version_callback_set (dap_global_db_context_t * a_global_db_context, int a_errno, const char * a_group, const char * a_key,
                                              const void * a_value, const size_t a_value_len,
                                              dap_nanotime_t value_ts,bool a_is_pinned, void * a_arg);
 
@@ -192,7 +189,8 @@ int dap_global_db_init(const char * a_storage_path, const char * a_driver_name)
     // Create and run its own context
     if(s_context == NULL){
         s_context = dap_context_new();
-        s_context->_inheritor = s_context_global_db = DAP_NEW_Z(struct context_global_db);
+        s_context->_inheritor = s_context_global_db = DAP_NEW_Z(struct dap_global_db_context);
+        s_context_global_db->context = s_context;
         if (dap_context_run(s_context, -1, DAP_CONTEXT_POLICY_DEFAULT, 0, DAP_CONTEXT_FLAG_WAIT_FOR_STARTED, s_context_callback_started,
                         s_context_callback_stopped, NULL) != 0 ){
             l_rc = -2;
@@ -268,12 +266,12 @@ static bool s_msg_opcode_get(struct queue_io_msg * a_msg)
                                                                      &l_count_records);
     if(l_store_obj != NULL && l_count_records>=1){
         if(a_msg->callback_result)
-        a_msg->callback_result(DAP_GLOBAL_DB_RC_SUCCESS, l_store_obj->group, l_store_obj->key,
+        a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_SUCCESS, l_store_obj->group, l_store_obj->key,
                                l_store_obj->value, l_store_obj->value_len, l_store_obj->timestamp,
                                l_store_obj->flags & RECORD_PINNED, a_msg->callback_arg );
         dap_store_obj_free(l_store_obj,l_count_records);
     }else if(a_msg->callback_result)
-        a_msg->callback_result(DAP_GLOBAL_DB_RC_NO_RESULTS, a_msg->group, a_msg->key,
+        a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_NO_RESULTS, a_msg->group, a_msg->key,
                                NULL, 0, 0,0, a_msg->callback_arg );
     return true;
 }
@@ -338,11 +336,11 @@ static bool s_msg_opcode_get_del_ts(struct queue_io_msg * a_msg)
 
     if(l_timestamp){
         if(a_msg->callback_result)
-        a_msg->callback_result(DAP_GLOBAL_DB_RC_SUCCESS, a_msg->group, a_msg->key,
+        a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_SUCCESS, a_msg->group, a_msg->key,
                                NULL, 0, l_timestamp,
                                false, a_msg->callback_arg );
     }else if(a_msg->callback_result)
-        a_msg->callback_result(DAP_GLOBAL_DB_RC_NO_RESULTS, a_msg->group, a_msg->key,
+        a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_NO_RESULTS, a_msg->group, a_msg->key,
                                NULL, 0, 0,0, a_msg->callback_arg );
     return true;
 }
@@ -383,12 +381,12 @@ static bool s_msg_opcode_get_last(struct queue_io_msg * a_msg)
     dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read_last(a_msg->group);
     if(l_store_obj){
         if(a_msg->callback_result)
-            a_msg->callback_result(DAP_GLOBAL_DB_RC_SUCCESS, l_store_obj->group, l_store_obj->key,
+            a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_SUCCESS, l_store_obj->group, l_store_obj->key,
                                l_store_obj->value, l_store_obj->value_len, l_store_obj->timestamp,
                                l_store_obj->flags & RECORD_PINNED, a_msg->callback_arg );
         dap_store_obj_free(l_store_obj,1);
     }else if(a_msg->callback_result)
-        a_msg->callback_result(DAP_GLOBAL_DB_RC_NO_RESULTS, a_msg->group, a_msg->key,
+        a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_NO_RESULTS, a_msg->group, a_msg->key,
                                NULL, 0, 0,0, a_msg->callback_arg );
     return true;
 }
@@ -447,7 +445,7 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
 
     // Call callback if present
     if(a_msg->callback_results)
-        a_msg->callback_results( l_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
+        a_msg->callback_results(s_context_global_db,  l_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
                                 , a_msg->group, a_msg->key, a_msg->values_total, l_values_count,
                                  a_msg->values_shift,
                                  l_objs, a_msg->callback_arg );
@@ -527,7 +525,7 @@ static bool s_msg_opcode_set(struct queue_io_msg * a_msg)
     if (l_res){
         s_record_del_history_del( a_msg->group, a_msg->key);
         if(a_msg->callback_result){
-            a_msg->callback_result(DAP_GLOBAL_DB_RC_SUCCESS, a_msg->group, a_msg->key,
+            a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_SUCCESS, a_msg->group, a_msg->key,
                                    a_msg->value, a_msg->value_length, l_ts_now,
                                    a_msg->value_is_pinned , a_msg->callback_arg );
         }
@@ -535,7 +533,7 @@ static bool s_msg_opcode_set(struct queue_io_msg * a_msg)
     }else{
         log_it(L_ERROR, "Save error for %s:%s code %d", a_msg->group,a_msg->key, l_res);
         if(a_msg->callback_result)
-            a_msg->callback_result(DAP_GLOBAL_DB_RC_ERROR , a_msg->group, a_msg->key,
+            a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_ERROR , a_msg->group, a_msg->key,
                                    a_msg->value, a_msg->value_length, l_ts_now,
                                    a_msg->value_is_pinned , a_msg->callback_arg );
     }
@@ -551,7 +549,7 @@ static bool s_msg_opcode_set(struct queue_io_msg * a_msg)
  * @param a_arg
  * @return
  */
-int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_values, size_t a_values_count, dap_global_db_callback_result_t a_callback, void * a_arg )
+int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_values, size_t a_values_count, dap_global_db_callback_results_t a_callback, void * a_arg )
 {
     if(s_context_global_db == NULL){
         log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_set");
@@ -563,7 +561,7 @@ int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_val
     l_msg->values = a_values;
     l_msg->values_count = a_values_count;
     l_msg->callback_arg = a_arg;
-    l_msg->callback_result = a_callback;
+    l_msg->callback_results = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
     if (l_ret != 0)
@@ -578,9 +576,12 @@ int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_val
  */
 static bool s_msg_opcode_set_multiple(struct queue_io_msg * a_msg)
 {
+    int l_ret = -1;
+    size_t i=0;
     if(a_msg->values_count>0){
         dap_store_obj_t l_store_obj;
-        for(size_t i =0 ;  i < a_msg->values_count  ; i++ ) {
+        l_ret = 0;
+        for(;  i < a_msg->values_count && l_ret == 0  ; i++ ) {
             memset(&l_store_obj,0,sizeof(l_store_obj));
             l_store_obj.type = DAP_DB$K_OPTYPE_ADD;
             l_store_obj.flags = a_msg->values[i].is_pinned;
@@ -590,18 +591,18 @@ static bool s_msg_opcode_set_multiple(struct queue_io_msg * a_msg)
             l_store_obj.value_len = a_msg->values[i].value_len;
             l_store_obj.timestamp = dap_nanotime_now();
             s_record_del_history_del(a_msg->values[i].key, a_msg->group);
-            int l_ret = dap_chain_global_db_driver_add(&l_store_obj,1);
-
-            if(a_msg->callback_result){
-                a_msg->callback_result( l_ret==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
-                                                DAP_GLOBAL_DB_RC_ERROR, a_msg->group, a_msg->key,
-                                       a_msg->value, a_msg->value_length, l_store_obj.timestamp ,
-                                       a_msg->value_is_pinned , a_msg->callback_arg );
-            }
+            l_ret = dap_chain_global_db_driver_add(&l_store_obj,1);
             s_change_notify(&l_store_obj , DAP_DB$K_OPTYPE_ADD);
 
         }
     }
+    if(a_msg->callback_results){
+        a_msg->callback_results(s_context_global_db,  l_ret==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
+                                        DAP_GLOBAL_DB_RC_ERROR, a_msg->group, a_msg->key,
+                               i, 0, a_msg->values_count, a_msg->values ,
+                                a_msg->callback_arg );
+    }
+
     return true;
 }
 
@@ -733,7 +734,7 @@ static bool s_msg_opcode_delete(struct queue_io_msg * a_msg)
     }
 
     if(a_msg->callback_result){
-        a_msg->callback_result( l_res==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
+        a_msg->callback_result(s_context_global_db,  l_res==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
                                         DAP_GLOBAL_DB_RC_ERROR,
                                 a_msg->group, a_msg->key,
                                NULL, 0, 0 , false, a_msg->callback_arg );
@@ -796,7 +797,7 @@ static bool s_msg_opcode_flush(struct queue_io_msg * a_msg)
 {
     int l_res = dap_db_driver_flush();
     if(a_msg->callback_result){
-        a_msg->callback_result( l_res==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
+        a_msg->callback_result(s_context_global_db,  l_res==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
                                         DAP_GLOBAL_DB_RC_ERROR,
                                 NULL,NULL,NULL, 0, 0 , false, a_msg->callback_arg );
     }
@@ -937,7 +938,37 @@ static void s_queue_io_msg_delete( struct queue_io_msg * a_msg)
  */
 static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
 {
+    // Init its own queue
     s_context_global_db->queue_io = dap_context_create_queue(a_context, s_queue_io_callback);
+
+    // Create arrays of inputs for connection with workers and proc threads
+    s_context_global_db->queue_worker_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof(dap_events_socket_t*) *
+                                                                dap_events_thread_get_count() );
+    s_context_global_db->queue_worker_callback_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof(dap_events_socket_t*) *
+                                                                dap_events_thread_get_count() );
+
+    s_context_global_db->queue_proc_thread_callback_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof(dap_events_socket_t*) *
+                                                                dap_events_thread_get_count() );
+
+    // Fullful arrays with queue inputs
+    for (uint32_t i = 0; i < dap_events_thread_get_count(); i++){
+        dap_worker_t * l_worker = dap_events_worker_get(i);
+        dap_proc_thread_t *l_proc_thread = dap_proc_thread_get(i);
+        assert(l_worker);
+        assert(l_proc_thread);
+
+        // Input for I/O operations on worker
+        s_context_global_db->queue_worker_io_input[i] = dap_events_socket_queue_ptr_create_input( l_worker->queue_es_io);
+        dap_context_add( a_context, s_context_global_db->queue_worker_io_input[i]);
+
+        // Input for callback queue on worker
+        s_context_global_db->queue_worker_callback_input[i] = dap_events_socket_queue_ptr_create_input( l_worker->queue_callback);
+        dap_context_add( a_context, s_context_global_db->queue_worker_callback_input[i]);
+
+        // Input for callback queue on proc thread
+        s_context_global_db->queue_proc_thread_callback_input[i] = dap_events_socket_queue_ptr_create_input( l_proc_thread->proc_queue->esocket );
+        dap_context_add( a_context, s_context_global_db->queue_proc_thread_callback_input[i]);
+    }
 }
 
 
@@ -950,6 +981,15 @@ static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
 static void s_context_callback_stopped( dap_context_t * a_context, void *a_arg)
 {
     dap_events_socket_remove_and_delete_unsafe(s_context_global_db->queue_io, false);
+    // Fullful arrays with queue inputs
+    for (uint32_t i = 0; i < dap_events_thread_get_count(); i++){
+        dap_events_socket_remove_and_delete_unsafe(s_context_global_db->queue_worker_io_input[i], true);
+        dap_events_socket_remove_and_delete_unsafe(s_context_global_db->queue_worker_callback_input[i], true);
+        dap_events_socket_remove_and_delete_unsafe(s_context_global_db->queue_proc_thread_callback_input[i], true);
+    }
+    DAP_DELETE(s_context_global_db->queue_worker_io_input);
+    DAP_DELETE(s_context_global_db->queue_worker_callback_input);
+    DAP_DELETE(s_context_global_db->queue_proc_thread_callback_input);
 }
 
 
@@ -982,7 +1022,7 @@ static int s_check_db_version()
  * @param a_value_len
  * @param a_arg
  */
-static void s_check_db_version_callback_get (int a_errno, const char * a_group, const char * a_key,
+static void s_check_db_version_callback_get (dap_global_db_context_t * a_global_db_context, int a_errno, const char * a_group, const char * a_key,
                                              const void * a_value, const size_t a_value_len,
                                              dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg)
 {
@@ -1070,7 +1110,7 @@ lb_exit:
  * @param a_value_len
  * @param a_arg
  */
-static void s_check_db_version_callback_set (int a_errno, const char * a_group, const char * a_key,
+static void s_check_db_version_callback_set (dap_global_db_context_t * a_global_db_context,int a_errno, const char * a_group, const char * a_key,
                                              const void * a_value, const size_t a_value_len,
                                              dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg)
 {

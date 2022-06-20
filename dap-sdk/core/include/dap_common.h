@@ -474,6 +474,8 @@ void dap_set_appname(const char * a_appname);
 
 char *dap_itoa(int i);
 
+unsigned dap_gettid();
+
 int get_select_breaker(void);
 int send_select_break(void);
 int exec_with_ret(char**, const char*);

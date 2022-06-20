@@ -66,6 +66,10 @@
 
 #define LOG_TAG "dap_chain_mempool"
 
+void s_tx_create_massive_gdb_save_callback( dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group,
+                                            const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                            const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg);
+
 int dap_datum_mempool_init(void)
 {
     return 0;
@@ -357,20 +361,36 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
 
     //return 0;
-    if( dap_chain_global_db_gr_save(l_objs,a_tx_num,l_gdb_group) ) {
-        log_it(L_NOTICE, "%zu transaction are placed in mempool", a_tx_num);
-        DAP_DELETE(l_objs);
-        DAP_DELETE(l_gdb_group);
-        return 0;
+    dap_global_db_set_multiple(l_gdb_group, l_objs,a_tx_num, s_tx_create_massive_gdb_save_callback , NULL );
+    DAP_DELETE(l_gdb_group);
+    return 0;
+}
+
+/**
+ * @brief s_tx_create_massive_gdb_save_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_values_total
+ * @param a_values_shift
+ * @param a_value_count
+ * @param a_values
+ * @param a_arg
+ */
+void s_tx_create_massive_gdb_save_callback( dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group,
+                                            const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                            const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
+{
+    DAP_DELETE(a_values); // Delete objs thats passed as arg;
+    if( a_rc ==0  ) {
+        log_it(L_NOTICE, "%zu transaction are placed in mempool", a_values_total);
     }else{
-        log_it(L_ERROR, "Can't place %zu transactions  in mempool", a_tx_num);
-        DAP_DELETE(l_objs);
-        DAP_DELETE(l_gdb_group);
-        return -4;
+        log_it(L_ERROR, "Can't place %zu transactions  in mempool", a_values_total);
     }
 
-
 }
+
 
 dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
                                                   const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,

@@ -297,7 +297,9 @@ size_t l_store_obj_cnt;
         /* Enqueue "Exec Complete" callback routine */
         l_dap_worker = dap_events_worker_get_auto ();
 
-        if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker, l_store_obj_cur->callback_proc_thread, (void *callback_proc_thread_argre_obj_cur->cb_arg)) )
+        if ( (l_ret = dap_proc_queue_add_callback(l_dap_worker,
+                                                  l_store_obj_cur->callback_proc_thread,
+                                                  l_store_obj_cur->callback_proc_thread_arg   ) ) )
             log_it(L_ERROR, "[%p] Enqueue completion callback for item %s/%s (code %d)", l_store_obj_cur,
                    l_store_obj_cur->group, l_store_obj_cur->key, l_ret);
         }
