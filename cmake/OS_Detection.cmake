@@ -11,6 +11,12 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     message("[ ] Debian OS ${DEBIAN_OS_VERSION} (${DEBIAN_OS_NAME})")
 # check if we're building natively on Android (TERMUX)
     EXECUTE_PROCESS( COMMAND uname -o COMMAND tr -d '\n' OUTPUT_VARIABLE OPERATING_SYSTEM)
+    
+    execute_process (
+                    COMMAND bash -c "awk -F= '/^ID=/{print $2}' /etc/os-release |tr -d '\n' | tr -d '\"'"
+                    OUTPUT_VARIABLE DEBIAN_OS_RELEASE_NAME
+    )
+    
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Android")
     set(ANDROID ON)
     set(UNIX ON)
