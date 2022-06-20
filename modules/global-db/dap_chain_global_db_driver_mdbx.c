@@ -176,7 +176,7 @@ MDBX_val    l_key_iov, l_data_iov;
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
     if ( (l_rc = strlen(a_group)) > DAP_DB$SZ_MAXGROUPNAME )                /* Check length of the group name */
-        return  log_it(L_ERROR, "Group name '%s' is too long (%d>%d)", a_group, l_rc, DAP_DB$SZ_MAXGROUPNAME), NULL;
+        return  log_it(L_ERROR, "Group name '%s' is too long (%d>%lu)", a_group, l_rc, DAP_DB$SZ_MAXGROUPNAME), NULL;
 
     if ( !(l_db_ctx = DAP_NEW_Z(dap_db_ctx_t)) )                            /* Allocate zeroed memory for new DB context */
         return  log_it(L_ERROR, "Cannot allocate DB context for '%s', errno=%d", a_group, errno), NULL;
@@ -292,7 +292,7 @@ char        *l_cp;
         mdbx_setup_debug	(	MDBX_LOG_VERBOSE, 0, 0);
 #endif
 
-    log_it(L_NOTICE, "Set maximum number of local groups: %d", DAP_DB$K_MAXGROUPS);
+    log_it(L_NOTICE, "Set maximum number of local groups: %lu", DAP_DB$K_MAXGROUPS);
     mdbx_env_set_maxdbs (s_mdbx_env, DAP_DB$K_MAXGROUPS);       /* Set maximum number of the file-tables (MDBX subDB)
                                                                               according to number of supported groups */
 
