@@ -25,9 +25,9 @@
 
 #include <stdint.h>
 #include <string.h>
-//#include <glib.h>
 
 #include "dap_common.h"
+#include "dap_strfuncs.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_sign.h"
@@ -48,6 +48,12 @@
  * return type, or TX_ITEM_TYPE_ANY if error
  */
 dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item);
+
+/**
+ * Get item name by item type
+ *
+ * return name, or UNDEFINED
+ */
 DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_item_type_t a_item_type)
 {
     switch(a_item_type){
@@ -67,6 +73,20 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         default: return "UNDEFINED";
     }
 }
+
+/**
+ * Get item type by item name
+ *
+ * return type, or TX_ITEM_TYPE_UNKNOWN
+ */
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name);
+
+/**
+ * Get dap_chain_tx_out_cond_subtype_t by name
+ *
+ * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
+ */
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str);
 
 /**
  * Get item size
