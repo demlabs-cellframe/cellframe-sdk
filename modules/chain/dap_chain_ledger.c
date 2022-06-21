@@ -334,9 +334,10 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
  * @brief dap_chain_ledger_token_check
  * @param a_ledger
  * @param a_token
+ * @param a_token_size
  * @return
  */
-int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token)
+int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
     if ( !a_ledger){
         if(s_debug_more)
@@ -352,6 +353,40 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
         log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
         return -3;
     }
+    // Check signs
+//    dap_chain_datum_token_signs_parse(a_token, a_token_size, )
+    size_t l_signs_unique = 0;
+    size_t l_size_tsd_section = 0;
+    switch (a_token->type) {
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+            l_size_tsd_section = a_token->header_native_decl.tsd_total_size;
+            break;
+    }
+    size_t l_signs_size = a_token_size - sizeof(dap_chain_datum_token_t) - l_size_tsd_section;
+    dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd + l_size_tsd_section, l_signs_size, &l_signs_unique);
+    if (l_signs_unique == a_token->signs_valid){
+        size_t l_signs_approve = 0;
+        for (size_t i=0; i < l_signs_unique; i++){
+            dap_sign_t *l_sign = l_signs[i];
+            if (dap_sign_verify_size(l_sign, l_signs_size)) {
+                if (dap_sign_verify(l_sign, a_token, sizeof(dap_chain_datum_token_t) - sizeof(uint16_t)) == 1) {
+                    l_signs_approve++;
+                }
+            }
+        }
+        if (l_signs_approve == a_token->signs_valid){
+            return 0;
+        } else {
+            log_it(L_WARNING, "The token declaration has %zu valid signatures out of %zu.", l_signs_approve, a_token->signs_valid);
+            return -5;
+        }
+    } else {
+        log_it(L_WARNING, "The number of unique valid tokens %zu is less than the value set to %zu.",
+               l_signs_unique, a_token->header_native_decl.tsd_total_size);
+        return -4;
+    }
+//    dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd, a_token->header_native_decl.
     // Checks passed
     return 0;
 }
