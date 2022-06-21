@@ -634,7 +634,8 @@ void *dap_worker_thread(void *arg)
 
             l_bytes_sent = 0;
 
-            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
+            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) &&
+                    !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
                 /*
                  * Socket is ready to write and not going to close
@@ -644,7 +645,7 @@ void *dap_worker_thread(void *arg)
                     dap_events_socket_set_writable_unsafe(l_cur, false);        /* Clear "enable write flag" */
 
                     if ( l_cur->callbacks.write_finished_callback )             /* Optionaly call I/O completion routine */
-                        l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, l_errno);
+                        l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, 0);
 
                     l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
                 }

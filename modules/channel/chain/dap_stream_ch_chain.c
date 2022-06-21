@@ -116,6 +116,10 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_arg);
 static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain);
 
+static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
+                                        uint64_t a_chain_id, uint64_t a_cell_id,
+                                        const void * a_data, size_t a_data_size);
+
 static bool s_debug_more=false;
 static uint_fast16_t s_update_pack_size=100; // Number of hashes packed into the one packet
 static uint_fast16_t s_skip_in_reactor_count=50; // Number of hashes packed to skip in one reactor loop callback out packet
@@ -624,7 +628,7 @@ static void s_gdb_sync_tsd_worker_callback(dap_worker_t *a_worker, void *a_arg)
         memcpy(l_data_ptr, &l_sync_request->request.id_end, sizeof(uint64_t));
         l_data_ptr += sizeof(uint64_t);
         memcpy(l_data_ptr, l_sync_request->gdb.sync_group, l_gr_len);
-        dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
+        s_stream_ch_chain_pkt_write(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
                                              l_sync_request->request_hdr.net_id.uint64,
                                              l_sync_request->request_hdr.chain_id.uint64,
                                              l_sync_request->request_hdr.cell_id.uint64,
@@ -860,7 +864,7 @@ static bool s_chain_timer_callback(void *a_arg)
         return false;
     }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-    if (l_ch_chain->timer_shots++ >= 3) {
+    if (l_ch_chain->timer_shots++ >= 50) {  // 50 * 200 = 10 sec
         if (!s_ch_chain_get_idle(l_ch_chain)) {
             s_ch_chain_go_idle(l_ch_chain);
             if (l_ch_chain->callback_notify_packet_out)
@@ -873,12 +877,16 @@ static bool s_chain_timer_callback(void *a_arg)
         l_ch_chain->activity_timer = NULL;
         return false;
     }
+    if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
+        s_stream_ch_packet_out(l_ch, NULL);
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
-    if (!l_ch_chain->timer_shots && l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS)
+    if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks == 15) {    // 15 * 200 = 3 sec
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
-    if (!l_ch_chain->timer_shots && l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB) {
+        l_ch_chain->sent_breaks = 0;
+    }
+    if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB && l_ch_chain->sent_breaks == 15) {    // 15 * 200 = 3 sec
         if (s_debug_more)
             log_it(L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
                             dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
@@ -886,9 +894,8 @@ static bool s_chain_timer_callback(void *a_arg)
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
+        l_ch_chain->sent_breaks = 0;
     }
-    if (l_ch_chain->state != CHAIN_STATE_WAITING)
-        s_stream_ch_packet_out(l_ch, NULL);
     return true;
 }
 
@@ -906,7 +913,7 @@ void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
 {
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
     a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
-                                                             3000, s_chain_timer_callback, (void *)l_uuid);
+                                                             200, s_chain_timer_callback, (void *)l_uuid);
 }
 
 /**
@@ -1602,8 +1609,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     UNUSED(a_arg);
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
-    bool l_go_idle = false;
-    bool l_timer_reset = false;
+    bool l_go_idle = false, l_was_sent_smth = false;
     //pthread_rwlock_rdlock(&l_ch_chain->idle_lock);
     switch (l_ch_chain->state) {
         // Update list of global DB records to remote
@@ -1615,11 +1621,11 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
                 if (!l_obj || DAP_POINTER_TO_SIZE(l_obj) == 1)
                     break;
-                l_timer_reset = true;
                 memcpy(&l_data[i].hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
                 l_data[i].size = l_obj->pkt->data_size;
             }
             if (i) {
+                l_was_sent_smth = true;
                 s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB,
                                             l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                             l_ch_chain->request_hdr.cell_id.uint64,
@@ -1628,6 +1634,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 if (s_debug_more)
                     log_it(L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB");
             } else if (!l_obj) {
+                l_was_sent_smth = true;
                 l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(
                                                                                           l_ch_chain->request_hdr.net_id));
                 s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END,
@@ -1666,7 +1673,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                         l_request_atom_hash_str);
                     }*/
                     l_skip_count++;
-                    l_ch_chain->timer_shots = -1;
                 } else {
                     l_hash_item = DAP_NEW(dap_stream_ch_chain_hash_item_t);
                     memcpy(&l_hash_item->hash, &l_obj->hash, sizeof(dap_chain_hash_fast_t));
@@ -1681,7 +1687,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 }
             }
             if (l_pkt_size) {
-                l_timer_reset = true;
+                l_was_sent_smth = true;
                 // If request was from defined node_addr we update its state
                 if (s_debug_more)
                     log_it(L_INFO, "Send one global_db packet len=%zu (rest=%zu/%zu items)", l_pkt_size,
@@ -1692,6 +1698,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                      l_ch_chain->request_hdr.cell_id.uint64, l_pkt, l_pkt_size);
                 DAP_DELETE(l_pkt);
             } else if (!l_obj) {
+                l_was_sent_smth = true;
                 log_it( L_INFO,"Syncronized database: items syncronyzed %"DAP_UINT64_FORMAT_U" from %zu",
                         l_ch_chain->stats_request_gdb_processed, dap_db_log_list_get_count(l_ch_chain->request_db_log));
                 // last message
@@ -1708,7 +1715,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
         // Update list of atoms to remote
         case CHAIN_STATE_UPDATE_CHAINS:{
-            l_timer_reset = true;
             dap_stream_ch_chain_update_element_t *l_data = DAP_NEW_Z_SIZE(dap_stream_ch_chain_update_element_t,
                                                                           sizeof(dap_stream_ch_chain_update_element_t) * s_update_pack_size);
             size_t l_data_size=0;
@@ -1720,6 +1726,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 l_ch_chain->request_atom_iter->chain->callback_atom_iter_get_next(l_ch_chain->request_atom_iter, NULL);
             }
             if (l_data_size){
+                l_was_sent_smth = true;
                 if(s_debug_more)
                     log_it(L_DEBUG,"Out: UPDATE_CHAINS with %zu hashes sent", l_data_size / sizeof(dap_stream_ch_chain_update_element_t));
                 s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS,
@@ -1729,6 +1736,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                      l_data,l_data_size);
             }
             if(!l_data_size  ||  !l_ch_chain->request_atom_iter){ // We over with all the hashes here
+                l_was_sent_smth = true;
                 if(s_debug_more)
                     log_it(L_INFO,"Out: UPDATE_CHAINS_END sent ");
                 dap_stream_ch_chain_sync_request_t l_request = {};
@@ -1745,7 +1753,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 
         // Synchronize chains
         case CHAIN_STATE_SYNC_CHAINS: {
-            bool l_was_sent_smth=false;
             // Process one chain from l_ch_chain->request_atom_iter
             // Pack loop to skip quicker
             for(uint_fast16_t k=0; k<s_skip_in_reactor_count     &&
@@ -1801,16 +1808,15 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS, NULL,
                                                            0, l_ch_chain->callback_notify_arg);
             }
-            if (!l_was_sent_smth)
-                l_ch_chain->timer_shots = -1;
-            else
-                l_timer_reset = true;
         } break;
         default: break;
     }
     //pthread_rwlock_unlock(&l_ch_chain->idle_lock);
     if (l_go_idle)
         s_ch_chain_go_idle(l_ch_chain);
-    else if (l_timer_reset)
-        s_chain_timer_reset(l_ch_chain);
+    if (l_was_sent_smth)
+        l_ch_chain->sent_breaks = 0;
+    else
+        l_ch_chain->sent_breaks++;
+    s_chain_timer_reset(l_ch_chain);
 }
