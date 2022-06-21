@@ -105,6 +105,56 @@ static size_t dap_chain_datum_tx_receipt_get_size(const dap_chain_datum_tx_recei
 }
 
 /**
+ * Get item type by item name
+ *
+ * return type, or TX_ITEM_TYPE_UNKNOWN
+ */
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum_name) {
+    if(!a_datum_name)
+        return TX_ITEM_TYPE_UNKNOWN;
+    if(!dap_strcmp(a_datum_name, "in"))
+        return TX_ITEM_TYPE_IN;
+    else if(!dap_strcmp(a_datum_name, "out"))
+        return TX_ITEM_TYPE_OUT;
+    else if(!dap_strcmp(a_datum_name, "out_ext"))
+            return TX_ITEM_TYPE_OUT_EXT;
+    else if(!dap_strcmp(a_datum_name, "pkey"))
+            return TX_ITEM_TYPE_PKEY;
+    else if(!dap_strcmp(a_datum_name, "sign"))
+            return TX_ITEM_TYPE_SIG;
+    else if(!dap_strcmp(a_datum_name, "token"))
+            return TX_ITEM_TYPE_TOKEN;
+    else if(!dap_strcmp(a_datum_name, "in_cond"))
+            return TX_ITEM_TYPE_IN_COND;
+    else if(!dap_strcmp(a_datum_name, "out_cond"))
+            return TX_ITEM_TYPE_OUT_COND;
+    else if(!dap_strcmp(a_datum_name, "receipt"))
+            return TX_ITEM_TYPE_RECEIPT;
+    return TX_ITEM_TYPE_UNKNOWN;
+}
+
+/**
+ * Get dap_chain_tx_out_cond_subtype_t by name
+ *
+ * return subtype, or DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED
+ */
+dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const char *a_subtype_str) {
+    if(!a_subtype_str)
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
+    if(!dap_strcmp(a_subtype_str, "srv_pay"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
+    else if(!dap_strcmp(a_subtype_str, "srv_xchange"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
+    else if(!dap_strcmp(a_subtype_str, "srv_stake"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE;
+    else if(!dap_strcmp(a_subtype_str, "srv_stake_update"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE;
+    else if(!dap_strcmp(a_subtype_str, "fee"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE;
+    return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
+}
+
+/**
  * Get item type
  *
  * return type, or TX_ITEM_TYPE_ANY if error
