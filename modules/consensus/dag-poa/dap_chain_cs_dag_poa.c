@@ -402,33 +402,59 @@ typedef struct event_clean_dup_items {
     UT_hash_handle hh;
 } event_clean_dup_items_t;
 
-static bool s_poa_round_check(dap_chain_t *a_chain) {
-    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+/**
+ * @brief s_poa_round_check_callback_load_round
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_values_total
+ * @param a_values_shift
+ * @param a_value_count
+ * @param a_values
+ * @param a_arg
+ */
+static bool s_poa_round_check_callback_load_round_new(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                                  const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
+{
+    dap_chain_t * l_chain = (dap_chain_t *) a_arg;
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(l_chain);
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(l_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
+    char *l_gdb_group_round_new = l_dag->gdb_group_events_round_new;
 
-    char *l_gdb_group_round = l_dag->gdb_group_events_round_new;
-    size_t l_objs_size = 0;
-    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_round, &l_objs_size);
     size_t l_events_count = 0;
-    if (l_objs_size) {
-        for (size_t i = 0; i<l_objs_size; i++) {
-            dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
-            if (  (dap_time_now() - l_event_round_item->round_info.ts_update) >   
+    if (a_value_count) {
+        for (size_t i = 0; i<a_value_count; i++) {
+            dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
+            if (  (dap_time_now() - l_event_round_item->round_info.ts_update) >
                     (l_poa_pvt->confirmations_timeout+l_poa_pvt->wait_sync_before_complete+10)  ) {
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_round);
-                log_it(L_MSG, "DAG-PoA: Remove event %s from round by timer.", l_objs[i].key);
+                dap_chain_global_db_gr_del(a_values[i].key, l_gdb_group_round_new);
+                log_it(L_MSG, "DAG-PoA: Remove event %s from round by timer.", a_values[i].key);
             }
             else {
                 l_events_count++;
             }
         }
-        dap_global_db_objs_delete(l_objs, l_objs_size);
+        dap_global_db_objs_delete(a_values, a_value_count);
     }
 
     if (!l_events_count) {
-        dap_chain_cs_new_event_add_datums(a_chain, false);
+        dap_chain_cs_new_event_add_datums(l_chain, false);
     }
+    return true;
+}
+
+/**
+ * @brief Timer callback for round check
+ * @param a_chain Chain object
+ * @return Always true
+ */
+static bool s_poa_round_check(dap_chain_t *a_chain) {
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+
+    dap_global_db_get_all(l_dag->gdb_group_events_round_new,0,s_poa_round_check_callback_load_round_new, a_chain );
+
     return true;
 }
 

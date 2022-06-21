@@ -61,6 +61,8 @@ typedef struct dap_chain_gdb_private
 
     dap_chain_t *chain;
 
+    pthread_cond_t load_cond;
+    pthread_mutex_t load_mutex;
     dap_chain_gdb_datum_hash_item_t * hash_items;
 } dap_chain_gdb_private_t;
 
@@ -189,6 +191,9 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // load ledger
     l_gdb_priv->is_load_mode = true;
+    pthread_cond_init(&l_gdb_priv->load_cond, NULL);
+    pthread_mutex_init(&l_gdb_priv->load_mutex, NULL);
+
     dap_chain_gdb_ledger_load(l_gdb_priv->group_datums, a_chain);
 
     a_chain->callback_delete = dap_chain_gdb_delete;
@@ -268,6 +273,39 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
     return 1;
 }*/
 
+/**
+ * @brief s_ledger_load_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_values_total
+ * @param a_values_shift
+ * @param a_value_count
+ * @param a_values
+ * @param a_arg
+ */
+static bool s_ledger_load_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                                  const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
+{
+    assert(a_arg);
+    dap_chain_t * l_chain = (dap_chain_t *) a_arg;
+    assert(l_chain);
+    dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(l_chain);
+    assert(l_gdb);
+    dap_chain_gdb_private_t * l_gdb_pvt = PVT(l_gdb);
+    assert(l_gdb_pvt);
+    // make list of datums
+    for(size_t i = 0; i < a_value_count; i++) {
+        s_chain_callback_atom_add(l_chain, a_values[i].value, a_values[i].value_len);
+    }
+    l_gdb_pvt->is_load_mode = false;
+
+    pthread_mutex_lock(&l_gdb_pvt->load_mutex);
+    pthread_cond_broadcast(&l_gdb_pvt->load_cond);
+    pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
+    return true;
+}
 
 /**
  * @brief Load ledger from mempool
@@ -278,15 +316,15 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  */
 int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain)
 {
+    dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
+    dap_chain_gdb_private_t * l_gdb_pvt = PVT(l_gdb);
     size_t l_data_size = 0;
     //  Read the entire database into an array of size bytes
-    dap_global_db_obj_t *data = dap_chain_global_db_gr_load(a_gdb_group, &l_data_size);
-    // make list of datums
-    for(size_t i = 0; i < l_data_size; i++) {
-        s_chain_callback_atom_add(a_chain, data[i].value, data[i].value_len);
-    }
-    dap_global_db_objs_delete(data, l_data_size);
-    PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = false;
+    pthread_mutex_lock(&l_gdb_pvt->load_mutex);
+    dap_global_db_get_all(a_gdb_group, 0, s_ledger_load_callback, a_chain);
+    pthread_cond_wait(&l_gdb_pvt->load_cond, &l_gdb_pvt->load_mutex);
+    pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
+
     return 0;
 }
 

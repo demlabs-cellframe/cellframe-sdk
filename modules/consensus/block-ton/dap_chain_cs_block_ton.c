@@ -32,7 +32,7 @@ static void s_message_chain_add(dap_chain_cs_block_ton_items_t * a_session, dap_
 
 static void s_session_round_start(dap_chain_cs_block_ton_items_t *a_session);
 static bool s_session_send_startsync(dap_chain_cs_block_ton_items_t *a_session);
-static void  s_session_round_start_callback_load_session_store(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+static bool  s_session_round_start_callback_load_session_store(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg);
 
 
@@ -371,7 +371,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
  * @param a_values
  * @param a_arg
  */
-static void  s_session_round_start_callback_load_session_store(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+static bool  s_session_round_start_callback_load_session_store(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
     dap_chain_cs_block_ton_items_t *l_session = (dap_chain_cs_block_ton_items_t*) a_arg;
@@ -411,6 +411,7 @@ static void  s_session_round_start_callback_load_session_store(dap_global_db_con
 
     l_session->time_proc_lock = false; // unlock
     pthread_rwlock_unlock(&l_session->rwlock);
+    return true;
 }
 
 
@@ -495,7 +496,7 @@ static bool s_session_send_votefor(s_session_send_votefor_data_t *a_data){
  * @param a_values
  * @param a_arg
  */
-static void  s_session_round_start_callback_load_session_store_coordinator_state_proc(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+static bool s_session_round_start_callback_load_session_store_coordinator_state_proc(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
     dap_chain_cs_block_ton_items_t * l_session = (dap_chain_cs_block_ton_items_t *) a_arg;
@@ -550,6 +551,7 @@ static void  s_session_round_start_callback_load_session_store_coordinator_state
 
     l_session->time_proc_lock = false; // unlock
     pthread_rwlock_unlock(&l_session->rwlock);
+    return true;
 }
 
 /**
@@ -949,7 +951,7 @@ struct session_round_finish_args{
  * @param a_values
  * @param a_arg
  */
-static void s_session_round_finish_callback_load_store(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+static bool s_session_round_finish_callback_load_store(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
 
 {
@@ -1069,7 +1071,7 @@ static void s_session_round_finish_callback_load_store(dap_global_db_context_t *
         l_session->time_proc_lock = false; // unlock
 
     pthread_rwlock_unlock(&l_session->rwlock); // then unlock anyway
-
+    return true;
 }
 /**
  * @brief Finish TON round (asyncroniusly)
@@ -1164,7 +1166,7 @@ struct vote_for_load_store_args
  * @param a_values
  * @param a_arg
  */
-static void s_session_packet_in_callback_vote_for_load_store (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+static bool s_session_packet_in_callback_vote_for_load_store (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                           const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
     dap_chain_cs_block_ton_items_t * l_session = ((struct vote_for_load_store_args *) a_arg)->session;
@@ -1246,6 +1248,7 @@ static void s_session_packet_in_callback_vote_for_load_store (dap_global_db_cont
     }
     pthread_rwlock_unlock(&l_session->rwlock);
     DAP_DELETE(a_arg);
+    return true;
 }
 
 /**

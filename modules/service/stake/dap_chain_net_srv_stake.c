@@ -1139,7 +1139,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             }
             char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
             size_t l_orders_count = 0;
-            dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str, &l_orders_count);
+            dap_global_db_obj_t * l_orders = dap_global_db_objs_get(l_gdb_group_str, &l_orders_count);
             dap_chain_net_srv_stake_item_t *l_stake;
             dap_string_t *l_reply_str = dap_string_new("");
             for (size_t i = 0; i < l_orders_count; i++) {

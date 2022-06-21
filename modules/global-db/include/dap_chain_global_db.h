@@ -28,28 +28,6 @@ enum    {
 };
 
 
-
-
-
-/**
- * Flush DB
- */
-int dap_chain_global_db_flush(void);
-
-/**
- * Delete struct dap_global_db_obj_t
- */
-void s_dap_chain_global_db_obj_delete(dap_global_db_obj_t *obj);
-
-/**
- * Delete mass of struct dap_global_db_obj_t
- */
-void dap_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count);
-
-int dap_chain_global_db_init(dap_config_t * a_config);
-
-void dap_chain_global_db_deinit(void);
-
 /**
  * Get entry from base
  */
@@ -86,5 +64,4 @@ uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key);
  * @return array (note:not Null-terminated string) on NULL in case of an error
  */
 dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group);
-dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_first_id, size_t *a_objs_count);
 dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out);

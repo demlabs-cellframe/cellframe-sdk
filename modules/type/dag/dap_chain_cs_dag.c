@@ -1489,7 +1489,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             log_it(L_NOTICE,"Round complete command accepted, forming new events");
 
             size_t l_objs_size=0;
-            dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_dag->gdb_group_events_round_new,&l_objs_size);
+            dap_global_db_obj_t * l_objs = dap_global_db_objs_get(l_dag->gdb_group_events_round_new,&l_objs_size);
 
             dap_string_t *l_str_ret_tmp= l_objs_size>0 ? dap_string_new("Completing round:\n") : dap_string_new("Completing round: no data");
 
@@ -1885,7 +1885,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     if ( l_gdb_group_events ){
                         dap_global_db_obj_t * l_objs;
                         size_t l_objs_count = 0;
-                        l_objs = dap_chain_global_db_gr_load(l_gdb_group_events,&l_objs_count);
+                        l_objs = dap_global_db_objs_get(l_gdb_group_events,&l_objs_count);
                         dap_string_append_printf(l_str_tmp,"%s.%s: Found %zu records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
                         for (size_t i = 0; i< l_objs_count; i++){

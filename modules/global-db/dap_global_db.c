@@ -71,11 +71,11 @@ struct queue_io_msg{
     };
     // Custom argument passed to the callback
     void *  callback_arg;
-
     union{
         struct{ // Raw request
             dap_store_obj_t * values_raw;
             size_t values_raw_count;
+            size_t values_raw_shift;
         };
         struct{ //deserialized requests
             // Different variant of message params
@@ -463,16 +463,17 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
         }
     }
 
+    bool l_delete_objs = true;
     // Call callback if present
     if(a_msg->callback_results)
-        a_msg->callback_results(s_context_global_db,  l_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
+        l_delete_objs = a_msg->callback_results(s_context_global_db,  l_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
                                 , a_msg->group, a_msg->key, a_msg->values_total, l_values_count,
                                  a_msg->values_shift,
                                  l_objs, a_msg->callback_arg );
     // Clean memory
     if(l_store_objs)
         dap_store_obj_free(l_store_objs,l_values_count);
-    if(l_objs)
+    if(l_objs && l_delete_objs)
         DAP_DELETE(l_objs);
 
     // Check for values_shift overflow and update it
@@ -497,12 +498,13 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
 /**
  * @brief dap_global_db_get_all_raw
  * @param a_group
+ * @param a_first_id
  * @param a_results_page_size
  * @param a_callback
  * @param a_arg
  * @return
  */
-int dap_global_db_get_all_raw(const char * a_group,size_t a_results_page_size, dap_global_db_callback_results_raw_t a_callback, void * a_arg )
+int dap_global_db_get_all_raw(const char * a_group, uint64_t a_first_id,size_t a_results_page_size, dap_global_db_callback_results_raw_t a_callback, void * a_arg )
 {
     // TODO make usable a_results_page_size
 
@@ -513,6 +515,7 @@ int dap_global_db_get_all_raw(const char * a_group,size_t a_results_page_size, d
     struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
     l_msg->opcode = MSG_OPCODE_GET_ALL;
     l_msg->group = dap_strdup(a_group);
+    l_msg->values_raw_shift = a_first_id;
     l_msg->callback_arg = a_arg;
     l_msg->callback_results_raw = a_callback;
 
@@ -533,29 +536,29 @@ static bool s_msg_opcode_get_all_raw(struct queue_io_msg * a_msg)
 {
     size_t l_values_count = 0;
     if(! a_msg->values_total){ // First msg process
-        a_msg->values_total = dap_chain_global_db_driver_count(a_msg->group,0);
+        a_msg->values_raw_count = dap_chain_global_db_driver_count(a_msg->group,0);
     }
-    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, a_msg->values_shift , &l_values_count);
+    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, a_msg->values_raw_shift , &l_values_count);
 
 
     // Call callback if present
     if(a_msg->callback_results_raw)
         a_msg->callback_results_raw(s_context_global_db,  l_store_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
-                                , a_msg->group, a_msg->key, a_msg->values_total, l_values_count,
-                                 a_msg->values_shift,
+                                , a_msg->group, a_msg->key, a_msg->values_raw_count, l_values_count,
+                                 a_msg->values_raw_count,
                                  l_store_objs, a_msg->callback_arg );
     // Clean memory
     if(l_store_objs)
         dap_store_obj_free(l_store_objs,l_values_count);
 
     // Check for values_shift overflow and update it
-    if(l_values_count && a_msg->values_shift< UINT64_MAX - l_values_count &&
-            l_values_count + a_msg->values_shift < a_msg->values_total ){
-        a_msg->values_shift += l_values_count;
+    if(l_values_count && a_msg->values_raw_count< UINT64_MAX - l_values_count &&
+            l_values_count + a_msg->values_raw_count < a_msg->values_raw_count ){
+        a_msg->values_raw_count += l_values_count;
 
     }
 
-    if( a_msg->values_shift < a_msg->values_total){ // Have to process callback again
+    if( a_msg->values_shift < a_msg->values_raw_count){ // Have to process callback again
         int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,a_msg);
         if ( l_ret ){
             log_it(L_ERROR,"Can't resend i/o message for opcode GET_ALL_RAW after value shift %"
@@ -919,6 +922,113 @@ dap_global_db_obj_t *l_obj;
 }
 
 /**
+ * @brief The objs_get struct
+ */
+struct objs_get{
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    dap_global_db_obj_t * objs;
+    size_t objs_count;
+};
+
+/**
+ * @brief s_objs_get_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_values_total
+ * @param a_values_shift
+ * @param a_value_count
+ * @param a_values
+ * @param a_arg
+ */
+static bool s_objs_get_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                                  const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
+{
+    struct objs_get * l_args = (struct objs_get *) a_arg;
+    l_args->objs = a_values;
+    l_args->objs_count = a_value_count;
+    pthread_mutex_lock(&l_args->mutex);
+    pthread_cond_broadcast(&l_args->cond);
+    pthread_mutex_unlock(&l_args->mutex);
+    return false;
+}
+
+/**
+ * @brief Sync (blocking) function for retrieving of list of GDB content
+ * @param a_group
+ * @param a_objs_count
+ * @return Group's objects
+ */
+dap_global_db_obj_t* dap_global_db_objs_get(const char *a_group, size_t *a_objs_count)
+{
+    struct objs_get * l_args = DAP_NEW_Z(struct objs_get);
+    pthread_mutex_init(&l_args->mutex,NULL);
+    pthread_cond_init(&l_args->cond,NULL);
+    pthread_mutex_lock(&l_args->mutex);
+    dap_global_db_get_all(a_group,0,s_objs_get_callback, l_args);
+    pthread_cond_wait(&l_args->cond, &l_args->mutex);
+    pthread_mutex_unlock(&l_args->mutex);
+    pthread_mutex_destroy(&l_args->mutex);
+    pthread_cond_destroy(&l_args->cond);
+
+    dap_global_db_obj_t * l_ret = l_args->objs;
+    if(l_args->objs_count)
+        *a_objs_count = l_args->objs_count;
+    DAP_DELETE(l_args);
+    return l_ret;
+}
+
+struct store_objs_get{
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    dap_store_obj_t * objs;
+    size_t objs_count;
+};
+
+static bool s_store_objs_get_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                                  const size_t a_value_count, dap_store_obj_t * a_values, void * a_arg)
+{
+    struct store_objs_get * l_args = (struct store_objs_get *) a_arg;
+    l_args->objs = a_values;
+    l_args->objs_count = a_value_count;
+    pthread_mutex_lock(&l_args->mutex);
+    pthread_cond_broadcast(&l_args->cond);
+    pthread_mutex_unlock(&l_args->mutex);
+    return false;
+}
+
+dap_store_obj_t* dap_global_db_store_objs_get(const char *a_group, uint64_t a_first_id, size_t *a_objs_count)
+{
+    struct store_objs_get * l_args = DAP_NEW_Z(struct store_objs_get);
+    pthread_mutex_init(&l_args->mutex,NULL);
+    pthread_cond_init(&l_args->cond,NULL);
+    pthread_mutex_lock(&l_args->mutex);
+    dap_global_db_get_all_raw(a_group,a_first_id, 0,s_store_objs_get_callback, l_args);
+    pthread_cond_wait(&l_args->cond, &l_args->mutex);
+    pthread_mutex_unlock(&l_args->mutex);
+    pthread_mutex_destroy(&l_args->mutex);
+    pthread_cond_destroy(&l_args->cond);
+
+    dap_store_obj_t * l_ret = l_args->objs;
+    if(l_args->objs_count)
+        *a_objs_count = l_args->objs_count;
+    DAP_DELETE(l_args);
+    return l_ret;
+
+}
+
+/**
+ * @brief dap_global_db_flush_sync
+ * @return
+ */
+int dap_global_db_flush_sync()
+{
+    return dap_db_driver_flush();
+}
+
+/**
  * @brief dap_global_db_flush
  * @param a_callback
  * @param a_arg
@@ -931,7 +1041,7 @@ int dap_global_db_flush( dap_global_db_callback_result_t a_callback, void * a_ar
         return -666;
     }
     struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
-    l_msg->opcode = MSG_OPCODE_DELETE;
+    l_msg->opcode = MSG_OPCODE_FLUSH;
     l_msg->callback_arg = a_arg;
     l_msg->callback_result = a_callback;
 

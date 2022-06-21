@@ -151,7 +151,7 @@ static dap_list_t* get_aliases_by_name(dap_chain_net_t * l_net, dap_chain_node_a
     dap_list_t *list_aliases = NULL;
     size_t data_size = 0;
     // read all aliases
-    dap_global_db_obj_t *objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes_aliases, &data_size);
+    dap_global_db_obj_t *objs = dap_global_db_objs_get(l_net->pub.gdb_nodes_aliases, &data_size);
     if(!objs || !data_size)
         return NULL;
     for(size_t i = 0; i < data_size; i++) {
@@ -620,7 +620,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         size_t l_nodes_count = 0;
         dap_string_append(l_string_reply, "\n");
         // read all node
-        l_objs = dap_chain_global_db_gr_load(a_net->pub.gdb_nodes, &l_nodes_count);
+        l_objs = dap_global_db_objs_get(a_net->pub.gdb_nodes, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");
@@ -632,7 +632,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             dap_string_append_printf(l_string_reply, "Got %zu records:\n", l_nodes_count);
             size_t l_data_size = 0;
             // read all aliases
-            dap_global_db_obj_t *l_aliases_objs = dap_chain_global_db_gr_load(a_net->pub.gdb_nodes_aliases, &l_data_size);
+            dap_global_db_obj_t *l_aliases_objs = dap_global_db_objs_get(a_net->pub.gdb_nodes_aliases, &l_data_size);
             for(size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
                 // read node
@@ -800,7 +800,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     }
     case CMD_FLUSH:
     {
-        int res_flush = dap_chain_global_db_flush();
+        int res_flush = dap_global_db_flush_sync();
         switch (res_flush) {
         case 0:
             dap_chain_node_cli_set_reply_text(a_str_reply, "Commit data base and filesystem caches to disk completed.\n\n");
@@ -1303,7 +1303,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 
         }
         // flush global_db
-        dap_chain_global_db_flush();
+        dap_global_db_flush_sync();
         log_it(L_INFO, "Gdb synced Ok");
 
         // Requesting chains
@@ -2281,7 +2281,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
     }else{
         size_t l_objs_size = 0;
-        dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+        dap_global_db_obj_t * l_objs = dap_global_db_objs_get(l_gdb_group_mempool, &l_objs_size);
         if(l_objs_size > 0)
             dap_string_append_printf(a_str_tmp, "%s.%s: Found %zu records :\n", a_net->pub.name, a_chain->name,
                     l_objs_size);

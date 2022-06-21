@@ -76,7 +76,7 @@ int dap_chain_net_srv_xchange_init()
     s_srv_xchange->parent = l_srv;
     s_srv_xchange->enabled = false;
     size_t l_prices_count = 0;
-    dap_global_db_obj_t *l_prices = dap_chain_global_db_gr_load(GROUP_LOCAL_XCHANGE, &l_prices_count);
+    dap_global_db_obj_t *l_prices = dap_global_db_objs_get(GROUP_LOCAL_XCHANGE, &l_prices_count);
     for (size_t i = 0; i < l_prices_count; i++) {
         dap_chain_net_srv_xchange_price_t *l_price = s_xchange_db_load(l_prices[i].key, l_prices[i].value);
         HASH_ADD_KEYPTR(hh, s_srv_xchange->pricelist, l_price->key_ptr, strlen(l_price->key_ptr), l_price);
@@ -857,7 +857,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             }
             char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
             size_t l_orders_count = 0;
-            dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str, &l_orders_count);
+            dap_global_db_obj_t * l_orders = dap_global_db_objs_get(l_gdb_group_str, &l_orders_count);
             dap_chain_net_srv_xchange_price_t *l_price;
             dap_string_t *l_reply_str = dap_string_new("");
             for (size_t i = 0; i < l_orders_count; i++) {

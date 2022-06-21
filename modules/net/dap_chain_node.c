@@ -306,7 +306,7 @@ bool dap_chain_node_mempool_autoproc_init()
             char *l_gdb_group_mempool = NULL;
             l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
             size_t l_objs_size = 0;
-            dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+            dap_global_db_obj_t *l_objs = dap_global_db_objs_get(l_gdb_group_mempool, &l_objs_size);
             if (l_objs_size) {
                 for (size_t i = 0; i < l_objs_size; i++) {
                     if (!l_objs[i].value_len)

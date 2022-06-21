@@ -2156,7 +2156,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     return -11;
                 }
                 size_t l_objs_count;
-                dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_str, &l_objs_count);
+                dap_global_db_obj_t *l_objs = dap_global_db_objs_get(l_gdb_group_str, &l_objs_count);
                 DAP_DELETE(l_gdb_group_str);
                 dap_string_t *l_reply = dap_string_new("");
                 for (size_t i = 0; i < l_objs_count; i++) {
@@ -3082,7 +3082,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     // read all node
-    l_objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes, &l_nodes_count);
+    l_objs = dap_global_db_objs_get(l_net->pub.gdb_nodes, &l_nodes_count);
     if(!l_nodes_count || !l_objs)
         return l_node_list;
     for(size_t i = 0; i < l_nodes_count; i++) {
@@ -3317,7 +3317,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
             const char *l_acl_gdb = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_gdb");
             if (l_acl_gdb) {
                 size_t l_objs_count;
-                dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_acl_gdb, &l_objs_count);
+                dap_global_db_obj_t *l_objs = dap_global_db_objs_get(l_acl_gdb, &l_objs_count);
                 for (size_t i = 0; i < l_objs_count; i++) {
                     if (!strcmp(l_objs[i].key, l_auth_hash_str)) {
                         l_authorized = true;
