@@ -56,7 +56,7 @@ int dap_chain_net_srv_xchange_init()
          "\tRemove price with specified tickers within specified net names\n"
     "srv_xchange price list\n"
          "\tList all active prices\n"
-    "srv_xchange price update -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker> {-coins <value> | rate <value> | -wallet <name>}\n"
+    "srv_xchange price update -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker> {-coins <value> | -rate <value> | -wallet <name>}\n"
          "\tUpdate price with specified tickers within specified net names\n"
     "srv_xchange orders -net <net name>\n"
          "\tGet the exchange orders list within specified net name\n"
