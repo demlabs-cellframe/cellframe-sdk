@@ -452,9 +452,18 @@ char *dap_log_get_item(time_t a_start_time, int a_limit);
 
 
 DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
-#define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
-#define debug_if( flg, lvl, ...) _log_it( ((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
+#define log_it(_log_level, ...) _log_it(LOG_TAG, _log_level, ##__VA_ARGS__)
+#define debug_if(flg, lvl, ...) _log_it(((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
 
+#ifdef DAP_SYS_DEBUG
+void    _log_it_ext( const char *, unsigned, enum dap_log_level, const char * format, ... );
+void    _dump_it (const char *, unsigned , const char *a_var_name, const void *src, unsigned short srclen);
+#undef  log_it
+#define log_it( _log_level, ...) _log_it_ext( __func__, __LINE__, (_log_level), ##__VA_ARGS__)
+#define dump_it(v,s,l) _dump_it( __func__, __LINE__, (v), (s), (l))
+#else
+#define dump_it(v,s,l)
+#endif
 
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);
