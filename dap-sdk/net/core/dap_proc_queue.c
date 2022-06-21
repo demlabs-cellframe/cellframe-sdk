@@ -130,8 +130,8 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     pri = MIN(pri, DAP_QUE$K_PRIMAX - 1);
     pri = MAX(pri, 0);
 
-        l_item->callback = l_msg->callback;
-        l_item->callback_arg = l_msg->callback_arg;
+    l_item->callback = l_msg->callback;
+    l_item->callback_arg = l_msg->callback_arg;
 
     pthread_mutex_lock(&l_queue->list[pri].lock);                           /* Protect list from other threads */
     l_rc = s_dap_insqtail (&l_queue->list[pri].items, l_item, 1);
