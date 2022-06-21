@@ -1557,23 +1557,33 @@ static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int 
 
     if (a_errno)
         return;
-    if (!a_arg) {
-        if (a_es->callbacks.write_callback)
-            a_es->callbacks.write_callback(a_es, NULL);
+    dap_stream_t *l_stream = NULL;
+    dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(a_es);
+    if (l_client_pvt && dap_client_pvt_find(l_client_pvt->uuid) == l_client_pvt)
+        l_stream = l_client_pvt->stream;
+    else {
+        dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_es);
+        if (l_http_client)
+            l_stream = DAP_STREAM(l_http_client);
+    }
+    if (!l_stream)
+        return;
+    dap_stream_ch_t *l_ch = NULL;
+    for (size_t i = 0; i < l_client_pvt->stream->channel_count; i++)
+        if (l_client_pvt->stream->channel[i]->proc->id == dap_stream_ch_chain_get_id())
+            l_ch = l_client_pvt->stream->channel[i];
+    if (!l_ch)
+        return;
+    if (a_arg) {
+        struct chain_io_complete *l_arg = (struct chain_io_complete *)a_arg;
+        DAP_STREAM_CH_CHAIN(l_ch)->state = l_arg->state;
+        dap_stream_ch_chain_pkt_write_unsafe(l_ch, l_arg->type, l_arg->net_id, l_arg->chain_id,
+                                             l_arg->cell_id, l_arg->data, l_arg->data_size);
+        a_es->callbacks.arg = NULL;
+        DAP_DELETE(a_arg);
         return;
     }
-    struct chain_io_complete *l_arg = (struct chain_io_complete *)a_arg;
-    dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(a_es);
-    if (l_client_pvt->stream) {
-        dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_client_pvt->stream->stream_worker, l_arg->ch_uuid);
-        if (l_ch) {
-            DAP_STREAM_CH_CHAIN(l_ch)->state = l_arg->state;
-            dap_stream_ch_chain_pkt_write_unsafe(l_ch, l_arg->type, l_arg->net_id, l_arg->chain_id,
-                                                 l_arg->cell_id, l_arg->data, l_arg->data_size);
-        }
-    }
-    a_es->callbacks.arg = NULL;
-    DAP_DELETE(a_arg);
+    s_stream_ch_packet_out(l_ch, NULL);
 }
 
 static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,

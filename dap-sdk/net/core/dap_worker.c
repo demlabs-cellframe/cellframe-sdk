@@ -658,11 +658,13 @@ void *dap_worker_thread(void *arg)
                             case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                                 l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
                                                     l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
+                                if (l_bytes_sent == -1)
 #ifdef DAP_OS_WINDOWS
-                                //dap_events_socket_set_writable_unsafe(l_cur,false); // enabling this will break windows server replies
-                                l_errno = WSAGetLastError();
+                                    l_errno = WSAGetLastError();
 #else
-                                l_errno = errno;
+                                    l_errno = errno;
+                                else
+                                    l_errno = 0;
 #endif
                             }
                             break;
