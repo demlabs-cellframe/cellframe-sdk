@@ -721,16 +721,13 @@ static void * s_proc_thread_function(void * a_arg)
                 strerror_r(l_errno, l_errbuf,sizeof (l_errbuf));
                 log_it(L_ERROR,"Some error on proc thread #%u with %"DAP_FORMAT_SOCKET" socket: %s(%d)",l_thread->cpu_id, l_cur->socket, l_errbuf, l_errno);
                 if(l_cur->callbacks.error_callback)
-                    l_cur->callbacks.error_callback(l_cur, errno);
+                    l_cur->callbacks.error_callback(l_cur, l_errno);
             }
             if (l_flag_read ){
                 int32_t l_bytes_read = 0;
                 switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_QUEUE:
                         dap_events_socket_queue_proc_input_unsafe(l_cur);
-#ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
-#endif
                         break;
                     case DESCRIPTOR_TYPE_EVENT:
                         dap_events_socket_event_proc_input_unsafe (l_cur);
