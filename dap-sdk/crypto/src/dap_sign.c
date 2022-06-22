@@ -275,6 +275,7 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
                 memcpy(l_ret->pkey_n_sign + l_pub_key_size, l_sign_ser, l_sign_ser_size);
                 l_ret->header.sign_pkey_size =(uint32_t) l_pub_key_size;
                 l_ret->header.sign_size = (uint32_t) l_sign_ser_size;
+                l_ret->header.hash_type = s_sign_hash_type_default;
                 DAP_DELETE(l_sign_ser);
                 dap_enc_key_signature_delete(a_key->type, l_sign_unserialized);
                 DAP_DELETE(l_pub_key);

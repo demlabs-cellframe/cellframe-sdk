@@ -37,6 +37,10 @@
 #define LOG_TAG "dap_chain_net_srv_stake"
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply);
+static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
+static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
+static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
+static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 
 static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 
@@ -73,7 +77,13 @@ int dap_chain_net_srv_stake_init()
     );
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
-    
+
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_ID };
+    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_stake", s_callback_requested,
+                                                       s_callback_response_success, s_callback_response_error,
+                                                       s_callback_receipt_next_success, NULL);
+    l_srv->_internal = s_srv_stake;
+
     uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
@@ -1473,5 +1483,25 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             return -1;
         }
     }
+    return 0;
+}
+
+static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size)
+{
+    return 0;
+}
+
+static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size)
+{
+    return 0;
+}
+
+static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size)
+{
+    return 0;
+}
+
+static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size)
+{
     return 0;
 }
