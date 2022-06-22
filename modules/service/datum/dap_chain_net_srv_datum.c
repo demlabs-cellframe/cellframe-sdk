@@ -123,7 +123,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "datum", &l_datum_cmd_str);
     if ( l_datum_cmd_str != NULL ) {
         if ( strcmp(l_datum_cmd_str, "save") == 0) {
-            char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
+            char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             size_t l_datum_size = 0;
 
             size_t l_path_length = strlen(l_system_datum_folder)+8+strlen(l_datum_hash_str);
@@ -217,7 +217,7 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
     dap_chain_datum_tx_t *l_tx_cond = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         size_t l_datum_size;
-        char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
+        char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
         l_datum = (dap_chain_datum_t *)dap_chain_global_db_gr_get(l_tx_cond_hash_str, &l_datum_size, l_gdb_group);
         if (l_datum)
             break;

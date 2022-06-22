@@ -410,12 +410,12 @@ typedef struct event_clean_dup_items {
  * @param a_key
  * @param a_values_total
  * @param a_values_shift
- * @param a_value_count
+ * @param a_values_count
  * @param a_values
  * @param a_arg
  */
 static bool s_poa_round_check_callback_load_round_new(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
-                                                  const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
+                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
     dap_chain_t * l_chain = (dap_chain_t *) a_arg;
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(l_chain);
@@ -424,8 +424,8 @@ static bool s_poa_round_check_callback_load_round_new(dap_global_db_context_t * 
     char *l_gdb_group_round_new = l_dag->gdb_group_events_round_new;
 
     size_t l_events_count = 0;
-    if (a_value_count) {
-        for (size_t i = 0; i<a_value_count; i++) {
+    if (a_values_count) {
+        for (size_t i = 0; i<a_values_count; i++) {
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
             if (  (dap_time_now() - l_event_round_item->round_info.ts_update) >
                     (l_poa_pvt->confirmations_timeout+l_poa_pvt->wait_sync_before_complete+10)  ) {
@@ -436,7 +436,7 @@ static bool s_poa_round_check_callback_load_round_new(dap_global_db_context_t * 
                 l_events_count++;
             }
         }
-        dap_global_db_objs_delete(a_values, a_value_count);
+        dap_global_db_objs_delete(a_values, a_values_count);
     }
 
     if (!l_events_count) {

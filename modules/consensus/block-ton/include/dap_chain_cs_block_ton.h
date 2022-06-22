@@ -4,10 +4,11 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_cert.h"
 
-#define DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE			0x04
-#define DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START	0x08
-#define DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC		0x12
-#define DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS	0x16
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE                  0x04
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START            0x08
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC               0x12
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC_AFTER_SUBMIT  0x13
+#define DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS            0x16
 
 #define DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC		0x32
 
@@ -56,7 +57,7 @@ typedef struct dap_chain_cs_block_ton_round {
 	uint16_t candidates_count;
 } dap_chain_cs_block_ton_round_t;
 
-typedef struct dap_chain_cs_block_ton_items {
+typedef struct dap_chain_cs_block_ton_session {
 	dap_chain_t *chain;
 	dap_chain_cs_block_ton_t *ton;
 
@@ -84,14 +85,14 @@ typedef struct dap_chain_cs_block_ton_items {
 
 	dap_enc_key_t *blocks_sign_key;
 
-    struct dap_chain_cs_block_ton_items *next;
-    struct dap_chain_cs_block_ton_items *prev;
+    struct dap_chain_cs_block_ton_session *next;
+    struct dap_chain_cs_block_ton_session *prev;
 
 	bool time_proc_lock; // flag - skip check if prev check is not finish
 
+    dap_worker_t * worker; // Worker where it was processed last time
     pthread_rwlock_t rwlock;
-
-} dap_chain_cs_block_ton_items_t;
+} dap_chain_cs_block_ton_session_t;
 
 typedef struct dap_chain_cs_block_ton_message_hdr {
 	uint8_t type;

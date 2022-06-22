@@ -1197,19 +1197,19 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
  * @param a_key
  * @param a_values_total
  * @param a_values_shift
- * @param a_value_count
+ * @param a_values_count
  * @param a_values
  * @param a_arg
  */
 static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
                                              const char * a_group, const char * a_key,
                                              const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_value_count, dap_global_db_obj_t * a_values,
+                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
                                              void * a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
-    for (size_t i = 0; i < a_value_count; i++) {
+    for (size_t i = 0; i < a_values_count; i++) {
         dap_ledger_wallet_balance_t *l_balance_item = DAP_NEW_Z(dap_ledger_wallet_balance_t);
         l_balance_item->key = DAP_NEW_Z_SIZE(char, strlen(a_values[i].key) + 1);
         strcpy(l_balance_item->key, a_values[i].key);
@@ -1239,20 +1239,20 @@ static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t * 
  * @param a_key
  * @param a_values_total
  * @param a_values_shift
- * @param a_value_count
+ * @param a_values_count
  * @param a_values
  * @param a_arg
  */
 static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
                                              const char * a_group, const char * a_key,
                                              const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_value_count, dap_global_db_obj_t * a_values,
+                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
                                              void * a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
 
-    for (size_t i = 0; i < a_value_count; i++) {
+    for (size_t i = 0; i < a_values_count; i++) {
         dap_chain_ledger_tx_spent_item_t *l_tx_spent_item = DAP_NEW_Z(dap_chain_ledger_tx_spent_item_t);
         dap_chain_hash_fast_from_str(a_values[i].key, &l_tx_spent_item->tx_hash_fast);
         strncpy(l_tx_spent_item->token_ticker, (char *)a_values[i].value,
@@ -1274,19 +1274,19 @@ static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *
  * @param a_key
  * @param a_values_total
  * @param a_values_shift
- * @param a_value_count
+ * @param a_values_count
  * @param a_values
  * @param a_arg
  */
 static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
                                              const char * a_group, const char * a_key,
                                              const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_value_count, dap_global_db_obj_t * a_values,
+                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
                                              void * a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
-    for (size_t i = 0; i < a_value_count; i++) {
+    for (size_t i = 0; i < a_values_count; i++) {
         dap_chain_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
         dap_chain_hash_fast_from_str(a_values[i].key, &l_tx_item->tx_hash_fast);
         l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, a_values[i].value_len - sizeof(l_tx_item->cache_data));
@@ -1310,7 +1310,7 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t * a_glo
  * @param a_key
  * @param a_values_total
  * @param a_values_shift
- * @param a_value_count
+ * @param a_values_count
  * @param a_values
  * @param a_arg
  * @return Always true thats means to clear up a_values
@@ -1318,13 +1318,13 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t * a_glo
 static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
                                              const char * a_group, const char * a_key,
                                              const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_value_count, dap_global_db_obj_t * a_values,
+                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
                                              void * a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
 
-    for (size_t i = 0; i < a_value_count; i++) {
+    for (size_t i = 0; i < a_values_count; i++) {
         if (a_values[i].value_len <= sizeof(dap_hash_fast_t))
             continue;
         const char *c_token_ticker = ((dap_chain_datum_token_emission_t *)
@@ -1360,14 +1360,14 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *
  * @param a_key
  * @param a_values_total
  * @param a_values_shift
- * @param a_value_count
+ * @param a_values_count
  * @param a_values
  * @param a_arg
  */
 static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
                                              const char * a_group, const char * a_key,
                                              const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_value_count, dap_global_db_obj_t * a_values,
+                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
                                              void * a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
@@ -1379,7 +1379,7 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t * a_
         pthread_mutex_unlock(&l_ledger_pvt->load_mutex);
 
     }
-    for (size_t i = 0; i < a_value_count; i++) {
+    for (size_t i = 0; i < a_values_count; i++) {
         if (a_values[i].value_len <= sizeof(uint256_t))
             continue;
         dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t *)(a_values[i].value + sizeof(uint256_t));

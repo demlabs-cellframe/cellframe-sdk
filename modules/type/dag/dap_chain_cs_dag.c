@@ -1612,7 +1612,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
         switch ( l_event_subcmd ){
             case SUBCMD_EVENT_CREATE:{
                 size_t l_datums_count=1;
-                char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+                char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
                 dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
                                                                sizeof(dap_chain_datum_t*)*l_datums_count);
                 size_t l_datum_size = 0;

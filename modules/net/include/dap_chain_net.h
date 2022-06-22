@@ -163,7 +163,7 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
  * @param l_chain
  * @return
  */
-DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_chain)
+DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool_new(dap_chain_t * l_chain)
 {
     dap_chain_net_t * l_net = l_chain ? dap_chain_net_by_id(l_chain->net_id) : NULL;
     if ( l_net ) {
@@ -173,7 +173,7 @@ DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool(dap_chain_t * l_cha
     return NULL;
 }
 
-DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_from_chain(dap_chain_t * l_chain)
+DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_from_chain_new(dap_chain_t * l_chain)
 {
     dap_chain_net_t * l_net = l_chain ? dap_chain_net_by_id(l_chain->net_id) : NULL;
     if ( l_net )

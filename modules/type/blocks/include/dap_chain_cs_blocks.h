@@ -30,6 +30,7 @@
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
 
 typedef void (*dap_chain_cs_blocks_callback_t)(dap_chain_cs_blocks_t *);
+typedef void (*dap_chain_cs_blocks_callback_op_results_t)(dap_chain_cs_blocks_t * a_cs_blocks, int a_rc, void * a_arg);
 typedef int (*dap_chain_cs_blocks_callback_block_t)(dap_chain_cs_blocks_t *, dap_chain_block_t *, size_t);
 typedef size_t (*dap_chain_cs_blocks_callback_block_sign_t)(dap_chain_cs_blocks_t *, dap_chain_block_t **, size_t);
 
@@ -64,5 +65,5 @@ void dap_chain_cs_blocks_deinit();
 int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
 void dap_chain_cs_blocks_delete(dap_chain_t * a_chain);
 
-void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain);
+void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain,dap_chain_cs_blocks_callback_op_results_t a_callback_op_results, void * a_arg);
 

@@ -2133,7 +2133,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
             return -7;
         }
 
-        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
         if(!l_gdb_group_mempool) {
             l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
         }
@@ -2276,7 +2276,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
  * @param a_hash_out_type
  */
 void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, dap_string_t * a_str_tmp, const char *a_hash_out_type){
-    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
+    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     if(!l_gdb_group_mempool){
         dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
     }else{
@@ -2403,7 +2403,7 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
                 l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
                 l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
             }
-            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             uint8_t *l_data_tmp = l_datum_hash_hex_str ? dap_chain_global_db_gr_get(l_datum_hash_hex_str, NULL, l_gdb_group_mempool) : NULL;
             if(l_data_tmp && dap_chain_global_db_gr_del(l_datum_hash_hex_str, l_gdb_group_mempool)) {
                 if(!dap_strcmp(l_hash_out_type,"hex"))
@@ -2467,7 +2467,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
     }
 
     char * l_gdb_group_mempool = NULL, *l_gdb_group_mempool_tmp;
-    l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+    l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     l_gdb_group_mempool_tmp = l_gdb_group_mempool;
 
     // If full or light it doesnt work
@@ -2480,7 +2480,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
     int ret = 0;
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
     if(l_datum_hash_str) {
-        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
         dap_string_t * l_str_tmp = dap_string_new(NULL);
         size_t l_datum_size=0;
         const char *l_datum_hash_out_str;
@@ -2846,7 +2846,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
     // Add datum to mempool with datum_token_update hash as a key
     char * l_gdb_group_mempool;
     if(l_chain) {
-        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     }
     else {
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
@@ -3353,7 +3353,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     // Add datum to mempool with datum_token hash as a key
     char * l_gdb_group_mempool;
     if (l_chain)
-        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     else
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
     if (!l_gdb_group_mempool) {
@@ -3552,7 +3552,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     // Delete token emission
     DAP_DEL_Z(l_emission);
 
-    char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool(l_chain_emission);
+    char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool_new(l_chain_emission);
 
     size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
@@ -4198,7 +4198,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
         }
     }
     size_t l_tx_size = 0;
-    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)
             dap_chain_global_db_gr_get(l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_tx_size, l_gdb_group);
     DAP_DEL_Z(l_hex_str_from58);
@@ -4727,7 +4727,7 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
     dap_global_db_obj_t *l_objs = NULL;
     char *l_gdb_group = NULL;
 
-    l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
+    l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     if (!l_gdb_group) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "Not found network group for chain: %s", l_chain->name);
         l_ret = -1;

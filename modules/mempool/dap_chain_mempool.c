@@ -68,7 +68,7 @@
 
 void s_tx_create_massive_gdb_save_callback( dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group,
                                             const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
-                                            const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg);
+                                            const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg);
 
 int dap_datum_mempool_init(void)
 {
@@ -91,7 +91,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
 
     if (dap_chain_global_db_gr_set(l_key_str, a_datum, dap_chain_datum_size(a_datum), l_gdb_group)) {
         log_it(L_NOTICE, "Datum with hash %s was placed in mempool", l_key_str);
@@ -358,7 +358,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     }
     dap_list_free_full(l_list_used_out, NULL);
 
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
 
     //return 0;
     dap_global_db_set_multiple(l_gdb_group, l_objs,a_tx_num, s_tx_create_massive_gdb_save_callback , NULL );
@@ -374,13 +374,13 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
  * @param a_key
  * @param a_values_total
  * @param a_values_shift
- * @param a_value_count
+ * @param a_values_count
  * @param a_values
  * @param a_arg
  */
 void s_tx_create_massive_gdb_save_callback( dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group,
                                             const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
-                                            const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
+                                            const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
     dap_global_db_objs_delete(a_values, a_values_total); // Delete objs thats passed as arg;
     if( a_rc ==0  ) {
@@ -499,7 +499,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
 
     char * l_gdb_group;
     if(a_net->pub.default_chain)
-        l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_net->pub.default_chain);
+        l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_net->pub.default_chain);
     else
         l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
 
@@ -635,7 +635,7 @@ dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, da
                                                         dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
                                                         dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count)
 {
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool(a_chain);
+    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
@@ -689,7 +689,7 @@ dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, da
 dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_chain, const char *a_emission_hash_str)
 {
     size_t l_emission_size;
-    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     dap_chain_datum_t *l_emission = (dap_chain_datum_t *)dap_chain_global_db_gr_get(
                                                     a_emission_hash_str, &l_emission_size, l_gdb_group);
     if (!l_emission) {

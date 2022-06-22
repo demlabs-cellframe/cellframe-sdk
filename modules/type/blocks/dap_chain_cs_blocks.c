@@ -428,7 +428,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         }break;
         case SUBCMD_NEW_DATUM_ADD:{
             size_t l_datums_count=1;
-            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
                                                            sizeof(dap_chain_datum_t*)*l_datums_count);
             size_t l_datum_size = 0;
@@ -1305,31 +1305,42 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     return l_datum_processed;
 }
 
-void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
+/**
+ * @brief blocks async operations arguments
+ * @param blocks Consensus blocks object
+ */
+struct op_results_args{
+    dap_chain_cs_blocks_t * blocks;
+    dap_chain_cs_blocks_callback_op_results_t callback_op_results;
+    void * callback_arg;
+};
+
+
+static bool s_callback_new_block_add_datums (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    struct op_results_args *l_args = (struct op_results_args *) a_arg;
+    dap_chain_cs_blocks_t *l_blocks = l_args->blocks;
+    dap_chain_t * l_chain = l_blocks->chain;
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
 
     pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
-    char *l_gdb_group = l_blocks->gdb_group_datums_queue;
-    size_t l_objs_size = 0;
-    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
-    
-    if (l_objs_size) {
-        for (size_t i = 0; i < l_objs_size; i++) {
-            if (!l_objs[i].value_len) {
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group); // delete from datums queue
+
+    if (a_values_count) {
+        for (size_t i = 0; i < a_values_count; i++) {
+            if (!a_values[i].value_len) {
+                dap_global_db_delete(a_values[i].key, a_group, NULL, NULL); // delete from datums queue
                 continue;
             }
-            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
+            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_values[i].value;
             size_t l_datum_size = dap_chain_datum_size(l_datum);
             if(!l_datum_size || l_datum == NULL){ // Was wrong datum thats not passed checks
                 log_it(L_WARNING,"Datum in mempool processing comes NULL");
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group); // delete from datums queue
+                dap_chain_global_db_gr_del(a_values[i].key, a_group); // delete from datums queue
                 continue;
             }
             // Verify for correctness
-            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+            dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
             int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum);
             if (l_verify_datum != 0 &&
                     l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
@@ -1337,7 +1348,7 @@ void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
                     l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
                 log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
                                          l_verify_datum);
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group); // delete from datums queue
+                dap_global_db_delete(a_values[i].key, a_group, NULL, NULL);
                 continue;
             }
             if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum)
@@ -1346,7 +1357,7 @@ void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
             if (!l_blocks->block_new) {
                 l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash, &l_blocks->block_new_size);
                 dap_chain_net_t *l_net = dap_chain_net_by_id(l_blocks->chain->net_id);
-                l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+                l_blocks->block_new->hdr.cell_id.uint64 = l_chain->cells->id.uint64;
                 l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
             }
 
@@ -1354,8 +1365,32 @@ void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
                                                                     l_datum, l_datum_size);
         }
     }
-    dap_global_db_objs_delete(l_objs, l_objs_size);
     pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+    l_args->callback_op_results( l_args->blocks,0, l_args->callback_arg);
+    DAP_DELETE(l_args);
+    return true;
+}
+
+
+/**
+ * @brief Create new block and add datums from block's queue
+ * @param a_chain Chain object
+ * @param a_callback_op_results Executes after request completed
+ * @param a_arg Custom argument
+ */
+void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain, dap_chain_cs_blocks_callback_op_results_t a_callback_op_results, void * a_arg )
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+
+    struct op_results_args * l_args = DAP_NEW_Z(struct op_results_args);
+    l_args->blocks = l_blocks;
+    l_args->callback_op_results = a_callback_op_results;
+    l_args->callback_arg = a_arg;
+    if( dap_global_db_get_all(l_blocks->gdb_group_datums_queue,0,s_callback_new_block_add_datums, l_args ) != 0 ){
+        log_it(L_ERROR, "Can't execute get_all gdb request for dap_chain_cs_new_block_add_datums() function");
+        DAP_DELETE(l_args);
+    }
+
 }
 
 // static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_datums, size_t a_datums_count)

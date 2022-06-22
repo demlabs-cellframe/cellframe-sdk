@@ -939,16 +939,16 @@ struct objs_get{
  * @param a_key
  * @param a_values_total
  * @param a_values_shift
- * @param a_value_count
+ * @param a_values_count
  * @param a_values
  * @param a_arg
  */
 static bool s_objs_get_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
-                                                  const size_t a_value_count, dap_global_db_obj_t * a_values, void * a_arg)
+                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
     struct objs_get * l_args = (struct objs_get *) a_arg;
     l_args->objs = a_values;
-    l_args->objs_count = a_value_count;
+    l_args->objs_count = a_values_count;
     pthread_mutex_lock(&l_args->mutex);
     pthread_cond_broadcast(&l_args->cond);
     pthread_mutex_unlock(&l_args->mutex);
@@ -988,11 +988,11 @@ struct store_objs_get{
 };
 
 static bool s_store_objs_get_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
-                                                  const size_t a_value_count, dap_store_obj_t * a_values, void * a_arg)
+                                                  const size_t a_values_count, dap_store_obj_t * a_values, void * a_arg)
 {
     struct store_objs_get * l_args = (struct store_objs_get *) a_arg;
     l_args->objs = a_values;
-    l_args->objs_count = a_value_count;
+    l_args->objs_count = a_values_count;
     pthread_mutex_lock(&l_args->mutex);
     pthread_cond_broadcast(&l_args->cond);
     pthread_mutex_unlock(&l_args->mutex);

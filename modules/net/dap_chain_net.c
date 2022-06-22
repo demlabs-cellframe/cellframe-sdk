@@ -639,7 +639,7 @@ static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, con
         if (!l_chain) {
             continue;
         }
-        char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool(l_chain);
+        char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool_new(l_chain);
         if (!strcmp(a_group, l_gdb_group_str)) {
             for (dap_list_t *it = DAP_CHAIN_PVT(l_chain)->mempool_notifires; it; it = it->next) {
                 dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
@@ -2965,7 +2965,7 @@ char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net
     {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
-                return dap_chain_net_get_gdb_group_mempool(l_chain);
+                return dap_chain_net_get_gdb_group_mempool_new(l_chain);
         }
     }
     return NULL;
@@ -3118,76 +3118,83 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
     return PVT(a_net)->flags &F_DAP_CHAIN_NET_SYNC_FROM_ZERO ;
 }
 
+
+bool s_proc_mempool_callback_load(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
+{
+    dap_chain_t * l_chain = (dap_chain_t*) a_arg;
+    dap_chain_net_t * l_net = dap_chain_net_by_id( l_chain->net_id );
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    if(a_values_count) {
+        log_it(L_INFO, "%s.%s: Found %zu records :", l_net->pub.name, l_chain->name,
+                a_values_count);
+        size_t l_datums_size = a_values_count;
+        dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
+                sizeof(dap_chain_datum_t*) * l_datums_size);
+        size_t l_objs_size_tmp = (a_values_count > 15) ? min(a_values_count, 10) : a_values_count;
+        for(size_t i = 0; i < a_values_count; i++) {
+            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) a_values[i].value;
+            int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+            if (l_verify_datum != 0){
+                log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
+                                         l_verify_datum);
+                dap_chain_global_db_gr_del( a_values[i].key, a_group);
+                l_datums[i] = NULL;
+            }else{
+                l_datums[i] = l_datum;
+                if(i < l_objs_size_tmp) {
+                    char buf[50] = { '\0' };
+                    const char *l_type = NULL;
+                    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
+                    dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
+                    log_it(L_INFO, "\t\t0x%s: type_id=%s ts_create=%s data_size=%u",
+                            a_values[i].key, l_type,
+                            dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+                }
+            }
+        }
+        size_t l_objs_processed = l_chain->callback_add_datums(l_chain, l_datums, l_datums_size);
+        // Delete processed objects
+        size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
+        for(size_t i = 0; i < l_objs_processed; i++) {
+            dap_chain_global_db_gr_del(a_values[i].key, a_group);
+            if(i < l_objs_processed_tmp) {
+                dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
+                        a_values[i].key);
+            }
+        }
+        if(l_objs_processed < l_datums_size)
+            log_it(L_WARNING, "%s.%s: %zu records not processed", l_net->pub.name, l_chain->name,
+                    l_datums_size - l_objs_processed);
+        dap_global_db_objs_delete(a_values, a_values_count);
+
+        // Cleanup datums array
+        if(l_datums){
+            for(size_t i = 0; i < a_values_count; i++) {
+                if (l_datums[i])
+                    DAP_DELETE(l_datums[i]);
+            }
+            DAP_DEL_Z(l_datums);
+        }
+    }
+    else {
+        log_it(L_INFO, "%s.%s: No records in mempool", l_net->pub.name, l_chain ? l_chain->name : "[no chain]");
+    }
+    return true;
+}
+
+
 /**
  * @brief dap_chain_net_proc_datapool
  * @param a_net
  */
 void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
 {
-    dap_string_t * l_str_tmp = dap_string_new(NULL);
     dap_chain_t *l_chain;
     DL_FOREACH(a_net->pub.chains, l_chain) {
-        char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-
-        size_t l_objs_size = 0;
-        dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
-        if(l_objs_size) {
-            log_it(L_INFO, "%s.%s: Found %zu records :", a_net->pub.name, l_chain->name,
-                    l_objs_size);
-            size_t l_datums_size = l_objs_size;
-            dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
-                    sizeof(dap_chain_datum_t*) * l_datums_size);
-            size_t l_objs_size_tmp = (l_objs_size > 15) ? min(l_objs_size, 10) : l_objs_size;
-            for(size_t i = 0; i < l_objs_size; i++) {
-                dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
-                int l_verify_datum= dap_chain_net_verify_datum_for_add( a_net, l_datum) ;
-                if (l_verify_datum != 0){
-                    log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
-                                             l_verify_datum);
-                    dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
-                    l_datums[i] = NULL;
-                }else{
-                    l_datums[i] = l_datum;
-                    if(i < l_objs_size_tmp) {
-                        char buf[50] = { '\0' };
-                        const char *l_type = NULL;
-                        DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
-                        dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
-                        log_it(L_INFO, "\t\t0x%s: type_id=%s ts_create=%s data_size=%u",
-                                l_objs[i].key, l_type,
-                                dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
-                    }
-                }
-            }
-            size_t l_objs_processed = l_chain->callback_add_datums(l_chain, l_datums, l_datums_size);
-            // Delete processed objects
-            size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
-            for(size_t i = 0; i < l_objs_processed; i++) {
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
-                if(i < l_objs_processed_tmp) {
-                    dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
-                            l_objs[i].key);
-                }
-            }
-            if(l_objs_processed < l_datums_size)
-                log_it(L_WARNING, "%s.%s: %zu records not processed", a_net->pub.name, l_chain->name,
-                        l_datums_size - l_objs_processed);
-            dap_global_db_objs_delete(l_objs, l_objs_size);
-
-            // Cleanup datums array
-            if(l_datums){
-                for(size_t i = 0; i < l_objs_size; i++) {
-                    if (l_datums[i])
-                        DAP_DELETE(l_datums[i]);
-                }
-                DAP_DEL_Z(l_datums);
-            }
-        }
-        else {
-            log_it(L_INFO, "%s.%s: No records in mempool", a_net->pub.name, l_chain ? l_chain->name : "[no chain]");
-        }
+        char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        dap_global_db_get_all(l_gdb_group_mempool,0,s_proc_mempool_callback_load, l_chain);
         DAP_DELETE(l_gdb_group_mempool);
-
     }
 }
 
