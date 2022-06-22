@@ -477,7 +477,7 @@ dap_store_obj_t *l_obj;
         return  NULL;
     }
 
-
+    l_obj = DAP_NEW_Z(dap_store_obj_t);
     /* Found ! Allocate memory for  <store object>  and <value> */
     if ( !(l_obj->key = DAP_CALLOC(1, (l_obj->key_len = (l_last_key.iov_len + 1)))) )
         l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
