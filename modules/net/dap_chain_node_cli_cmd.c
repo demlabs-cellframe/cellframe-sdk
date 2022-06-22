@@ -4440,11 +4440,11 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     DAP_DELETE(l_tx);
 
     // Add transaction to mempool
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool(l_chain);// get group name for mempool
+    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     dap_chain_hash_fast_t *l_datum_tx_hash = DAP_NEW(dap_hash_fast_t);
     dap_hash_fast(l_datum_tx, l_datum_tx_size, l_datum_tx_hash);// Calculate datum hash
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
-    bool l_placed = dap_chain_global_db_gr_set(l_tx_hash_str, l_datum_tx, l_datum_tx_size, l_gdb_group_mempool_base_tx);
+    bool l_placed = dap_global_db_set(l_gdb_group_mempool_base_tx,l_tx_hash_str, l_datum_tx, l_datum_tx_size, true, NULL,NULL );
 
     DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_datum_tx);
