@@ -1329,7 +1329,7 @@ static bool s_callback_new_block_add_datums (dap_global_db_context_t * a_global_
     if (a_values_count) {
         for (size_t i = 0; i < a_values_count; i++) {
             if (!a_values[i].value_len) {
-                dap_global_db_delete(a_values[i].key, a_group, NULL, NULL); // delete from datums queue
+                dap_global_db_del(a_values[i].key, a_group, NULL, NULL); // delete from datums queue
                 continue;
             }
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_values[i].value;
@@ -1348,7 +1348,7 @@ static bool s_callback_new_block_add_datums (dap_global_db_context_t * a_global_
                     l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
                 log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
                                          l_verify_datum);
-                dap_global_db_delete(a_values[i].key, a_group, NULL, NULL);
+                dap_global_db_del(a_values[i].key, a_group, NULL, NULL);
                 continue;
             }
             if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum)

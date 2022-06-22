@@ -1777,7 +1777,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT,
 									l_candidate_hash, NULL);
 			l_reject_count++;
-			if ( ((float)l_reject_count/l_session->cur_round.validators_count) >= ((float)2/3) ) {
+            if (l_reject_count * 3 >= l_session->cur_round.validators_count * 2) {
 				dap_chain_global_db_gr_del(dap_strdup(l_candidate_hash_str), l_session->gdb_group_store);
 				dap_chain_hash_fast_t l_my_candidate_hash;
 				dap_hash_fast(l_session->my_candidate, l_session->my_candidate_size, &l_my_candidate_hash);
@@ -1825,7 +1825,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 							l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE,
 										l_candidate_hash, NULL);
 					l_approve_count++;
-					if ( ((float)l_approve_count/l_session->cur_round.validators_count) >= ((float)2/3) ) {
+                    if (l_approve_count * 3 >= l_session->cur_round.validators_count * 2) {
 						if (PVT(l_session->ton)->debug)
                             log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" attempt:%hu Candidate:%s collected approve more than 2/3 of the validators",
 									l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
@@ -1952,7 +1952,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE,
 									l_candidate_hash, &l_attempt_number);
 			l_vote_count++;
-			if ( ((float)l_vote_count/l_session->cur_round.validators_count) >= ((float)2/3) ) {
+            if (l_vote_count * 3 >= l_session->cur_round.validators_count * 2){
 				size_t l_store_size = 0;
 				dap_chain_cs_block_ton_store_t *l_store = 
 									(dap_chain_cs_block_ton_store_t *)dap_chain_global_db_gr_get(
@@ -2013,7 +2013,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT,
 									l_candidate_hash, &l_attempt_number);
 			l_precommit_count++;
-			if ( ((float)l_precommit_count/l_session->cur_round.validators_count) >= ((float)2/3) ) {
+            if ( 3* l_precommit_count >= 2*l_session->cur_round.validators_count  ) {
 				size_t l_store_size = 0;
 				dap_chain_cs_block_ton_store_t *l_store = 
 									(dap_chain_cs_block_ton_store_t *)dap_chain_global_db_gr_get(
@@ -2113,7 +2113,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 							l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN,
 										l_candidate_hash, NULL);
 						l_commitsign_count++;
-						if ( ((float)l_commitsign_count/l_round->validators_count) >= ((float)2/3) ) {
+                        if ( 3* l_commitsign_count >= 2*l_round->validators_count ) {
                             // s_session_round_finish(l_session,false);
 							if (l_commitsign->round_id.uint64 == l_session->cur_round.id.uint64) {
 								l_finalize_consensus = true;

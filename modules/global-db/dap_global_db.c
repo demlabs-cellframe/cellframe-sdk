@@ -55,7 +55,8 @@ enum queue_io_msg_opcode{
     MSG_OPCODE_PIN,
     MSG_OPCODE_UNPIN,
     MSG_OPCODE_DELETE,
-    MSG_OPCODE_FLUSH
+    MSG_OPCODE_FLUSH,
+    MSG_OPCODE_CONTEXT_EXEC
 };
 
 
@@ -65,6 +66,7 @@ struct queue_io_msg{
 
     // For each message opcode we have only one callback
     union{
+        dap_global_db_callback_t callback;
         dap_global_db_callback_result_t callback_result;
         dap_global_db_callback_results_t callback_results;
         dap_global_db_callback_results_raw_t callback_results_raw;
@@ -150,6 +152,8 @@ static bool s_msg_opcode_pin(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_unpin(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_delete(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_flush(struct queue_io_msg * a_msg);
+static bool s_msg_opcode_context_exec(struct queue_io_msg * a_msg);
+
 // Free memor for queue i/o message
 static void s_queue_io_msg_delete( struct queue_io_msg * a_msg);
 
@@ -264,8 +268,10 @@ int dap_global_db_get(const char * a_group, const char *a_key, dap_global_db_cal
     l_msg->callback_arg = a_arg;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec get request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -314,8 +320,10 @@ int dap_global_db_get_del_ts(const char * a_group, const char *a_key,dap_global_
     l_msg->callback_arg = a_arg;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec get_del_ts request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -382,8 +390,10 @@ int dap_global_db_get_last(const char * a_group, dap_global_db_callback_result_t
     l_msg->callback_result = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec get_last request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -597,8 +607,10 @@ int dap_global_db_set(const char * a_group, const char *a_key, const void * a_va
     l_msg->callback_result = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec set request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -661,8 +673,10 @@ int dap_global_db_set_raw(dap_store_obj_t * a_store_objs, size_t a_store_objs_co
     l_msg->values_raw_count = a_store_objs_count;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec set_raw request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 
 }
@@ -720,8 +734,10 @@ int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_val
     l_msg->callback_results = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec set_multiple request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -784,8 +800,10 @@ int dap_global_db_pin(const char * a_group, const char *a_key, dap_global_db_cal
     l_msg->callback_result = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec pin request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -821,8 +839,10 @@ int dap_global_db_unpin(const char * a_group, const char *a_key, dap_global_db_c
     l_msg->callback_result = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec unpin request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -844,7 +864,7 @@ static bool s_msg_opcode_unpin(struct queue_io_msg * a_msg)
  * @param a_arg
  * @return
  */
-int dap_global_db_delete(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg )
+int dap_global_db_del(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg )
 {
     if(s_context_global_db == NULL){
         log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_delete");
@@ -858,8 +878,10 @@ int dap_global_db_delete(const char * a_group, const char *a_key, dap_global_db_
     l_msg->callback_result = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec del request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -870,24 +892,8 @@ int dap_global_db_delete(const char * a_group, const char *a_key, dap_global_db_
  */
 static bool s_msg_opcode_delete(struct queue_io_msg * a_msg)
 {
-    dap_store_obj_t l_store_obj = {0};
 
-    l_store_obj.key = a_msg->key;
-    l_store_obj.group = a_msg->group;
-
-    int l_res = dap_chain_global_db_driver_delete(&l_store_obj, 1);
-
-    if (a_msg->key) {
-        if (l_res >= 0) {
-            // add to Del group
-            l_res = s_record_del_history_add(a_msg->group, a_msg->key, dap_nanotime_now() );
-        }
-        // do not add to history if l_res=1 (already deleted)
-        if (!l_res) {
-            l_store_obj.key = a_msg->key;
-            s_change_notify(&l_store_obj, DAP_DB$K_OPTYPE_DEL);
-        }
-    }
+    int l_res = dap_global_db_del_unsafe(a_msg->group, a_msg->key);
 
     if(a_msg->callback_result){
         a_msg->callback_result(s_context_global_db,  l_res==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
@@ -1020,6 +1026,37 @@ dap_store_obj_t* dap_global_db_store_objs_get(const char *a_group, uint64_t a_fi
 }
 
 /**
+ * @brief dap_global_db_del_unsafe
+ * @param a_group
+ * @param a_key
+ * @return
+ */
+int dap_global_db_del_unsafe(const char * a_group, const char *a_key)
+{
+    dap_store_obj_t l_store_obj = {0};
+
+    l_store_obj.key = dap_strdup(a_key);
+    l_store_obj.group = dap_strdup(a_group);
+
+    int l_res = dap_chain_global_db_driver_delete(&l_store_obj, 1);
+
+    if (a_key) {
+        if (l_res >= 0) {
+            // add to Del group
+            l_res = s_record_del_history_add(l_store_obj.group, l_store_obj.key, dap_nanotime_now() );
+        }
+        // do not add to history if l_res=1 (already deleted)
+        if (!l_res) {
+            l_store_obj.key = l_store_obj.key;
+            s_change_notify(&l_store_obj, DAP_DB$K_OPTYPE_DEL);
+        }
+    }
+    DAP_DELETE(l_store_obj.key);
+    DAP_DELETE(l_store_obj.group);
+    return l_res;
+}
+
+/**
  * @brief dap_global_db_flush_sync
  * @return
  */
@@ -1046,8 +1083,10 @@ int dap_global_db_flush( dap_global_db_callback_result_t a_callback, void * a_ar
     l_msg->callback_result = a_callback;
 
     int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
-    if (l_ret != 0)
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec flush request, code %d", l_ret);
         s_queue_io_msg_delete(l_msg);
+    }
     return l_ret;
 }
 
@@ -1066,6 +1105,45 @@ static bool s_msg_opcode_flush(struct queue_io_msg * a_msg)
     }
     return true;
 }
+
+/**
+ * @brief Execute callback in GlobalDB context
+ * @param a_callback  Callback function
+ * @param arg Custom argument
+ * @return 0 if success, others if not
+ */
+int dap_global_db_context_exec (dap_global_db_callback_t a_callback, void * a_arg)
+{
+    if(s_context_global_db == NULL){
+        log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_context_exec");
+        return -666;
+    }
+    struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
+    l_msg->opcode = MSG_OPCODE_CONTEXT_EXEC;
+    l_msg->callback_arg = a_arg;
+    l_msg->callback = a_callback;
+
+    int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec context_exec request, code %d", l_ret);
+        s_queue_io_msg_delete(l_msg);
+    }
+    return l_ret;
+
+}
+
+/**
+ * @brief Execute callback in GlobalDB context
+ * @param a_msg
+ * @return
+ */
+static bool s_msg_opcode_context_exec(struct queue_io_msg * a_msg)
+{
+    if(a_msg->callback)
+        a_msg->callback(s_context_global_db, a_msg->callback_arg );
+    return true;
+}
+
 
 
 /**
@@ -1093,6 +1171,7 @@ static void s_queue_io_callback( dap_events_socket_t * a_es, void * a_arg)
         case MSG_OPCODE_UNPIN: l_msg_delete = s_msg_opcode_unpin(l_msg); break;
         case MSG_OPCODE_DELETE: l_msg_delete = s_msg_opcode_delete(l_msg); break;
         case MSG_OPCODE_FLUSH: l_msg_delete = s_msg_opcode_flush(l_msg); break;
+        case MSG_OPCODE_CONTEXT_EXEC: l_msg_delete = s_msg_opcode_context_exec(l_msg); break;
         default:{
             log_it(L_WARNING, "Message with undefined opcode %d received in queue_io",
                    l_msg->opcode);

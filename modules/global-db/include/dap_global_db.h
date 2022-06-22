@@ -71,7 +71,7 @@ typedef struct dap_global_db_obj {
 
 } DAP_ALIGN_PACKED dap_global_db_obj_t;
 
-
+typedef void (*dap_global_db_callback_t) (dap_global_db_context_t * a_global_db_context, void * a_arg);
 
 typedef void (*dap_global_db_callback_result_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg);
 typedef bool (*dap_global_db_callback_results_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
@@ -104,11 +104,19 @@ int dap_global_db_set_raw(dap_store_obj_t * a_store_objs, size_t a_store_objs_co
 int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_values, size_t a_values_count, dap_global_db_callback_results_t a_callback, void * a_arg );
 int dap_global_db_pin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_unpin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
-int dap_global_db_delete(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
+int dap_global_db_del(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_flush( dap_global_db_callback_result_t a_callback, void * a_arg );
+
+// For context unification sometimes we need to exec inside GlobalDB context
+
+int dap_global_db_context_exec (dap_global_db_callback_t a_callback, void * a_arg);
 
 // === Sync functions ===
 void dap_global_db_objs_delete(dap_global_db_obj_t *a_objs, size_t a_count);
 dap_global_db_obj_t* dap_global_db_objs_get(const char *a_group, size_t *a_objs_count);
 dap_store_obj_t* dap_global_db_store_objs_get(const char *a_group, uint64_t a_first_id, size_t *a_objs_count);
+
+// ==== Unsage functions (for own context call only) ===
+int dap_global_db_del_unsafe(const char * a_group, const char *a_key);
+
 int dap_global_db_flush_sync();
