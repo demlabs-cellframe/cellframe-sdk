@@ -146,27 +146,27 @@ int dap_chain_cs_blocks_init()
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_node_cli_cmd_item_create ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:"
-            "\tblock -net <chain net name> -chain <chain name> new\n"
+            "block -net <chain net name> -chain <chain name> new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
 
-            "\tblock -net <chain net name> -chain <chain name> new_datum_add <datum hash>\n"
+            "block -net <chain net name> -chain <chain name> new_datum_add <datum hash>\n"
                 "\t\tAdd block section from datum <datum hash> taken from the mempool\n\n"
 
-            "\tblock -net <chain net name> -chain <chain name> new_datum_del <datum hash>\n"
+            "block -net <chain net name> -chain <chain name> new_datum_del <datum hash>\n"
                 "\t\tDel block section with datum <datum hash>\n\n"
 
-            "\tblock -net <chain net name> -chain <chain name> new_datum_list\n"
+            "block -net <chain net name> -chain <chain name> new_datum_list\n"
                 "\t\tList block sections and show their datums hashes\n\n"
 
-            "\tblock -net <chain net name> -chain <chain name> new_datum\n\n"
+            "block -net <chain net name> -chain <chain name> new_datum\n\n"
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
 
         "Blockchain explorer:"
-            "\tblock -net <chain net name> -chain <chain name> dump <block hash>\n"
+            "block -net <chain net name> -chain <chain name> dump <block hash>\n"
                 "\t\tDump block info\n\n"
 
-            "\tblock -net <chain net name> -chain <chain name> list [-from_hash <block hash>] [-to_hash <block hash>]"
-            "\t                                                           [-from_dt <datetime>] [-to_dt <datetime>]"
+            "block -net <chain net name> -chain <chain name> list [-from_hash <block hash>] [-to_hash <block hash>]"
+            "[-from_dt <datetime>] [-to_dt <datetime>]"
                 "\t\t List blocks"
 
                                         );
