@@ -224,7 +224,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     }
 
     if (!CreateTimerQueueTimer(&l_timerfd->th, hTimerQueue,
-                               (WAITORTIMERCALLBACK)TimerRoutine, l_timerfd, (unsigned long)a_timeout_ms, 0, 0)) {
+                               (WAITORTIMERCALLBACK)TimerRoutine, l_timerfd, (DWORD)a_timeout_ms, 0, 0)) {
         log_it(L_CRITICAL, "Timer not set, error %lu", GetLastError());
         DAP_DELETE(l_timerfd);
         return NULL;
@@ -257,7 +257,11 @@ static void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t *a_eve
 //EV_SET(l_event, 0, a_event_sock->kqueue_base_filter, a_event_sock->kqueue_base_flags,a_event_sock->kqueue_base_fflags,a_event_sock->kqueue_data,a_event_sock);
 //kevent(a_event_sock->worker->kqueue_fd,l_event,1,NULL,0,NULL);
 #elif defined (DAP_OS_WINDOWS)
-    if (!ChangeTimerQueueTimer(hTimerQueue, a_timerfd->th, (unsigned long)a_timerfd->timeout_ms, 0))
+    // Doesn't work with one-shot timers
+    //if (!ChangeTimerQueueTimer(hTimerQueue, a_timerfd->th, (DWORD)a_timerfd->timeout_ms, 0))
+    DeleteTimerQueueTimer(hTimerQueue, a_timerfd->th, NULL);
+    if (!CreateTimerQueueTimer(&a_timerfd->th, hTimerQueue,
+                               (WAITORTIMERCALLBACK)TimerRoutine, a_timerfd, (DWORD)a_timerfd->timeout_ms, 0, 0))
         log_it(L_CRITICAL, "Timer not reset, error %lu", GetLastError());
 #else
 #error "No timer reset realization for your platform"
@@ -280,7 +284,7 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
         s_timerfd_reset(l_timerfd, a_event_sock);
     } else {
 #ifdef _WIN32
-        DeleteTimerQueueTimer(hTimerQueue, (HANDLE)l_timerfd->th, NULL);
+        DeleteTimerQueueTimer(hTimerQueue, l_timerfd->th, NULL);
 #endif
         l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
@@ -313,7 +317,7 @@ void dap_timerfd_delete(dap_timerfd_t *a_timerfd)
     if (!a_timerfd)
         return;
 #ifdef _WIN32
-    DeleteTimerQueueTimer(hTimerQueue, (HANDLE)a_timerfd->th, NULL);
+    DeleteTimerQueueTimer(hTimerQueue, a_timerfd->th, NULL);
 #endif
     if (a_timerfd->events_socket->worker)
         dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->worker, a_timerfd->esocket_uuid);
