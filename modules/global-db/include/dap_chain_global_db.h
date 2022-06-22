@@ -64,4 +64,3 @@ uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key);
  * @return array (note:not Null-terminated string) on NULL in case of an error
  */
 dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group);
-dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out);

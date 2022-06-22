@@ -81,6 +81,10 @@ struct sync_request
     dap_stream_ch_chain_hash_item_t *remote_atoms; // Remote atoms
     dap_stream_ch_chain_hash_item_t *remote_gdbs; // Remote gdbs
 
+    dap_store_obj_t * obj; // processed obj
+    dap_nanotime_t timestamp_cur;
+    dap_nanotime_t limit_time;
+
     uint64_t stats_request_elemets_processed;
     union{
         struct{
@@ -113,7 +117,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg);
 
 static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
-static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
+static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
                                                const size_t a_values_count, dap_store_obj_t * a_values, void * a_arg);
 
 static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_arg);
@@ -605,8 +609,15 @@ static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_worker, void *a_a
                                                    "ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED");
     }
     DAP_DELETE(l_sync_request);
+    dap_store_obj_free_one(l_sync_request->obj);
+
 }
 
+/**
+ * @brief s_gdb_sync_tsd_worker_callback
+ * @param a_worker
+ * @param a_arg
+ */
 static void s_gdb_sync_tsd_worker_callback(dap_worker_t *a_worker, void *a_arg)
 {
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
@@ -667,6 +678,84 @@ dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, co
 }
 
 /**
+ * @brief s_gdb_in_pkt_proc_callback_get_ts_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_len
+ * @param value_ts
+ * @param a_is_pinned
+ * @param a_arg
+ */
+static void s_gdb_in_pkt_proc_callback_get_ts_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg)
+{
+    struct sync_request *l_sync_request = (struct sync_request *) a_arg;
+    assert(l_sync_request);
+    dap_store_obj_t * l_obj = l_sync_request->obj;
+    if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS){
+        log_it (L_ERROR, "Can't get delete timestamp for %s:%s", a_group, a_key);
+        dap_store_obj_free_one(l_sync_request->obj);
+        DAP_DELETE(l_sync_request);
+        return;
+    }
+    //check whether to apply the received data into the database
+    bool l_apply = false;
+    // timestamp for exist obj
+    dap_nanotime_t l_timestamp_cur = l_sync_request->timestamp_cur;
+    // Limit time
+    dap_nanotime_t l_limit_time = l_sync_request->limit_time;
+    // Deleted time
+    dap_nanotime_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
+    // check the applied object newer that we have stored or erased
+    if (l_obj->timestamp > (uint64_t)l_timestamp_del &&
+            l_obj->timestamp > (uint64_t)l_timestamp_cur &&
+            (l_obj->type != DAP_DB$K_OPTYPE_DEL || l_obj->timestamp > l_limit_time)) {
+        l_apply = true;
+    }
+    if (s_debug_more){
+        char l_ts_str[50];
+        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_gdb_time_to_sec(l_obj->timestamp));
+        log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
+                " timestamp=\"%s\" value_len=%" DAP_UINT64_FORMAT_U,
+                (char )l_obj->type, (char)l_obj->type, l_obj->group,
+                l_obj->key, l_ts_str, l_obj->value_len);
+    }
+    if (!l_apply) {
+        if (s_debug_more) {
+            if (l_obj->timestamp <= (uint64_t)l_timestamp_cur)
+                log_it(L_WARNING, "New data not applied, because newly object exists");
+            if (l_obj->timestamp <= (uint64_t)l_timestamp_del)
+                log_it(L_WARNING, "New data not applied, because newly object is deleted");
+            if ((l_obj->type == DAP_DB$K_OPTYPE_DEL && l_obj->timestamp <= l_limit_time))
+                log_it(L_WARNING, "New data not applied, because object is too old");
+        }
+        dap_store_obj_free_one(l_sync_request->obj);
+        DAP_DELETE(l_sync_request);
+        return;
+    }
+
+    dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
+
+    if (l_chain && l_chain->callback_add_datums_with_group) {
+        log_it(L_WARNING, "New data goes to GDB chain");
+            const void * restrict l_store_obj_value = l_obj->value;
+            l_chain->callback_add_datums_with_group(l_chain,
+                    (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
+                    l_obj->group);
+    } else {
+        // save data to global_db
+        if( dap_global_db_set_raw(l_obj, 1,s_gdb_in_pkt_proc_set_raw_callback, l_sync_request) != 0) {
+            log_it(L_ERROR, "Can't send save GlobalDB request");
+        }else
+            return;
+
+    }
+    dap_store_obj_free_one(l_sync_request->obj);
+    DAP_DELETE(l_sync_request);
+}
+/**
  * @brief s_gdb_in_pkt_callback
  * @param a_thread
  * @param a_arg
@@ -712,8 +801,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
-        dap_nanotime_t l_time_now = dap_nanotime_now() + dap_gdb_time_from_sec(120);    // time differnece consideration
-        uint64_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
+        dap_nanotime_t l_time_now = dap_nanotime_now() + dap_nanotime_from_sec(120);    // time differnece consideration
+        dap_nanotime_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
@@ -752,16 +841,13 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             l_last_id = l_obj->id;
             l_last_group = l_obj->group;
             l_last_type = l_obj->type;
-            //check whether to apply the received data into the database
-            bool l_apply = false;
-            // timestamp for exist obj
-            dap_nanotime_t l_timestamp_cur = 0;
+
             // Record is pinned or not
             bool l_is_pinned_cur = false;
             if (dap_chain_global_db_driver_is(l_obj->group, l_obj->key)) {
                 dap_store_obj_t *l_read_obj = dap_chain_global_db_driver_read(l_obj->group, l_obj->key, NULL);
                 if (l_read_obj) {
-                    l_timestamp_cur = l_read_obj->timestamp;
+                    l_sync_request->timestamp_cur = l_read_obj->timestamp;
                     l_is_pinned_cur = l_read_obj->flags & RECORD_PINNED;
                     dap_store_obj_free_one(l_read_obj);
                 }
@@ -770,51 +856,18 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             if(l_is_pinned_cur) {
                 continue;
             }
-            dap_nanotime_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
-            // check the applied object newer that we have stored or erased
-            if (l_obj->timestamp > (uint64_t)l_timestamp_del &&
-                    l_obj->timestamp > (uint64_t)l_timestamp_cur &&
-                    (l_obj->type != DAP_DB$K_OPTYPE_DEL || l_obj->timestamp > l_limit_time)) {
-                l_apply = true;
-            }
-            if (s_debug_more){
-                char l_ts_str[50];
-                dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_gdb_time_to_sec(l_store_obj[i].timestamp));
-                log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
-                        " timestamp=\"%s\" value_len=%zu",
-                        (char )l_store_obj[i].type, (char)l_store_obj[i].type, l_store_obj[i].group,
-                        l_store_obj[i].key, l_ts_str, l_store_obj[i].value_len);
-            }
-            if (!l_apply) {
-                if (s_debug_more) {
-                    if (l_obj->timestamp <= (uint64_t)l_timestamp_cur)
-                        log_it(L_WARNING, "New data not applied, because newly object exists");
-                    if (l_obj->timestamp <= (uint64_t)l_timestamp_del)
-                        log_it(L_WARNING, "New data not applied, because newly object is deleted");
-                    if ((l_obj->type == DAP_DB$K_OPTYPE_DEL && l_obj->timestamp <= l_limit_time))
-                        log_it(L_WARNING, "New data not applied, because object is too old");
-                }
-                continue;
+
+            struct sync_request *l_sync_req_copy = DAP_DUP(l_sync_request);
+            l_sync_request->obj = dap_store_obj_copy(l_obj,1);
+            l_sync_request->limit_time = l_limit_time;
+
+            if(dap_global_db_get_del_ts(l_obj->group, l_obj->key,s_gdb_in_pkt_proc_callback_get_ts_callback,
+                                     l_sync_req_copy) != 0){
+                log_it(L_ERROR, "Can't call GlobalDB get_del_ts request");
+                dap_store_obj_free_one(l_sync_request->obj);
+                DAP_DELETE(l_sync_req_copy);
             }
 
-            dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
-
-            if (l_chain && l_chain->callback_add_datums_with_group) {
-                log_it(L_WARNING, "New data goes to GDB chain");
-                    const void * restrict l_store_obj_value = l_store_obj[i].value;
-                    l_chain->callback_add_datums_with_group(l_chain,
-                            (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
-                            l_store_obj[i].group);
-            } else {
-                // save data to global_db
-                dap_store_obj_t * l_obj_copy = dap_store_obj_copy(l_obj,1);
-                struct sync_request *l_sync_req_copy = DAP_DUP(l_sync_request);
-                if( dap_global_db_set_raw(l_obj_copy, 1,s_gdb_in_pkt_proc_set_raw_callback, l_sync_req_copy) != 0) {
-                    log_it(L_ERROR, "Can't send save GlobalDB request");
-                    DAP_DELETE(l_obj_copy);
-                    DAP_DELETE(l_sync_req_copy);
-                }
-            }
         }
         if(l_store_obj) {
             dap_store_obj_free(l_store_obj, l_data_obj_count);
@@ -841,7 +894,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
  * @param a_values
  * @param a_arg
  */
-static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
+static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
                                                const size_t a_values_count, dap_store_obj_t * a_values, void * a_arg)
 {
 
@@ -853,9 +906,10 @@ static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_globa
     }else{
         if (s_debug_more)
                             log_it(L_DEBUG, "Added new GLOBAL_DB synchronization record");
+        dap_store_obj_free_one(l_sync_req->obj);
         DAP_DELETE(l_sync_req);
     }
-
+    return true;
 }
 
 

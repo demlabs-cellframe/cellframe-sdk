@@ -360,7 +360,7 @@ static bool s_msg_opcode_get_del_ts(struct queue_io_msg * a_msg)
 
     if(l_timestamp){
         if(a_msg->callback_result)
-        a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_SUCCESS, a_msg->group, a_msg->key,
+            a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_SUCCESS, a_msg->group, a_msg->key,
                                NULL, 0, l_timestamp,
                                false, a_msg->callback_arg );
     }else if(a_msg->callback_result)

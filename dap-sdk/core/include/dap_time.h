@@ -16,7 +16,7 @@ typedef uint64_t dap_time_t;
 typedef uint64_t dap_nanotime_t;
 
 // Create gdb time from second
-dap_nanotime_t dap_gdb_time_from_sec(uint32_t a_time);
+dap_nanotime_t dap_nanotime_from_sec(uint32_t a_time);
 // Get seconds from gdb time
 long dap_gdb_time_to_sec(dap_nanotime_t a_time);
 

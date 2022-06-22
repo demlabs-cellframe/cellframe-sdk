@@ -45,7 +45,7 @@ int clock_gettime(clockid_t clock_id, struct timespec *spec)
 
 
 // Create time from second
-dap_nanotime_t dap_gdb_time_from_sec(uint32_t a_time)
+dap_nanotime_t dap_nanotime_from_sec(uint32_t a_time)
 {
     return (dap_nanotime_t)a_time << 32;
 }
