@@ -52,10 +52,6 @@ bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_va
 bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group);
 bool dap_chain_global_db_del(char *a_key);
 
-/**
- * Get timestamp of the deleted entry
- */
-uint64_t global_db_gr_del_get_timestamp(const char *a_group, const char *a_key);
 
 /**
  * Read the entire database into an array of size bytes

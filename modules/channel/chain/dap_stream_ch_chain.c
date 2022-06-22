@@ -689,7 +689,7 @@ dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, co
  * @param a_is_pinned
  * @param a_arg
  */
-static void s_gdb_in_pkt_proc_callback_get_ts_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg)
+static void s_gdb_in_pkt_proc_callback_get_ts_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
 {
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
     assert(l_sync_request);
@@ -707,7 +707,7 @@ static void s_gdb_in_pkt_proc_callback_get_ts_callback(dap_global_db_context_t *
     // Limit time
     dap_nanotime_t l_limit_time = l_sync_request->limit_time;
     // Deleted time
-    dap_nanotime_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
+    dap_nanotime_t l_timestamp_del = a_value_ts;
     // check the applied object newer that we have stored or erased
     if (l_obj->timestamp > (uint64_t)l_timestamp_del &&
             l_obj->timestamp > (uint64_t)l_timestamp_cur &&

@@ -73,7 +73,7 @@ typedef struct dap_global_db_obj {
 
 typedef void (*dap_global_db_callback_t) (dap_global_db_context_t * a_global_db_context, void * a_arg);
 
-typedef void (*dap_global_db_callback_result_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg);
+typedef void (*dap_global_db_callback_result_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg);
 typedef bool (*dap_global_db_callback_results_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg);
 typedef bool (*dap_global_db_callback_results_raw_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
