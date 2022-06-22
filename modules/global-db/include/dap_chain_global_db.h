@@ -43,7 +43,6 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
  */
 bool dap_chain_global_db_gr_set_ext(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group, uint8_t a_flags);
 bool dap_chain_global_db_gr_set(const char *a_key,  const void *a_value, size_t a_value_len, const char *a_group);
-bool dap_chain_global_db_pinned_gr_set(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group);
 bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_value_len);
 
 /**
@@ -52,11 +51,3 @@ bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_va
 bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group);
 bool dap_chain_global_db_del(char *a_key);
 
-
-/**
- * Read the entire database into an array of size bytes
- *
- * @param data_size[out] size of output array
- * @return array (note:not Null-terminated string) on NULL in case of an error
- */
-dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group);

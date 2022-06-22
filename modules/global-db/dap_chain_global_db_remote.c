@@ -15,23 +15,6 @@
 #define NODE_TIME_EXPIRED_DEFAULT 720
 
 /**
- * @brief Gets last id of the log.
- *
- * @param a_group_name a group name string
- * @return Returns id if succeessful.
- */
-uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
-{
-    uint64_t result = 0;
-    dap_store_obj_t *l_last_obj = dap_chain_global_db_get_last(a_group_name);
-    if(l_last_obj) {
-        result = l_last_obj->id;
-        dap_store_obj_free_one(l_last_obj);
-    }
-    return result;
-}
-
-/**
  * @brief A function for a thread for reading a log list
  *
  * @param arg a pointer to the log list structure

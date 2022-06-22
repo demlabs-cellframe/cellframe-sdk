@@ -574,13 +574,60 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
 }
 
 /**
+ * @brief s_save_stat_to_database_callback_set_stat
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_len
+ * @param a_value_ts
+ * @param a_is_pinned
+ * @param a_arg
+ */
+static void s_save_stat_to_database_callback_set_stat (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
+{
+    if( a_rc != DAP_GLOBAL_DB_RC_SUCCESS)
+        log_it(L_ERROR,"Can't save stats to GlobalDB, code %d", a_rc);
+
+    DAP_DELETE(a_arg);
+}
+
+/**
+ * @brief s_save_stat_to_database_callback_get_last_stat
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_len
+ * @param a_value_ts
+ * @param a_is_pinned
+ * @param a_arg
+ */
+static void s_save_stat_to_database_callback_get_last_stat (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
+{
+    char * l_json_str = (char *) a_arg;
+    int64_t l_key = 0;
+    if(a_rc == DAP_GLOBAL_DB_RC_SUCCESS) {
+        l_key = strtoll(a_key, NULL, 16);
+    }
+
+    char *l_key_str = dap_strdup_printf("%06x", ++l_key);
+    dap_global_db_set(a_group, l_key_str, l_json_str, strlen(l_json_str) + 1,false, s_save_stat_to_database_callback_set_stat, l_json_str);
+
+    DAP_DELETE(l_key_str);
+
+}
+
+/**
  * @brief save_stat_to_database
  *
  * @param a_request
  * @param a_node_client
  * @return int
  */
-static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_request, dap_chain_node_client_t * a_node_client)
+static int s_save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_request, dap_chain_node_client_t * a_node_client)
 {
     UNUSED(a_node_client);
     int l_ret = 0;
@@ -601,7 +648,7 @@ static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_reque
     json_object_object_add(jobj, "time_len_send", json_object_new_int(a_request->data_size_send));
     json_object_object_add(jobj, "time_len_recv", json_object_new_int(a_request->data_size_recv));
     json_object_object_add(jobj, "err_code", json_object_new_int(a_request->err_code));
-    const char* json_str = json_object_to_json_string(jobj);
+    const char* l_json_str = json_object_to_json_string(jobj);
     // save statistics
     char *l_group = NULL;
     dap_chain_net_t * l_net = dap_chain_net_by_id(a_request->net_id);
@@ -609,16 +656,8 @@ static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_reque
         l_group = dap_strdup_printf("local.%s.orders-test-stat", l_net->pub.gdb_groups_prefix);
     }
     if(l_group) {
-        dap_store_obj_t *l_obj = dap_chain_global_db_get_last(l_group);
-        int64_t l_key = 0;
-        if(l_obj) {
-            l_key = strtoll(l_obj->key, NULL, 16);
-        }
-        char *l_key_str = dap_strdup_printf("%06x", ++l_key);
-        if(!dap_chain_global_db_gr_set(l_key_str, json_str, strlen(json_str) + 1, l_group)) {
-            l_ret = -1;
-        }
-        DAP_DELETE(l_key_str);
+        dap_global_db_get_last( l_group, s_save_stat_to_database_callback_get_last_stat,
+                                dap_strdup(l_json_str));
         DAP_DELETE(l_group);
     }
     else
@@ -647,7 +686,7 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
                 log_it(L_WARNING, "Wrong request size, less or more than required");
                 break;
             }
-            save_stat_to_database(l_request, l_node_client);
+            s_save_stat_to_database(l_request, l_node_client);
             l_node_client->state = NODE_CLIENT_STATE_CHECKED;
 #ifndef _WIN32
             pthread_cond_broadcast(&l_node_client->wait_cond);
