@@ -4523,6 +4523,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
             json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
             json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_data[i].value_len));
             json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_data[i].timestamp));
+            json_object_object_add(jobj, "flags",   json_object_new_int((int)l_data[i].flags));
             json_object_array_add(l_json_group, jobj);
 
             DAP_FREE(l_value_enc_str);
@@ -4592,20 +4593,23 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
         size_t l_records_count = json_object_array_length(l_json_records);
         pdap_store_obj_t l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
         for (size_t j = 0; j < l_records_count; ++j) {
-            struct json_object *l_record, *l_id, *l_key, *l_value, *l_value_len, *l_ts;
+            struct json_object *l_record, *l_id, *l_key, *l_value, *l_value_len, *l_ts, *l_flags;
             l_record = json_object_array_get_idx(l_json_records, j);
             l_id        = json_object_object_get(l_record, "id");
             l_key       = json_object_object_get(l_record, "key");
             l_value     = json_object_object_get(l_record, "value");
             l_value_len = json_object_object_get(l_record, "value_len");
             l_ts        = json_object_object_get(l_record, "timestamp");
+            l_flags     = json_object_object_get(l_record, "flags");
             //
             l_group_store[j].id     = (uint64_t)json_object_get_int64(l_id);
             l_group_store[j].key    = dap_strdup(json_object_get_string(l_key));
             l_group_store[j].group  = dap_strdup(l_group_name);
-            l_group_store[j].timestamp = json_object_get_int64(l_ts);
+            dap_gdb_time_t ts = json_object_get_int64(l_ts);
+            l_group_store[j].timestamp = ts >> 32 == 0 ? ts << 32 : ts; // possibly legacy record
             l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
             l_group_store[j].type   = 'a';
+            l_group_store[j].flags = l_flags ? json_object_get_int(l_flags) : RECORD_COMMON; // possibly legacy record
             const char *l_value_str = json_object_get_string(l_value);
             char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
             dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
@@ -4614,7 +4618,7 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
         if (dap_chain_global_db_driver_apply(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
         }
-        //dap_store_obj_free(l_group_store, l_records_count);
+        dap_store_obj_free(l_group_store, l_records_count);
     }
     json_object_put(l_json);
     return 0;
