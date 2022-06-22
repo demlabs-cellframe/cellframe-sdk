@@ -4376,14 +4376,35 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             l_sign_list = dap_list_append(l_sign_list,l_json_item_obj);
         }
             break;
-        //case TX_ITEM_TYPE_PKEY:
-            //break;
-        //case TX_ITEM_TYPE_TOKEN:
-            //break;
-        //case TX_ITEM_TYPE_TOKEN_EXT:
-            //break;
-        //case TX_ITEM_TYPE_RECEIPT:
-            //break;
+        case TX_ITEM_TYPE_RECEIPT: {
+            dap_chain_net_srv_uid_t l_srv_uid;
+            if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+                break;
+            }
+            dap_chain_net_srv_price_unit_uid_t l_price_unit;
+            if(!s_json_get_unit(l_json_item_obj, "price_unit", &l_price_unit)) {
+                break;
+            }
+            int64_t l_units;
+            if(!s_json_get_int64(l_json_item_obj, "units", &l_units)) {
+                break;
+            }
+            uint256_t l_value = { };
+            if(!s_json_get_uint256(l_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                break;
+            }
+            const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+            size_t l_params_size = dap_strlen(l_params_str);
+            dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params_str, l_params_size);
+            l_item = (const uint8_t*) l_receipt;
+        }
+            break;
+            //case TX_ITEM_TYPE_PKEY:
+                //break;
+            //case TX_ITEM_TYPE_TOKEN:
+                //break;
+            //case TX_ITEM_TYPE_TOKEN_EXT:
+                //break;
         }
         // Add item to transaction
         if(l_item) {
