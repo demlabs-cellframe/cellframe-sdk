@@ -4514,6 +4514,8 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
         json_object_object_add(l_json_group_inner, "group", json_object_new_string(l_group_name));
 
         for (size_t i = 0; i < l_data_size; ++i) {
+            if (!l_data[i].key || !l_data[i].value)
+                continue;
             size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len) + 1;
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
             dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
