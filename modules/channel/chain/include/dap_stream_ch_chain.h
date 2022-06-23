@@ -77,7 +77,7 @@ typedef struct dap_stream_ch_chain {
 
     int timer_shots;
     dap_timerfd_t *activity_timer;
-    pthread_rwlock_t idle_lock;
+    int sent_breaks;
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;

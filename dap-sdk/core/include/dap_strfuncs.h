@@ -41,7 +41,7 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
-char *strptime( char *buff, const char *fmt, struct tm *tm );
+char *strptime(const char *buff, const char *fmt, struct tm *tm);
 #endif
 
 bool dap_isstralnum(const char *c);

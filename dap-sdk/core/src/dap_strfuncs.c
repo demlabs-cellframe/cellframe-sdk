@@ -965,11 +965,13 @@ char* dap_strreverse(char *a_string)
 }
 
 #ifdef _WIN32
-char *strptime( char *buff, const char *fmt, struct tm *tm ) {
-  uint32_t len = strlen( buff );
-  dap_sscanf( buff,"%u.%u.%u_%u.%u.%u",&tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec );
-  tm->tm_year += 2000;
-  return buff + len;
+char *strptime(const char *buff, const char *fmt, struct tm *tm)
+{
+    UNUSED(fmt);
+    uint32_t len = strlen(buff);
+    dap_sscanf(buff, "%u.%u.%u_%u.%u.%u", &tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec);
+    tm->tm_year += 2000;
+    return (char *)buff + len;
 }
 
 /**
