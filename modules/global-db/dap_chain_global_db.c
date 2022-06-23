@@ -852,7 +852,6 @@ static void s_dap_chain_global_db_request_processor(dap_events_socket_t *a_es, v
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
 int l_rc;
-static int is_check_version = 0;
 
     const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
@@ -868,16 +867,9 @@ static int is_check_version = 0;
     if( (l_rc = dap_db_driver_init(l_driver_name, l_storage_path, s_db_drvmode_async)) )
         return  log_it(L_CRITICAL, "Hadn't initialized DB driver \"%s\" on path \"%s\", code: %d", l_driver_name, l_storage_path, l_rc), l_rc;
 
-    if(!is_check_version){
-
-        is_check_version = true;
-
-        if ( (l_rc = s_check_db_version(g_config)) )
-            return  log_it(L_ERROR, "GlobalDB version changed, please export or remove old version!"), l_rc;
-    }
+    //if ( (l_rc = s_check_db_version(g_config)) )
+    //    return  log_it(L_ERROR, "GlobalDB version changed, please export or remove old version!"), l_rc;
 
     log_it(L_NOTICE, "GlobalDB initialized");
-
-    l_rc = 0;
-    return l_rc;
+    return 0;
 }

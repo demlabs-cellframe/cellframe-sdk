@@ -72,10 +72,16 @@ dap_proc_queue_t *dap_proc_queue_create(dap_proc_thread_t * a_thread);
 dap_proc_queue_t *dap_proc_queue_create_ext(dap_proc_thread_t * a_thread);
 
 int dap_proc_queue_delete(dap_proc_queue_t * a_queue);
-int dap_proc_queue_add_callback(dap_worker_t * a_worker, dap_proc_queue_callback_t a_callback, void * a_callback_arg);
-int dap_proc_queue_add_callback_inter(dap_events_socket_t * a_es_input, dap_proc_queue_callback_t a_callback, void * a_callback_arg);
 
 int dap_proc_queue_add_callback_ext(dap_worker_t * a_worker, dap_proc_queue_callback_t a_callback, void * a_callback_arg, int a_pri);
 int dap_proc_queue_add_callback_inter_ext(dap_events_socket_t * a_es_input, dap_proc_queue_callback_t a_callback, void * a_callback_arg, int );
+DAP_STATIC_INLINE int dap_proc_queue_add_callback(dap_worker_t *a_worker, dap_proc_queue_callback_t a_callback, void *a_callback_arg)
+{
+    return dap_proc_queue_add_callback_ext(a_worker, a_callback, a_callback_arg, DAP_PROC_PRI_NORMAL);
+}
+DAP_STATIC_INLINE int dap_proc_queue_add_callback_inter(dap_events_socket_t *a_es_input, dap_proc_queue_callback_t a_callback, void *a_callback_arg)
+{
+    return dap_proc_queue_add_callback_inter_ext(a_es_input, a_callback, a_callback_arg, DAP_PROC_PRI_NORMAL);
+}
 int dap_proc_thread_add_callback_mt(dap_proc_thread_t * a_thread, dap_proc_queue_callback_t a_callback, void * a_callback_arg, int a_pri);
 
