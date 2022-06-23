@@ -7,6 +7,7 @@
 
 #include "dap_common.h"
 #include "dap_time.h"
+#include "dap_strfuncs.h"
 
 #define LOG_TAG "dap_common"
 
@@ -162,7 +163,7 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
  * @param[out] a_time_str
  * @return time from string or 0 if bad time format
  */
-dap_time_t dap_time_from_str_rfc822(char *a_time_str)
+dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
 {
     dap_time_t l_time = 0;
     if(!a_time_str) {

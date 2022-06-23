@@ -198,12 +198,6 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
 
 
 #elif defined (DAP_OS_WINDOWS)
-    /*HANDLE l_th = CreateWaitableTimer(NULL, true, NULL);
-    if (!l_th) {
-        log_it(L_CRITICAL, "Waitable timer not created, error %d", GetLastError());
-        DAP_DELETE(l_timerfd);
-        return NULL;
-    }*/
     l_timerfd->th = NULL;
     SOCKET l_tfd = socket(AF_INET, SOCK_DGRAM, 0);
     int buffsize = 1024;
@@ -218,7 +212,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     l_addr.sin_family = AF_INET;
     IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
     l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = 0; //l_tfd + 32768;
+    l_addr.sin_port = l_tfd + 32768;
     l_addr_len = sizeof(struct sockaddr_in);
     if (bind(l_tfd, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
@@ -229,16 +223,8 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
         //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 
-    /*LARGE_INTEGER l_due_time;
-    l_due_time.QuadPart = (long long)a_timeout_ms * _MSEC;
-    if (!SetWaitableTimer(l_th, &l_due_time, 0, TimerAPCb, l_timerfd, false)) {
-        log_it(L_CRITICAL, "Waitable timer not set, error %d", GetLastError());
-        CloseHandle(l_th);
-        DAP_DELETE(l_timerfd);
-        return NULL;
-    } */
     if (!CreateTimerQueueTimer(&l_timerfd->th, hTimerQueue,
-                               (WAITORTIMERCALLBACK)TimerRoutine, l_timerfd, (unsigned long)a_timeout_ms, 0, 0)) {
+                               (WAITORTIMERCALLBACK)TimerRoutine, l_timerfd, (DWORD)a_timeout_ms, 0, 0)) {
         log_it(L_CRITICAL, "Timer not set, error %lu", GetLastError());
         DAP_DELETE(l_timerfd);
         return NULL;
@@ -247,11 +233,8 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
 #endif
     
 #if defined (DAP_OS_LINUX) || defined (DAP_OS_WINDOWS)    
-    l_timerfd->tfd              = l_tfd;
+    l_timerfd->tfd = l_tfd;
 #endif
-//#ifdef DAP_OS_WINDOWS
-    //l_timerfd->th               = l_th;
-//#endif
     return l_timerfd;
 }
 
@@ -274,12 +257,12 @@ static void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t *a_eve
 //EV_SET(l_event, 0, a_event_sock->kqueue_base_filter, a_event_sock->kqueue_base_flags,a_event_sock->kqueue_base_fflags,a_event_sock->kqueue_data,a_event_sock);
 //kevent(a_event_sock->worker->kqueue_fd,l_event,1,NULL,0,NULL);
 #elif defined (DAP_OS_WINDOWS)
-    /*LARGE_INTEGER l_due_time;
-    l_due_time.QuadPart = (long long)a_timerfd->timeout_ms * _MSEC;
-    if (!SetWaitableTimer(a_timerfd->th, &l_due_time, 0, TimerAPCb, a_timerfd, false)) {
-        log_it(L_CRITICAL, "Waitable timer not reset, error %d", GetLastError());
-        CloseHandle(a_timerfd->th);
-    }*/ // Wtf is this entire thing for?...
+    // Doesn't work with one-shot timers
+    //if (!ChangeTimerQueueTimer(hTimerQueue, a_timerfd->th, (DWORD)a_timerfd->timeout_ms, 0))
+    DeleteTimerQueueTimer(hTimerQueue, a_timerfd->th, NULL);
+    if (!CreateTimerQueueTimer(&a_timerfd->th, hTimerQueue,
+                               (WAITORTIMERCALLBACK)TimerRoutine, a_timerfd, (DWORD)a_timerfd->timeout_ms, 0, 0))
+        log_it(L_CRITICAL, "Timer not reset, error %lu", GetLastError());
 #else
 #error "No timer reset realization for your platform"
 #endif
@@ -300,6 +283,9 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
     if(l_timerfd->callback && l_timerfd->callback(l_timerfd->callback_arg)) {
         s_timerfd_reset(l_timerfd, a_event_sock);
     } else {
+#ifdef _WIN32
+        DeleteTimerQueueTimer(hTimerQueue, l_timerfd->th, NULL);
+#endif
         l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
@@ -330,9 +316,9 @@ void dap_timerfd_delete(dap_timerfd_t *a_timerfd)
 {
     if (!a_timerfd)
         return;
-    #ifdef _WIN32
-        DeleteTimerQueueTimer(hTimerQueue, (HANDLE)a_timerfd->th, NULL);
-    #endif
+#ifdef _WIN32
+    DeleteTimerQueueTimer(hTimerQueue, a_timerfd->th, NULL);
+#endif
     if (a_timerfd->events_socket->worker)
         dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->worker, a_timerfd->esocket_uuid);
 }
