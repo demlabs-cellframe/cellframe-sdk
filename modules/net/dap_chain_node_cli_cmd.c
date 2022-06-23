@@ -4608,7 +4608,7 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
             l_group_store[j].key    = dap_strdup(json_object_get_string(l_key));
             l_group_store[j].group  = dap_strdup(l_group_name);
             dap_gdb_time_t ts = json_object_get_int64(l_ts);
-            l_group_store[j].timestamp = ts >> 32 == 0 ? ts << 32 : ts; // possibly legacy record
+            l_group_store[j].timestamp = ts >> 32 ? ts : ts << 32; // possibly legacy record
             l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
             l_group_store[j].type   = 'a';
             l_group_store[j].flags = l_flags ? json_object_get_int(l_flags) : RECORD_COMMON; // possibly legacy record
@@ -4619,6 +4619,8 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
         }
         if (dap_chain_global_db_driver_apply(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
+        } else {
+            log_it(L_INFO, "Imported %llu records of group %s", l_records_count, l_group_name);
         }
         dap_store_obj_free(l_group_store, l_records_count);
     }
