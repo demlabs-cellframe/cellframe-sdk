@@ -383,17 +383,8 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
     pthread_mutex_unlock(&s_log_mutex);
 }
 
-
-
-
-
-
-
-
-
-
 /*	CRC32-C	*/
-const  unsigned int g_crc32c_table[] = {
+static const unsigned int s_crc32c_table[] = {
 	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
 	0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
 	0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
@@ -439,8 +430,17 @@ const  unsigned int g_crc32c_table[] = {
 	0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
 };
 
+#define CRC32_POLY      (0xEDB88320)
+unsigned int dap_crc32c(unsigned int crc, const void *buf, size_t buflen)
+{
+    const unsigned char  *p = (unsigned char *) buf;
+    crc = crc ^ ~0U;
+    while (buflen--)
+        crc = s_crc32c_table[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
+    return crc ^ ~0U;
+}
 
-
+#ifdef DAP_SYS_DEBUG
 const	char spaces[74] = {"                                                                          "};
 #define PID_FMT "%6d"
 
@@ -498,8 +498,6 @@ struct timespec now;
 
     len = write(STDOUT_FILENO, out, olen);
 }
-
-
 
 void	_dump_it	(
 		const char      *a_rtn_name,
@@ -600,18 +598,7 @@ struct timespec now;
         len = write(STDOUT_FILENO, out, HEXDUMP$SZ_WIDTH);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
+#endif
 
 static int s_check_and_fill_buffer_log(char **m, struct tm *a_tm_st, char *a_tmp)
 {
@@ -1246,91 +1233,6 @@ int dap_interval_timer_delete(void *a_timer)
 #endif  // _WIN32
 }
 
-/**
- * @brief dap_lendian_get16 Get uint16 from little endian memory
- * @param a_buf a buffer read from
- * @return uint16 in host endian memory
- */
-uint16_t dap_lendian_get16(const uint8_t *a_buf)
-{
-    uint8_t u = *a_buf;
-    return (uint16_t)(*(a_buf + 1)) << 8 | u;
-}
-
-/**
- * @brief dap_lendian_put16 Put uint16 to little endian memory
- * @param buf a buffer write to
- * @param val uint16 in host endian memory
- * @return none
- */
-void dap_lendian_put16(uint8_t *a_buf, uint16_t a_val)
-{
-    *(a_buf) = a_val;
-    *(a_buf + 1) = a_val >> 8;
-}
-
-/**
- * @brief dap_lendian_get32 Get uint32 from little endian memory
- * @param a_buf a buffer read from
- * @return uint32 in host endian memory
- */
-uint32_t dap_lendian_get32(const uint8_t *a_buf)
-{
-    uint16_t u = dap_lendian_get16(a_buf);
-    return (uint32_t)dap_lendian_get16(a_buf + 2) << 16 | u;
-}
-
-/**
- * @brief dap_lendian_put32 Put uint32 to little endian memory
- * @param buf a buffer write to
- * @param val uint32 in host endian memory
- * @return none
- */
-void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val)
-{
-    dap_lendian_put16(a_buf, a_val);
-    dap_lendian_put16(a_buf + 2, a_val >> 16);
-}
-
-/**
- * @brief dap_lendian_get64 Get uint64 from little endian memory
- * @param a_buf a buffer read from
- * @return uint64 in host endian memory
- */
-uint64_t dap_lendian_get64(const uint8_t *a_buf)
-{
-    uint32_t u = dap_lendian_get32(a_buf);
-    return (uint64_t)dap_lendian_get32(a_buf + 4) << 32 | u;
-}
-
-/**
- * @brief dap_lendian_put64 Put uint64 to little endian memory
- * @param buf a buffer write to
- * @param val uint64 in host endian memory
- * @return none
- */
-void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val)
-{
-    dap_lendian_put32(a_buf, a_val);
-    dap_lendian_put32(a_buf + 4, a_val >> 32);
-}
-
-int dap_is_alpha_and_(char e)
-{
-    if ((e >= '0' && e <= '9')||(e >= 'a' && e <= 'z')||(e >= 'A' && e <= 'Z')||(e == '_')) return 1;
-    return 0;
-}
-
-int dap_is_alpha(char e)
-{
-    if ((e >= '0' && e <= '9')||(e >= 'a' && e <= 'z')||(e >= 'A' && e <= 'Z')) return 1;
-    return 0;
-}
-int dap_is_digit(char e)
-{
-    if ((e >= '0' && e <= '9')) return 1;
-    return 0;
-}
 char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit)
 {
     int l_count_temp = *a_count = 0;
