@@ -5,14 +5,14 @@ project(dap_cuttdb C)
 add_definitions ("-D_GNU_SOURCE")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
 
-file(GLOB cuttdb_src src/*.c)
-file(GLOB cuttdb_h src/*.h)
+file(GLOB cuttdb_src RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/*.c)
+file(GLOB cuttdb_h RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} src/*.h)
 
 # the server part ain't ported, and thus not built, so are tests.
 list(FILTER cuttdb_src EXCLUDE REGEX "ae_")
 list(FILTER cuttdb_h EXCLUDE REGEX "ae_")
-list(FILTER cuttdb_src EXCLUDE REGEX "/server.")
-list(FILTER cuttdb_h EXCLUDE REGEX "/server.")
+list(FILTER cuttdb_src EXCLUDE REGEX "server.")
+list(FILTER cuttdb_h EXCLUDE REGEX "server.")
 list(FILTER cuttdb_src EXCLUDE REGEX "dump.")
 list(FILTER cuttdb_h EXCLUDE REGEX "dump.")
 list(FILTER cuttdb_src EXCLUDE REGEX "builddb.")
