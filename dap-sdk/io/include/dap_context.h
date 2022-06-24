@@ -56,6 +56,7 @@ typedef struct dap_context {
     // Compatibility fields, in future should be replaced with _inheritor
     dap_proc_thread_t * proc_thread; // If the context belongs to proc_thread
     dap_worker_t * worker; // If the context belongs to worker
+    int type; // Context type
 
     // pthread-related fields
     pthread_cond_t started_cond; // Fires when thread started and pre-loop callback executes
@@ -135,7 +136,7 @@ int dap_context_init(); // Init
 void dap_context_deinit(); // Deinit
 
 // New context create and run.
-dap_context_t * dap_context_new();
+dap_context_t * dap_context_new(int a_type);
 
 // Run new context in dedicated thread.
 // ATTENTION: after running the context nobody have to access it outside its own running thread

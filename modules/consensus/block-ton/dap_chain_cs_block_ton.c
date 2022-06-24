@@ -1033,7 +1033,7 @@ static bool s_session_round_finish_callback_load_store(dap_global_db_context_t *
             if ( l_store->hdr.round_id.uint64 != l_session->cur_round.id.uint64
                     ||  (l_store->hdr.round_id.uint64 == l_session->cur_round.id.uint64
                             && !l_store->hdr.sign_collected) ) {
-                dap_chain_global_db_gr_del(dap_strdup(a_values[i].key), l_session->gdb_group_store);
+                dap_global_db_del_unsafe(a_global_db_context,l_session->gdb_group_store,a_values[i].key );
                 if ( l_store->hdr.sign_collected ) {
                     l_store_candidate_ready = l_store;
                 }
@@ -1758,12 +1758,15 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 								(l_message->sign_n_message+l_message->hdr.sign_size);
 			dap_chain_hash_fast_t *l_candidate_hash = &l_reject->candidate_hash;
 
+            pthread_rwlock_rdlock(&l_session->rwlock);
+
 			if ( s_hash_is_null(l_candidate_hash) ) {
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive REJECT: NULL",
 							l_session->chain->net_name, l_session->chain->name,
 								l_session->cur_round.id.uint64, l_session->attempt_current_number);
-				goto handler_finish_save;
+                pthread_rwlock_unlock(&l_session->rwlock);
+                goto handler_finish_save;
 			}
 			char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
 
@@ -1772,14 +1775,13 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
 							l_session->attempt_current_number, l_candidate_hash_str);
 
-			pthread_rwlock_rdlock(&l_session->rwlock);
 			
 			uint16_t l_reject_count = s_session_message_count(
 						l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT,
 									l_candidate_hash, NULL);
 			l_reject_count++;
             if (l_reject_count * 3 >= l_session->cur_round.validators_count * 2) {
-				dap_chain_global_db_gr_del(dap_strdup(l_candidate_hash_str), l_session->gdb_group_store);
+                dap_global_db_del_sync(l_session->gdb_group_store, l_candidate_hash_str);
 				dap_chain_hash_fast_t l_my_candidate_hash;
 				dap_hash_fast(l_session->my_candidate, l_session->my_candidate_size, &l_my_candidate_hash);
 				if (memcmp(&l_my_candidate_hash, l_candidate_hash,
@@ -2221,7 +2223,7 @@ static void s_message_chain_add(dap_chain_cs_block_ton_session_t *a_session, dap
 									dap_chain_cs_block_ton_message_t *a_message,
 									size_t a_message_size, dap_chain_hash_fast_t *a_message_hash) {
 	
-	pthread_rwlock_rdlock(&a_session->rwlock);
+    pthread_rwlock_wrlock(&a_session->rwlock);
 	dap_chain_cs_block_ton_message_t *l_message = a_message;
 
 	dap_chain_cs_block_ton_message_getinfo_t *l_getinfo =

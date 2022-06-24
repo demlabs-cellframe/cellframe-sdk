@@ -83,7 +83,7 @@ int l_ret = 0;
     for (uint32_t i = 0; i < s_threads_count; i++ )
     {
         dap_proc_thread_t * l_thread = s_threads + i;
-        l_thread->context = dap_context_new();
+        l_thread->context = dap_context_new(DAP_CONTEXT_TYPE_PROC_THREAD);
         l_thread->context->proc_thread = l_thread;
 
         if ( (l_ret = dap_context_run(l_thread->context,i,DAP_CONTEXT_POLICY_TIMESHARING,2,

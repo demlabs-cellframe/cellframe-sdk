@@ -211,7 +211,7 @@ int dap_global_db_init(const char * a_storage_path, const char * a_driver_name)
 
     // Create and run its own context
     if(s_context == NULL){
-        s_context = dap_context_new();
+        s_context = dap_context_new(DAP_CONTEXT_TYPE_GLOBAL_DB);
         s_context->_inheritor = s_context_global_db = DAP_NEW_Z(struct dap_global_db_context);
         s_context_global_db->context = s_context;
         if (dap_context_run(s_context, -1, DAP_CONTEXT_POLICY_DEFAULT, 0, DAP_CONTEXT_FLAG_WAIT_FOR_STARTED,
@@ -1023,7 +1023,7 @@ static bool s_objs_get_callback (dap_global_db_context_t * a_global_db_context,i
  * @param a_objs_count
  * @return Group's objects
  */
-dap_global_db_obj_t* dap_global_db_objs_get(const char *a_group, size_t *a_objs_count)
+dap_global_db_obj_t* dap_global_db_get_all_raw_sync(const char *a_group, size_t *a_objs_count)
 {
     struct objs_get * l_args = DAP_NEW_Z(struct objs_get);
     pthread_mutex_init(&l_args->mutex,NULL);
@@ -1224,7 +1224,7 @@ static bool s_store_objs_get_callback (dap_global_db_context_t * a_global_db_con
     return false;
 }
 
-dap_store_obj_t* dap_global_db_store_objs_get_sync(const char *a_group, uint64_t a_first_id, size_t *a_objs_count)
+dap_store_obj_t* dap_global_db_get_all_raw_sync(const char *a_group, uint64_t a_first_id, size_t *a_objs_count)
 {
     struct store_objs_get * l_args = DAP_NEW_Z(struct store_objs_get);
     pthread_mutex_init(&l_args->mutex,NULL);
@@ -1244,6 +1244,19 @@ dap_store_obj_t* dap_global_db_store_objs_get_sync(const char *a_group, uint64_t
 
 }
 
+/**
+ * @brief dap_global_db_context_current
+ * @return
+ */
+dap_global_db_context_t * dap_global_db_context_current()
+{
+    dap_context_t * l_context = dap_context_current();
+    if(l_context->type == DAP_CONTEXT_TYPE_GLOBAL_DB)
+        return (dap_global_db_context_t *) l_context->_inheritor;
+    else
+        return NULL;
+
+}
 /**
  * @brief dap_global_db_del_unsafe
  * @param a_group

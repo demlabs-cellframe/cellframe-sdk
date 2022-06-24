@@ -872,27 +872,6 @@ static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap
 }
 
 /**
- * @brief s_gdb_datum_pool_delete_callback
- * @param a_global_db_context
- * @param a_rc
- * @param a_group
- * @param a_key
- * @param a_value
- * @param a_value_size
- * @param a_value_ts
- * @param a_is_pinned
- * @param a_arg
- */
-static void s_gdb_datum_pool_delete_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_size, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
-{
-    if( a_rc == DAP_GLOBAL_DB_RC_SUCCESS){
-        log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
-    } else {
-        log_it(L_INFO, "Delete hash: key=%s result: False!", a_key);
-    }
-}
-
-/**
  * @brief
  * @param cl_st HTTP server instance
  * @param arg for return code
@@ -968,8 +947,13 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 
                 case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
                     strcpy(cl_st->reply_mime, "text/text");
-                    dap_global_db_del( l_gdb_datum_pool, a_key, s_gdb_datum_pool_delete_callback, NULL );
-                    l_enc_delegate->response = dap_strdup("1");
+                    if (dap_global_db_del_sync(l_gdb_datum_pool, a_key) == 0){
+                        l_enc_delegate->response = dap_strdup("1");
+                        log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
+                    } else {
+                        l_enc_delegate->response = dap_strdup("0");
+                        log_it(L_INFO, "Delete hash: key=%s result: False!", a_key);
+                    }
                     // TODO rework to async processing and return result of delete action
                     *return_code = Http_Status_OK;
                     enc_http_reply_encode_new(cl_st, l_enc_key, l_enc_delegate);

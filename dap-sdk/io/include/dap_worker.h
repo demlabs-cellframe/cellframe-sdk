@@ -61,6 +61,8 @@ typedef struct dap_worker
     void * _inheritor;
 } dap_worker_t;
 
+#define DAP_CONTEXT_TYPE_WORKER   10
+
 // Message for reassigment
 typedef struct dap_worker_msg_reassign{
     dap_events_socket_t * esocket;

@@ -182,24 +182,6 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
     return -1;
 }
 
-/**
- * @brief s_order_notficator_callback_del
- * @param a_global_db_context
- * @param a_rc
- * @param a_group
- * @param a_key
- * @param a_value
- * @param a_value_size
- * @param a_value_ts
- * @param a_is_pinned
- * @param a_arg
- */
-static void s_order_notficator_callback_del (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_size, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
-{
-    if(a_rc != DAP_GLOBAL_DB_RC_SUCCESS){
-        log_it(L_ERROR,"Can't delete order %s", a_key);
-    }
-}
 
 /**
  * @brief s_order_notficator
@@ -216,9 +198,14 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_value, a_value_len);    // Old format comliance
-    if (!l_order) {
+    dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
+    assert(l_gdb_context);
+    if (!l_order && a_key) {
         log_it(L_NOTICE, "Order %s is corrupted", a_key);
-        dap_global_db_del(a_group, a_key, s_order_notficator_callback_del, NULL);
+        if(dap_global_db_del_unsafe(l_gdb_context, a_group, a_key) != 0 ){
+            log_it(L_ERROR,"Can't delete order %s", a_key);
+        }
+
         return; // order is corrupted
     }
 

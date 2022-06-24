@@ -279,7 +279,7 @@ int dap_events_start()
         dap_worker_t * l_worker = DAP_NEW_Z(dap_worker_t);
 
         l_worker->id = i;
-        l_worker->context = dap_context_new();
+        l_worker->context = dap_context_new(DAP_CONTEXT_TYPE_WORKER);
         l_worker->context->worker = l_worker;
 
 

@@ -119,11 +119,12 @@ int dap_context_init()
  * @brief dap_context_new
  * @return
  */
-dap_context_t * dap_context_new()
+dap_context_t * dap_context_new(int a_type)
 {
    dap_context_t * l_context = DAP_NEW_Z(dap_context_t);
    static atomic_uint_fast64_t s_context_id_max = 0;
    l_context->id = s_context_id_max;
+   l_context->type = a_type;
    s_context_id_max++;
 
    l_context->event_exit = dap_context_create_event( NULL, s_event_exit_callback);

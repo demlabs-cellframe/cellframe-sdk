@@ -3214,7 +3214,7 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
         // Remove it from cache
         char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
         char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
-        dap_chain_global_db_gr_del( l_tx_hash_str, l_gdb_group);
+        dap_global_db_del(l_gdb_group, l_tx_hash_str, NULL, NULL);
         DAP_DELETE(l_tx_hash_str);
         DAP_DELETE(l_gdb_group);
         l_ret = 1;
@@ -3271,7 +3271,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
-        dap_chain_global_db_gr_del(NULL, l_gdb_group);
+        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -3284,7 +3284,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_SPENT_TXS_STR);
-        dap_chain_global_db_gr_del(NULL, l_gdb_group);
+        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -3297,7 +3297,7 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_BALANCES_STR);
-        dap_chain_global_db_gr_del(NULL, l_gdb_group);
+        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 
@@ -3321,10 +3321,10 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     }
     if (!a_preserve_db) {
         l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
-        dap_chain_global_db_gr_del(NULL, l_gdb_group);
+        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
         DAP_DELETE(l_gdb_group);
         l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_EMISSIONS_STR);
-        dap_chain_global_db_gr_del(NULL, l_gdb_group);
+        dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
         DAP_DELETE(l_gdb_group);
     }
 

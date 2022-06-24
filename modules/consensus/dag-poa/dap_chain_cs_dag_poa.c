@@ -472,13 +472,13 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     }
 
     size_t l_events_round_size = 0;
-    dap_store_obj_t *l_events_round = dap_chain_global_db_driver_read(a_dag->gdb_group_events_round_new, NULL, &l_events_round_size);
+    dap_store_obj_t *l_events_round = dap_global_db_get_all_raw_sync( a_dag->gdb_group_events_round_new, 0, &l_events_round_size);
     uint16_t l_max_signs_count = 0;
     //char * l_max_signs_hash;
     for (size_t l_index = 0; l_index<l_events_round_size; l_index++) {
         dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_events_round[l_index].value;
         if (!l_event_round_item || !l_events_round[l_index].value_len) {
-            dap_chain_global_db_gr_del(l_events_round[l_index].key, l_gdb_group_events);
+            dap_global_db_del_sync(l_gdb_group_events, l_events_round[l_index].key);
             continue;
         }
         size_t l_event_size = l_event_round_item->event_size;
@@ -491,7 +491,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
             if( l_offset_from_beginning >= l_event_size){
                 log_it(L_WARNING,"Incorrect size with event %p: caled size excl signs %zd is bigger or equal then event size %zd",
                        l_event, l_offset_from_beginning, l_event_size);
-                dap_chain_global_db_gr_del(l_events_round[l_index].key, l_gdb_group_events);
+                dap_global_db_del_sync(l_gdb_group_events, l_events_round[l_index].key);
                 continue; // Incorrest size
             }
             size_t l_signs_count = 0;
@@ -509,7 +509,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
             }
         }
         else {
-            dap_chain_global_db_gr_del(l_events_round[l_index].key, l_gdb_group_events);
+            dap_global_db_del_sync(l_gdb_group_events, l_events_round[l_index].key);
         }
     }
 
@@ -519,7 +519,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     HASH_ITER(hh, s_event_clean_dup_items, l_clean_item, l_clean_tmp) {
         if ( l_clean_item->signs_count < l_max_signs_count ) {
             // delete dup by min signatures
-            dap_chain_global_db_gr_del( l_clean_item->hash_str, l_gdb_group_events);
+            dap_global_db_del_sync(l_gdb_group_events, l_clean_item->hash_str);
             HASH_DEL(s_event_clean_dup_items, l_clean_item);
             DAP_DELETE(l_clean_item);
         } else if ( l_clean_item->ts_update > l_max_ts_update ) {
@@ -530,7 +530,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
     HASH_ITER(hh, s_event_clean_dup_items, l_clean_item, l_clean_tmp) {
         if ( dap_strcmp(l_max_ts_update_hash, l_clean_item->hash_str) != 0 ) {
             // delete dup by older
-            dap_chain_global_db_gr_del(l_clean_item->hash_str, l_gdb_group_events);
+            dap_global_db_del_sync(l_gdb_group_events, l_clean_item->hash_str);
         }
         HASH_DEL(s_event_clean_dup_items, l_clean_item);
         DAP_DELETE(l_clean_item);
@@ -592,18 +592,37 @@ static void s_callback_get_round_info(dap_chain_cs_dag_t * a_dag, dap_chain_cs_d
     a_event_round_info->reject_count = 0;
 }
 
-static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_arg_t * a_callback_arg) {
-    dap_chain_cs_dag_t * l_dag = a_callback_arg->dag;
-    char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
-    dap_chain_cs_dag_event_round_item_t * l_round_item = NULL;
+/**
+ * @brief s_callback_round_event_to_chain_callback_get_round_item
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_size
+ * @param a_value_ts
+ * @param a_is_pinned
+ * @param a_arg
+ */
+static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_db_context_t * a_global_db_context,
+                                                                    int a_rc, const char * a_group,
+                                                                    const char * a_key,
+                                                                    const void * a_value,
+                                                                    const size_t a_value_size,
+                                                                    dap_nanotime_t a_value_ts,
+                                                                    bool a_is_pinned, void * a_arg)
+{
+    dap_chain_cs_dag_poa_callback_timer_arg_t * l_callback_arg = (dap_chain_cs_dag_poa_callback_timer_arg_t *) a_arg;
+    dap_chain_cs_dag_t * l_dag = l_callback_arg->dag;
+    dap_chain_cs_dag_event_round_item_t * l_round_item = (dap_chain_cs_dag_event_round_item_t *) a_value;
     dap_chain_cs_dag_event_t * l_event;
     size_t l_event_size = 0;
     size_t l_round_item_size = 0;
 
-    if ( (l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_chain_global_db_gr_get(
-                                    a_callback_arg->l_event_hash_hex_str, &l_round_item_size, l_gdb_group_events) ) == NULL ) {
+
+    if ( l_round_item == NULL ) {
         log_it(L_NOTICE,"Can't find event %s in round.new. The hash may have changed by reason the addition of a new signature.",
-                        a_callback_arg->l_event_hash_hex_str);
+                        l_callback_arg->l_event_hash_hex_str);
     } else {
         l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
         l_event_size = l_round_item->event_size;
@@ -612,9 +631,9 @@ static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_
         dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
         if (l_res == ATOM_PASS || l_res == ATOM_REJECT) { // Add new atom in chain
             DAP_DELETE(l_new_atom);
-            log_it(L_NOTICE, "Event %s not added in chain", a_callback_arg->l_event_hash_hex_str);
+            log_it(L_NOTICE, "Event %s not added in chain", l_callback_arg->l_event_hash_hex_str);
         } else {
-            log_it(L_NOTICE, "Event %s added in %s successfully", a_callback_arg->l_event_hash_hex_str,
+            log_it(L_NOTICE, "Event %s added in %s successfully", l_callback_arg->l_event_hash_hex_str,
                                                                   l_res == ATOM_ACCEPT ? "chain" : "threshold");
             if (dap_chain_atom_save(l_dag->chain, l_new_atom, l_event_size, l_dag->chain->cells->id) > 0) {
                 // dap_chain_cs_dag_event_broadcast(l_dag, DAP_DB$K_OPTYPE_DEL,
@@ -646,11 +665,26 @@ static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_
         }
         DAP_DELETE(l_round_item);
         // delete events from db
-        dap_chain_global_db_gr_del(a_callback_arg->l_event_hash_hex_str, l_dag->gdb_group_events_round_new);
+        dap_global_db_del_unsafe(a_global_db_context, a_group, l_callback_arg->l_event_hash_hex_str);
     }
 
-    DAP_DELETE(a_callback_arg->l_event_hash_hex_str);
-    DAP_DELETE(a_callback_arg);
+    DAP_DELETE(l_callback_arg->l_event_hash_hex_str);
+    DAP_DELETE(l_callback_arg);
+
+}
+
+/**
+ * @brief s_callback_round_event_to_chain
+ * @param a_callback_arg
+ * @return
+ */
+static bool s_callback_round_event_to_chain(dap_chain_cs_dag_poa_callback_timer_arg_t * a_callback_arg)
+{
+    dap_chain_cs_dag_t * l_dag = a_callback_arg->dag;
+    char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
+    dap_global_db_get(l_gdb_group_events, a_callback_arg->l_event_hash_hex_str,s_callback_round_event_to_chain_callback_get_round_item,
+                      a_callback_arg);
+
     return false;
 }
 
@@ -766,6 +800,9 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
                                         const char *a_key, const void *a_value, const size_t a_value_size)
 {
+    dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
+    assert(l_gdb_context);
+
     if ( a_value == NULL || a_op_code != DAP_DB$K_OPTYPE_ADD || !a_value || !a_value_size) {
         return 0;
     }
@@ -777,6 +814,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         s_round_event_clean_dup(a_dag, a_key); // Delete dup for manual mode
         return 0;
     }
+
     dap_chain_cs_dag_event_round_item_t *l_round_item =
                         (dap_chain_cs_dag_event_round_item_t *)DAP_DUP_SIZE(a_value,a_value_size);
     size_t l_event_size = l_round_item->event_size;
@@ -822,7 +860,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             }
             else {
                 // delete from gdb if reject_count is max
-                dap_chain_global_db_gr_del(a_key, a_group);
+                dap_global_db_del_unsafe(l_gdb_context, a_group, a_key);
                 l_deleted = true;
             }
         }

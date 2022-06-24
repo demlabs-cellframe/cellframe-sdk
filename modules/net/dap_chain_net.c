@@ -2214,7 +2214,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     return -11;
                 }
                 size_t l_objs_count;
-                dap_global_db_obj_t *l_objs = dap_global_db_objs_get(l_gdb_group_str, &l_objs_count);
+                dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_str, &l_objs_count);
                 DAP_DELETE(l_gdb_group_str);
                 dap_string_t *l_reply = dap_string_new("");
                 for (size_t i = 0; i < l_objs_count; i++) {
@@ -3140,7 +3140,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     // read all node
-    l_objs = dap_global_db_objs_get(l_net->pub.gdb_nodes, &l_nodes_count);
+    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
     if(!l_nodes_count || !l_objs)
         return l_node_list;
     for(size_t i = 0; i < l_nodes_count; i++) {
@@ -3196,7 +3196,7 @@ bool s_proc_mempool_callback_load(dap_global_db_context_t * a_global_db_context,
             if (l_verify_datum != 0){
                 log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
                                          l_verify_datum);
-                dap_chain_global_db_gr_del( a_values[i].key, a_group);
+                dap_global_db_del_unsafe( a_global_db_context, a_group, a_values[i].key);
                 l_datums[i] = NULL;
             }else{
                 l_datums[i] = l_datum;
@@ -3215,7 +3215,7 @@ bool s_proc_mempool_callback_load(dap_global_db_context_t * a_global_db_context,
         // Delete processed objects
         size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
         for(size_t i = 0; i < l_objs_processed; i++) {
-            dap_chain_global_db_gr_del(a_values[i].key, a_group);
+            dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key );
             if(i < l_objs_processed_tmp) {
                 dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
                         a_values[i].key);
@@ -3382,7 +3382,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
             const char *l_acl_gdb = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_gdb");
             if (l_acl_gdb) {
                 size_t l_objs_count;
-                dap_global_db_obj_t *l_objs = dap_global_db_objs_get(l_acl_gdb, &l_objs_count);
+                dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_acl_gdb, &l_objs_count);
                 for (size_t i = 0; i < l_objs_count; i++) {
                     if (!strcmp(l_objs[i].key, l_auth_hash_str)) {
                         l_authorized = true;
