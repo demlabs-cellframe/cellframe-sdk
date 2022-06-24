@@ -13,6 +13,10 @@
 #define F_DB_LOG_ADD_EXTRA_GROUPS   1
 #define F_DB_LOG_SYNC_FROM_ZERO     2
 
+#define GROUP_LOCAL_NODE_LAST_ID    "local.node.last_id"
+#define GROUP_LOCAL_NODE_ADDR       "local.node-addr"
+
+
 #define GDB_SYNC_ALWAYS_FROM_ZERO       // For debug purposes
 // for dap_db_log_list_xxx()
 

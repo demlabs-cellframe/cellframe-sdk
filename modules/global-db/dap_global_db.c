@@ -29,6 +29,7 @@
 #include "dap_time.h"
 #include "dap_context.h"
 #include "dap_worker.h"
+#include "dap_stream_worker.h"
 #include "dap_proc_thread.h"
 #define LOG_TAG "dap_global_db"
 
@@ -66,9 +67,10 @@ struct queue_io_msg{
 
     // For each message opcode we have only one callback
     union{
-        dap_global_db_callback_t callback;
-        dap_global_db_callback_result_t callback_result;
-        dap_global_db_callback_results_t callback_results;
+        dap_global_db_callback_t             callback;
+        dap_global_db_callback_result_t      callback_result;
+        dap_global_db_callback_result_raw_t  callback_result_raw;
+        dap_global_db_callback_results_t     callback_results;
         dap_global_db_callback_results_raw_t callback_results_raw;
     };
     // Custom argument passed to the callback
@@ -140,6 +142,7 @@ static void s_queue_io_callback( dap_events_socket_t * a_es, void * a_arg);
 
 // Queue i/o message processing functions
 static bool s_msg_opcode_get(struct queue_io_msg * a_msg);
+static bool s_msg_opcode_get_raw(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_del_ts(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_last(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg);
@@ -211,8 +214,8 @@ int dap_global_db_init(const char * a_storage_path, const char * a_driver_name)
         s_context = dap_context_new();
         s_context->_inheritor = s_context_global_db = DAP_NEW_Z(struct dap_global_db_context);
         s_context_global_db->context = s_context;
-        if (dap_context_run(s_context, -1, DAP_CONTEXT_POLICY_DEFAULT, 0, DAP_CONTEXT_FLAG_WAIT_FOR_STARTED, s_context_callback_started,
-                        s_context_callback_stopped, NULL) != 0 ){
+        if (dap_context_run(s_context, -1, DAP_CONTEXT_POLICY_DEFAULT, 0, DAP_CONTEXT_FLAG_WAIT_FOR_STARTED,
+                            s_context_callback_started, s_context_callback_stopped, NULL) != 0 ){
             l_rc = -2;
             goto lb_return;
         }
@@ -295,6 +298,59 @@ static bool s_msg_opcode_get(struct queue_io_msg * a_msg)
     }else if(a_msg->callback_result)
         a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_NO_RESULTS, a_msg->group, a_msg->key,
                                NULL, 0, 0,0, a_msg->callback_arg );
+    return true;
+}
+
+/**
+ * @brief dap_global_db_get_raw
+ * @param a_group
+ * @param a_key
+ * @param a_callback
+ * @param a_arg
+ * @return
+ */
+int dap_global_db_get_raw(const char * a_group, const char *a_key,dap_global_db_callback_result_raw_t a_callback, void * a_arg )
+{
+    if(s_context_global_db == NULL){
+        log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_get");
+        return -666;
+    }
+    struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
+    l_msg->opcode = MSG_OPCODE_GET_RAW;
+    l_msg->group = dap_strdup(a_group);
+    l_msg->key = dap_strdup(a_key);
+    l_msg->callback_result_raw = a_callback;
+    l_msg->callback_arg = a_arg;
+
+    int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec get request, code %d", l_ret);
+        s_queue_io_msg_delete(l_msg);
+    }
+    return l_ret;
+}
+
+/**
+ * @brief s_msg_opcode_get_raw
+ * @param a_msg
+ * @return
+ */
+static bool s_msg_opcode_get_raw(struct queue_io_msg * a_msg)
+{
+    bool l_store_obj_delete = true;
+    size_t l_count_records = 0;
+    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read( a_msg->group,
+                                                                     a_msg->key,
+                                                                     &l_count_records);
+
+
+    if(a_msg->callback_result_raw)
+        l_store_obj_delete = a_msg->callback_result_raw (s_context_global_db,
+                                                         l_store_obj ? DAP_GLOBAL_DB_RC_SUCCESS:
+                                                                       DAP_GLOBAL_DB_RC_NO_RESULTS, l_store_obj,
+                                                          a_msg->callback_arg );
+    if (l_store_obj && l_store_obj_delete)
+        dap_store_obj_free(l_store_obj,l_count_records);
     return true;
 }
 
@@ -1160,17 +1216,18 @@ static void s_queue_io_callback( dap_events_socket_t * a_es, void * a_arg)
     assert(l_msg);
 
     switch(l_msg->opcode){
-        case MSG_OPCODE_GET: l_msg_delete = s_msg_opcode_get(l_msg); break;
-        case MSG_OPCODE_GET_LAST: l_msg_delete = s_msg_opcode_get_last(l_msg); break;
-        case MSG_OPCODE_GET_ALL: l_msg_delete = s_msg_opcode_get_all(l_msg); break;
-        case MSG_OPCODE_GET_ALL_RAW: l_msg_delete = s_msg_opcode_get_all_raw(l_msg); break;
-        case MSG_OPCODE_SET: l_msg_delete = s_msg_opcode_set(l_msg); break;
+        case MSG_OPCODE_GET:          l_msg_delete = s_msg_opcode_get(l_msg); break;
+        case MSG_OPCODE_GET_RAW:      l_msg_delete = s_msg_opcode_get_raw(l_msg); break;
+        case MSG_OPCODE_GET_LAST:     l_msg_delete = s_msg_opcode_get_last(l_msg); break;
+        case MSG_OPCODE_GET_ALL:      l_msg_delete = s_msg_opcode_get_all(l_msg); break;
+        case MSG_OPCODE_GET_ALL_RAW:  l_msg_delete = s_msg_opcode_get_all_raw(l_msg); break;
+        case MSG_OPCODE_SET:          l_msg_delete = s_msg_opcode_set(l_msg); break;
         case MSG_OPCODE_SET_MULTIPLE: l_msg_delete = s_msg_opcode_set_multiple(l_msg); break;
-        case MSG_OPCODE_SET_RAW: l_msg_delete = s_msg_opcode_set_raw(l_msg); break;
-        case MSG_OPCODE_PIN: l_msg_delete = s_msg_opcode_pin(l_msg); break;
-        case MSG_OPCODE_UNPIN: l_msg_delete = s_msg_opcode_unpin(l_msg); break;
-        case MSG_OPCODE_DELETE: l_msg_delete = s_msg_opcode_delete(l_msg); break;
-        case MSG_OPCODE_FLUSH: l_msg_delete = s_msg_opcode_flush(l_msg); break;
+        case MSG_OPCODE_SET_RAW:      l_msg_delete = s_msg_opcode_set_raw(l_msg); break;
+        case MSG_OPCODE_PIN:          l_msg_delete = s_msg_opcode_pin(l_msg); break;
+        case MSG_OPCODE_UNPIN:        l_msg_delete = s_msg_opcode_unpin(l_msg); break;
+        case MSG_OPCODE_DELETE:       l_msg_delete = s_msg_opcode_delete(l_msg); break;
+        case MSG_OPCODE_FLUSH:        l_msg_delete = s_msg_opcode_flush(l_msg); break;
         case MSG_OPCODE_CONTEXT_EXEC: l_msg_delete = s_msg_opcode_context_exec(l_msg); break;
         default:{
             log_it(L_WARNING, "Message with undefined opcode %d received in queue_io",
@@ -1288,6 +1345,8 @@ static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
     // Create arrays of inputs for connection with workers and proc threads
     s_context_global_db->queue_worker_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof(dap_events_socket_t*) *
                                                                 dap_events_thread_get_count() );
+    s_context_global_db->queue_worker_ch_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof(dap_events_socket_t*) *
+                                                                dap_events_thread_get_count() );
     s_context_global_db->queue_worker_callback_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof(dap_events_socket_t*) *
                                                                 dap_events_thread_get_count() );
 
@@ -1297,20 +1356,29 @@ static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
     // Fullful arrays with queue inputs
     for (uint32_t i = 0; i < dap_events_thread_get_count(); i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
+        dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER(l_worker);
         dap_proc_thread_t *l_proc_thread = dap_proc_thread_get(i);
         assert(l_worker);
         assert(l_proc_thread);
 
         // Input for I/O operations on worker
-        s_context_global_db->queue_worker_io_input[i] = dap_events_socket_queue_ptr_create_input( l_worker->queue_es_io);
+        s_context_global_db->queue_worker_io_input[i] =
+                dap_events_socket_queue_ptr_create_input( l_worker->queue_es_io);
         dap_context_add( a_context, s_context_global_db->queue_worker_io_input[i]);
 
+        // Input for ch I/O operations on worker
+        s_context_global_db->queue_worker_ch_io_input[i] =
+                dap_events_socket_queue_ptr_create_input( l_stream_worker->queue_ch_io );
+        dap_context_add( a_context, s_context_global_db->queue_worker_ch_io_input[i]);
+
         // Input for callback queue on worker
-        s_context_global_db->queue_worker_callback_input[i] = dap_events_socket_queue_ptr_create_input( l_worker->queue_callback);
+        s_context_global_db->queue_worker_callback_input[i] =
+                dap_events_socket_queue_ptr_create_input( l_worker->queue_callback);
         dap_context_add( a_context, s_context_global_db->queue_worker_callback_input[i]);
 
         // Input for callback queue on proc thread
-        s_context_global_db->queue_proc_thread_callback_input[i] = dap_events_socket_queue_ptr_create_input( l_proc_thread->proc_queue->esocket );
+        s_context_global_db->queue_proc_thread_callback_input[i] =
+                dap_events_socket_queue_ptr_create_input( l_proc_thread->proc_queue->esocket );
         dap_context_add( a_context, s_context_global_db->queue_proc_thread_callback_input[i]);
     }
 }

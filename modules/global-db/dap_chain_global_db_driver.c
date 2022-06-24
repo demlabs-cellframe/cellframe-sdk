@@ -67,9 +67,8 @@ static char s_used_driver [32];                                             /* N
 static dap_db_driver_callbacks_t s_drv_callback;                            /* A set of interface routines for the selected
                                                                             DB Driver at startup time */
 
-extern  int s_db_drvmode_async ,                                            /* Set a kind of processing requests to DB:
+int s_db_drvmode_async = 0;                                            /* Set a kind of processing requests to DB:
                                                                             <> 0 - Async mode should be used */
-        s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
 
 static pthread_mutex_t s_db_reqs_list_lock = PTHREAD_MUTEX_INITIALIZER;     /* Lock to coordinate access to the <s_db_reqs_queue> */
 static dap_slist_t s_db_reqs_list = {0};                                    /* A queue of request to DB - maintained in */
@@ -189,13 +188,17 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
 
     for( int i =  a_store_count; i--; l_store_obj_dst++, l_store_obj_src++)
     {
-        *l_store_obj_dst = *l_store_obj_src;
+        memcpy(l_store_obj_dst, l_store_obj_src, sizeof(*l_store_obj_dst));
 
         l_store_obj_dst->group = dap_strdup(l_store_obj_src->group);
         l_store_obj_dst->key = dap_strdup(l_store_obj_src->key);
-        l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
-        l_store_obj_dst->callback_proc_thread = l_store_obj_src->callback_proc_thread;
-        l_store_obj_dst->callback_proc_thread_arg = l_store_obj_src->callback_proc_thread_arg;
+        if(l_store_obj_src->value &&l_store_obj_src->value_len){
+            l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
+        }
+
+        // Why to do if we did memcpy() before?
+        //l_store_obj_dst->callback_proc_thread = l_store_obj_src->callback_proc_thread;
+        //l_store_obj_dst->callback_proc_thread_arg = l_store_obj_src->callback_proc_thread_arg;
     }
 
     return l_store_obj;
@@ -236,7 +239,7 @@ dap_store_obj_t *l_store_obj_cur;
     if(!a_store_obj || !a_store_count)
         return -1;
 
-    debug_if(s_dap_global_db_debug_more, L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "[%p] Process DB Request ...", a_store_obj);
 
     l_store_obj_cur = a_store_obj;                                          /* We have to  use a power of the address's incremental arithmetic */
     l_ret = 0;                                                              /* Preset return code to OK */
@@ -255,7 +258,7 @@ dap_store_obj_t *l_store_obj_cur;
     if(a_store_count > 1 && s_drv_callback.transaction_end)
         s_drv_callback.transaction_end();
 
-    debug_if(s_dap_global_db_debug_more, L_DEBUG, "[%p] Finished DB Request (code %d)", a_store_obj, l_ret);
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "[%p] Finished DB Request (code %d)", a_store_obj, l_ret);
     return l_ret;
 }
 
@@ -267,7 +270,7 @@ dap_store_obj_t *l_store_obj_cur;
 dap_worker_t        *l_dap_worker;
 size_t l_store_obj_cnt;
 
-    debug_if(s_dap_global_db_debug_more, L_DEBUG, "Entering, %d entries in the queue ...",  s_db_reqs_list.nr);
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "Entering, %d entries in the queue ...",  s_db_reqs_list.nr);
 
     if ( (l_ret = pthread_mutex_lock(&s_db_reqs_list_lock)) )               /* Get exclusive access to the request list */
          return log_it(L_ERROR, "Cannot lock request queue, errno=%d",l_ret), 0;
@@ -351,7 +354,7 @@ dap_worker_t        *l_dap_worker;
         else l_ret = dap_proc_queue_add_callback(l_dap_worker, s_dap_driver_req_exec, NULL);
         }
 
-    debug_if(s_dap_global_db_debug_more, L_DEBUG, "[%p] DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "[%p] DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
 
     return  l_ret;
 }

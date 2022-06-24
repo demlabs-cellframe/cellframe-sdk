@@ -141,7 +141,7 @@ bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_
 static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_xchange_price_t *a_price)
 {
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
-    uint8_t *l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
+    uint8_t *l_ext = DAP_NEW_STACK_SIZE(uint8_t, l_ext_size);
     uint256_t l_datoshi_buy = uint256_0; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate); +++
 	DIV_256(dap_chain_coins_to_balance("1.0"), a_price->rate, &l_datoshi_buy);
 	if (MULT_256_COIN(a_price->datoshi_sell, l_datoshi_buy, &l_datoshi_buy)) {

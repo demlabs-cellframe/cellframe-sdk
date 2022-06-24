@@ -147,7 +147,7 @@ size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_strea
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
 
-size_t dap_stream_ch_chain_pkt_write_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,uint64_t a_net_id,
+size_t dap_stream_ch_chain_pkt_write_inter(dap_events_socket_t * a_es_input, dap_stream_ch_uuid_t a_ch_uuid, uint8_t a_type,uint64_t a_net_id,
                                         uint64_t a_chain_id, uint64_t a_cell_id,
                                         const void * a_data, size_t a_data_size);
 
@@ -169,7 +169,7 @@ inline static size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t 
     int l_size = vsnprintf(NULL,0,a_err_string_format,l_va);
     if(l_size >0){
         l_size++;
-        l_str = DAP_NEW_S_SIZE(char, l_size);
+        l_str = DAP_NEW_STACK_SIZE(char, l_size);
         vsnprintf(l_str,l_size,a_err_string_format,l_va);
         va_end(l_va);
         return  dap_stream_ch_chain_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_str,l_size );
@@ -181,8 +181,7 @@ inline static size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t 
 
 /**
  * @brief dap_stream_ch_chain_pkt_write_error_inter
- * @param a_thread
- * @param a_stream_worker
+ * @param a_es_input
  * @param a_ch
  * @param a_net_id
  * @param a_chain_id
@@ -190,7 +189,7 @@ inline static size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t 
  * @param a_err_string_format
  * @return
  */
-inline static size_t dap_stream_ch_chain_pkt_write_error_inter(dap_proc_thread_t * a_thread, dap_stream_worker_t * a_stream_worker,  dap_stream_ch_uuid_t a_ch_uuid,
+static inline size_t dap_stream_ch_chain_pkt_write_error_inter(dap_events_socket_t * a_es_input,  dap_stream_ch_uuid_t a_ch_uuid,
                                                                uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format,... )
 {
     va_list l_va;
@@ -199,10 +198,10 @@ inline static size_t dap_stream_ch_chain_pkt_write_error_inter(dap_proc_thread_t
     int l_size = vsnprintf(NULL,0,a_err_string_format,l_va);
     if(l_size >0){
         l_size++;
-        l_str = DAP_NEW_S_SIZE(char, l_size);
+        l_str = DAP_NEW_STACK_SIZE(char, l_size);
         vsnprintf(l_str,l_size,a_err_string_format,l_va);
         va_end(l_va);
-        return  dap_stream_ch_chain_pkt_write_inter(a_thread, a_stream_worker, a_ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_str,l_size );
+        return  dap_stream_ch_chain_pkt_write_inter(a_es_input, a_ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_str,l_size );
     }else{
         va_end(l_va);
         return 0;

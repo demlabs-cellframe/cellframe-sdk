@@ -314,7 +314,7 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
     char *pos = strrchr(a_bal->key, ' ');
     if (pos) {
         size_t l_addr_len = pos - a_bal->key;
-        char *l_addr_str = DAP_NEW_S_SIZE(char, l_addr_len + 1);
+        char *l_addr_str = DAP_NEW_STACK_SIZE(char, l_addr_len + 1);
         memcpy(l_addr_str, a_bal->key, pos - a_bal->key);
         *(l_addr_str + l_addr_len) = '\0';
         json_object_object_add(l_network, "address", json_object_new_string(l_addr_str));
@@ -425,7 +425,7 @@ void s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
 {
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
     size_t l_cache_size = l_token_item->datum_token_size + sizeof(uint256_t);
-    uint8_t *l_cache = DAP_NEW_S_SIZE(uint8_t, l_cache_size);
+    uint8_t *l_cache = DAP_NEW_STACK_SIZE(uint8_t, l_cache_size);
     memcpy(l_cache, &l_token_item->current_supply, sizeof(uint256_t));
     memcpy(l_cache + sizeof(uint256_t), l_token_item->datum_token, l_token_item->datum_token_size);
     if (!dap_chain_global_db_gr_set(l_token_item->ticker, l_cache, l_cache_size, l_gdb_group))
@@ -3119,7 +3119,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     l_ledger_priv->tps_count++;
     // Add it to cache
     size_t l_tx_cache_sz = l_tx_size + sizeof(l_tx_item->cache_data);
-    uint8_t *l_tx_cache = DAP_NEW_S_SIZE(uint8_t, l_tx_cache_sz);
+    uint8_t *l_tx_cache = DAP_NEW_STACK_SIZE(uint8_t, l_tx_cache_sz);
     memcpy(l_tx_cache, &l_tx_item->cache_data, sizeof(l_tx_item->cache_data));
     memcpy(l_tx_cache + sizeof(l_tx_item->cache_data), a_tx, l_tx_size);
     l_cache_used_outs[0] = (dap_store_obj_t) {

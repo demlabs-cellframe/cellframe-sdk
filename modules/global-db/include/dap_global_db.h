@@ -37,6 +37,7 @@ typedef struct dap_global_db_context
 
     dap_events_socket_t ** queue_worker_callback_input; // Worker callback queue input
     dap_events_socket_t ** queue_worker_io_input; // Worker io queue input
+    dap_events_socket_t ** queue_worker_ch_io_input; // Worker ch io queue input
     dap_events_socket_t ** queue_proc_thread_callback_input; // Worker callback queue input
 
     dap_context_t * context; // parent pointer
@@ -74,6 +75,9 @@ typedef struct dap_global_db_obj {
 typedef void (*dap_global_db_callback_t) (dap_global_db_context_t * a_global_db_context, void * a_arg);
 
 typedef void (*dap_global_db_callback_result_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg);
+typedef bool (*dap_global_db_callback_result_raw_t) (dap_global_db_context_t * a_global_db_context,int a_rc, dap_store_obj_t * a_store_obj, void * a_arg);
+
+
 typedef bool (*dap_global_db_callback_results_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg);
 typedef bool (*dap_global_db_callback_results_raw_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
@@ -91,6 +95,7 @@ void dap_global_db_deinit();
 
 // === Async functions ===
 int dap_global_db_get(const char * a_group, const char *a_key,dap_global_db_callback_result_t a_callback, void * a_arg );
+int dap_global_db_get_raw(const char * a_group, const char *a_key,dap_global_db_callback_result_raw_t a_callback, void * a_arg );
 
 int dap_global_db_get_del_ts(const char * a_group, const char *a_key,dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_get_last(const char * a_group, dap_global_db_callback_result_t a_callback, void * a_arg );
