@@ -920,7 +920,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                "mempool check -cert <cert name> -net <net name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
     dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
-            "node add  -net <net name> -addr {<node address> | -alias <node alias>} -port <port> -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
+            "node add  -net <net name> {-addr <node address> | -alias <node alias>} -port <port> -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
                     "node del -net <net name> {-addr <node address> | -alias <node alias>}\n\n"
                     "node link {add | del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
                     "node alias -addr <node address> -alias <node alias>\n\n"
@@ -948,12 +948,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
-            "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
+            "wallet {new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info {-addr <addr> | -w <wallet_name>} -net <net_name>}\n");
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, "Token update",
             "\nPrivate token update\n"
-            "\t token_update -net <net name> -chain <chain name> -token <token ticker> [-type private] [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "token_update -net <net name> -chain <chain name> -token <token ticker> [-type private] [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Update private token <token ticker> for <netname>:<chain name> with"
             "\t   custom parameters list <Param 1>, <Param 2>...<Param N>."
             "\n"
@@ -1078,7 +1078,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create -net <net name> -chain <chain name> {-from_wallet <name> -token <token ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>}[-fee <addr> -value_fee <val>]\n" );
+            "tx_create -net <net name> -chain <chain name> {-from_wallet <name> -token <token ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>} [-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
                                         "tx_cond_create -net <net name> -token <token ticker> -wallet <from wallet> -cert <public cert> -value <value datoshi> -unit {mb | kb | b | sec | day} -srv_uid <numeric uid>\n" );
 
@@ -1087,7 +1087,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
+            "tx_history {-addr <addr> | -w <wallet name> | -tx <tx_hash>} -net <net name> -chain <chain name>\n");
 
     // Ledger info
     dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger information",
