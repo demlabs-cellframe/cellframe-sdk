@@ -1788,7 +1788,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT,
 									l_candidate_hash, &l_attempt_number);
 			l_precommit_count++;
-			if ( ((float)l_precommit_count/l_session->cur_round.validators_count) >= ((float)2/3) ) {
+            if (l_precommit_count * 3 >= l_session->cur_round.validators_count * 2) {
 				size_t l_store_size = 0;
 				dap_chain_cs_block_ton_store_t *l_store = 
 									(dap_chain_cs_block_ton_store_t *)dap_chain_global_db_gr_get(
@@ -1835,6 +1835,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 					DAP_DELETE(l_store);
 				}
 			}
+            pthread_rwlock_unlock(&l_session->rwlock);
 			DAP_DELETE(l_candidate_hash_str);
         } break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: {
@@ -1843,7 +1844,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 									(l_message->sign_n_message+l_message->hdr.sign_size);
 			dap_chain_hash_fast_t *l_candidate_hash = &l_commitsign->candidate_hash;
 
-			dap_chain_cs_block_ton_round_t *l_round =
+            pthread_rwlock_rdlock(&l_session->rwlock);
+            dap_chain_cs_block_ton_round_t *l_round =
 						l_commitsign->round_id.uint64 == l_session->old_round.id.uint64 ?
 								&l_session->old_round : &l_session->cur_round;
 
@@ -1852,6 +1854,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive COMMIT_SIGN: candidate: NULL",
 							l_session->chain->net_name, l_session->chain->name,
 								l_round->id.uint64, l_session->attempt_current_number);
+                pthread_rwlock_unlock(&l_session->rwlock);
 				goto handler_finish_save;
 			}
 
@@ -1861,13 +1864,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session->chain->net_name, l_session->chain->name, l_round->id.uint64,
 							l_session->attempt_current_number, l_candidate_hash_str);
 
-			pthread_rwlock_unlock(&l_session->rwlock);
-
 			size_t l_store_size = 0;
 			dap_chain_cs_block_ton_store_t *l_store = 
 								(dap_chain_cs_block_ton_store_t *)dap_chain_global_db_gr_get(
 											l_candidate_hash_str, &l_store_size, l_session->gdb_group_store);
-			if (l_store) {
+            if (l_store) {
 				size_t l_candidate_size = l_store->hdr.candidate_size;
 				dap_chain_block_t *l_candidate = 
 						(dap_chain_block_t *)DAP_DUP_SIZE(&l_store->candidate_n_signs, l_candidate_size);
