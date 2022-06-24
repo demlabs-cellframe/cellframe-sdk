@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.1)
 project (dap_chain_global_db C)
 
 file(GLOB DAP_CHAIN_GLOBAL_DB_SRC
+    dap_global_db.c
     dap_global_db_sync.c
     dap_global_db_pkt.c
     dap_chain_global_db_driver_cdb.c
     dap_chain_global_db_driver_sqlite.c
-    dap_chain_global_db.c
     dap_chain_global_db_remote.c
     dap_chain_global_db_driver.c
     dap_chain_global_db_driver_pgsql.c

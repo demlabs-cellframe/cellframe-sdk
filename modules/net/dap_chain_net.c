@@ -1945,7 +1945,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         return 0;
     }
 
-    int ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
 
     if ( l_net ) {
         const char *l_sync_str = NULL;
@@ -2060,7 +2060,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
                 s_set_reply_text_node_status(a_str_reply, l_net);
-                ret = 0;
+                l_ret = 0;
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
@@ -2106,13 +2106,13 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply,"Not implemented\n");
 
             } else if ( strcmp (l_links_str,"disconnect_all") == 0 ){
-                ret = 0;
+                l_ret = 0;
                 dap_chain_net_stop(l_net);
                 dap_chain_node_cli_set_reply_text(a_str_reply,"Stopped network\n");
             }else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Subcommand 'link' requires one of parameters: list, add, del, info, disconnect_all\n");
-                ret = -3;
+                l_ret = -3;
             }
 
         } else if( l_sync_str) {
@@ -2138,7 +2138,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Subcommand 'sync' requires one of parameters: all, gdb, chains\n");
-                ret = -2;
+                l_ret = -2;
             }
         } else if (l_ca_str) {
             if (strcmp(l_ca_str, "add") == 0 ) {
@@ -2153,7 +2153,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_node_cli_set_reply_text(a_str_reply, "One of -cert or -hash parameters is mandatory");
                     return -6;
                 }
-                char *l_hash_hex_str;
+                char *l_hash_hex_str = NULL;
                 //char *l_hash_base58_str;
                 // hash may be in hex or base58 format
                 if(!dap_strncmp(l_hash_string, "0x", 2) || !dap_strncmp(l_hash_string, "0X", 2)) {
@@ -2193,11 +2193,17 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
                     return -11;
                 }
-                ret = dap_chain_global_db_gr_set(l_hash_hex_str, &c, 1, dap_chain_net_get_gdb_group_acl(l_net));
-                DAP_DELETE(l_gdb_group_str);
-                DAP_DELETE(l_hash_hex_str);
-                if (!ret) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't save public key hash in database");
+                if( l_hash_hex_str ){
+                    l_ret = dap_global_db_set_sync(l_gdb_group_str, l_hash_hex_str, &c, sizeof(c), false );
+                    DAP_DELETE(l_gdb_group_str);
+                    DAP_DELETE(l_hash_hex_str);
+                    if (!l_ret) {
+                        dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                          "Can't save public key hash %s in database", l_hash_hex_str);
+                        return -10;
+                    }
+                } else{
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't save NULL public key hash in database");
                     return -10;
                 }
                 return 0;
@@ -2231,9 +2237,9 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
                     return -11;
                 }
-                ret = dap_chain_global_db_gr_del(l_hash_string, l_gdb_group_str);
+                l_ret = dap_global_db_del_sync(l_gdb_group_str, l_hash_string);
                 DAP_DELETE(l_gdb_group_str);
-                if (!ret) {
+                if (!l_ret) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Cant't find certificate public key hash in database");
                     return -10;
                 }
@@ -2241,7 +2247,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Subcommand 'ca' requires one of parameter: add, list, del\n");
-                ret = -5;
+                l_ret = -5;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload"))
         {
@@ -2251,11 +2257,11 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                                               "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
-            ret = -1;
+            l_ret = -1;
         }
 
     }
-    return  ret;
+    return  l_ret;
 }
 
 /**

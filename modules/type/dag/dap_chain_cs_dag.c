@@ -652,7 +652,7 @@ static void s_new_event_add_datums_callback_get_queue_last (dap_global_db_contex
            else if (s_chain_callback_datums_pool_proc(l_chain, l_datum))
                l_continue = false;
        }
-       dap_global_db_del_unsafe(a_group, a_key);
+       dap_global_db_del_unsafe(a_global_db_context,a_group, a_key);
        if(l_continue)
            dap_global_db_get_last(a_group,s_new_event_add_datums_callback_get_queue_last, l_args);
    }

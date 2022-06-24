@@ -637,7 +637,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
                 if(!s_xchange_tx_put(l_tx, l_net_buy)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
-                    dap_chain_net_srv_order_delete_by_hash_str(l_net_buy, l_order_hash_str);
+                    dap_chain_net_srv_order_delete_by_hash_str_sync(l_net_buy, l_order_hash_str);
                     DAP_DELETE(l_order_hash_str);
                     DAP_DELETE(l_price->key_ptr);
                     DAP_DELETE(l_price->wallet_str);
@@ -646,7 +646,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 if (!s_xchange_db_add(l_price)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't save price in database");
-                    dap_chain_net_srv_order_delete_by_hash_str(l_net_buy, l_order_hash_str);
+                    dap_chain_net_srv_order_delete_by_hash_str_sync(l_net_buy, l_order_hash_str);
                     DAP_DELETE(l_order_hash_str);
                     DAP_DELETE(l_price->key_ptr);
                     DAP_DELETE(l_price->wallet_str);
@@ -676,7 +676,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             if (l_cmd_num == CMD_REMOVE) {
                 dap_string_t *l_str_reply = dap_string_new("");
                 HASH_DEL(s_srv_xchange->pricelist, l_price);
-                dap_chain_global_db_gr_del(l_price->key_ptr, GROUP_LOCAL_XCHANGE);
+                dap_global_db_del_sync(GROUP_LOCAL_XCHANGE, l_price->key_ptr);
                 dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_price->wallet_str, dap_chain_wallet_get_path(g_config));
                 bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet);
                 dap_chain_wallet_close(l_wallet);
@@ -686,7 +686,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                     DAP_DELETE(l_tx_hash_str);
                 }
                 char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
-                if (dap_chain_net_srv_order_delete_by_hash_str(l_price->net_buy, l_order_hash_str)) {
+                if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net_buy, l_order_hash_str)) {
                     dap_string_append_printf(l_str_reply, "Can't remove order %s\n", l_order_hash_str);
                 }
                 DAP_DELETE(l_order_hash_str);
@@ -753,7 +753,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                     return -14;
                 }
                 HASH_DEL(s_srv_xchange->pricelist, l_price);
-                dap_chain_global_db_gr_del( l_price->key_ptr, GROUP_LOCAL_XCHANGE);
+                dap_global_db_del_sync(GROUP_LOCAL_XCHANGE, l_price->key_ptr);
                 bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet); // may be changed to old price later
                 dap_chain_wallet_close(l_wallet);
                 if (!l_ret) {
@@ -764,20 +764,20 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 // Update the order
                 char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
-                dap_chain_net_srv_order_delete_by_hash_str(l_price->net_buy, l_order_hash_str);
+                dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net_buy, l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);
                 l_order_hash_str = s_xchange_order_create(l_price, l_tx);
                 if (l_order_hash_str) {
                     dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
                     if(!s_xchange_tx_put(l_tx, l_net_buy)) {
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
-                        dap_chain_net_srv_order_delete_by_hash_str(l_net_buy, l_order_hash_str);
+                        dap_chain_net_srv_order_delete_by_hash_str_sync(l_net_buy, l_order_hash_str);
                         DAP_DELETE(l_order_hash_str);
                         return -15;
                     }
                     if (!s_xchange_db_add(l_price)) {
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't save price in database");
-                        dap_chain_net_srv_order_delete_by_hash_str(l_net_buy, l_order_hash_str);
+                        dap_chain_net_srv_order_delete_by_hash_str_sync(l_net_buy, l_order_hash_str);
                         DAP_DELETE(l_order_hash_str);
                         return -16;
                     }
@@ -924,7 +924,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, &l_order->tx_cond_hash, l_wallet);
                 if (l_tx && s_xchange_tx_put(l_tx, l_net)) {
                     // TODO send request to seller to update / delete order & price
-                    dap_chain_net_srv_order_delete_by_hash_str(l_price->net_buy, l_order_hash_str);
+                    dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net_buy, l_order_hash_str);
                 }
                 DAP_DELETE(l_price);
                 DAP_DELETE(l_order);

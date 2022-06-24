@@ -450,14 +450,14 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         DAP_DEL_Z(l_order);
         l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
         if (!l_order) {
-            dap_chain_global_db_gr_del(l_orders[i].key, l_gdb_group_str);
+            dap_global_db_del(l_gdb_group_str, l_orders[i].key, NULL, NULL);
             continue; // order is corrupted
         }
         dap_chain_hash_fast_t l_hash, l_hash_gdb;
         dap_hash_fast(l_orders[i].value, l_orders[i].value_len, &l_hash);
         dap_chain_hash_fast_from_str(l_orders[i].key, &l_hash_gdb);
         if (memcmp(&l_hash, &l_hash_gdb, sizeof(dap_chain_hash_fast_t))) {
-            dap_chain_global_db_gr_del(l_orders[i].key, l_gdb_group_str);
+            dap_global_db_del(l_gdb_group_str, l_orders[i].key, NULL, NULL);
             continue; // order is corrupted
         }
         // Check direction
@@ -497,13 +497,13 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
  * @param a_hash_str
  * @return
  */
-int dap_chain_net_srv_order_delete_by_hash_str(dap_chain_net_t * a_net, const char * a_hash_str )
+int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t * a_net, const char * a_hash_str )
 {
     int ret = -2;
     if ( a_net && a_hash_str  ){
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
 
-        ret = dap_chain_global_db_gr_del( a_hash_str, l_gdb_group_str ) ? 0 : -1;
+        ret = dap_global_db_del_sync( a_hash_str, l_gdb_group_str ) ? 0 : -1;
         DAP_DELETE( l_gdb_group_str );
     }
     return ret;
@@ -600,18 +600,16 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
             }
         }
         if (a_value && a_op_code == DAP_DB$K_OPTYPE_ADD &&
-                dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", false)) {
+                dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", true)) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
             if (l_order->version != 2) {
-                dap_chain_global_db_gr_del( a_key, a_group);
+                dap_global_db_del(a_group, a_key, NULL, NULL);
             } else {
                 dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext_n_sign[l_order->ext_size];
                 if (!dap_sign_verify_size(l_sign, a_value_len) ||
                         dap_sign_verify(l_sign, l_order,
                                         sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
-                    dap_chain_global_db_gr_del( a_key, a_group);
-                    DAP_DELETE(l_gdb_group_str);
-                    return;
+                    dap_global_db_del( a_group, a_key, NULL, NULL);
                 }
                 /*dap_chain_hash_fast_t l_pkey_hash;
                 if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {

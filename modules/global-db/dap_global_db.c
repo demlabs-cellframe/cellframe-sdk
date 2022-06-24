@@ -949,7 +949,7 @@ int dap_global_db_del(const char * a_group, const char *a_key, dap_global_db_cal
 static bool s_msg_opcode_delete(struct queue_io_msg * a_msg)
 {
 
-    int l_res = dap_global_db_del_unsafe(a_msg->group, a_msg->key);
+    int l_res = dap_global_db_del_unsafe(s_context_global_db, a_msg->group, a_msg->key);
 
     if(a_msg->callback_result){
         a_msg->callback_result(s_context_global_db,  l_res==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
@@ -1042,10 +1042,11 @@ dap_global_db_obj_t* dap_global_db_objs_get(const char *a_group, size_t *a_objs_
     return l_ret;
 }
 
+
 /**
  * @brief The objs_set struct
  */
-struct objs_set{
+struct sync_op_result{
     pthread_mutex_t mutex;
     pthread_cond_t cond;
     int result;
@@ -1063,9 +1064,9 @@ struct objs_set{
  * @param a_is_pinned
  * @param a_arg
  */
-static void s_objs_set_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
+static void s_sync_op_result_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
 {
-    struct objs_set * l_args = (struct objs_set *) a_arg;
+    struct sync_op_result * l_args = (struct sync_op_result *) a_arg;
     l_args->result = a_rc;
     pthread_mutex_lock(&l_args->mutex);
     pthread_cond_broadcast(&l_args->cond);
@@ -1083,11 +1084,34 @@ static void s_objs_set_callback (dap_global_db_context_t * a_global_db_context,i
  */
 int dap_global_db_set_sync(const char * a_group, const char *a_key, const void * a_value, const size_t a_value_length, bool a_pin_value )
 {
-    struct objs_set * l_args = DAP_NEW_Z(struct objs_set);
+    struct sync_op_result * l_args = DAP_NEW_Z(struct sync_op_result);
     pthread_mutex_init(&l_args->mutex,NULL);
     pthread_cond_init(&l_args->cond,NULL);
     pthread_mutex_lock(&l_args->mutex);
-    dap_global_db_set(a_group, a_key,a_value,a_value_length, a_pin_value, s_objs_set_callback, l_args);
+    dap_global_db_set(a_group, a_key,a_value,a_value_length, a_pin_value, s_sync_op_result_callback, l_args);
+    pthread_cond_wait(&l_args->cond, &l_args->mutex);
+    pthread_mutex_unlock(&l_args->mutex);
+    pthread_mutex_destroy(&l_args->mutex);
+    pthread_cond_destroy(&l_args->cond);
+
+    int l_ret = l_args->result ;
+    DAP_DELETE(l_args);
+    return l_ret;
+}
+
+/**
+ * @brief dap_global_db_del_sync
+ * @param a_group
+ * @param a_key
+ * @return
+ */
+int dap_global_db_del_sync(const char * a_group, const char *a_key )
+{
+    struct sync_op_result * l_args = DAP_NEW_Z(struct sync_op_result);
+    pthread_mutex_init(&l_args->mutex,NULL);
+    pthread_cond_init(&l_args->cond,NULL);
+    pthread_mutex_lock(&l_args->mutex);
+    dap_global_db_del(a_group, a_key, s_sync_op_result_callback, l_args);
     pthread_cond_wait(&l_args->cond, &l_args->mutex);
     pthread_mutex_unlock(&l_args->mutex);
     pthread_mutex_destroy(&l_args->mutex);
@@ -1149,7 +1173,7 @@ static void s_store_obj_get_callback (dap_global_db_context_t * a_global_db_cont
  * @param a_ts
  * @return
  */
-byte_t* dap_global_db_gr_get_sync(const char * a_group,const char *a_key, size_t *a_data_size, bool *a_is_pinned, dap_nanotime_t * a_ts)
+byte_t* dap_global_db_get_sync(const char * a_group,const char *a_key, size_t *a_data_size, bool *a_is_pinned, dap_nanotime_t * a_ts)
 {
     struct store_obj_get * l_args = DAP_NEW_Z(struct store_obj_get);
     pthread_mutex_init(&l_args->mutex,NULL);
@@ -1226,7 +1250,7 @@ dap_store_obj_t* dap_global_db_store_objs_get_sync(const char *a_group, uint64_t
  * @param a_key
  * @return
  */
-int dap_global_db_del_unsafe(const char * a_group, const char *a_key)
+int dap_global_db_del_unsafe(dap_global_db_context_t * a_global_db_context, const char * a_group, const char *a_key)
 {
     dap_store_obj_t l_store_obj = {0};
 

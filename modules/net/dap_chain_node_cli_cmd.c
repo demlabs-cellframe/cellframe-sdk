@@ -364,11 +364,10 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         return -1;
     }
     char *a_key = dap_chain_node_addr_to_hash_str(address);
-    if(a_key)
-    {
+    if(a_key){
         // delete node
-        bool res = dap_chain_global_db_gr_del(dap_strdup(a_key), a_net->pub.gdb_nodes);
-        if(res) {
+        int l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key);
+        if(l_res == 0) {
             // delete all aliases for node address
             {
                 dap_list_t *list_aliases = get_aliases_by_name(a_net, address);
@@ -388,9 +387,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
             dap_chain_node_cli_set_reply_text(str_reply, "node not deleted");
         DAP_DELETE(a_key);
         DAP_DELETE(address);
-        if(res)
-            return 0;
-        return -1;
+        return l_res;
     }
     dap_chain_node_cli_set_reply_text(str_reply, "addr to delete can't be defined");
     DAP_DELETE(address);
@@ -639,7 +636,8 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 dap_chain_node_info_t *l_node_info_read = node_info_read_and_reply(a_net, &l_node_info->hdr.address, NULL);
                 if (!l_node_info_read) {
                     log_it(L_ERROR, "Invalid node info object, remove it");
-                    dap_chain_global_db_gr_del(l_objs[i].key, a_net->pub.gdb_nodes);
+                    if (dap_global_db_del_sync(a_net->pub.gdb_nodes, l_objs[i].key) !=0 )
+                        log_it(L_CRITICAL, "Can't remove node info object");
                     continue;
                 } else
                     DAP_DELETE(l_node_info_read);
@@ -861,7 +859,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         uint8_t l_flags = 0;
         bool l_is_pinned = false;
         dap_nanotime_t l_ts =0;
-        uint8_t *l_value =dap_global_db_gr_get_sync(l_group, l_key, &l_value_len, &l_is_pinned, &l_ts);
+        uint8_t *l_value =dap_global_db_get_sync(l_group, l_key, &l_value_len, &l_is_pinned, &l_ts);
         if(!l_value || !l_value_len) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Record not found\n\n");
             return -1;
@@ -2214,7 +2212,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
-                    if( dap_chain_global_db_gr_del( dap_strdup(l_hash_str) , l_gdb_group_mempool)) {
+                    if( dap_global_db_del_sync(l_gdb_group_mempool, l_hash_str ) == 0) {
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "datum %s is replacing the %s in datum pool",
                                 l_key_out_str, l_datum_hash_out_str);
@@ -2292,7 +2290,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
                 log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s data_size:%u, value_len:%zu",
                         a_net->pub.name, a_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
-                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
+                dap_global_db_del_sync(l_gdb_group_mempool, l_objs[i].key);
                 continue;
             }
             char buf[50] = {[0]='\0'};
@@ -2404,7 +2402,7 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
             }
             char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             uint8_t *l_data_tmp = l_datum_hash_hex_str ? dap_chain_global_db_gr_get(l_datum_hash_hex_str, NULL, l_gdb_group_mempool) : NULL;
-            if(l_data_tmp && dap_chain_global_db_gr_del(l_datum_hash_hex_str, l_gdb_group_mempool)) {
+            if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str) == 0) {
                 if(!dap_strcmp(l_hash_out_type,"hex"))
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_hex_str);
                 else
@@ -2527,7 +2525,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
                             ret = -6;
                         }else{
                             dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                            if (!dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_hex_str), l_gdb_group_mempool)){
+                            if ( dap_global_db_del_sync( l_gdb_group_mempool, l_datum_hash_hex_str) != 0){
                                 dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
                             }else
                                 dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
@@ -3579,7 +3577,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     }
     //remove previous emission datum from mempool if have new signed emission datum
     if (l_emission_hash_str_remove)
-        dap_chain_global_db_gr_del(l_emission_hash_str_remove, l_gdb_group_mempool_emission);
+        dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
 
     if(l_chain_base_tx) {
         dap_chain_hash_fast_t *l_datum_tx_hash = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
@@ -5007,11 +5005,11 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
     struct json_object *l_json = json_object_new_array();
     dap_list_t *l_groups_list = dap_chain_global_db_driver_get_groups_by_mask("*");
     for (dap_list_t *l_list = l_groups_list; l_list; l_list = dap_list_next(l_list)) {
-        size_t l_data_size = 0;
+        size_t l_store_obj_count = 0;
         char *l_group_name = (char *)l_list->data;
-        pdap_store_obj_t l_data = dap_global_db_store_objs_get_sync(NULL, &l_data_size, l_group_name);
-        log_it(L_INFO, "Exporting group %s, number of records: %zu", l_group_name, l_data_size);
-        if (!l_data_size) {
+        pdap_store_obj_t l_store_obj = dap_global_db_store_objs_get_sync(l_group_name,0, &l_store_obj_count);
+        log_it(L_INFO, "Exporting group %s, number of records: %zu", l_group_name, l_store_obj_count);
+        if (!l_store_obj_count) {
             continue;
         }
 
@@ -5019,23 +5017,23 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
         struct json_object *l_json_group_inner = json_object_new_object();
         json_object_object_add(l_json_group_inner, "group", json_object_new_string(l_group_name));
 
-        for (size_t i = 0; i < l_data_size; ++i) {
-            size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_data[i].value_len) + 1;
+        for (size_t i = 0; i < l_store_obj_count; ++i) {
+            size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_store_obj[i].value_len) + 1;
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
-            dap_enc_base64_encode(l_data[i].value, l_data[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
+            dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
             struct json_object *jobj = json_object_new_object();
-            json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_data[i].id));
-            json_object_object_add(jobj, "key",     json_object_new_string(l_data[i].key));
+            json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_store_obj[i].id));
+            json_object_object_add(jobj, "key",     json_object_new_string(l_store_obj[i].key));
             json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
-            json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_data[i].value_len));
-            json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_data[i].timestamp));
+            json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_store_obj[i].value_len));
+            json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_store_obj[i].timestamp));
             json_object_array_add(l_json_group, jobj);
 
             DAP_FREE(l_value_enc_str);
         }
         json_object_object_add(l_json_group_inner, "records", l_json_group);
         json_object_array_add(l_json, l_json_group_inner);
-        dap_store_obj_free(l_data, l_data_size);
+        dap_store_obj_free(l_store_obj, l_store_obj_count);
     }
     dap_list_free_full(l_groups_list, NULL);
     if (json_object_to_file(l_path, l_json) == -1) {

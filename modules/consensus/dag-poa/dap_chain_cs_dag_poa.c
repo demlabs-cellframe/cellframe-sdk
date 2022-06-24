@@ -430,7 +430,7 @@ static bool s_poa_round_check_callback_load_round_new(dap_global_db_context_t * 
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
             if (  (dap_time_now() - l_event_round_item->round_info.ts_update) >
                     (l_poa_pvt->confirmations_timeout+l_poa_pvt->wait_sync_before_complete+10)  ) {
-                dap_global_db_del_unsafe(l_gdb_group_round_new,  a_values[i].key );
+                dap_global_db_del_unsafe(a_global_db_context, l_gdb_group_round_new,  a_values[i].key );
                 log_it(L_MSG, "DAG-PoA: Remove event %s from round by timer.", a_values[i].key);
             }
             else {

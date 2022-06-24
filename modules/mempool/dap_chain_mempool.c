@@ -816,10 +816,10 @@ void dap_datum_mempool_free(dap_datum_mempool_t *datum)
 /**
  *
  */
-static char* calc_datum_hash(const char *datum_str, size_t datum_size)
+static char* s_calc_datum_hash(const void *a_datum_str, size_t datum_size)
 {
     dap_chain_hash_fast_t a_hash;
-    dap_hash_fast( datum_str, datum_size, &a_hash);
+    dap_hash_fast( a_datum_str, datum_size, &a_hash);
     size_t a_str_max = (sizeof(a_hash.raw) + 1) * 2 + 2; /* heading 0x */
     char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
 
@@ -872,6 +872,27 @@ static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap
 }
 
 /**
+ * @brief s_gdb_datum_pool_delete_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_size
+ * @param a_value_ts
+ * @param a_is_pinned
+ * @param a_arg
+ */
+static void s_gdb_datum_pool_delete_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_size, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
+{
+    if( a_rc == DAP_GLOBAL_DB_RC_SUCCESS){
+        log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
+    } else {
+        log_it(L_INFO, "Delete hash: key=%s result: False!", a_key);
+    }
+}
+
+/**
  * @brief
  * @param cl_st HTTP server instance
  * @param arg for return code
@@ -880,7 +901,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 {
     http_status_code_t * return_code = (http_status_code_t*) arg;
     // save key while it alive, i.e. still exist
-    dap_enc_key_t *key = dap_enc_ks_find_http(cl_st->http_client);
+    dap_enc_key_t *l_enc_key = dap_enc_ks_find_http(cl_st->http_client);
     //dap_enc_key_serealize_t *key_ser = dap_enc_key_serealize(key_tmp);
     //dap_enc_key_t *key = dap_enc_key_deserealize(key_ser, sizeof(dap_enc_key_serealize_t));
 
@@ -890,16 +911,17 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
     dap_http_header_t *hdr_key_id =
             (hdr_session_close_id && cl_st->http_client) ? dap_http_header_find(cl_st->http_client->in_headers, "KeyID") : NULL;
 
-    enc_http_delegate_t *dg = enc_http_request_decode(cl_st);
-    if(dg) {
-        char *suburl = dg->url_path;
-        char *request_str = dg->request_str;
-        int request_size = (int) dg->request_size;
+    enc_http_delegate_t *l_enc_delegate = enc_http_request_decode(cl_st);
+    if(l_enc_delegate) {
+        char *suburl = l_enc_delegate->url_path;
+        byte_t *l_request_data = l_enc_delegate->request_bytes;
+        size_t l_request_size = l_enc_delegate->request_size;
+        const char * l_gdb_datum_pool = dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool");
         //printf("!!***!!! chain_mempool_proc arg=%d suburl=%s str=%s len=%d\n", arg, suburl, request_str, request_size);
-        if(request_str && request_size > 1) {
+        if(l_request_data && l_request_size > 1) {
             //  find what to do
             uint8_t action = DAP_DATUM_MEMPOOL_NONE; //*(uint8_t*) request_str;
-            if(dg->url_path_size > 0) {
+            if(l_enc_delegate->url_path_size > 0) {
                 if(!strcmp(suburl, "add"))
                     action = DAP_DATUM_MEMPOOL_ADD;
                 else if(!strcmp(suburl, "check"))
@@ -909,73 +931,64 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
             }
             dap_datum_mempool_t *datum_mempool =
                     (action != DAP_DATUM_MEMPOOL_NONE) ?
-                            dap_datum_mempool_deserialize((uint8_t*) request_str, (size_t) request_size) : NULL;
+                            dap_datum_mempool_deserialize((uint8_t*) l_request_data, (size_t) l_request_size) : NULL;
             if(datum_mempool){
                 dap_datum_mempool_free(datum_mempool);
-                char *a_key = calc_datum_hash(request_str, (size_t) request_size);
+                char *a_key = s_calc_datum_hash(l_request_data, (size_t) l_request_size);
                 switch (action)
                 {
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if ( dap_chain_global_db_gr_set(a_key, request_str, request_size,
-                            dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
+                    if ( dap_global_db_set_sync(l_gdb_datum_pool, a_key, l_request_data, l_request_size,true )==0 ) {
                         *return_code = Http_Status_OK;
                     }
                     log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,
                             (*return_code == Http_Status_OK) ? "OK" : "False!");
-                    DAP_DEL_Z(a_key);
                     break;
 
                 case DAP_DATUM_MEMPOOL_CHECK: // check datum in base
 
                     strcpy(cl_st->reply_mime, "text/text");
-                    char *str = (char*) dap_chain_global_db_gr_get( dap_strdup(a_key) , NULL,
-                            dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"));
-                    if(str) {
-                        dg->response = strdup("1");
-                        DAP_DEL_Z(str);
+                    size_t l_datum_size = 0;
+                    byte_t *l_datum = dap_global_db_get_sync( l_gdb_datum_pool, a_key,&l_datum_size,NULL,NULL );
+                    if(l_datum) {
+                        l_enc_delegate->response = strdup("1");
+                        DAP_DEL_Z(l_datum);
                         log_it(L_INFO, "Check hash: key=%s result: Present", a_key);
                     }
                     else {
-                        dg->response = strdup("0");
+                        l_enc_delegate->response = strdup("0");
                         log_it(L_INFO, "Check hash: key=%s result: Absent", a_key);
                     }
-                    dg->response_size = strlen(dg->response);
+                    l_enc_delegate->response_size = l_datum_size;
                     *return_code = Http_Status_OK;
-                    enc_http_reply_encode_new(cl_st, key, dg);
+                    enc_http_reply_encode_new(cl_st, l_enc_key, l_enc_delegate);
                     break;
 
                 case DAP_DATUM_MEMPOOL_DEL: // delete datum in base
                     strcpy(cl_st->reply_mime, "text/text");
-                    if(dap_chain_global_db_gr_del( a_key,
-                            dap_config_get_item_str_default(g_config, "mempool", "gdb_group", "datum-pool"))) {
-                        dg->response = strdup("1");
-
-                        log_it(L_INFO, "Delete hash: key=%s result: Ok", a_key);
-                    }
-                    else {
-                        dg->response = strdup("0");
-                        log_it(L_INFO, "Delete hash: key=%s result: False!", a_key);
-                    }
+                    dap_global_db_del( l_gdb_datum_pool, a_key, s_gdb_datum_pool_delete_callback, NULL );
+                    l_enc_delegate->response = dap_strdup("1");
+                    // TODO rework to async processing and return result of delete action
                     *return_code = Http_Status_OK;
-                    enc_http_reply_encode_new(cl_st, key, dg);
+                    enc_http_reply_encode_new(cl_st, l_enc_key, l_enc_delegate);
                     break;
 
                 default: // unsupported command
                     log_it(L_INFO, "Unknown request=%s! key=%s", (suburl) ? suburl : "-", a_key);
-                    DAP_DEL_Z(a_key);
-                    enc_http_delegate_delete(dg);
-                    if(key)
-                        dap_enc_key_delete(key);
+                    enc_http_delegate_delete(l_enc_delegate);
+                    dap_enc_ks_delete(hdr_key_id->value);
+                    *return_code = Http_Status_BadRequest;
                     return;
                 }
                 DAP_DEL_Z(a_key);
-            } else  *return_code = Http_Status_BadRequest;
+            } else
+                *return_code = Http_Status_BadRequest;
         }
         else    *return_code = Http_Status_BadRequest;
 
-        enc_http_delegate_delete(dg);
+        enc_http_delegate_delete(l_enc_delegate);
     }
     else    *return_code = Http_Status_Unauthorized;
 

@@ -443,7 +443,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
                     char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
 
-                    if ( dap_chain_global_db_gr_del( l_datums_datum_hash_str,l_gdb_group_mempool ) ){
+                    if ( dap_global_db_del_sync( l_gdb_group_mempool, l_datums_datum_hash_str) == 0 ){
                        dap_chain_node_cli_set_reply_text(a_str_reply,
                                                          "Converted datum %s from mempool to event in the new forming round ",
                                                          l_datums_datum_hash_str);
@@ -1329,14 +1329,14 @@ static bool s_callback_new_block_add_datums (dap_global_db_context_t * a_global_
     if (a_values_count) {
         for (size_t i = 0; i < a_values_count; i++) {
             if (!a_values[i].value_len) {
-                dap_global_db_del(a_values[i].key, a_group, NULL, NULL); // delete from datums queue
+                dap_global_db_del_unsafe(a_global_db_context, a_values[i].key, a_group); // delete from datums queue
                 continue;
             }
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_values[i].value;
             size_t l_datum_size = dap_chain_datum_size(l_datum);
             if(!l_datum_size || l_datum == NULL){ // Was wrong datum thats not passed checks
                 log_it(L_WARNING,"Datum in mempool processing comes NULL");
-                dap_chain_global_db_gr_del(a_values[i].key, a_group); // delete from datums queue
+                dap_global_db_del_unsafe(a_global_db_context, a_values[i].key, a_group); // delete from datums queue
                 continue;
             }
             // Verify for correctness

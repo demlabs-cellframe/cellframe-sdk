@@ -24,8 +24,6 @@ enum    {
  * Get entry from base
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
-uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
-
 
 /**
  * Set one entry to base
