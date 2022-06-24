@@ -4590,9 +4590,11 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         return -5;
     }
 
-    dap_chain_t * l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
+    dap_chain_t *l_chain = NULL;
+	if (l_chain_name)
+		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
     if(!l_chain) {
-        l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
     }
     if(!l_chain) {
         dap_chain_node_cli_set_reply_text(str_reply, "not found chain name '%s', try use parameter '-chain'",
@@ -4787,7 +4789,17 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         }
     }
     //Select chain emission
-    if(!l_chain_str) {
+	if (l_chain_str)
+		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+	if(!l_chain) {
+		l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
+	}
+	if(!l_chain) {
+		dap_chain_node_cli_set_reply_text(a_str_reply, "tx_history requires parameter '-chain' to be valid chain name in chain net %s",
+										  l_net_str);
+		return -8;
+	}
+/*    if(!l_chain_str) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "tx_history requires parameter '-chain'");
         return -4;
     } else {
@@ -4797,7 +4809,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
                     l_net_str);
             return -5;
         }
-    }
+    }*/
     //char *l_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
     //const char *l_chain_group = dap_chain_gdb_get_group(l_chain);
 
