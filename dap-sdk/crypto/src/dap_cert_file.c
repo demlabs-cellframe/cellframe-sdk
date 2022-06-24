@@ -112,7 +112,7 @@ void dap_cert_deserialize_meta(dap_cert_t *a_cert, const uint8_t *a_data, size_t
             break;
         }
         l_mem_shift += strlen(l_key_str) + 1;
-        uint32_t l_value_size = dap_lendian_get32(&a_data[l_mem_shift]);
+        uint32_t l_value_size = le32toh(a_data[l_mem_shift]);
         l_mem_shift += sizeof(uint32_t);
         dap_cert_metadata_type_t l_meta_type = (dap_cert_metadata_type_t)a_data[l_mem_shift++];
         const uint8_t *l_value = &a_data[l_mem_shift];
@@ -130,16 +130,16 @@ void dap_cert_deserialize_meta(dap_cert_t *a_cert, const uint8_t *a_data, size_t
             case 1:
                 break;
             case 2:
-                l_tmp16 = dap_lendian_get16(l_value);
+                l_tmp16 = le16toh(*l_value);
                 l_value = (const uint8_t *)&l_tmp16;
                 break;
             case 4:
-                l_tmp32 = dap_lendian_get32(l_value);
+                l_tmp32 = le32toh(*l_value);
                 l_value = (const uint8_t *)&l_tmp32;
                 break;
             case 8:
             default:
-                l_tmp64 = dap_lendian_get64(l_value);
+                l_tmp64 = le64toh(*l_value);
                 l_value = (const uint8_t *)&l_tmp64;
                 break;
             }
@@ -199,7 +199,7 @@ uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
         }
         strcpy((char *)&l_buf[l_mem_shift], l_meta_item->key);
         l_mem_shift += strlen(l_meta_item->key) + 1;
-        dap_lendian_put32(&l_buf[l_mem_shift], l_meta_item->length);
+        *(uint32_t *)&l_buf[l_mem_shift] = htole32(l_meta_item->length);
         l_mem_shift += sizeof(uint32_t);
         l_buf[l_mem_shift++] = l_meta_item->type;
         switch (l_meta_item->type) {
@@ -215,16 +215,16 @@ uint8_t *dap_cert_serialize_meta(dap_cert_t *a_cert, size_t *a_buflen_out)
                 l_buf[l_mem_shift++] = l_meta_item->value[0];
                 break;
             case 2:
-                dap_lendian_put16(&l_buf[l_mem_shift], *(uint16_t *)&l_meta_item->value[0]);
+                *(uint16_t *)&l_buf[l_mem_shift] = htole16(*(uint16_t *)&l_meta_item->value[0]);
                 l_mem_shift += 2;
                 break;
             case 4:
-                dap_lendian_put32(&l_buf[l_mem_shift], *(uint32_t *)&l_meta_item->value[0]);
+                *(uint32_t *)&l_buf[l_mem_shift] = htole32(*(uint32_t *)&l_meta_item->value[0]);
                 l_mem_shift += 4;
                 break;
             case 8:
             default:
-                dap_lendian_put64(&l_buf[l_mem_shift], *(uint64_t *)&l_meta_item->value[0]);
+                *(uint64_t *)&l_buf[l_mem_shift] = htole64(*(uint64_t *)&l_meta_item->value[0]);
                 l_mem_shift += 8;
                 break;
             }

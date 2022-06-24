@@ -546,16 +546,7 @@ static int s_thread_loop(dap_context_t * a_context)
                     l_cur->callbacks.error_callback(l_cur, l_sock_err); // Call callback to process error event
             }
 
-            /*if (l_flag_hup) {
-                log_it(L_INFO, "Client socket disconnected");
-                dap_events_socket_set_readable_unsafe(l_cur, false);
-                dap_events_socket_set_writable_unsafe(l_cur, false);
-                l_cur->buf_out_size = 0;
-                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-
-            }*/
-
-            if(l_flag_read) {
+            if (l_flag_read && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
 
                 //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
                 if(l_cur->buf_in_size_max && l_cur->buf_in_size >= l_cur->buf_in_size_max ) {
@@ -666,16 +657,10 @@ static int s_thread_loop(dap_context_t * a_context)
 
                     } break;
                     case DESCRIPTOR_TYPE_QUEUE:
-#ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
-#endif
                         dap_events_socket_queue_proc_input_unsafe(l_cur);
                         dap_events_socket_set_writable_unsafe(l_cur, false);
                     break;
                     case DESCRIPTOR_TYPE_EVENT:
-#ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
-#endif
                         dap_events_socket_event_proc_input_unsafe(l_cur);
                     break;
                 }
@@ -801,7 +786,8 @@ static int s_thread_loop(dap_context_t * a_context)
 
             l_bytes_sent = 0;
 
-            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE)) {
+            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) &&
+                    !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
                 /*
                  * Socket is ready to write and not going to close
@@ -811,7 +797,7 @@ static int s_thread_loop(dap_context_t * a_context)
                     dap_events_socket_set_writable_unsafe(l_cur, false);        /* Clear "enable write flag" */
 
                     if ( l_cur->callbacks.write_finished_callback )             /* Optionaly call I/O completion routine */
-                        l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, l_errno);
+                        l_cur->callbacks.write_finished_callback(l_cur, l_cur->callbacks.arg, 0);
 
                     l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
                 }
@@ -824,12 +810,14 @@ static int s_thread_loop(dap_context_t * a_context)
                             case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                                 l_bytes_sent = send(l_cur->socket, (const char *)l_cur->buf_out,
                                                     l_cur->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL);
+                                if (l_bytes_sent == -1)
 #ifdef DAP_OS_WINDOWS
-                                //dap_events_socket_set_writable_unsafe(l_cur,false); // enabling this will break windows server replies
-                                l_errno = WSAGetLastError();
+                                    l_errno = WSAGetLastError();
 #else
-                                l_errno = errno;
+                                    l_errno = errno;
 #endif
+                                else
+                                    l_errno = 0;
                             }
                             break;
                             case DESCRIPTOR_TYPE_SOCKET_UDP:
@@ -853,43 +841,41 @@ static int s_thread_loop(dap_context_t * a_context)
 #endif
                             }
                             case DESCRIPTOR_TYPE_QUEUE:
-                                 if (l_cur->flags & DAP_SOCK_QUEUE_PTR && l_cur->buf_out_size>= sizeof (void*)){
+                                if (l_cur->flags & DAP_SOCK_QUEUE_PTR && l_cur->buf_out_size>= sizeof (void*)) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
                                     l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
                                     l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
 #elif defined DAP_EVENTS_CAPS_MSMQ
-                                     DWORD l_mp_id = 0;
-                                     MQMSGPROPS    l_mps;
-                                     MQPROPVARIANT l_mpvar[1];
-                                     MSGPROPID     l_p_id[1];
-                                     HRESULT       l_mstatus[1];
+                                    DWORD l_mp_id = 0;
+                                    MQMSGPROPS    l_mps;
+                                    MQPROPVARIANT l_mpvar[1];
+                                    MSGPROPID     l_p_id[1];
+                                    HRESULT       l_mstatus[1];
 
-                                     l_p_id[l_mp_id] = PROPID_M_BODY;
-                                     l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
-                                     l_mpvar[l_mp_id].caub.pElems = l_cur->buf_out;
-                                     l_mpvar[l_mp_id].caub.cElems = (u_long)sizeof(void*);
-                                     l_mp_id++;
+                                    l_p_id[l_mp_id] = PROPID_M_BODY;
+                                    l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
+                                    l_mpvar[l_mp_id].caub.pElems = l_cur->buf_out;
+                                    l_mpvar[l_mp_id].caub.cElems = (u_long)sizeof(void*);
+                                    l_mp_id++;
+                                    l_mps.cProp = l_mp_id;
+                                    l_mps.aPropID = l_p_id;
+                                    l_mps.aPropVar = l_mpvar;
+                                    l_mps.aStatus = l_mstatus;
+                                    HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
 
-                                     l_mps.cProp = l_mp_id;
-                                     l_mps.aPropID = l_p_id;
-                                     l_mps.aPropVar = l_mpvar;
-                                     l_mps.aStatus = l_mstatus;
-                                     HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
+                                    if (hr != MQ_OK) {
+                                        l_errno = hr;
+                                        log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
+                                        break;
+                                    } else {
+                                        l_errno = WSAGetLastError();
 
-                                     if (hr != MQ_OK) {
-                                         l_errno = hr;
-                                         log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
-                                         break;
-                                     } else {
-                                         l_errno = WSAGetLastError();
-
-                                         if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
-                                             log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
-                                         }
-                                         l_bytes_sent = sizeof(void*);
-
-                                     }
+                                        if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
+                                            log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
+                                        }
+                                        l_bytes_sent = sizeof(void*);
+                                    }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                     l_bytes_sent = mq_send(l_cur->mqd , (const char *)l_cur->buf_out,sizeof (void*),0);
                                     if(l_bytes_sent == 0)
@@ -1299,7 +1285,7 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
 #else
 #error "Unimplemented new esocket on context callback for current platform"
 #endif
-lb_exit:
+//lb_exit:
     if ( l_is_error ){
         char l_errbuf[128];
         l_errbuf[0]=0;
