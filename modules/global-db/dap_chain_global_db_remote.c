@@ -329,9 +329,11 @@ bool	l_ret;
 
     dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s", a_net_name);
 
-    if ( !(l_ret = dap_chain_global_db_gr_set(l_key, &a_address, sizeof(a_address), DAP_GLOBAL_DB_LOCAL_GENERAL)) ) {
+    if ( (l_ret = dap_global_db_set(DAP_GLOBAL_DB_LOCAL_GENERAL, l_key, &a_address, sizeof(a_address),
+                                    true, NULL, NULL)) == 0 ) {
         dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s_time", a_net_name);
-        l_ret = dap_chain_global_db_gr_set(l_key, &a_expire_time, sizeof(time_t), DAP_GLOBAL_DB_LOCAL_GENERAL);
+        l_ret = dap_global_db_set(DAP_GLOBAL_DB_LOCAL_GENERAL, l_key, &a_expire_time, sizeof(time_t),
+                                   true, NULL, NULL);
     }
 
     return l_ret;
@@ -434,8 +436,8 @@ bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_grou
 {
 char	l_key[DAP_GLOBAL_DB_KEY_MAX];
 
-    dap_snprintf(l_key, sizeof(l_key) - 1, "%ju%s", a_node_addr, a_group);
-    return  dap_chain_global_db_gr_set(l_key, &a_id, sizeof(uint64_t), GROUP_LOCAL_NODE_LAST_ID);
+    dap_snprintf(l_key, sizeof(l_key) - 1, "%"DAP_UINT64_FORMAT_U"%s", a_node_addr, a_group);
+    return dap_global_db_set(GROUP_LOCAL_NODE_LAST_ID,l_key, &a_id, sizeof(uint64_t), true, NULL, NULL ) == 0;
 }
 
 /**
@@ -447,7 +449,7 @@ char	l_key[DAP_GLOBAL_DB_KEY_MAX];
  */
 uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 {
-    char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
+    char *l_node_addr_str = dap_strdup_printf("%"DAP_UINT64_FORMAT_U"%s", a_node_addr, a_group);
     size_t l_id_len = 0;
     uint8_t *l_id = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_id_len,
                                                 GROUP_LOCAL_NODE_LAST_ID);
@@ -474,8 +476,8 @@ bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap
 {
 char	l_key[DAP_GLOBAL_DB_KEY_MAX];
 
-    dap_snprintf(l_key, sizeof(l_key) - 1, "%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
-    return dap_chain_global_db_gr_set(l_key, a_hash, sizeof(dap_chain_hash_fast_t), GROUP_LOCAL_NODE_LAST_ID);
+    dap_snprintf(l_key, sizeof(l_key) - 1, "%"DAP_UINT64_FORMAT_U"%s%s", a_node_addr, a_chain->net_name, a_chain->name);
+    return dap_global_db_set(GROUP_LOCAL_NODE_LAST_ID, l_key, a_hash, sizeof(dap_chain_hash_fast_t), true, NULL, NULL ) == 0;
 }
 
 /**

@@ -262,7 +262,8 @@ static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_inf
     //size_t data_len_out = 0;
     //dap_chain_node_info_t *a_node_info1 = dap_chain_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
 
-    bool res = dap_chain_global_db_gr_set(a_key, (uint8_t *) a_node_info, l_node_info_size, a_net->pub.gdb_nodes);
+    bool res = dap_global_db_set_sync(a_net->pub.gdb_nodes, a_key, (uint8_t *) a_node_info, l_node_info_size,
+                                 true) == 0;
 
     //data_len_out = 0;
     //dap_chain_node_info_t *a_node_info2 = dap_chain_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
@@ -2208,7 +2209,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                     l_key_out_str = l_key_str_base58;
 
                 // Add datum to mempool with datum_token hash as a key
-                if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
+                if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0) {
 
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
@@ -2849,7 +2850,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
 
     }
-    if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
+    if(dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0) {
         if(!dap_strcmp(l_hash_out_type,"hex"))
             dap_chain_node_cli_set_reply_text(a_str_reply, "datum %s with token update %s is placed in datum pool ", l_key_str, l_ticker);
         else
@@ -3359,8 +3360,8 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         return -10;
     }
     int l_ret = 0;
-    bool l_placed = dap_chain_global_db_gr_set(l_key_str, (uint8_t *)l_datum, l_datum_size, l_gdb_group_mempool);
-    dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
+    bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
+    dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s with token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
     //additional checking for incorrect key format
     if (l_key_str_out != l_key_str)
@@ -3562,12 +3563,10 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
                                        : dap_enc_base58_encode_hash_to_str(&l_datum_emission_hash);
     // Add token emission datum to mempool
 
-    bool l_placed = dap_chain_global_db_gr_set(l_emission_hash_str,
-                                               (uint8_t *)l_datum_emission,
-                                               l_datum_emission_size,
-                                               l_gdb_group_mempool_emission);
+    bool l_placed = dap_global_db_set_sync( l_gdb_group_mempool_emission, l_emission_hash_str,
+                                       l_datum_emission, l_datum_emission_size, true) == 0;
 
-    str_reply_tmp = dap_strdup_printf("Datum %s with 256bit emission is%s placed in datum pool",
+    str_reply_tmp = dap_strdup_printf("Datum %s with emission is%s placed in datum pool",
                                       l_emission_hash_str, l_placed ? "" : " not");
     DAP_DEL_Z(l_emission_hash_str);
     if (!l_placed) {

@@ -2496,8 +2496,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
                     // save pub key
                     if(l_pub_key_data && l_pub_key_data_size > 0)
-                        dap_chain_global_db_gr_set(l_addr_key, l_pub_key_data, l_pub_key_data_size,
-                        GROUP_LOCAL_NODE_ADDR);
+                        dap_global_db_set(GROUP_LOCAL_NODE_ADDR, l_addr_key, l_pub_key_data, l_pub_key_data_size, false,
+                                            NULL, NULL);
                 }
             }
             // generate addr from pub_key

@@ -24,10 +24,3 @@ enum    {
  * Get entry from base
  */
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
-
-/**
- * Set one entry to base
- */
-bool dap_chain_global_db_gr_set(const char *a_key,  const void *a_value, size_t a_value_len, const char *a_group);
-
-

@@ -466,7 +466,7 @@ static bool s_xchange_db_add(dap_chain_net_srv_xchange_price_t *a_price)
     memcpy(&l_item->order_hash, &a_price->order_hash, sizeof(dap_chain_hash_fast_t));
     strcpy(l_item->wallet_str, a_price->wallet_str);
 
-    rc = dap_chain_global_db_gr_set(a_price->key_ptr, l_item, l_size, GROUP_LOCAL_XCHANGE);
+    rc = dap_global_db_set_sync(GROUP_LOCAL_XCHANGE,a_price->key_ptr, l_item, l_size, false);
     DAP_DELETE(l_item);
 
     return  rc;

@@ -1700,8 +1700,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			memcpy( &l_store->candidate_n_signs, l_candidate, l_candidate_size);
 
 			// save new block candidate
-			if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
-													l_store_size, l_session->gdb_group_store) ) {
+            if (dap_global_db_set(l_session->gdb_group_store, l_candidate_hash_str, l_store,
+                                                    l_store_size, true, NULL, NULL) == 0) {
 				l_session->cur_round.candidates_count++;
 				dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_session->chain);
 				if ( !s_session_atom_validation(l_blocks, l_candidate, l_candidate_size) ) {
@@ -1842,8 +1842,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 							if (PVT(l_session->ton)->debug)
 								log_it(L_MSG, "TON: APPROVE: candidate found in store:%s & !approve_collected", l_candidate_hash_str);
 							l_store->hdr.approve_collected = true;
-							if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
-                                                                l_store_size, l_session->gdb_group_store) ) {
+                            if (dap_global_db_set(l_session->gdb_group_store,l_candidate_hash_str,
+                                                           l_store,l_store_size, true, NULL, NULL) == 0 ) {
 								if (PVT(l_session->ton)->debug)
 									log_it(L_MSG, "TON: APPROVE: candidate update:%s approve_collected=true", l_candidate_hash_str);
                             } else
@@ -1962,8 +1962,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 												l_candidate_hash_str, &l_store_size, l_session->gdb_group_store);
 				if (l_store) {
 					l_store->hdr.vote_collected = true;
-					if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
-														l_store_size, l_session->gdb_group_store) ) {
+                    if (dap_global_db_set(l_session->gdb_group_store, l_candidate_hash_str,
+                                          l_store,	l_store_size, true, NULL,NULL ) == 0 ) {
 		                // Send PreCommit
 						dap_chain_cs_block_ton_message_precommit_t *l_precommit =
 													DAP_NEW_Z(dap_chain_cs_block_ton_message_precommit_t);
@@ -2027,8 +2027,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 					if (PVT(l_session->ton)->blocks_sign_key) {
 						l_store->hdr.precommit_collected = true;
 
-						if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
-															l_store_size, l_session->gdb_group_store) ) {
+                        if (dap_global_db_set(l_session->gdb_group_store,l_candidate_hash_str, l_store,
+                                              l_store_size, true, NULL, NULL) == 0 ) {
 							size_t l_candidate_size = l_store->hdr.candidate_size;
 							dap_chain_block_t *l_candidate = 
 									(dap_chain_block_t *)DAP_DUP_SIZE(&l_store->candidate_n_signs, l_candidate_size);
@@ -2111,8 +2111,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 												l_candidate, l_offset+sizeof(l_candidate->hdr))) == 1 ) {
 					l_message->hdr.is_verified = true;
 					l_store->hdr.sign_collected = true;
-					if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
-									l_store_size, l_session->gdb_group_store) ) {
+                    if (dap_global_db_set(l_session->gdb_group_store, l_candidate_hash_str, l_store,
+                                    l_store_size, true, NULL, NULL) == 0 ) {
 						uint16_t l_commitsign_count = s_session_message_count(
 							l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN,
 										l_candidate_hash, NULL);

@@ -92,7 +92,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
 
-    if (dap_chain_global_db_gr_set(l_key_str, a_datum, dap_chain_datum_size(a_datum), l_gdb_group)) {
+    if (dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum),true, NULL, NULL )==0) {
         log_it(L_NOTICE, "Datum with hash %s was placed in mempool", l_key_str);
     } else {
         log_it(L_WARNING, "Can't place datum with hash %s in mempool", l_key_str);
@@ -501,10 +501,9 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t * 
     else
         l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
 
-    if( dap_chain_global_db_gr_set( l_key_str, l_datum, dap_chain_datum_size(l_datum), l_gdb_group ) ) {
+    if( dap_global_db_set(l_gdb_group, l_key_str, l_datum, dap_chain_datum_size(l_datum), true, NULL, NULL )  == 0 ) {
         log_it(L_NOTICE, "Transaction %s placed in mempool", l_key_str);
-
-    DAP_DELETE(l_datum);
+        DAP_DELETE(l_datum);
     }
 
     DAP_DELETE(l_gdb_group);
@@ -619,7 +618,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
 
-    if( dap_chain_global_db_gr_set( l_key_str, l_datum, dap_chain_datum_size(l_datum), l_gdb_group ) ) {
+    if( dap_global_db_set(l_gdb_group, l_key_str, l_datum, dap_chain_datum_size(l_datum), true, NULL, NULL ) == 0 ) {
                 log_it(L_NOTICE, "Transaction %s placed in mempool group %s", l_key_str, l_gdb_group);
     }
 
@@ -674,8 +673,8 @@ dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, da
     dap_hash_fast(l_datum_tx, l_datum_tx_size, l_datum_tx_hash);
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
     // Add to mempool tx token
-    bool l_placed = dap_chain_global_db_gr_set(l_tx_hash_str, l_datum_tx,
-                                               l_datum_tx_size, l_gdb_group_mempool_base_tx);
+    bool l_placed = dap_global_db_set(l_gdb_group_mempool_base_tx, l_tx_hash_str, l_datum_tx,
+                                               l_datum_tx_size, true, NULL, NULL) == 0;
     DAP_DEL_Z(l_tx_hash_str);
     DAP_DELETE(l_datum_tx);
     if (!l_placed) {

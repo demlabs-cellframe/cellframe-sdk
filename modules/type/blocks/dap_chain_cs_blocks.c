@@ -1298,7 +1298,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
         char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
 
-        if (dap_chain_global_db_gr_set(l_key_str, l_datum, l_datum_size, l_gdb_group) ) {
+        if (dap_global_db_set(l_gdb_group, l_key_str, l_datum, l_datum_size,true, NULL, NULL ) ==0 ) {
             l_datum_processed++;
         }
     }
