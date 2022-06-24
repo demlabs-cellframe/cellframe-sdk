@@ -1028,7 +1028,6 @@ static uint16_t s_session_message_count(
 
 static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_node_addr, 
 								dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size) {
-	bool l_message_delete = true;
 	dap_chain_cs_block_ton_items_t *l_session = (dap_chain_cs_block_ton_items_t *)a_arg;
 	dap_chain_cs_block_ton_message_t *l_message =
 			(dap_chain_cs_block_ton_message_t *)DAP_DUP_SIZE(a_data, a_data_size);
@@ -1912,19 +1911,13 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 	}
 
 handler_finish_save:
-{
 	// save to messages chain
-	dap_chain_hash_fast_t l_message_hash;
-	s_message_chain_add(l_session, a_sender_node_addr, l_message, a_data_size, &l_message_hash);
-	l_message_delete = false;
-	if (l_finalize_consensus) {
+    s_message_chain_add(l_session, a_sender_node_addr, l_message, a_data_size, NULL);
+    if (l_finalize_consensus)
 		s_session_round_finish(l_session);
-	}
-}
+    return;
 handler_finish:
-    if (l_message_delete) {
-    	DAP_DELETE(l_message);
-	}
+    DAP_DELETE(l_message);
 	return;
 }
 
@@ -2014,14 +2007,14 @@ static void s_message_chain_add(dap_chain_cs_block_ton_items_t *a_session, dap_c
 	l_message_items->message = l_message;
 
 	memcpy( &l_message_items->message_hash, &l_message_hash, sizeof(dap_chain_hash_fast_t));
-	l_round->last_message_hash = 
-			(dap_chain_hash_fast_t*)DAP_DUP_SIZE(&l_message_hash, sizeof(dap_chain_hash_fast_t));
+	l_round->last_message_hash = DAP_DUP_SIZE(&l_message_hash, sizeof(dap_chain_hash_fast_t));
 	HASH_ADD(hh, l_round->messages_items, message_hash, sizeof(l_message_items->message_hash), l_message_items);
 
 	l_round->messages_count++;
-	memcpy( a_message_hash, &l_message_hash, sizeof(dap_chain_hash_fast_t));
+    if (a_message_hash)
+        memcpy(a_message_hash, &l_message_hash, sizeof(dap_chain_hash_fast_t));
 
-	pthread_rwlock_unlock(&a_session->rwlock);
+    pthread_rwlock_unlock(&a_session->rwlock);
 }
 
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size)
