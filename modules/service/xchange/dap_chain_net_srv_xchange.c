@@ -56,7 +56,7 @@ int dap_chain_net_srv_xchange_init()
          "\tRemove price with specified tickers within specified net names\n"
     "srv_xchange price list\n"
          "\tList all active prices\n"
-    "srv_xchange price update -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker> {-coins <value> | rate <value> | -wallet <name>}\n"
+    "srv_xchange price update -net_sell <net name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker> {-coins <value> | -rate <value> | -wallet <name>}\n"
          "\tUpdate price with specified tickers within specified net names\n"
     "srv_xchange orders -net <net name>\n"
          "\tGet the exchange orders list within specified net name\n"
@@ -440,7 +440,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 {
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)a_order->ext_n_sign;
-    dap_chain_net_id_t l_net_buy_id = { .uint64 = dap_lendian_get64((uint8_t *)&l_ext->net_sell_id) };
+    dap_chain_net_id_t l_net_buy_id = { .uint64 = l_ext->net_sell_id };
     l_price->net_sell = dap_chain_net_by_id(l_net_buy_id);
     l_price->datoshi_sell = l_ext->datoshi_sell;
     strcpy(l_price->token_sell, l_ext->token_sell);

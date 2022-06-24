@@ -159,7 +159,7 @@ typedef struct dap_events_socket_callbacks {
     void *arg;                                                              /* Callbacks argument */
 } dap_events_socket_callbacks_t;
 
-#define DAP_STREAM_PKT_SIZE_MAX     (1 * 1024 * 1024)
+#define DAP_STREAM_PKT_SIZE_MAX     (2 * 1024 * 1024)
 #define DAP_EVENTS_SOCKET_BUF       DAP_STREAM_PKT_SIZE_MAX
 #define DAP_EVENTS_SOCKET_BUF_LIMIT (DAP_STREAM_PKT_SIZE_MAX * 4)
 #define DAP_QUEUE_MAX_MSGS          512

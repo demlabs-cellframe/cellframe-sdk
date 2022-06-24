@@ -569,16 +569,17 @@ static void s_session_proc_state( dap_chain_cs_block_ton_session_t * a_session)
         pthread_rwlock_unlock (&a_session->rwlock);
         return;
     }
-    a_session->time_proc_lock = true; // lock - skip check by reasons: prev check is not finish
     pthread_rwlock_unlock (&a_session->rwlock); // Mostly we're writting in session on the next operations, at least we do it with state
+
     pthread_rwlock_wrlock( &a_session->rwlock);
+    a_session->time_proc_lock = true; // lock - skip check by reasons: prev check is not finish
 
     switch (a_session->state) {
-        case DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE: {
-            if ( (((l_time/10)*10) % PVT(a_session->ton)->round_start_multiple_of) == 0
-                        && (l_time - ((l_time/10)*10)) <= 3
-                        && l_time > a_session->ts_round_finish
-                        && (l_time-a_session->ts_round_finish) >= PVT(a_session->ton)->session_idle_min) {
+            case DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE: {
+                if ( (((l_time/10)*10) % PVT(a_session->ton)->round_start_multiple_of) == 0
+                            && (l_time - ((l_time/10)*10)) <= 3
+                            && l_time > a_session->ts_round_finish
+                            && (l_time-a_session->ts_round_finish) >= PVT(a_session->ton)->session_idle_min) {
 
                 // round start
                 a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
@@ -1683,7 +1684,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 goto handler_finish;
 			}
 
-			pthread_rwlock_rdlock(&l_session->rwlock);
+            pthread_rwlock_wrlock(&l_session->rwlock);
 		    // stor for new candidate
 		    size_t l_store_size = sizeof(dap_chain_cs_block_ton_store_hdr_t)+a_data_size;
 		    dap_chain_cs_block_ton_store_t *l_store = 
@@ -2008,6 +2009,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
 							l_session->attempt_current_number, l_candidate_hash_str);
 
+            pthread_rwlock_wrlock(&l_session->rwlock);
 			uint16_t l_attempt_number = l_session->attempt_current_number;
 			uint16_t l_precommit_count = s_session_message_count(
 						l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT,

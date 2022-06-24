@@ -71,10 +71,6 @@ typedef struct __db_ctx__ {
         UT_hash_handle hh;
 } dap_db_ctx_t;
 
-static pthread_mutex_t s_db_ctx_mutex = PTHREAD_MUTEX_INITIALIZER;          /* A mutex  for working with a DB context */
-
-
-
 static dap_db_ctx_t *s_db_ctxs = NULL;                                      /* A hash table of <group/subDB/table> == <MDBX DB context> */
 static pthread_rwlock_t s_db_ctxs_rwlock = PTHREAD_RWLOCK_INITIALIZER;      /* A read-write lock for working with a <s_db_ctxs>. */
 
@@ -196,7 +192,7 @@ MDBX_val    l_key_iov, l_data_iov;
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
     if ( (l_rc = strlen(a_group)) > DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX )                /* Check length of the group name */
-        return  log_it(L_ERROR, "Group name '%s' is too long (%d>%d)", a_group, l_rc, DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX), NULL;
+        return  log_it(L_ERROR, "Group name '%s' is too long (%d>%lu)", a_group, l_rc, DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX), NULL;
 
     if ( !(l_db_ctx = DAP_NEW_Z(dap_db_ctx_t)) )                            /* Allocate zeroed memory for new DB context */
         return  log_it(L_ERROR, "Cannot allocate DB context for '%s', errno=%d", a_group, errno), NULL;
@@ -351,7 +347,7 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
 #endif
 
 
-    log_it(L_NOTICE, "Set maximum number of local groups: %d", DAP_GLOBAL_DB_GROUPS_COUNT_MAX);
+    log_it(L_NOTICE, "Set maximum number of local groups: %lu", DAP_GLOBAL_DB_GROUPS_COUNT_MAX);
     assert ( !mdbx_env_set_maxdbs (s_mdbx_env, DAP_GLOBAL_DB_GROUPS_COUNT_MAX) );       /* Set maximum number of the file-tables (MDBX subDB)
                                                                               according to number of supported groups */
 
@@ -562,11 +558,13 @@ dap_store_obj_t *l_obj;
         return  NULL;
     }
 
-
     /* Found ! Allocate memory for  <store object>  and <value> */
     if ( (l_obj = DAP_CALLOC(1, sizeof( dap_store_obj_t ))) )
     {
-        if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
+
+        if ( !(l_obj->key = DAP_CALLOC(1, (l_obj->key_len = (l_last_key.iov_len + 1)))) )
+            l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
+        else if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
             {
             /* Fill the <store obj> by data from the retrieved record */
             l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);

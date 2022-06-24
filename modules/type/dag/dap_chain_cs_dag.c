@@ -717,6 +717,7 @@ int dap_chain_cs_new_event_add_datums(dap_chain_t *a_chain, bool a_round_check, 
         DAP_DELETE(l_args);
         return -1;
     }
+    return 0;
 }
 
 

@@ -13,12 +13,6 @@
 #include "dap_global_db_sync.h"
 
 
-#define DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX      128                                     /* A maximum size of group name */
-#define DAP_GLOBAL_DB_GROUPS_COUNT_MAX          1024                                    /* A maximum number of groups */
-#define DAP_GLOBAL_DB_KEY_MAX            512                                     /* A limit for the key's length in DB */
-#define DAP_GLOBAL_DB_MAX_OBJS            8192          /* A maximum number of objects to be returned by
-                                                                            read_srore_obj() */
-
 enum    {
     DAP_DB$K_OPTYPE_ADD  = 0x61,    /* 'a', */                              /* Operation Type = INSERT/ADD */
     DAP_DB$K_OPTYPE_DEL  = 0x64,    /* 'd', */                              /*  -- // -- DELETE */

@@ -382,7 +382,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
         if (l_signs_approve == a_token->signs_valid){
             return 0;
         } else {
-            log_it(L_WARNING, "The token declaration has %zu valid signatures out of %zu.", l_signs_approve, a_token->signs_valid);
+            log_it(L_WARNING, "The token declaration has %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_valid);
             return -5;
         }
     } else {

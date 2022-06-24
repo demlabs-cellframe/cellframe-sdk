@@ -536,6 +536,13 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * 
  */
 int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 {
+#ifdef DAP_OS_WINDOWS
+    int l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max);
+    if (l_read == SOCKET_ERROR) {
+        log_it(L_ERROR, "Queue socket %zu received invalid data, error %d", a_esocket->socket, WSAGetLastError());
+        return -1;
+    }
+#endif
     if (a_esocket->callbacks.queue_callback){
         if (a_esocket->flags & DAP_SOCK_QUEUE_PTR){
             void * l_queue_ptr = NULL;
@@ -599,7 +606,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             MQPROPVARIANT l_mpvar[2];
             MSGPROPID     l_p_id[2];
 
-            UCHAR l_body[1024] = { 0 };
+            UCHAR l_body[64] = { 0 };
             l_p_id[l_mp_id]				= PROPID_M_BODY;
             l_mpvar[l_mp_id].vt			= VT_UI1 | VT_VECTOR;
             l_mpvar[l_mp_id].caub.cElems = sizeof(l_body);
@@ -615,22 +622,22 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             l_mps.aPropVar = l_mpvar;
             l_mps.aStatus  = NULL;
 
-            HRESULT hr = MQReceiveMessage(a_esocket->mqh_recv, 1000, MQ_ACTION_RECEIVE, &l_mps, NULL, NULL, NULL, MQ_NO_TRANSACTION);
-            if (hr != MQ_OK) {
-                log_it(L_ERROR, "An error %ld occured receiving a message from queue", hr);
-                return -1;
-            }
-            if (l_mpvar[1].ulVal % sizeof(void*)) {
-                log_it(L_ERROR, "Queue message size incorrect: %lu", l_mpvar[1].ulVal);
-                if (l_mpvar[1].ulVal < sizeof(void*)) {
-                    log_it(L_ERROR, "Queue socket %zu received invalid data", a_esocket->socket);
-                    return -1;
+            HRESULT hr;
+            while ((hr = MQReceiveMessage(a_esocket->mqh_recv, 0, MQ_ACTION_RECEIVE, &l_mps, NULL, NULL, NULL, MQ_NO_TRANSACTION))
+                                          != MQ_ERROR_IO_TIMEOUT) {
+                if (hr != MQ_OK) {
+                    log_it(L_ERROR, "An error %ld occured receiving a message from queue", hr);
+                    return -3;
                 }
-            }
-            for (u_int pad = 0; pad < l_mpvar[1].ulVal; pad += sizeof(void*)) {
-                memcpy(&l_queue_ptr, l_body + pad, sizeof(void*));
-                if(a_esocket->callbacks.queue_ptr_callback)
-                    a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
+                debug_if(g_debug_reactor, L_DEBUG, "Received msg: %p len %lu", *(void **)l_body, l_mpvar[1].ulVal);
+                if (l_mpvar[1].ulVal != sizeof(void*)) {
+                    log_it(L_ERROR, "Queue message size incorrect: %lu", l_mpvar[1].ulVal);
+                    continue;
+                }
+                if (a_esocket->callbacks.queue_ptr_callback) {
+                    l_queue_ptr = *(void **)l_body;
+                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                }
             }
 #elif defined DAP_EVENTS_CAPS_KQUEUE
         l_queue_ptr = (void*) a_esocket->kqueue_event_catched_data.data;
@@ -642,26 +649,20 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #error "No Queue fetch mechanism implemented on your platform"
 #endif
         } else {
-#ifdef DAP_OS_WINDOWS
-            int l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max);
-            if (l_read == SOCKET_ERROR) {
-                log_it(L_ERROR, "Queue socket %zu received invalid data, error %d", a_esocket->socket, WSAGetLastError());
-                return -1;
-            }
-#elif defined (DAP_EVENTS_CAPS_KQUEUE)
-        void * l_queue_ptr = a_esocket->kqueue_event_catched_data.data;
-        size_t l_queue_ptr_size = a_esocket->kqueue_event_catched_data.size;
-        if(g_debug_reactor)
-            log_it(L_INFO,"Queue received %zd bytes on input", l_queue_ptr_size);
+#ifdef DAP_EVENTS_CAPS_KQUEUE
+            void * l_queue_ptr = a_esocket->kqueue_event_catched_data.data;
+            size_t l_queue_ptr_size = a_esocket->kqueue_event_catched_data.size;
+            if(g_debug_reactor)
+                log_it(L_INFO,"Queue received %zd bytes on input", l_queue_ptr_size);
 
-        a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
-#else
+            a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
+#elif !defined(DAP_OS_WINDOWS)
             size_t l_read = read(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max );
 #endif
         }
     }else{
         log_it(L_ERROR, "Queue socket %"DAP_FORMAT_SOCKET" accepted data but callback is NULL ", a_esocket->socket);
-        return -1;
+        return -2;
     }
     return 0;
 }
@@ -1613,6 +1614,8 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_uuid_t 
  */
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_data, size_t a_data_size)
 {
+    if (a_es->flags & DAP_SOCK_SIGNAL_CLOSE)
+        return 0;
     if ( (a_es->buf_out_size + a_data_size) > a_es->buf_out_size_max) {
         if ((a_es->buf_out_size_max + a_data_size) > DAP_EVENTS_SOCKET_BUF_LIMIT) {
             log_it(L_ERROR, "Write esocket (%p) buffer overflow size=%zu/max=%zu", a_es, a_es->buf_out_size_max, (size_t)DAP_EVENTS_SOCKET_BUF_LIMIT);

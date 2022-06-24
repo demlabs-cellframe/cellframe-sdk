@@ -386,8 +386,10 @@ static const uint16_t s_ascii_table_data[256] = {
 
 //const uint16_t * const c_dap_ascii_table = s_ascii_table_data;
 
-#define dap_ascii_isspace(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_SPACE) != 0
-#define dap_ascii_isalpha(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_ALPHA) != 0
+#define dap_ascii_isspace(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_SPACE)
+#define dap_ascii_isalpha(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_ALPHA)
+#define dap_ascii_isalnum(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_ALNUM)
+#define dap_ascii_isdigit(c) (s_ascii_table_data[(unsigned char) (c)] & DAP_ASCII_DIGIT)
 
 void dap_sleep( uint32_t ms );
 
@@ -452,15 +454,18 @@ char *dap_log_get_item(time_t a_start_time, int a_limit);
 
 
 DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
+#define log_it(_log_level, ...) _log_it(LOG_TAG, _log_level, ##__VA_ARGS__)
+#define debug_if(flg, lvl, ...) _log_it(((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
+
+#ifdef DAP_SYS_DEBUG
 void    _log_it_ext( const char *, unsigned, enum dap_log_level, const char * format, ... );
 void    _dump_it (const char *, unsigned , const char *a_var_name, const void *src, unsigned short srclen);
-#ifndef     SYS_DEBUG
-#define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
-#else
+#undef  log_it
 #define log_it( _log_level, ...) _log_it_ext( __func__, __LINE__, (_log_level), ##__VA_ARGS__)
-#endif
-#define debug_if( flg, lvl, ...) _log_it( ((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
 #define dump_it(v,s,l) _dump_it( __func__, __LINE__, (v), (s), (l))
+#else
+#define dump_it(v,s,l)
+#endif
 
 
 
@@ -492,45 +497,17 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
 int dap_interval_timer_delete(void *a_timer);
 void dap_interval_timer_deinit();
 
-uint16_t dap_lendian_get16(const uint8_t *a_buf);
-void dap_lendian_put16(uint8_t *a_buf, uint16_t a_val);
-uint32_t dap_lendian_get32(const uint8_t *a_buf);
-void dap_lendian_put32(uint8_t *a_buf, uint32_t a_val);
-uint64_t dap_lendian_get64(const uint8_t *a_buf);
-void dap_lendian_put64(uint8_t *a_buf, uint64_t a_val);
-
-
 static inline void * dap_mempcpy(void * a_dest,const void * a_src,size_t n)
 {
     return ((byte_t*) memcpy(a_dest,a_src,n))+n;
 }
 
-int dap_is_alpha_and_(char e);
-int dap_is_alpha(char e);
-int dap_is_digit(char e);
+DAP_STATIC_INLINE int dap_is_alpha(char c) { return dap_ascii_isalnum(c); }
+DAP_STATIC_INLINE int dap_is_digit(char c) { return dap_ascii_isdigit(c); }
+DAP_STATIC_INLINE int dap_is_alpha_and_(char c) { return dap_is_alpha(c) || c == '_'; }
 char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit);
 
-
-
-#define CRC32_POLY      (0xEDB88320)
-extern const unsigned int g_crc32c_table[];
-
-static inline unsigned int	dap_crc32c (unsigned int crc, const void *buf, size_t buflen)
-{
-const unsigned char  *p = (unsigned char *) buf;
-
-	crc = crc ^ ~0U;
-
-	while (buflen--)
-		crc = g_crc32c_table[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
-
-	return crc ^ ~0U;
-}
-
-
-
-
-
+unsigned int dap_crc32c(unsigned int crc, const void *buf, size_t buflen);
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);
