@@ -859,66 +859,65 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group);
         size_t l_value_len = 0;
         uint8_t l_flags = 0;
-        uint8_t *l_value = dap_chain_global_db_gr_get_ext(l_key, &l_value_len, l_group, &l_flags);
+        bool l_is_pinned = false;
+        dap_nanotime_t l_ts =0;
+        uint8_t *l_value =dap_global_db_gr_get_sync(l_group, l_key, &l_value_len, &l_is_pinned, &l_ts);
         if(!l_value || !l_value_len) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Record not found\n\n");
             return -1;
         }
-        bool is_pinned = l_flags & RECORD_PINNED;
 
         int l_ret = 0;
         // prepare record information
         switch (l_subcmd) {
-        case SUMCMD_GET: // Get value
-        {
-            dap_hash_fast_t l_hash;
-            char *l_hash_str = NULL;
-            if(dap_hash_fast(l_value, l_value_len, &l_hash)) {
-                l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
-            }
-            char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
-            size_t ret = dap_bin2hex(l_value_str, l_value, l_value_len);
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Record found\n"
-                    "lenght:\t%u byte\n"
-                    "hash:\t%s\n"
-                    "pinned:\t%s\n"
-                    "value:\t0x%s\n\n", l_value_len, l_hash_str, is_pinned ? "Yes" : "No", l_value_str);
-            DAP_DELETE(l_value_str);
-            DAP_DELETE(l_hash_str);
-            break;
-        }
-        case SUMCMD_PIN: // Pin record
-        {
-            if(is_pinned){
-                dap_chain_node_cli_set_reply_text(a_str_reply, "record already pinned");
+            case SUMCMD_GET: // Get value
+            {
+                dap_hash_fast_t l_hash;
+                char *l_hash_str = NULL;
+                if(dap_hash_fast(l_value, l_value_len, &l_hash)) {
+                    l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
+                }
+                char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
+                size_t ret = dap_bin2hex(l_value_str, l_value, l_value_len);
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Record found\n"
+                        "lenght:\t%u byte\n"
+                        "hash:\t%s\n"
+                        "pinned:\t%s\n"
+                        "value:\t0x%s\n\n", l_value_len, l_hash_str, l_is_pinned ? "Yes" : "No", l_value_str);
+                DAP_DELETE(l_value_str);
+                DAP_DELETE(l_hash_str);
                 break;
             }
-            if(dap_chain_global_db_gr_set_ext(l_key, l_value, l_value_len,l_group, l_flags | RECORD_PINNED)){
-                dap_chain_node_cli_set_reply_text(a_str_reply, "record successfully pinned");
-            }
-            else{
-                dap_chain_node_cli_set_reply_text(a_str_reply, "can't pin the record");
-                l_ret = -2;
-            }
-            break;
-        }
-        case SUMCMD_UNPIN: // Unpin record
-        {
-            if(!is_pinned) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "record already unpinned");
+            case SUMCMD_PIN: // Pin record
+            {
+                if(l_is_pinned){
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "record already pinned");
+                    break;
+                }
+                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len,true ) ==0 ){
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "record successfully pinned");
+                }
+                else{
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "can't pin the record");
+                    l_ret = -2;
+                }
                 break;
             }
-            l_flags &= ~RECORD_PINNED;
-            if(dap_chain_global_db_gr_set_ext(l_key, l_value, l_value_len, l_group, l_flags & ~RECORD_PINNED)) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "record successfully unpinned");
+            case SUMCMD_UNPIN: // Unpin record
+            {
+                if(!l_is_pinned) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "record already unpinned");
+                    break;
+                }
+                if(dap_global_db_set_sync(l_group,l_key, l_value, l_value_len, false) == 0 ) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "record successfully unpinned");
+                }
+                else {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "can't unpin the record");
+                    l_ret = -2;
+                }
+                break;
             }
-            else {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "can't unpin the record");
-                l_ret = -2;
-            }
-            break;
-        }
-
         }
         DAP_DELETE(l_value);
         return l_ret;
@@ -5010,7 +5009,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
     for (dap_list_t *l_list = l_groups_list; l_list; l_list = dap_list_next(l_list)) {
         size_t l_data_size = 0;
         char *l_group_name = (char *)l_list->data;
-        pdap_store_obj_t l_data = dap_chain_global_db_obj_gr_get(NULL, &l_data_size, l_group_name);
+        pdap_store_obj_t l_data = dap_global_db_store_objs_get_sync(NULL, &l_data_size, l_group_name);
         log_it(L_INFO, "Exporting group %s, number of records: %zu", l_group_name, l_data_size);
         if (!l_data_size) {
             continue;

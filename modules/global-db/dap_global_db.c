@@ -1042,6 +1042,145 @@ dap_global_db_obj_t* dap_global_db_objs_get(const char *a_group, size_t *a_objs_
     return l_ret;
 }
 
+/**
+ * @brief The objs_set struct
+ */
+struct objs_set{
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    int result;
+};
+
+/**
+ * @brief s_objs_set_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_len
+ * @param a_value_ts
+ * @param a_is_pinned
+ * @param a_arg
+ */
+static void s_objs_set_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
+{
+    struct objs_set * l_args = (struct objs_set *) a_arg;
+    l_args->result = a_rc;
+    pthread_mutex_lock(&l_args->mutex);
+    pthread_cond_broadcast(&l_args->cond);
+    pthread_mutex_unlock(&l_args->mutex);
+}
+
+/**
+ * @brief Put value into the GlobalDB and waits for result
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_length
+ * @param a_pin_value
+ * @return 0 if success others if not
+ */
+int dap_global_db_set_sync(const char * a_group, const char *a_key, const void * a_value, const size_t a_value_length, bool a_pin_value )
+{
+    struct objs_set * l_args = DAP_NEW_Z(struct objs_set);
+    pthread_mutex_init(&l_args->mutex,NULL);
+    pthread_cond_init(&l_args->cond,NULL);
+    pthread_mutex_lock(&l_args->mutex);
+    dap_global_db_set(a_group, a_key,a_value,a_value_length, a_pin_value, s_objs_set_callback, l_args);
+    pthread_cond_wait(&l_args->cond, &l_args->mutex);
+    pthread_mutex_unlock(&l_args->mutex);
+    pthread_mutex_destroy(&l_args->mutex);
+    pthread_cond_destroy(&l_args->cond);
+
+    int l_ret = l_args->result ;
+    DAP_DELETE(l_args);
+    return l_ret;
+}
+
+/**
+ * @brief The store_obj_get struct
+ */
+struct store_obj_get{
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    byte_t * data;
+    size_t data_size;
+    dap_nanotime_t ts;
+    bool is_pinned;
+};
+
+/**
+ * @brief s_store_obj_get_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_size
+ * @param a_value_ts
+ * @param a_is_pinned
+ * @param a_arg
+ */
+static void s_store_obj_get_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key,
+                                 const void * a_value, const size_t a_value_size, dap_nanotime_t a_value_ts,
+                                 bool a_is_pinned, void * a_arg)
+{
+    struct store_obj_get * l_args = (struct store_obj_get *) a_arg;
+    assert(l_args);
+
+    if( a_value && a_value_size){
+        l_args->data = DAP_DUP_SIZE(a_value, a_value_size);
+        l_args->data_size = a_value_size;
+        l_args->ts = a_value_ts;
+    }
+
+    pthread_mutex_lock(&l_args->mutex);
+    pthread_cond_broadcast(&l_args->cond);
+    pthread_mutex_unlock(&l_args->mutex);
+}
+
+/**
+ * @brief dap_global_db_gr_get_sync
+ * @param a_group
+ * @param a_key
+ * @param a_data_size
+ * @param a_is_pinned
+ * @param a_ts
+ * @return
+ */
+byte_t* dap_global_db_gr_get_sync(const char * a_group,const char *a_key, size_t *a_data_size, bool *a_is_pinned, dap_nanotime_t * a_ts)
+{
+    struct store_obj_get * l_args = DAP_NEW_Z(struct store_obj_get);
+    pthread_mutex_init(&l_args->mutex,NULL);
+    pthread_cond_init(&l_args->cond,NULL);
+    pthread_mutex_lock(&l_args->mutex);
+
+
+
+    dap_global_db_get(a_group,a_key, s_store_obj_get_callback, l_args);
+    pthread_cond_wait(&l_args->cond, &l_args->mutex);
+    pthread_mutex_unlock(&l_args->mutex);
+    pthread_mutex_destroy(&l_args->mutex);
+    pthread_cond_destroy(&l_args->cond);
+
+    byte_t * l_ret = l_args->data;
+    if( l_ret ){
+        if( a_data_size)
+            *a_data_size = l_args->data_size;
+        if( a_is_pinned)
+            *a_is_pinned = l_args->is_pinned;
+        if( a_ts)
+            *a_ts = l_args->ts;
+    }
+    DAP_DELETE(l_args);
+    return l_ret;
+}
+
+
+/**
+ * @brief The store_objs_get struct
+ */
 struct store_objs_get{
     pthread_mutex_t mutex;
     pthread_cond_t cond;
@@ -1061,7 +1200,7 @@ static bool s_store_objs_get_callback (dap_global_db_context_t * a_global_db_con
     return false;
 }
 
-dap_store_obj_t* dap_global_db_store_objs_get(const char *a_group, uint64_t a_first_id, size_t *a_objs_count)
+dap_store_obj_t* dap_global_db_store_objs_get_sync(const char *a_group, uint64_t a_first_id, size_t *a_objs_count)
 {
     struct store_objs_get * l_args = DAP_NEW_Z(struct store_objs_get);
     pthread_mutex_init(&l_args->mutex,NULL);

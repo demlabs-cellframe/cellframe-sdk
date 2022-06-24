@@ -23,8 +23,6 @@ enum    {
 /**
  * Get entry from base
  */
-dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
-uint8_t* dap_chain_global_db_gr_get_ext(const char *a_key, size_t *a_data_len_out, const char *a_group, uint8_t *a_flags_out);
 uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
 uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
 
@@ -32,7 +30,6 @@ uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
 /**
  * Set one entry to base
  */
-bool dap_chain_global_db_gr_set_ext(const char *a_key, const void *a_value, size_t a_value_len, const char *a_group, uint8_t a_flags);
 bool dap_chain_global_db_gr_set(const char *a_key,  const void *a_value, size_t a_value_len, const char *a_group);
 
 /**
