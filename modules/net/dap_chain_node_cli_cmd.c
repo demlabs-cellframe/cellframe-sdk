@@ -352,7 +352,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         return -1;
     }
     // check, current node have this addr or no
-    uint64_t l_cur_addr = dap_db_get_cur_node_addr(a_net->pub.name);
+    uint64_t l_cur_addr = dap_chain_net_get_cur_node_addr_gdb_sync(a_net->pub.name);
     if(l_cur_addr && l_cur_addr == a_node_info->hdr.address.uint64) {
         dap_chain_node_cli_set_reply_text(str_reply, "current node cannot be deleted");
         return -1;

@@ -1020,16 +1020,17 @@ static bool s_objs_get_callback (dap_global_db_context_t * a_global_db_context,i
 /**
  * @brief Sync (blocking) function for retrieving of list of GDB content
  * @param a_group
+ * @param a_fist_id
  * @param a_objs_count
  * @return Group's objects
  */
-dap_global_db_obj_t* dap_global_db_get_all_raw_sync(const char *a_group, size_t *a_objs_count)
+dap_global_db_obj_t* dap_global_db_get_all_sync(const char *a_group, size_t *a_objs_count)
 {
     struct objs_get * l_args = DAP_NEW_Z(struct objs_get);
     pthread_mutex_init(&l_args->mutex,NULL);
     pthread_cond_init(&l_args->cond,NULL);
     pthread_mutex_lock(&l_args->mutex);
-    dap_global_db_get_all(a_group,0,s_objs_get_callback, l_args);
+    dap_global_db_get_all(a_group, 0,s_objs_get_callback, l_args);
     pthread_cond_wait(&l_args->cond, &l_args->mutex);
     pthread_mutex_unlock(&l_args->mutex);
     pthread_mutex_destroy(&l_args->mutex);
@@ -1212,7 +1213,7 @@ struct store_objs_get{
     size_t objs_count;
 };
 
-static bool s_store_objs_get_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+static bool s_get_all_raw_sync_callback (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_values_count, dap_store_obj_t * a_values, void * a_arg)
 {
     struct store_objs_get * l_args = (struct store_objs_get *) a_arg;
@@ -1230,7 +1231,7 @@ dap_store_obj_t* dap_global_db_get_all_raw_sync(const char *a_group, uint64_t a_
     pthread_mutex_init(&l_args->mutex,NULL);
     pthread_cond_init(&l_args->cond,NULL);
     pthread_mutex_lock(&l_args->mutex);
-    dap_global_db_get_all_raw(a_group,a_first_id, 0,s_store_objs_get_callback, l_args);
+    dap_global_db_get_all_raw(a_group, a_first_id,0,s_get_all_raw_sync_callback, l_args);
     pthread_cond_wait(&l_args->cond, &l_args->mutex);
     pthread_mutex_unlock(&l_args->mutex);
     pthread_mutex_destroy(&l_args->mutex);

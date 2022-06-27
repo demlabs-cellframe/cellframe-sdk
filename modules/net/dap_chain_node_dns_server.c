@@ -307,7 +307,7 @@ dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     // read all node
-    l_objs = dap_global_db_get_all_raw_sync(l_net->pub.gdb_nodes, &l_nodes_count);
+    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
     if (!l_nodes_count || !l_objs)
         return NULL;
     dap_chain_node_info_t *l_node_candidate;

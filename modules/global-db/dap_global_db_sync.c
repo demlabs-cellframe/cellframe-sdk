@@ -130,9 +130,22 @@ dap_list_t* dap_chain_db_get_sync_extra_groups(const char *a_net_name)
     return l_list_out;
 }
 
+/**
+ * @brief dap_global_db_get_sync_groups_all
+ * @return
+ */
 dap_list_t * dap_global_db_get_sync_groups_all()
 {
     return s_sync_group_items;
+}
+
+/**
+ * @brief dap_global_db_get_sync_groups_extra_all
+ * @return
+ */
+dap_list_t * dap_global_db_get_sync_groups_extra_all()
+{
+    return s_sync_group_extra_items;
 }
 
 /**

@@ -3077,8 +3077,16 @@ uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net)
 {
     if (!l_net)
         return 0;
-    return dap_chain_net_get_cur_addr(l_net) ? dap_chain_net_get_cur_addr(l_net)->uint64 :
-                                               dap_db_get_cur_node_addr(l_net->pub.name);
+    uint64_t l_ret = 0;
+    if(PVT(l_net)->node_addr == NULL){ // Cache address if not present
+        l_ret = dap_chain_net_get_cur_node_addr_gdb_sync(l_net->pub.name);
+        if( l_ret){
+            PVT(l_net)->node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+            PVT(l_net)->node_addr->uint64 = l_ret;
+        }
+    }else
+        l_ret = PVT(l_net)->node_addr->uint64;
+    return l_ret;
 }
 
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)

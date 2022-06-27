@@ -45,7 +45,7 @@ typedef struct dap_db_log_list {
 // Set addr for current node
 bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name);
 bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name );
-uint64_t dap_db_get_cur_node_addr(char *a_net_name);
+uint64_t dap_chain_net_get_cur_node_addr_gdb_sync(char *a_net_name);
 
 // Set last id for remote node
 bool dap_db_set_last_id_remote(uint64_t a_node_addr, uint64_t a_id, char *a_group);

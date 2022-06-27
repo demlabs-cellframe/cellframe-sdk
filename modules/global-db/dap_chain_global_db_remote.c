@@ -369,7 +369,7 @@ bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
  * @param a_net_name a net name string
  * @return Returns an adress if successful, otherwise 0.
  */
-uint64_t dap_db_get_cur_node_addr(char *a_net_name)
+uint64_t dap_chain_net_get_cur_node_addr_gdb_sync(char *a_net_name)
 {
 char	l_key[DAP_GLOBAL_DB_KEY_MAX], l_key_time[DAP_GLOBAL_DB_KEY_MAX];
 uint8_t *l_node_addr_data, *l_node_time_data;
@@ -383,8 +383,8 @@ time_t l_node_time = 0;
     dap_snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s", a_net_name);
     dap_snprintf(l_key_time, sizeof(l_key_time) - 1, "cur_node_addr_%s_time", a_net_name);
 
-    l_node_addr_data = dap_chain_global_db_gr_get(l_key, &l_node_addr_len, DAP_GLOBAL_DB_LOCAL_GENERAL);
-    l_node_time_data = dap_chain_global_db_gr_get(l_key_time, &l_node_time_len, DAP_GLOBAL_DB_LOCAL_GENERAL);
+    l_node_addr_data = dap_global_db_get_sync(DAP_GLOBAL_DB_LOCAL_GENERAL, l_key, &l_node_addr_len, NULL, NULL);
+    l_node_time_data = dap_global_db_get_sync(DAP_GLOBAL_DB_LOCAL_GENERAL, l_key_time, &l_node_time_len, NULL, NULL);
 
     if(l_node_addr_data && (l_node_addr_len == sizeof(uint64_t)) )
         l_node_addr_ret = *( (uint64_t *) l_node_addr_data );
