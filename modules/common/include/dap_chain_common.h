@@ -209,7 +209,8 @@ enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_RECEIPT = 0x70,
 
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
-    TX_ITEM_TYPE_ANY = 0xff
+    TX_ITEM_TYPE_ANY = 0xff,
+    TX_ITEM_TYPE_UNKNOWN = 0xff
 };
 typedef byte_t dap_chain_tx_item_type_t;
 
