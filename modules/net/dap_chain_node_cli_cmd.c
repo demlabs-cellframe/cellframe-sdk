@@ -3432,6 +3432,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         return -43;
     }
 
+	int no_base_tx = dap_chain_node_cli_check_option(a_argv, arg_index, a_argc, "-no_base_tx");
+
     // Token emission
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-emission", &l_emission_hash_str);
 
@@ -3491,7 +3493,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         if(l_chain_emission_str) {
             if((l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str)) == NULL) { // Can't find such chain
                 dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "token_create requires parameter '-chain_emission' to be valid chain name in chain net %s",
+                        "token_create requires parameter '-chain_emission' to be valid chain name in chain net %s or set default datum type in chain configuration file",
                         l_net->pub.name);
                 return -45;
             }
@@ -3518,22 +3520,40 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-chain_base_tx", &l_chain_base_tx_str);
 
-    if(l_chain_base_tx_str) {
+    if(l_chain_base_tx_str && no_base_tx < 0) {
         if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s", l_net->pub.name);
-            DAP_DELETE(l_addr);
+                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
+			DAP_DEL_Z(l_addr);
             return -47;
         }
-        if(!l_ticker) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
-            return -3;
-        }
-    }
+		goto CheckTicker;	// --->>
+    } else if (no_base_tx < 0) {
+		if((l_chain_base_tx = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)) == NULL) { // Can't find such chain
+			dap_chain_node_cli_set_reply_text(a_str_reply,
+						"token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
+			DAP_DEL_Z(l_addr);
+			return -47;
+		}
+		CheckTicker:		// <<---
+		if(!l_ticker) {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
+			DAP_DEL_Z(l_addr);
+			return -3;
+		}
+	}
 
     if (!l_add_sign) {
-        if (!l_chain_emission)
-            l_chain_emission = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
+        if (!l_chain_emission) {
+			if ( (l_chain_emission = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION)) == NULL ) {
+				DAP_DEL_Z(l_addr);
+				dap_chain_node_cli_set_reply_text(a_str_reply,
+					"token_create requires parameter '-chain_emission' to be valid chain name in chain net %s or set default datum type in chain configuration file",
+						 l_net->pub.name);
+				return -50;
+			}
+		}
+		// l_chain_emission = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
         // Create emission datum
         l_emission = dap_chain_datum_emission_create(l_emission_value, l_ticker, l_addr);
     }
@@ -4591,13 +4611,14 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
 
     dap_chain_t *l_chain = NULL;
-	if (l_chain_name)
+	if (l_chain_name) {
 		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
+	} else {
+		l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_TX);
+	}
+
     if(!l_chain) {
-        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
-    }
-    if(!l_chain) {
-        dap_chain_node_cli_set_reply_text(str_reply, "not found chain name '%s', try use parameter '-chain'",
+        dap_chain_node_cli_set_reply_text(str_reply, "not found chain name '%s', try use parameter '-chain' or set default datum type in chain configuration file",
                 l_chain_name);
         return -8;
     }
@@ -4789,13 +4810,15 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         }
     }
     //Select chain emission
-	if (l_chain_str)
+	if (l_chain_str) {
 		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
-	if(!l_chain) {
+	}
+	else {
 		l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
 	}
+
 	if(!l_chain) {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "tx_history requires parameter '-chain' to be valid chain name in chain net %s",
+		dap_chain_node_cli_set_reply_text(a_str_reply, "tx_history requires parameter '-chain' to be valid chain name in chain net %s. You can set default datum type in chain configuration file",
 										  l_net_str);
 		return -8;
 	}
