@@ -90,6 +90,8 @@ typedef struct dap_context {
 #else
 #error "Not defined worker for your platform"
 #endif
+    ssize_t esocket_current; // Currently selected esocket
+    ssize_t esockets_selected; // Currently selected number of esockets
 
     atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets

@@ -1619,6 +1619,8 @@ static int s_check_db_version()
     if (l_ret == 0){
         pthread_cond_wait(&s_check_db_cond, &s_check_db_mutex);
         l_ret = s_check_db_ret;
+    }else{
+        log_it(L_CRITICAL, "Can't process get gdb_version request, code %d", l_ret);
     }
     pthread_mutex_unlock(&s_check_db_mutex);
     return l_ret;
@@ -1641,10 +1643,16 @@ static void s_check_db_version_callback_get (dap_global_db_context_t * a_global_
     int res = 0;
 
 
-    if(a_errno != 0){
-        log_it(L_ERROR, "Can't process request for DB version, error code %d", a_errno);
-        res = a_errno;
-        goto lb_exit;
+    if(a_errno != 0){ // No DB at all
+        log_it(L_NOTICE, "No GlobalDB version at all, creating the new GlobalDB from scratch");
+        s_global_db_version = DAP_GLOBAL_DB_VERSION;
+        if ( (res = dap_global_db_set(DAP_GLOBAL_DB_LOCAL_GENERAL, "gdb_version", &s_global_db_version, sizeof(uint16_t),false,
+                          s_check_db_version_callback_set, NULL) ) != 0){
+            log_it(L_NOTICE, "Can't set GlobalDB version, code %d", res);
+            goto lb_exit;
+        }
+        return; // In this case the condition broadcast should happens in s_check_db_version_callback_set()
+
     }
 
     const char * l_value_str = (const char *) a_value;
@@ -1693,8 +1701,11 @@ static void s_check_db_version_callback_get (dap_global_db_context_t * a_global_
         // Save current db version
         if(!res) {
             s_global_db_version = DAP_GLOBAL_DB_VERSION;
-            dap_global_db_set(DAP_GLOBAL_DB_LOCAL_GENERAL, "gdb_version", &s_global_db_version, sizeof(uint16_t),false,
-                              s_check_db_version_callback_set, NULL);
+            if ( (res = dap_global_db_set(DAP_GLOBAL_DB_LOCAL_GENERAL, "gdb_version", &s_global_db_version, sizeof(uint16_t),false,
+                              s_check_db_version_callback_set, NULL) ) != 0){
+                log_it(L_NOTICE, "Can't set GlobalDB version, code %d", res);
+                goto lb_exit;
+            }
             return; // In this case the condition broadcast should happens in s_check_db_version_callback_set()
         }
     } else if(s_global_db_version > DAP_GLOBAL_DB_VERSION) {
