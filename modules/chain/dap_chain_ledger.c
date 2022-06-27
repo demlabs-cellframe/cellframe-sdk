@@ -54,7 +54,7 @@
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_pvt.h"
 #include "json-c/json.h"
@@ -3135,7 +3135,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             .group      = l_gdb_group
     };
     // Apply it with single DB transaction
-    if (dap_chain_global_db_driver_add(l_cache_used_outs, l_outs_used + 1)) {
+    if ( dap_global_db_set_raw(l_cache_used_outs, l_outs_used + 1,NULL,NULL) != 0) {
         if(s_debug_more)
             log_it(L_WARNING, "Ledger cache mismatch");
     }

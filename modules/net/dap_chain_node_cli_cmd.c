@@ -71,7 +71,7 @@
 #include "dap_enc_base58.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_node.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -96,7 +96,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_global_db_remote.h"
 
 #include "dap_stream_ch_chain_net.h"

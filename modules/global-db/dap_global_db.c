@@ -33,7 +33,7 @@
 #include "dap_proc_thread.h"
 #define LOG_TAG "dap_global_db"
 
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_global_db_sync.h"
 #include "dap_chain_global_db_driver.h"
 

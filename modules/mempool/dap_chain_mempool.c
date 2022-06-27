@@ -48,7 +48,7 @@
 #include "http_status_code.h"
 #include "dap_chain_common.h"
 #include "dap_chain_node.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_enc.h"
 #include <dap_enc_http.h>
 #include <dap_enc_key.h>

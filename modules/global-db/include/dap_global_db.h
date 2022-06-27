@@ -45,6 +45,12 @@ typedef struct dap_global_db_context
 
 #define DAP_CONTEXT_TYPE_GLOBAL_DB   100
 
+enum    {
+    DAP_DB$K_OPTYPE_ADD  = 0x61,    /* 'a', */                              /* Operation Type = INSERT/ADD */
+    DAP_DB$K_OPTYPE_DEL  = 0x64,    /* 'd', */                              /*  -- // -- DELETE */
+    DAP_DB$K_OPTYPE_RETR = 0x72,    /* 'r', */                              /*  -- // -- RETRIEVE/GET */
+};
+
 typedef struct dap_store_obj {
     uint64_t id;
     dap_nanotime_t timestamp;
@@ -88,6 +94,8 @@ typedef bool (*dap_global_db_callback_results_raw_t) (dap_global_db_context_t * 
 #define DAP_GLOBAL_DB_RC_SUCCESS         0
 #define DAP_GLOBAL_DB_RC_NO_RESULTS     -1
 #define DAP_GLOBAL_DB_RC_ERROR           -666
+
+
 
 extern bool g_dap_global_db_debug_more;
 

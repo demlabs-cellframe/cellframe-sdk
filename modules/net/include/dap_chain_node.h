@@ -45,7 +45,7 @@
 #include "dap_events_socket.h"
 
 #include "dap_chain_common.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain.h"
 #include "dap_chain_net.h"
 

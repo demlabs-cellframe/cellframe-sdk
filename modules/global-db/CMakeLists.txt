@@ -15,7 +15,7 @@ file(GLOB DAP_CHAIN_GLOBAL_DB_HDR
     include/dap_global_db.h
     include/dap_global_db_sync.h
     include/dap_global_db_pkt.h
-    include/dap_chain_global_db.h
+    include/dap_global_db.h
     include/dap_chain_global_db_remote.h
     include/dap_chain_global_db_driver.h
     include/dap_chain_global_db_driver_pgsql.h

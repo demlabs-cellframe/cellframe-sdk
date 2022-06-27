@@ -43,7 +43,7 @@
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_net.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_node.h"
 
 #define LOG_TAG "chain_node"

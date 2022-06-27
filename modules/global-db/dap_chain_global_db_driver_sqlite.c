@@ -35,7 +35,7 @@
 #include <unistd.h>
 #endif
 
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_global_db_driver_sqlite.h"
 #include "dap_common.h"
 #include "dap_hash.h"

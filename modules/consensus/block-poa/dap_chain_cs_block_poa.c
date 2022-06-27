@@ -35,7 +35,7 @@
 #include "dap_chain_cs_block_poa.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_stake.h"

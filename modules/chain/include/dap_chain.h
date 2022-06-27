@@ -26,7 +26,8 @@
 #pragma once
 #include <stdbool.h>
 #include <pthread.h>
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
+#include "dap_global_db_sync.h"
 #include "dap_config.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"

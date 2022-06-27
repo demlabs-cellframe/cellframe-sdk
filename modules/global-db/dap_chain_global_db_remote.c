@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_global_db_remote.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"

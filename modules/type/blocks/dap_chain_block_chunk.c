@@ -23,7 +23,7 @@
 #include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_block_chunk.h"
 
 #define LOG_TAG "dap_chain_block_chunk"
