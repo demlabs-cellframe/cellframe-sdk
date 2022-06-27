@@ -124,8 +124,7 @@ dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net,
         return NULL;
     const char *a_key = a_alias;
     size_t l_addr_size = 0;
-    l_addr = (dap_chain_node_addr_t*) (void*) dap_chain_global_db_gr_get(a_key, &l_addr_size,
-            a_net->pub.gdb_nodes_aliases);
+    l_addr = (dap_chain_node_addr_t*) (void*) dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,a_key, &l_addr_size,NULL, NULL);
     if(l_addr_size != sizeof(dap_chain_node_addr_t)) {
         DAP_DELETE(l_addr);
         l_addr = NULL;
@@ -210,7 +209,7 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
     size_t node_info_size = 0;
     dap_chain_node_info_t *node_info;
     // read node
-    node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, a_net->pub.gdb_nodes);
+    node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
 
     if(!node_info) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "node not found in base");
@@ -2155,8 +2154,8 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
         dap_chain_datum_t * l_datum = NULL;
         size_t l_datum_size = 0;
         size_t l_tsd_size = 0;
-        if((l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get(
-                l_datum_hash_hex_str, &l_datum_size, l_gdb_group_mempool)) != NULL) {
+        if((l_datum = (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool,
+                l_datum_hash_hex_str, &l_datum_size, NULL, NULL )) != NULL) {
 
             // Check if its token declaration
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
@@ -2402,7 +2401,7 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
                 l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
             }
             char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-            uint8_t *l_data_tmp = l_datum_hash_hex_str ? dap_chain_global_db_gr_get(l_datum_hash_hex_str, NULL, l_gdb_group_mempool) : NULL;
+            uint8_t *l_data_tmp = l_datum_hash_hex_str ? dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str, NULL, NULL, NULL ) : NULL;
             if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str) == 0) {
                 if(!dap_strcmp(l_hash_out_type,"hex"))
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_hex_str);
@@ -2498,8 +2497,8 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
         else
             l_datum_hash_out_str = l_datum_hash_base58_str;
 
-        dap_chain_datum_t * l_datum = l_datum_hash_hex_str ? (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_datum_hash_hex_str,
-                                                                                       &l_datum_size, l_gdb_group_mempool) : NULL;
+        dap_chain_datum_t * l_datum = l_datum_hash_hex_str ? (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str,
+                                                                                       &l_datum_size, NULL, NULL ) : NULL;
         size_t l_datum_size2= l_datum? dap_chain_datum_size( l_datum): 0;
         if (l_datum_size != l_datum_size2 ){
             ret = -8;
@@ -4714,7 +4713,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
     size_t l_tx_size = 0;
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)
-            dap_chain_global_db_gr_get(l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_tx_size, l_gdb_group);
+            dap_global_db_get_sync(l_gdb_group, l_hex_str_from58 ? l_hex_str_from58 : l_tx_hash_str, &l_tx_size, NULL, NULL );
     DAP_DEL_Z(l_hex_str_from58);
     if (!l_tx) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "Specified tx not found");

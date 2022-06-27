@@ -134,4 +134,5 @@ int dap_global_db_flush_sync();
 // ==== Unsafe functions (for own context call only) ===
 dap_global_db_context_t * dap_global_db_context_current();
 int dap_global_db_del_unsafe(dap_global_db_context_t * a_global_db_context, const char * a_group, const char *a_key);
+int dap_global_db_set_unsafe(dap_global_db_context_t * a_global_db_context, const char * a_group, const char *a_key, const void * a_value, const size_t a_value_length, bool a_pin_value );
 

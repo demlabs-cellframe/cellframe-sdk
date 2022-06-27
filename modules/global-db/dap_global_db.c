@@ -162,7 +162,7 @@ static void s_queue_io_msg_delete( struct queue_io_msg * a_msg);
 
 // Delete history add and del
 static int s_record_del_history_add( char *a_key, char *a_group, uint64_t a_timestamp);
-static int s_record_del_history_del( char *a_key,  char *a_group);
+static int s_record_del_history_del( const char *a_key,  const char *a_group);
 
 // Call notificators
 static void s_change_notify(dap_store_obj_t * a_store_obj, char a_opcode);
@@ -680,15 +680,16 @@ static bool s_msg_opcode_set(struct queue_io_msg * a_msg)
     dap_store_obj_t l_store_data = { 0 };
     dap_nanotime_t l_ts_now = dap_nanotime_now();
     l_store_data.key = a_msg->key ;
-    l_store_data.flags = a_msg->value_is_pinned ? RECORD_PINNED : 0 ;
+    l_store_data.flags =a_msg->value_is_pinned ? RECORD_PINNED : 0 ;
     l_store_data.value_len = ( a_msg->value_length == (size_t) -1) ?
                 dap_strlen( a_msg->value) : a_msg->value_length;
-    l_store_data.value = a_msg->value ? a_msg->value : NULL;
-    l_store_data.group = a_msg->group ;
+    l_store_data.value =  a_msg->value? a_msg->value : NULL;
+    l_store_data.group = (char*) a_msg->group;
     l_store_data.timestamp = l_ts_now;
 
     int l_res = dap_chain_global_db_driver_add(&l_store_data, 1);
-    if (l_res){
+
+    if (l_res == 0){
         s_record_del_history_del( a_msg->group, a_msg->key);
         if(a_msg->callback_result){
             a_msg->callback_result(s_context_global_db, DAP_GLOBAL_DB_RC_SUCCESS, a_msg->group, a_msg->key,
@@ -696,6 +697,7 @@ static bool s_msg_opcode_set(struct queue_io_msg * a_msg)
                                    a_msg->value_is_pinned , a_msg->callback_arg );
         }
         s_change_notify(&l_store_data, DAP_DB$K_OPTYPE_ADD);
+
     }else{
         log_it(L_ERROR, "Save error for %s:%s code %d", a_msg->group,a_msg->key, l_res);
         if(a_msg->callback_result)
@@ -705,6 +707,27 @@ static bool s_msg_opcode_set(struct queue_io_msg * a_msg)
     }
     return true;
 }
+
+int dap_global_db_set_unsafe(dap_global_db_context_t * a_global_db_context, const char * a_group, const char *a_key, const void * a_value, const size_t a_value_length, bool a_pin_value )
+{
+    dap_store_obj_t l_store_data = { 0 };
+    dap_nanotime_t l_ts_now = dap_nanotime_now();
+    l_store_data.key = a_key ;
+    l_store_data.flags = a_pin_value ? RECORD_PINNED : 0 ;
+    l_store_data.value_len = ( a_value_length == (size_t) -1) ?
+                dap_strlen( a_value) : a_value_length;
+    l_store_data.value =  a_value? a_value : NULL;
+    l_store_data.group = (char*) a_group;
+    l_store_data.timestamp = l_ts_now;
+
+    int l_res = dap_chain_global_db_driver_add(&l_store_data, 1);
+    if(l_res == 0 ){
+        s_record_del_history_del( a_group, a_key);
+        s_change_notify(&l_store_data, DAP_DB$K_OPTYPE_ADD);
+    }
+    return l_res;
+}
+
 
 /**
  * @brief dap_global_db_set_raw
@@ -1450,7 +1473,7 @@ dap_list_t *l_items_list = dap_global_db_get_sync_groups_all();
 * @param a_group a group name string, for example "kelvin-testnet.nodes"
 * @return If successful, returns true; otherwise, false.
 */
-static int s_record_del_history_del( char *a_group, char *a_key)
+static int s_record_del_history_del( const char *a_group, const char *a_key)
 {
 dap_store_obj_t store_data = {0};
 char	l_group[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
@@ -1459,7 +1482,7 @@ int	l_res = 0;
    if(!a_key)
        return false;
 
-   store_data.key = a_key;
+   store_data.key =( char*) a_key;
    dap_snprintf(l_group, sizeof(l_group) - 1, "%s.del", a_group);
    store_data.group = l_group;
 

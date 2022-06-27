@@ -2472,7 +2472,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
             // read pub key
             char *l_addr_key = dap_strdup_printf("node-addr-%s", l_net->pub.name);
-            l_pub_key_data = dap_chain_global_db_gr_get(l_addr_key, &l_pub_key_data_size, GROUP_LOCAL_NODE_ADDR);
+            l_pub_key_data = dap_global_db_get_sync(GROUP_LOCAL_NODE_ADDR, l_addr_key, &l_pub_key_data_size, NULL, NULL);
             // generate a new pub key if it doesn't exist
             if(!l_pub_key_data || !l_pub_key_data_size){
 

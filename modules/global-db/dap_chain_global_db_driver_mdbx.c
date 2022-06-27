@@ -55,9 +55,6 @@
 #include "mdbx.h"                                                           /* LibMDBX API */
 #define LOG_TAG "dap_chain_global_db_mdbx"
 
-int s_db_drvmode_async = 0;                                            /* Set a kind of processing requests to DB:
-                                                                            <> 0 - Async mode should be used */
-
 
 /** Struct for a MDBX DB context */
 typedef struct __db_ctx__ {

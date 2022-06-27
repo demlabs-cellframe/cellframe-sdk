@@ -1642,9 +1642,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
                                                                sizeof(dap_chain_datum_t*)*l_datums_count);
                 size_t l_datum_size = 0;
-                dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get( l_datum_hash_hex_str ,
-                                                                                                  &l_datum_size,
-                                                                   l_gdb_group_mempool);
+                dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str ,
+                                                                                                  &l_datum_size, NULL, NULL );
                 l_datums[0] = l_datum;
                 if ( s_callback_add_datums(l_chain, l_datums, l_datums_count) == l_datums_count ){
                     for ( size_t i = 0; i <l_datums_count; i++){
@@ -1749,8 +1748,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     if ( strcmp(l_from_events_str,"round.new") == 0 ){
                         const char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
                         size_t l_round_item_size = 0;
-                        l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_chain_global_db_gr_get(
-                                                        l_event_hash_str, &l_round_item_size, l_gdb_group_events);
+                        l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_global_db_get_sync(l_gdb_group_events,
+                                                        l_event_hash_str, &l_round_item_size, NULL, NULL);
                         if (l_round_item) {
                             l_event_size = l_round_item->event_size;
                             l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
@@ -1981,8 +1980,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
                 size_t l_round_item_size = 0;
                 dap_chain_cs_dag_event_round_item_t *l_round_item =
-                                    (dap_chain_cs_dag_event_round_item_t *)dap_chain_global_db_gr_get(
-                                                        l_event_hash_hex_str, &l_round_item_size, l_gdb_group_events);
+                                    (dap_chain_cs_dag_event_round_item_t *)dap_global_db_get_sync(l_gdb_group_events,
+                                                        l_event_hash_hex_str, &l_round_item_size, NULL, NULL);
                 if (l_round_item) {
                     dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
                     if (l_cert && l_cert->enc_key->priv_key_data) {

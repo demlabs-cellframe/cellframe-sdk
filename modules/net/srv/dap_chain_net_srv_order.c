@@ -405,7 +405,7 @@ dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_hash_str(dap_chain_n
     if ( a_net && a_hash_str ){
         char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group( a_net);
         size_t l_order_size =0;
-        l_order = (dap_chain_net_srv_order_t *) dap_chain_global_db_gr_get(a_hash_str, &l_order_size, l_gdb_group_str );
+        l_order = (dap_chain_net_srv_order_t *) dap_global_db_get_sync(l_gdb_group_str, a_hash_str, &l_order_size, NULL, NULL );
         // check order size
         if(l_order_size != dap_chain_net_srv_order_get_size(l_order)) {
             log_it( L_ERROR, "Found wrong size order");

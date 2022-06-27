@@ -433,9 +433,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                                            sizeof(dap_chain_datum_t*)*l_datums_count);
             size_t l_datum_size = 0;
 
-            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_chain_global_db_gr_get( l_subcmd_str_arg ,
-                                                                                              &l_datum_size,
-                                                               l_gdb_group_mempool);
+            dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_subcmd_str_arg ,
+                                                                                              &l_datum_size, NULL, NULL);
             l_datums[0] = l_datum;
             if ( s_callback_add_datums(l_chain,l_datums,l_datums_count ) == l_datums_count ){
                 for ( size_t i = 0; i <l_datums_count; i++){

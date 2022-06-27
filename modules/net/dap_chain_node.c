@@ -96,7 +96,7 @@ dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * a_net,const 
 {
     size_t l_addr_size =0;
     dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *)
-            dap_chain_global_db_gr_get(a_alias, &l_addr_size, a_net->pub.gdb_nodes_aliases);
+            dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases, a_alias, &l_addr_size, NULL, NULL );
     return  l_addr;
 }
 
@@ -179,7 +179,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     size_t node_info_size = 0;
     dap_chain_node_info_t *l_node_info;
     // read node
-    l_node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, a_net->pub.gdb_nodes);
+    l_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
 
     if(!l_node_info) {
         log_it(L_INFO, "node with key %s (addr " NODE_ADDR_FP_STR ") not found in base",l_key, NODE_ADDR_FP_ARGS(l_address));

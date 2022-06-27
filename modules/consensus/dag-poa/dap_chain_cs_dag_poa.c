@@ -248,8 +248,8 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
             char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
             size_t l_round_item_size = 0;
             dap_chain_cs_dag_event_round_item_t *l_round_item =
-                                (dap_chain_cs_dag_event_round_item_t *)dap_chain_global_db_gr_get(
-                                                    l_event_hash_hex_str, &l_round_item_size, l_gdb_group_events);
+                                (dap_chain_cs_dag_event_round_item_t *)dap_global_db_get_sync(l_gdb_group_events,
+                                                    l_event_hash_hex_str, &l_round_item_size, NULL, NULL );
             if ( l_round_item == NULL ) {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Can't find event in round.new - only place where could be signed the new event\n",
@@ -461,13 +461,14 @@ static bool s_poa_round_check(dap_chain_t *a_chain) {
 
 static event_clean_dup_items_t *s_event_clean_dup_items = NULL;
 
-static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_event_hash_hex_str) {
+static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_event_hash_hex_str)
+{
     char * l_gdb_group_events = a_dag->gdb_group_events_round_new;
     size_t l_round_item_size = 0;
     dap_chain_cs_dag_event_round_item_t * l_round_item = NULL;
 
-    if ( (l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_chain_global_db_gr_get(
-                                    a_event_hash_hex_str, &l_round_item_size, l_gdb_group_events) ) == NULL ) {
+    if ( (l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_global_db_get_sync(l_gdb_group_events,
+                                    a_event_hash_hex_str, &l_round_item_size, NULL, NULL ) ) == NULL ) {
         return;
     }
 
@@ -492,6 +493,7 @@ static void s_round_event_clean_dup(dap_chain_cs_dag_t * a_dag, const char *a_ev
                 log_it(L_WARNING,"Incorrect size with event %p: caled size excl signs %zd is bigger or equal then event size %zd",
                        l_event, l_offset_from_beginning, l_event_size);
                 dap_global_db_del_sync(l_gdb_group_events, l_events_round[l_index].key);
+                DAP_DELETE(l_item);
                 continue; // Incorrest size
             }
             size_t l_signs_count = 0;

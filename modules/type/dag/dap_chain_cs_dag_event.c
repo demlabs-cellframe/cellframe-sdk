@@ -305,7 +305,7 @@ dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(const char *a_event_has
                                                             dap_chain_cs_dag_event_round_info_t * a_event_round_info) {
     size_t l_event_round_item_size = 0;
     dap_chain_cs_dag_event_round_item_t* l_event_round_item =
-                (dap_chain_cs_dag_event_round_item_t*)dap_chain_global_db_gr_get(a_event_hash_str, &l_event_round_item_size, a_group );
+                (dap_chain_cs_dag_event_round_item_t*)dap_global_db_get_sync(a_group, a_event_hash_str, &l_event_round_item_size, NULL, NULL);
     if ( l_event_round_item == NULL )
         return NULL;
     size_t l_event_size = (size_t)l_event_round_item->event_size;

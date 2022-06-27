@@ -451,8 +451,7 @@ uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 {
     char *l_node_addr_str = dap_strdup_printf("%"DAP_UINT64_FORMAT_U"%s", a_node_addr, a_group);
     size_t l_id_len = 0;
-    uint8_t *l_id = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_id_len,
-                                                GROUP_LOCAL_NODE_LAST_ID);
+    byte_t *l_id = dap_global_db_get_sync(GROUP_LOCAL_NODE_LAST_ID, l_node_addr_str, &l_id_len, NULL, NULL);
     uint64_t l_ret_id = 0;
     if (l_id) {
         if (l_id_len == sizeof(uint64_t))
@@ -491,8 +490,8 @@ dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_cha
 {
     char *l_node_chain_str = dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
     size_t l_hash_len = 0;
-    uint8_t *l_hash = dap_chain_global_db_gr_get((const char*)l_node_chain_str, &l_hash_len,
-                                                 GROUP_LOCAL_NODE_LAST_ID);
+    byte_t *l_hash = dap_global_db_get_sync(GROUP_LOCAL_NODE_LAST_ID,(const char*)l_node_chain_str, &l_hash_len,
+                                                 NULL, NULL);
     DAP_DELETE(l_node_chain_str);
     return (dap_chain_hash_fast_t *)l_hash;
 }

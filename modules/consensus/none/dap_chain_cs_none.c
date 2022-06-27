@@ -513,11 +513,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
 {
     char * l_key = dap_chain_hash_fast_to_str_new(a_atom_hash);
     size_t l_ret_size;
-    dap_chain_atom_ptr_t l_ret;
+    dap_chain_atom_ptr_t l_ret = NULL;
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_atom_iter->chain );
-    l_ret = dap_chain_global_db_gr_get(l_key,&l_ret_size,
-                                       PVT ( l_gdb )->group_datums  );
-    *a_atom_size = l_ret_size;
+    if(l_gdb){
+        l_ret = dap_global_db_get_sync(PVT ( l_gdb )->group_datums,l_key,&l_ret_size,NULL, NULL );
+        *a_atom_size = l_ret_size;
+    }
     return l_ret;
 }
 
@@ -537,8 +538,8 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     a_atom_iter->cur_item = l_item;
     if (a_atom_iter->cur_item ){
         size_t l_datum_size =0;
-        l_datum= (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_item->key, &l_datum_size,
-                                                                 PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums );
+        l_datum= (dap_chain_datum_t*) dap_global_db_get_sync(PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums, l_item->key, &l_datum_size,
+                                                                 NULL, NULL );
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE( a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
@@ -574,8 +575,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_i
     a_atom_iter->cur_item = l_item;
     if (a_atom_iter->cur_item ){
         size_t l_datum_size =0;
-        l_datum = (dap_chain_datum_t *)dap_chain_global_db_gr_get(l_item->key, &l_datum_size,
-                                                                  PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums);
+        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums, l_item->key, &l_datum_size, NULL, NULL);
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE(a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
