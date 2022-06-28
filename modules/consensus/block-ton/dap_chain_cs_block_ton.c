@@ -1748,8 +1748,8 @@ static void s_callback_check_and_save_candidate_block  (dap_global_db_context_t 
  * @param a_data_size
  */
 static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_node_addr, 
-								dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size) {
-	bool l_message_delete = true;
+                                dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size)
+{
     dap_chain_cs_block_ton_session_t *l_session = (dap_chain_cs_block_ton_session_t *)a_arg;
 	dap_chain_cs_block_ton_message_t *l_message =
 			(dap_chain_cs_block_ton_message_t *)DAP_DUP_SIZE(a_data, a_data_size);
@@ -2477,15 +2477,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 	}
 
 handler_finish_save:
-{
     s_session_packet_in_handler_finish_save(l_session, a_sender_node_addr,l_message, a_data_size, l_finalize_consensus);
-    l_message_delete = false;
-}
+    return;
 handler_finish:
-    if (l_message_delete) {
-    	DAP_DELETE(l_message);
-	}
-	return;
+    DAP_DELETE(l_message);
 }
 
 static uint8_t *s_message_data_sign(dap_chain_cs_block_ton_session_t *a_session,
