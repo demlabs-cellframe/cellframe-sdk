@@ -1273,6 +1273,56 @@ int dap_global_db_set_sync(const char * a_group, const char *a_key, const void *
 }
 
 /**
+ * @brief dap_global_db_pin_sync
+ * @param a_group
+ * @param a_key
+ * @return
+ */
+int dap_global_db_pin_sync(const char * a_group, const char *a_key)
+{
+    struct sync_op_result * l_args = DAP_NEW_Z(struct sync_op_result);
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "pin sync call executes for group \"%s\" key \"%s\"", a_group, a_key);
+
+    pthread_mutex_init(&l_args->mutex,NULL);
+    pthread_cond_init(&l_args->cond,NULL);
+    pthread_mutex_lock(&l_args->mutex);
+    dap_global_db_pin(a_group, a_key, s_sync_op_result_callback, l_args);
+    pthread_cond_wait(&l_args->cond, &l_args->mutex);
+    pthread_mutex_unlock(&l_args->mutex);
+    pthread_mutex_destroy(&l_args->mutex);
+    pthread_cond_destroy(&l_args->cond);
+
+    int l_ret = l_args->result ;
+    DAP_DELETE(l_args);
+    return l_ret;
+}
+
+/**
+ * @brief dap_global_db_unpin_sync
+ * @param a_group
+ * @param a_key
+ * @return
+ */
+int dap_global_db_unpin_sync(const char * a_group, const char *a_key)
+{
+    struct sync_op_result * l_args = DAP_NEW_Z(struct sync_op_result);
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "pin sync call executes for group \"%s\" key \"%s\"", a_group, a_key);
+
+    pthread_mutex_init(&l_args->mutex,NULL);
+    pthread_cond_init(&l_args->cond,NULL);
+    pthread_mutex_lock(&l_args->mutex);
+    dap_global_db_unpin(a_group, a_key, s_sync_op_result_callback, l_args);
+    pthread_cond_wait(&l_args->cond, &l_args->mutex);
+    pthread_mutex_unlock(&l_args->mutex);
+    pthread_mutex_destroy(&l_args->mutex);
+    pthread_cond_destroy(&l_args->cond);
+
+    int l_ret = l_args->result ;
+    DAP_DELETE(l_args);
+    return l_ret;
+}
+
+/**
  * @brief dap_global_db_del_sync
  * @param a_group
  * @param a_key
