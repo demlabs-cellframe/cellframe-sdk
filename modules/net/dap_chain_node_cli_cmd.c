@@ -2006,7 +2006,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
 
         // Select chain
         if(l_chain_str) {
-            if((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
+            if ( (*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL ) { // Can't find such chain
                 char l_str_to_reply_chain[500] = {0};
                 char *l_str_to_reply = NULL;
                 dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
@@ -2024,10 +2024,11 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
                 return -103;
             }
         }
-        else {
-            dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "%s requires parameter '-chain'", argv[0]);
-            return -104;
+        else if ( (*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL ) {
+				dap_chain_node_cli_set_reply_text(a_str_reply,
+												  "%s requires parameter '-chain' or set default datum type in chain configuration file",
+												  argv[0]);
+				return -104;
         }
     }
     return 0;
