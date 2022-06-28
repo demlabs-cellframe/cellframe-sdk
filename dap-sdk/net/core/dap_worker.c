@@ -619,8 +619,7 @@ void *dap_worker_thread(void *arg)
 
             l_bytes_sent = 0;
 
-            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) &&
-                    !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
+            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
                 /*
                  * Socket is ready to write and not going to close
@@ -844,7 +843,7 @@ void *dap_worker_thread(void *arg)
 #ifdef DAP_EVENTS_CAPS_KQUEUE
                     l_worker->kqueue_events_count--;
 #endif
-                } else if (l_cur->buf_out_size ) {
+                } else {
                     if(g_debug_reactor)
                         log_it(L_INFO, "Got signal to close %s sock %"DAP_FORMAT_SOCKET" [thread %u] type %d but buffer is not empty(%zu)",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, l_tn,
