@@ -43,7 +43,7 @@
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_net.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_node.h"
 
 #define LOG_TAG "chain_node"
@@ -83,7 +83,7 @@ bool dap_chain_node_check_addr(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_
  */
 bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, dap_chain_node_addr_t *a_addr)
 {
-    return dap_chain_global_db_gr_set( a_alias, a_addr, sizeof(dap_chain_node_addr_t), a_net->pub.gdb_nodes_aliases);
+    return dap_global_db_set_sync(a_net->pub.gdb_nodes_aliases, a_alias, a_addr, sizeof(dap_chain_node_addr_t),true)==0;
 }
 
 /**
@@ -95,7 +95,7 @@ dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * a_net,const 
 {
     size_t l_addr_size =0;
     dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *)
-            dap_chain_global_db_gr_get(a_alias, &l_addr_size, a_net->pub.gdb_nodes_aliases);
+            dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases, a_alias, &l_addr_size, NULL, NULL );
     return  l_addr;
 }
 
@@ -104,7 +104,7 @@ dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * a_net,const 
  */
 bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
 {
-    return  dap_chain_global_db_gr_del(a_alias, a_net->pub.gdb_nodes_aliases);
+    return  dap_global_db_del_sync(a_net->pub.gdb_nodes_aliases, a_alias) == 0;
 }
 
 /**
@@ -158,11 +158,11 @@ int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *a_n
     }
     //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
     size_t l_node_info_size = dap_chain_node_info_get_size(a_node_info);
-    bool res = dap_chain_global_db_gr_set(l_key, a_node_info, l_node_info_size, a_net->pub.gdb_nodes);
+    int l_res = dap_global_db_set_sync( a_net->pub.gdb_nodes, l_key, a_node_info, l_node_info_size, true);
 
     DAP_DELETE(l_key);
 
-    return res ? 0 : -3;
+    return l_res;
 }
 
 /**
@@ -178,7 +178,7 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
     size_t node_info_size = 0;
     dap_chain_node_info_t *l_node_info;
     // read node
-    l_node_info = (dap_chain_node_info_t *) dap_chain_global_db_gr_get(l_key, &node_info_size, a_net->pub.gdb_nodes);
+    l_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
 
     if(!l_node_info) {
         log_it(L_INFO, "node with key %s (addr " NODE_ADDR_FP_STR ") not found in base",l_key, NODE_ADDR_FP_ARGS(l_address));
@@ -269,7 +269,9 @@ static void s_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_co
         return;
     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
     if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
-        dap_chain_global_db_gr_del(a_key, a_group);
+        dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
+        assert(l_gdb_context);
+        dap_global_db_del_unsafe(l_gdb_context,a_group, a_key);
     }
 }
 
@@ -304,9 +306,9 @@ bool dap_chain_node_mempool_autoproc_init()
                 continue;
             }
             char *l_gdb_group_mempool = NULL;
-            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             size_t l_objs_size = 0;
-            dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
+            dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
             if (l_objs_size) {
                 for (size_t i = 0; i < l_objs_size; i++) {
                     if (!l_objs[i].value_len)
@@ -314,10 +316,10 @@ bool dap_chain_node_mempool_autoproc_init()
                     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
                     if (dap_chain_node_mempool_process(l_chain, l_datum) >= 0) {
                         // Delete processed objects
-                        dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
+                        dap_global_db_del_sync(l_gdb_group_mempool, l_objs[i].key );
                     }
                 }
-                dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+                dap_global_db_objs_delete(l_objs, l_objs_size);
             }
             DAP_DELETE(l_gdb_group_mempool);
             dap_chain_add_mempool_notify_callback(l_chain, s_chain_node_mempool_autoproc_notify, l_chain);

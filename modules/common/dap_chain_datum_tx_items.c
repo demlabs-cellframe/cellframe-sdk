@@ -336,7 +336,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size)
 {
-    if (!a_key || !a_key->pkey)
+    if (!a_key || !a_key->header.size )
         return NULL;
     if (IS_ZERO_256(a_value))
         return NULL;

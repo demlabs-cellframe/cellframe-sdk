@@ -35,7 +35,7 @@
 #include "dap_hash.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_global_db_driver.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_none.h"
@@ -61,6 +61,8 @@ typedef struct dap_chain_gdb_private
 
     dap_chain_t *chain;
 
+    pthread_cond_t load_cond;
+    pthread_mutex_t load_mutex;
     dap_chain_gdb_datum_hash_item_t * hash_items;
 } dap_chain_gdb_private_t;
 
@@ -189,6 +191,9 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // load ledger
     l_gdb_priv->is_load_mode = true;
+    pthread_cond_init(&l_gdb_priv->load_cond, NULL);
+    pthread_mutex_init(&l_gdb_priv->load_mutex, NULL);
+
     dap_chain_gdb_ledger_load(l_gdb_priv->group_datums, a_chain);
 
     a_chain->callback_delete = dap_chain_gdb_delete;
@@ -268,6 +273,39 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
     return 1;
 }*/
 
+/**
+ * @brief s_ledger_load_callback
+ * @param a_global_db_context
+ * @param a_rc
+ * @param a_group
+ * @param a_key
+ * @param a_values_total
+ * @param a_values_shift
+ * @param a_values_count
+ * @param a_values
+ * @param a_arg
+ */
+static bool s_ledger_load_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
+{
+    assert(a_arg);
+    dap_chain_t * l_chain = (dap_chain_t *) a_arg;
+    assert(l_chain);
+    dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(l_chain);
+    assert(l_gdb);
+    dap_chain_gdb_private_t * l_gdb_pvt = PVT(l_gdb);
+    assert(l_gdb_pvt);
+    // make list of datums
+    for(size_t i = 0; i < a_values_count; i++) {
+        s_chain_callback_atom_add(l_chain, a_values[i].value, a_values[i].value_len);
+    }
+    l_gdb_pvt->is_load_mode = false;
+
+    pthread_mutex_lock(&l_gdb_pvt->load_mutex);
+    pthread_cond_broadcast(&l_gdb_pvt->load_cond);
+    pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
+    return true;
+}
 
 /**
  * @brief Load ledger from mempool
@@ -278,15 +316,15 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  */
 int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain)
 {
+    dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
+    dap_chain_gdb_private_t * l_gdb_pvt = PVT(l_gdb);
     size_t l_data_size = 0;
     //  Read the entire database into an array of size bytes
-    dap_global_db_obj_t *data = dap_chain_global_db_gr_load(a_gdb_group, &l_data_size);
-    // make list of datums
-    for(size_t i = 0; i < l_data_size; i++) {
-        s_chain_callback_atom_add(a_chain, data[i].value, data[i].value_len);
-    }
-    dap_chain_global_db_objs_delete(data, l_data_size);
-    PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = false;
+    pthread_mutex_lock(&l_gdb_pvt->load_mutex);
+    dap_global_db_get_all(a_gdb_group, 0, s_ledger_load_callback, a_chain);
+    pthread_cond_wait(&l_gdb_pvt->load_cond, &l_gdb_pvt->load_mutex);
+    pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
+
     return 0;
 }
 
@@ -375,7 +413,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
     dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash,l_hash_item->key,sizeof(l_hash_item->key)-1);
     if (!l_gdb_priv->is_load_mode) {
-	dap_chain_global_db_gr_set(l_hash_item->key, l_datum, l_datum_size, l_gdb_priv->group_datums);
+        dap_global_db_set(l_gdb_priv->group_datums, l_hash_item->key, l_datum, l_datum_size, false, NULL, NULL);
     } else
         log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", l_hash_item->key, l_gdb_priv->group_datums);
 
@@ -475,11 +513,12 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
 {
     char * l_key = dap_chain_hash_fast_to_str_new(a_atom_hash);
     size_t l_ret_size;
-    dap_chain_atom_ptr_t l_ret;
+    dap_chain_atom_ptr_t l_ret = NULL;
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_atom_iter->chain );
-    l_ret = dap_chain_global_db_gr_get(l_key,&l_ret_size,
-                                       PVT ( l_gdb )->group_datums  );
-    *a_atom_size = l_ret_size;
+    if(l_gdb){
+        l_ret = dap_global_db_get_sync(PVT ( l_gdb )->group_datums,l_key,&l_ret_size,NULL, NULL );
+        *a_atom_size = l_ret_size;
+    }
     return l_ret;
 }
 
@@ -499,8 +538,8 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
     a_atom_iter->cur_item = l_item;
     if (a_atom_iter->cur_item ){
         size_t l_datum_size =0;
-        l_datum= (dap_chain_datum_t*) dap_chain_global_db_gr_get(l_item->key, &l_datum_size,
-                                                                 PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums );
+        l_datum= (dap_chain_datum_t*) dap_global_db_get_sync(PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums, l_item->key, &l_datum_size,
+                                                                 NULL, NULL );
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE( a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
@@ -536,8 +575,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_next(dap_chain_atom_i
     a_atom_iter->cur_item = l_item;
     if (a_atom_iter->cur_item ){
         size_t l_datum_size =0;
-        l_datum = (dap_chain_datum_t *)dap_chain_global_db_gr_get(l_item->key, &l_datum_size,
-                                                                  PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums);
+        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums, l_item->key, &l_datum_size, NULL, NULL);
         if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
             DAP_DELETE(a_atom_iter->cur);
         a_atom_iter->cur = l_datum;

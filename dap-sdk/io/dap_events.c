@@ -216,7 +216,7 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
         a_threads_count = l_cpu_count;
 
     s_threads_count = a_threads_count ? a_threads_count : l_cpu_count;
-
+    assert(s_threads_count);
     s_workers =  DAP_NEW_Z_SIZE(dap_worker_t*,s_threads_count*sizeof (dap_worker_t*) );
     if ( !s_workers  )
         return -1;
@@ -279,7 +279,7 @@ int dap_events_start()
         dap_worker_t * l_worker = DAP_NEW_Z(dap_worker_t);
 
         l_worker->id = i;
-        l_worker->context = dap_context_new();
+        l_worker->context = dap_context_new(DAP_CONTEXT_TYPE_WORKER);
         l_worker->context->worker = l_worker;
 
 
@@ -314,7 +314,8 @@ int dap_events_wait( )
 {
     for( uint32_t i = 0; i < s_threads_count; i++ ) {
         void *ret;
-        pthread_join( s_workers[i]->context->thread_id  , &ret );
+        pthread_t l_thread_id = s_workers[i]->context->thread_id;
+        pthread_join(l_thread_id , &ret );
     }
     return 0;
 }
@@ -329,7 +330,7 @@ void dap_events_stop_all( )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
     for( uint32_t i = 0; i < s_threads_count; i++ ) {
-        dap_events_socket_event_signal( s_workers[i]->event_exit, 1);
+        dap_events_socket_event_signal( s_workers[i]->context->event_exit, 1);
     }
     // TODO implement signal to stop the workers
 }

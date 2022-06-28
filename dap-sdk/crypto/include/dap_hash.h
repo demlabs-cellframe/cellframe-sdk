@@ -137,6 +137,32 @@ DAP_STATIC_INLINE char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
 
 #define dap_hash_fast_to_str_new dap_chain_hash_fast_to_str_new
 
+/**
+ * @brief dap_hash_fast_str_new
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+static inline char * dap_hash_fast_str_new( const void *a_data, size_t a_data_size )
+{
+    if(!a_data || !a_data_size)
+        return NULL;
+
+    dap_chain_hash_fast_t l_hash;
+    memset(&l_hash, 0, sizeof(dap_chain_hash_fast_t));
+    dap_hash_fast(a_data, a_data_size, &l_hash);
+    size_t a_str_max = (sizeof(l_hash.raw) + 1) * 2 + 2; /* heading 0x */
+    char *a_str = DAP_NEW_Z_SIZE(char, a_str_max);
+    size_t hash_len = (size_t)dap_chain_hash_fast_to_str(&l_hash, a_str, a_str_max);
+    if(!hash_len) {
+        DAP_DELETE(a_str);
+        return NULL;
+    }
+    return a_str;
+
+}
+
+
 #ifdef __cplusplus
 }
 #endif

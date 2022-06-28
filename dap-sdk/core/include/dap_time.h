@@ -16,7 +16,7 @@ typedef uint64_t dap_time_t;
 typedef uint64_t dap_nanotime_t;
 
 // Create gdb time from second
-dap_nanotime_t dap_gdb_time_from_sec(uint32_t a_time);
+dap_nanotime_t dap_nanotime_from_sec(uint32_t a_time);
 // Get seconds from gdb time
 long dap_gdb_time_to_sec(dap_nanotime_t a_time);
 
@@ -24,12 +24,12 @@ long dap_gdb_time_to_sec(dap_nanotime_t a_time);
  * @brief dap_chain_time_now Get current time in seconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in seconds.
  */
-dap_nanotime_t dap_time_now(void);
+dap_time_t dap_time_now(void);
 /**
  * @brief dap_clock_gettime Get current time in nanoseconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in nanoseconds.
  */
-dap_nanotime_t dap_gdb_time_now(void);
+dap_nanotime_t dap_nanotime_now(void);
 
 
 // crossplatform usleep

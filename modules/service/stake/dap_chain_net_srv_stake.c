@@ -984,7 +984,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order remove' requires parameter -order");
                 return -13;
             }
-            if (dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_hex_str)) {
+            if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str)) {
                 if(!dap_strcmp(a_hash_out_type,"hex"))
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't remove order %s\n", l_order_hash_hex_str);
                 else
@@ -1117,7 +1117,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 return -16;
             }
             // Create the order & put it to GDB
-            dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_hex_str);
+            dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
             DAP_DELETE(l_order_hash_hex_str);
             DAP_DELETE(l_order_hash_base58_str);
             l_order_hash_hex_str = s_stake_order_create(l_stake, l_key);
@@ -1149,7 +1149,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             }
             char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
             size_t l_orders_count = 0;
-            dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str, &l_orders_count);
+            dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
             dap_chain_net_srv_stake_item_t *l_stake;
             dap_string_t *l_reply_str = dap_string_new("");
             for (size_t i = 0; i < l_orders_count; i++) {
@@ -1164,7 +1164,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 DAP_DELETE(l_addr);
                 DAP_DELETE(l_stake);
             }
-            dap_chain_global_db_objs_delete(l_orders, l_orders_count);
+            dap_global_db_objs_delete(l_orders, l_orders_count);
             DAP_DELETE( l_gdb_group_str);
             if (!l_reply_str->len) {
                 dap_string_append(l_reply_str, "No orders found");
@@ -1279,7 +1279,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 if (l_tx && s_stake_tx_put(l_tx, l_net)) {
                     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);         
                     // TODO send a notification to order owner to delete it
-                    dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
+                    dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_str);
                 }
                 DAP_DELETE(l_order);
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_tx ? "Stake transaction has done" :

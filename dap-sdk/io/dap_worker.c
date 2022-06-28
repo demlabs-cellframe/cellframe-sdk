@@ -51,7 +51,6 @@ static void s_queue_delete_es_callback( dap_events_socket_t * a_es, void * a_arg
 static void s_queue_es_reassign_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg);
 static void s_queue_es_io_callback( dap_events_socket_t * a_es, void * a_arg);
-static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
 /**
  * @brief dap_worker_init
@@ -104,9 +103,8 @@ void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg
     }
 
     l_worker->queue_callback    = dap_context_create_queue(a_context, s_queue_callback_callback);
-    l_worker->event_exit        = dap_context_create_event(a_context, s_event_exit_callback);
 
-    l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
+    l_worker->timer_check_activity = dap_timerfd_create (s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
     dap_worker_add_events_socket_unsafe(  l_worker->timer_check_activity->events_socket, l_worker);
 
@@ -264,19 +262,6 @@ static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
 }
 
 /**
- * @brief s_event_exit_callback
- * @param a_es
- * @param a_flags
- */
-static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
-{
-    (void) a_flags;
-    a_es->context->signal_exit = true;
-    if(g_debug_reactor)
-        log_it(L_DEBUG, "Worker :%u signaled to exit", a_es->context->worker->id);
-}
-
-/**
  * @brief s_pipe_data_out_read_callback
  * @param a_es
  * @param a_arg
@@ -391,6 +376,27 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
         strerror_r(l_errno,l_errbuf,sizeof (l_errbuf));
         log_it(L_ERROR, "Cant send pointer to interthread queue input: \"%s\"(code %d)", l_errbuf, l_errno);
     }
+}
+
+/**
+ * @brief Send callback to the worker queue's input
+ * @param a_es_input Queue's input
+ * @param a_callback Callback
+ * @param a_arg Argument for callback
+ */
+void dap_worker_exec_callback_inter(dap_events_socket_t * a_es_input, dap_worker_callback_t a_callback, void * a_arg)
+{
+    dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
+    l_msg->callback = a_callback;
+    l_msg->arg = a_arg;
+    int l_ret=dap_events_socket_queue_ptr_send_to_input (a_es_input ,l_msg );
+    if(l_ret != 0 ){
+        char l_errbuf[128];
+        *l_errbuf = 0;
+        strerror_r(l_ret,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR, "Cant send pointer in queue input: \"%s\"(code %d)", l_errbuf, l_ret);
+    }
+
 }
 
 

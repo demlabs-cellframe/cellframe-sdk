@@ -45,7 +45,8 @@
 
 #define _GNU_SOURCE
 
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
+#include "dap_config.h"
 #include "dap_chain_global_db_driver_mdbx.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
@@ -54,10 +55,6 @@
 
 #include "mdbx.h"                                                           /* LibMDBX API */
 #define LOG_TAG "dap_chain_global_db_mdbx"
-
-extern  int s_db_drvmode_async ,                                            /* Set a kind of processing requests to DB:
-                                                                            <> 0 - Async mode should be used */
-        s_dap_global_db_debug_more;                                         /* Enable extensible debug output */
 
 
 /** Struct for a MDBX DB context */
@@ -179,7 +176,7 @@ dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
 uint64_t l_seq;
 MDBX_val    l_key_iov, l_data_iov;
 
-    debug_if(s_dap_global_db_debug_more, L_DEBUG, "Init group/table '%s', flags: %#x ...", a_group, a_flags);
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "Init group/table '%s', flags: %#x ...", a_group, a_flags);
 
 
     assert( !pthread_rwlock_rdlock(&s_db_ctxs_rwlock) );                    /* Get RD lock for lookup only */
@@ -383,11 +380,11 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
     else if ( MDBX_SUCCESS != (l_rc = mdbx_cursor_open(l_txn, s_db_master_dbi, &l_cursor)) )
         log_it(L_ERROR, "mdbx_cursor_open: (%d) %s", l_rc, mdbx_strerror(l_rc));
     else{
-        debug_if(s_dap_global_db_debug_more, L_DEBUG, "--- List of stored groups ---");
+        debug_if(g_dap_global_db_debug_more, L_DEBUG, "--- List of stored groups ---");
 
         for ( int i = 0;  !(l_rc = mdbx_cursor_get (l_cursor, &l_key_iov, &l_data_iov, MDBX_NEXT )); i++ )
             {
-            debug_if(s_dap_global_db_debug_more, L_DEBUG, "MDBX SubDB #%03d [0:%zu]: '%.*s' = [0:%zu]: '%.*s'", i,
+            debug_if(g_dap_global_db_debug_more, L_DEBUG, "MDBX SubDB #%03d [0:%zu]: '%.*s' = [0:%zu]: '%.*s'", i,
                     l_key_iov.iov_len, (int) l_key_iov.iov_len, (char *) l_key_iov.iov_base,
                     l_data_iov.iov_len, (int) l_data_iov.iov_len, (char *) l_data_iov.iov_base);
 
@@ -396,7 +393,7 @@ size_t     l_upper_limit_of_db_size = 32*1024*1024*1024ULL;
             l_data_iov.iov_len = strlen(l_cp);
             s_dap_slist_add2tail(&l_slist, l_cp, l_data_iov.iov_len);
             }
-        debug_if(s_dap_global_db_debug_more, L_DEBUG, "--- End-Of-List  ---");
+        debug_if(g_dap_global_db_debug_more, L_DEBUG, "--- End-Of-List  ---");
         }
 
     assert ( MDBX_SUCCESS == mdbx_txn_commit (l_txn) );
@@ -458,7 +455,7 @@ dap_db_ctx_t *l_db_ctx = NULL;
     assert ( !pthread_rwlock_unlock(&s_db_ctxs_rwlock) );
 
     if ( !l_db_ctx )
-        debug_if(s_dap_global_db_debug_more, L_WARNING, "No DB context for the group '%s'", a_group);
+        debug_if(g_dap_global_db_debug_more, L_WARNING, "No DB context for the group '%s'", a_group);
 
     return l_db_ctx;
 }
@@ -1126,7 +1123,7 @@ struct  __record_suffix__   *l_suff;
             break;
 
         if ( !(l_count_out = min(l_stat.ms_entries, l_count_out)) ) {
-            debug_if(s_dap_global_db_debug_more, L_WARNING, "No object (-s) to be retrieved from the group '%s'", a_group);
+            debug_if(g_dap_global_db_debug_more, L_WARNING, "No object (-s) to be retrieved from the group '%s'", a_group);
             break;
         }
 

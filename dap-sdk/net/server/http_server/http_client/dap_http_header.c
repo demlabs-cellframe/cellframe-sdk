@@ -133,7 +133,7 @@ dap_http_header_t *l_new_header;
      */
     for ( l_ht = ht_fields; l_ht->namelen; l_ht++)
         {
-            if ( (l_namelen == l_ht->namelen) )
+            if ( l_namelen == l_ht->namelen )
                 if ( !memcmp(l_pname, l_ht->name, l_namelen) )
                     break;
             }

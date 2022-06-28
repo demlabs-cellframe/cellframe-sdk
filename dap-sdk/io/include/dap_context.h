@@ -56,6 +56,7 @@ typedef struct dap_context {
     // Compatibility fields, in future should be replaced with _inheritor
     dap_proc_thread_t * proc_thread; // If the context belongs to proc_thread
     dap_worker_t * worker; // If the context belongs to worker
+    int type; // Context type
 
     // pthread-related fields
     pthread_cond_t started_cond; // Fires when thread started and pre-loop callback executes
@@ -89,9 +90,13 @@ typedef struct dap_context {
 #else
 #error "Not defined worker for your platform"
 #endif
+    ssize_t esocket_current; // Currently selected esocket
+    ssize_t esockets_selected; // Currently selected number of esockets
 
     atomic_uint event_sockets_count;
     dap_events_socket_t *esockets; // Hashmap of event sockets
+
+    dap_events_socket_t * event_exit;
 
     dap_events_socket_t **queue_es; // Queues
     dap_events_socket_t ***queue_es_input; // Input for others queues
@@ -102,6 +107,9 @@ typedef struct dap_context {
     // Flags
     bool is_running; // Is running
     uint32_t running_flags; // Flags passed for _run function
+
+    // Inheritor
+    void * _inheritor;
 } dap_context_t;
 
 
@@ -112,7 +120,7 @@ typedef struct dap_context {
 #define DAP_CONTEXT_FLAG_EXIT_IF_ERROR     0x00000100
 
 // Usual policies
-#define DAP_CONTEXT_POLICY_DEFAUT          0
+#define DAP_CONTEXT_POLICY_DEFAULT          0
 #define DAP_CONTEXT_POLICY_TIMESHARING     1
 // Real-time policies.
 #define DAP_CONTEXT_POLICY_FIFO            2
@@ -130,7 +138,7 @@ int dap_context_init(); // Init
 void dap_context_deinit(); // Deinit
 
 // New context create and run.
-dap_context_t * dap_context_new();
+dap_context_t * dap_context_new(int a_type);
 
 // Run new context in dedicated thread.
 // ATTENTION: after running the context nobody have to access it outside its own running thread
@@ -139,6 +147,9 @@ int dap_context_run(dap_context_t * a_context,int a_cpu_id, int a_sched_policy, 
                     dap_context_callback_t a_callback_started,
                     dap_context_callback_t a_callback_stopped,
                     void * a_callback_arg );
+
+void dap_context_stop_n_kill(dap_context_t * a_context);
+void dap_context_wait(dap_context_t * a_context);
 
 /**
  * @brief dap_context_current Get current context

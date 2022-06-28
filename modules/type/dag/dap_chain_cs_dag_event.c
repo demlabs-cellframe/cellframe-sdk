@@ -257,6 +257,16 @@ void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, const char a_op
     }
 }
 
+/**
+ * @brief dap_chain_cs_dag_event_gdb_set
+ * @param a_dag
+ * @param a_event_hash_str
+ * @param a_event
+ * @param a_event_size
+ * @param a_round_item
+ * @param a_group
+ * @return
+ */
 bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
                                     size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item,
                                     const char *a_group)
@@ -281,9 +291,8 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
 
     l_round_item->round_info.ts_update = dap_time_now();
 
-    bool ret = dap_chain_global_db_gr_set(a_event_hash_str, l_round_item,
-            dap_chain_cs_dag_event_round_item_get_size(l_round_item),
-            a_group);
+    bool ret = dap_global_db_set(a_group, a_event_hash_str, l_round_item,
+            dap_chain_cs_dag_event_round_item_get_size(l_round_item),true, NULL, NULL) == 0;
 
     /*size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(a_round_item);
     dap_chain_cs_dag_event_broadcast(a_dag, DAP_DB$K_OPTYPE_ADD, a_dag->gdb_group_events_round_new,
@@ -296,7 +305,7 @@ dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(const char *a_event_has
                                                             dap_chain_cs_dag_event_round_info_t * a_event_round_info) {
     size_t l_event_round_item_size = 0;
     dap_chain_cs_dag_event_round_item_t* l_event_round_item =
-                (dap_chain_cs_dag_event_round_item_t*)dap_chain_global_db_gr_get(a_event_hash_str, &l_event_round_item_size, a_group );
+                (dap_chain_cs_dag_event_round_item_t*)dap_global_db_get_sync(a_group, a_event_hash_str, &l_event_round_item_size, NULL, NULL);
     if ( l_event_round_item == NULL )
         return NULL;
     size_t l_event_size = (size_t)l_event_round_item->event_size;

@@ -410,19 +410,19 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
 
                     debug_if (s_debug_http, L_DEBUG,"%"DAP_FORMAT_SOCKET" Out: prepare cached headers", l_http_client->esocket->socket);
 
-                    } else if (l_http_cache) {
+                    } else {
                         pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                         pthread_rwlock_wrlock(&l_http_client->proc->cache_rwlock);
                         dap_http_cache_delete(l_http_cache);
                         l_http_client->proc->cache = NULL;
                         l_http_cache = NULL;
                     }
-
-
-                    if ( !l_http_cache && (l_http_client->proc->new_callback) ) /* Call client constructor */
-                        l_http_client->proc->new_callback(l_http_client, NULL);
-                } else
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
+                } else { /* No cache */
+                    pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
+                    if (l_http_client->proc->new_callback) /* Call client constructor */
+                        l_http_client->proc->new_callback(l_http_client, NULL);
+                }
             } /* case DAP_HTTP_CLIENT_STATE_START: */
 
             /* no break here just step to next phase */
@@ -483,7 +483,8 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                             l_http_client->state_read = DAP_HTTP_CLIENT_STATE_DATA;
                         }else{ // No data, its over
                             l_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-                            dap_events_socket_set_writable_unsafe(a_esocket, true);
+                            if (l_http_client->proc->cache)
+                                dap_http_client_write(a_esocket, NULL);
                         }
                     }
 
@@ -502,7 +503,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
                     a_esocket->buf_in_size = 0;
                     l_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-                    dap_events_socket_set_writable_unsafe(a_esocket, true);
+                    dap_http_client_write(a_esocket, NULL);
                 }
             } break;
             case DAP_HTTP_CLIENT_STATE_NONE: {

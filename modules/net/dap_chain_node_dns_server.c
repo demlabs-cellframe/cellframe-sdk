@@ -31,7 +31,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_node.h"
 #include "dap_string.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_global_db_remote.h"
 
 #define LOG_TAG "dap_chain_node_dns_server"
@@ -307,7 +307,7 @@ dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     // read all node
-    l_objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes, &l_nodes_count);
+    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
     if (!l_nodes_count || !l_objs)
         return NULL;
     dap_chain_node_info_t *l_node_candidate;
@@ -322,7 +322,7 @@ dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
         return NULL;
     dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
-    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
+    dap_global_db_objs_delete(l_objs, l_nodes_count);
     log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(l_node_info->hdr.ext_addr_v4));
     return l_node_info;
 }

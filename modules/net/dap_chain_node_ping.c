@@ -216,7 +216,7 @@ static void* node_ping_background_proc(void *a_arg)
         dap_chain_node_addr_t *l_node_addr = l_node_list->data;
         dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_node_addr);
 
-        char *host4 = DAP_NEW_S_SIZE(char, INET_ADDRSTRLEN);
+        char *host4 = DAP_NEW_STACK_SIZE(char, INET_ADDRSTRLEN);
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
         const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, INET_ADDRSTRLEN);
         if(!str_ip4){

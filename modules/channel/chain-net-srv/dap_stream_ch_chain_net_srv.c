@@ -543,7 +543,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
 
                 char *l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
-                dap_chain_global_db_gr_set(l_receipt_hash_str, l_receipt, l_receipt_size, "local.receipts");
+                dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
                 DAP_DELETE(l_receipt_hash_str);
 
                 size_t l_success_size;

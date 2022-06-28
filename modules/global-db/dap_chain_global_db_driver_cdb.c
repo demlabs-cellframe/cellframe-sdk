@@ -34,7 +34,7 @@
 
 #define _GNU_SOURCE
 
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_global_db_driver_cdb.h"
 #include "dap_common.h"
 #include "dap_hash.h"

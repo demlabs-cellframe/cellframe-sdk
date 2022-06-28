@@ -23,7 +23,7 @@
 #include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_block_chunk.h"
 
 #define LOG_TAG "dap_chain_block_chunk"
@@ -42,12 +42,12 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
     l_ret->gdb_group = dap_strdup_printf("local.%s.%s.block.chunks",a_blocks->chain->net_name, a_blocks->chain->name );
 
     size_t l_objs_count =0;
-    dap_global_db_obj_t * l_objs= dap_chain_global_db_gr_load(l_ret->gdb_group, &l_objs_count);
+    dap_global_db_obj_t * l_objs= dap_global_db_get_all_sync(l_ret->gdb_group, &l_objs_count);
     for(size_t n=0; n< l_objs_count; n++){
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_new(a_blocks, (dap_chain_block_t*)l_objs[n].value, l_objs[n].value_len);
         dap_chain_block_chunks_add(l_ret, l_block_cache );
     }
-    dap_chain_global_db_objs_delete(l_objs,l_objs_count);
+    dap_global_db_objs_delete(l_objs,l_objs_count);
     return l_ret;
 }
 
@@ -99,8 +99,8 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         return;
     }
     // Save to GDB
-    dap_chain_global_db_gr_set(a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size, a_chunks->gdb_group);
-
+    dap_global_db_set(a_chunks->gdb_group, a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size,
+                               true, NULL, NULL );
 
     // And here we select chunk for the new block cache
     bool l_is_chunk_found = false;

@@ -91,6 +91,7 @@ pthread_key_t g_dap_context_pth_key; // Thread-specific object with pointer on c
 static void *s_context_thread(void *arg); // Context thread
 static int s_thread_init(dap_context_t * a_context);
 static int s_thread_loop(dap_context_t * a_context);
+static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
 pthread_rwlock_t s_contexts_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 dap_list_t * s_contexts;
@@ -100,6 +101,7 @@ dap_list_t * s_contexts;
  */
 int dap_context_init()
 {
+    pthread_key_create(&g_dap_context_pth_key,NULL);
 #ifdef DAP_OS_UNIX
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
@@ -114,16 +116,25 @@ int dap_context_init()
     return 0;
 }
 
+void dap_context_deinit()
+{
+    pthread_key_delete(g_dap_context_pth_key);
+}
+
 /**
  * @brief dap_context_new
  * @return
  */
-dap_context_t * dap_context_new()
+dap_context_t * dap_context_new(int a_type)
 {
    dap_context_t * l_context = DAP_NEW_Z(dap_context_t);
    static atomic_uint_fast64_t s_context_id_max = 0;
    l_context->id = s_context_id_max;
+   l_context->type = a_type;
    s_context_id_max++;
+
+   l_context->event_exit = dap_context_create_event( NULL, s_event_exit_callback);
+
    pthread_rwlock_wrlock(&s_contexts_rwlock);
    s_contexts = dap_list_prepend(s_contexts,l_context);
    pthread_rwlock_unlock(&s_contexts_rwlock);
@@ -206,6 +217,19 @@ int dap_context_run(dap_context_t * a_context,int a_cpu_id, int a_sched_policy, 
 }
 
 /**
+ * @brief dap_context_stop_n_kill
+ * @param a_context
+ */
+void dap_context_stop_n_kill(dap_context_t * a_context)
+{
+    pthread_t l_thread_id = a_context->thread_id;
+    dap_events_socket_event_signal(a_context->event_exit, 1);
+    pthread_join(l_thread_id, NULL);
+}
+
+
+
+/**
  * @brief s_context_thread Context working thread
  * @param arg
  * @return
@@ -225,7 +249,7 @@ static void *s_context_thread(void *a_arg)
     if (!SetThreadPriority(GetCurrentThread(), l_msg->priority ))
         log_it(L_ERROR, "Couldn'r set thread priority, err: %lu", GetLastError());
 #else
-    if(l_msg->priority != 0 && l_msg->sched_policy != DAP_CONTEXT_POLICY_DEFAUT ){
+    if(l_msg->priority != 0 && l_msg->sched_policy != DAP_CONTEXT_POLICY_DEFAULT ){
         struct sched_param l_sched_params = {0};
 #if defined (DAP_OS_LINUX)
         int l_sched_policy= SCHED_BATCH;
@@ -253,6 +277,9 @@ static void *s_context_thread(void *a_arg)
     // Now we're running and initalized for sure, so we can assign flags to the current context
     l_context->running_flags = l_msg->flags;
 
+    // Add pre-defined queues and events
+    dap_context_add(l_context, l_context->event_exit);
+
     // Started callback execution
     l_msg->callback_started(l_context, l_msg->callback_arg);
 
@@ -269,6 +296,8 @@ static void *s_context_thread(void *a_arg)
     l_msg->callback_stopped(l_context, l_msg->callback_arg);
 
     log_it(L_NOTICE,"Exiting context #%u", l_context->id);
+    dap_context_remove(l_context->event_exit);
+    dap_events_socket_delete_unsafe(l_context->event_exit, false);
 
     // Removes from the list
     pthread_rwlock_wrlock(&s_contexts_rwlock);
@@ -349,13 +378,14 @@ static int s_thread_loop(dap_context_t * a_context)
 
     do {
 #ifdef DAP_EVENTS_CAPS_EPOLL
+        struct epoll_event *l_epoll_events = l_context->epoll_events;
         l_selected_sockets = epoll_wait(a_context->epoll_fd, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
         l_sockets_max = l_selected_sockets;
 #elif defined(DAP_EVENTS_CAPS_POLL)
         l_selected_sockets = poll(a_context->poll, a_context->poll_count, -1);
         l_sockets_max = a_context->poll_count;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-        l_selected_sockets = kevent(a_context->kqueue_fd,NULL,0,a_context->kqueue_events_selected,a_context->kqueue_events_selected_count_max,
+        a_context->esockets_selected = l_selected_sockets = kevent(a_context->kqueue_fd,NULL,0,a_context->kqueue_events_selected,a_context->kqueue_events_selected_count_max,
                                                         NULL);
         l_sockets_max = l_selected_sockets;
 #else
@@ -375,7 +405,9 @@ static int s_thread_loop(dap_context_t * a_context)
         }
 
         time_t l_cur_time = time( NULL);
-        for(ssize_t n = 0; n < l_sockets_max; n++) {
+        for(a_context->esocket_current = 0; a_context->esocket_current < a_context->esockets_selected;
+            a_context->esocket_current++) {
+            ssize_t n = a_context->esocket_current;
             bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
@@ -413,25 +445,29 @@ static int s_thread_loop(dap_context_t * a_context)
         struct kevent * l_kevent_selected = &a_context->kqueue_events_selected[n];
         if ( l_kevent_selected->filter == EVFILT_USER){ // If we have USER event it sends little different pointer
             dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
-            //if(g_debug_reactor)
-            //    log_it(L_DEBUG,"EVFILT_USER: udata=%p", l_es_w_data);
+            if(l_es_w_data){
+                //if(g_debug_reactor)
+                //    log_it(L_DEBUG,"EVFILT_USER: udata=%p", l_es_w_data);
 
-            l_cur = l_es_w_data->esocket;
-            assert(l_cur);
-            memcpy(&l_cur->kqueue_event_catched_data, l_es_w_data, sizeof (*l_es_w_data)); // Copy event info for further processing
+                l_cur = l_es_w_data->esocket;
+                if(l_cur){
+                    memcpy(&l_cur->kqueue_event_catched_data, l_es_w_data, sizeof (*l_es_w_data)); // Copy event info for further processing
 
-            if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
-                                           // we must drop write flag and set read flag
-                l_flag_read  = true;
-            }else{
-                l_flag_write = true;
-            }
-            void * l_ptr = &l_cur->kqueue_event_catched_data;
-            if(l_es_w_data != l_ptr){
-                DAP_DELETE(l_es_w_data);
-            }else if (g_debug_reactor){
-                log_it(L_DEBUG,"Own event signal without actual event data");
-            }
+                    if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
+                                                   // we must drop write flag and set read flag
+                        l_flag_read  = true;
+                    }else{
+                        l_flag_write = true;
+                    }
+                    void * l_ptr = &l_cur->kqueue_event_catched_data;
+                    if(l_es_w_data != l_ptr){
+                        DAP_DELETE(l_es_w_data);
+                    }else if (g_debug_reactor){
+                        log_it(L_DEBUG,"Own event signal without actual event data");
+                    }
+                }
+            } else // Looks it was deleted on previous iteration
+                l_cur = NULL;
         }else{
             switch (l_kevent_selected->filter) {
                 case EVFILT_TIMER:
@@ -786,8 +822,7 @@ static int s_thread_loop(dap_context_t * a_context)
 
             l_bytes_sent = 0;
 
-            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) &&
-                    !(l_cur->flags & DAP_SOCK_SIGNAL_CLOSE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
+            if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
                 /*
                  * Socket is ready to write and not going to close
@@ -1008,7 +1043,7 @@ static int s_thread_loop(dap_context_t * a_context)
 #ifdef DAP_EVENTS_CAPS_KQUEUE
                     a_context->kqueue_events_count--;
 #endif
-                } else if (l_cur->buf_out_size ) {
+                } else {
                     if(g_debug_reactor)
                         log_it(L_INFO, "Got signal to close %s sock %"DAP_FORMAT_SOCKET" [context #%u] type %d but buffer is not empty(%zu)",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur->type, a_context->id,
@@ -1047,6 +1082,19 @@ static int s_thread_loop(dap_context_t * a_context)
 
     log_it(L_ATT,"Context :%u finished", a_context->id);
     return 0;
+}
+
+/**
+ * @brief s_event_exit_callback
+ * @param a_es
+ * @param a_flags
+ */
+static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
+{
+    (void) a_flags;
+    a_es->context->signal_exit = true;
+    if(g_debug_reactor)
+        log_it(L_DEBUG, "Context #%u signaled to exit", a_es->context->id);
 }
 
 
@@ -1285,7 +1333,7 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
 #else
 #error "Unimplemented new esocket on context callback for current platform"
 #endif
-//lb_exit:
+lb_exit:
     if ( l_is_error ){
         char l_errbuf[128];
         l_errbuf[0]=0;
@@ -1324,6 +1372,14 @@ int dap_context_remove( dap_events_socket_t * a_es)
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 
+    //Check if its present on current selection
+    for (ssize_t n = l_context->esocket_current + 1; n< l_context->esockets_selected; n++ ){
+        struct epoll_event * l_event = &l_context->epoll_events[n];
+        if ( l_event->data.ptr == a_es ) // Found in selection
+            l_event->data.ptr = NULL; // signal to skip on its iteration
+    }
+
+    // remove from epoll
     if ( epoll_ctl( l_context->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
         int l_errno = errno;
         char l_errbuf[128];
@@ -1335,6 +1391,30 @@ int dap_context_remove( dap_events_socket_t * a_es)
       //  log_it( L_DEBUG,"Removed epoll's event from context #%u", l_context->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
+        // Check if its present on current selection
+
+        for (ssize_t n = l_context->esocket_current+1; n< l_context->esockets_selected; n++ ){
+            struct kevent * l_kevent_selected = &l_context->kqueue_events_selected[n];
+            dap_events_socket_t * l_cur = NULL;
+
+            // Extract current esocket
+            if ( l_kevent_selected->filter == EVFILT_USER){
+                dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
+                if(l_es_w_data){
+                    l_cur = l_es_w_data->esocket;
+                }
+            }else{
+                l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+            }
+
+            // Compare it with current thats removing
+            if (l_cur == a_es){
+                l_kevent_selected->udata = NULL; // Singal to the loop to remove it from processing
+            }
+
+        }
+
+        // Delete from kqueue
         struct kevent * l_event = &a_es->kqueue_event;
         if (a_es->kqueue_base_filter){
             EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);

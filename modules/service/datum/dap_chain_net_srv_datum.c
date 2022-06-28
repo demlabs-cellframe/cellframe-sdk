@@ -123,7 +123,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "datum", &l_datum_cmd_str);
     if ( l_datum_cmd_str != NULL ) {
         if ( strcmp(l_datum_cmd_str, "save") == 0) {
-            char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
+            char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             size_t l_datum_size = 0;
 
             size_t l_path_length = strlen(l_system_datum_folder)+8+strlen(l_datum_hash_str);
@@ -137,7 +137,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
             FILE * l_file = fopen(l_path,"wb");
             if( l_file ){
                 size_t l_data_size = 0;
-                dap_chain_datum_t* l_datum = (dap_chain_datum_t*)dap_chain_global_db_gr_get(l_datum_hash_str, &l_data_size, l_gdb_group);
+                dap_chain_datum_t* l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(l_gdb_group, l_datum_hash_str, &l_data_size, NULL, NULL );
                 if ( l_datum ){
                     size_t l_retbytes;
                     if ( (l_retbytes = fwrite(l_datum->data, 1, l_datum->header.data_size, l_file)) != l_datum->header.data_size ){
@@ -182,16 +182,33 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
     return -1;
 }
 
+
+/**
+ * @brief s_order_notficator
+ * @param a_arg
+ * @param a_op_code
+ * @param a_group
+ * @param a_key
+ * @param a_value
+ * @param a_value_len
+ */
 void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, const char *a_key, const void *a_value, const size_t a_value_len)
 {
     if (a_op_code == DAP_DB$K_OPTYPE_DEL)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_value, a_value_len);    // Old format comliance
-    if (!l_order) {
-        dap_chain_global_db_gr_del(a_key, a_group);
+    dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
+    assert(l_gdb_context);
+    if (!l_order && a_key) {
+        log_it(L_NOTICE, "Order %s is corrupted", a_key);
+        if(dap_global_db_del_unsafe(l_gdb_context, a_group, a_key) != 0 ){
+            log_it(L_ERROR,"Can't delete order %s", a_key);
+        }
+
         return; // order is corrupted
     }
+
     if (!dap_chain_net_srv_uid_compare(l_order->srv_uid, s_srv_datum->uid))
         return; // order from another service
     dap_chain_net_srv_price_t *l_price = NULL;
@@ -217,8 +234,8 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
     dap_chain_datum_tx_t *l_tx_cond = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         size_t l_datum_size;
-        char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
-        l_datum = (dap_chain_datum_t *)dap_chain_global_db_gr_get(l_tx_cond_hash_str, &l_datum_size, l_gdb_group);
+        char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group, l_tx_cond_hash_str, &l_datum_size, NULL, NULL);
         if (l_datum)
             break;
     }

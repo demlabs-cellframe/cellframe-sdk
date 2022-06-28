@@ -46,7 +46,7 @@
 #include "dap_cert.h"
 #include "uthash.h"
 #include "dap_http_client.h"
-#include "dap_chain_global_db.h"
+#include "dap_global_db.h"
 #include "dap_chain_global_db_remote.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
@@ -283,7 +283,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST");
                     // get cur node addr
                     dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id);
-                    uint64_t l_addr = l_net ? dap_db_get_cur_node_addr(l_net->pub.name) : 0;
+                    uint64_t l_addr = l_net ? dap_chain_net_get_cur_node_addr_gdb_sync(l_net->pub.name) : 0;
                     size_t l_send_data_len = sizeof(uint64_t);
                     // send cur node addr
                     dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR,

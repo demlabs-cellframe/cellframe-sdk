@@ -99,7 +99,7 @@ DAP_STATIC_INLINE dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_ha
 int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net, const dap_chain_net_srv_order_direction_t a_direction, const dap_chain_net_srv_uid_t a_srv_uid,
                                         const dap_chain_net_srv_price_unit_uid_t a_price_unit, const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX], const uint256_t a_price_min, const uint256_t a_price_max,
                                         dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count);
-int dap_chain_net_srv_order_delete_by_hash_str( dap_chain_net_t * a_net,const char * a_hash_str );
+int dap_chain_net_srv_order_delete_by_hash_str_sync( dap_chain_net_t * a_net,const char * a_hash_str );
 
 /**
  * @brief dap_chain_net_srv_order_delete_by_hash
@@ -111,7 +111,7 @@ DAP_STATIC_INLINE int dap_chain_net_srv_order_delete_by_hash(dap_chain_net_t * a
 {
     char l_hash_str[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
     dap_chain_hash_fast_to_str(a_hash,l_hash_str,sizeof(l_hash_str)-1);
-    return dap_chain_net_srv_order_delete_by_hash_str ( a_net, l_hash_str);
+    return dap_chain_net_srv_order_delete_by_hash_str_sync ( a_net, l_hash_str);
 }
 
 char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,

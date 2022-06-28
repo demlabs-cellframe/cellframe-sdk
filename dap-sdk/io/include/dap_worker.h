@@ -51,8 +51,6 @@ typedef struct dap_worker
     dap_events_socket_t *queue_es_io; // Queue socket for io ops
     dap_events_socket_t **queue_es_io_input; // Queue socket for io ops between workers
 
-    dap_events_socket_t *event_exit;                                        /* Events socket for exit */
-
     dap_events_socket_t *queue_callback;                                    /* Queue for pure callback on worker */
 
     dap_events_socket_t *queue_gdb_input;                                   /* Inputs for request to GDB, @RRL: #6238 */
@@ -62,6 +60,8 @@ typedef struct dap_worker
     dap_context_t *context;
     void * _inheritor;
 } dap_worker_t;
+
+#define DAP_CONTEXT_TYPE_WORKER   10
 
 // Message for reassigment
 typedef struct dap_worker_msg_reassign{
@@ -109,6 +109,7 @@ void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_wor
 void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_events_socket_t * a_events_socket);
 dap_worker_t *dap_worker_add_events_socket_auto( dap_events_socket_t * a_events_socket );
 void dap_worker_exec_callback_on(dap_worker_t * a_worker, dap_worker_callback_t a_callback, void * a_arg);
+void dap_worker_exec_callback_inter(dap_events_socket_t * a_es_input, dap_worker_callback_t a_callback, void * a_arg);
 
 bool dap_worker_check_esocket_polled_now(); // Check if esocket is right now polled and present in list
 // Context callbacks

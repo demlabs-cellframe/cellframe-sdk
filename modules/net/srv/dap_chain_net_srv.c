@@ -317,7 +317,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     if (l_new_order_hash_str) {
                         // delete prev order
                         if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
-                            dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_hex_str);
+                            dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
                         DAP_DELETE(l_new_order_hash_str);
                         dap_string_append_printf(l_string_ret, "order updated\n");
                     } else
@@ -442,7 +442,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             //dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
             if ( l_order_hash_str ){
                 dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
-                if (l_order && dap_chain_net_srv_order_delete_by_hash_str(l_net,l_order_hash_hex_str) == 0){
+                if (l_order && dap_chain_net_srv_order_delete_by_hash_str_sync(l_net,l_order_hash_hex_str) == 0){
                     ret = 0 ;
                     if(!dap_strcmp(l_hash_out_type,"hex"))
                         dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_hex_str);
