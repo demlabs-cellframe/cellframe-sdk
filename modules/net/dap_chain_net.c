@@ -750,8 +750,10 @@ static dap_chain_node_info_t *s_get_dns_link_from_cfg(dap_chain_net_t *a_net)
         l_addr = l_net_pvt->bootstrap_nodes_addrs[i];
         l_port = l_net_pvt->bootstrap_nodes_ports[i];
     }
-    if (!l_addr.s_addr)
+    if (!l_addr.s_addr){
+        log_it(L_WARNING,"Can't find address to connect at all");
         return NULL;
+    }
     dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     if(! l_link_node_info){
         log_it(L_CRITICAL,"Can't allocate memory for node link info");

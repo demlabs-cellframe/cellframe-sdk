@@ -101,6 +101,7 @@ dap_list_t * s_contexts;
  */
 int dap_context_init()
 {
+    pthread_key_create(&g_dap_context_pth_key,NULL);
 #ifdef DAP_OS_UNIX
     struct rlimit l_fdlimit;
     if (getrlimit(RLIMIT_NOFILE, &l_fdlimit))
@@ -113,6 +114,11 @@ int dap_context_init()
     log_it(L_INFO, "Set maximum opened descriptors from %" DAP_UINT64_FORMAT_U " to %"DAP_UINT64_FORMAT_U, l_oldlimit, l_fdlimit.rlim_cur);
 #endif
     return 0;
+}
+
+void dap_context_deinit()
+{
+    pthread_key_delete(g_dap_context_pth_key);
 }
 
 /**
@@ -1368,7 +1374,7 @@ int dap_context_remove( dap_events_socket_t * a_es)
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 
     //Check if its present on current selection
-    for (ssize_t n = l_context->esocket_current; n< l_context->esockets_selected; n++ ){
+    for (ssize_t n = l_context->esocket_current + 1; n< l_context->esockets_selected; n++ ){
         struct epoll_event * l_event = &l_context->epoll_events[n];
         if ( l_event->data.ptr == a_es ) // Found in selection
             l_event->data.ptr = NULL; // signal to skip on its iteration
@@ -1388,7 +1394,7 @@ int dap_context_remove( dap_events_socket_t * a_es)
     if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
         // Check if its present on current selection
 
-        for (ssize_t n = l_context->esocket_current; n< l_context->esockets_selected; n++ ){
+        for (ssize_t n = l_context->esocket_current+1; n< l_context->esockets_selected; n++ ){
             struct kevent * l_kevent_selected = &l_context->kqueue_events_selected[n];
             dap_events_socket_t * l_cur = NULL;
 

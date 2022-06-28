@@ -754,7 +754,7 @@ static void s_gdb_in_pkt_proc_callback_get_ts_callback(dap_global_db_context_t *
             return;
 
     }
-    dap_store_obj_free_one(l_sync_request->obj);
+    dap_store_obj_free_one(l_obj);
     DAP_DELETE(l_sync_request);
 }
 /**

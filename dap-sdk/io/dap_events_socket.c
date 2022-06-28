@@ -505,9 +505,9 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 #endif
 
     l_es->flags = DAP_SOCK_QUEUE_PTR;
-    l_es->_pvt = DAP_NEW_Z(struct queue_ptr_input_pvt);
-    l_es->callbacks.delete_callback  = s_socket_type_queue_ptr_input_callback_delete;
-    l_es->callbacks.queue_ptr_callback = a_es->callbacks.queue_ptr_callback;
+    //l_es->_pvt = DAP_NEW_Z(struct queue_ptr_input_pvt);
+    //l_es->callbacks.delete_callback  = s_socket_type_queue_ptr_input_callback_delete;
+    //l_es->callbacks.queue_ptr_callback = a_es->callbacks.queue_ptr_callback;
     return l_es;
 }
 

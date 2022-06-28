@@ -633,6 +633,11 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             for(size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
                 // read node
+                if ( !dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
+                    log_it(L_ERROR, "Node address is NULL");
+                    continue;
+                }
+
                 dap_chain_node_info_t *l_node_info_read = node_info_read_and_reply(a_net, &l_node_info->hdr.address, NULL);
                 if (!l_node_info_read) {
                     log_it(L_ERROR, "Invalid node info object, remove it");

@@ -82,20 +82,50 @@ typedef struct dap_global_db_obj {
 
 typedef void (*dap_global_db_callback_t) (dap_global_db_context_t * a_global_db_context, void * a_arg);
 
-typedef void (*dap_global_db_callback_result_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_size, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg);
+/**
+ *  @brief callback for single result
+ *  @arg a_rc DAP_GLOBAL_DB_RC_SUCCESS if success others if not
+ */
+typedef void (*dap_global_db_callback_result_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value,
+                                                 const size_t a_value_size, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg);
+
+/**
+ *  @brief callback for single raw result
+ *  @arg a_rc DAP_GLOBAL_DB_RC_SUCCESS if success others if not
+ *  @return true if we need to free a_store_obj, false otherwise.
+ */
 typedef bool (*dap_global_db_callback_result_raw_t) (dap_global_db_context_t * a_global_db_context,int a_rc, dap_store_obj_t * a_store_obj, void * a_arg);
 
 
-typedef bool (*dap_global_db_callback_results_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+/**
+ *  @brief callback for multiple result, with pagination
+ *  @arg a_rc DAP_GLOBAL_DB_RC_SUCCESS if success others if not
+ *  @arg a_values_total Total values number
+ *  @arg a_values_shift Current shift from beginning of values set
+ *  @arg a_values_count Current number of items in a_values
+ *  @arg a_values Current items (page of items)
+ *  @arg a_arg Custom argument
+ *  @return true if we need to free a_store_obj, false otherwise.
+ */
+typedef bool (*dap_global_db_callback_results_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key,
+                                                  const size_t a_values_total,  const size_t a_values_shift,
                                                   const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg);
-typedef bool (*dap_global_db_callback_results_raw_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
+/**
+ *  @brief callback for multiple raw result, with pagination
+ *  @arg a_rc DAP_GLOBAL_DB_RC_SUCCESS if success other sif not
+ *  @arg a_values_total Total values number
+ *  @arg a_values_shift Current shift from beginning of values set
+ *  @arg a_values_count Current number of items in a_values
+ *  @arg a_values Current items (page of items)
+ *  @return true if we need to free a_store_obj, false otherwise.
+ */
+typedef bool (*dap_global_db_callback_results_raw_t) (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key,
+                                                      const size_t a_values_current,  const size_t a_values_shift,
                                                   const size_t a_values_count, dap_store_obj_t * a_values, void * a_arg);
 // Return codes
 #define DAP_GLOBAL_DB_RC_SUCCESS         0
 #define DAP_GLOBAL_DB_RC_NO_RESULTS     -1
 #define DAP_GLOBAL_DB_RC_ERROR           -666
-
-
 
 extern bool g_dap_global_db_debug_more;
 
@@ -116,7 +146,7 @@ int dap_global_db_set(const char * a_group, const char *a_key, const void * a_va
 int dap_global_db_set_raw(dap_store_obj_t * a_store_objs, size_t a_store_objs_count, dap_global_db_callback_results_raw_t a_callback, void * a_arg );
 
 // Set multiple. In callback writes total processed objects to a_values_total and a_values_count to the a_values_count as well
-int dap_global_db_set_multiple(const char * a_group, dap_global_db_obj_t * a_values, size_t a_values_count, dap_global_db_callback_results_t a_callback, void * a_arg );
+int dap_global_db_set_multiple_zc(const char * a_group, dap_global_db_obj_t * a_values, size_t a_values_count, dap_global_db_callback_results_t a_callback, void * a_arg );
 int dap_global_db_pin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_unpin(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_del(const char * a_group, const char *a_key, dap_global_db_callback_result_t a_callback, void * a_arg );

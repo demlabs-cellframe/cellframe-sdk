@@ -89,6 +89,10 @@ typedef union dap_chain_node_addr {
 inline static int dap_chain_node_addr_from_str( dap_chain_node_addr_t * a_addr, const char * a_addr_str){
     return (int) sscanf(a_addr_str,NODE_ADDR_FP_STR,NODE_ADDR_FPS_ARGS(a_addr) )-4;
 }
+
+inline static bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr){
+    return a_addr->uint64 != 0;
+}
 /**
   *
   *

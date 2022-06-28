@@ -360,7 +360,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
 
     //return 0;
-    dap_global_db_set_multiple(l_gdb_group, l_objs,a_tx_num, s_tx_create_massive_gdb_save_callback , NULL );
+    dap_global_db_set_multiple_zc(l_gdb_group, l_objs,a_tx_num, s_tx_create_massive_gdb_save_callback , NULL );
     DAP_DELETE(l_gdb_group);
     return 0;
 }

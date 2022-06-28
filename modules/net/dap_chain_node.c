@@ -83,8 +83,7 @@ bool dap_chain_node_check_addr(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_
  */
 bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, dap_chain_node_addr_t *a_addr)
 {
-    return dap_global_db_set(a_net->pub.gdb_nodes_aliases, a_alias, a_addr, sizeof(dap_chain_node_addr_t),true,
-                             NULL, NULL)==0;
+    return dap_global_db_set_sync(a_net->pub.gdb_nodes_aliases, a_alias, a_addr, sizeof(dap_chain_node_addr_t),true)==0;
 }
 
 /**
@@ -159,7 +158,7 @@ int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *a_n
     }
     //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
     size_t l_node_info_size = dap_chain_node_info_get_size(a_node_info);
-    int l_res = dap_global_db_set( a_net->pub.gdb_nodes, l_key, a_node_info, l_node_info_size, true, NULL, NULL);
+    int l_res = dap_global_db_set_sync( a_net->pub.gdb_nodes, l_key, a_node_info, l_node_info_size, true);
 
     DAP_DELETE(l_key);
 

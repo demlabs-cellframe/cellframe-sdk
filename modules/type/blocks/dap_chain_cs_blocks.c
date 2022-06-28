@@ -690,8 +690,11 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
                 l_res=-1;
         }
         if (l_res != 1 ){
-            log_it(L_WARNING, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
-                   dap_chain_datum_type_id_to_str(l_datum->header.type_id),
+            char l_time_str[256];
+            l_time_str[0] = '\0';
+            dap_time_to_str_rfc822(l_time_str, sizeof(l_time_str)-1, l_datum->header.ts_create );
+            log_it(L_WARNING, "Can't load datum #%zu %s with hash %s from block %s to ledger: code %d", i,
+                   dap_chain_datum_type_id_to_str(l_datum->header.type_id ), l_time_str,
                                       a_block_cache->block_hash_str, l_res);
             break;
         } 

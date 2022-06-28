@@ -104,7 +104,7 @@ void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg
 
     l_worker->queue_callback    = dap_context_create_queue(a_context, s_queue_callback_callback);
 
-    l_worker->timer_check_activity = dap_timerfd_create(s_connection_timeout * 1000 / 2,
+    l_worker->timer_check_activity = dap_timerfd_create (s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
     dap_worker_add_events_socket_unsafe(  l_worker->timer_check_activity->events_socket, l_worker);
 
