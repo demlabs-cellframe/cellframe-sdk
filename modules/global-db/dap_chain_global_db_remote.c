@@ -43,8 +43,15 @@ static void *s_list_thread_proc(void *arg)
         while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
             size_t l_item_count = min(64, l_group_cur->count);
             dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_group_cur->name, l_item_start, &l_item_count);
-            if (!l_dap_db_log_list->is_process)
+            pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
+            if (!l_dap_db_log_list->is_process){
+                pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
+                if(l_objs)
+                    dap_store_obj_free(l_objs, l_item_count);
                 return NULL;
+            }
+            pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
+
             // go to next group
             if (!l_objs)
                 break;

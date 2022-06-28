@@ -454,19 +454,19 @@ static bool s_net_send_records_callback_get_raw (dap_global_db_context_t * a_glo
     struct send_records_args * l_args = (struct send_records_args*) a_arg;
     dap_chain_net_t * l_net = l_args->net;
     dap_store_obj_t * l_arg_obj = l_args->arg_obj;
+    DAP_DEL_Z(l_args);
 
     if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS ) {
         log_it(L_DEBUG, "Notified GDB event does not exist");
         dap_store_obj_free_one(l_arg_obj);
-        DAP_DELETE(l_args);
         return true;
     }
 
     if (!a_store_obj->group || !a_store_obj->key) {
-        dap_store_obj_free_one(a_store_obj);
-        DAP_DELETE(l_args);
+        dap_store_obj_free_one(l_arg_obj);
         return true;
     }
+
     a_store_obj->type = l_arg_obj->type;
 
     if (a_store_obj->type == DAP_DB$K_OPTYPE_DEL) {
@@ -479,7 +479,7 @@ static bool s_net_send_records_callback_get_raw (dap_global_db_context_t * a_glo
     DAP_DELETE(l_arg_obj);
 
     pthread_rwlock_wrlock(&PVT(l_net)->rwlock);
-    if (PVT(l_net)->state) {
+    if (PVT(l_net)->state != NET_STATE_OFFLINE) {
         dap_list_t *it = NULL;
         do {
             dap_store_obj_t *l_obj_cur = it ? (dap_store_obj_t *)it->data : a_store_obj;
@@ -512,7 +512,7 @@ static bool s_net_send_records_callback_get_raw (dap_global_db_context_t * a_glo
         //PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
         dap_store_obj_free_one(a_store_obj);
     pthread_rwlock_unlock(&PVT(l_net)->rwlock);
-    return true;
+    return false; // We've freed obj by our own before
 }
 
 /**

@@ -139,6 +139,7 @@ int dap_global_db_get_raw(const char * a_group, const char *a_key,dap_global_db_
 
 int dap_global_db_get_del_ts(const char * a_group, const char *a_key,dap_global_db_callback_result_t a_callback, void * a_arg );
 int dap_global_db_get_last(const char * a_group, dap_global_db_callback_result_t a_callback, void * a_arg );
+int dap_global_db_get_last_raw(const char * a_group, dap_global_db_callback_result_raw_t a_callback, void * a_arg );
 int dap_global_db_get_all(const char * a_group, size_t l_results_page_size, dap_global_db_callback_results_t a_callback, void * a_arg );
 int dap_global_db_get_all_raw(const char * a_group, uint64_t a_first_id, size_t l_results_page_size, dap_global_db_callback_results_raw_t a_callback, void * a_arg );
 

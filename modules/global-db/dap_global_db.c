@@ -151,6 +151,7 @@ static bool s_msg_opcode_get(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_raw(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_del_ts(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_last(struct queue_io_msg * a_msg);
+static bool s_msg_opcode_get_last_raw(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_get_all_raw(struct queue_io_msg * a_msg);
 static bool s_msg_opcode_set(struct queue_io_msg * a_msg);
@@ -483,6 +484,54 @@ static bool s_msg_opcode_get_last(struct queue_io_msg * a_msg)
     return true;
 }
 
+/**
+ * @brief dap_global_db_get_last_raw
+ * @param a_group
+ * @param a_callback
+ * @param a_arg
+ * @return
+ */
+int dap_global_db_get_last_raw(const char * a_group, dap_global_db_callback_result_raw_t a_callback, void * a_arg )
+{
+    if(s_context_global_db == NULL){
+        log_it(L_ERROR, "GlobalDB context is not initialized, can't call dap_global_db_get_last");
+        return -666;
+    }
+    struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
+    l_msg->opcode = MSG_OPCODE_GET_LAST_RAW;
+    l_msg->group = dap_strdup(a_group);
+    l_msg->callback_arg = a_arg;
+    l_msg->callback_result_raw = a_callback;
+
+    int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,l_msg);
+    if (l_ret != 0){
+        log_it(L_ERROR, "Can't exec get_last request, code %d", l_ret);
+        s_queue_io_msg_delete(l_msg);
+    }else
+        debug_if(g_dap_global_db_debug_more, L_DEBUG, "Have sent get_last request for \"%s\" group", a_group);
+    return l_ret;
+}
+
+/**
+ * @brief s_msg_opcode_get_last_raw
+ * @param a_msg
+ * @return
+ */
+static bool s_msg_opcode_get_last_raw(struct queue_io_msg * a_msg)
+{
+    dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read_last(a_msg->group);
+    bool l_store_obj_delete = true;
+    if(l_store_obj){
+        if(a_msg->callback_result)
+            l_store_obj_delete = a_msg->callback_result_raw(s_context_global_db, DAP_GLOBAL_DB_RC_SUCCESS, l_store_obj, a_msg->callback_arg );
+        if(l_store_obj_delete)
+            dap_store_obj_free(l_store_obj,1);
+    }else if(a_msg->callback_result)
+        a_msg->callback_result_raw(s_context_global_db, DAP_GLOBAL_DB_RC_NO_RESULTS, NULL, a_msg->callback_arg );
+    return true;
+}
+
+
 
 /**
  * @brief dap_global_db_get_all Get all records from the group
@@ -562,8 +611,10 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
                 l_values_count + a_msg->values_shift <= a_msg->values_total ){
             a_msg->values_shift += l_values_count;
 
-        }else
+        }else{
             log_it(L_WARNING, "Values overflow, can't grow up, values_shift:%"DAP_UINT64_FORMAT_U"   values_total:%"DAP_UINT64_FORMAT_U"  values_current:%zu",  a_msg->values_shift, a_msg->values_total, l_values_count );
+            a_msg->values_shift += a_msg->values_total;
+        }
 
         if(a_msg->values_shift < a_msg->values_total  ){ // Have to process callback again
             int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,a_msg);
@@ -596,7 +647,7 @@ int dap_global_db_get_all_raw(const char * a_group, uint64_t a_first_id,size_t a
         return -666;
     }
     struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
-    l_msg->opcode = MSG_OPCODE_GET_ALL;
+    l_msg->opcode = MSG_OPCODE_GET_ALL_RAW ;
     l_msg->group = dap_strdup(a_group);
     l_msg->values_raw_shift = a_first_id;
     l_msg->callback_arg = a_arg;
@@ -622,18 +673,19 @@ static bool s_msg_opcode_get_all_raw(struct queue_io_msg * a_msg)
     if(! a_msg->values_total){ // First msg process
         a_msg->values_raw_total = dap_chain_global_db_driver_count(a_msg->group,0);
     }
-    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, a_msg->values_raw_shift , &l_values_count);
-
-    debug_if(g_dap_global_db_debug_more, L_DEBUG,"Get all raw request from group %s recieved %zu values from total %zu",a_msg->group,
-             l_values_count, a_msg->value_length );
+    uint64_t l_values_raw_shift = a_msg->values_raw_shift;
+    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, l_values_raw_shift , &l_values_count);
+    bool l_store_objs_delete = true;
+    debug_if(g_dap_global_db_debug_more, L_DEBUG,"Get all raw request from group %s recieved %zu values from total %"DAP_UINT64_FORMAT_U,a_msg->group,
+             l_values_count, a_msg->values_raw_total );
     // Call callback if present
     if(a_msg->callback_results_raw)
-        a_msg->callback_results_raw(s_context_global_db,  l_store_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
+        l_store_objs_delete = a_msg->callback_results_raw(s_context_global_db,  l_store_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
                                 , a_msg->group, a_msg->key,l_values_count, a_msg->values_raw_shift,
                                  a_msg->values_raw_total,
                                  l_store_objs, a_msg->callback_arg );
     // Clean memory
-    if(l_store_objs)
+    if(l_store_objs && l_store_objs_delete)
         dap_store_obj_free(l_store_objs,l_values_count);
 
     // Here we also check if the reply was with zero values. To prevent endless loop we don't resend query request in such cases
@@ -642,11 +694,13 @@ static bool s_msg_opcode_get_all_raw(struct queue_io_msg * a_msg)
         // Check for values_shift overflow and update it
         if( a_msg->values_raw_total && l_values_count && a_msg->values_raw_shift< UINT64_MAX - l_values_count &&
                 l_values_count + a_msg->values_raw_shift <= a_msg->values_raw_total ){
-            a_msg->values_raw_shift += l_values_count;
+            l_values_raw_shift =  (a_msg->values_raw_shift += l_values_count);
 
-        } else
+        } else{
             log_it(L_WARNING, "Values overflow, can't grow up, values_raw_shift:%"DAP_UINT64_FORMAT_U"   values_raw_total:%"DAP_UINT64_FORMAT_U"  values_raw_current:%zu",
-                   a_msg->values_raw_shift, a_msg->values_raw_total, l_values_count );
+                   l_values_raw_shift, a_msg->values_raw_total, l_values_count );
+            l_values_raw_shift = (a_msg->values_raw_shift = a_msg->values_raw_total);
+        }
 
         if( a_msg->values_raw_total && l_values_count && a_msg->values_raw_shift < a_msg->values_raw_total){ // Have to process callback again
             int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,a_msg);
@@ -1510,6 +1564,8 @@ static const char *s_msg_opcode_to_str(enum queue_io_msg_opcode a_opcode)
         case MSG_OPCODE_GET:            return "GET";
         case MSG_OPCODE_GET_RAW:        return "GET_RAW";
         case MSG_OPCODE_GET_LAST:       return "GET_LAST";
+        case MSG_OPCODE_GET_DEL_TS:     return "GET_DEL_TS";
+        case MSG_OPCODE_GET_LAST_RAW:   return "GET_LAST_RAW";
         case MSG_OPCODE_GET_ALL:        return "GET_ALL";
         case MSG_OPCODE_GET_ALL_RAW:    return "GET_ALL_RAW";
         case MSG_OPCODE_SET:            return "SET";
@@ -1543,6 +1599,8 @@ static void s_queue_io_callback( dap_events_socket_t * a_es, void * a_arg)
         case MSG_OPCODE_GET:          l_msg_delete = s_msg_opcode_get(l_msg); break;
         case MSG_OPCODE_GET_RAW:      l_msg_delete = s_msg_opcode_get_raw(l_msg); break;
         case MSG_OPCODE_GET_LAST:     l_msg_delete = s_msg_opcode_get_last(l_msg); break;
+        case MSG_OPCODE_GET_LAST_RAW: l_msg_delete = s_msg_opcode_get_last_raw(l_msg); break;
+        case MSG_OPCODE_GET_DEL_TS:   l_msg_delete = s_msg_opcode_get_del_ts(l_msg); break;
         case MSG_OPCODE_GET_ALL:      l_msg_delete = s_msg_opcode_get_all(l_msg); break;
         case MSG_OPCODE_GET_ALL_RAW:  l_msg_delete = s_msg_opcode_get_all_raw(l_msg); break;
         case MSG_OPCODE_SET:          l_msg_delete = s_msg_opcode_set(l_msg); break;
