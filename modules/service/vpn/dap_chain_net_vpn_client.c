@@ -34,7 +34,7 @@
 #include <sys/select.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
-#include <sys/epoll.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -45,6 +45,7 @@
 
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
+#include <sys/epoll.h>
 #endif
 
 #include "dap_client.h"
@@ -78,9 +79,6 @@
  */
 
 #define LOG_TAG "vpn_client"
-
-static EPOLL_HANDLE sf_socks_epoll_fd;
-
 
 static pthread_mutex_t sf_socks_mutex;
 
@@ -212,7 +210,7 @@ static dap_chain_datum_tx_receipt_t * s_callback_client_sign_request(dap_chain_n
                     dap_chain_datum_tx_receipt_t *a_receipt, size_t a_receipt_size)
 {
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    char *l_wallet_name = (char*) dap_chain_global_db_gr_get(dap_strdup("wallet_name"), NULL, l_gdb_group);
+    char *l_wallet_name = (char*) dap_global_db_get_sync(l_gdb_group, dap_strdup("wallet_name"), NULL,NULL, NULL);
 
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, dap_chain_wallet_get_path(g_config));
     dap_chain_datum_tx_receipt_t *l_ret = NULL;
@@ -240,8 +238,8 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
     // Try to load from gdb
     size_t l_gdb_group_size = 0;
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    dap_chain_hash_fast_t *l_tx_cond_hash = (dap_chain_hash_fast_t*) dap_chain_global_db_gr_get(
-            dap_strdup("client_tx_cond_hash"), &l_gdb_group_size, l_gdb_group);
+    dap_chain_hash_fast_t *l_tx_cond_hash = (dap_chain_hash_fast_t*) dap_global_db_get_sync(l_gdb_group,
+            dap_strdup("client_tx_cond_hash"), &l_gdb_group_size, NULL, NULL);
 
     time_t l_tx_cond_ts = 0;
     // Check for entry size
@@ -335,8 +333,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
             log_it(L_ERROR, "Can't create condition for user");
         } else {
             // save transaction for login
-            dap_chain_global_db_gr_set( "client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t),
-                    l_gdb_group);
+            dap_global_db_set_sync( l_gdb_group,"client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), true);
         }
         DAP_DELETE(l_client_key);
     }
@@ -360,11 +357,11 @@ int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet
     }
 
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    if(!dap_chain_global_db_gr_set("wallet_name", a_wallet_name, -1, l_gdb_group))
+    if(!dap_global_db_set_sync(l_gdb_group, "wallet_name", a_wallet_name, -1,true))
         return -2;
-    if(!dap_chain_global_db_gr_set("token_name", a_str_token, -1, l_gdb_group))
+    if(!dap_global_db_set_sync(l_gdb_group, "token_name", a_str_token, -1, true))
         return -2;
-    if(!dap_chain_global_db_gr_set("value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), l_gdb_group))
+    if(!dap_global_db_set_sync(l_gdb_group, "value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), true))
         return -2;
     DAP_DELETE(l_gdb_group);
     dap_chain_hash_fast_t *l_hash = dap_chain_net_vpn_client_tx_cond_hash(a_net, l_wallet, a_str_token,
@@ -388,11 +385,11 @@ int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wa
     size_t l_gdb_group_size = 0;
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
     if(a_wallet_name)
-        *a_wallet_name = (char*) dap_chain_global_db_gr_get("wallet_name", NULL, l_gdb_group);
+        *a_wallet_name = (char*) dap_global_db_get_sync(l_gdb_group, "wallet_name", NULL, NULL, NULL);
     if(a_str_token)
-        *a_str_token = (char*) dap_chain_global_db_gr_get("token_name", NULL, l_gdb_group);
+        *a_str_token = (char*) dap_global_db_get_sync(l_gdb_group, "token_name", NULL, NULL, NULL);
     if(a_value_datoshi) {
-        uint64_t *l_value_datoshi = (uint64_t*) dap_chain_global_db_gr_get("value_datoshi", NULL, l_gdb_group);
+        uint64_t *l_value_datoshi = (uint64_t*) dap_global_db_get_sync(l_gdb_group, "value_datoshi", NULL, NULL, NULL);
         *a_value_datoshi = l_value_datoshi ? *l_value_datoshi : 0;
         DAP_DELETE(l_value_datoshi);
     }

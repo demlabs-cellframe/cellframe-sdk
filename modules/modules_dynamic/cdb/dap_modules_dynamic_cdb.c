@@ -42,7 +42,9 @@ static bool s_cdb_was_init = false;
 void dap_modules_dynamic_close_cdb()
 {
     if (s_cdb_handle) {
+#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
         dlclose(s_cdb_handle);
+#endif
         s_cdb_handle = NULL;
     }
     s_cdb_was_init = false;

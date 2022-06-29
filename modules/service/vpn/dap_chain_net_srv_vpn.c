@@ -32,13 +32,28 @@
 #include <sys/epoll.h>
 #endif
 
-#ifdef DAP_OS_BSD
+#ifdef DAP_OS_DARWIN
+#include <net/if.h>
+#include <net/if_utun.h>
+#include <sys/kern_control.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/sys_domain.h>
+#include <netinet/in.h>
+
+#elif defined(DAP_OS_BSD)
 #include <netinet/in.h>
 #include <net/if.h>
 #include <net/if_tun.h>
 #include <sys/ioctl.h>
 #endif
 
+#if defined (DAP_OS_BSD)
+typedef struct ip dap_os_iphdr_t;
+#else
+typedef struct iphdr dap_os_iphdr_t;
+#endif
 
 
 #include <sys/select.h>
@@ -97,6 +112,7 @@ typedef struct vpn_local_network {
     struct in_addr ipv4_network_addr;
     struct in_addr ipv4_gw;
     int tun_ctl_fd;
+    char * tun_device_name;
     int tun_fd;
     struct ifreq ifr;
     bool auto_cpu_reassignment;
@@ -200,9 +216,11 @@ static void s_tun_send_msg_ip_assigned_all(dap_chain_net_srv_ch_vpn_t * a_ch_vpn
 static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
 static void s_tun_send_msg_ip_unassigned_all(dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
 
+#if !defined(DAP_OS_DARWIN) && (defined(DAP_OS_LINUX) || defined (DAP_OS_BSD))
+
 static int s_tun_deattach_queue(int fd);
 static int s_tun_attach_queue(int fd);
-
+#endif
 
 static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * a_ch_vpn_info, const void * a_data, size_t a_data_size);
 static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn, ch_vpn_pkt_t * l_pkt_out);
@@ -233,7 +251,7 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
 
 static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_info, const void * a_data, size_t a_data_size)
 {
-    assert(a_data_size > sizeof (struct iphdr));
+    assert(a_data_size > sizeof (dap_os_iphdr_t));
     ch_vpn_pkt_t *l_pkt_out = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + a_data_size);
     l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
     l_pkt_out->header.sock_id = s_raw_server->tun_fd;
@@ -242,7 +260,11 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     memcpy(l_pkt_out->data, a_data, a_data_size);
 
     struct in_addr l_in_daddr;
-    l_in_daddr.s_addr = ((struct iphdr* ) l_pkt_out->data)->daddr;
+#ifdef DAP_OS_LINUX
+    l_in_daddr.s_addr = ((dap_os_iphdr_t* ) l_pkt_out->data)->daddr;
+#else
+    l_in_daddr.s_addr = ((dap_os_iphdr_t* ) l_pkt_out->data)->ip_dst.s_addr;
+#endif
 
     if(l_ch_vpn_info->is_on_this_worker){
         dap_events_socket_t * l_es = NULL;
@@ -552,24 +574,110 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_raw_server->ipv4_gw.s_addr= (s_raw_server->ipv4_network_addr.s_addr | 0x01000000); // grow up some shit here!
     s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_gw.s_addr;
 
+// Not for Darwin
+#ifndef DAP_OS_DARWIN
     s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", false);
+#endif
+
     log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
 
+#if defined (DAP_OS_DARWIN)
+    s_tun_sockets_count = 1;
+#elif  defined(DAP_OS_LINUX) || defined(DAP_OS_BSD)
+    s_tun_sockets_count = dap_get_cpu_count();
     memset(&s_raw_server->ifr, 0, sizeof(s_raw_server->ifr));
     s_raw_server->ifr.ifr_flags = IFF_TUN | IFF_MULTI_QUEUE| IFF_NO_PI;
-
-    uint32_t l_cpu_count = dap_get_cpu_count(); // maybe replace with getting s_threads_count directly
-    log_it(L_NOTICE,"%s: trying to initialize multiqueue for %u workers", __PRETTY_FUNCTION__, l_cpu_count);
-    s_tun_sockets_count = l_cpu_count;
+#else
+#error "Undefined tun create for your platform"
+#endif
+    log_it(L_NOTICE,"%s: trying to initialize multiqueue for %u workers", __PRETTY_FUNCTION__, s_tun_sockets_count);
     s_tun_sockets = DAP_NEW_Z_SIZE(dap_chain_net_srv_vpn_tun_socket_t*,s_tun_sockets_count*sizeof(dap_chain_net_srv_vpn_tun_socket_t*));
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
     s_tun_sockets_mutex_started = DAP_NEW_Z_SIZE(pthread_mutex_t,s_tun_sockets_count*sizeof(pthread_mutex_t));
     s_tun_sockets_cond_started = DAP_NEW_Z_SIZE(pthread_cond_t,s_tun_sockets_count*sizeof(pthread_cond_t));
     int err = -1;
 
-    for( uint8_t i =0; i< l_cpu_count; i++){
+#if defined (DAP_OS_DARWIN)
+    // Prepare structs
+    struct ctl_info l_ctl_info = {0};
+
+    // Copy utun control name
+    if (strlcpy(l_ctl_info.ctl_name, UTUN_CONTROL_NAME, sizeof(l_ctl_info.ctl_name))
+            >= sizeof(l_ctl_info.ctl_name)){
+        err = -100; // How its possible to came into this part? Idk
+        log_it(L_ERROR,"UTUN_CONTROL_NAME \"%s\" too long", UTUN_CONTROL_NAME);
+        goto lb_err;
+    }
+
+    // Create utun socket
+    int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
+    if( l_tun_fd < 0){
+        int l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Opening utun device control (SYSPROTO_CONTROL) error: '%s' (code %d)", l_errbuf, l_errno);
+        err = -101;
+        goto lb_err;
+    }
+    log_it(L_INFO, "Utun SYSPROTO_CONTROL descriptor obtained");
+    s_raw_server->tun_ctl_fd = l_tun_fd;
+
+    // Pass control structure to the utun socket
+    if( ioctl(l_tun_fd, CTLIOCGINFO, &l_ctl_info ) < 0 ){
+        int l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't execute ioctl(CTLIOCGINFO): '%s' (code %d)", l_errbuf, l_errno);
+        err = -102;
+        goto lb_err;
+
+    }
+    log_it(L_INFO, "Utun CTLIOCGINFO structure passed through ioctl");
+
+    // Trying to connect with one of utunX devices
+    int l_ret = -1;
+    for(int l_unit = 0; l_unit < 256; l_unit++){
+        struct sockaddr_ctl l_sa_ctl = {0};
+        l_sa_ctl.sc_id = l_ctl_info.ctl_id;
+        l_sa_ctl.sc_len = sizeof(l_sa_ctl);
+        l_sa_ctl.sc_family = AF_SYSTEM;
+        l_sa_ctl.ss_sysaddr = AF_SYS_CONTROL;
+        l_sa_ctl.sc_unit = l_unit + 1;
+
+        // If connect successful, new utunX device should be created
+        l_ret = connect(l_tun_fd, (struct sockaddr *)&l_sa_ctl, sizeof(l_sa_ctl));
+        if(l_ret == 0)
+            break;
+    }
+    if (l_ret < 0){
+        int l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't create utun device: '%s' (code %d)", l_errbuf, l_errno);
+        err = -103;
+        goto lb_err;
+
+    }
+
+    // Get iface name of newly created utun dev.
+    log_it(L_NOTICE, "Utun device created");
+    char l_utunname[20];
+    socklen_t l_utunname_len = sizeof(l_utunname);
+    if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ){
+        int l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't get utun device name: '%s' (code %d)", l_errbuf, l_errno);
+        err = -104;
+        goto lb_err;
+    }
+    s_raw_server->tun_device_name = strndup(l_utunname, l_utunname_len);
+    log_it(L_NOTICE, "Utun device name \"%s\"", s_raw_server->tun_device_name);
+
+    for( uint8_t i =0; i< s_tun_sockets_count; i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
+#elif defined(DAP_OS_LINUX) || defined(DAP_OS_BSD)
         int l_tun_fd;
         if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
@@ -583,6 +691,10 @@ static int s_vpn_tun_create(dap_config_t * g_config)
             break;
         }
         s_tun_deattach_queue(l_tun_fd);
+
+#else
+#error "Undefined tun interface attach for your platform"
+#endif
         pthread_mutex_init(&s_tun_sockets_mutex_started[i],NULL);
         pthread_cond_init(&s_tun_sockets_cond_started[i],NULL);
         pthread_mutex_lock(&s_tun_sockets_mutex_started[i]);
@@ -590,7 +702,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     }
 
     // Waiting for all the tun sockets
-    for( uint8_t i =0; i< l_cpu_count; i++){
+    for( uint8_t i =0; i< s_tun_sockets_count; i++){
         pthread_cond_wait(&s_tun_sockets_cond_started[i], &s_tun_sockets_mutex_started[i]);
         pthread_mutex_unlock(&s_tun_sockets_mutex_started[i]);
     }
@@ -616,7 +728,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(s_raw_server->ipv4_gw),c_mask, s_raw_server->ifr.ifr_name );
         system(buf);
     }
-
+lb_err:
     return err;
 }
 
@@ -1405,21 +1517,35 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
     dap_chain_net_srv_vpn_tun_socket_t * l_tun_socket = CH_SF_TUN_SOCKET(a_es);
     assert(l_tun_socket);
     size_t l_buf_in_size = a_es->buf_in_size;
-    struct iphdr *iph = (struct iphdr*) a_es->buf_in;
+    dap_os_iphdr_t *iph = ( dap_os_iphdr_t*) a_es->buf_in;
     if (s_debug_more){
         char l_str_daddr[INET_ADDRSTRLEN]={[0]='\0'};
         char l_str_saddr[INET_ADDRSTRLEN]={[0]='\0'};
+#ifdef DAP_OS_LINUX
         struct in_addr l_daddr={ .s_addr = iph->daddr};
         struct in_addr l_saddr={ .s_addr = iph->saddr};
         inet_ntop(AF_INET,&l_daddr,l_str_daddr,sizeof (iph->daddr));
         inet_ntop(AF_INET,&l_saddr,l_str_saddr,sizeof (iph->saddr));
-        log_it(L_DEBUG,"m_es_tun_read() received ip packet %s->%s tot_len: %u ",
-               l_str_saddr, l_str_saddr, iph->tot_len);
+        size_t l_ip_tot_len = iph->tot_len;
+#else
+        struct in_addr l_daddr={ .s_addr = iph->ip_dst.s_addr };
+        struct in_addr l_saddr={ .s_addr = iph->ip_src.s_addr};
+        inet_ntop(AF_INET,&l_daddr,l_str_daddr,sizeof (l_daddr));
+        inet_ntop(AF_INET,&l_saddr,l_str_saddr,sizeof (l_saddr));
+        size_t l_ip_tot_len = iph->ip_len ;
+#endif
+
+        log_it(L_DEBUG,"m_es_tun_read() received ip packet %s->%s tot_len: %zu ",
+               l_str_saddr, l_str_saddr, l_ip_tot_len);
     }
 
     if(l_buf_in_size) {
         struct in_addr l_in_daddr;
+#ifdef DAP_OS_LINUX
         l_in_daddr.s_addr = iph->daddr;
+#else
+        l_in_daddr.s_addr = iph->ip_dst.s_addr;
+#endif
 
         //
         dap_chain_net_srv_ch_vpn_info_t * l_vpn_info = NULL;
@@ -1478,8 +1604,10 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
         l_tun_socket->queue_tun_msg_input = DAP_NEW_Z_SIZE(dap_events_socket_t*,sizeof(dap_events_socket_t*)*
                                                             dap_events_thread_get_count());
         a_es->_inheritor = l_tun_socket;
-        s_tun_attach_queue( a_es->fd );
 
+#if !defined(DAP_OS_DARWIN) && (defined(DAP_OS_LINUX) || defined (DAP_OS_BSD))
+        s_tun_attach_queue( a_es->fd );
+#endif
         // Signal thats its ready
         pthread_mutex_lock(&s_tun_sockets_mutex_started[l_worker_id]);
         pthread_mutex_unlock(&s_tun_sockets_mutex_started[l_worker_id]);
@@ -1492,6 +1620,8 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
     }
 }
 
+
+#if !defined(DAP_OS_DARWIN) && (defined(DAP_OS_LINUX) || defined (DAP_OS_BSD))
 /**
  * @brief s_tun_attach_queue
  * @param fd
@@ -1517,3 +1647,5 @@ static int s_tun_deattach_queue(int fd)
     ifr.ifr_flags = IFF_DETACH_QUEUE;
     return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
 }
+
+#endif

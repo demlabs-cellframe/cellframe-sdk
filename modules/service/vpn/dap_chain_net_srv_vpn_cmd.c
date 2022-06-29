@@ -56,7 +56,7 @@ int com_vpn_statistics(int a_argc, char ** a_argv, char **a_str_reply)
                         l_time_len_sec / 3600, (l_time_len_sec % 3600) / 60, l_time_len_sec % 60);
             // client ip
             const int l_tun_client_addr_str_len = 128;
-            char *l_tun_client_addr_str = DAP_NEW_S_SIZE(char, l_tun_client_addr_str_len);
+            char *l_tun_client_addr_str = DAP_NEW_STACK_SIZE(char, l_tun_client_addr_str_len);
             if(inet_ntop(AF_INET, &(l_session->tun_client_addr), l_tun_client_addr_str, l_tun_client_addr_str_len))
                 dap_string_append_printf(l_str, "  client addr........%s\n", l_tun_client_addr_str);
             else

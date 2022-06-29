@@ -22,7 +22,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sys/epoll.h>
 #include <sys/un.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
@@ -30,7 +29,6 @@
 
 #include <arpa/inet.h>
 #include <net/ethernet.h>
-#include <netpacket/packet.h>
 #include <netinet/in.h>
 
 #include <time.h>
@@ -50,7 +48,21 @@
 
 #include <arpa/inet.h>
 #include <fcntl.h>
+#ifdef DAP_OS_LINUX
+#include <netpacket/packet.h>
 #include <linux/if_tun.h>
+#elif defined (DAP_OS_DARWIN)
+#include <net/if.h>
+#include <net/if_utun.h>
+#include <sys/kern_control.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/sys_domain.h>
+#include <netinet/in.h>
+#endif
+
+
 #include <net/if.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -81,6 +93,7 @@ static dap_events_socket_t * s_tun_events_socket = NULL;
 
 int tun_device_create(char *dev)
 {
+#ifdef DAP_OS_LINUX
     struct ifreq ifr;
     int fd, err;
     char clonedev[] = "/dev/net/tun";
@@ -111,6 +124,81 @@ int tun_device_create(char *dev)
         strcpy(dev, ifr.ifr_name);
     log_it(L_INFO, "Created %s network interface", ifr.ifr_name);
     return fd;
+#elif defined DAP_OS_DARWIN
+    // Prepare structs
+    struct ctl_info l_ctl_info = {0};
+    int l_errno = 0;
+
+    // Copy utun control name
+    if (strlcpy(l_ctl_info.ctl_name, UTUN_CONTROL_NAME, sizeof(l_ctl_info.ctl_name))
+            >= sizeof(l_ctl_info.ctl_name)){
+        l_errno = -100; // How its possible to came into this part? Idk
+        log_it(L_ERROR,"UTUN_CONTROL_NAME \"%s\" too long", UTUN_CONTROL_NAME);
+        goto lb_err;
+    }
+
+    // Create utun socket
+    int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
+    if( l_tun_fd < 0){
+        l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Opening utun device control (SYSPROTO_CONTROL) error: '%s' (code %d)", l_errbuf, l_errno);
+        goto lb_err;
+    }
+    log_it(L_INFO, "Utun SYSPROTO_CONTROL descriptor obtained");
+
+    // Pass control structure to the utun socket
+    if( ioctl(l_tun_fd, CTLIOCGINFO, &l_ctl_info ) < 0 ){
+        l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't execute ioctl(CTLIOCGINFO): '%s' (code %d)", l_errbuf, l_errno);
+        goto lb_err;
+
+    }
+    log_it(L_INFO, "Utun CTLIOCGINFO structure passed through ioctl");
+
+    // Trying to connect with one of utunX devices
+    int l_ret = -1;
+    for(int l_unit = 0; l_unit < 256; l_unit++){
+        struct sockaddr_ctl l_sa_ctl = {0};
+        l_sa_ctl.sc_id = l_ctl_info.ctl_id;
+        l_sa_ctl.sc_len = sizeof(l_sa_ctl);
+        l_sa_ctl.sc_family = AF_SYSTEM;
+        l_sa_ctl.ss_sysaddr = AF_SYS_CONTROL;
+        l_sa_ctl.sc_unit = l_unit + 1;
+
+        // If connect successful, new utunX device should be created
+        l_ret = connect(l_tun_fd, (struct sockaddr *)&l_sa_ctl, sizeof(l_sa_ctl));
+        if(l_ret == 0)
+            break;
+    }
+    if (l_ret < 0){
+        l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't create utun device: '%s' (code %d)", l_errbuf, l_errno);
+        goto lb_err;
+
+    }
+
+    // Get iface name of newly created utun dev.
+    log_it(L_NOTICE, "Utun device created");
+    char l_utunname[20];
+    socklen_t l_utunname_len = sizeof(l_utunname);
+    if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ){
+        l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't get utun device name: '%s' (code %d)", l_errbuf, l_errno);
+        goto lb_err;
+    }
+    log_it(L_NOTICE, "Utun device name \"%s\"", l_utunname);
+    return l_tun_fd;
+lb_err:
+    return l_errno;
+#endif
 }
 
 static char* run_bash_cmd(const char *a_cmd)
@@ -266,12 +354,14 @@ void m_client_tun_new(dap_events_socket_t * a_es, void * arg)
 
         a_es->_inheritor = l_tun_socket;
         //s_tun_attach_queue( a_es->fd );
+#ifdef DAP_OS_LINUX
         {
             struct ifreq ifr;
             memset(&ifr, 0, sizeof(ifr));
             ifr.ifr_flags = IFF_ATTACH_QUEUE;
             ioctl(a_es->fd, TUNSETQUEUE, (void *)&ifr);
         }
+#endif
         log_it(L_NOTICE,"New TUN event socket initialized for worker %u" , l_tun_socket->worker_id);
 
     }else{
@@ -291,10 +381,16 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
         l_read_ret = dap_events_socket_pop_from_buf_in(a_es, l_tmp_buf, sizeof(l_tmp_buf));
 
         if(l_read_ret > 0) {
-            struct iphdr *iph = (struct iphdr*) l_tmp_buf;
             struct in_addr in_daddr, in_saddr;
+#ifdef DAP_OS_LINUX
+            struct iphdr *iph = (struct iphdr*) l_tmp_buf;
             in_daddr.s_addr = iph->daddr;
             in_saddr.s_addr = iph->saddr;
+#else
+            struct ip *iph = (struct ip*) l_tmp_buf;
+            in_daddr.s_addr = iph->ip_dst.s_addr;
+            in_saddr.s_addr = iph->ip_src.s_addr;
+#endif
             char str_daddr[42], str_saddr[42];
             dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
             dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
@@ -553,12 +649,14 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
         log_it(L_ERROR, "Try to send to NULL channel");
 //        return;
     }
-    l_pkt_out = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, l_pkt_out_size);
+    l_pkt_out = DAP_NEW_SIZE(ch_vpn_pkt_t, l_pkt_out_size);
+    memset(&l_pkt_out->header,0,sizeof(l_pkt_out->header));
     l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_RECV;
     l_pkt_out->header.sock_id = a_ch->stream->esocket->socket;
     l_pkt_out->header.op_data.data_size = a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', l_pkt_out, l_pkt_out_size);
+
 }
 
 /**
@@ -571,8 +669,13 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
     log_it(L_CRITICAL, "Unimplemented tun_client_send");
 
     struct in_addr in_saddr, in_daddr, in_daddr_net;
+#ifdef DAP_OS_LINUX
     in_saddr.s_addr = ((struct iphdr*) pkt_data)->saddr;
     in_daddr.s_addr = ((struct iphdr*) pkt_data)->daddr;
+#else
+    in_saddr.s_addr = ((struct ip*) pkt_data)->ip_src.s_addr;
+    in_daddr.s_addr = ((struct ip*) pkt_data)->ip_dst.s_addr;
+#endif
     in_daddr_net.s_addr = ch_sf->ch->stream->session->tun_client_addr.s_addr; //in_daddr_net.s_addr = in_daddr.s_addr & m_tun_server->int_network_mask.s_addr;
     char * in_daddr_str = strdup(inet_ntoa(in_daddr));
     char * in_saddr_str = strdup(inet_ntoa(in_saddr));
