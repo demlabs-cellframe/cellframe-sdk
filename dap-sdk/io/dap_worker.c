@@ -321,7 +321,14 @@ static bool s_socket_all_check_activity( void * a_arg)
     time_t l_curtime= time(NULL);
     //dap_ctime_r(&l_curtime, l_curtimebuf);
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
+    size_t l_esockets_counter = 0;
+    uint l_esockets_count = HASH_CNT(hh, l_worker->context->esockets);
     HASH_ITER(hh, l_worker->context->esockets, l_es, tmp ) {
+        if (l_esockets_counter >= l_worker->context->event_sockets_count || l_esockets_counter >= l_esockets_count){
+            log_it(L_ERROR, "Something wrong with context's esocket table: %u esockets in context, %u in table but we're on %zu iteration",
+                   l_worker->context->event_sockets_count, l_esockets_count,l_esockets_counter +1 );
+                break;
+        }
         if (l_es->type == DESCRIPTOR_TYPE_SOCKET_CLIENT){
             if ( !(l_es->flags & DAP_SOCK_SIGNAL_CLOSE) &&
                  (  l_curtime >=  (l_es->last_time_active + s_connection_timeout) ) && !l_es->no_close ) {
@@ -333,6 +340,7 @@ static bool s_socket_all_check_activity( void * a_arg)
                 dap_events_socket_remove_and_delete_unsafe(l_es,false);
             }
         }
+        l_esockets_counter++;
     }
     return true;
 }

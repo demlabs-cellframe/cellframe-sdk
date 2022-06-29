@@ -114,7 +114,9 @@ typedef struct vpn_local_network {
     int tun_ctl_fd;
     char * tun_device_name;
     int tun_fd;
+#ifndef DAP_OS_DARWIN
     struct ifreq ifr;
+#endif
     bool auto_cpu_reassignment;
 
     ch_vpn_pkt_t * pkt_out[400];
@@ -595,7 +597,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
     s_tun_sockets_mutex_started = DAP_NEW_Z_SIZE(pthread_mutex_t,s_tun_sockets_count*sizeof(pthread_mutex_t));
     s_tun_sockets_cond_started = DAP_NEW_Z_SIZE(pthread_cond_t,s_tun_sockets_count*sizeof(pthread_cond_t));
-    int err = -1;
+    int err = 0;
 
 #if defined (DAP_OS_DARWIN)
     // Prepare structs
@@ -679,7 +681,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         assert( l_worker );
 #elif defined(DAP_OS_LINUX) || defined(DAP_OS_BSD)
         int l_tun_fd;
-        if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
+        if( (l_tun_fd = open(s_raw_server->tun_device_name, O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
             err = -100;
             break;
@@ -691,7 +693,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
             break;
         }
         s_tun_deattach_queue(l_tun_fd);
-
+        s_raw_server->tun_device_name = strdup("s_raw_server->ifr.ifr_name");
 #else
 #error "Undefined tun interface attach for your platform"
 #endif
@@ -722,12 +724,24 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 
     if (! err ){
         char buf[256];
-        log_it(L_NOTICE,"Bringed up %s virtual network interface (%s/%s)", s_raw_server->ifr.ifr_name,inet_ntoa(s_raw_server->ipv4_gw),c_mask);
-        snprintf(buf,sizeof(buf),"ip link set %s up",s_raw_server->ifr.ifr_name);
+        log_it(L_NOTICE,"Bringed up %s virtual network interface (%s/%s)", s_raw_server->tun_device_name,inet_ntoa(s_raw_server->ipv4_gw),c_mask);
+#if defined DAP_OS_ANDROID
+#elif defined(DAP_OS_LINUX)
+        snprintf(buf,sizeof(buf),"ip link set %s up",s_raw_server->tun_device_name);
         system(buf);
-        snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(s_raw_server->ipv4_gw),c_mask, s_raw_server->ifr.ifr_name );
+        snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(s_raw_server->ipv4_gw),c_mask, s_raw_server->tun_device_name );
         system(buf);
+#elif defined DAP_OS_DARWIN
+        snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
+                 inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));
+        system(buf);
+        snprintf(buf,sizeof(buf),"route add -net %s -netmask %s -interface %s", inet_ntoa(s_raw_server->ipv4_gw),c_mask,s_raw_server->tun_device_name );
+        system(buf);
+#else
+#error "Not defined for your platform"
+#endif
     }
+    return 0;
 lb_err:
     return err;
 }
