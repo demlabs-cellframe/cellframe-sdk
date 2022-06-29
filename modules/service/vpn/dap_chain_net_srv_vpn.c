@@ -576,7 +576,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 
 // Not for Darwin
 #ifndef DAP_OS_DARWIN
-    s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", false);
+    s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", true);
 #endif
 
     log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
