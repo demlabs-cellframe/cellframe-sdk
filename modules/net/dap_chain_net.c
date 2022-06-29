@@ -2983,7 +2983,7 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 {
    dap_chain_t * l_chain;
    DL_FOREACH(l_net->pub.chains, l_chain){
-        if(dap_strcmp(l_chain->name,a_name) == 0)
+        if(dap_strcmp(l_chain->name, a_name) == 0)
             return  l_chain;
    }
    return NULL;
@@ -3009,6 +3009,28 @@ dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap
         }
     }
     return NULL;
+}
+
+/**
+ * @brief dap_chain_net_get_default_chain_by_chain_type
+ * @param a_datum_type
+ * @return
+ */
+dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type)
+{
+	dap_chain_t * l_chain;
+
+	if(!l_net)
+		return NULL;
+
+	DL_FOREACH(l_net->pub.chains, l_chain)
+	{
+		for(int i = 0; i < l_chain->default_datum_types_count; i++) {
+			if(l_chain->default_datum_types[i] == a_datum_type)
+				return l_chain;
+		}
+	}
+	return NULL;
 }
 
 /**
