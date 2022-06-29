@@ -65,35 +65,35 @@ dap_store_obj_t *dap_global_db_pkt_deserialize(const dap_global_db_pkt_t *a_pkt,
         l_offset += l_str_length;
 
         if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'id' field");
-                                                           DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
+                                                           DAP_DEL_Z(l_obj->group); break;} // Check for buffer boundries
         memcpy(&l_obj->id, a_pkt->data + l_offset, sizeof(uint64_t));
         l_offset += sizeof(uint64_t);
 
         if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'timestamp' field");
-                                                           DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
+                                                           DAP_DEL_Z(l_obj->group); break;} // Check for buffer boundries
         memcpy(&l_obj->timestamp, a_pkt->data + l_offset, sizeof(uint64_t));
         l_offset += sizeof(uint64_t);
 
         if (l_offset+sizeof (uint16_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'key_length' field");
-                                                           DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
+                                                           DAP_DEL_Z(l_obj->group); break;} // Check for buffer boundries
         memcpy(&l_str_length, a_pkt->data + l_offset, sizeof(uint16_t));
         l_offset += sizeof(uint16_t);
 
         if (l_offset + l_str_length > a_pkt->data_size || !l_str_length) {log_it(L_ERROR, "Broken GDB element: can't read 'key' field: len %s",
                                                                                  l_str_length ? "OVER" : "NULL");
-                                                                          DAP_DELETE(l_obj->group); break;} // Check for buffer boundries
+                                                                          DAP_DEL_Z(l_obj->group); break;} // Check for buffer boundries
         l_obj->key = DAP_NEW_Z_SIZE(char, l_str_length + 1);
         memcpy((char *)l_obj->key, a_pkt->data + l_offset, l_str_length);
         l_offset += l_str_length;
 
         if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field");
-                                                           DAP_DELETE(l_obj->group); DAP_DELETE(l_obj->key); break;} // Check for buffer boundries
+                                                           DAP_DEL_Z(l_obj->group); DAP_DEL_Z(l_obj->key); break;} // Check for buffer boundries
         memcpy(&l_obj->value_len, a_pkt->data + l_offset, sizeof(uint64_t));
         l_offset += sizeof(uint64_t);
 
-        if (l_offset + l_obj->value_len > a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field");
-                                                          DAP_DELETE(l_obj->group); DAP_DELETE(l_obj->key);break;} // Check for buffer boundries
-        l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
+        if (l_offset + l_obj->value_len > a_pkt->data_size || !l_obj->value_len) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field");
+                                                          DAP_DEL_Z(l_obj->group); DAP_DEL_Z(l_obj->key);break;} // Check for buffer boundries
+        l_obj->value = DAP_NEW_Z_SIZE(uint8_t, l_obj->value_len);
         memcpy((char*)l_obj->value, a_pkt->data + l_offset, l_obj->value_len);
         l_offset += l_obj->value_len;
     }
