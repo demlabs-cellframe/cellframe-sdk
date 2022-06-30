@@ -279,6 +279,7 @@ void dap_chain_net_srv_call_closed_all(dap_stream_ch_t * a_client);
 void dap_chain_net_srv_call_opened_all(dap_stream_ch_t * a_client);
 
 dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid);
+dap_chain_net_srv_t* dap_chain_net_srv_get_by_name(const char *a_name);
 size_t dap_chain_net_srv_count(void);
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
@@ -298,6 +299,24 @@ DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chai
         case SERV_UNIT_PCS: return "PIECES";
         default: return "UNKNOWN";
     }
+}
+
+DAP_STATIC_INLINE dap_chain_net_srv_price_unit_uid_t dap_chain_net_srv_price_unit_uid_from_str( const char  *a_unit_str )
+{
+    dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_UNDEFINED };
+    if(!dap_strcmp(a_unit_str, "mb"))
+        l_price_unit.enm = SERV_UNIT_MB;
+    else if(!dap_strcmp(a_unit_str, "sec"))
+        l_price_unit.enm = SERV_UNIT_SEC;
+    else if(!dap_strcmp(a_unit_str, "day"))
+        l_price_unit.enm = SERV_UNIT_DAY;
+    else if(!dap_strcmp(a_unit_str, "kb"))
+        l_price_unit.enm = SERV_UNIT_KB;
+    else if(!dap_strcmp(a_unit_str, "b") || !dap_strcmp(a_unit_str, "bytes"))
+        l_price_unit.enm = SERV_UNIT_B;
+    else if(!dap_strcmp(a_unit_str, "pcs") || !dap_strcmp(a_unit_str, "pieces"))
+        l_price_unit.enm = SERV_UNIT_PCS;
+    return l_price_unit;
 }
 
 DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare(dap_chain_net_srv_uid_t a, dap_chain_net_srv_uid_t b)

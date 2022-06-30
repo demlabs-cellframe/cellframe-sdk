@@ -129,7 +129,7 @@ DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_hash_fast_t *a_hash, char 
 DAP_STATIC_INLINE char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
 {
     const size_t c_hash_str_size = DAP_CHAIN_HASH_FAST_STR_SIZE;
-    char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
+    char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size + 1);
     if(dap_chain_hash_fast_to_str( a_hash, ret, c_hash_str_size ) < 0 )
         DAP_DEL_Z(ret);
     return ret;
