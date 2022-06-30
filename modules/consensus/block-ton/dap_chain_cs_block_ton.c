@@ -471,7 +471,7 @@ static bool s_session_timer() {
 			case DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START: {
 				if ( (l_time-l_session->ts_round_sync_start) >= PVT(l_session->ton)->round_start_sync_timeout ) { // timeout start sync
 					uint16_t l_startsync_count = l_session->cur_round.validators_start_count;
-					if ( ((float)l_startsync_count/l_session->cur_round.validators_count) >= ((float)2/3) ) {
+                    if (l_startsync_count * 3 >= l_session->cur_round.validators_count * 2) {
 						// if sync more 2/3 validators then start round and submit candidate
 						if (PVT(l_session->ton)->debug)
                             log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu More than 2/3 of the validators are synchronized, so starting the round and send the candidate",
@@ -692,7 +692,7 @@ static void s_session_candidate_to_chain(
 		}
 	}
 
-	if ( ((float)l_signs_count/a_session->old_round.validators_count) >= ((float)2/3) ) {
+    if (l_signs_count * 3 >= a_session->old_round.validators_count * 2) {
 		//dap_chain_t *l_chain = a_session->chain;
 		//dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 		dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
@@ -1032,6 +1032,14 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 	dap_chain_cs_block_ton_message_t *l_message =
 			(dap_chain_cs_block_ton_message_t *)DAP_DUP_SIZE(a_data, a_data_size);
 
+    if( sizeof(*l_message)+l_message->hdr.sign_size > a_data_size){
+        log_it(L_WARNING, "TON: incorrect message size in header is %zu when data size is only %zu and header size is %zu",
+               l_message->hdr.sign_size, a_data_size, sizeof(*l_message));
+        goto handler_finish;
+    }
+    size_t l_message_data_size = a_data_size - sizeof(*l_message) - l_message->hdr.sign_size;
+    byte_t *l_message_data = l_message->sign_n_message + l_message->hdr.sign_size;
+
 	if (PVT(l_session->ton)->debug)
         log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive pkt type:%x from addr:"NODE_ADDR_FP_STR", my_addr:"NODE_ADDR_FP_STR"",
 				l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
@@ -1355,11 +1363,18 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 	bool l_finalize_consensus = false;
 	switch (l_message->hdr.type) {
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_SUBMIT: {
-			dap_chain_cs_block_ton_message_submit_t *l_submit =
-							(dap_chain_cs_block_ton_message_submit_t *)
-								(l_message->sign_n_message+l_message->hdr.sign_size);
-
-			size_t l_candidate_size = l_submit->candidate_size;
+            if( sizeof(dap_chain_cs_block_ton_message_submit_t) > l_message_data_size){
+                log_it(L_WARNING, "Wrong submit message size,have %zu bytes for data section when only a header requires %zu bytes",
+                       l_message_data_size,sizeof(dap_chain_cs_block_ton_message_submit_t));
+                goto handler_finish;
+            }
+            dap_chain_cs_block_ton_message_submit_t *l_submit = (dap_chain_cs_block_ton_message_submit_t *)l_message_data;
+            size_t l_candidate_size = l_submit->candidate_size;
+            if( l_message_data_size < l_candidate_size + sizeof(*l_submit) ){
+                log_it(L_WARNING, "Wrong submit message size %zu when maximum is %zu for received message", l_candidate_size,
+                       l_message_data_size - sizeof(*l_submit));
+                goto handler_finish;
+            }
 			if (!l_candidate_size || s_hash_is_null(&l_submit->candidate_hash)) { // null candidate - save chain and exit
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive SUBMIT: candidate: NULL",
@@ -1465,9 +1480,13 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			DAP_DELETE(l_candidate_hash_str);
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT: {
-			dap_chain_cs_block_ton_message_reject_t *l_reject =
-							(dap_chain_cs_block_ton_message_reject_t *)
-								(l_message->sign_n_message+l_message->hdr.sign_size);
+            if  ( sizeof(dap_chain_cs_block_ton_message_reject_t) >l_message_data_size  ){
+                log_it(L_WARNING, "Wrong reject message size,have %zu bytes for data section when requires %zu bytes",
+                       l_message_data_size,sizeof(dap_chain_cs_block_ton_message_reject_t));
+                goto handler_finish;
+            }
+            dap_chain_cs_block_ton_message_reject_t *l_reject = (dap_chain_cs_block_ton_message_reject_t *) l_message_data;
+
 			dap_chain_hash_fast_t *l_candidate_hash = &l_reject->candidate_hash;
 
 			if ( s_hash_is_null(l_candidate_hash) ) {
@@ -1507,9 +1526,20 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			DAP_DELETE(l_candidate_hash_str);
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE: {
-			dap_chain_cs_block_ton_message_approve_t *l_approve =
-								(dap_chain_cs_block_ton_message_approve_t *)
-										(l_message->sign_n_message+l_message->hdr.sign_size);
+            if  ( sizeof(dap_chain_cs_block_ton_message_approve_t) >l_message_data_size  ){
+                log_it(L_WARNING, "Wrong reject message size,have %zu bytes for data section when requires %zu bytes",
+                       l_message_data_size,sizeof(dap_chain_cs_block_ton_message_approve_t));
+                goto handler_finish;
+            }
+            dap_chain_cs_block_ton_message_approve_t *l_approve = (dap_chain_cs_block_ton_message_approve_t *) l_message_data;
+            dap_sign_t * l_candidate_sign = (dap_sign_t *) l_approve->candidate_hash_sign;
+            size_t l_candidate_hash_sign_size = l_message_data_size - sizeof(dap_chain_cs_block_ton_message_approve_t);
+            if (l_candidate_hash_sign_size || dap_sign_get_size(l_candidate_sign) > l_candidate_hash_sign_size ){
+                log_it(L_WARNING, "Wrong reject message size,have %zu bytes for candidate sign section when requires  maximum %zu bytes",
+                       dap_sign_get_size(l_candidate_sign),l_candidate_hash_sign_size);
+                goto handler_finish;
+            }
+
 			dap_chain_hash_fast_t *l_candidate_hash = &l_approve->candidate_hash;
 			
 			if ( s_hash_is_null(l_candidate_hash) ) {
@@ -1521,6 +1551,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			}
 			char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
 
+            pthread_rwlock_rdlock(&l_session->rwlock);
 			if (PVT(l_session->ton)->debug)
                 log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive APPROVE: candidate:%s",
 						l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
@@ -1531,7 +1562,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			if ( (l_sign_verified=dap_sign_verify( (dap_sign_t*)l_approve->candidate_hash_sign, 
 													l_candidate_hash, sizeof(dap_chain_hash_fast_t))) == 1 ) {
 				l_message->hdr.is_verified=true;
-                pthread_rwlock_rdlock(&l_session->rwlock);
 
 				if ( l_session->attempt_current_number == 1 ) { // if this first attempt then send Vote event
 					uint16_t l_approve_count = s_session_message_count(
@@ -1578,16 +1608,20 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						}
 					}
 				}
-				pthread_rwlock_unlock(&l_session->rwlock);
 			} else {
 				log_it(L_WARNING, "Candidate hash sign is incorrect: code %d", l_sign_verified);
 			}
 			DAP_DELETE(l_candidate_hash_str);
+            pthread_rwlock_unlock(&l_session->rwlock);
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE_FOR: {
-			dap_chain_cs_block_ton_message_votefor_t *l_votefor =
-								(dap_chain_cs_block_ton_message_votefor_t *)
-										(l_message->sign_n_message+l_message->hdr.sign_size);
+            if  ( sizeof(dap_chain_cs_block_ton_message_votefor_t) >l_message_data_size  ){
+                log_it(L_WARNING, "Wrong vote_for message size,have %zu bytes for data section when requires %zu bytes",
+                       l_message_data_size,sizeof(dap_chain_cs_block_ton_message_votefor_t));
+                goto handler_finish;
+            }
+            dap_chain_cs_block_ton_message_votefor_t *l_votefor = (dap_chain_cs_block_ton_message_votefor_t *) l_message_data;
+
 			dap_chain_hash_fast_t *l_candidate_hash = &l_votefor->candidate_hash;
 			
 			uint16_t l_attempt_current = l_session->attempt_current_number;
@@ -1700,9 +1734,13 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             pthread_rwlock_unlock(&l_session->rwlock);
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE: {
-			dap_chain_cs_block_ton_message_vote_t *l_vote =
-								(dap_chain_cs_block_ton_message_vote_t *)
-										(l_message->sign_n_message+l_message->hdr.sign_size);
+            if  ( sizeof(dap_chain_cs_block_ton_message_vote_t) >l_message_data_size  ){
+                log_it(L_WARNING, "Wrong vote_for message size,have %zu bytes for data section when requires %zu bytes",
+                       l_message_data_size,sizeof(dap_chain_cs_block_ton_message_vote_t));
+                goto handler_finish;
+            }
+            dap_chain_cs_block_ton_message_vote_t *l_vote =	(dap_chain_cs_block_ton_message_vote_t *) l_message_data;
+
 			dap_chain_hash_fast_t *l_candidate_hash = &l_vote->candidate_hash;
 
 			if ( l_vote->attempt_number != l_session->attempt_current_number) {
@@ -1759,9 +1797,14 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			pthread_rwlock_unlock(&l_session->rwlock);
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_PRE_COMMIT: {
-			dap_chain_cs_block_ton_message_precommit_t *l_precommit =
-							(dap_chain_cs_block_ton_message_precommit_t *)
-									(l_message->sign_n_message+l_message->hdr.sign_size);
+            if  ( sizeof(dap_chain_cs_block_ton_message_precommit_t) >l_message_data_size  ){
+                log_it(L_WARNING, "Wrong pre_commit message size,have %zu bytes for data section when requires %zu bytes",
+                       l_message_data_size,sizeof(dap_chain_cs_block_ton_message_precommit_t));
+                goto handler_finish;
+            }
+
+            dap_chain_cs_block_ton_message_precommit_t *l_precommit = (dap_chain_cs_block_ton_message_precommit_t *) l_message_data;
+
 			dap_chain_hash_fast_t *l_candidate_hash = &l_precommit->candidate_hash;
 
 			if ( l_precommit->attempt_number != l_session->attempt_current_number) {
@@ -1838,10 +1881,23 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			DAP_DELETE(l_candidate_hash_str);
         } break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN: {
-			dap_chain_cs_block_ton_message_commitsign_t *l_commitsign =
-								(dap_chain_cs_block_ton_message_commitsign_t *)
-									(l_message->sign_n_message+l_message->hdr.sign_size);
-			dap_chain_hash_fast_t *l_candidate_hash = &l_commitsign->candidate_hash;
+            if  ( sizeof(dap_chain_cs_block_ton_message_commitsign_t) >l_message_data_size  ){
+                log_it(L_WARNING, "Wrong commit_sign message size,have %zu bytes for data section when requires %zu bytes",
+                       l_message_data_size,sizeof(dap_chain_cs_block_ton_message_commitsign_t));
+                goto handler_finish;
+            }
+
+            dap_chain_cs_block_ton_message_commitsign_t *l_commitsign =	(dap_chain_cs_block_ton_message_commitsign_t *) l_message_data;
+            dap_chain_hash_fast_t *l_candidate_hash = &l_commitsign->candidate_hash;
+
+            dap_sign_t * l_candidate_sign = (dap_sign_t *) l_commitsign->candidate_sign;
+            size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
+            size_t l_message_candidate_sign_size_max = l_message_data_size - sizeof(dap_chain_cs_block_ton_message_commitsign_t);
+            if (l_message_candidate_sign_size_max == 0 || dap_sign_get_size(l_candidate_sign) > l_message_candidate_sign_size_max ){
+                log_it(L_WARNING, "Wrong reject message size,have %zu bytes for candidate sign section when requires  maximum %zu bytes",
+                       l_candidate_sign_size ,l_message_candidate_sign_size_max);
+                goto handler_finish;
+            }
 
             pthread_rwlock_rdlock(&l_session->rwlock);
             dap_chain_cs_block_ton_round_t *l_round =
@@ -1885,7 +1941,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 							l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN,
 										l_candidate_hash, NULL);
 						l_commitsign_count++;
-						if ( ((float)l_commitsign_count/l_round->validators_count) >= ((float)2/3) ) {
+                        if (l_commitsign_count * 3 >= l_round->validators_count * 2) {
 							// s_session_round_finish(l_session);
 							if (l_commitsign->round_id.uint64 == l_session->cur_round.id.uint64) {
 								l_finalize_consensus = true;
@@ -2057,7 +2113,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 	        return -2;
 	    }
 
-	    if ( ((float)l_signs_count/l_ton_pvt->poa_validators_count ) < ((float)2/3) ) {
+        if (l_signs_count * 3  < l_ton_pvt->poa_validators_count * 2) {
             log_it(L_ERROR, "Corrupted block: not enough signs: %zu of %hu", l_signs_count, l_ton_pvt->poa_validators_count);
 	        DAP_DELETE(l_signs);
 	    	return -1;
@@ -2088,7 +2144,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 	    if ( l_ret != 0 ) {
 	    	return l_ret;
 	    }
-	    if ( ((float)l_signs_verified_count/l_ton_pvt->poa_validators_count ) < ((float)2/3) ) {
+        if (l_signs_verified_count * 3 < l_ton_pvt->poa_validators_count * 2) {
 	        log_it(L_ERROR, "Corrupted block: not enough signs: %u of %u", l_signs_verified_count, l_ton_pvt->poa_validators_count);
 	    	return -1;
 	    }
