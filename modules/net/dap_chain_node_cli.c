@@ -1120,7 +1120,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
      // Export GDB to JSON
      dap_chain_node_cli_cmd_item_create("gdb_export", cmd_gdb_export, "Export gdb to JSON",
-                                        "gdb_export filename <filename without extension>");
+                                        "gdb_export filename <filename without extension> [-groups <group names list>]");
 
      //Import GDB from JSON
      dap_chain_node_cli_cmd_item_create("gdb_import", cmd_gdb_import, "Import gdb from JSON",

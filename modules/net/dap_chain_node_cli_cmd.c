@@ -4494,19 +4494,35 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open db directory");
         return -1;
     }
-    char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
+    char l_path[MIN(strlen(l_db_path) + strlen(l_filename) + 12, MAX_PATH)];
     memset(l_path, '\0', sizeof(l_path));
     dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
 
+    const char *l_groups_str = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-groups", &l_groups_str);
+    char *l_group_str = NULL, *l_ctx = NULL;
+    dap_list_t *l_parsed_groups_list = NULL;
+    if (l_groups_str) {
+        char *l_tmp_str = dap_strdup(l_groups_str);
+        l_group_str = strtok_r(l_tmp_str, ",", &l_ctx);
+        for (; l_group_str; l_group_str = strtok_r(NULL, ",", &l_ctx)) {
+            l_parsed_groups_list = dap_list_prepend(l_parsed_groups_list, dap_strdup(l_group_str));
+        }
+        DAP_DEL_Z(l_tmp_str);
+    }
     struct json_object *l_json = json_object_new_array();
-    dap_list_t *l_groups_list = dap_chain_global_db_driver_get_groups_by_mask("*");
+    dap_list_t *l_groups_list = l_parsed_groups_list
+            ? l_parsed_groups_list
+            : dap_chain_global_db_driver_get_groups_by_mask("*");
     for (dap_list_t *l_list = l_groups_list; l_list; l_list = dap_list_next(l_list)) {
         size_t l_data_size = 0;
         char *l_group_name = (char *)l_list->data;
         pdap_store_obj_t l_data = dap_chain_global_db_obj_gr_get(NULL, &l_data_size, l_group_name);
-        log_it(L_INFO, "Exporting group %s, number of records: %zu", l_group_name, l_data_size);
         if (!l_data_size) {
+            log_it(L_INFO, "Group %s is empty of not found", l_group_name);
             continue;
+        } else {
+            log_it(L_INFO, "Exporting group %s, number of records: %zu", l_group_name, l_data_size);
         }
 
         struct json_object *l_json_group = json_object_new_array();
@@ -4608,7 +4624,7 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
             l_group_store[j].key    = dap_strdup(json_object_get_string(l_key));
             l_group_store[j].group  = dap_strdup(l_group_name);
             dap_gdb_time_t ts = json_object_get_int64(l_ts);
-            l_group_store[j].timestamp = ts >> 32 == 0 ? ts << 32 : ts; // possibly legacy record
+            l_group_store[j].timestamp = ts >> 32 ? ts : ts << 32; // possibly legacy record
             l_group_store[j].value_len = (uint64_t)json_object_get_int64(l_value_len);
             l_group_store[j].type   = 'a';
             l_group_store[j].flags = l_flags ? json_object_get_int(l_flags) : RECORD_COMMON; // possibly legacy record
@@ -4619,6 +4635,8 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
         }
         if (dap_chain_global_db_driver_apply(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
+        } else {
+            log_it(L_INFO, "Imported %llu records of group %s", l_records_count, l_group_name);
         }
         dap_store_obj_free(l_group_store, l_records_count);
     }
