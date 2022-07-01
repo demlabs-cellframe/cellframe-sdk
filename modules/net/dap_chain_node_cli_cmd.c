@@ -5175,7 +5175,7 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
         if (dap_chain_global_db_driver_apply(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
         } else {
-            log_it(L_INFO, "Imported %llu records of group %s", l_records_count, l_group_name);
+            log_it(L_INFO, "Imported %zu records of group %s", l_records_count, l_group_name);
         }
         //dap_store_obj_free(l_group_store, l_records_count);
     }
