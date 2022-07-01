@@ -304,7 +304,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             return false;
         }
         if(s_debug_more){
-            char l_str_daddr[INET_ADDRSTRLEN];
+            char l_str_daddr[INET_ADDRSTRLEN];o
             inet_ntop(AF_INET,&l_in_daddr,l_str_daddr,sizeof (l_in_daddr));
             log_it(L_INFO, "Sent packet for desitnation %zd between contexts",a_data_size);
         }
@@ -675,11 +675,12 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     }
     s_raw_server->tun_device_name = strndup(l_utunname, l_utunname_len);
     log_it(L_NOTICE, "Utun device name \"%s\"", s_raw_server->tun_device_name);
+#endif
 
     for( uint8_t i =0; i< s_tun_sockets_count; i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
-#elif defined(DAP_OS_LINUX) || defined(DAP_OS_BSD)
+#if defined(DAP_OS_LINUX) || defined(DAP_OS_BSD)
         int l_tun_fd;
         if( (l_tun_fd = open(s_raw_server->tun_device_name, O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
@@ -693,9 +694,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
             break;
         }
         s_tun_deattach_queue(l_tun_fd);
-        s_raw_server->tun_device_name = strdup("s_raw_server->ifr.ifr_name");
-#else
-#error "Undefined tun interface attach for your platform"
+        s_raw_server->tun_device_name = strdup(s_raw_server->ifr.ifr_name);
 #endif
         pthread_mutex_init(&s_tun_sockets_mutex_started[i],NULL);
         pthread_cond_init(&s_tun_sockets_cond_started[i],NULL);
