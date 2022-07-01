@@ -808,10 +808,10 @@ int dap_global_db_set_unsafe(dap_global_db_context_t * a_global_db_context, cons
 {
     dap_store_obj_t l_store_data = { 0 };
     dap_nanotime_t l_ts_now = dap_nanotime_now();
-    l_store_data.key = a_key ;
+    l_store_data.key = (char *)a_key ;
     l_store_data.flags = a_pin_value ? RECORD_PINNED : 0 ;
     l_store_data.value_len =  a_value_length;
-    l_store_data.value =  a_value;
+    l_store_data.value = (uint8_t *)a_value;
     l_store_data.group = (char*) a_group;
     l_store_data.timestamp = l_ts_now;
 

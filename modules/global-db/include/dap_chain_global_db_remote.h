@@ -6,9 +6,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_net.h"
 #include "dap_chain_global_db_driver.h"
-
 #include "dap_global_db.h"
-#include "dap_global_db_pkt.h"
 
 #define F_DB_LOG_ADD_EXTRA_GROUPS   1
 #define F_DB_LOG_SYNC_FROM_ZERO     2
@@ -19,6 +17,13 @@
 
 #define GDB_SYNC_ALWAYS_FROM_ZERO       // For debug purposes
 // for dap_db_log_list_xxx()
+
+typedef struct dap_global_db_pkt {
+    dap_nanotime_t timestamp;
+    uint64_t data_size;
+    uint32_t obj_count;
+    uint8_t data[];
+}__attribute__((packed)) dap_global_db_pkt_t;
 
 typedef struct dap_db_log_list_group {
     char *name;
@@ -58,7 +63,7 @@ dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_cha
 
 dap_global_db_pkt_t *dap_store_packet_single(dap_store_obj_t *a_store_obj);
 dap_global_db_pkt_t *dap_store_packet_multiple(dap_global_db_pkt_t *a_old_pkt, dap_global_db_pkt_t *a_new_pkt);
-
+dap_store_obj_t *dap_global_db_pkt_deserialize(const dap_global_db_pkt_t *a_pkt, size_t *a_objs_count);
 
 char *dap_store_packet_get_group(dap_global_db_pkt_t *a_pkt);
 uint64_t dap_store_packet_get_id(dap_global_db_pkt_t *a_pkt);
