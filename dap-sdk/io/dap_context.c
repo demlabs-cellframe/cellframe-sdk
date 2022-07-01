@@ -1328,12 +1328,10 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
             }
         }
     }
-
-
+lb_exit:
 #else
 #error "Unimplemented new esocket on context callback for current platform"
 #endif
-lb_exit:
     if ( l_is_error ){
         char l_errbuf[128];
         l_errbuf[0]=0;

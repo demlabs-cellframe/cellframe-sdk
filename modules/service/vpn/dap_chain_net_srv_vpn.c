@@ -579,19 +579,15 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 // Not for Darwin
 #ifndef DAP_OS_DARWIN
     s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", true);
-#endif
-
-    log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
-
-#if defined (DAP_OS_DARWIN)
     s_tun_sockets_count = 1;
-#elif  defined(DAP_OS_LINUX) || defined(DAP_OS_BSD)
+#elif defined (DAP_OS_LINUX) || defined (DAP_OS_BSD)
     s_tun_sockets_count = dap_get_cpu_count();
     memset(&s_raw_server->ifr, 0, sizeof(s_raw_server->ifr));
     s_raw_server->ifr.ifr_flags = IFF_TUN | IFF_MULTI_QUEUE| IFF_NO_PI;
 #else
 #error "Undefined tun create for your platform"
 #endif
+    log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
     log_it(L_NOTICE,"%s: trying to initialize multiqueue for %u workers", __PRETTY_FUNCTION__, s_tun_sockets_count);
     s_tun_sockets = DAP_NEW_Z_SIZE(dap_chain_net_srv_vpn_tun_socket_t*,s_tun_sockets_count*sizeof(dap_chain_net_srv_vpn_tun_socket_t*));
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
@@ -675,11 +671,11 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     }
     s_raw_server->tun_device_name = strndup(l_utunname, l_utunname_len);
     log_it(L_NOTICE, "Utun device name \"%s\"", s_raw_server->tun_device_name);
-
+#endif
     for( uint8_t i =0; i< s_tun_sockets_count; i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
-#elif defined(DAP_OS_LINUX) || defined(DAP_OS_BSD)
+#if defined (DAP_OS_LINUX) || defined (DAP_OS_BSD)
         int l_tun_fd;
         if( (l_tun_fd = open(s_raw_server->tun_device_name, O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
@@ -694,7 +690,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         }
         s_tun_deattach_queue(l_tun_fd);
         s_raw_server->tun_device_name = strdup("s_raw_server->ifr.ifr_name");
-#else
+#elif !defined (DAP_OS_DARWIN)
 #error "Undefined tun interface attach for your platform"
 #endif
         pthread_mutex_init(&s_tun_sockets_mutex_started[i],NULL);
@@ -725,13 +721,12 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     if (! err ){
         char buf[256];
         log_it(L_NOTICE,"Bringed up %s virtual network interface (%s/%s)", s_raw_server->tun_device_name,inet_ntoa(s_raw_server->ipv4_gw),c_mask);
-#if defined DAP_OS_ANDROID
-#elif defined(DAP_OS_LINUX)
+#if defined (DAP_OS_ANDROID) || defined (DAP_OS_LINUX)
         snprintf(buf,sizeof(buf),"ip link set %s up",s_raw_server->tun_device_name);
         system(buf);
         snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(s_raw_server->ipv4_gw),c_mask, s_raw_server->tun_device_name );
         system(buf);
-#elif defined DAP_OS_DARWIN
+#elif defined (DAP_OS_DARWIN)
         snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
                  inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));
         system(buf);
@@ -742,8 +737,10 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 #endif
     }
     return 0;
+#ifdef DAP_OS_DARWIN
 lb_err:
     return err;
+#endif
 }
 
 /**

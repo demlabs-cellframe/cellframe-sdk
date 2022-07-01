@@ -27,6 +27,7 @@
 #include "dap_time.h"
 #include "dap_context.h"
 #include "dap_proc_queue.h"
+
 #define DAP_GLOBAL_DB_VERSION                 1
 #define DAP_GLOBAL_DB_LOCAL_GENERAL         "local.general"
 
