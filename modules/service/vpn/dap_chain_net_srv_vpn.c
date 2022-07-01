@@ -304,7 +304,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             return false;
         }
         if(s_debug_more){
-            char l_str_daddr[INET_ADDRSTRLEN];o
+            char l_str_daddr[INET_ADDRSTRLEN];
             inet_ntop(AF_INET,&l_in_daddr,l_str_daddr,sizeof (l_in_daddr));
             log_it(L_INFO, "Sent packet for desitnation %zd between contexts",a_data_size);
         }
