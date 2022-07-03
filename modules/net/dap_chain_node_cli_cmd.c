@@ -2300,7 +2300,7 @@ void s_com_mempool_list_print_for_chain (
             continue;
         }
 
-        char buf[sizeof(long long)] = {'\0'};
+        char buf[8 * sizeof(long long) + 1] = {'\0'};
         dap_hash_fast_t l_data_hash;
         char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {'\0'};
         dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
