@@ -2307,9 +2307,9 @@ void s_com_mempool_list_print_for_chain (
             continue;
         }
 
-        char buf[50] = {[0]='\0'};
+        char buf[128] = {0};
         dap_hash_fast_t l_data_hash;
-        char l_data_hash_str[70] = {[0]='\0'};
+        char l_data_hash_str[128] = {0};
         dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
         dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
         const char *l_type = NULL;
