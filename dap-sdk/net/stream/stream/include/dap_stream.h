@@ -59,8 +59,11 @@ typedef struct dap_stream {
     size_t pkt_buf_in_data_size;
     size_t pkt_buf_in_size_expected;
 
-    uint8_t buf_defrag[STREAM_BUF_SIZE_MAX];
-    uint64_t buf_defrag_size;
+    uint8_t *buf_fragments;
+    size_t buf_fragments_size_total;
+    size_t buf_fragments_size_fill;
+//    uint8_t buf_defrag[STREAM_BUF_SIZE_MAX];
+//    uint64_t buf_defrag_size;
 
     uint8_t buf[STREAM_BUF_SIZE_MAX];
     uint8_t pkt_cache[STREAM_BUF_SIZE_MAX];

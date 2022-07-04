@@ -76,6 +76,7 @@ static dap_chain_net_srv_uid_t * m_uid;
 typedef struct service_list {
     dap_chain_net_srv_uid_t uid;
     dap_chain_net_srv_t * srv;
+    char name[32];
     UT_hash_handle hh;
 } service_list_t;
 
@@ -732,6 +733,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
+        strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name));
         l_sdata->srv = l_srv;
         dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
@@ -875,6 +877,26 @@ dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
     HASH_FIND(hh, s_srv_list, &a_uid, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     pthread_mutex_unlock(&s_srv_list_mutex);
     return (l_sdata) ? l_sdata->srv : NULL;
+}
+
+/**
+ * @brief dap_chain_net_srv_get_by_name
+ * @param a_client
+ */
+dap_chain_net_srv_t* dap_chain_net_srv_get_by_name(const char *a_name)
+{
+    if(!a_name)
+        return NULL;
+    dap_chain_net_srv_t *l_srv = NULL;
+    service_list_t *l_sdata, *l_sdata_tmp;
+    pthread_mutex_lock(&s_srv_list_mutex);
+    HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
+    {
+        if(!dap_strcmp(l_sdata->name, a_name))
+            l_srv = l_sdata->srv;
+    }
+    pthread_mutex_unlock(&s_srv_list_mutex);
+    return l_srv;
 }
 
 /**

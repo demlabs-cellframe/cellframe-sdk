@@ -49,7 +49,7 @@
 
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
-#include "dap_stream_ch.h"
+//#include "dap_stream_ch.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_pkt.h"
@@ -128,12 +128,13 @@ size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a
 /**
  * @brief stream_ch_pkt_write
  * @param ch
+ * @param type [STREAM_PKT_TYPE_DATA_PACKET, STREAM_PKT_TYPE_FRAGMENT_PACKET, STREAM_PKT_TYPE_KEEPALIVE, etc.]
  * @param data
  * @param data_size
  * @return
  */
 
-size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data, size_t a_data_size)
+size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, uint8_t a_type, const void * a_data, size_t a_data_size)
 {
     a_stream->is_active = true;
     size_t ret=0;
@@ -149,6 +150,7 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data,
     }
 
     memset(&pkt_hdr,0,sizeof(pkt_hdr));
+    pkt_hdr.type = a_type;
     memcpy(pkt_hdr.sig,c_dap_stream_sig,sizeof(pkt_hdr.sig));
 
     pkt_hdr.size =(uint32_t) dap_enc_code( a_stream->session->key, a_data,a_data_size,l_buf_selected, l_buf_size_required, DAP_ENC_DATA_TYPE_RAW);
