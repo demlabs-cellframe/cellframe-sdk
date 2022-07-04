@@ -244,27 +244,53 @@ static void *s_context_thread(void *a_arg)
     if(l_msg->cpu_id!=-1)
         dap_cpu_assign_thread_on(l_msg->cpu_id );
 
-
+    int l_priority = l_msg->priority;
 #ifdef DAP_OS_WINDOWS
-    if (!SetThreadPriority(GetCurrentThread(), l_msg->priority ))
-        log_it(L_ERROR, "Couldn'r set thread priority, err: %lu", GetLastError());
+    switch (l_priority) {
+    case THREAD_PRIORITY_TIME_CRITICAL:
+    case THREAD_PRIORITY_HIGHEST:
+    case THREAD_PRIORITY_ABOVE_NORMAL:
+    case THREAD_PRIORITY_BELOW_NORMAL:
+    case THREAD_PRIORITY_LOWEST:
+    case THREAD_PRIORITY_IDLE:
+        break;
+    default:
+        l_priority = THREAD_PRIORITY_NORMAL;
+    }
+    if (!SetThreadPriority(GetCurrentThread(), l_priority))
+        log_it(L_ERROR, "Couldn't set thread priority, err: %lu", GetLastError());
 #else
-    if(l_msg->priority != 0 && l_msg->sched_policy != DAP_CONTEXT_POLICY_DEFAULT ){
+    if (l_msg->sched_policy != DAP_CONTEXT_POLICY_DEFAULT ){
         struct sched_param l_sched_params = {0};
-#if defined (DAP_OS_LINUX)
-        int l_sched_policy= SCHED_BATCH;
-#else
-        int l_sched_policy= SCHED_OTHER;
-#endif
-
-        l_sched_params.sched_priority = l_msg->priority;
+        int l_sched_policy = SCHED_IDLE;
         switch(l_msg->sched_policy){
             case DAP_CONTEXT_POLICY_FIFO: l_sched_policy = SCHED_FIFO; break;
             case DAP_CONTEXT_POLICY_ROUND_ROBIN: l_sched_policy = SCHED_RR; break;
-            default:;
+            default:
+#if defined (DAP_OS_LINUX)
+                l_sched_policy = SCHED_BATCH;
+#else
+                l_sched_policy = SCHED_OTHER;
+#endif
         }
-
-        pthread_setschedparam(pthread_self(), l_sched_policy,&l_sched_params);
+        int l_prio_min = sched_get_priority_min(l_sched_policy);
+        int l_prio_max = sched_get_priority_max(l_sched_policy);
+        switch (l_priority) {
+        case DAP_CONTEXT_PRIORITY_NORMAL:
+            l_priority = (l_prio_max - l_prio_min) / 2;
+            break;
+        case DAP_CONTEXT_PRIORITY_HIGH:
+            l_priority = l_prio_max - l_prio_max / 5;
+            break;
+        case DAP_CONTEXT_PRIORITY_LOW:
+            l_priority = l_prio_min + l_prio_max / 5;
+        }
+        if (l_priority < l_prio_min)
+            l_priority = l_prio_min;
+        if (l_priority > l_prio_max)
+            l_priority = l_prio_max;
+        l_sched_params.sched_priority = l_priority;
+        pthread_setschedparam(pthread_self(), l_sched_policy, &l_sched_params);
     }
 #endif
 

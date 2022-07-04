@@ -129,6 +129,16 @@ typedef struct dap_context {
 // If set DAP_CONTEXT_FLAG_WAIT_FOR_STARTED thats time for waiting for (in seconds)
 #define DAP_CONTEXT_WAIT_FOR_STARTED_TIME   15
 
+#ifdef DAP_OS_WINDOWS
+#define DAP_CONTEXT_PRIORITY_NORMAL THREAD_PRIORITY_NORMAL
+#define DAP_CONTEXT_PRIORITY_HIGH   THREAD_PRIORITY_HIGHEST
+#define DAP_CONTEXT_PRIORITY_LOW    THREAD_PRIORITY_LOWEST
+#else
+#define DAP_CONTEXT_PRIORITY_NORMAL -1
+#define DAP_CONTEXT_PRIORITY_HIGH   -2
+#define DAP_CONTEXT_PRIORITY_LOW    -3
+#endif
+
 // pthread kernel object for current context pointer
 extern pthread_key_t g_dap_context_pth_key;
 
