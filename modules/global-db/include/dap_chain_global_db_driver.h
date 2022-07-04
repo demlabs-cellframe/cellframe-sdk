@@ -41,7 +41,7 @@
 #define DAP_DB$SZ_MAXKEY            (512UL)                                 /* A limit for the key's length in DB */
 #define DAP_DB$K_MAXOBJS            (8192UL)                                /* A maximum number of objects to be returned by
                                                                             read_srore_obj() */
-#define DAP_DB$SZ_MAXDB             (1*1024*1024*1024UL)                    /* 1 GB */
+#define DAP_DB$SZ_MAXDB             (32*1024*1024*1024UL)                    /* 1 GB */
 
 enum    {
     DAP_DB$K_OPTYPE_ADD  = 'a',                                             /* Operation Type = INSERT/ADD */
