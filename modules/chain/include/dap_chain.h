@@ -92,7 +92,7 @@ typedef size_t (*dap_chain_callback_add_datums_with_group_t)(dap_chain_t * , dap
 typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size); //change in chain happened
 
 typedef size_t(*dap_chain_callback_get_count)(dap_chain_t *a_chain);
-typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page);
+typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool reverse);
 
 typedef enum dap_chain_type
 {
