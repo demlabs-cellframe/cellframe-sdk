@@ -129,7 +129,8 @@ static inline void s_dap_assert_fail(int condition, const char *a_expr, const ch
 {
 char    buf[255];
 int     buflen;
-
+    if (condition)
+        return;
     buflen = snprintf(buf, sizeof(buf), "\n[%s:%d] <%s> expresion return false\n", a_file, a_line, a_expr);
     write(STDOUT_FILENO, buf, buflen);
     abort();

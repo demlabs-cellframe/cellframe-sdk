@@ -1888,7 +1888,6 @@ static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
  */
 static void s_context_callback_stopped( dap_context_t * a_context, void *a_arg)
 {
-    dap_events_socket_remove_and_delete_unsafe(s_context_global_db->queue_io, false);
     // Fullful arrays with queue inputs
     for (uint32_t i = 0; i < dap_events_thread_get_count(); i++){
         dap_events_socket_remove_and_delete_unsafe(s_context_global_db->queue_worker_io_input[i], true);
@@ -1898,6 +1897,7 @@ static void s_context_callback_stopped( dap_context_t * a_context, void *a_arg)
     DAP_DELETE(s_context_global_db->queue_worker_io_input);
     DAP_DELETE(s_context_global_db->queue_worker_callback_input);
     DAP_DELETE(s_context_global_db->queue_proc_thread_callback_input);
+    dap_events_socket_remove_and_delete_unsafe(s_context_global_db->queue_io, false);
 }
 
 

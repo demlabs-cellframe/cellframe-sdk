@@ -280,6 +280,7 @@ static void *s_context_thread(void *a_arg)
     // Add pre-defined queues and events
     dap_context_add(l_context, l_context->event_exit);
 
+    l_context->is_running = true;
     // Started callback execution
     l_msg->callback_started(l_context, l_msg->callback_arg);
 
@@ -385,7 +386,7 @@ static int s_thread_loop(dap_context_t * a_context)
         l_selected_sockets = poll(a_context->poll, a_context->poll_count, -1);
         l_sockets_max = a_context->poll_count;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-        a_context->esockets_selected = l_selected_sockets = kevent(a_context->kqueue_fd,NULL,0,a_context->kqueue_events_selected,a_context->kqueue_events_selected_count_max,
+        l_selected_sockets = kevent(a_context->kqueue_fd,NULL,0,a_context->kqueue_events_selected,a_context->kqueue_events_selected_count_max,
                                                         NULL);
         l_sockets_max = l_selected_sockets;
 #else
@@ -404,9 +405,9 @@ static int s_thread_loop(dap_context_t * a_context)
             break;
         }
 
+        a_context->esockets_selected = l_selected_sockets;
         time_t l_cur_time = time( NULL);
-        for(a_context->esocket_current = 0; a_context->esocket_current < a_context->esockets_selected;
-            a_context->esocket_current++) {
+        for (a_context->esocket_current = 0; a_context->esocket_current < l_sockets_max; a_context->esocket_current++) {
             ssize_t n = a_context->esocket_current;
             bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 
