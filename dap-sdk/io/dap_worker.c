@@ -172,9 +172,10 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         case DESCRIPTOR_TYPE_SOCKET_CLIENT:
         case DESCRIPTOR_TYPE_SOCKET_LISTENING:{
 
+
 #ifdef DAP_OS_UNIX
 #if defined (SO_INCOMING_CPU)
-            int l_cpu = l_worker->id;
+            int l_cpu = l_worker->context->cpu_id;
             setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
 #endif
 #endif
