@@ -999,6 +999,7 @@ struct  __record_suffix__   *l_suff;
                     l_obj->timestamp = l_suff->ts;
                     l_obj->flags = l_suff->flags;
                     l_obj->group = dap_strdup(a_group);
+                    l_obj->group_len = strlen(l_obj->group);
 
                     if ( a_count_out )
                         *a_count_out = 1;
