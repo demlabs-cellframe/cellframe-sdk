@@ -264,7 +264,7 @@ static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_c
     dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  a_ch_vpn->usage_id);
 
     size_t l_data_to_send = (a_pkt_out->header.op_data.data_size + sizeof(a_pkt_out->header));
-    size_t l_data_sent = dap_stream_ch_pkt_write_inter(a_es_input, a_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, a_pkt_out, l_data_to_send);
+    size_t l_data_sent = dap_stream_ch_pkt_write_inter(a_es_input, a_ch_vpn->ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, a_pkt_out, l_data_to_send);
     s_update_limits(a_ch_vpn->ch,l_srv_session,l_usage, l_data_sent );
     if ( l_data_sent < l_data_to_send){
         log_it(L_WARNING, "Wasn't sent all the data in tunnel (%zd was sent from %zd): probably buffer overflow", l_data_sent, l_data_to_send);
@@ -722,7 +722,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
             break;
         }
         log_it(L_DEBUG,"Opening /dev/net/tun:%u", i);
-        if( (err = ioctl(l_tun_fd, TUNSETIFF, (void *)& s_raw_server->ifr)) < 0 ) {
+        if( (l_err = ioctl(l_tun_fd, TUNSETIFF, (void *)& s_raw_server->ifr)) < 0 ) {
             log_it(L_CRITICAL, "ioctl(TUNSETIFF) error: '%s' ",strerror(errno));
             close(l_tun_fd);
             break;
@@ -737,6 +737,8 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         pthread_mutex_lock(&s_tun_sockets_mutex_started[i]);
         s_tun_event_stream_create(l_worker, l_tun_fd);
     }
+    if (l_err)
+        goto lb_err;
 
     // Waiting for all the tun sockets
     for( uint8_t i =0; i< s_tun_sockets_count; i++){
@@ -756,26 +758,22 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         }
     }
 
-
-    if (! l_err ){
-        char buf[256];
-        log_it(L_NOTICE,"Bringed up %s virtual network interface (%s/%s)", s_raw_server->tun_device_name,inet_ntoa(s_raw_server->ipv4_gw),c_mask);
+    char buf[256];
+    log_it(L_NOTICE,"Bringed up %s virtual network interface (%s/%s)", s_raw_server->tun_device_name,inet_ntoa(s_raw_server->ipv4_gw),c_mask);
 #if defined (DAP_OS_ANDROID) || defined (DAP_OS_LINUX)
-        snprintf(buf,sizeof(buf),"ip link set %s up",s_raw_server->tun_device_name);
-        system(buf);
-        snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(s_raw_server->ipv4_gw),c_mask, s_raw_server->tun_device_name );
-        system(buf);
+    snprintf(buf,sizeof(buf),"ip link set %s up",s_raw_server->tun_device_name);
+    system(buf);
+    snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",inet_ntoa(s_raw_server->ipv4_gw),c_mask, s_raw_server->tun_device_name );
+    system(buf);
 #elif defined (DAP_OS_DARWIN)
-        snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
-                 inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));
-        system(buf);
-        snprintf(buf,sizeof(buf),"route add -net %s -netmask %s -interface %s", inet_ntoa(s_raw_server->ipv4_gw),c_mask,s_raw_server->tun_device_name );
-        system(buf);
+    snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
+             inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));
+    system(buf);
+    snprintf(buf,sizeof(buf),"route add -net %s -netmask %s -interface %s", inet_ntoa(s_raw_server->ipv4_gw),c_mask,s_raw_server->tun_device_name );
+    system(buf);
 #else
 #error "Not defined for your platform"
 #endif
-    }
-    return 0;
 lb_err:
     return l_err;
 }
@@ -971,7 +969,7 @@ static void s_ch_vpn_esocket_assigned(dap_events_socket_t* a_es, dap_worker_t * 
    //dap_chain_net_srv_ch_vpn_info_t * l_info = NULL;
    // HASH_FIND(hh,l_tun_sock->clients,&l_ch_vpn->addr_ipv4 , sizeof (l_ch_vpn->addr_ipv4), l_info);
 
-    s_tun_send_msg_esocket_assigned_all(a_es->context->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,l_ch_vpn->ch->stream->esocket_uuid,
+    s_tun_send_msg_esocket_reasigned_all_inter(a_es->context->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,l_ch_vpn->ch->stream->esocket_uuid,
                                                l_ch_vpn->addr_ipv4, a_es->context->worker->id);
 }
 
