@@ -583,12 +583,11 @@ dap_store_obj_t *l_obj;
                                                                               but keep transaction !!! */
         mdbx_cursor_close(l_cursor);
 
-    if (l_db_ctx->txn)
-        mdbx_txn_commit(l_db_ctx->txn);
 
 
     if ( !(l_last_key.iov_len || l_data.iov_len) )                          /* Not found anything  - return NULL */
     {
+        mdbx_txn_commit(l_db_ctx->txn);
         dap_assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
         return  NULL;
     }
@@ -609,12 +608,16 @@ dap_store_obj_t *l_obj;
             l_obj->id = l_suff->id;
             l_obj->timestamp = l_suff->ts;
             l_obj->flags = l_suff->flags;
+
+            l_obj->group_len = strlen(l_obj->group);
             dap_assert ( (l_obj->group = dap_strdup(a_group)) );
+
         }
         else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
     }
     else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
 
+    mdbx_txn_commit(l_db_ctx->txn);
     dap_assert ( !pthread_mutex_unlock(&l_db_ctx->dbi_mutex) );
 
     return  l_obj;
@@ -1144,6 +1147,7 @@ struct  __record_suffix__   *l_suff;
                     l_obj->timestamp = l_suff->ts;
                     l_obj->flags = l_suff->flags;
                     dap_assert ( l_obj->group = dap_strdup(a_group) );
+                    l_obj->group_len = strlen(l_obj->group);
 
                     if ( a_count_out )
                         *a_count_out = 1;
@@ -1216,7 +1220,8 @@ struct  __record_suffix__   *l_suff;
 
             else if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
                 {
-                /* Fill the <store obj> by data from the retreived record */
+                /* Fill the <store obj> by data from the retrieved record */
+                l_obj->key_len = l_key.iov_len;
                 memcpy((char *) l_obj->key, l_key.iov_base, l_obj->key_len);
 
                 l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
@@ -1227,7 +1232,7 @@ struct  __record_suffix__   *l_suff;
                 l_obj->timestamp = l_suff->ts;
                 l_obj->flags = l_suff->flags;
 
-                l_obj->group = dap_strdup(a_group);
+                dap_assert(l_obj->group = dap_strdup(a_group));
                 l_obj->group_len = strlen(l_obj->group);
 
                 if ( a_count_out )

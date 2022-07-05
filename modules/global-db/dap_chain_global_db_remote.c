@@ -785,7 +785,6 @@ dap_store_obj_t *l_store_obj_arr, *l_obj;
         }
     }
 
-
     assert(pdata == pdata_end);
 
     // Return the number of completely filled dap_store_obj_t structures
