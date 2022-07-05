@@ -120,7 +120,7 @@ typedef struct dap_context {
 #define DAP_CONTEXT_FLAG_EXIT_IF_ERROR     0x00000100
 
 // Usual policies
-#define DAP_CONTEXT_POLICY_DEFAULT          0
+#define DAP_CONTEXT_POLICY_DEFAULT         0
 #define DAP_CONTEXT_POLICY_TIMESHARING     1
 // Real-time policies.
 #define DAP_CONTEXT_POLICY_FIFO            2

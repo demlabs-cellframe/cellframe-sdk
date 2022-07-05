@@ -196,7 +196,7 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
     }
     memset(l_cdb_path, '\0', sizeof(l_cdb_path));
     dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, a_group);
-    cdb_options l_opts = { 4096, 128, 1024 };
+    cdb_options l_opts = { 100000, 256, 1024 };
     if (cdb_option(l_cdb_i->cdb, l_opts.hsize, l_opts.pcacheMB, l_opts.rcacheMB) != CDB_SUCCESS) {
         log_it(L_ERROR, "Options are inacceptable: \"%s\"", cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
         goto ERR;
