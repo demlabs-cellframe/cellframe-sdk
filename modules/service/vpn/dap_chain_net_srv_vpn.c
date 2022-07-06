@@ -616,13 +616,14 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_raw_server->ipv4_gw.s_addr= (s_raw_server->ipv4_network_addr.s_addr | 0x01000000); // grow up some shit here!
     s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_gw.s_addr;
 
+#ifdef DAP_OS_DARWIN
+    s_tun_sockets_count = 1
+#elif defined (DAP_OS_LINUX) || defined (DAP_OS_BSD)
 // Not for Darwin
     s_tun_sockets_count = dap_get_cpu_count();
-#ifdef DAP_OS_DARWIN
-    s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", true);
-#elif defined (DAP_OS_LINUX) || defined (DAP_OS_BSD)
     memset(&s_raw_server->ifr, 0, sizeof(s_raw_server->ifr));
     s_raw_server->ifr.ifr_flags = IFF_TUN | IFF_MULTI_QUEUE| IFF_NO_PI;
+    s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", true);
 #else
 #error "Undefined tun create for your platform"
 #endif
@@ -716,7 +717,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         assert( l_worker );
 #if !defined(DAP_OS_DARWIN) &&( defined (DAP_OS_LINUX) || defined (DAP_OS_BSD))
         int l_tun_fd;
-        if( (l_tun_fd = open(s_raw_server->tun_device_name, O_RDWR | O_NONBLOCK)) < 0 ) {
+        if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
             l_err = -100;
             break;
