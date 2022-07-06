@@ -52,24 +52,24 @@ static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 int dap_chain_net_srv_stake_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
-    "srv_stake order create -net <net name> -addr_hldr <addr> -token <ticker> -coins <value> -cert <name> -fee_percent <value>\n"
+    "srv_stake order create -net <net_name> -addr_hldr <addr> -token <token_ticker> -coins <value> -cert <priv_cert_name> -fee_percent <value>\n"
         "\tCreate a new order with specified amount of datoshi to delegate specified cert from the specified address.\n"
         "\tThe fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
-    "srv_stake order declare -net <net name> -wallet <name> -token <ticker> -coins <value> -fee_percent <value>"
+    "srv_stake order declare -net <net_name> -wallet <name> -token <token_ticker> -coins <value> -fee_percent <value>"
         "\tCreate a new order with specified amount of datoshi and fee which holder is ready to stake.\n"
-    "srv_stake order remove -net <net name> -order <order hash> [-H {hex | base58(default)}]\n"
+    "srv_stake order remove -net <net_name> -order <order hash> [-H {hex | base58(default)}]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net name> -order <order hash> {-cert <name> | -wallet <name>} [-H {hex | base58(default)}]{[-addr_hldr <addr>] [-token <ticker>] [-coins <value>] [-fee_percent <value>] | [-token <ticker>] [-coins <value>] -fee_percent <value>]}\n"
+    "srv_stake order update -net <net_name> -order <order hash> {-cert <priv_cert_name> | -wallet <wallet_name>} [-H {hex | base58(default)}]{[-addr_hldr <addr>] [-token <token_ticker>] [-coins <value>] [-fee_percent <value>] | [-token <ticker>] [-coins <value>] -fee_percent <value>]}\n"
          "\tUpdate order with specified hash\n"
-    "srv_stake order list -net <net name>\n"
+    "srv_stake order list -net <net_name>\n"
          "\tGet the stake orders list within specified net name\n"
-    "srv_stake delegate -order <order hash> -net <net name> -wallet <name> -fee_addr <addr>\n"
+    "srv_stake delegate -order <order hash> -net <net_name> -wallet <wallet_name> -fee_addr <addr>\n"
          "\tDelegate tokens with specified order within specified net name. Specify fee address\n"
-    "srv_stake approve -net <net name> -tx <transaction hash> -cert <root cert name>\n"
+    "srv_stake approve -net <net_name> -tx <transaction hash> -cert <priv_cert_name>\n"
          "\tApprove stake transaction by root node certificate within specified net name.\n"
-    "srv_stake transactions -net <net name> [-addr <addr from>]\n"
+    "srv_stake transactions -net <net_name> [-addr <addr from>]\n"
          "\tShow the list of requested, active and canceled stake transactions (optional delegated from addr)\n"
-    "srv_stake invalidate -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
+    "srv_stake invalidate -net <net_name> -tx <transaction hash> -wallet <wallet name>\n"
          "\tInvalidate requested stake transaction by hash within net name and return stake to specified wallet\n"
     );
 
