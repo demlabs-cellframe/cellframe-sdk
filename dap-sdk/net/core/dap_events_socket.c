@@ -873,7 +873,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             MQPROPVARIANT l_mpvar[2];
             MSGPROPID     l_p_id[2];
 
-            UCHAR l_body[64] = { 0 };
+            UCHAR l_body[4096] = { 0 }; // Normally a limit for MSMQ is ~4MB
             l_p_id[l_mp_id]				= PROPID_M_BODY;
             l_mpvar[l_mp_id].vt			= VT_UI1 | VT_VECTOR;
             l_mpvar[l_mp_id].caub.cElems = sizeof(l_body);
@@ -897,13 +897,14 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                     return -3;
                 }
                 debug_if(g_debug_reactor, L_DEBUG, "Received msg: %p len %lu", *(void **)l_body, l_mpvar[1].ulVal);
-                if (l_mpvar[1].ulVal != sizeof(void*)) {
-                    log_it(L_ERROR, "Queue message size incorrect: %lu", l_mpvar[1].ulVal);
-                    continue;
-                }
                 if (a_esocket->callbacks.queue_ptr_callback) {
-                    l_queue_ptr = *(void **)l_body;
-                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                    for (long shift = 0; shift < (long)l_mpvar[1].ulVal; shift += sizeof(void*)) {
+                        l_queue_ptr = *(void **)(l_body + shift);
+                        a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                    }
+                }
+                if (l_mpvar[1].ulVal % 8 > 1) {
+                    log_it(L_NOTICE, "MSMQ: %d args processed by 1 pass", l_mpvar[1].ulVal % 8);
                 }
             }
 #elif defined DAP_EVENTS_CAPS_KQUEUE

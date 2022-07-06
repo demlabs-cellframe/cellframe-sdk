@@ -761,7 +761,6 @@ static void * s_proc_thread_function(void * a_arg)
                                 l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
                                 l_mpvar[l_mp_id].caub.pElems = l_cur->buf_out;
                                 l_mpvar[l_mp_id].caub.cElems = (u_long)l_cur->buf_out_size;
-                                l_mp_id++;
 
                                 l_mps.cProp = l_mp_id;
                                 l_mps.aPropID = l_p_id;
@@ -776,9 +775,10 @@ static void * s_proc_thread_function(void * a_arg)
                                     if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
                                         log_it(L_ERROR, "Write to sock error: %d", WSAGetLastError());
                                     }
-                                    l_cur->buf_out_size = 0;
-                                    dap_events_socket_set_writable_unsafe(l_cur,false);
+                                    /*l_cur->buf_out_size = 0;
+                                    dap_events_socket_set_writable_unsafe(l_cur,false);*/
 
+                                    l_bytes_sent = l_cur->buf_out_size;
                                     break;
                                 }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
@@ -829,13 +829,12 @@ static void * s_proc_thread_function(void * a_arg)
                     }
                     l_errno = errno;
 
-                    if(l_bytes_sent>0){
+                    if (l_bytes_sent > 0) {
                         l_cur->buf_out_size -= l_bytes_sent;
-                        //log_it(L_DEBUG,"Sent %zd bytes out, left %zd in buf out", l_bytes_sent, l_cur->buf_out);
+                        debug_if(g_debug_reactor, L_DEBUG, "Esocket %p: sent %zd bytes, left %zd in buf", l_cur, l_bytes_sent, l_cur->buf_out_size);
                         if (l_cur->buf_out_size ){ // Shrink output buffer
-
                             memmove(l_cur->buf_out, l_cur->buf_out+l_bytes_sent, l_cur->buf_out_size );
-                        }else{
+                        } else {
 #ifndef DAP_EVENTS_CAPS_KQUEUE
                             l_cur->flags ^= DAP_SOCK_READY_TO_WRITE;
                             dap_proc_thread_esocket_update_poll_flags(l_thread, l_cur);
@@ -845,8 +844,7 @@ static void * s_proc_thread_function(void * a_arg)
 #endif
                         }
                     }
-
-                }else{
+                } else {
                     // TODO Make this code platform-independent
 #ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
                     log_it(L_DEBUG,"(!) Write event receieved but nothing in buffer, switching off this flag");

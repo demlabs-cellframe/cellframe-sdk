@@ -119,7 +119,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         if ( l_msg->signal_kill )                                           /* Say to kill this object and delete its inherior dap_proc_queue_t */
             a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
 
-        DAP_DELETE(l_msg);
+        DAP_DEL_Z(l_msg);
         return;
     }
 
@@ -147,7 +147,7 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     if (l_msg->signal_kill)                                                 /* Say to kill this object and delete its inherior dap_proc_queue_t */
         a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
 
-    DAP_DELETE(l_msg);
+    DAP_DEL_Z(l_msg);
 }
 
 /**

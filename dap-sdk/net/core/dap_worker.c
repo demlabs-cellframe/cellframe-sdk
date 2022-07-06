@@ -690,25 +690,26 @@ void *dap_worker_thread(void *arg)
                                     l_p_id[l_mp_id] = PROPID_M_BODY;
                                     l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
                                     l_mpvar[l_mp_id].caub.pElems = l_cur->buf_out;
-                                    l_mpvar[l_mp_id].caub.cElems = (u_long)sizeof(void*);
+                                    l_mpvar[l_mp_id].caub.cElems = l_cur->buf_out_size;//(u_long)sizeof(void*);
                                     l_mp_id++;
 
                                     l_mps.cProp = l_mp_id;
                                     l_mps.aPropID = l_p_id;
                                     l_mps.aPropVar = l_mpvar;
                                     l_mps.aStatus = l_mstatus;
-                                    HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
 
+                                    HRESULT hr = MQSendMessage(l_cur->mqh, &l_mps, MQ_NO_TRANSACTION);
                                     if (hr != MQ_OK) {
                                         l_errno = hr;
                                         log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
                                         break;
                                     } else {
                                         l_errno = WSAGetLastError();
-                                        debug_if(g_debug_reactor, L_DEBUG, "Sent msg: %p", *(void **)l_cur->buf_out);
                                         if (dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR)
                                             log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
-                                        l_bytes_sent = sizeof(void*);
+                                        l_bytes_sent = l_cur->buf_out_size;
+                                        break;
+                                        //l_cur->buf_out_size = 0;
                                     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                     l_bytes_sent = mq_send(l_cur->mqd , (const char *)l_cur->buf_out,sizeof (void*),0);
@@ -774,7 +775,7 @@ void *dap_worker_thread(void *arg)
                         }
 #endif
                     }else{
-                        //log_it(L_DEBUG, "Output: %u from %u bytes are sent ", l_bytes_sent,l_cur->buf_out_size);
+                        debug_if(g_debug_reactor, L_DEBUG, "Esocket %p: sent %zd bytes, left %zd in buf", l_cur, l_bytes_sent, l_cur->buf_out_size);
                         if (l_bytes_sent) {
                             if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT  || l_cur->type == DESCRIPTOR_TYPE_SOCKET_UDP) {
                                 l_cur->last_time_active = l_cur_time;
