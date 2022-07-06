@@ -761,6 +761,7 @@ static void * s_proc_thread_function(void * a_arg)
                                 l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
                                 l_mpvar[l_mp_id].caub.pElems = l_cur->buf_out;
                                 l_mpvar[l_mp_id].caub.cElems = (u_long)l_cur->buf_out_size;
+                                l_mp_id++;
 
                                 l_mps.cProp = l_mp_id;
                                 l_mps.aPropID = l_p_id;

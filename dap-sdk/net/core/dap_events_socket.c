@@ -896,15 +896,14 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                     log_it(L_ERROR, "An error %ld occured receiving a message from queue", hr);
                     return -3;
                 }
+                if (l_mpvar[1].ulVal > 8)
+                    log_it(L_NOTICE, "MSMQ: processing %d bytes in 1 pass", l_mpvar[1].ulVal);
                 debug_if(g_debug_reactor, L_DEBUG, "Received msg: %p len %lu", *(void **)l_body, l_mpvar[1].ulVal);
                 if (a_esocket->callbacks.queue_ptr_callback) {
                     for (long shift = 0; shift < (long)l_mpvar[1].ulVal; shift += sizeof(void*)) {
                         l_queue_ptr = *(void **)(l_body + shift);
                         a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
                     }
-                }
-                if (l_mpvar[1].ulVal % 8 > 1) {
-                    log_it(L_NOTICE, "MSMQ: %d args processed by 1 pass", l_mpvar[1].ulVal % 8);
                 }
             }
 #elif defined DAP_EVENTS_CAPS_KQUEUE

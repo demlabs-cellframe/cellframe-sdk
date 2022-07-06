@@ -2114,7 +2114,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
             if (!l_emission_item) {
-                log_it(L_DEBUG, "Emission for tx_token wasn't found");
+                debug_if(g_debug_reactor, L_DEBUG, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                 break;
             }

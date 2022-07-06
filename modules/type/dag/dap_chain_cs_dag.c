@@ -1008,7 +1008,7 @@ dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t
     dap_chain_cs_dag_event_item_t * l_event_item = NULL, * l_event_item_tmp = NULL;
     pthread_rwlock_wrlock(&PVT(a_dag)->events_rwlock);
     int l_count = HASH_COUNT(PVT(a_dag)->events_treshold);
-    log_it(L_DEBUG, "*** %d events in threshold", l_count);
+    debug_if(g_debug_reactor, L_DEBUG, "Threshold: %d events", l_count);
     HASH_ITER(hh, PVT(a_dag)->events_treshold, l_event_item, l_event_item_tmp) {
         dap_dag_threshold_verification_res_t ret = dap_chain_cs_dag_event_verify_hashes_with_treshold(a_dag, l_event_item->event);
         if (ret == DAP_THRESHOLD_OK) {
