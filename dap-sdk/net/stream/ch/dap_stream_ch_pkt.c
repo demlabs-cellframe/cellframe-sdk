@@ -258,14 +258,40 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
     if( a_data_size )
         memcpy(l_buf_selected+sizeof(l_hdr),a_data,a_data_size );
 
-    size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,l_buf_selected,a_data_size+sizeof(l_hdr));
-    a_ch->stat.bytes_write+=a_data_size;
-    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+    //size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,l_buf_selected,a_data_size+sizeof(l_hdr));
+    //a_ch->stat.bytes_write+=a_data_size;
+    //dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+
+    // pkt fragmentation if pkt_size > DAP_STREAM_PKT_FRAGMENT_SIZE
+    size_t l_ret = 0;
+    size_t l_max_size = a_data_size + sizeof(l_hdr);
+    size_t l_data_size = l_max_size;
+    size_t l_fragment_size = DAP_STREAM_PKT_FRAGMENT_SIZE;
+    while(l_data_size) {
+        size_t l_data_size_cur = MIN(l_data_size, l_fragment_size);
+        // send the whole packet
+        if(l_data_size_cur == l_max_size) {
+            l_ret += dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_DATA_PACKET, l_buf_selected + l_max_size - l_data_size, l_data_size_cur);
+        }
+        // send the packet fragment by fragment
+        else {
+            dap_stream_fragment_pkt_t *l_fragment = DAP_NEW_Z_SIZE(dap_stream_fragment_pkt_t, sizeof(dap_stream_fragment_pkt_t) + l_data_size_cur);
+            l_fragment->size = l_data_size_cur;
+            l_fragment->full_size = l_max_size;
+            l_fragment->mem_shift = l_max_size - l_data_size;
+            memcpy(l_fragment->data, l_buf_selected + l_fragment->mem_shift, l_fragment->size);
+            l_ret += dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_FRAGMENT_PACKET, l_fragment, l_fragment->size + sizeof(dap_stream_fragment_pkt_t));
+            DAP_DELETE(l_fragment);
+        }
+        l_data_size -= l_data_size_cur;
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+    };
+    // Statistics without header sizes
+    a_ch->stat.bytes_write += a_data_size;
 
     if(l_buf_allocated)
         DAP_DELETE(l_buf_allocated);
     return l_ret;
-
 }
 
 /**
