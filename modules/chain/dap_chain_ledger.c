@@ -3835,7 +3835,7 @@ int dap_chain_ledger_verificator_rwlock_init(void) {
     return pthread_rwlock_init(&s_verificators_rwlock, NULL);
 }
 
-dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page){
+dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool reverse){
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
     size_t l_offset = a_count * (a_page - 1);
     size_t l_count = HASH_COUNT(l_ledger_priv->ledger_items);
@@ -3847,17 +3847,28 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items->hh.tbl->tail->prev;
-    if (!l_ptr)
-        l_ptr = l_ledger_priv->ledger_items;
-    else
-        l_ptr = l_ptr->hh.next;
-    for (dap_chain_ledger_tx_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev){
-        if (l_counter >= l_offset){
-            dap_chain_datum_tx_t *l_tx = ptr->tx;
-            l_list = dap_list_append(l_list, l_tx);
+    if (reverse) {
+        dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items->hh.tbl->tail->prev;
+        if (!l_ptr)
+            l_ptr = l_ledger_priv->ledger_items;
+        else
+            l_ptr = l_ptr->hh.next;
+        for (dap_chain_ledger_tx_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev) {
+            if (l_counter >= l_offset) {
+                dap_chain_datum_tx_t *l_tx = ptr->tx;
+                l_list = dap_list_append(l_list, l_tx);
+            }
+            l_counter++;
         }
-        l_counter++;
+    } else {
+        dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items;
+        for (dap_chain_ledger_tx_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.next) {
+            if (l_counter >= l_offset) {
+                dap_chain_datum_tx_t *l_tx = ptr->tx;
+                l_list = dap_list_append(l_list, l_tx);
+            }
+            l_counter++;
+        }
     }
     return l_list;
 }
