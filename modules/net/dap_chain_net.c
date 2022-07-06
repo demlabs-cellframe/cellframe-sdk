@@ -295,27 +295,27 @@ int dap_chain_net_init()
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_node_cli_cmd_item_create ("net", s_cli_net, "Network commands",
-        "net list [chains -net <chain net name>]"
+        "net list [chains -net <net_name>]"
             "\tList all networks or list all chains in selected network"
-        "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
+        "net -net <net_name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> get status\n"
+        "net -net <net_name> get status\n"
             "\tLook at current status\n"
-        "net -net <chain net name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
+        "net -net <net_name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
-        "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
+        "net -net <net_name> [-mode {update | all}] sync {all | gdb | chains}\n"
             "\tSyncronyze gdb, chains or everything\n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> link {list | add | del | info | disconnect_all}\n"
+        "net -net <net_name> link {list | add | del | info | disconnect_all}\n"
             "\tList, add, del, dump or establish links\n"
-        "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
+        "net -net <net_name> ca add {-cert <priv_cert_name> | -hash <cert hash>}\n"
             "\tAdd certificate to list of authority cetificates in GDB group\n"
-        "net -net <chain net name> ca list\n"
+        "net -net <net_name> ca list\n"
             "\tPrint list of authority cetificates from GDB group\n"
-        "net -net <chain net name> ca del -hash <cert hash> [-H {hex | base58(default)}]\n"
+        "net -net <net_name> ca del -hash <cert hash> [-H {hex | base58(default)}]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
-        "net -net <chain net name> ledger reload\n"
+        "net -net <net_name> ledger reload\n"
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n");
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
 
