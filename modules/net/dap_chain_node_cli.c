@@ -916,17 +916,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_chain_node_cli_cmd_item_create("mempool", com_signer, "Sign operations",
-               "mempool sign -cert <cert name> -net <net name> -chain <chain name> -file <filename> [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
-               "mempool check -cert <cert name> -net <net name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
+               "mempool sign -cert <priv_cert_name> -net <net_name> -chain <chain name> -file <filename> [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
+               "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
     dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
-            "node add  -net <net name> {-addr <node address> | -alias <node alias>} -port <port> -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
-                    "node del -net <net name> {-addr <node address> | -alias <node alias>}\n\n"
-                    "node link {add | del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
+            "node add -net <net_name> {-addr <node address> | -alias <node alias>} -port <port> -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
+                    "node del -net <net_name> {-addr <node address> | -alias <node alias>}\n\n"
+                    "node link {add | del}  -net <net_name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
                     "node alias -addr <node address> -alias <node alias>\n\n"
-                    "node connect -net <net name> {-addr <node address> | -alias <node alias> | auto}\n\n"
-                    "node handshake -net <net name> {-addr <node address> | -alias <node alias>}\n"
-                    "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
+                    "node connect -net <net_name> {-addr <node address> | -alias <node alias> | auto}\n\n"
+                    "node handshake -net <net_name> {-addr <node address> | -alias <node alias>}\n"
+                    "node dump -net <net_name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
                                         );
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
@@ -1048,63 +1048,61 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
-            "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
+            "token_decl_sign -net <net_name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit {sign | -token <token ticker> -emission_value <val>} -net <net name> [-chain_emission <chain for emission>] [-chain_base_tx <chain for base tx> -addr <addr>] -certs <cert list>\n");
+            "token_emit {sign | -token <token_ticker> -emission_value <val>} -net <net_name> [-chain_emission <chain for emission>] [-chain_base_tx <chain for base tx> -addr <addr>] -certs <cert list>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network",
-            "mempool_list -net <net name>\n");
+            "mempool_list -net <net_name>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
-            "mempool_proc -net <net name> -datum <datum hash>\n");
+            "mempool_proc -net <net_name> -datum <datum hash>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
-            "mempool_delete -net <net name> -datum <datum hash>\n");
+            "mempool_delete -net <net_name> -datum <datum hash>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_add_ca", com_mempool_add_ca,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
-            "mempool_add_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+            "mempool_add_ca -net <net_name> [-chain <chain name>] -ca_name <priv_cert_name>\n");
 
     dap_chain_node_cli_cmd_item_create ("chain_ca_pub", com_chain_ca_pub,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
-            "chain_ca_pub -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+            "chain_ca_pub -net <net_name> [-chain <chain name>] -ca_name <priv_cert_name>\n");
 
     dap_chain_node_cli_cmd_item_create ("chain_ca_copy", com_chain_ca_copy,
                                         "Copy pubic certificate into the mempool to prepare its way to chains",
-            "chain_ca_copy -net <net name> [-chain <chain name>] -ca_name <Public certificate name>\n");
+            "chain_ca_copy -net <net_name> [-chain <chain name>] -ca_name <Public certificate name>\n");
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create -net <net name> -chain <chain name> {-from_wallet <name> -token <token ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>} [-fee <addr> -value_fee <val>]\n" );
-    dap_chain_node_cli_cmd_item_create ("tx_create_json", com_tx_create_json, "Make transaction",
-                "tx_create_json -net <net name> -chain <chain name> -json <json file path>\n" );
+            "tx_create -net <net_name> -chain <chain name> {-from_wallet <name> -token <token_ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>} [-fee <addr> -value_fee <val>]\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
-                                        "tx_cond_create -net <net name> -token <token ticker> -wallet <from wallet> -cert <public cert> -value <value datoshi> -unit {mb | kb | b | sec | day} -srv_uid <numeric uid>\n" );
+                                        "tx_cond_create -net <net_name> -token <token_ticker> -wallet <from wallet> -cert <pub_cert_name> -value <value datoshi> -unit {mb | kb | b | sec | day} -srv_uid <numeric uid>\n" );
 
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
-            "tx_verify -net <net name> -chain <chain name> -tx <tx_hash>\n" );
+            "tx_verify -net <net_name> -chain <chain name> -tx <tx_hash>\n" );
 
     // Transaction history
     dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history {-addr <addr> | -w <wallet name> | -tx <tx_hash>} -net <net name> -chain <chain name>\n");
+            "tx_history {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name> -chain <chain name>\n");
 
     // Ledger info
     dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger information",
-            "ledger list coins -net <network name>\n"
-            "ledger list threshold [-hash <tx_treshold_hash>] -net <network name>\n"
-            "ledger list balance -net <network name>\n"
-            "ledger info -hash <tx_hash> -net <network name> [-unspent]\n"
-            "ledger tx -all -net <network name>\n"
-            "ledger tx {-addr <addr> | -w <wallet name> | -tx <tx_hash>} [-chain <chain name>] -net <network name>\n");
+            "ledger list coins -net <net_name>\n"
+            "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name>\n"
+            "ledger list balance -net <net_name>\n"
+            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "ledger tx -all -net <net_name>\n"
+            "ledger tx {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-chain <chain name>] -net <net_name>\n");
 
     // Token info
     dap_chain_node_cli_cmd_item_create("token", com_token, "Token info",
-            "token list -net <network name>\n"
-            "token info -net <network name> -name <token name>\n"
-            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token name> -net <network name> [-page_start <page>] [-page <page>]\n");
+            "token list -net <net_name>\n"
+            "token info -net <net_name> -name <token name>\n"
+            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token name> -net <net_name> [-page_start <page>] [-page <page>]\n");
 
     // Log
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",

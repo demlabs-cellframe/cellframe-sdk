@@ -1747,7 +1747,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     arg_index++;
     if(cmd_num == CMD_NONE) {
         dap_chain_node_cli_set_reply_text(str_reply,
-                "Format of command: wallet [new -w <wallet_name> | list | info [<-addr <addr>]|[-w <wallet_name> -net <net_name>]");
+                "Format of command: wallet {new -w <wallet_name> | list | info [-addr <addr>]|[-w <wallet_name> -net <net_name>]}");
         return -1;
     }
 

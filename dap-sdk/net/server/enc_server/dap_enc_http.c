@@ -64,21 +64,26 @@ void enc_http_deinit()
 
 }
 
-static void _enc_http_write_reply(struct dap_http_simple *cl_st,
+static void s_enc_http_write_reply(struct dap_http_simple *cl_st,
                                   const char* encrypt_id,
                                   const char* encrypt_msg)
 {
-    struct json_object *jobj = json_object_new_object();
+struct json_object *jobj;
+size_t  l_len;
+char *json_str;
+
+    jobj = json_object_new_object();
+
     json_object_object_add(jobj, "encrypt_id", json_object_new_string(encrypt_id));
     json_object_object_add(jobj, "encrypt_msg", json_object_new_string(encrypt_msg));
     json_object_object_add(jobj, "dap_protocol_version", json_object_new_int(DAP_PROTOCOL_VERSION));
-    const char* json_str = json_object_to_json_string(jobj);
-    dap_http_simple_reply(cl_st, (void*) json_str,
-                          (size_t) strlen(json_str));
+
+    json_str = (char *) json_object_to_json_string_length(jobj, JSON_C_TO_STRING_PRETTY, &l_len);
+
+    dap_http_simple_reply(cl_st, (void*) json_str, l_len);
+
     json_object_put(jobj);
 }
-
-void dap_enc_http_json_response_format_enable(bool);
 
 void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback)
 {
@@ -163,7 +168,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         size_t encrypt_id_size = dap_enc_base64_encode(l_enc_key_ks->id, sizeof (l_enc_key_ks->id), encrypt_id, DAP_ENC_DATA_TYPE_B64);
         encrypt_id[encrypt_id_size] = '\0';
 
-        _enc_http_write_reply(cl_st, encrypt_id, encrypt_msg);
+        s_enc_http_write_reply(cl_st, encrypt_id, encrypt_msg);
 
         dap_enc_key_delete(l_pkey_exchange_key);
 
@@ -264,13 +269,14 @@ void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delega
     if(a_http_delegate->response){
 
         if(a_http_simple->reply)
-            free(a_http_simple->reply);
+            DAP_DEL_Z(a_http_simple->reply);
 
         size_t l_reply_size_max = dap_enc_code_out_size(a_http_delegate->key,
                                                           a_http_delegate->response_size,
                                                           DAP_ENC_DATA_TYPE_RAW);
 
         a_http_simple->reply = DAP_NEW_SIZE(void,l_reply_size_max);
+
         a_http_simple->reply_size = dap_enc_code( a_http_delegate->key,
                                                   a_http_delegate->response, a_http_delegate->response_size,
                                                   a_http_simple->reply, l_reply_size_max,
