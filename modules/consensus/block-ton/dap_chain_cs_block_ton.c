@@ -1527,16 +1527,17 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_APPROVE: {
             if  ( sizeof(dap_chain_cs_block_ton_message_approve_t) >l_message_data_size  ){
-                log_it(L_WARNING, "Wrong reject message size,have %zu bytes for data section when requires %zu bytes",
+                log_it(L_WARNING, "Wrong approve message size,have %zu bytes for data section when requires %zu bytes",
                        l_message_data_size,sizeof(dap_chain_cs_block_ton_message_approve_t));
                 goto handler_finish;
             }
             dap_chain_cs_block_ton_message_approve_t *l_approve = (dap_chain_cs_block_ton_message_approve_t *) l_message_data;
             dap_sign_t * l_candidate_sign = (dap_sign_t *) l_approve->candidate_hash_sign;
+            size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
             size_t l_candidate_hash_sign_size = l_message_data_size - sizeof(dap_chain_cs_block_ton_message_approve_t);
-            if (l_candidate_hash_sign_size || dap_sign_get_size(l_candidate_sign) > l_candidate_hash_sign_size ){
-                log_it(L_WARNING, "Wrong reject message size,have %zu bytes for candidate sign section when requires  maximum %zu bytes",
-                       dap_sign_get_size(l_candidate_sign),l_candidate_hash_sign_size);
+            if (l_candidate_sign_size > l_candidate_hash_sign_size ){
+                log_it(L_WARNING, "Wrong approve message size,have %zu bytes for candidate sign section when requires  maximum %zu bytes",
+                       l_candidate_sign_size, l_candidate_hash_sign_size);
                 goto handler_finish;
             }
 
@@ -1735,7 +1736,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 		} break;
 		case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE: {
             if  ( sizeof(dap_chain_cs_block_ton_message_vote_t) >l_message_data_size  ){
-                log_it(L_WARNING, "Wrong vote_for message size,have %zu bytes for data section when requires %zu bytes",
+                log_it(L_WARNING, "Wrong vote message size,have %zu bytes for data section when requires %zu bytes",
                        l_message_data_size,sizeof(dap_chain_cs_block_ton_message_vote_t));
                 goto handler_finish;
             }
@@ -1893,9 +1894,9 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             dap_sign_t * l_candidate_sign = (dap_sign_t *) l_commitsign->candidate_sign;
             size_t l_candidate_sign_size = dap_sign_get_size(l_candidate_sign);
             size_t l_message_candidate_sign_size_max = l_message_data_size - sizeof(dap_chain_cs_block_ton_message_commitsign_t);
-            if (l_message_candidate_sign_size_max == 0 || dap_sign_get_size(l_candidate_sign) > l_message_candidate_sign_size_max ){
-                log_it(L_WARNING, "Wrong reject message size,have %zu bytes for candidate sign section when requires  maximum %zu bytes",
-                       l_candidate_sign_size ,l_message_candidate_sign_size_max);
+            if (l_candidate_sign_size > l_message_candidate_sign_size_max ){
+                log_it(L_WARNING, "Wrong commit_sign message size,have %zu bytes for candidate sign section when requires  maximum %zu bytes",
+                       l_candidate_sign_size, l_message_candidate_sign_size_max);
                 goto handler_finish;
             }
 
