@@ -92,6 +92,7 @@ void dap_chain_deinit(void)
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
+          DAP_DEL_Z(l_item->chain);
     }
     dap_chain_ledger_deinit();
 
@@ -162,7 +163,7 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
  * delete dap chain object
  * @param a_chain dap_chain_t object
  */
-void dap_chain_delete(dap_chain_t * a_chain)
+void dap_chain_delete(dap_chain_t *a_chain)
 {
     dap_chain_item_t * l_item = NULL;
     dap_chain_item_id_t l_chain_item_id = {
@@ -172,28 +173,23 @@ void dap_chain_delete(dap_chain_t * a_chain)
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_FIND(hh,s_chain_items,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_item);
 
-    if( l_item){
+    if(l_item) {
        HASH_DEL(s_chain_items, l_item);
        if (a_chain->callback_delete )
            a_chain->callback_delete(a_chain);
-       if ( a_chain->name)
-           DAP_DELETE (a_chain->name);
-       if ( a_chain->net_name)
-           DAP_DELETE (a_chain->net_name);
-       if (a_chain->_pvt ){
-           DAP_DELETE(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
-           DAP_DELETE(a_chain->_pvt);
-       }
-       if (a_chain->_inheritor )
-           DAP_DELETE(a_chain->_inheritor);
-       DAP_DELETE(l_item);
-    }else
+       DAP_DEL_Z(a_chain->name);
+       DAP_DEL_Z(a_chain->net_name);
+       DAP_DEL_Z(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
+       DAP_DEL_Z(a_chain->_pvt);
+       DAP_DEL_Z(a_chain->_inheritor);
+       DAP_DEL_Z(l_item);
+    } else
        log_it(L_WARNING,"Trying to remove non-existent 0x%16"DAP_UINT64_FORMAT_X":0x%16"DAP_UINT64_FORMAT_X" chain",a_chain->id.uint64,
               a_chain->net_id.uint64);
     a_chain->datum_types_count = 0;
-    DAP_DELETE(a_chain->datum_types);
+    DAP_DEL_Z(a_chain->datum_types);
     a_chain->autoproc_datum_types_count = 0;
-    DAP_DELETE(a_chain->autoproc_datum_types);
+    DAP_DEL_Z(a_chain->autoproc_datum_types);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->atoms_rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
@@ -389,7 +385,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }else{
                 log_it (L_ERROR, "Can't init consensus \"%s\"",dap_config_get_item_str_default( l_cfg , "chain","consensus","NULL"));
                 dap_chain_delete(l_chain);
-                l_chain = NULL;
+                DAP_DEL_Z(l_chain);
             }
             // Read chain datum types
             char** l_datum_types = NULL;
