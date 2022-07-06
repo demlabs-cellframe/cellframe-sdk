@@ -2289,14 +2289,7 @@ void s_com_mempool_list_print_for_chain (
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
 
-    if(l_objs_size > 0)
-        dap_string_append_printf(a_str_tmp, "%s.%s: Found %zu records :\n", a_net->pub.name, a_chain->name, l_objs_size);
-    else
-        dap_string_append_printf(a_str_tmp, "%s.%s: Not found records\n", a_net->pub.name, a_chain->name);
-
-
-    for(size_t i = 0; i < l_objs_size; i++)
-    {
+    for(size_t i = 0; i < l_objs_size; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
         dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
 
@@ -2307,9 +2300,9 @@ void s_com_mempool_list_print_for_chain (
             continue;
         }
 
-        char buf[50] = {[0]='\0'};
+        char buf[8 * sizeof(long long) + 1] = {'\0'};
         dap_hash_fast_t l_data_hash;
-        char l_data_hash_str[70] = {[0]='\0'};
+        char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {'\0'};
         dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
         dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
         const char *l_type = NULL;
@@ -2320,6 +2313,10 @@ void s_com_mempool_list_print_for_chain (
 
         dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
     }
+
+    dap_string_append_printf(a_str_tmp, l_objs_size
+                             ? "%s.%s: Total %zu records\n"
+                             : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_size);
 
     dap_chain_global_db_objs_delete(l_objs, l_objs_size);
 
@@ -5154,7 +5151,7 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
         if (dap_chain_global_db_driver_apply(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
         } else {
-            log_it(L_INFO, "Imported %llu records of group %s", l_records_count, l_group_name);
+            log_it(L_INFO, "Imported %zu records of group %s", l_records_count, l_group_name);
         }
         dap_store_obj_free(l_group_store, l_records_count);
     }
