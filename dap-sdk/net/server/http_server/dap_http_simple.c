@@ -243,14 +243,8 @@ inline static void s_write_data_to_socket(dap_proc_thread_t *a_thread, dap_http_
 
 static void s_copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
 {
-//  log_it(L_DEBUG,"_copy_reply_and_mime_to_response");
-//  Sleep(300);
-
-  if( !a_simple->reply_size ) {
-
-    log_it( L_WARNING, " cl_sh->reply_size equal 0" );
-    return;
-  }
+  if( !a_simple->reply_size )
+    return  log_it( L_WARNING, " cl_sh->reply_size equal 0" );
 
   a_simple->http_client->out_content_length = a_simple->reply_size;
   strcpy( a_simple->http_client->out_content_type, a_simple->reply_mime );
@@ -330,7 +324,7 @@ static void s_http_client_delete( dap_http_client_t *a_http_client, void *arg )
 {
     dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
     if (l_http_simple){
-        DAP_DEL_Z(l_http_simple->reply_byte);
+        DAP_DEL_Z(l_http_simple->reply);
     }
 }
 
@@ -346,7 +340,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     l_http_simple->http_client = a_http_client;
     l_http_simple->worker = a_http_client->esocket->worker;
     l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
-    l_http_simple->reply_byte = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
+    l_http_simple->reply = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
 
 //    Made a temporary solution to handle simple CORS requests.
 //    This is necessary in order to be able to request information using JavaScript obtained from another source.
@@ -384,7 +378,7 @@ static void s_http_client_data_write(dap_http_client_t * a_http_client, void *a_
         a_http_client->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     } else {
         l_http_simple->reply_sent += dap_events_socket_write_unsafe( a_http_client->esocket,
-                                                  l_http_simple->reply_byte + l_http_simple->reply_sent,
+                                                  l_http_simple->reply + l_http_simple->reply_sent,
                                                   a_http_client->out_content_length - l_http_simple->reply_sent);
     }
 }
@@ -416,7 +410,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
             l_http_simple->request = DAP_REALLOC(l_http_simple->request, l_http_simple->request_size_max);
         }
         if(l_http_simple->request){// request_byte=request
-            memcpy( l_http_simple->request_byte + l_http_simple->request_size, a_http_client->esocket->buf_in, bytes_to_read );
+            memcpy( l_http_simple->request + l_http_simple->request_size, a_http_client->esocket->buf_in, bytes_to_read );
             l_http_simple->request_size += bytes_to_read;
         }
     }
@@ -439,9 +433,17 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
  */
 size_t dap_http_simple_reply(dap_http_simple_t *a_http_simple, void *a_data, size_t a_data_size )
 {
-    size_t l_data_copy_size = (a_data_size > (a_http_simple->reply_size_max - a_http_simple->reply_size) ) ? (a_http_simple->reply_size_max - a_http_simple->reply_size) : a_data_size;
+size_t l_data_copy_size;
 
-    memcpy(a_http_simple->reply_byte+a_http_simple->reply_size, a_data,l_data_copy_size );
+    if ( !a_http_simple->reply )
+        return  log_it(L_ERROR, "HTTP's Simple reply buffer is NULL"), 0;
+
+    l_data_copy_size = MIN ( (a_http_simple->reply_size_max - a_http_simple->reply_size),  a_data_size);
+
+    if ( !l_data_copy_size )
+        return  log_it(L_ERROR, "No free space in the HTTP's Simple reply buffer"), 0;
+
+    memcpy(a_http_simple->reply + a_http_simple->reply_size, a_data, l_data_copy_size );
 
     a_http_simple->reply_size += l_data_copy_size;
 
@@ -460,7 +462,7 @@ dap_http_cache_t * dap_http_simple_make_cache_from_reply(dap_http_simple_t * a_h
     a_http_simple->http_client->reply_status_code = 200;
     dap_http_client_out_header_generate(a_http_simple->http_client);
     return dap_http_cache_update(a_http_simple->http_client->proc,
-                                 a_http_simple->reply_byte,
+                                 a_http_simple->reply,
                                  a_http_simple->reply_size,
                                  a_http_simple->http_client->out_headers,NULL,
                                   200, a_ts_expire);
