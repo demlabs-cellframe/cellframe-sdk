@@ -115,6 +115,11 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
     add_subdirectory(service/stake)
 endif()
 
+# Service of external stake
+if (CELLFRAME_MODULES MATCHES "srv-stake-external")
+    add_subdirectory(service/stake_external)
+endif()
+
 # Support for dynamic modules
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     add_subdirectory(modules_dynamic)
