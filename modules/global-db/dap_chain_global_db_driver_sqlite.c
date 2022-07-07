@@ -285,7 +285,7 @@ struct  timespec tmo = {0, 500 * 1024 * 1024 /* ~0.5 sec */}, delta;
     if ( l_rc != SQLITE_OK)
     {
         if ( l_rc != SQLITE_CONSTRAINT )
-            log_it (L_ERROR, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_db, l_query);
+            log_it (L_ERROR, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s)", l_rc, l_db, l_query);
 
         if(l_error_message && l_errmsg)
             *l_error_message = sqlite3_mprintf("SQL error %d: %s", l_rc, l_errmsg);
@@ -431,6 +431,8 @@ static int s_dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VA
         *l_row_out = l_row;
     else
         s_dap_db_driver_sqlite_row_free(l_row);
+
+
     return l_rc;
 }
 
@@ -443,13 +445,12 @@ static int s_dap_db_driver_sqlite_fetch_array(sqlite3_stmt *l_res, SQLITE_ROW_VA
  */
 static int s_dap_db_driver_sqlite_query_free(sqlite3_stmt *l_res)
 {
-int rc;
 
     if(!l_res)
         return -EINVAL;
 
-    rc = sqlite3_finalize(l_res);
-    return  -rc;
+    return  -sqlite3_finalize(l_res);
+
 }
 
 /**
@@ -501,14 +502,15 @@ int l_rc;
     /* Try to lock */
     if ( EDEADLK == (l_rc = pthread_mutex_lock(&s_trans_mtx)) ) {
         /* DEADLOCK ?! - so transaction is already active ... */
-        log_it(L_DEBUG, "Active TX l_conn: @%p", s_trans);
+        log_it(L_DEBUG, "Active TX l_conn: @%p/%p", s_trans, s_trans->conn);
         return  0;
     }
 
     if ( ! (s_trans = s_sqlite_get_connection()) )
         return  -666;
 
-    log_it(L_DEBUG, "Start TX l_conn: @%p", s_trans);
+    if ( s_dap_global_db_debug_more )
+        log_it(L_DEBUG, "Start TX l_conn: @%p/%p", s_trans, s_trans->conn);
 
     pthread_mutex_lock(&s_db_mtx);
     l_rc = s_dap_db_driver_sqlite_exec(s_trans->conn, "BEGIN", NULL);
@@ -540,7 +542,8 @@ struct conn_pool_item *l_conn;
     s_trans = NULL;                                                         /* Zeroing current TX's context until
                                                                               it's protected by the mutex ! */
 
-    log_it(L_DEBUG, "End TX l_conn: @%p", l_conn);
+    if ( s_dap_global_db_debug_more )
+        log_it(L_DEBUG, "End TX l_conn: @%p/%p", l_conn, l_conn->conn);
 
     pthread_mutex_unlock(&s_trans_mtx);                                     /* Free TX context to other ... */
 
