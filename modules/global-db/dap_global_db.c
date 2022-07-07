@@ -37,7 +37,7 @@
 #include "dap_global_db_sync.h"
 #include "dap_chain_global_db_driver.h"
 
-bool g_dap_global_db_debug_more = false;                                         /* Enable extensible debug output */
+int g_dap_global_db_debug_more = false;                                         /* Enable extensible debug output */
 
 
 // Queue I/O message op code

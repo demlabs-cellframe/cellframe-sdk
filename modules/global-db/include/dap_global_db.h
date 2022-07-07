@@ -128,7 +128,7 @@ typedef bool (*dap_global_db_callback_results_raw_t) (dap_global_db_context_t * 
 #define DAP_GLOBAL_DB_RC_NO_RESULTS     -1
 #define DAP_GLOBAL_DB_RC_ERROR           -666
 
-extern bool g_dap_global_db_debug_more;
+extern int g_dap_global_db_debug_more;
 
 int dap_global_db_init(const char * a_path, const char * a_driver);
 void dap_global_db_deinit();
