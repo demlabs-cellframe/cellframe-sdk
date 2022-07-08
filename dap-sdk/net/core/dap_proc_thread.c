@@ -783,18 +783,10 @@ static void * s_proc_thread_function(void * a_arg)
                                     break;
                                 }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-                                    char * l_ptr = (char *) l_cur->buf_out;
-                                    l_bytes_sent = mq_send(l_cur->mqd, l_ptr, sizeof (l_ptr),0);
-                                    if (l_bytes_sent==0){
-//                                        log_it(L_DEBUG,"mq_send %p success", l_ptr_in);
-                                        l_bytes_sent = sizeof (void *);
-                                    }else if (l_bytes_sent == -1 && errno == EINVAL){ // To make compatible with other
-                                        l_errno = EAGAIN;                        // non-blocking sockets
-//                                        log_it(L_DEBUG,"mq_send %p EAGAIN", l_ptr_in);
-                                    }else{
-                                        l_errno = errno;
-                                        log_it(L_WARNING,"mq_send %p errno: %d", l_ptr, l_errno);
-                                    }
+                                    l_errno = mq_send(l_cur->mqd, (char*)l_cur->buf_out, l_cur->buf_out_size, 0);
+                                    l_bytes_sent = l_errno ? 0 : l_cur->buf_out_size;
+                                    l_errno = l_bytes_sent ? 0 : errno == EINVAL ? EAGAIN : errno;
+                                    break;
                                 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
 
                                     // Select socket and kqueue fd to send the event

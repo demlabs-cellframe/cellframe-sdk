@@ -2119,7 +2119,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 break;
             }
             if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
-                log_it(L_WARNING, "Emission for tx_token is already used");
+                debug_if(g_debug_reactor, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
                 l_err_num = -22;
                 break;
             }
