@@ -712,10 +712,14 @@ void *dap_worker_thread(void *arg)
                                         //l_cur->buf_out_size = 0;
                                     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-                                    l_errno = mq_send(l_cur->mqd, (char*)l_cur->buf_out, l_cur->buf_out_size, 0);
-                                    l_bytes_sent = l_errno ? 0 : l_cur->buf_out_size;
+                                    l_bytes_sent = !mq_send(l_cur->mqd, (char*)l_cur->buf_out, l_cur->buf_out_size, 0) ? l_cur->buf_out_size : 0;
                                     l_errno = l_bytes_sent ? 0 : errno == EINVAL ? EAGAIN : errno;
-                                    debug_if(l_errno, L_ERROR, "mq_send failed, errno %d (attempt to send %d bytes)", l_errno, l_cur->buf_out_size);
+                                    debug_if(l_errno, L_ERROR, "mq_send [%lu bytes] failed, errno %d", l_cur->buf_out_size, l_errno);
+                                    if (l_errno == EMSGSIZE) {
+                                        struct mq_attr l_attr = { 0 };
+                                        mq_getattr(l_cur->mqd, &l_attr);
+                                        log_it(L_ERROR, "Msg size %lu > permitted size %lu", l_cur->buf_out_size, l_attr.mq_msgsize);
+                                    }
                                     break;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
                                     struct kevent* l_event=&l_cur->kqueue_event;

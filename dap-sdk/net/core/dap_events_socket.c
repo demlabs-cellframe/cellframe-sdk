@@ -465,11 +465,10 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
 
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->buf_out_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
+    l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max );
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
-    //l_es->buf_out_size  = 8 * sizeof(void*);
     l_es->events = a_es->events;
     l_es->uuid = dap_uuid_generate_uint64();
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -496,9 +495,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 
     l_es->mqd_id = a_es->mqd_id;
     l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
-    l_mq_attr.mq_msgsize = DAP_QUEUE_MAX_MSGS * sizeof(void*);
+    l_mq_attr.mq_msgsize = DAP_QUEUE_MAX_BUFLEN;
                                                                             // so use it with shared memory if you do access from another process
-
     snprintf(l_mq_name,sizeof (l_mq_name), "/%s-queue_ptr-%u", dap_get_appname(), l_es->mqd_id );
 
     //if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
@@ -589,7 +587,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
 
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
     l_es->buf_out = NULL;
 
@@ -660,14 +658,13 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 #endif
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-    int  l_errno;
     char l_errbuf[128] = {0}, l_mq_name[64] = {0};
-    struct mq_attr l_mq_attr;
+    struct mq_attr l_mq_attr = { 0 };
     static atomic_uint l_mq_last_number = 0;
 
 
     l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
-    l_mq_attr.mq_msgsize = DAP_QUEUE_MAX_MSGS * sizeof(void*);                                  // We send only pointer on memory (???!!!),
+    l_mq_attr.mq_msgsize = DAP_QUEUE_MAX_BUFLEN;
                                                                             // so use it with shared memory if you do access from another process
 
     l_es->mqd_id = atomic_fetch_add( &l_mq_last_number, 1);
@@ -848,7 +845,6 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #endif
     if (a_esocket->callbacks.queue_callback){
         if (a_esocket->flags & DAP_SOCK_QUEUE_PTR) {
-            char l_body[DAP_QUEUE_MAX_MSGS * sizeof(void*)] = { '\0' };
             void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
             ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr,sizeof (void *));
@@ -858,6 +854,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                 log_it(L_WARNING, "Can't read packet from pipe");
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+            char l_body[DAP_QUEUE_MAX_BUFLEN] = { '\0' };
             ssize_t l_ret = mq_receive(a_esocket->mqd, l_body, sizeof(l_body), NULL);
             if (l_ret == -1){
                 int l_errno = errno;
