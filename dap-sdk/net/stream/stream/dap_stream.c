@@ -746,7 +746,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
                sh->client->buf_in_size, *ret);
     }*/
     if(bytes_left_to_read>0){
-        log_it(L_WARNING, "dap_stream_data_proc_read() left unprocessed data %zu bytes", bytes_left_to_read);
+        debug_if(s_debug, L_WARNING, "dap_stream_data_proc_read() left unprocessed data %zu bytes", bytes_left_to_read);
         //        if(proc_data_defrag){
         //            memmove(a_stream->buf_defrag, proc_data, bytes_left_to_read);
         //            a_stream->buf_defrag_size=bytes_left_to_read;

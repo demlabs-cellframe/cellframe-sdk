@@ -496,7 +496,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 
     l_es->mqd_id = a_es->mqd_id;
     l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
-    l_mq_attr.mq_msgsize = sizeof (void*);                                  // We send only pointer on memory (???!!!),
+    l_mq_attr.mq_msgsize = DAP_QUEUE_MAX_MSGS * sizeof(void*);
                                                                             // so use it with shared memory if you do access from another process
 
     snprintf(l_mq_name,sizeof (l_mq_name), "/%s-queue_ptr-%u", dap_get_appname(), l_es->mqd_id );
@@ -667,7 +667,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 
 
     l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
-    l_mq_attr.mq_msgsize = sizeof (void*);                                  // We send only pointer on memory (???!!!),
+    l_mq_attr.mq_msgsize = DAP_QUEUE_MAX_MSGS * sizeof(void*);                                  // We send only pointer on memory (???!!!),
                                                                             // so use it with shared memory if you do access from another process
 
     l_es->mqd_id = atomic_fetch_add( &l_mq_last_number, 1);
@@ -847,7 +847,8 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
     }
 #endif
     if (a_esocket->callbacks.queue_callback){
-        if (a_esocket->flags & DAP_SOCK_QUEUE_PTR){
+        if (a_esocket->flags & DAP_SOCK_QUEUE_PTR) {
+            char l_body[DAP_QUEUE_MAX_MSGS * sizeof(void*)] = { '\0' };
             void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
             ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr,sizeof (void *));
@@ -857,16 +858,20 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                 log_it(L_WARNING, "Can't read packet from pipe");
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-            ssize_t l_ret = mq_receive(a_esocket->mqd,(char*) &l_queue_ptr, sizeof (l_queue_ptr),NULL);
+            ssize_t l_ret = mq_receive(a_esocket->mqd, l_body, sizeof(l_body), NULL);
             if (l_ret == -1){
                 int l_errno = errno;
                 char l_errbuf[128];
                 l_errbuf[0]=0;
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it(L_ERROR, "Error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
+                log_it(L_ERROR, "mq_receive error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
                 return -1;
             }
-            a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
+            debug_if(l_ret > 8, L_NOTICE, "mqueue processing %ld bytes in one pass", l_ret);
+            for (long shift = 0; shift < l_ret; shift += sizeof(void*)) {
+                l_queue_ptr = *(void **)(l_body + shift);
+                a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+            }
 #elif defined DAP_EVENTS_CAPS_MSMQ
             DWORD l_mp_id = 0;
             MQMSGPROPS    l_mps;
@@ -896,8 +901,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                     log_it(L_ERROR, "An error %ld occured receiving a message from queue", hr);
                     return -3;
                 }
-                if (l_mpvar[1].ulVal > 8)
-                    log_it(L_NOTICE, "MSMQ: processing %d bytes in 1 pass", l_mpvar[1].ulVal);
+                debug_if(l_mpvar[1].ulVal > 8, L_NOTICE, "MSMQ: processing %d bytes in 1 pass", l_mpvar[1].ulVal);
                 debug_if(g_debug_reactor, L_DEBUG, "Received msg: %p len %lu", *(void **)l_body, l_mpvar[1].ulVal);
                 if (a_esocket->callbacks.queue_ptr_callback) {
                     for (long shift = 0; shift < (long)l_mpvar[1].ulVal; shift += sizeof(void*)) {
@@ -1288,17 +1292,11 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     assert(a_es->mqd);
 
     l_ret = mq_send(a_es->mqd, (const char *)&a_arg, sizeof (a_arg), 0);
-    l_errno = errno;
-    if ( l_ret == EPERM){
-        log_it(L_ERROR,"No permissions to send data in mqueue");
-    }
-
+    l_errno = l_ret == -1 ? errno : 0;
     if (l_errno == EINVAL || l_errno == EINTR || l_errno == ETIMEDOUT)
         l_errno = EAGAIN;
     if (l_ret == 0)
         l_ret = sizeof (a_arg);
-    else if (l_ret > 0)
-        l_ret = -l_ret;
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     struct timespec l_timeout;
@@ -1388,14 +1386,14 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
-    if (l_ret == sizeof(a_arg) ){
+    if (l_ret == sizeof(a_arg)) {
         return 0;
-    }else{
+    } else {
         // Try again
         if(l_errno == EAGAIN || l_errno == EWOULDBLOCK ){
             add_ptr_to_buf(a_es, a_arg);
             return 0;
-        }else {
+        } else {
             char l_errbuf[128];
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", l_errbuf, l_errno);
