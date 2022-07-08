@@ -712,12 +712,11 @@ void *dap_worker_thread(void *arg)
                                         //l_cur->buf_out_size = 0;
                                     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-                                    l_bytes_sent = mq_send(l_cur->mqd , (const char *)l_cur->buf_out,sizeof (void*),0);
-                                    if(l_bytes_sent == 0)
-                                        l_bytes_sent = sizeof (void*);
-                                    l_errno = errno;
-                                    if (l_bytes_sent == -1 && l_errno == EINVAL) // To make compatible with other
-                                        l_errno = EAGAIN;                        // non-blocking sockets
+                                    l_errno = mq_send(l_cur->mqd, (char*)l_cur->buf_out, l_cur->buf_out_size, 0);
+                                    l_bytes_sent = l_errno ? 0 : l_cur->buf_out_size;
+                                    l_errno = l_bytes_sent ? 0 : errno == EINVAL ? EAGAIN : errno;
+                                    debug_if(l_errno, L_ERROR, "mq_send failed, errno %d (attempt to send %d bytes)", l_errno, l_cur->buf_out_size);
+                                    break;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
                                     struct kevent* l_event=&l_cur->kqueue_event;
                                     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
