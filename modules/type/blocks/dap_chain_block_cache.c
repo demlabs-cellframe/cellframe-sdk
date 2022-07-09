@@ -157,5 +157,5 @@ dap_chain_datum_tx_t* dap_chain_block_cache_get_tx_by_hash (dap_chain_block_cach
 void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
 {
     DAP_DELETE(a_block_cache);
-    log_it(L_DEBUG,"Block cache deleted");
+    //log_it(L_DEBUG,"Block cache deleted");
 }

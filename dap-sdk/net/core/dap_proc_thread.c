@@ -1030,10 +1030,10 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
 
     // TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
+/*#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
     a_thread->queue_callback_input[a_worker_id]->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, a_thread->queue_callback_input[a_worker_id]);
-#endif
+#endif*/ // If we send directly, no need to do this
 }
 
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
