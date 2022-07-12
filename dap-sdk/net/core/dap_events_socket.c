@@ -502,7 +502,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     //if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
     //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
 
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_WRONLY |O_NONBLOCK, 0700, &l_mq_attr)) )
+    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_WRONLY /* |O_NONBLOCK */, 0700, &l_mq_attr)) )
     {
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
                            (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
@@ -672,7 +672,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     // if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
     //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
 
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR |O_NONBLOCK, 0700, &l_mq_attr)) )
+    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR  /* |O_NONBLOCK */, 0700, &l_mq_attr)) )
     {
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
                            (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
@@ -1278,7 +1278,9 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg) {
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
     assert(a_es);
     assert(a_es->mqd);
-    if (!mq_send(a_es->mqd, (const char*)&a_arg, sizeof(a_arg), 0))
+    struct timespec tmo = {0};
+    tmo.tv_sec = 7 + time(NULL);
+    if (!mq_timedsend(a_es->mqd, (const char*)&a_arg, sizeof(a_arg), 0, &tmo))
         return 0;
     switch (l_errno = errno) {
     case EINVAL:
