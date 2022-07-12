@@ -192,19 +192,24 @@ dap_proc_queue_t    *l_queue;
         debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
+
+#ifdef  DAP_OS_LINUX
         if ( g_debug_reactor )
         {
-        #include <execinfo.h>
+            #include <execinfo.h>
 
-        char **rtn_name;
-        void *rtn_arr[] = {l_item->callback};
+            char **rtn_name;
+            void *rtn_arr[] = {l_item->callback};
 
-        rtn_name = backtrace_symbols (rtn_arr, 1);
+            rtn_name = backtrace_symbols (rtn_arr, 1);
 
-        log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
+            log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
 
-        free(rtn_name);
+            free(rtn_name);
         }
+#endif      /* DAP_OS_LINUX */
+
+
 
         l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
 

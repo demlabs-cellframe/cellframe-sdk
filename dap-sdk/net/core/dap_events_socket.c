@@ -502,7 +502,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     //if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
     //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
 
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_WRONLY |O_NONBLOCK, 0700, &l_mq_attr)) )
+    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_WRONLY /* |O_NONBLOCK */, 0700, &l_mq_attr)) )
     {
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
                            (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
@@ -672,7 +672,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     // if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
     //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
 
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR |O_NONBLOCK, 0700, &l_mq_attr)) )
+    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR  /* |O_NONBLOCK */, 0700, &l_mq_attr)) )
     {
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
                            (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
@@ -1273,7 +1273,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
     int l_ret = -1024, l_errno;
 
-    debug_if (g_debug_reactor, L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
+    debug_if (g_debug_reactor, L_DEBUG,"Send ptr %p to esocket queue %p (%d) ...", a_arg, a_es, a_es? a_es->fd : -1);
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg));
@@ -1282,7 +1282,17 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     assert(a_es);
     assert(a_es->mqd);
 
-    l_ret = mq_send(a_es->mqd, (const char *)&a_arg, sizeof (a_arg), 0);
+    { /* @RRL */
+    struct timespec tmo = {0};
+    tmo.tv_sec = 7 + time(NULL);
+    //l_ret = mq_send(a_es->mqd, (const char *)&a_arg, sizeof (a_arg), 0);
+    l_ret = mq_timedsend(a_es->mqd, (const char *)&a_arg, sizeof (a_arg), 0, &tmo);
+    }
+
+    if ( l_ret < 0 )
+        debug_if(g_debug_reactor, L_ERROR, "mq_send(#%d, %p)->%d, errno=%d", a_es->mqd, a_arg, l_ret, errno);
+
+
     l_errno = l_ret == -1 ? errno : 0;
     if (l_errno == EINVAL || l_errno == EINTR || l_errno == ETIMEDOUT)
         l_errno = EAGAIN;
