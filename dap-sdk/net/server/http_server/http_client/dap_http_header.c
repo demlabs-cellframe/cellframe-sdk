@@ -103,8 +103,6 @@ size_t l_strlen, l_len, l_namelen, l_valuelen;
 struct ht_field *l_ht;
 dap_http_header_t *l_new_header;
 
-    s_debug_http = 1;   /* @RRL */
-
     debug_if(s_debug_http, L_DEBUG, "Parse header string (%zu octets) : '%.*s'",  ht_line_len, (int) ht_line_len, ht_line);
 
     /* Check for HTTP End-Of-Header sequence */

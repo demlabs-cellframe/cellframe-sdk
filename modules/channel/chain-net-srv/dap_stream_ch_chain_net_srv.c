@@ -390,7 +390,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     break;
                 }
                 // create data to send back
-                dap_stream_ch_chain_net_srv_pkt_test_t *l_request_out = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + l_request->data_size_recv);
+                size_t l_recv_out_size = sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + l_request->data_size_recv;
+                dap_stream_ch_chain_net_srv_pkt_test_t *l_request_out = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, l_recv_out_size);
                 // copy info from recv message
                 memcpy(l_request_out,l_request, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t));
                 if (l_request->data_size_recv) {
@@ -406,8 +407,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 l_request_out->send_time2.tv_sec = l_tval.tv_sec;
                 l_request_out->send_time2.tv_usec = l_tval.tv_usec;
                 // send response
-                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request_out,
-                                               l_request_out->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t));
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request_out, l_recv_out_size);
                 DAP_DELETE(l_request_out);
             } break;
 

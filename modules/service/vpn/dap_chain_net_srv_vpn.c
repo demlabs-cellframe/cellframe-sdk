@@ -962,22 +962,26 @@ static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 
 
 
-static void s_ch_vpn_esocket_assigned(dap_events_socket_t* a_es, dap_worker_t * l_worker)
+static void s_ch_vpn_esocket_assigned(dap_events_socket_t* a_es, dap_worker_t * a_worker)
 {
-    dap_chain_net_srv_ch_vpn_t * l_ch_vpn =  CH_VPN(((dap_stream_ch_t*) a_es->_inheritor));
-//    dap_chain_net_srv_vpn_tun_socket_t * l_tun_sock = l_ch_vpn->tun_socket;
-
-   //dap_chain_net_srv_ch_vpn_info_t * l_info = NULL;
-   // HASH_FIND(hh,l_tun_sock->clients,&l_ch_vpn->addr_ipv4 , sizeof (l_ch_vpn->addr_ipv4), l_info);
-
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_es);
+    assert(l_http_client);
+    dap_stream_t *l_stream = DAP_STREAM(l_http_client);
+    if (!l_stream)
+        return;
+    dap_stream_ch_t *l_ch = l_stream->channel[DAP_CHAIN_NET_SRV_VPN_ID];
+    if (!l_ch)
+        return;
+    dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(l_ch);
+    assert(l_ch_vpn);
     s_tun_send_msg_esocket_reasigned_all_inter(a_es->context->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,l_ch_vpn->ch->stream->esocket_uuid,
                                                l_ch_vpn->addr_ipv4, a_es->context->worker->id);
 }
 
 
-static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t * l_worker)
+static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t * a_worker)
 {
-    dap_chain_net_srv_ch_vpn_t * l_ch_vpn =  CH_VPN(((dap_stream_ch_t*) a_es->_inheritor));
+    dap_chain_net_srv_ch_vpn_t * l_ch_vpn =  CH_VPN(((dap_stream_ch_t*) a_es->_inheritor)); //!!! a_es->_inheritor = dap_http_client
 //    dap_chain_net_srv_vpn_tun_socket_t * l_tun_sock = l_ch_vpn->tun_socket;
 
    //dap_chain_net_srv_ch_vpn_info_t * l_info = NULL;
@@ -1440,7 +1444,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 a_ch->stream->esocket->last_ping_request = time(NULL); // not ping, but better  ;-)
                 dap_events_socket_t *l_es = dap_chain_net_vpn_client_tun_get_esock();
                 // Find tun socket for current worker
-                dap_chain_net_srv_vpn_tun_socket_t *l_tun =  l_es ? l_es->_inheritor : NULL;
+                dap_chain_net_srv_vpn_tun_socket_t *l_tun =  l_es ? l_es->_inheritor : NULL; //!!! a_es->_inheritor = dap_stream_t
                 //ch_sf_tun_socket_t * l_tun = s_tun_sockets[a_ch->stream_worker->worker->id];
                 assert(l_tun);
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt->data, l_vpn_pkt->header.op_data.data_size);
