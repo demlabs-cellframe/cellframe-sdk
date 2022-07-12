@@ -402,7 +402,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 if(s_debug_more){
                     char l_addrbuf[INET_ADDRSTRLEN]= { [0]='\0'};
                     inet_ntop(AF_INET,&l_msg->ip_assigment.addr, l_addrbuf, sizeof (l_addrbuf));
-                    log_it(L_DEBUG, "Tun:%u message: addr %s assigned for worker #%u on tun #u",a_esocket_queue->context->worker->id,
+                    log_it(L_DEBUG, "Tun:%u message: addr %s assigned for worker #%u", a_esocket_queue->context->worker->id,
                            l_addrbuf, l_msg->ip_assigment.worker_id);
                 }
             }
@@ -426,7 +426,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
             }else{
                 char l_addrbuf[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET,&l_msg->ip_unassigment.addr, l_addrbuf, sizeof (l_addrbuf));
-                log_it(L_WARNING, "Can't fund address %s on tun sock #%u to unassign it", l_addrbuf, l_tun_sock->worker_id);
+                log_it(L_WARNING, "Can't find address %s on tun sock #%u to unassign it", l_addrbuf, l_tun_sock->worker_id);
             }
 
         }break;
@@ -480,7 +480,7 @@ static void s_tun_send_msg_ip_assigned(uint32_t a_worker_own_id, uint32_t a_work
 static void s_tun_send_msg_ip_assigned_all(uint32_t a_worker_own_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr)
 {
     for( uint32_t i=0; i< s_tun_sockets_count; i++)
-        if( i != a_worker_own_id)
+        //if( i != a_worker_own_id)
             s_tun_send_msg_ip_assigned(a_worker_own_id, i, a_ch_vpn , a_addr );
 }
 
