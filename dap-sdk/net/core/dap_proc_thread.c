@@ -192,21 +192,16 @@ dap_proc_queue_t    *l_queue;
         debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
+        if ( g_debug_reactor )
         {
         #include <execinfo.h>
-        #include <stdio.h>
-        #include <stdlib.h>
-        #include <unistd.h>
 
         char **rtn_name;
-        void *rtn_arr[7] = {0};
+        void *rtn_arr[] = {l_item->callback};
 
-        rtn_arr[0] = l_item->callback;
-        rtn_arr[1] = s_proc_event_callback;
-        rtn_arr[2] = l_item->callback;
+        rtn_name = backtrace_symbols (rtn_arr, 1);
 
-        //size_t l_size = backtrace (rtn_arr, 3);
-        rtn_name = backtrace_symbols (rtn_arr, 3);
+        log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
 
         free(rtn_name);
         }

@@ -41,7 +41,7 @@ dap_slist_elm_t *elm;
 
     elm->flink = NULL;                                                      /* This element is terminal */
     elm->data  = data;                                                      /* Store pointer to carried data */
-    elm->datasz= datasz;                                                    /* A size of daa metric */
+    elm->datasz= datasz;                                                    /* A size of data metric */
 
     if ( q->tail )                                                          /* Queue is not empty ? */
         (q->tail)->flink = elm;                                             /* Correct forward link of "previous last" element
