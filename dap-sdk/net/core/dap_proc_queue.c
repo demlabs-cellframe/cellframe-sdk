@@ -176,7 +176,8 @@ dap_proc_queue_msg_t *l_msg;
     l_msg->callback = a_callback;
     l_msg->callback_arg = a_callback_arg;
     l_msg->pri = a_pri;
-    debug_if(g_debug_reactor, L_DEBUG, "Requested l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+
+    debug_if(g_debug_reactor, L_DEBUG, "Send l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
     /*
      * Send message to queue with the given priority
      */

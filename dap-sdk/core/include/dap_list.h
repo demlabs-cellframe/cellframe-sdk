@@ -25,7 +25,7 @@ typedef struct __dap_slist_elm__ {
 } dap_slist_elm_t;
 
 typedef struct __dap_slist__ {
-            dap_slist_elm_t   *head,                                         /* An address of first element */
+            dap_slist_elm_t   *head,                                        /* An address of first element */
                             *tail;                                          /* An address of last element */
                     int     nr;                                             /* A number of elements in list  */
 } dap_slist_t;

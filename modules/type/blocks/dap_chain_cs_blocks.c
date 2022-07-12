@@ -698,9 +698,10 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
                 l_res=-1;
         }
         if (l_res != 1) {
+            /* @RRL: disabled due spaming ...
             debug_if(g_debug_reactor, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
-                     dap_chain_datum_type_id_to_str(l_datum->header.type_id),
-                                        a_block_cache->block_hash_str, l_res);
+                     dap_chain_datum_type_id_to_str(l_datum->header.type_id), a_block_cache->block_hash_str, l_res);
+            */
         } else {
             l_ret++;
         }
@@ -1291,7 +1292,7 @@ void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
     char *l_gdb_group = l_blocks->gdb_group_datums_queue;
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
-    
+
     if (l_objs_size) {
         for (size_t i = 0; i < l_objs_size; i++) {
             if (!l_objs[i].value_len) {

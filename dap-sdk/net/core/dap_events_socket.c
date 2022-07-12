@@ -1273,8 +1273,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
     int l_ret = -1024, l_errno;
 
-    if (g_debug_reactor)
-        log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
+    debug_if (g_debug_reactor, L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg));

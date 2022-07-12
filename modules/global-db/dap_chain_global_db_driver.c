@@ -210,6 +210,7 @@ void dap_store_obj_free(dap_store_obj_t *a_store_obj, size_t a_store_count)
         DAP_DEL_Z(l_store_obj_cur->key);
         DAP_DEL_Z(l_store_obj_cur->value);
     }
+
     DAP_DEL_Z(a_store_obj);
 }
 
@@ -286,7 +287,7 @@ size_t l_store_obj_cnt;
     debug_if(s_dap_global_db_debug_more, L_DEBUG, "Entering, %d entries in the queue ...",  s_db_reqs_list.nr);
 
     if ( (l_ret = pthread_mutex_lock(&s_db_reqs_list_lock)) )               /* Get exclusive access to the request list */
-         return log_it(L_ERROR, "Cannot lock request queue, errno=%d",l_ret), 0;
+         return log_it(L_ERROR, "Cannot lock request queue, errno=%d", l_ret), 0;
 
     if ( !s_db_reqs_list.nr )                                               /* Nothing to do ?! Just exit */
     {
@@ -320,7 +321,7 @@ size_t l_store_obj_cnt;
 
     dap_store_obj_free (l_store_obj_cur, l_store_obj_cnt);                  /* Release a memory !!! */
 
-    return  1;  /* 1 - Don't call it again */
+    return  ( !s_db_reqs_list.nr );                                         /* Empty list 1 - Don't call it again */
 }
 
 

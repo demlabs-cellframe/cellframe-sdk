@@ -192,19 +192,41 @@ dap_proc_queue_t    *l_queue;
         debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
+        {
+        #include <execinfo.h>
+        #include <stdio.h>
+        #include <stdlib.h>
+        #include <unistd.h>
+
+        char **rtn_name;
+        void *rtn_arr[7] = {0};
+
+        rtn_arr[0] = l_item->callback;
+        rtn_arr[1] = s_proc_event_callback;
+        rtn_arr[2] = l_item->callback;
+
+        //size_t l_size = backtrace (rtn_arr, 3);
+        rtn_name = backtrace_symbols (rtn_arr, 3);
+
+        free(rtn_name);
+        }
+
         l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
 
         debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
                            l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
 
         if ( !(l_is_finished) ) {
+
+
+
                                                                             /* Rearm callback to be executed again */
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
             l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, l_size);
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
         }
         else    {
-            DAP_DELETE(l_item);
+            DAP_DEL_Z(l_item);
     	}
     }
     for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)
