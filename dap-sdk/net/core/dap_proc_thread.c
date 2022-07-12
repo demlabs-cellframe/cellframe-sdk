@@ -800,6 +800,7 @@ static void * s_proc_thread_function(void * a_arg)
                                     break;
                                 }
                                 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+                                debug_if(g_debug_reactor, L_NOTICE, "Sending data to queue thru input buffer...");
                                     l_bytes_sent = !mq_send(l_cur->mqd, (char*)l_cur->buf_out, l_cur->buf_out_size, 0) ? l_cur->buf_out_size : 0;
                                     l_errno = l_bytes_sent ? 0 : errno == EINVAL ? EAGAIN : errno;
                                     debug_if(l_errno, L_ERROR, "mq_send [%lu bytes] failed, errno %d", l_cur->buf_out_size, l_errno);
