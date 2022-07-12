@@ -69,7 +69,8 @@ HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_module.h \
     $$PWD/include/dap_strfuncs.h \
     $$PWD/include/dap_string.h \
-    $$PWD/include/dap_time.h
+    $$PWD/include/dap_time.h \
+    $$PWD/include/dap_tsd.h
 
 SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_binary_tree.c \
@@ -80,7 +81,8 @@ SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_module.c \
     $$PWD/src/dap_strfuncs.c \
     $$PWD/src/dap_string.c \
-    $$PWD/src/dap_time.c
+    $$PWD/src/dap_time.c \
+    $$PWD/src/dap_tsd.c
 
 INCLUDEPATH += $$PWD/include \
     $$PWD/../../3rdparty/uthash/src/
