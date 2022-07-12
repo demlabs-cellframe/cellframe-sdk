@@ -383,6 +383,18 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_external_stake(uint256_t a_value, dap_chain_addr_t *a_hldr_addr)
+{
+	if (IS_ZERO_256(a_value))
+		return NULL;
+	dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+	l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+	l_item->header.value = a_value;
+	l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
+	memcpy(&l_item->subtype.srv_external_stake.addr_owner, a_hldr_addr, sizeof(dap_chain_addr_t));
+	return l_item;
+}
+
 /**
  * Create item dap_chain_tx_sig_t
  *

@@ -23,8 +23,45 @@
 */
 
 #include "dap_chain_net_srv_external_stake.h"
+#include "dap_chain_node_cli.h"
 
 #define LOG_TAG "dap_chain_net_external_stake"
+
+static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply);
+
+int dap_chain_net_srv_external_stake_init()
+{
+	dap_chain_node_cli_cmd_item_create("stake_ext", s_cli_srv_external_stake, "External stake service commands",
+									   "stake_ext create -net <net name> -addr_hldr <addr> -token <ticker> -coins <value> -cert <name>\n"
+	);
+
+	return 1;
+}
+
+static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply)
+{
+	enum {
+		CMD_NONE, CMD_CREATE
+	};
+
+	int l_arg_index = 1;
+	int l_cmd_num = CMD_NONE;
+
+	if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "create", NULL)) {
+		l_cmd_num = CMD_CREATE;
+	}
+
+	switch (l_cmd_num) {
+		case CMD_CREATE:
+			;
+			return 1;
+		default: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
+			return -1;
+		}
+	}
+	return 0;
+}
 
 bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
