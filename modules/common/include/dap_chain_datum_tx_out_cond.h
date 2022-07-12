@@ -107,8 +107,8 @@ typedef struct dap_chain_tx_out_cond {
         } fee;
 		struct {
 			dap_chain_addr_t addr_owner;
-			uint64_t timeStaking;
-			uint8_t countMonths;
+			uint64_t time_staking;
+			uint8_t count_months;
 		} srv_external_stake;
         byte_t free_space[128]; // for future changes
     } subtype;
