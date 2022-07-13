@@ -211,7 +211,7 @@ void *dap_worker_thread(void *arg)
 
         time_t l_cur_time = time( NULL);
         for(ssize_t n = 0; n < l_sockets_max; n++) {
-            bool l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
+            int l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
@@ -225,7 +225,7 @@ void *dap_worker_thread(void *arg)
             l_flag_nval     = false;
             l_flag_msg = false;
 #elif defined ( DAP_EVENTS_CAPS_POLL)
-            short l_cur_flags =l_worker->poll[n].revents;
+            int l_cur_flags = l_worker->poll[n].revents;
 
             if (l_worker->poll[n].fd == -1) // If it was deleted on previous iterations
                 continue;
@@ -300,6 +300,7 @@ void *dap_worker_thread(void *arg)
                 log_it(L_WARNING, "dap_events_socket was destroyed earlier");
                 continue;
             }
+
             if(g_debug_reactor) {
                 log_it(L_DEBUG, "--Worker #%u esocket %p uuid 0x%016"DAP_UINT64_FORMAT_x" type %d fd=%"DAP_FORMAT_SOCKET" flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
                        l_worker->id, l_cur, l_cur->uuid, l_cur->type, l_cur->socket,
@@ -387,7 +388,7 @@ void *dap_worker_thread(void *arg)
                     l_cur->buf_in_size = 0;
                 }
 
-                bool l_must_read_smth = false;
+                int l_must_read_smth = false;
                 switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_PIPE:
                     case DESCRIPTOR_TYPE_FILE:

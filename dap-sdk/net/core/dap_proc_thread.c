@@ -192,8 +192,8 @@ dap_proc_queue_t    *l_queue;
                 continue;
             }
 
-            debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
-                           l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
+            debug_if (g_debug_reactor, L_INFO, "Proc event callback (l_item: %p) : %p/%p, prio=%d, iteration=%d",
+                           l_item, l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
 
     #ifdef  DAP_OS_LINUX
@@ -213,7 +213,7 @@ dap_proc_queue_t    *l_queue;
     #endif      /* DAP_OS_LINUX */
 
 
-
+            l_is_processed += 1;
             l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
 
             debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
