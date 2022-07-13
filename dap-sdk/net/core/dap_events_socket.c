@@ -2213,10 +2213,7 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
 
     if (cl->buf_in_size > shrink_size)
     {
-        size_t buf_size=cl->buf_in_size-shrink_size;
-        uint8_t* tmp = cl->buf_in + shrink_size;
-        memmove(cl->buf_in,tmp,buf_size);
-        cl->buf_in_size=buf_size;
+        memmove(cl->buf_in, cl->buf_in + shrink_size,  cl->buf_in_size -= shrink_size);
     }else{
         //log_it(WARNING,"Shrinking size of input buffer on amount bigger than actual buffer's size");
         cl->buf_in_size=0;
