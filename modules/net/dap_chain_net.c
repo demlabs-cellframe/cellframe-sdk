@@ -1378,7 +1378,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
                         l_node_list_cur = dap_list_next(l_node_list_cur);
                     }
                     dap_chain_node_info_list_free(l_node_list);
-                    
+
                 } else {
                     log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
                     pthread_rwlock_unlock(&l_net_pvt->rwlock);
@@ -1422,7 +1422,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
     s_net_states_notify(l_net);
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 
-    return ! l_repeat_after_exit;
+    return !l_repeat_after_exit;
 }
 
 int s_net_list_compare_uuids(const void *a_uuid1, const void *a_uuid2)
@@ -1690,9 +1690,9 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 
 /**
  * @brief get type of chain
- * 
- * @param l_chain 
- * @return char* 
+ *
+ * @param l_chain
+ * @return char*
  */
 const char* dap_chain_net_get_type(dap_chain_t *l_chain)
 {
@@ -1714,14 +1714,14 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) 
+    DL_FOREACH(l_net->pub.chains, l_chain)
     {
-        if (l_chain->callback_purge) 
+        if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
 
-        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) 
+        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none"))
             dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
-        else 
+        else
             dap_chain_load_all(l_chain);
         }
     bool l_processed;
@@ -2649,7 +2649,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                             l_chain->id.uint64, l_chain->name,l_chain02->name);
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;
-                        } 
+                        }
                         if (!dap_strcmp(l_chain->name, l_chain02->name))
                         {
                             log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%"DAP_UINT64_FORMAT_U", chain02 id = 0x%"DAP_UINT64_FORMAT_U"",l_chain->net_name,
@@ -2657,9 +2657,9 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;
                         }
-                    }                         
+                    }
                 }
-            }         
+            }
 
             bool l_processed;
             do {
@@ -2703,7 +2703,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if (l_chain )
                    l_chain->is_datum_pool_proc = true;
                 l_net_pvt->only_static_links = true;
-                l_target_state = NET_STATE_ONLINE;     
+                l_target_state = NET_STATE_ONLINE;
                 log_it(L_INFO,"Root node role established");
             } break;
             case NODE_ROLE_CELL_MASTER:

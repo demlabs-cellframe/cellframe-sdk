@@ -9,7 +9,6 @@
 #define __DAP_LIST_H__
 
 #include    <errno.h>                                                       /* <errno> codes */
-
 #include    "dap_common.h"                                                  /* DAP_ALLOC, DAP_FREE */
 
 
@@ -32,11 +31,35 @@ typedef struct __dap_slist__ {
 
 
 
+
+static inline int    s_dap_insqhead    ( dap_slist_t *q, void *data, int datasz)
+{
+dap_slist_elm_t *elm;
+
+    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )   /* Allocate memory for new element */
+        return  -ENOMEM;
+
+    elm->flink = NULL;                                                      /* This element is terminal */
+    elm->data  = data;                                                      /* Store pointer to carried data */
+    elm->datasz= datasz;                                                    /* A size of data metric */
+
+    if ( q->head )                                                          /* Queue is not empty ? */
+        elm->flink = q->head;                                               /* Correct forward link of "previous last" element
+                                                                               to point to new element */
+
+    q->head = elm;
+
+    q->nr++;                                                                /* Adjust entries counter */
+    //log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
+    return  0;
+}
+
+
 static inline int    s_dap_insqtail    ( dap_slist_t *q, void *data, int datasz)
 {
 dap_slist_elm_t *elm;
 
-    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )                       /* Allocate memory for new element */
+    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )   /* Allocate memory for new element */
         return  -ENOMEM;
 
     elm->flink = NULL;                                                      /* This element is terminal */
@@ -50,7 +73,7 @@ dap_slist_elm_t *elm;
     q->tail = elm;                                                          /* Point list's tail to new element also */
 
     if ( !q->head )                                                         /* This is a first element in the list  ? */
-        q->head = elm;                                                     /* point head to the new element */
+        q->head = elm;                                                      /* point head to the new element */
 
     q->nr++;                                                                /* Adjust entries counter */
     //log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
