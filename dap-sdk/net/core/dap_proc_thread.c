@@ -192,19 +192,24 @@ dap_proc_queue_t    *l_queue;
         debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
                        l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
+
+#ifdef  DAP_OS_LINUX
         if ( g_debug_reactor )
         {
-        #include <execinfo.h>
+            #include <execinfo.h>
 
-        char **rtn_name;
-        void *rtn_arr[] = {l_item->callback};
+            char **rtn_name;
+            void *rtn_arr[] = {l_item->callback};
 
-        rtn_name = backtrace_symbols (rtn_arr, 1);
+            rtn_name = backtrace_symbols (rtn_arr, 1);
 
-        log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
+            log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
 
-        free(rtn_name);
+            free(rtn_name);
         }
+#endif      /* DAP_OS_LINUX */
+
+
 
         l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
 
@@ -212,13 +217,12 @@ dap_proc_queue_t    *l_queue;
                            l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
 
         if ( !(l_is_finished) ) {
-
-
-
-                                                                            /* Rearm callback to be executed again */
+                                                                            /* Put "callback" back to the queue */
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
             l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, l_size);
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+
+            assert ( l_rc );
         }
         else    {
             DAP_DEL_Z(l_item);

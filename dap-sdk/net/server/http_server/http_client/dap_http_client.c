@@ -125,28 +125,6 @@ void dap_http_client_delete( dap_events_socket_t * a_esocket, void *a_arg )
 }
 
 
-/**
- * @brief detect_end_of_line Detect end of line, return position of its end (with \n symbols)
- * @param buf Input buffer
- * @param max_size Maximum size of this buffer minus 1 (for terminating zero)
- * @return position of the end of line
- */
-
-#if 1
-static int detect_end_of_line( const char *a_buf, size_t a_max_size )
-{
-  size_t i;
-
-  for( i = 0; i < a_max_size; i++ ) {
-    if ( a_buf[i] == '\n' ) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-#endif
-
 static char  *z_basename( char *path, uint32_t len )
 {
   if ( !len )
@@ -164,7 +142,7 @@ static char  *z_basename( char *path, uint32_t len )
     }
     --ptr;
   }
-    
+
   return ptr;
 }
 
@@ -214,7 +192,7 @@ static int32_t  z_rootdirname( char *path, uint32_t len )
     return 0;
 
   path[ len2 ] = 0;
-    
+
   return len2;
 }
 
@@ -344,6 +322,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
     do{
         debug_if(s_debug_http, L_DEBUG, "HTTP client in state %s input buffer size: %"DAP_UINT64_FORMAT_U,
                  dap_http_client_state_str[l_http_client->state_read], a_esocket->buf_in_size );
+
         switch( l_http_client->state_read ) {
             case DAP_HTTP_CLIENT_STATE_START: { // Beginning of the session. We try to detect
                 char l_buf_line[4096];
@@ -538,11 +517,16 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
  */
 void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
 {
-    //  log_it( L_DEBUG, "dap_http_client_write..." );
+    UNUSED(a_arg);
 
-    (void) a_arg;
+    log_it( L_DEBUG, "Entering: a_esocket: %p, a_arg: %p", a_esocket, a_arg);
+
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
-    //log_it(L_WARNING,"HTTP client write callback in state %d",l_http_client->state_write);
+
+    if ( !l_http_client )
+        return  log_it( L_ERROR, "dap_http_client_t context is NULL");
+
+    log_it(L_WARNING,"HTTP client write callback in state %d", l_http_client->state_write);
 
     switch( l_http_client->state_write ) {
         case DAP_HTTP_CLIENT_STATE_NONE:
@@ -600,7 +584,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 if (!l_http_client->proc->cache) {
                     debug_if(s_debug_http, L_DEBUG, "No cache so we call write callback");
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
-                    l_http_client->proc->data_write_callback( l_http_client, NULL );    
+                    l_http_client->proc->data_write_callback( l_http_client, NULL );
                     if (l_http_client->esocket->flags & DAP_SOCK_SIGNAL_CLOSE)
                         l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                 } else {
