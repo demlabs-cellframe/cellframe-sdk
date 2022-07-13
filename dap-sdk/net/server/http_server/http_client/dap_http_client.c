@@ -522,6 +522,8 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
  */
 void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
 {
+    if (!a_esocket)
+        return;
 char    l_buf[128];
 dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
 dap_http_header_t *hdr = l_http_client->out_headers;

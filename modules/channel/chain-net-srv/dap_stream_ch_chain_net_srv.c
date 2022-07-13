@@ -393,14 +393,14 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 size_t l_recv_out_size = sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + l_request->data_size_recv;
                 dap_stream_ch_chain_net_srv_pkt_test_t *l_request_out = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, l_recv_out_size);
                 // copy info from recv message
-                memcpy(l_request_out,l_request, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t));
-                if (l_request->data_size_recv) {
-                    l_request_out->data_size = l_request->data_size_recv;
+                memcpy(l_request_out, l_request, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t));
+                l_request_out->data_size = l_request->data_size_recv;
+                if (l_request_out->data_size) {
                     randombytes(l_request_out->data, l_request_out->data_size);
                     dap_hash_fast(l_request_out->data, l_request_out->data_size, &l_request_out->data_hash);
                 }
                 l_request_out->err_code = 0;
-                strncpy(l_request_out->ip_send, a_ch->stream->esocket->hostaddr, sizeof(l_request_out->ip_send) - 1);
+                strncpy((char *)l_request_out->ip_send, a_ch->stream->esocket->hostaddr, sizeof(l_request_out->ip_send) - 1);
                 // Thats to prevent unaligned pointer
                 struct timeval l_tval;
                 gettimeofday(&l_tval, NULL);
