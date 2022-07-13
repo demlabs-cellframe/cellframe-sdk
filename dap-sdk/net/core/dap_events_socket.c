@@ -864,7 +864,9 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                 log_it(L_ERROR, "mq_receive error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
                 return -1;
             }
-            debug_if(l_ret > 8, L_NOTICE, "mqueue processing %ld bytes in one pass", l_ret);
+            l_queue_ptr = *(void **)l_body;
+            a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+            debug_if(l_ret > 8, L_ERROR, "%lu bytes in queue msg???", l_ret);
             /*for (long shift = 0; shift < l_ret; shift += sizeof(void*)) {
                 l_queue_ptr = *(void **)(l_body + shift);
                 a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
@@ -1270,7 +1272,6 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
  * @param a_arg
  */
 int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg) {
-    debug_if (g_debug_reactor, L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
     int l_ret = -1024, l_errno;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg));
@@ -1278,10 +1279,12 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg) {
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
     assert(a_es);
     assert(a_es->mqd);
-    struct timespec tmo = {0};
-    tmo.tv_sec = 7 + time(NULL);
-    if (!mq_timedsend(a_es->mqd, (const char*)&a_arg, sizeof(a_arg), 0, &tmo))
+    //struct timespec tmo = {0};
+    //tmo.tv_sec = 7 + time(NULL);
+    if (!mq_send(a_es->mqd, (const char*)&a_arg, sizeof(a_arg), 0)) {
+        debug_if (g_debug_reactor, L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
         return 0;
+    }
     switch (l_errno = errno) {
     case EINVAL:
     case EINTR:
