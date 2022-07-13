@@ -124,8 +124,8 @@ int l_rc;
      * @RRL: #6157
      * Use this thread's attribute to eliminate resource consuming by terminated threads
      */
-    assert ( !(l_rc = pthread_attr_init(&s_attr_detached)) );
-    assert ( !(l_rc = pthread_attr_setdetachstate(&s_attr_detached, PTHREAD_CREATE_DETACHED)) );
+    pthread_attr_init(&s_attr_detached);
+    pthread_attr_setdetachstate(&s_attr_detached, PTHREAD_CREATE_DETACHED);
 
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>

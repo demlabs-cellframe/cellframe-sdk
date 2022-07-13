@@ -159,7 +159,8 @@ static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t __at
 {
 dap_proc_thread_t   *l_thread;
 dap_proc_queue_item_t *l_item;
-int     l_rc, l_is_anybody_in_queue, l_is_finished, l_iter_cnt, l_cur_pri;
+int     l_rc, l_is_anybody_in_queue, l_is_finished, l_iter_cnt, l_cur_pri,
+        l_is_processed;
 size_t  l_size;
 dap_proc_queue_t    *l_queue;
 
@@ -175,60 +176,61 @@ dap_proc_queue_t    *l_queue;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_queue = l_thread->proc_queue;
 
-    for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
-    {
-        if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
-            continue;
-
-        pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
-        l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
-        pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
-
-        if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
-            debug_if (g_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
-            continue;
-        }
-
-        debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
-                       l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
-
-
-#ifdef  DAP_OS_LINUX
-        if ( g_debug_reactor )
+    do {
+        l_is_processed = 0;
+        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
         {
-            #include <execinfo.h>
+            if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
+                continue;
 
-            char **rtn_name;
-            void *rtn_arr[] = {l_item->callback};
-
-            rtn_name = backtrace_symbols (rtn_arr, 1);
-
-            log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
-
-            free(rtn_name);
-        }
-#endif      /* DAP_OS_LINUX */
-
-
-
-        l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
-
-        debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
-                           l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
-
-        if ( !(l_is_finished) ) {
-
-
-
-                                                                            /* Rearm callback to be executed again */
-            pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, l_size);
+            pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
+            l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
             pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+
+            if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
+                debug_if (g_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
+                continue;
+            }
+
+            debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
+                           l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
+
+
+    #ifdef  DAP_OS_LINUX
+            if ( g_debug_reactor )
+            {
+                #include <execinfo.h>
+
+                char **rtn_name;
+                void *rtn_arr[] = {l_item->callback};
+
+                rtn_name = backtrace_symbols (rtn_arr, 1);
+
+                log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
+
+                free(rtn_name);
+            }
+    #endif      /* DAP_OS_LINUX */
+
+
+
+            l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
+
+            debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
+                               l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
+
+            if ( !(l_is_finished) ) {                                       /* Put entry back to queue to repeat of execution */
+                pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
+                l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, l_size);
+                pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+            }
+            else    {
+                DAP_DEL_Z(l_item);
+            }
         }
-        else    {
-            DAP_DEL_Z(l_item);
-    	}
-    }
+    } while ( l_is_processed );
+
+
     for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)
         l_is_anybody_in_queue += l_queue->list[l_cur_pri].items.nr;
 
