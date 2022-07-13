@@ -214,7 +214,7 @@ size_t  l_len, l_buf_len;
 char    *l_cp_start, *l_cp_end;
 const char ht_ver [] = "HTTP/1.";                                           /* We are not interested by minor version */
 
-    log_it( L_NOTICE, "Parse '%.*s' ..." , (int) a_buf_length, a_buf);
+    log_it(L_NOTICE, "Parse %.*s" , (int) a_buf_length, a_buf);
 
     if ( (a_buf_length == 2) && (*a_buf == CR) && (*(a_buf + 1)  == LF) )          /* Check for HTTP End-Of-Header sequence */
         return  1;
@@ -522,6 +522,8 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
  */
 void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
 {
+    if (!a_esocket)
+        return;
 char    l_buf[128];
 dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
 dap_http_header_t *hdr = l_http_client->out_headers;

@@ -1951,12 +1951,8 @@ static void s_check_db_version_callback_get (dap_global_db_context_t * a_global_
 
     }
 
-    const char * l_value_str = (const char *) a_value;
-    if(a_value_len>0 ){
-        if(l_value_str[a_value_len-1]=='\0'){
-            s_global_db_version = atoi(l_value_str);
-        }
-    }
+    if (a_value_len == sizeof(uint16_t))
+        s_global_db_version = *(uint16_t *)a_value;
 
     if( s_global_db_version < DAP_GLOBAL_DB_VERSION) {
         log_it(L_NOTICE, "GlobalDB version %u, but %u required. The current database will be recreated",

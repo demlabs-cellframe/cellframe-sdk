@@ -143,7 +143,8 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
     }
 
     if(g_debug_reactor)
-        log_it(L_NOTICE, "Received event socket %p (ident %"DAP_FORMAT_SOCKET" type %d) to add on worker", l_es_new, l_es_new->socket, l_es_new->type);
+        log_it(L_NOTICE, "Received event socket %p (ident %"DAP_FORMAT_SOCKET" type %d) to add on worker #%u",
+                          l_es_new, l_es_new->socket, l_es_new->type, l_worker->id);
 
     switch( l_es_new->type){
         case DESCRIPTOR_TYPE_SOCKET_UDP: break;
@@ -158,13 +159,12 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         l_es_new->type != DESCRIPTOR_TYPE_TIMER
             )
 #else
-    if(l_es_new->socket!=0 && l_es_new->socket != INVALID_SOCKET)
-
+    if (l_es_new->socket != 0 && l_es_new->socket != INVALID_SOCKET)
 #endif
-    if(dap_context_find( l_context, l_es_new->uuid)){
-        // Socket already present in worker, it's OK
-        return;
-    }
+        if (dap_context_find(l_context, l_es_new->uuid)) {
+            // Socket already present in worker, it's OK
+            return;
+        }
 
     switch( l_es_new->type){
 
