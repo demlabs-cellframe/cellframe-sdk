@@ -264,8 +264,8 @@ void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, 
  */
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
 {
-    dap_worker_t * l_worker = a_es->context->worker;
-    dap_events_socket_t * l_queue_input= l_worker->queue_es_new_input[a_worker_new->id];
+    dap_worker_t *l_worker = a_es->context->worker;
+    dap_events_socket_t *l_queue_input = a_worker_new->queue_es_new_input[l_worker->id];
     log_it(L_DEBUG, "Reassign between %u->%u workers: %p (%d)  ", l_worker->id, a_worker_new->id, a_es, a_es->fd );
 
     dap_context_remove(a_es);
@@ -559,8 +559,21 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                 if(g_debug_reactor)
                     log_it(L_DEBUG,"Queue ptr received %p", l_queue_ptr_aio.ptr);
                 a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr_aio.ptr);
-                if(l_queue_ptr_aio.aiocb)
-                   DAP_DELETE(l_queue_ptr_aio.aiocb);
+                if(l_queue_ptr_aio.aiocb) {
+                    if (aio_error(l_queue_ptr_aio.aiocb)) {
+                        int l_cancel_res = AIO_NOTCANCELED;
+                        while (l_cancel_res != AIO_ALLDONE && l_cancel_res != -1) {
+                            l_cancel_res = aio_cancel(a_esocket->fd2, l_queue_ptr_aio.aiocb);
+                        }
+                        if (l_cancel_res == -1)
+                            log_it(L_ERROR, "AIO cancelling error %d", errno);
+                        else {
+                            debug_if(g_debug_reactor, L_MSG, "AIO cancelling success");
+                            DAP_DELETE(l_queue_ptr_aio.aiocb);
+                        }
+                    } else
+                        DAP_DELETE(l_queue_ptr_aio.aiocb);
+                }
                 DAP_DELETE(l_queue_ptr_aio.self);
             } else if ( (l_read_errno != EAGAIN) && (l_read_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                 log_it(L_WARNING,"Queue ptr recieved %zd when expected to see %zd", l_read_ret,

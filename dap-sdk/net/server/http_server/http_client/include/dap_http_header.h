@@ -22,6 +22,9 @@
 */
 
 #pragma once
+
+#include <stddef.h>
+
 //Structure for holding HTTP header in the bidirectional list
 typedef struct dap_http_header{
     char    *name, *value;                                                  /* Area to keep HT field name and value */
@@ -31,17 +34,17 @@ typedef struct dap_http_header{
     struct dap_http_header *next, *prev;                                    /* List's element links */
 } dap_http_header_t;
 
-struct dap_http_client;
+typedef struct dap_http_client dap_http_client_t;
 
 int dap_http_header_init(); // Init module
 void dap_http_header_deinit(); // Deinit module
 
-int dap_http_header_parse(struct dap_http_client * cl_ht, const char * ht_line, size_t ht_line_len);
+int dap_http_header_parse(dap_http_client_t *cl_ht, const char *ht_line, size_t ht_line_len);
 
 dap_http_header_t *dap_http_header_add(dap_http_header_t **a_top, const char *a_name, const char *a_value);
 
-dap_http_header_t * dap_http_out_header_add(struct dap_http_client * ht, const char*name, const char * value);
-dap_http_header_t * dap_http_out_header_add_f(struct dap_http_client * ht, const char*name, const char * value,...);
+dap_http_header_t * dap_http_out_header_add(dap_http_client_t *ht, const char *name, const char *value);
+dap_http_header_t * dap_http_out_header_add_f(dap_http_client_t *ht, const char *name, const char *value, ...);
 
 dap_http_header_t *dap_http_header_find(dap_http_header_t * ht, const char*name);
 

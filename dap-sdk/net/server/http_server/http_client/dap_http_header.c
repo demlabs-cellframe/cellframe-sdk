@@ -96,14 +96,12 @@ void dap_http_header_deinit()
 #define	CR    '\r'
 #define	LF    '\n'
 
-int dap_http_header_parse(struct dap_http_client * cl_ht, const char * ht_line, size_t ht_line_len)
+int dap_http_header_parse(dap_http_client_t *cl_ht, const char *ht_line, size_t ht_line_len)
 {
 char *l_cp, *l_pname, *l_pval;
 size_t l_strlen, l_len, l_namelen, l_valuelen;
 struct ht_field *l_ht;
 dap_http_header_t *l_new_header;
-
-    s_debug_http = 1;   /* @RRL */
 
     debug_if(s_debug_http, L_DEBUG, "Parse header string (%zu octets) : '%.*s'",  ht_line_len, (int) ht_line_len, ht_line);
 
@@ -150,7 +148,7 @@ dap_http_header_t *l_new_header;
     l_len = l_strlen - (l_pval - ht_line);                                  /* Compute a length of data after ':' */
     for (; isspace(*l_pval) && l_len; l_pval++, l_len-- );                  /* Skip possible whitespaces on begin ... */
 
-    l_valuelen  = l_len - 2;                                                /* Exclude CRLF at end of HTTP header field */
+    l_valuelen = l_len > 2 ? l_len - 2 : 0;                                                /* Exclude CRLF at end of HTTP header field */
 
     switch (l_ht->ht_field_code )
     {
@@ -214,7 +212,7 @@ dap_http_header_t *dap_http_header_add(dap_http_header_t **a_top, const char *a_
 }
 
 
-struct dap_http_header* dap_http_out_header_add(dap_http_client_t * ht, const char*name, const char * value)
+struct dap_http_header* dap_http_out_header_add(dap_http_client_t *ht, const char *name, const char *value)
 {
     return dap_http_header_add(&ht->out_headers,name,value);
 }
@@ -228,7 +226,7 @@ struct dap_http_header* dap_http_out_header_add(dap_http_client_t * ht, const ch
  * @param ... Arguments for formatted string
  * @return
  */
-dap_http_header_t * dap_http_out_header_add_f(dap_http_client_t * ht, const char*name, const char * value,...)
+dap_http_header_t * dap_http_out_header_add_f(dap_http_client_t *ht, const char *name, const char *value, ...)
 {
     va_list ap;
     dap_http_header_t * ret;

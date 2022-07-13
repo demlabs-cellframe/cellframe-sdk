@@ -513,17 +513,15 @@ static void s_client_callback_worker_unassign(dap_events_socket_t * a_esocket, d
  * @param a_client
  * @param a_arg
  */
-static void s_esocket_data_read(dap_events_socket_t* a_client, void * a_arg)
+static void s_esocket_data_read(dap_events_socket_t* a_esocket, void * a_arg)
 {
-    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_client);
-    dap_stream_t * l_stream =DAP_STREAM(l_http_client);
-    int * l_ret = (int *) a_arg;
+    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
+    dap_stream_t *l_stream = DAP_STREAM(l_http_client);
+    int *l_ret = (int *)a_arg;
 
-    if (s_dump_packet_headers ) {
-        log_it(L_DEBUG,"dap_stream_data_read: ready_to_write=%s, client->buf_in_size=%zu" ,
-               (a_client->flags & DAP_SOCK_READY_TO_WRITE)?"true":"false", a_client->buf_in_size );
-    }
-    *l_ret = dap_stream_data_proc_read( l_stream);
+    debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_read: ready_to_write=%s, client->buf_in_size=%zu",
+               (a_esocket->flags & DAP_SOCK_READY_TO_WRITE) ? "true" : "false", a_esocket->buf_in_size);
+    *l_ret = dap_stream_data_proc_read(l_stream);
 }
 
 
