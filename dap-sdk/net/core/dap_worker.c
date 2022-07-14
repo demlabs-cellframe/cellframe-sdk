@@ -678,7 +678,9 @@ void *dap_worker_thread(void *arg)
                             case DESCRIPTOR_TYPE_QUEUE:
                                 if (l_cur->flags & DAP_SOCK_QUEUE_PTR && l_cur->buf_out_size>= sizeof (void*)){
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-                                   l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
+                                   l_bytes_sent = write(l_cur->socket, l_cur->buf_out, /*sizeof(void*)*/ l_cur->buf_out_size);
+                                   debug_if(g_debug_reactor, L_NOTICE, "send %ld bytes to pipe", l_bytes_sent);
+                                   l_errno = errno;
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
                                    l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
 #elif defined DAP_EVENTS_CAPS_MSMQ
@@ -703,13 +705,11 @@ void *dap_worker_thread(void *arg)
                                     if (hr != MQ_OK) {
                                         l_errno = hr;
                                         log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
-                                        break;
                                     } else {
                                         l_errno = WSAGetLastError();
                                         if (dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR)
                                             log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                         l_bytes_sent = l_cur->buf_out_size;
-                                        break;
                                         //l_cur->buf_out_size = 0;
                                     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
@@ -722,7 +722,6 @@ void *dap_worker_thread(void *arg)
                                         mq_getattr(l_cur->mqd, &l_attr);
                                         log_it(L_ERROR, "Msg size %lu > permitted size %lu", l_cur->buf_out_size, l_attr.mq_msgsize);
                                     }
-                                    break;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
                                     struct kevent* l_event=&l_cur->kqueue_event;
                                     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
@@ -741,10 +740,10 @@ void *dap_worker_thread(void *arg)
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
-                                }else{
+                                } else {
                                      assert("Not implemented non-ptr queue send from outgoing buffer");
                                      // TODO Implement non-ptr queue output
-                                 }
+                                }
                             break;
                             case DESCRIPTOR_TYPE_PIPE:
                             case DESCRIPTOR_TYPE_FILE:
