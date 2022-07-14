@@ -39,13 +39,13 @@
 typedef struct dap_cert_file_hdr
 {
     uint64_t sign;
-    int version;
+    uint32_t version;
     uint8_t type;
     dap_sign_type_t sign_type;
     uint64_t data_size;
     uint64_t data_pvt_size;
     uint64_t metadata_size;
-    time_t ts_last_used;
+    uint64_t ts_last_used;
 } DAP_ALIGN_PACKED dap_cert_file_hdr_t;
 
 typedef struct dap_cert_file{
