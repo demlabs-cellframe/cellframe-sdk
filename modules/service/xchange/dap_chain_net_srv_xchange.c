@@ -520,7 +520,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             return -2;
         }
         l_net_buy = dap_chain_net_by_name(l_net_buy_str);
-        if (!l_net_sell) {
+        if (!l_net_buy) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_buy_str);
             return -3;
         }
