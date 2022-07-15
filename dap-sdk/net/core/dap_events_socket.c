@@ -608,7 +608,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     int l_pipe[2];
-    char l_errbuf[128] = { '\0' };
+    char l_errbuf[255] = { '\0' };
     int l_errno;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     if( pipe2(l_pipe, O_DIRECT | O_NONBLOCK ) < 0 ){
