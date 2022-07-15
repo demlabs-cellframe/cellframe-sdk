@@ -1070,7 +1070,7 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
            NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
     struct json_object *l_json = net_states_json_collect(l_net);
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, sizeof (a_node_client->info->hdr.ext_addr_v4));
+    inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     char l_err_str[128] = { };
     dap_snprintf(l_err_str, sizeof(l_err_str)
                  , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"

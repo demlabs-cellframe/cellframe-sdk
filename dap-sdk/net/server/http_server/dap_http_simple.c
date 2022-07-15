@@ -227,7 +227,6 @@ inline static void s_write_data_to_socket(dap_proc_thread_t *a_thread, dap_http_
 {
     dap_http_client_out_header_generate(a_simple->http_client);
     a_simple->http_client->state_write = DAP_HTTP_CLIENT_STATE_START;
-    dap_http_client_write(a_simple->esocket, NULL);
     dap_proc_thread_worker_exec_callback_inter(a_thread, a_simple->worker->id, s_esocket_worker_write_callback, a_simple->esocket);
 }
 
