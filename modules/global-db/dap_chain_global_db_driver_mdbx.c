@@ -222,7 +222,7 @@ MDBX_val    l_key_iov, l_data_iov;
     /*
     ** Add new DB Context for the group into the hash for quick access
     */
-    pthread_rwlock_wrlock(&s_db_ctxs_rwlock);                    /* Get WR lock for the hash-table */
+    pthread_rwlock_wrlock(&s_db_ctxs_rwlock);                               /* Get WR lock for the hash-table */
 
     l_db_ctx2 = NULL;
     HASH_FIND_STR(s_db_ctxs, a_group, l_db_ctx2);                           /* Check for existence of group again!!! */
@@ -246,7 +246,7 @@ static  int s_db_mdbx_deinit(void)
 {
 dap_db_ctx_t *l_db_ctx = NULL, *l_tmp;
 
-    pthread_rwlock_wrlock(&s_db_ctxs_rwlock);                   /* Prelock for WR */
+    pthread_rwlock_wrlock(&s_db_ctxs_rwlock);                               /* Prelock for WR */
 
     HASH_ITER(hh, s_db_ctxs, l_db_ctx, l_tmp)                               /* run over the hash table of the DB contexts */
     {
@@ -1011,7 +1011,9 @@ struct  __record_suffix__   *l_suff;
             log_it (L_ERROR, "mdbx_get: (%d) %s", l_rc, mdbx_strerror(l_rc));
 
         if ( (l_rc != MDBX_SUCCESS) && l_obj ) {
-            DAP_FREE(l_obj->value);
+            if ( l_obj->value)
+                DAP_DEL_Z(l_obj->value);
+
             DAP_DEL_Z(l_obj);
         }
 
@@ -1028,7 +1030,7 @@ struct  __record_suffix__   *l_suff;
     do  {
         l_count_out = (a_count_out && *a_count_out)? *a_count_out : DAP_DB$K_MAXOBJS;/* Limit a number of objects to be returned */
         l_cursor = NULL;
-        l_obj = NULL;
+        l_obj = l_obj_arr = NULL;
 
         /*
          * Retrieve statistic for group/table, we need to compute a number of records can be retreived
