@@ -237,6 +237,7 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session,  l_ch_vpn->usage_id);
 
     size_t l_data_to_send = (l_pkt_out->header.op_data.data_size + sizeof(l_pkt_out->header));
+    debug_if(s_debug_more, L_DEBUG, "Sent stream pkt size %zu on worker #%u", l_data_to_send, l_ch_vpn->ch->stream_worker->worker->id);
     size_t l_data_sent = dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out, l_data_to_send);
     s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_data_sent );
     if ( l_data_sent < l_data_to_send){
@@ -305,7 +306,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             }
             if(s_debug_more){
                 char l_str_daddr[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET,&l_in_daddr,l_str_daddr,sizeof (l_in_daddr));
+                inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, INET_ADDRSTRLEN);
                 log_it(L_DEBUG, "Sent packet size %zd for desitnation in own context", a_data_size);
             }
 
@@ -332,8 +333,8 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
         }
         if(s_debug_more){
             char l_str_daddr[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET,&l_in_daddr,l_str_daddr,sizeof (l_in_daddr));
-            log_it(L_INFO, "Sent packet for desitnation %zd between contexts",a_data_size);
+            inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, INET_ADDRSTRLEN);
+            log_it(L_INFO, "Sent packet for %s desitnation %zd between contexts", l_str_daddr, a_data_size);
         }
 
     }
@@ -368,7 +369,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 }
             }else{
                 if(dap_log_level_get() <= L_INFO){
-                    char l_addrbuf[17];
+                    char l_addrbuf[INET_ADDRSTRLEN] = {[0]='\0'};
                     inet_ntop(AF_INET,&l_msg->esocket_reassigment.addr, l_addrbuf, sizeof (l_addrbuf));
                     log_it(L_INFO,"Reassigment message for address %s on worker %u comes but no such address was found on tun socket %u",
                            l_addrbuf, l_msg->esocket_reassigment.worker_id,
@@ -479,9 +480,8 @@ static void s_tun_send_msg_ip_assigned(uint32_t a_worker_own_id, uint32_t a_work
  */
 static void s_tun_send_msg_ip_assigned_all(uint32_t a_worker_own_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr)
 {
-    for( uint32_t i=0; i< s_tun_sockets_count; i++)
-        //if( i != a_worker_own_id)
-            s_tun_send_msg_ip_assigned(a_worker_own_id, i, a_ch_vpn , a_addr );
+    for (uint32_t i = 0; i < s_tun_sockets_count; i++)
+        s_tun_send_msg_ip_assigned(a_worker_own_id, i, a_ch_vpn, a_addr);
 }
 
 /**
@@ -503,7 +503,7 @@ static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_own_id, uint32_t a_wo
 
     if( a_worker_own_id != a_worker_id){
         if ( dap_events_socket_queue_ptr_send(s_tun_sockets_queue_msg[a_worker_id], l_msg) != 0 ) {
-            log_it(L_WARNING, "Cant send new  ip unassign message to the tun msg queue #%u", a_worker_id);
+            log_it(L_WARNING, "Cant send new ip unassign message to the tun msg queue #%u", a_worker_id);
         }
     }else{ // We're sending on our own worker so lets just call the process callback
         s_tun_recv_msg_callback(s_tun_sockets_queue_msg[a_worker_id], l_msg);
@@ -1465,7 +1465,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
                 size_t l_size_to_send = l_vpn_pkt->header.op_data.data_size;
                 size_t l_size_sent = dap_events_socket_write_unsafe( l_tun->es,l_vpn_pkt->data, l_size_to_send);
-
+                debug_if(s_debug_more, L_DEBUG, "Recieved stream pkt size %zu on worker #%u", l_size_to_send, a_ch->stream_worker->worker->id);
                 s_update_limits(a_ch, l_srv_session, l_usage, l_size_sent);
                 if (l_size_sent == l_size_to_send) {
                     l_srv_session->stats.packets_sent++;
@@ -1553,22 +1553,22 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
     if (s_debug_more){
         char l_str_daddr[INET_ADDRSTRLEN]={[0]='\0'};
         char l_str_saddr[INET_ADDRSTRLEN]={[0]='\0'};
+        struct in_addr l_daddr;
+        struct in_addr l_saddr;
+        size_t l_ip_tot_len;
 #ifdef DAP_OS_LINUX
-        struct in_addr l_daddr={ .s_addr = iph->daddr};
-        struct in_addr l_saddr={ .s_addr = iph->saddr};
-        inet_ntop(AF_INET,&l_daddr,l_str_daddr,sizeof (iph->daddr));
-        inet_ntop(AF_INET,&l_saddr,l_str_saddr,sizeof (iph->saddr));
-        size_t l_ip_tot_len = iph->tot_len;
+        l_daddr.s_addr = iph->daddr;
+        l_saddr.s_addr = iph->saddr;
+        l_ip_tot_len = ntohs(iph->tot_len);
 #else
-        struct in_addr l_daddr={ .s_addr = iph->ip_dst.s_addr };
-        struct in_addr l_saddr={ .s_addr = iph->ip_src.s_addr};
-        inet_ntop(AF_INET,&l_daddr,l_str_daddr,sizeof (l_daddr));
-        inet_ntop(AF_INET,&l_saddr,l_str_saddr,sizeof (l_saddr));
-        size_t l_ip_tot_len = iph->ip_len ;
+        l_daddr.s_addr = iph->ip_dst.s_addr;
+        l_saddr.s_addr = iph->ip_src.s_addr;
+        l_ip_tot_len = ntohs(iph->ip_len);
 #endif
-
-        log_it(L_DEBUG,"m_es_tun_read() received ip packet %s->%s tot_len: %zu ",
-               l_str_saddr, l_str_saddr, l_ip_tot_len);
+        inet_ntop(AF_INET, &l_daddr, l_str_daddr, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &l_saddr, l_str_saddr, INET_ADDRSTRLEN);
+        log_it(L_DEBUG,"TUN#%u received ip packet %s->%s tot_len: %zu",
+                        l_tun_socket->worker_id, l_str_saddr, l_str_daddr, l_ip_tot_len);
     }
 
     if(l_buf_in_size) {
@@ -1578,8 +1578,6 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
 #else
         l_in_daddr.s_addr = iph->ip_dst.s_addr;
 #endif
-
-        //
         dap_chain_net_srv_ch_vpn_info_t * l_vpn_info = NULL;
         // Try to find in worker's clients, without locks
         if ( l_tun_socket->clients){
@@ -1595,8 +1593,8 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         }else if(s_debug_more){
             char l_str_daddr[INET_ADDRSTRLEN]={[0]='\0'};
-            inet_ntop(AF_INET,&l_in_daddr,l_str_daddr,sizeof (l_in_daddr));
-            log_it(L_WARNING, "Can't find route for desitnation %s",l_str_daddr);
+            inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, INET_ADDRSTRLEN);
+            log_it(L_WARNING, "Can't find route for desitnation %s", l_str_daddr);
         }
     }
     a_es->buf_in_size=0; // NULL it out because read it all
