@@ -176,8 +176,8 @@ dap_proc_queue_t    *l_queue;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_queue = l_thread->proc_queue;
 
-    do {
-        l_is_processed = 0;
+    //do {
+        //l_is_processed = 0;
         for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
         {
             if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
@@ -213,7 +213,7 @@ dap_proc_queue_t    *l_queue;
     #endif      /* DAP_OS_LINUX */
 
 
-            l_is_processed += 1;
+            //l_is_processed += 1;
             l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
 
             debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
@@ -228,7 +228,7 @@ dap_proc_queue_t    *l_queue;
                 DAP_DEL_Z(l_item);
             }
         }
-    } while ( l_is_processed );
+    //} while ( l_is_processed );
 
 
     for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)
@@ -771,10 +771,11 @@ static void * s_proc_thread_function(void * a_arg)
                     ssize_t l_bytes_sent = -1;
                     switch (l_cur->type) {
                         case DESCRIPTOR_TYPE_QUEUE:
-                            if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
-                                #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-                                    l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
-                                #elif defined DAP_EVENTS_CAPS_MSMQ
+                            if (l_cur->flags & DAP_SOCK_QUEUE_PTR) {
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+                                l_bytes_sent = write(l_cur->socket, l_cur->buf_out, /*l_cur->buf_out_size */ sizeof (void*));
+                                debug_if(g_debug_reactor, L_NOTICE, "send %ld bytes to pipe", l_bytes_sent);
+#elif defined DAP_EVENTS_CAPS_MSMQ
                                 DWORD l_mp_id = 0;
                                 MQMSGPROPS    l_mps;
                                 MQPROPVARIANT l_mpvar[1];
@@ -795,7 +796,6 @@ static void * s_proc_thread_function(void * a_arg)
 
                                 if (hr != MQ_OK) {
                                     log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
-                                    break;
                                 } else {
                                     if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
                                         log_it(L_ERROR, "Write to sock error: %d", WSAGetLastError());
@@ -804,9 +804,8 @@ static void * s_proc_thread_function(void * a_arg)
                                     dap_events_socket_set_writable_unsafe(l_cur,false);*/
 
                                     l_bytes_sent = l_cur->buf_out_size;
-                                    break;
                                 }
-                                #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+#elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                 debug_if(g_debug_reactor, L_NOTICE, "Sending data to queue thru input buffer...");
                                     l_bytes_sent = !mq_send(l_cur->mqd, (char*)l_cur->buf_out, l_cur->buf_out_size, 0) ? l_cur->buf_out_size : 0;
                                     l_errno = l_bytes_sent ? 0 : errno == EINVAL ? EAGAIN : errno;
@@ -816,8 +815,7 @@ static void * s_proc_thread_function(void * a_arg)
                                         mq_getattr(l_cur->mqd, &l_attr);
                                         log_it(L_ERROR, "Msg size %lu > permitted size %lu", l_cur->buf_out_size, l_attr.mq_msgsize);
                                     }
-                                    break;
-                                #elif defined (DAP_EVENTS_CAPS_KQUEUE)
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
 
                                     // Select socket and kqueue fd to send the event
                                     dap_events_socket_t * l_es_output = l_cur->pipe_out ? l_cur->pipe_out : l_cur;
@@ -839,13 +837,11 @@ static void * s_proc_thread_function(void * a_arg)
                                         log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_es_w_data->ptr, l_errno);
                                         DAP_DELETE(l_es_w_data);
                                     }
-                                #else
+#else
                                     #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
-                                #endif
-                                //int l_errno = errno;
-
-                                break;
-                            }break;
+#endif
+                            }
+                        break;
                         default:
                             log_it(L_ERROR, "Dont process write flags for this socket %d in proc thread", l_cur->fd);
 
@@ -969,7 +965,7 @@ bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_wo
 
     dap_events_socket_assign_on_worker_inter(l_es_assign_input, a_esocket);
     // TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
+#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
     l_es_assign_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_assign_input);
 #endif
@@ -991,7 +987,7 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
     dap_events_socket_write_inter(l_es_io_input,a_es_uuid, a_data, a_data_size);
     // TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
+#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
 #endif
@@ -1032,7 +1028,7 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
 
     dap_events_socket_write_inter(l_es_io_input, a_es_uuid, l_data, l_data_size);
     // TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
+#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
     l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
 #endif
@@ -1055,10 +1051,10 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
 
     // TODO Make this code platform-independent
-/*#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
+#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
     a_thread->queue_callback_input[a_worker_id]->flags |= DAP_SOCK_READY_TO_WRITE;
     dap_proc_thread_esocket_update_poll_flags(a_thread, a_thread->queue_callback_input[a_worker_id]);
-#endif*/ // If we send directly, no need to do this
+#endif // If we send directly, no need to do this
 }
 
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)

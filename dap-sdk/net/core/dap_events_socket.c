@@ -608,9 +608,10 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     int l_pipe[2];
-    l_errbuf[0]=0;
+    char l_errbuf[128] = { '\0' };
+    int l_errno;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-    if( pipe2(l_pipe,O_DIRECT | O_NONBLOCK ) < 0 ){
+    if( pipe2(l_pipe, O_DIRECT | O_NONBLOCK ) < 0 ){
 #elif defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     if( pipe(l_pipe) < 0 ){
 #endif
@@ -847,12 +848,18 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
         if (a_esocket->flags & DAP_SOCK_QUEUE_PTR) {
             void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-            ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr,sizeof (void *));
-            int l_read_errno = errno;
-            if( l_read_ret == (ssize_t) sizeof (void *))
-                a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
-            else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
-                log_it(L_WARNING, "Can't read packet from pipe");
+            char l_body[DAP_QUEUE_MAX_BUFLEN] = { '\0' };
+            ssize_t l_read_ret = read(a_esocket->fd, l_body, sizeof(l_body));
+            int l_errno = errno;
+            if(l_read_ret > 0) {
+                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from pipe", l_read_ret);
+                for (long shift = 0; shift < l_read_ret; shift += sizeof(void*)) {
+                    l_queue_ptr = *(void **)(l_body + shift);
+                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                }
+            }
+            else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+                log_it(L_ERROR, "Can't read message from pipe");
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
             char l_body[DAP_QUEUE_MAX_BUFLEN] = { '\0' };
             ssize_t l_ret = mq_receive(a_esocket->mqd, l_body, sizeof(l_body), NULL);
@@ -927,6 +934,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 
         a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
 #elif !defined(DAP_OS_WINDOWS)
+            debug_if(g_debug_reactor, L_NOTICE, "Why are we even here?");
             size_t l_read = read(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max );
 #endif
         }
@@ -1257,12 +1265,12 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
         log_it(L_ERROR,"No pipe_out pointer for queue socket, possible created wrong");
         return -2;
     }
-
-#else
+#elif defined (DAP_EVENTS_CAPS_QUEUE_PIPE2)
     void *l_arg = a_arg;
-    /*return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))
-            == sizeof(l_arg) ? 0 : -1;*/
-    return dap_events_socket_queue_ptr_send(a_es_input, l_arg);
+    return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))
+            == sizeof(l_arg) ? 0 : -1;
+#else
+    return dap_events_socket_queue_ptr_send(a_es_input, a_arg);
 #endif
 }
 
@@ -1274,8 +1282,15 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
 int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg) {
     int l_ret = -1024, l_errno;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-    l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg));
+    if ((l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg)) == sizeof(a_arg))) {
+        debug_if(g_debug_reactor, L_NOTICE, "send %d bytes to pipe", l_ret);
+        return 0;
+    }
     l_errno = errno;
+    char l_errbuf[128] = { '\0' };
+    strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
+    log_it(L_ERROR, "Can't send ptr to pipe:\"%s\" code %d", l_errbuf, l_errno);
+    return l_errno;
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
     assert(a_es);
     assert(a_es->mqd);

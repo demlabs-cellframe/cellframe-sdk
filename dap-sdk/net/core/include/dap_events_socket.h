@@ -54,8 +54,8 @@ typedef int SOCKET;
     //#define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_PIPE_POSIX
-    //#define DAP_EVENTS_CAPS_QUEUE_PIPE2
-    #define DAP_EVENTS_CAPS_QUEUE_MQUEUE
+    #define DAP_EVENTS_CAPS_QUEUE_PIPE2
+    //#define DAP_EVENTS_CAPS_QUEUE_MQUEUE
     #define DAP_EVENTS_CAPS_EVENT_EVENTFD
     #include <netinet/in.h>
     #include <sys/eventfd.h>
@@ -88,6 +88,12 @@ typedef int SOCKET;
     #endif
 #define MSG_DONTWAIT 0
 #define MSG_NOSIGNAL 0
+#endif
+
+#ifdef DAP_EVENTS_CAPS_QUEUE_PIPE2
+#define DAP_QUEUE_MAX_BUFLEN 8192 /* In fact, hundreds of routines can potentially be scheduled to one proc-thread between the polls */
+#else
+#define DAP_QUEUE_MAX_BUFLEN sizeof(void*)
 #endif
 
 #if defined(DAP_EVENTS_CAPS_WEPOLL)
@@ -160,7 +166,6 @@ typedef struct dap_events_socket_callbacks {
 #define DAP_EVENTS_SOCKET_BUF       DAP_STREAM_PKT_SIZE_MAX
 #define DAP_EVENTS_SOCKET_BUF_LIMIT (DAP_STREAM_PKT_SIZE_MAX * 4)
 #define DAP_QUEUE_MAX_MSGS          512
-#define DAP_QUEUE_MAX_BUFLEN        sizeof(void*)
 
 typedef enum {
     DESCRIPTOR_TYPE_SOCKET_CLIENT = 0,

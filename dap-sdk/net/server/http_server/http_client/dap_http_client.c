@@ -318,10 +318,9 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
     UNUSED(a_arg);
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
 
-//  log_it( L_DEBUG, "dap_http_client_read..." );
     do{
-        debug_if(s_debug_http, L_DEBUG, "HTTP client in state %s input buffer size: %"DAP_UINT64_FORMAT_U,
-                 dap_http_client_state_str[l_http_client->state_read], a_esocket->buf_in_size );
+        debug_if(s_debug_http, L_DEBUG, "l_http_client: %p, state %s, buf_in_size: %"DAP_UINT64_FORMAT_U,
+                 l_http_client, dap_http_client_state_str[l_http_client->state_read], a_esocket->buf_in_size );
 
         switch( l_http_client->state_read ) {
             case DAP_HTTP_CLIENT_STATE_START: { // Beginning of the session. We try to detect
@@ -402,6 +401,9 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                     // Check if present cache
                     pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                     dap_http_cache_t * l_http_cache = l_http_client->proc->cache;
+
+                    assert ( !l_http_cache );
+
                     if(l_http_cache){
                         if ( ! l_http_cache->ts_expire || l_http_cache->ts_expire >= time(NULL) ){
                             l_http_client->out_headers = dap_http_headers_dup(l_http_cache->headers);
@@ -500,6 +502,8 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                     l_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
                     dap_http_client_write(a_esocket, NULL);
                 }
+
+                debug_if(s_debug_http, L_DEBUG, "l_http_client:%p, read_bytes: %zu",  l_http_client, read_bytes);
             } break;
             case DAP_HTTP_CLIENT_STATE_NONE: {
                 a_esocket->buf_in_size = 0;

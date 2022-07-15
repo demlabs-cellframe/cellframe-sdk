@@ -583,11 +583,13 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
 {
     size_t l_count = 0;
     dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_read(a_group, NULL, &l_count);
-    if(!l_store_obj)
+
+    if(!l_store_obj || !l_count )
         return NULL;
 
     dap_global_db_obj_t *l_data = DAP_NEW_Z_SIZE(dap_global_db_obj_t,
                                                  l_count * sizeof(dap_global_db_obj_t));
+
     if (!l_data) {
         dap_store_obj_free(l_store_obj, l_count);
         return NULL;
@@ -607,9 +609,12 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
         };
         l_valid++;
     }
+
     dap_store_obj_free(l_store_obj, l_count);
+
     if (a_records_count_out)
         *a_records_count_out = l_valid;
+
     return l_data;
 }
 
