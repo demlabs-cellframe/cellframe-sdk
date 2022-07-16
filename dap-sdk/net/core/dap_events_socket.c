@@ -502,7 +502,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     //if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
     //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
 
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_WRONLY /* |O_NONBLOCK */, 0700, &l_mq_attr)) )
+    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_WRONLY|O_NONBLOCK, 0700, &l_mq_attr)) )
     {
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
                            (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
@@ -673,7 +673,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     // if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
     //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
 
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR  /* |O_NONBLOCK */, 0700, &l_mq_attr)) )
+    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR|O_NONBLOCK, 0700, &l_mq_attr)) )
     {
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
                            (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
@@ -861,23 +861,30 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                 log_it(L_ERROR, "Can't read message from pipe");
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-            char l_body[DAP_QUEUE_MAX_BUFLEN] = { '\0' };
-            ssize_t l_ret = mq_receive(a_esocket->mqd, l_body, sizeof(l_body), NULL);
-            if (l_ret == -1){
-                int l_errno = errno;
-                char l_errbuf[128];
-                l_errbuf[0]=0;
-                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it(L_ERROR, "mq_receive error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
-                return -1;
-            }
-            l_queue_ptr = *(void **)l_body;
-            a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
-            debug_if(l_ret > 8, L_ERROR, "%lu bytes in queue msg???", l_ret);
-            /*for (long shift = 0; shift < l_ret; shift += sizeof(void*)) {
-                l_queue_ptr = *(void **)(l_body + shift);
+            char l_body[DAP_QUEUE_MAX_BUFLEN * 512] = { '\0' };
+            ssize_t l_ret, l_shift;
+            for (l_ret = 0, l_shift = 0;
+                 (l_ret = mq_receive(a_esocket->mqd, l_body + l_shift, sizeof(void*), NULL)) == sizeof(void*);
+                 l_shift += l_ret)
+            {
+                l_queue_ptr = *(void**)(l_body + l_shift);
                 a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
-            }*/
+            }
+            if (l_ret == -1) {
+                int l_errno = errno;
+                switch (l_errno) {
+                case EAGAIN:
+                    debug_if(g_debug_reactor, L_INFO, "Received and processed %lu callbacks in 1 pass", l_shift / 8);
+                    break;
+                default: {
+                    char l_errbuf[128];
+                    l_errbuf[0]=0;
+                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                    log_it(L_ERROR, "mq_receive error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
+                    return -1;
+                }
+                }
+            }
 #elif defined DAP_EVENTS_CAPS_MSMQ
             DWORD l_mp_id = 0;
             MQMSGPROPS    l_mps;

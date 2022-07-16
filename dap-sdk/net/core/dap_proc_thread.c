@@ -176,8 +176,8 @@ dap_proc_queue_t    *l_queue;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_queue = l_thread->proc_queue;
 
-    //do {
-        //l_is_processed = 0;
+    do {
+        l_is_processed = 0;
         for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
         {
             if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
@@ -213,7 +213,7 @@ dap_proc_queue_t    *l_queue;
     #endif      /* DAP_OS_LINUX */
 
 
-            //l_is_processed += 1;
+            l_is_processed += 1;
             l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
 
             debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
@@ -228,7 +228,7 @@ dap_proc_queue_t    *l_queue;
                 DAP_DEL_Z(l_item);
             }
         }
-    //} while ( l_is_processed );
+    } while ( l_is_processed );
 
 
     for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)

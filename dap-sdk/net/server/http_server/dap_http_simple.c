@@ -334,17 +334,16 @@ static void s_http_client_delete( dap_http_client_t *a_http_client, void *arg )
 static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *a_arg )
 {
     (void) a_arg;
-    a_http_client->_inheritor = DAP_NEW_Z( dap_http_simple_t );
-    dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
-    //  log_it(L_DEBUG,"dap_http_simple_headers_read");
-    //  Sleep(300);
+    a_http_client->_inheritor = DAP_NEW_Z(dap_http_simple_t);
+    dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
+
 
     l_http_simple->esocket = a_http_client->esocket;
     l_http_simple->http_client_uuid = a_http_client->esocket->uuid;
     l_http_simple->http_client = a_http_client;
     l_http_simple->worker = a_http_client->esocket->worker;
     l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
-    l_http_simple->reply = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
+    l_http_simple->reply = DAP_NEW_Z_SIZE(uint8_t, l_http_simple->reply_size_max );
 
 //    Made a temporary solution to handle simple CORS requests.
 //    This is necessary in order to be able to request information using JavaScript obtained from another source.
@@ -357,10 +356,10 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     if( a_http_client->in_content_length ) {
         // dbg if( a_http_client->in_content_length < 3){
         if( a_http_client->in_content_length > 0){
-            DAP_HTTP_SIMPLE(a_http_client)->request_size_max = a_http_client->in_content_length + 1;
-            DAP_HTTP_SIMPLE(a_http_client)->request = DAP_NEW_Z_SIZE(void, DAP_HTTP_SIMPLE(a_http_client)->request_size_max);
-            if(!DAP_HTTP_SIMPLE(a_http_client)->request){
-                DAP_HTTP_SIMPLE(a_http_client)->request_size_max = 0;
+            l_http_simple->request_size_max = a_http_client->in_content_length + 1;
+            l_http_simple->request = DAP_NEW_Z_SIZE(void, l_http_simple->request_size_max);
+            if(!l_http_simple->request){
+                l_http_simple->request_size_max = 0;
                 log_it(L_ERROR, "Too big content-length %zu in request", a_http_client->in_content_length);
             }
         }
@@ -370,7 +369,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
         log_it( L_DEBUG, "No data section, execution proc callback" );
         dap_events_socket_set_readable_unsafe(a_http_client->esocket, false);
         //DAP_HTTP_SIMPLE(a_http_client)->http_client_uuid = a_http_client->esocket->uuid;
-        a_http_client->esocket->_inheritor = NULL; // Prevent from deleting the field while travelling between contexts
+        //a_http_client->esocket->_inheritor = NULL;
         dap_proc_queue_add_callback_inter_ext( l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple, DAP_QUE$K_PRI_HIGH);
     }
 }
@@ -427,7 +426,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
         log_it( L_INFO,"Data for http_simple_request collected" );
         dap_events_socket_set_readable_unsafe(a_http_client->esocket, false);
         //DAP_HTTP_SIMPLE(a_http_client)->http_client_uuid = a_http_client->esocket->uuid;
-        a_http_client->esocket->_inheritor = NULL; // Prevent from deleting the field while travelling between contexts
+        a_http_client->_inheritor = NULL; // Prevent from deleting the field while travelling between contexts
         dap_proc_queue_add_callback_inter_ext( l_http_simple->worker->proc_queue_input , s_proc_queue_callback, l_http_simple, DAP_QUE$K_PRI_HIGH);
     }
 }
