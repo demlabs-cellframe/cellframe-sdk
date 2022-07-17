@@ -38,6 +38,19 @@ int dap_chain_net_srv_external_stake_init(void)
 	return 1;
 }
 
+static dap_chain_datum_tx_receipt_t *s_external_stake_receipt_create(dap_hash_fast_t hash_burning_transaction, const char *token, uint256_t datoshi_burned)
+{
+	uint32_t l_ext_size = sizeof(dap_hash_fast_t) + DAP_CHAIN_TICKER_SIZE_MAX;
+	uint8_t *l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
+	memcpy(l_ext, &hash_burning_transaction, sizeof(dap_hash_fast_t));
+	strcpy((char *)&l_ext[sizeof(dap_hash_fast_t)], token);
+	dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
+	dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID };
+	dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, datoshi_burned,
+																				 l_ext, l_ext_size);
+	return l_receipt;
+}
+
 static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
 	enum {
@@ -71,12 +84,24 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 			dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
 	if (!l_receipt)
 		return false;
-	dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
-	if (!l_sign)
+
+	dap_hash_fast_t hash_burning_transaction;
+	char ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];
+	memset(ticker, 0, sizeof(ticker));
+	if (l_receipt->exts_size) {
+		memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
+		memcpy(&ticker, &l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)], l_receipt->exts_size - sizeof(dap_hash_fast_t));
+	}
+	else
 		return false;
-	dap_hash_fast_t l_pkey_hash;
-	if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash))
+
+	if (dap_hash_fast_is_blank(&hash_burning_transaction))
 		return false;
-	return dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash);
+
+//	dap_chain_ledger_tx_item_t *l_item_out = NULL;
+//	dap_chain_datum_tx_t *l_tx_prev =
+//			s_find_datum_tx_by_hash(a_ledger, &l_tx_prev_hash, &l_item_out);
+
+	return true;
 
 }
