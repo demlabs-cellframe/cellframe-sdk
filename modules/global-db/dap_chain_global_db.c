@@ -61,6 +61,8 @@ static inline void unlock()
     //pthread_mutex_unlock(&ldb_mutex_);
 }
 
+static int s_db_compare_by_ts(const void*, const void*);
+
 // Tacked group callbacks
 static dap_list_t *s_sync_group_items = NULL;
 static dap_list_t *s_sync_group_extra_items = NULL;
@@ -290,7 +292,6 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 
     s_dap_global_db_debug_more = dap_config_get_item_bool(g_config, "resources", "debug_more");
 
-    //debug_if(s_dap_global_db_debug_more, L_DEBUG, "Just a test for %d", 135);
 
     lock();
     int res = dap_db_driver_init(l_driver_name, l_storage_path, s_db_drvmode_async);
@@ -565,6 +566,8 @@ dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_f
     lock();
     dap_store_obj_t *l_store_obj = dap_chain_global_db_driver_cond_read(a_group, a_first_id, a_objs_count);
     unlock();
+    if (*a_objs_count > 1)
+        qsort(l_store_obj, *a_objs_count, sizeof(dap_store_obj_t), s_db_compare_by_ts);
     return l_store_obj;
 }
 
@@ -588,6 +591,9 @@ dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_
         dap_store_obj_free(l_store_obj, l_count);
         return NULL;
     }
+
+    if (l_count > 1)
+        qsort(l_store_obj, l_count, sizeof(dap_store_obj_t), s_db_compare_by_ts);
 
     size_t l_valid = 0;
     for(size_t i = 0; i < l_count; i++) {
@@ -831,4 +837,14 @@ bool dap_chain_global_db_save(dap_global_db_obj_t* a_objs, size_t a_objs_count)
 char* dap_chain_global_db_hash(const uint8_t *data, size_t data_size)
 {
     return dap_chain_global_db_driver_hash(data, data_size);
+}
+
+static int s_db_compare_by_ts(const void *a_obj1, const void *a_obj2) {
+    pdap_store_obj_t l_obj1 = (pdap_store_obj_t)a_obj1,
+            l_obj2 = (pdap_store_obj_t)a_obj2;
+    return l_obj2->timestamp < l_obj1->timestamp
+            ? 1
+            : l_obj2->timestamp > l_obj1->timestamp
+              ? -1
+              : 0; // should never occur...
 }

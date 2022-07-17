@@ -222,11 +222,15 @@ uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, d
 // Put this summary value to a_value_transfer
 dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                                        uint256_t a_value_need, uint256_t *a_value_transfer);
+// Get the list of 'out_cond' items with summary value >= than a_value_need
+dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
+        dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t a_value_need, uint256_t *a_value_transfer);
+
 int dap_chain_ledger_verificator_rwlock_init(void);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
 int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback);
 
 // Getting a list of transactions from the ledger.
-dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page);
+dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool reverse);
 
 bool dap_chain_ledger_fee_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);

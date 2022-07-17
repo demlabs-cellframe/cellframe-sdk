@@ -135,7 +135,7 @@ static void s_new_block_delete(dap_chain_cs_blocks_t *a_blocks);
 
 //Work with atoms
 static size_t s_callback_count_atom(dap_chain_t *a_chain);
-static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page);
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool reverse);
 
 static bool s_seed_mode=false;
 
@@ -1343,7 +1343,7 @@ static size_t s_callback_count_atom(dap_chain_t *a_chain){
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
     return l_blocks_pvt->blocks_count;
 }
-static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page){
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool reverse){
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
     size_t l_offset = a_count * (a_page - 1);
@@ -1356,18 +1356,34 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    dap_chain_block_cache_t *l_ptr = l_blocks_pvt->blocks->hh.tbl->tail->prev;
-    if (!l_ptr)
-        l_ptr = l_blocks_pvt->blocks;
-    else
-        l_ptr = l_ptr->hh.next;
-    for (dap_chain_block_cache_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev){
-        if (l_counter >= l_offset){
-            dap_chain_block_t *l_block = ptr->block;
-            l_list = dap_list_append(l_list, l_block);
-            l_list = dap_list_append(l_list, &ptr->block_size);
+    if (reverse) {
+        dap_chain_block_cache_t *l_ptr = l_blocks_pvt->blocks->hh.tbl->tail->prev;
+        if (!l_ptr)
+            l_ptr = l_blocks_pvt->blocks;
+        else
+            l_ptr = l_ptr->hh.next;
+        for (dap_chain_block_cache_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev) {
+            if (l_counter >= l_offset) {
+                dap_chain_block_t *l_block = ptr->block;
+                l_list = dap_list_append(l_list, l_block);
+                l_list = dap_list_append(l_list, &ptr->block_size);
+            }
+            l_counter++;
         }
-        l_counter++;
+    } else {
+        dap_chain_block_cache_t *l_ptr = l_blocks_pvt->blocks;
+        if (!l_ptr)
+            l_ptr = l_blocks_pvt->blocks;
+        else
+            l_ptr = l_ptr->hh.next;
+        for (dap_chain_block_cache_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.next) {
+            if (l_counter >= l_offset) {
+                dap_chain_block_t *l_block = ptr->block;
+                l_list = dap_list_append(l_list, l_block);
+                l_list = dap_list_append(l_list, &ptr->block_size);
+            }
+            l_counter++;
+        }
     }
     return l_list;
 }

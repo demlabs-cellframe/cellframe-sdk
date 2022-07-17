@@ -111,7 +111,7 @@ struct  __record_suffix__ {
 };
 
 
-#if     SYS_DEBUG
+#if     DAP_SYS_DEBUG
 /*
  *  DESCRIPTION: Dump all records from the table . Is supposed to be used at debug time.
  *
@@ -415,7 +415,7 @@ static  int s_db_mdbx_flush(void)
  * @param a_group a group name
  * @return If successful, a pointer to item, otherwise NULL.
  */
-dap_store_obj_t *s_db_mdbx_read_last_store_obj(const char* a_group)
+dap_store_obj_t *s_db_mdbx_read_last_store_obj(const char *a_group)
 {
 int l_rc;
 dap_db_ctx_t *l_db_ctx;
@@ -479,12 +479,13 @@ dap_store_obj_t *l_obj;
 
     l_obj = DAP_NEW_Z(dap_store_obj_t);
     /* Found ! Allocate memory for  <store object>  and <value> */
-    if ( !(l_obj->key = DAP_CALLOC(1, (l_obj->key_len = (l_last_key.iov_len + 1)))) )
+    if ( !(l_obj->key = DAP_CALLOC(1, l_last_key.iov_len + 1)) )
         l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
 
     else if ( (l_obj->value = DAP_CALLOC(1, (l_last_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
         {
-        /* Fill the <store obj> by data from the retreived record */
+        /* Fill the <store obj> by data from the retrieved record */
+        l_obj->key_len = l_last_key.iov_len;
         memcpy((char *) l_obj->key, l_last_key.iov_base, l_obj->key_len);
 
         l_obj->value_len = l_last_data.iov_len - sizeof(struct __record_suffix__);
@@ -982,9 +983,14 @@ struct  __record_suffix__   *l_suff;
             /* Found ! Allocate memory to <store object> < and <value> */
             if ( (l_obj = DAP_CALLOC(1, sizeof( dap_store_obj_t ))) )
             {
-                if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
+                if ( !(l_obj->key = DAP_CALLOC(1, l_key.iov_len + 1)) )
+                    l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
+                else if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
                     {
                     /* Fill the <store obj> by data from the retreived record */
+                    l_obj->key_len = l_key.iov_len;
+                    memcpy((char *) l_obj->key, l_key.iov_base, l_obj->key_len);
+
                     l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
                     memcpy(l_obj->value, l_data.iov_base, l_obj->value_len);
 
@@ -1054,18 +1060,18 @@ struct  __record_suffix__   *l_suff;
           break;
         }
 
-
                                                                             /* Iterate cursor to retrieve records from DB */
         l_obj = l_obj_arr;
         for (int i = l_count_out;
              i && (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))); i--,  l_obj++)
         {
-            if ( !(l_obj->key = DAP_CALLOC(1, (l_obj->key_len = (l_key.iov_len + 1)))) )
+            if ( !(l_obj->key = DAP_CALLOC(1, l_key.iov_len + 1)) )
                 l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
 
             else if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
                 {
-                /* Fill the <store obj> by data from the retreived record */
+                /* Fill the <store obj> by data from the retrieved record */
+                l_obj->key_len = l_key.iov_len;
                 memcpy((char *) l_obj->key, l_key.iov_base, l_obj->key_len);
 
                 l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
