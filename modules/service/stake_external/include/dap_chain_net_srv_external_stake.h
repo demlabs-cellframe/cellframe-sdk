@@ -26,5 +26,8 @@
 
 #include "dap_chain_net_srv_stake.h"
 
-bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+#define DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID 0x12
+
+bool	dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+int		dap_chain_net_srv_external_stake_init(void);
 

@@ -29,10 +29,10 @@
 
 static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply);
 
-int dap_chain_net_srv_external_stake_init()
+int dap_chain_net_srv_external_stake_init(void)
 {
 	dap_chain_node_cli_cmd_item_create("stake_ext", s_cli_srv_external_stake, "External stake service commands",
-									   "stake_ext create -net <net name> -addr_hldr <addr> -token <ticker> -coins <value> -cert <name>\n"
+									   "stake_ext create -net <net name> -addr_owner <addr> -token <ticker> -coins <value> -cert <name>\n"
 	);
 
 	return 1;
