@@ -83,30 +83,16 @@ void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg
     dap_worker_t *l_worker = (dap_worker_t *) a_arg;
     assert(l_worker);
     pthread_setspecific(g_pth_key_worker, l_worker);
-    l_worker->queue_es_new_input      = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
-    l_worker->queue_es_delete_input   = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
-    l_worker->queue_es_io_input       = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
-    l_worker->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* dap_events_thread_get_count() );
-
 
     l_worker->queue_es_new      = dap_context_create_queue(a_context, s_queue_add_es_callback);
     l_worker->queue_es_delete   = dap_context_create_queue(a_context, s_queue_delete_es_callback);
     l_worker->queue_es_io       = dap_context_create_queue(a_context, s_queue_es_io_callback);
     l_worker->queue_es_reassign = dap_context_create_queue(a_context, s_queue_es_reassign_callback );
-
-
-    for( size_t n = 0; n < dap_events_thread_get_count(); n++) {
-        l_worker->queue_es_new_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_new);
-        l_worker->queue_es_delete_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_delete);
-        l_worker->queue_es_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io);
-        l_worker->queue_es_reassign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_reassign);
-    }
-
     l_worker->queue_callback    = dap_context_create_queue(a_context, s_queue_callback_callback);
 
     l_worker->timer_check_activity = dap_timerfd_create (s_connection_timeout * 1000 / 2,
                                                         s_socket_all_check_activity, l_worker);
-    dap_worker_add_events_socket_unsafe(  l_worker->timer_check_activity->events_socket, l_worker);
+    dap_worker_add_events_socket_unsafe(l_worker, l_worker->timer_check_activity->events_socket);
 
 }
 
@@ -171,13 +157,9 @@ static void s_queue_add_es_callback( dap_events_socket_t * a_es, void * a_arg)
         case DESCRIPTOR_TYPE_SOCKET_UDP:
         case DESCRIPTOR_TYPE_SOCKET_CLIENT:
         case DESCRIPTOR_TYPE_SOCKET_LISTENING:{
-
-
-#ifdef DAP_OS_UNIX
-#if defined (SO_INCOMING_CPU)
+#if defined (DAP_OS_UNIX) && defined (SO_INCOMING_CPU)
             int l_cpu = l_worker->context->cpu_id;
             setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
-#endif
 #endif
         } break;
         default: {}

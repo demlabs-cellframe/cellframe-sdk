@@ -58,7 +58,7 @@ typedef int SOCKET;
     //#define DAP_EVENTS_CAPS_QUEUE_MQUEUE
     #define DAP_EVENTS_CAPS_EVENT_EVENTFD
     #define DAP_EVENTS_CAPS_AIO
-//    #define DAP_EVENTS_CAPS_AIO_THREADS
+    //#define DAP_EVENTS_CAPS_AIO_THREADS
     #include <netinet/in.h>
     #include <sys/eventfd.h>
     #include <mqueue.h>

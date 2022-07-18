@@ -293,6 +293,28 @@ int dap_events_start()
         }
     }
 
+    // Create inputs for inter-context message queues (here we can safety handle alien contexts fields)
+    for (size_t n = 0; n < s_threads_count; n++) {
+        s_workers[n]->queue_es_new_input      = DAP_NEW_Z_SIZE(dap_events_socket_t *, sizeof(dap_events_socket_t *) * s_threads_count);
+        s_workers[n]->queue_es_delete_input   = DAP_NEW_Z_SIZE(dap_events_socket_t *, sizeof(dap_events_socket_t *) * s_threads_count);
+        s_workers[n]->queue_es_io_input       = DAP_NEW_Z_SIZE(dap_events_socket_t *, sizeof(dap_events_socket_t *) * s_threads_count);
+        s_workers[n]->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t *, sizeof(dap_events_socket_t *) * s_threads_count);
+        for (size_t i = 0; i < s_threads_count; i++) {
+            // Input of queue for new esockets
+            s_workers[n]->queue_es_new_input[i]      = dap_events_socket_queue_ptr_create_input(s_workers[i]->queue_es_new);
+            dap_worker_add_events_socket_unsafe(s_workers[n], s_workers[n]->queue_es_new_input[i]);
+            // Input of queue for removed esockets
+            s_workers[n]->queue_es_delete_input[i]   = dap_events_socket_queue_ptr_create_input(s_workers[i]->queue_es_delete);
+            dap_worker_add_events_socket_unsafe(s_workers[n], s_workers[n]->queue_es_delete_input[i]);
+            // Input of queue for writing to esockets
+            s_workers[n]->queue_es_io_input[i]       = dap_events_socket_queue_ptr_create_input(s_workers[i]->queue_es_io);
+            dap_worker_add_events_socket_unsafe(s_workers[n], s_workers[n]->queue_es_io_input[i]);
+            // Input of queue for esockets reassigning
+            s_workers[n]->queue_es_reassign_input[i] = dap_events_socket_queue_ptr_create_input(s_workers[i]->queue_es_reassign);
+            dap_worker_add_events_socket_unsafe(s_workers[n], s_workers[n]->queue_es_reassign_input[i]);
+        }
+    }
+
     // Init callback processor
     if (dap_proc_thread_init(s_threads_count) != 0 ){
         log_it( L_CRITICAL, "Can't init proc threads" );
