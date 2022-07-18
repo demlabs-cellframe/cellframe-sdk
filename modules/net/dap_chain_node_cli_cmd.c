@@ -2572,7 +2572,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
  * @param arg_func
  * @param str_reply
  * @return
- * @details token_update -net <net name> -chain <chain name> -token <token ticker> [-type private] -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+ * @details token_update -net <net name> -chain <chain_name> -token <token ticker> [-type private] -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
  *  \t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>"
  *  \t   and custom parameters list <Param 1>, <Param 2>...<Param N>."
  *  \n"

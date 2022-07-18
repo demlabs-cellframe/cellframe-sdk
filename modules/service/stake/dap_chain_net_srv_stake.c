@@ -55,11 +55,11 @@ int dap_chain_net_srv_stake_init()
     "srv_stake order create -net <net_name> -addr_hldr <addr> -token <token_ticker> -coins <value> -cert <priv_cert_name> -fee_percent <value>\n"
         "\tCreate a new order with specified amount of datoshi to delegate specified cert from the specified address.\n"
         "\tThe fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
-    "srv_stake order declare -net <net_name> -wallet <name> -token <token_ticker> -coins <value> -fee_percent <value>"
+    "srv_stake order declare -net <net_name> -wallet <wallet_name> -token <token_ticker> -coins <value> -fee_percent <value>"
         "\tCreate a new order with specified amount of datoshi and fee which holder is ready to stake.\n"
     "srv_stake order remove -net <net_name> -order <order hash> [-H {hex | base58(default)}]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net_name> -order <order hash> {-cert <priv_cert_name> | -wallet <wallet_name>} [-H {hex | base58(default)}]{[-addr_hldr <addr>] [-token <token_ticker>] [-coins <value>] [-fee_percent <value>] | [-token <ticker>] [-coins <value>] -fee_percent <value>]}\n"
+    "srv_stake order update -net <net_name> -order <order hash> {-cert <priv_cert_name> | -wallet <wallet_name>} [-H {hex | base58(default)}] {[-addr_hldr <addr>] [-token <token_ticker>] [-coins <value>] [-fee_percent <value>] | [-token <token_ticker>] [-coins <value>] -fee_percent <value>]}\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net_name>\n"
          "\tGet the stake orders list within specified net name\n"
@@ -69,7 +69,7 @@ int dap_chain_net_srv_stake_init()
          "\tApprove stake transaction by root node certificate within specified net name.\n"
     "srv_stake transactions -net <net_name> [-addr <addr from>]\n"
          "\tShow the list of requested, active and canceled stake transactions (optional delegated from addr)\n"
-    "srv_stake invalidate -net <net_name> -tx <transaction hash> -wallet <wallet name>\n"
+    "srv_stake invalidate -net <net_name> -tx <transaction hash> -wallet <wallet_name>\n"
          "\tInvalidate requested stake transaction by hash within net name and return stake to specified wallet\n"
     );
 
