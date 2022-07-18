@@ -156,7 +156,7 @@ int l_rc;
         fclose(l_mq_msg_max);
     } else {
         log_it(L_ERROR, "Сan't open /proc/sys/fs/mqueue/msg_max file for writing, errno=%d", errno);
-    }
+    }  
 #endif
     dap_timerfd_init();
     return 0;
@@ -310,7 +310,7 @@ void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, 
 dap_events_socket_t * dap_events_socket_create_type_pipe_mt(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
     dap_events_socket_t * l_es = dap_context_create_pipe(NULL, a_callback, a_flags);
-    dap_worker_add_events_socket_unsafe(l_es,a_w);
+    dap_worker_add_events_socket_unsafe(a_w, l_es);
     return  l_es;
 }
 
@@ -380,7 +380,7 @@ dap_events_socket_t * dap_events_socket_create(dap_events_desc_type_t a_type, da
 dap_events_socket_t * dap_events_socket_create_type_pipe_unsafe(dap_worker_t * a_w, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
     dap_events_socket_t * l_es = dap_context_create_pipe(NULL, a_callback, a_flags);
-    dap_worker_add_events_socket_unsafe(l_es,a_w);
+    dap_worker_add_events_socket_unsafe(a_w, l_es);
     return  l_es;
 }
 
@@ -503,11 +503,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 #else
 #error "Not defined dap_events_socket_queue_ptr_create_input() for this platform"
 #endif
-
     l_es->flags = DAP_SOCK_QUEUE_PTR;
-    //l_es->_pvt = DAP_NEW_Z(struct queue_ptr_input_pvt);
-    //l_es->callbacks.delete_callback  = s_socket_type_queue_ptr_input_callback_delete;
-    //l_es->callbacks.queue_ptr_callback = a_es->callbacks.queue_ptr_callback;
     return l_es;
 }
 
@@ -559,20 +555,19 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                 if(g_debug_reactor)
                     log_it(L_DEBUG,"Queue ptr received %p", l_queue_ptr_aio.ptr);
                 a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr_aio.ptr);
-                if(l_queue_ptr_aio.aiocb) {
-                    if (aio_error(l_queue_ptr_aio.aiocb)) {
-                        int l_cancel_res = AIO_NOTCANCELED;
-                        while (l_cancel_res != AIO_ALLDONE && l_cancel_res != -1) {
-                            l_cancel_res = aio_cancel(a_esocket->fd2, l_queue_ptr_aio.aiocb);
-                        }
-                        if (l_cancel_res == -1)
-                            log_it(L_ERROR, "AIO cancelling error %d", errno);
-                        else {
-                            debug_if(g_debug_reactor, L_MSG, "AIO cancelling success");
-                            DAP_DELETE(l_queue_ptr_aio.aiocb);
-                        }
-                    } else
+                if (l_queue_ptr_aio.aiocb) {
+                    if (aio_error(l_queue_ptr_aio.aiocb) == EINPROGRESS)
+                        dap_slist_add2tail(&a_esocket->context->garbage_list, l_queue_ptr_aio.aiocb, 0);
+                    else
                         DAP_DELETE(l_queue_ptr_aio.aiocb);
+                }
+                while (a_esocket->context->garbage_list.head) {
+                    dap_slist_elm_t *l_elm = (dap_slist_elm_t *)a_esocket->context->garbage_list.head;
+                    struct aiocb *l_aiocb = (struct aiocb *)l_elm->data;
+                    if (aio_error(l_aiocb) == EINPROGRESS)
+                        break;
+                    dap_slist_get4head(&a_esocket->context->garbage_list, NULL, NULL);
+                    DAP_DELETE(l_aiocb);
                 }
                 DAP_DELETE(l_queue_ptr_aio.self);
             } else if ( (l_read_errno != EAGAIN) && (l_read_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
@@ -707,8 +702,8 @@ dap_events_socket_t * dap_events_socket_create_type_event_unsafe(dap_worker_t * 
 
     dap_events_socket_t * l_es = dap_context_create_event(NULL, a_callback);
     // If no worker - don't assign
-    if ( a_w)
-        dap_worker_add_events_socket_unsafe(l_es,a_w);
+    if (a_w)
+        dap_worker_add_events_socket_unsafe(a_w, l_es);
     return  l_es;
 }
 
@@ -910,18 +905,6 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
 
 #elif defined(DAP_EVENTS_CAPS_AIO)
     return dap_events_socket_queue_ptr_send(a_es_input->pipe_out,a_arg);
-
-/*    void * l_arg = a_arg;
-    struct queue_ptr_aio * l_ptr_aio = DAP_NEW_Z(struct queue_ptr_aio);
-    l_ptr_aio->self = l_ptr_aio;
-    l_ptr_aio->aiocb = NULL;
-    l_ptr_aio->ptr = l_arg;
-    size_t l_ret = dap_events_socket_write_unsafe(a_es_input, &l_ptr_aio, sizeof(struct queue_ptr_aio));
-    if(l_ret != sizeof(struct queue_ptr_aio)){
-        DAP_DELETE(l_ptr_aio);
-        return -1;
-    }else
-        return 0;*/
 #else
     void * l_arg = a_arg;
     return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))

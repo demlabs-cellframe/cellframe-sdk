@@ -162,9 +162,9 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
         l_item->callback = l_msg->callback;
         l_item->callback_arg = l_msg->callback_arg;
 
-    pthread_mutex_lock(&l_queue->list[pri].lock);                           /* Protect list from other threads */
-    l_rc = s_dap_slist_add2tail (&l_queue->list[pri].items, l_item, 1);
-    pthread_mutex_unlock(&l_queue->list[pri].lock);
+    //pthread_mutex_lock(&l_queue->list[pri].lock);                           /* Protect list from other threads */
+    l_rc = dap_slist_add2tail (&l_queue->list[pri].items, l_item, 1);
+    //pthread_mutex_unlock(&l_queue->list[pri].lock);
 
     if ( l_rc )
         log_it(L_CRITICAL, "Enqueue failed: %d, drop l_msg:%p, callback: %p/%p, pri: %d", l_rc, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);

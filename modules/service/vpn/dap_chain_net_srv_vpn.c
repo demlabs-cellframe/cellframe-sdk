@@ -331,6 +331,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             DAP_DELETE(l_pkt_out);
             return false;
         }
+        //s_tun_client_send_data_inter(dap_worker_get_current()->queue_es_io_input[l_ch_vpn_info->worker->id], l_ch_vpn_info->ch_vpn, l_pkt_out); // !!! it's incoorect, stream inputs got by another sequenxe
         if(s_debug_more){
             char l_str_daddr[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, INET_ADDRSTRLEN);

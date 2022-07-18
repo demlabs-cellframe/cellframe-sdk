@@ -375,7 +375,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     } else {
         log_it( L_DEBUG, "No data section, execution proc callback" );
         dap_events_socket_set_readable_unsafe(a_http_client->esocket, false);
-        dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple);
+        dap_proc_queue_add_callback_inter(l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple);
 
     }
 }
