@@ -53,7 +53,7 @@ typedef struct __dap_slist__ {
  *      -ENOMEM - Cannot add new element
  */
 
-static inline int    s_dap_slist_add2tail    ( dap_slist_t *a_slist, void *a_data, int a_datasz)
+DAP_STATIC_INLINE int dap_slist_add2tail(dap_slist_t *a_slist, void *a_data, int a_datasz)
 {
 dap_slist_elm_t *l_elm;
 
@@ -93,7 +93,7 @@ dap_slist_elm_t *l_elm;
  *      -ENOENT - List is empty
  */
 
-static inline int    s_dap_slist_get4head    ( dap_slist_t *a_slist, void **a_data, size_t *a_datasz)
+DAP_STATIC_INLINE int dap_slist_get4head(dap_slist_t *a_slist, void **a_data, size_t *a_datasz)
 {
 dap_slist_elm_t *l_elm;
 
@@ -105,7 +105,8 @@ dap_slist_elm_t *l_elm;
 
     a_slist->nr--;                                                          /* Adjust entries counter */
 
-    *a_data = l_elm->data;
+    if (a_data)
+        *a_data = l_elm->data;
 
     if ( a_datasz )
         *a_datasz = l_elm->datasz;

@@ -100,8 +100,9 @@ static inline dap_worker_t * dap_worker_get_current(){
     return (dap_worker_t*) pthread_getspecific(g_pth_key_worker);
 }
 
-static inline int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker)
+static inline int dap_worker_add_events_socket_unsafe(dap_worker_t *a_worker, dap_events_socket_t *a_esocket)
 {
+    a_esocket->is_initalized = true;
     return dap_context_add(a_worker->context, a_esocket);
 }
 
