@@ -108,7 +108,9 @@ typedef struct dap_chain_tx_out_cond {
 		struct {
 			dap_chain_addr_t addr_owner;
 			uint64_t time_staking;
+            uint64_t time_unlock;
 			uint8_t count_months;
+            uint256_t value;
 		} srv_external_stake;
         byte_t free_space[128]; // for future changes
     } subtype;
