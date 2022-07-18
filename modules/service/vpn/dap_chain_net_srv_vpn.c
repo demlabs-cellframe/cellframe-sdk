@@ -617,7 +617,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_gw.s_addr;
 
 #ifdef DAP_OS_DARWIN
-    s_tun_sockets_count = 1
+    s_tun_sockets_count = 1;
 #elif defined (DAP_OS_LINUX) || defined (DAP_OS_BSD)
 // Not for Darwin
     s_tun_sockets_count = dap_get_cpu_count();
