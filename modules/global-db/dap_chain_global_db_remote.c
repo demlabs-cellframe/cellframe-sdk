@@ -768,7 +768,7 @@ dap_store_obj_t *l_store_obj_arr, *l_obj;
 
 
         if ( (pdata + sizeof (uint64_t)) > pdata_end )
-        {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;}
+            {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;}
         l_obj->value_len = *((uint64_t *) pdata);
         pdata += sizeof(uint64_t);
 

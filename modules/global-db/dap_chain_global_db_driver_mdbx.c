@@ -1228,7 +1228,7 @@ struct  __record_suffix__   *l_suff;
     do  {
         l_count_out = (a_count_out && *a_count_out)? *a_count_out : DAP_GLOBAL_DB_MAX_OBJS;/* Limit a number of objects to be returned */
         l_cursor = NULL;
-        l_obj = NULL;
+        l_obj = l_obj_arr = NULL;
 
         /*
          * Retrieve statistic for group/table, we need to compute a number of records can be retreived
