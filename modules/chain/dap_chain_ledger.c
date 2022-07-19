@@ -1958,7 +1958,7 @@ void dap_chain_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledge
  * @param a_tickers
  * @param a_tickers_size
  */
-void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
+void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size)
 {
     if (a_addr == NULL){ // Get all tockens
