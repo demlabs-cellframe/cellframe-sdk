@@ -2057,8 +2057,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                                                           &l_prev_tx_count);
     if (l_list_tmp) {
         // add conditional input to common list
-        l_list_in = dap_list_append(l_list_in, l_list_tmp->data); // TODO: dap_list_append() ? maybe dap_list_concat() ?
-        dap_list_free(l_list_tmp);
+        l_list_in = dap_list_concat(l_list_in, l_list_tmp);
     }
     if (!l_list_in) {
         log_it(L_WARNING, "Tx check: no valid inputs found");
