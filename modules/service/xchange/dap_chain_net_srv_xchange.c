@@ -676,11 +676,15 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
         case CMD_REMOVE:
         case CMD_UPDATE: {
             dap_chain_net_srv_xchange_price_t *l_price = NULL;
+
+#if 0       /* Disabled on behalf of GD */
             HASH_FIND_STR(s_srv_xchange->pricelist, l_strkey, l_price);
             if (!l_price) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Price with provided pair of token ticker + net name is not exist");
                 return -1;
             }
+#endif
+
             if (l_cmd_num == CMD_REMOVE) {
                 dap_string_t *l_str_reply = dap_string_new("");
                 HASH_DEL(s_srv_xchange->pricelist, l_price);
@@ -909,7 +913,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
         }
 
         dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
-        dap_string_append_printf(l_reply_str, "hash: %s\n", l_hash_str);
+        dap_string_append_printf(l_reply_str, "orderHash: %s\n", l_hash_str);
 
         /* Find SRV_XCHANGE out_cond item */
         for (l_out_cond_item = NULL, l_item_idx = 0;
@@ -922,7 +926,9 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             if ( a_status_closed )
                 dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
 
+
             const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
+
 
             uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.value;
             uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(a_net, l_datum_tx);
@@ -931,7 +937,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             char *l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
             char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
 
-            dap_string_append_printf(l_reply_str, "From: : %s %s", l_tx_input_values_str, l_tx_input_ticker);
+            dap_string_append_printf(l_reply_str, "From: %s %s", l_tx_input_values_str, l_tx_input_ticker);
             dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
 
             DAP_DELETE(l_value_from_str);
