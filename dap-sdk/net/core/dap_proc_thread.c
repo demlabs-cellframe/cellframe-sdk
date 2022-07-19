@@ -187,8 +187,8 @@ dap_proc_queue_t    *l_queue;
             }
 
             clock_gettime(CLOCK_REALTIME, &l_time_end);
-            if (l_time_end.tv_nsec - l_time_start.tv_nsec >= 500000)
-                continue;
+            if (l_time_end.tv_sec > l_time_start.tv_sec)
+                break;
 
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
             l_rc = s_dap_remqhead (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
