@@ -1277,7 +1277,7 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
  */
 int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
-    int l_ret = -1024, l_errno;
+    int l_ret = -1024, l_errno=0;
 
     if (g_debug_reactor)
         log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
@@ -1380,7 +1380,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     }
 
     if(l_n != -1 ){
-        return sizeof(a_arg);
+        return 0;
     }else{
         l_errno = errno;
         log_it(L_ERROR,"Sending kevent error code %d", l_errno);
