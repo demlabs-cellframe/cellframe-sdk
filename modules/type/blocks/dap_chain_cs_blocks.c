@@ -1200,30 +1200,7 @@ static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)
         if (dap_chain_atom_save(a_blocks->chain, (uint8_t *)a_blocks->block_new, a_blocks->block_new_size, a_blocks->chain->cells->id) < 0) {
             log_it(L_ERROR, "Can't add new event to the file");
         }
-        /* TODO add all atoms from treshold
-        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        dap_chain_t *l_cur_chain;
-        bool l_processed;
-        do {
-            l_processed = false;
-            DL_FOREACH(l_net->pub.chains, l_cur_chain) {
-                if (l_cur_chain->callback_atom_add_from_treshold) {
-                    dap_chain_atom_ptr_t l_atom_treshold;
-                    do {
-                        size_t l_atom_treshold_size;
-                        // add in ledger
-                        l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
-                        // add into file
-                        if (l_atom_treshold) {
-                            int l_res = dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cur_chain->cells->id);
-                            if (l_res < 0) {
-                                log_it(L_ERROR, "Can't save event %p from treshold", l_atom_treshold);
-                            }
-                        }
-                    } while (l_atom_treshold);
-                }
-            }
-        } while (l_processed); */
+        /* TODO add all atoms from treshold */
         return 0;
     }
     return -2;

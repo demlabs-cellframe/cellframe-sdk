@@ -58,8 +58,6 @@ typedef struct dap_chain_cs_dag
     dap_chain_hash_fast_t static_genesis_event_hash;
     dap_chain_cs_dag_hal_item_t *hal;
 
-    dap_chain_cs_dag_event_round_info_t event_round_info; // for verify function
-    bool use_event_round_info;
     bool broadcast_disable;
 
     uint16_t datum_add_hashes_count;
@@ -69,8 +67,6 @@ typedef struct dap_chain_cs_dag
     dap_chain_cs_dag_callback_t callback_delete;
     dap_chain_cs_dag_callback_event_create_t callback_cs_event_create;
     dap_chain_cs_dag_callback_event_t callback_cs_verify;
-    dap_chain_cs_dag_callback_get_round_info_t callback_cs_get_round_info;
-    dap_chain_cs_dag_callback_set_event_round_info_t callback_cs_set_event_round_info;
     dap_chain_cs_dag_callback_event_round_sync_t callback_cs_event_round_sync;
 
     void * _pvt;
