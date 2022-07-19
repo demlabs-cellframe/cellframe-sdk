@@ -109,7 +109,7 @@ int dap_chain_net_srv_init()
         "net_srv -net <net_name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
         "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>"
-        " -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]"
+        " -price_unit <Price Unit> -price_token <token_ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]"
         " [-expires <Unix time when expires>] [-cert <cert name to sign order>]"
         " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
 #ifdef DAP_MODULES_DYNAMIC
