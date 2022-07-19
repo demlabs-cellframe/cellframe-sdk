@@ -80,10 +80,16 @@ int dap_stream_worker_init()
             return -7;
         l_proc_thread->_inheritor = l_thread_stream;
         l_thread_stream->queue_ch_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t *, sizeof (dap_events_socket_t*)*l_worker_count);
-        for (uint32_t j = 0; j < l_worker_count; j++){
+        dap_worker_t *l_worker_inp = dap_events_worker_get(i);
+        dap_stream_worker_t *l_stream_worker_inp = (dap_stream_worker_t *)l_worker_inp->_inheritor;
+        l_stream_worker_inp->queue_ch_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t *, sizeof(dap_events_socket_t *) * l_worker_count);
+        for (uint32_t j = 0; j < l_worker_count; j++) {
             dap_worker_t * l_worker = dap_events_worker_get(j);
             dap_stream_worker_t *l_stream_worker = (dap_stream_worker_t*) l_worker->_inheritor;
-            l_thread_stream->queue_ch_io_input[i] = dap_events_socket_queue_ptr_create_input(l_stream_worker->queue_ch_io);
+            l_thread_stream->queue_ch_io_input[j] = dap_events_socket_queue_ptr_create_input(l_stream_worker->queue_ch_io);
+            dap_proc_thread_assign_esocket_unsafe(l_proc_thread, l_thread_stream->queue_ch_io_input[j]);
+            l_stream_worker_inp->queue_ch_io_input[j] = dap_events_socket_queue_ptr_create_input(l_stream_worker->queue_ch_io);
+            dap_events_socket_assign_on_worker_mt(l_stream_worker_inp->queue_ch_io_input[j], l_worker_inp);
         }
     }
     return 0;
@@ -120,7 +126,7 @@ static void s_ch_io_callback(dap_events_socket_t * a_es, void * a_msg)
     if (l_msg->flags_unset & DAP_SOCK_READY_TO_WRITE)
         dap_stream_ch_set_ready_to_write_unsafe(l_msg_ch, false);
     if (l_msg->data_size && l_msg->data) {
-        dap_stream_ch_pkt_write_unsafe(l_msg_ch, l_msg->ch_pkt_type, l_msg->data,l_msg->data_size);
+        dap_stream_ch_pkt_write_unsafe(l_msg_ch, l_msg->ch_pkt_type, l_msg->data, l_msg->data_size);
         DAP_DELETE(l_msg->data);
     }
     DAP_DELETE(l_msg);
@@ -142,12 +148,6 @@ size_t dap_proc_thread_stream_ch_write_inter(dap_proc_thread_t * a_thread,dap_wo
     struct proc_thread_stream * l_thread_stream = (struct proc_thread_stream *) a_thread->_inheritor;
     dap_events_socket_t* l_es_input = l_thread_stream->queue_ch_io_input[a_worker->id];
     size_t l_ret = dap_stream_ch_pkt_write_inter(l_es_input,a_ch_uuid,a_type,a_data,a_data_size);
-// TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
-    l_es_input->flags |= DAP_SOCK_READY_TO_WRITE;
-    dap_proc_thread_esocket_update_poll_flags(a_thread,l_es_input);
-#endif
-
     return l_ret;
 }
 
