@@ -569,11 +569,17 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
     switch (l_cmd_num) {
         case CMD_CREATE: {
             dap_chain_net_srv_xchange_price_t *l_price = NULL;
+
+#if 0       /* Disabled on behalf of GD */
             HASH_FIND_STR(s_srv_xchange->pricelist, l_strkey, l_price);
+
             if (l_price) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Price with provided pair of token ticker + net name already exist");
                 return -7;
             }
+#endif
+
+
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL, *l_wallet_str = NULL;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
             if (!l_val_sell_str) {
@@ -1304,8 +1310,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                             char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);\
 
-                            char l_tx_ts_created_str[72];
-                            l_tx_ts_created_str[0] = '\0';
+                            char l_tx_ts_created_str[72] = {0};
+
                             dap_time_to_str_rfc822(l_tx_ts_created_str,sizeof(l_tx_ts_created_str),l_tx->header.ts_created);
                             dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str);
                             dap_string_append_printf(l_reply_str,"\tts_created: %s\n", l_tx_ts_created_str);
