@@ -675,14 +675,13 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
         } break;
         case CMD_REMOVE:
         case CMD_UPDATE: {
-            dap_chain_net_srv_xchange_price_t *l_price = NULL;
 
+            dap_chain_net_srv_xchange_price_t *l_price = NULL;
             HASH_FIND_STR(s_srv_xchange->pricelist, l_strkey, l_price);
             if (!l_price) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Price with provided pair of token ticker + net name is not exist");
                 return -1;
             }
-
 
             if (l_cmd_num == CMD_REMOVE) {
                 dap_string_t *l_str_reply = dap_string_new("");
