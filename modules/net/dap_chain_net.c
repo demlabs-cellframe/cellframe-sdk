@@ -1378,7 +1378,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
                         l_node_list_cur = dap_list_next(l_node_list_cur);
                     }
                     dap_chain_node_info_list_free(l_node_list);
-                    
+
                 } else {
                     log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
                     pthread_rwlock_unlock(&l_net_pvt->rwlock);
@@ -1422,7 +1422,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
     s_net_states_notify(l_net);
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
 
-    return ! l_repeat_after_exit;
+    return !l_repeat_after_exit;
 }
 
 int s_net_list_compare_uuids(const void *a_uuid1, const void *a_uuid2)
@@ -1690,9 +1690,9 @@ void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
 
 /**
  * @brief get type of chain
- * 
- * @param l_chain 
- * @return char* 
+ *
+ * @param l_chain
+ * @return char*
  */
 const char* dap_chain_net_get_type(dap_chain_t *l_chain)
 {
@@ -1714,14 +1714,14 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain) 
+    DL_FOREACH(l_net->pub.chains, l_chain)
     {
-        if (l_chain->callback_purge) 
+        if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
 
-        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none")) 
+        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none"))
             dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
-        else 
+        else
             dap_chain_load_all(l_chain);
         }
     bool l_processed;
@@ -1782,6 +1782,31 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 }
 
 /**
+ * @brief s_chain_type_convert
+ * convert dap_chain_type_t to  DAP_CNAIN* constants
+ * @param a_type - dap_chain_type_t a_type [CHAIN_TYPE_TOKEN, CHAIN_TYPE_EMISSION, CHAIN_TYPE_TX]
+ * @return uint16_t
+ */
+static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
+{
+	switch (a_type) {
+		case CHAIN_TYPE_TOKEN:
+			return ("token");
+		case CHAIN_TYPE_EMISSION:
+			return ("emission");
+		case CHAIN_TYPE_TX:
+			return ("transaction");
+		case CHAIN_TYPE_CA:
+			return ("ca");
+		case CHAIN_TYPE_SIGNER:
+			return ("signer");
+
+		default:
+			return ("custom");
+	}
+}
+
+/**
  * @brief
  * register net* command in cellframe-node-cli interface
  * @param argc arguments count
@@ -1836,6 +1861,13 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_chain_t * l_chain = l_net->pub.chains;
                     while (l_chain) {
                         dap_string_append_printf(l_string_ret, "\t\t%s:\n", l_chain->name );
+						if (l_chain->default_datum_types_count)
+						{
+							dap_string_append_printf(l_string_ret, "\t\t");
+							for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++)
+								dap_string_append_printf(l_string_ret, "| %s ", s_chain_type_convert_to_string(l_chain->default_datum_types[i]) );
+							dap_string_append_printf(l_string_ret, "|\n");
+						}
                         l_chain = l_chain->next;
                     }
                 }
@@ -2172,6 +2204,33 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
 
     }
     return  ret;
+}
+
+/**
+ * @brief remove_duplicates_in_chain_by_priority
+ * remove duplicates default datum types in chain by priority
+ * @param *l_chain_1 chain 1
+ * @param *l_chain_2 chain 2
+ * @return void
+ */
+
+static void remove_duplicates_in_chain_by_priority(dap_chain_t *l_chain_1, dap_chain_t *l_chain_2)
+{
+	dap_chain_t *l_chain_high_priority = (l_chain_1->load_priority > l_chain_2->load_priority) ? l_chain_2 : l_chain_1; //such distribution is made for correct operation with the same priority
+	dap_chain_t *l_chain_low_priority = (l_chain_1->load_priority > l_chain_2->load_priority) ? l_chain_1 : l_chain_2; //...^...^...^...
+
+	for (int i = 0; i < l_chain_high_priority->default_datum_types_count; i++)
+	{
+		for (int j = 0; j < l_chain_low_priority->default_datum_types_count; j++)
+		{
+			if (l_chain_high_priority->default_datum_types[i] == l_chain_low_priority->default_datum_types[j])
+			{
+				l_chain_low_priority->default_datum_types[j] = l_chain_low_priority->default_datum_types[l_chain_low_priority->default_datum_types_count - 1];
+				--l_chain_low_priority->default_datum_types_count;
+				--j;
+			}
+		}
+	}
 }
 
 // for sequential loading chains
@@ -2649,7 +2708,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                             l_chain->id.uint64, l_chain->name,l_chain02->name);
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;
-                        } 
+                        }
                         if (!dap_strcmp(l_chain->name, l_chain02->name))
                         {
                             log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%"DAP_UINT64_FORMAT_U", chain02 id = 0x%"DAP_UINT64_FORMAT_U"",l_chain->net_name,
@@ -2657,9 +2716,10 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             log_it(L_ERROR, "Please, fix your configs and restart node");
                             return -2;
                         }
-                    }                         
+						remove_duplicates_in_chain_by_priority(l_chain, l_chain02);
+                    }
                 }
-            }         
+            }
 
             bool l_processed;
             do {
@@ -2703,7 +2763,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if (l_chain )
                    l_chain->is_datum_pool_proc = true;
                 l_net_pvt->only_static_links = true;
-                l_target_state = NET_STATE_ONLINE;     
+                l_target_state = NET_STATE_ONLINE;
                 log_it(L_INFO,"Root node role established");
             } break;
             case NODE_ROLE_CELL_MASTER:
@@ -2862,7 +2922,7 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 {
    dap_chain_t * l_chain;
    DL_FOREACH(l_net->pub.chains, l_chain){
-        if(dap_strcmp(l_chain->name,a_name) == 0)
+        if(dap_strcmp(l_chain->name, a_name) == 0)
             return  l_chain;
    }
    return NULL;
@@ -2888,6 +2948,28 @@ dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap
         }
     }
     return NULL;
+}
+
+/**
+ * @brief dap_chain_net_get_default_chain_by_chain_type
+ * @param a_datum_type
+ * @return
+ */
+dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type)
+{
+	dap_chain_t * l_chain;
+
+	if(!l_net)
+		return NULL;
+
+	DL_FOREACH(l_net->pub.chains, l_chain)
+	{
+		for(int i = 0; i < l_chain->default_datum_types_count; i++) {
+			if(l_chain->default_datum_types[i] == a_datum_type)
+				return l_chain;
+		}
+	}
+	return NULL;
 }
 
 /**
