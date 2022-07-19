@@ -942,6 +942,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
 
 
 
+
 static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {CMD_NONE = 0, CMD_PRICE, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
@@ -1325,9 +1326,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                     uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.value;
                                     char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
                                     char * l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
-                                    dap_string_append_printf(l_reply_str,
-                                                             "\tFrom %s %s To %s %s\n",l_tx_input_ticker,l_value_from_str,
-                                                             l_value_to_str,l_out_cond_item->subtype.srv_xchange.token );
+
+                                    dap_string_append_printf(l_reply_str, "From: : %s %s", l_tx_input_ticker,l_value_from_str);
+                                    dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token );
+
                                     DAP_DELETE(l_value_from_str);
                                     DAP_DELETE(l_value_to_str);
                                 }
