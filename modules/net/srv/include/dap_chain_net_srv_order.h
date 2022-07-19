@@ -96,9 +96,16 @@ DAP_STATIC_INLINE dap_chain_net_srv_order_t * dap_chain_net_srv_order_find_by_ha
     return NULL;
 }
 
-int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net, const dap_chain_net_srv_order_direction_t a_direction, const dap_chain_net_srv_uid_t a_srv_uid,
-                                        const dap_chain_net_srv_price_unit_uid_t a_price_unit, const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX], const uint256_t a_price_min, const uint256_t a_price_max,
-                                        dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count);
+int dap_chain_net_srv_order_find_all_by (
+    dap_chain_net_t * a_net,
+    const dap_chain_net_srv_order_direction_t a_direction,
+    const dap_chain_net_srv_uid_t a_srv_uid,
+    const dap_chain_net_srv_price_unit_uid_t a_price_unit,
+    const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+    const uint256_t a_price_min, const uint256_t a_price_max,
+    dap_chain_net_srv_order_t ** a_output_orders,
+    size_t * a_output_orders_count);
+
 int dap_chain_net_srv_order_delete_by_hash_str( dap_chain_net_t * a_net,const char * a_hash_str );
 
 /**

@@ -62,7 +62,9 @@ int dap_chain_net_srv_xchange_init()
          "\tGet the exchange orders list within specified net name\n"
     "srv_xchange purchase -order <order hash> -net <net_name> -wallet <wallet_name> -coins <value>\n"
          "\tExchange tokens with specified order within specified net name. Specify how datoshies to buy\n"
-    "srv_xchange tx_list -net <net name> [-time_from <yymmdd> -time_to <yymmdd>]\n"
+
+    "srv_xchange tx_list -net <net name> [-time_from <yymmdd> -time_to <yymmdd>]"
+        "[[-addr <wallet_addr>  [-status closed | open] ]\n"                /* @RRL:  #6238  */
         "\tList of exchange transactions\n"
     "srv_xchange enable\n"
          "\tEnable eXchange service\n"
@@ -839,13 +841,91 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
     return false;
 }
 
+
+static int s_cli_srv_xchange_tx_list_addr (
+                    dap_chain_net_t     *a_net,
+                        dap_time_t      a_after,
+                        dap_time_t      a_before,
+                    dap_chain_addr_t    *a_addr,
+                            int         a_tx_closed,
+                                char    **a_str_reply
+                                          )
+{
+char l_hash_str [DAP_CHAIN_HASH_FAST_STR_SIZE + 8] = {0};
+dap_chain_hash_fast_t l_tx_first_hash = {0};
+dap_chain_datum_tx_t    *l_datum_tx;
+size_t  l_datum_tx_size, l_tx_total, l_tx_count;
+int l_item_idx;
+dap_string_t *l_reply_str;
+dap_hash_fast_t l_hash;
+dap_chain_tx_out_cond_t *l_out_cond_item;
+char    *l_value_str;
+uint256_t   l_256value;
+
+
+    if ( !(l_reply_str = dap_string_new("")) )                              /* Prepare output string discriptor*/
+        return  log_it(L_ERROR, "Cannot allocate a memory, errno=%d", errno), -ENOMEM;
+
+    memset(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));             /* Initial hash == zero */
+
+
+    for ( l_tx_count = l_tx_total = 0;
+            (l_datum_tx = dap_chain_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_tx_first_hash));
+                l_tx_total++)
+    {
+        /* Check time range (if need ) */
+        if ( !(l_datum_tx->header.ts_created > a_after) )
+            continue;
+
+        if ( a_before && (l_datum_tx->header.ts_created > a_before) )
+            continue;
+
+
+        /* TX hash */
+        l_datum_tx_size = dap_chain_datum_tx_get_size(l_datum_tx);
+
+        if ( !dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_hash) )
+        {                                                                   /* Never must be happend, but ... */
+            log_it(L_ERROR, "dap_hash_fast(..., %zu octets) return error", l_datum_tx_size);
+            dump_it("l_datum_tx", l_datum_tx, l_datum_tx_size);
+            continue;
+        }
+
+        dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
+        dap_string_append_printf(l_reply_str, "hash: %s\n", l_hash_str);
+
+        /* Find SRV_XCHANGE out_cond item */
+        for (l_out_cond_item = NULL, l_item_idx = 0;
+            (l_out_cond_item = (dap_chain_tx_out_cond_t *) dap_chain_datum_tx_item_get(l_datum_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL));
+                l_item_idx++)
+        {
+            if ( l_out_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
+                continue;
+
+            if ( a_tx_closed )
+                dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
+
+            l_256value = l_out_cond_item->subtype.srv_xchange.value;
+            l_value_str = dap_cvt_uint256_to_str(l_256value);
+            dap_string_append_printf(l_reply_str, "value: %s %s", l_value_str, l_out_cond_item->subtype.srv_xchange.token);
+            DAP_DELETE(l_value_str);
+        }
+
+        dap_string_append(l_reply_str, "\n\n");
+    }
+
+
+    *a_str_reply = dap_string_free(l_reply_str, false);                     /* Free string descriptor, but keep ASCIZ buffer itself */
+    return  0;
+}
+
+
+
 static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 {
-    enum {
-        CMD_NONE, CMD_PRICE, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST
-    };
-    int l_arg_index = 1;
-    int l_cmd_num = CMD_NONE;
+    enum {CMD_NONE = 0, CMD_PRICE, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST };
+    int l_arg_index = 1, l_cmd_num = CMD_NONE, l_rc;
+
     if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "price", NULL)) {
         l_cmd_num = CMD_PRICE;
     }
@@ -864,6 +944,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
     else if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "tx_list", NULL)) {
         l_cmd_num = CMD_TX_LIST;
     }
+
     switch (l_cmd_num) {
         case CMD_PRICE:
             return s_cli_srv_xchange_price(a_argc, a_argv, l_arg_index + 1, a_str_reply);
@@ -967,13 +1048,24 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             s_srv_xchange->enabled = false;
         } break;
         case CMD_TX_LIST: {
-            const char *l_net_str = NULL;
-            const char *l_time_begin_str = NULL;
-            const char *l_time_end_str = NULL;
+            const char *l_net_str = NULL, *l_time_begin_str = NULL, *l_time_end_str = NULL;
+            const char *l_status_str = NULL, *l_addr_str = NULL;  /* @RRL:  #6238 */
+            int     l_status_closed;
+            dap_chain_addr_t *l_addr;
+
             l_arg_index++;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-time_from", &l_time_begin_str);
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-time_to", &l_time_end_str);
+
+            /*
+             * @RRL:  #6238: [[-addr <addr> [-status closed | open]]
+             * we should check for valid combination of the status and addr options
+             */
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-status", &l_status_str);
+
+            /* Validate input arguments ... */
             if(!l_net_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'tx_list' required parameter -net");
                 return -3;
@@ -986,6 +1078,23 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             dap_time_t l_time[2];
             l_time[0] = dap_time_from_str_rfc822(l_time_begin_str);
             l_time[1] = dap_time_from_str_rfc822(l_time_end_str);
+
+            if ( l_status_str && !l_addr_str )
+                return  dap_chain_node_cli_set_reply_text(a_str_reply, "Parameter -status require -addr"), -EINVAL;
+
+            /* Dispatch request processing to ... */
+            if ( l_addr_str )
+            {
+                l_status_closed = (!l_addr_str) ? 0 : !dap_strncmp (l_status_str, "close", 5);
+
+                if ( !(l_addr = dap_chain_addr_from_str(l_addr_str)) )
+                    return  dap_chain_node_cli_set_reply_text(a_str_reply, "Cannot convert -addr '%s' to internal representative", l_addr_str), -EINVAL;
+
+                return  s_cli_srv_xchange_tx_list_addr (l_net, l_time[0], l_time[1], l_addr, l_status_closed, a_str_reply);
+            }
+
+
+
             // Prepare output string
             dap_string_t *l_reply_str = dap_string_new("");
             // Find transactions using filter function s_filter_tx_list()
