@@ -1814,9 +1814,10 @@ void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap
         if (l_count && a_tickers){
             dap_chain_ledger_token_item_t * l_token_item, *l_tmp;
             char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
+            size_t i = 0;
             HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp) {
-                l_tickers[l_count] = dap_strdup(l_token_item->ticker);
-                l_count++;
+                l_tickers[i] = dap_strdup(l_token_item->ticker);
+                i++;
             }
             *a_tickers = l_tickers;
         }
