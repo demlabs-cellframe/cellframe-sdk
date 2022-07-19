@@ -188,9 +188,9 @@ dap_proc_queue_t    *l_queue;
         if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
             continue;
 
-        pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
-        l_rc = s_dap_slist_get4head (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_item_sz);
-        pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+        //pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
+        l_rc = dap_slist_get4head (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_item_sz);
+        //pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
 
         if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
             debug_if (g_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
@@ -207,9 +207,9 @@ dap_proc_queue_t    *l_queue;
 
         if ( !(l_is_finished) ) {
                                                                             /* Rearm callback to be executed again */
-            pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            l_rc = s_dap_slist_add2tail (&l_queue->list[l_cur_pri].items, l_item, l_item_sz );
-            pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+            //pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
+            l_rc = dap_slist_add2tail (&l_queue->list[l_cur_pri].items, l_item, l_item_sz );
+            //pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
 
             if ( l_rc ) {
                 log_it(L_ERROR, "Error requeue event callback: %p/%p, errno=%d", l_item->callback, l_item->callback_arg, l_rc);
@@ -241,40 +241,11 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
     assert(a_esocket);
     assert(a_thread);
     a_esocket->proc_thread = a_thread;
-
-#ifdef DAP_EVENTS_CAPS_EPOLL
-    // Init events for EPOLL
-    a_esocket->ev.events = a_esocket->ev_base_flags ;
-    if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-        a_esocket->ev.events |= EPOLLIN;
-    if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-        a_esocket->ev.events |= EPOLLOUT;
-    a_esocket->ev.data.ptr = a_esocket;
-    return epoll_ctl(a_thread->epoll_ctl, EPOLL_CTL_ADD, a_esocket->socket, &a_esocket->ev);
-#elif defined (DAP_EVENTS_CAPS_POLL)
     int l_ret = dap_context_add(a_thread->context, a_esocket);
     if (l_ret)
         log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
-#elif defined (DAP_EVENTS_CAPS_KQUEUE)
-/*    u_short l_flags = a_esocket->kqueue_base_flags;
-    u_int   l_fflags = a_esocket->kqueue_base_fflags;
-    short l_filter = a_esocket->kqueue_base_filter;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-            l_fflags |= NOTE_READ;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-            l_fflags |= NOTE_WRITE;
-
-        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
-        return kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
-*/
-    // Nothing to do if its input
-    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE && a_esocket->pipe_out)
-        return 0;
-#else
-#error "Unimplemented new esocket on worker callback for current platform"
-#endif
-
-    return dap_context_poll_update(a_esocket);
+    a_esocket->is_initalized = true;
+    return l_ret;
 }
 
 
@@ -328,25 +299,18 @@ static void s_context_callback_started( dap_context_t * a_context, void *a_arg)
 
     assert(l_thread->queue_assign_input);
     assert(l_thread->queue_io_input);
-    for (size_t n=0; n<l_workers_count; n++){
-        dap_worker_t * l_worker =dap_events_worker_get(n);
-        l_thread->queue_assign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_new );
-        l_thread->queue_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io );
-        l_thread->queue_callback_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_callback );
-    }
-
-
-    for (size_t n = 0; n< dap_events_thread_get_count(); n++){
-        // Queue asssign
+    for (size_t n = 0; n < l_workers_count; n++) {
+        dap_worker_t *l_worker = dap_events_worker_get(n);
+        // Queue assign
+        l_thread->queue_assign_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_new);
         dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_assign_input[n]);
-
         // Queue IO
+        l_thread->queue_io_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_es_io);
         dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_io_input[n]);
-
         // Queue callback
+        l_thread->queue_callback_input[n] = dap_events_socket_queue_ptr_create_input(l_worker->queue_callback);
         dap_proc_thread_assign_esocket_unsafe(l_thread, l_thread->queue_callback_input[n]);
     }
-
 }
 
 /**
@@ -380,13 +344,7 @@ bool dap_proc_thread_assign_on_worker_inter(dap_proc_thread_t * a_thread, dap_wo
     dap_events_socket_t * l_es_assign_input = a_thread->queue_assign_input[a_worker->id];
     if(g_debug_reactor)
         log_it(L_DEBUG,"Remove esocket %p from proc thread and send it to worker #%u",a_esocket, a_worker->id);
-
     dap_events_socket_assign_on_worker_inter(l_es_assign_input, a_esocket);
-    // TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
-    l_es_assign_input->flags |= DAP_SOCK_READY_TO_WRITE;
-    dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_assign_input);
-#endif
     return true;
 }
 
@@ -404,11 +362,6 @@ int dap_proc_thread_esocket_write_inter(dap_proc_thread_t * a_thread,dap_worker_
 {
     dap_events_socket_t * l_es_io_input = a_thread->queue_io_input[a_worker->id];
     dap_events_socket_write_inter(l_es_io_input,a_es_uuid, a_data, a_data_size);
-    // TODO Make this code platform-independent
-#ifndef DAP_EVENTS_CAPS_EVENT_KEVENT
-    l_es_io_input->flags |= DAP_SOCK_READY_TO_WRITE;
-    dap_proc_thread_esocket_update_poll_flags(a_thread, l_es_io_input);
-#endif
     return 0;
 }
 
@@ -458,10 +411,10 @@ int dap_proc_thread_esocket_write_f_inter(dap_proc_thread_t * a_thread,dap_worke
  */
 void dap_proc_thread_worker_exec_callback_inter(dap_proc_thread_t * a_thread, size_t a_worker_id, dap_worker_callback_t a_callback, void * a_arg)
 {
-    dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
+    dap_worker_msg_callback_t *l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
-    dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
+    dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id], l_msg);
 }
 
 

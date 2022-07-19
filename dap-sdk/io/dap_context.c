@@ -879,7 +879,7 @@ static int s_thread_loop(dap_context_t * a_context)
                             case DESCRIPTOR_TYPE_QUEUE:
                                 if (l_cur->flags & DAP_SOCK_QUEUE_PTR && l_cur->buf_out_size>= sizeof (void*)) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-                                    l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
+                                    l_bytes_sent = write(l_cur->fd, l_cur->buf_out, sizeof(void *)); // We send pointer by pointer
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
                                     l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
 #elif defined DAP_EVENTS_CAPS_MSMQ
@@ -1105,50 +1105,50 @@ static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags)
  */
 int dap_context_poll_update(dap_events_socket_t * a_esocket)
 {
-    #if defined (DAP_EVENTS_CAPS_EPOLL)
-        int events = a_esocket->ev_base_flags | EPOLLERR;
+#if defined (DAP_EVENTS_CAPS_EPOLL)
+    int events = a_esocket->ev_base_flags | EPOLLERR;
 
-        // Check & add
-        if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
-            events |= EPOLLIN;
+    // Check & add
+    if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+        events |= EPOLLIN;
 
-        if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
-            events |= EPOLLOUT;
+    if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
+        events |= EPOLLOUT;
 
-        a_esocket->ev.events = events;
+    a_esocket->ev.events = events;
 
-        if( a_esocket->context){
-            if ( epoll_ctl(a_esocket->context->epoll_fd, EPOLL_CTL_MOD, a_esocket->socket, &a_esocket->ev) ){
+    if( a_esocket->context){
+        if ( epoll_ctl(a_esocket->context->epoll_fd, EPOLL_CTL_MOD, a_esocket->socket, &a_esocket->ev) ){
 #ifdef DAP_OS_WINDOWS
-                int l_errno = WSAGetLastError();
+            int l_errno = WSAGetLastError();
 #else
-                int l_errno = errno;
+            int l_errno = errno;
 #endif
-                char l_errbuf[128];
-                l_errbuf[0]=0;
-                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it(L_ERROR,"Can't update client socket state in the epoll_fd %"DAP_FORMAT_HANDLE": \"%s\" (%d)",
-                       a_esocket->context->epoll_fd, l_errbuf, l_errno);
-                return l_errno;
-            }
+            char l_errbuf[128];
+            l_errbuf[0]=0;
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it(L_ERROR,"Can't update client socket state in the epoll_fd %"DAP_FORMAT_HANDLE": \"%s\" (%d)",
+                   a_esocket->context->epoll_fd, l_errbuf, l_errno);
+            return l_errno;
         }
-    #elif defined (DAP_EVENTS_CAPS_POLL)
-        if( a_esocket->context && a_esocket->is_initalized){
-            if (a_esocket->poll_index < a_esocket->context->poll_count ){
-                struct pollfd * l_poll = &a_esocket->context->poll[a_esocket->poll_index];
-                l_poll->events = a_esocket->poll_base_flags | POLLERR ;
-                // Check & add
-                if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
-                    l_poll->events |= POLLIN;
-                if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
-                    l_poll->events |= POLLOUT;
-            }else{
-                log_it(L_ERROR, "Wrong poll index when remove from context (unsafe): %u when total count %u", a_esocket->poll_index,
-                       a_esocket->context->poll_count);
-                return -666;
-            }
+    }
+#elif defined (DAP_EVENTS_CAPS_POLL)
+    if( a_esocket->context && a_esocket->is_initalized){
+        if (a_esocket->poll_index < a_esocket->context->poll_count ){
+            struct pollfd * l_poll = &a_esocket->context->poll[a_esocket->poll_index];
+            l_poll->events = a_esocket->poll_base_flags | POLLERR ;
+            // Check & add
+            if( a_esocket->flags & DAP_SOCK_READY_TO_READ )
+                l_poll->events |= POLLIN;
+            if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING )
+                l_poll->events |= POLLOUT;
+        }else{
+            log_it(L_ERROR, "Wrong poll index when remove from context (unsafe): %u when total count %u", a_esocket->poll_index,
+                   a_esocket->context->poll_count);
+            return -666;
         }
-    #elif defined (DAP_EVENTS_CAPS_KQUEUE)
+    }
+#elif defined (DAP_EVENTS_CAPS_KQUEUE)
     if (a_esocket->socket != -1  ){ // Not everything we add in poll
         struct kevent * l_event = &a_esocket->kqueue_event;
         short l_filter  =a_esocket->kqueue_base_filter;
@@ -1203,10 +1203,9 @@ int dap_context_poll_update(dap_events_socket_t * a_esocket)
             return l_errno;
         }
      }
-
-    #else
-    #error "Not defined dap_events_socket_set_writable_unsafe for your platform"
-    #endif
+#else
+#error "Not defined dap_events_socket_set_writable_unsafe for your platform"
+#endif
     return 0;
 }
 
@@ -1235,20 +1234,19 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
         log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET")", a_es, a_es->socket);
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
-        // Init events for EPOLL
-        a_es->ev.events = a_es->ev_base_flags ;
-        if(a_es->flags & DAP_SOCK_READY_TO_READ )
-            a_es->ev.events |= EPOLLIN;
-        if(a_es->flags & DAP_SOCK_READY_TO_WRITE )
-            a_es->ev.events |= EPOLLOUT;
-        a_es->ev.data.ptr = a_es;
-        a_es->context = a_context;
-        int l_ret = epoll_ctl(a_context->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev);
-        if (l_ret != 0 ){
-            l_is_error = true;
-            l_errno = l_ret;
-        }
-
+    // Init events for EPOLL
+    a_es->ev.events = a_es->ev_base_flags ;
+    if(a_es->flags & DAP_SOCK_READY_TO_READ )
+        a_es->ev.events |= EPOLLIN;
+    if(a_es->flags & DAP_SOCK_READY_TO_WRITE )
+        a_es->ev.events |= EPOLLOUT;
+    a_es->ev.data.ptr = a_es;
+    a_es->context = a_context;
+    int l_ret = epoll_ctl(a_context->epoll_fd, EPOLL_CTL_ADD, a_es->socket, &a_es->ev);
+    if (l_ret != 0 ){
+        l_is_error = true;
+        l_errno = l_ret;
+    }
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (  a_context->poll_count == a_context->poll_count_max ){ // realloc
         a_context->poll_count_max *= 2;

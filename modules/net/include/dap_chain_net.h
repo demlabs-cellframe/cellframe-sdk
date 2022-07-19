@@ -27,6 +27,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include <stdint.h>
 #include <string.h>
+#include "dap_chain_datum_tx.h"
+#include "dap_math_ops.h"
 #include "dap_net.h"
 #include "dap_stream_ch.h"
 #include "dap_strfuncs.h"
@@ -156,6 +158,13 @@ typedef enum dap_chain_net_tx_search_type {
 
 dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
                                                      dap_chain_net_tx_search_type_t a_search_type);
+
+uint256_t dap_chain_net_get_tx_total_value(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
+
+dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
+                                                      const dap_time_t a_time_from, const dap_time_t a_time_to,
+                                                     const dap_chain_net_tx_search_type_t a_search_type);
+
 
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 

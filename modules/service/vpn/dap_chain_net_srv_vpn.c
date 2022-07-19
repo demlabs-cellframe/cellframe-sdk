@@ -330,7 +330,10 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             DAP_DELETE(l_msg);
             DAP_DELETE(l_pkt_out);
             return false;
-        }
+        } /*
+        dap_stream_worker_t *l_stream_worker = (dap_stream_worker_t *)dap_worker_get_current()->_inheritor;
+        s_tun_client_send_data_inter(l_stream_worker->queue_ch_io_input[l_ch_vpn_info->worker->id], l_ch_vpn_info->ch_vpn, l_pkt_out);
+        */
         if(s_debug_more){
             char l_str_daddr[INET_ADDRSTRLEN];
             inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, INET_ADDRSTRLEN);
@@ -617,7 +620,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_raw_server->ipv4_lease_last.s_addr = s_raw_server->ipv4_gw.s_addr;
 
 #ifdef DAP_OS_DARWIN
-    s_tun_sockets_count = 1
+    s_tun_sockets_count = 1;
 #elif defined (DAP_OS_LINUX) || defined (DAP_OS_BSD)
 // Not for Darwin
     s_tun_sockets_count = dap_get_cpu_count();

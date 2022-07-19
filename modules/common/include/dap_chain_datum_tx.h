@@ -26,6 +26,7 @@
 #include "dap_list.h"
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
+#include "dap_time.h"
 
 typedef enum dap_chain_tx_cond_type {
     COND_SERVICE_PROVIDE = 0x20, //
@@ -39,7 +40,7 @@ typedef enum dap_chain_tx_cond_type {
   */
 typedef struct dap_chain_datum_tx{
     struct {
-        uint64_t ts_created;
+        dap_time_t ts_created;
         uint32_t tx_items_size; // size of next sequencly lying tx_item sections would be decided to belong this transaction
     } DAP_ALIGN_PACKED header;
     uint8_t tx_items[];
