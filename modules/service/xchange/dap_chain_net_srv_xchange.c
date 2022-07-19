@@ -1133,26 +1133,33 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
             // Prepare output string
             dap_string_t *l_reply_str = dap_string_new("");
+
             // Find transactions using filter function s_filter_tx_list()
             dap_list_t *l_datum_list0 = dap_chain_datum_list(l_net, NULL, s_filter_tx_list, l_time);
             size_t l_datum_num = dap_list_length(l_datum_list0);
+
             if(l_datum_num > 0) {
                 dap_string_append_printf(l_reply_str, "Found %zu transactions:\n", l_datum_num);
                 dap_list_t *l_datum_list = l_datum_list0;
-                char *l_hash_str = DAP_NEW_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE+1);
+
+                char l_hash_str [DAP_CHAIN_HASH_FAST_STR_SIZE + 8] = {0};
+
                 while(l_datum_list) {
                     dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_datum_list->data)->data;
                     size_t l_datum_tx_size = dap_chain_datum_tx_get_size(l_datum_tx);
+
                     // Delimiter between tx
                     if(l_datum_list != l_datum_list0) {
                         dap_string_append(l_reply_str, "\n\n");
                     }
+
                     // Tx hash
-                    dap_hash_fast_t l_hash;
-                    memset(&l_hash, 0, sizeof(dap_hash_fast_t));
+                    dap_hash_fast_t l_hash = {0};
+
                     dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_hash);
                     dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
                     dap_string_append_printf(l_reply_str, "hash: %s\n", l_hash_str);
+
                     // Find SRV_XCHANGE out_cond item
                     dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
                     int l_item_idx = 0;
@@ -1168,9 +1175,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         }
                     }
                     while(l_out_cond_item);
+
                     l_datum_list = dap_list_next(l_datum_list);
                 }
-                DAP_DELETE(l_hash_str);
             }
             else{
                 dap_string_append(l_reply_str, "Transactions not found");
