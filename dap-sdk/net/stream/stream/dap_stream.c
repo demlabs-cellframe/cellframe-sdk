@@ -516,11 +516,8 @@ static void s_esocket_data_read(dap_events_socket_t* a_client, void * a_arg)
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_client);
     dap_stream_t * l_stream =DAP_STREAM(l_http_client);
     int * l_ret = (int *) a_arg;
-
-    if (s_dump_packet_headers ) {
-        log_it(L_DEBUG,"dap_stream_data_read: ready_to_write=%s, client->buf_in_size=%zu" ,
-               (a_client->flags & DAP_SOCK_READY_TO_WRITE)?"true":"false", a_client->buf_in_size );
-    }
+    debug_if(s_dump_packet_headers, L_DEBUG,"dap_stream_data_read: ready_to_write=%s, client->buf_in_size=%zu" ,
+             (a_client->flags & DAP_SOCK_READY_TO_WRITE)?"true":"false", a_client->buf_in_size );
     *l_ret = dap_stream_data_proc_read( l_stream);
 }
 
@@ -545,10 +542,8 @@ static void s_esocket_write(dap_events_socket_t* a_esocket , void * a_arg){
             l_ready_to_write|=ch->ready_to_write;
         }
     }
-    if (s_dump_packet_headers ) {
-        log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%zu" ,
-               l_ready_to_write?"true":"false", a_esocket->buf_out_size );
-    }
+    debug_if(s_dump_packet_headers, L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%zu" ,
+             l_ready_to_write?"true":"false", a_esocket->buf_out_size );
     dap_events_socket_set_writable_unsafe(a_esocket, l_ready_to_write);
     //log_it(L_DEBUG,"stream_dap_data_write ok");
 }
@@ -705,18 +700,18 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
         size_t l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_fragm_pkt, sizeof(a_stream->pkt_cache));
 
         if(l_dec_pkt_size == 0) {
-            log_it(L_WARNING, "Input: can't decode packet size = %zu", l_pkt_size);
+            debug_if(s_dump_packet_headers, L_WARNING, "Input: can't decode packet size = %zu", l_pkt_size);
             l_is_clean_fragments = true;
             break;
         }
         if(l_dec_pkt_size != l_fragm_pkt->size + sizeof(dap_stream_fragment_pkt_t)) {
-            log_it(L_WARNING, "Input: decoded packet has bad size = %zu, decoded size = %zu", l_fragm_pkt->size + sizeof(dap_stream_fragment_pkt_t), l_dec_pkt_size);
+            debug_if(s_dump_packet_headers, L_WARNING, "Input: decoded packet has bad size = %zu, decoded size = %zu", l_fragm_pkt->size + sizeof(dap_stream_fragment_pkt_t), l_dec_pkt_size);
             l_is_clean_fragments = true;
             break;
         }
 
         if(a_stream->buf_fragments_size_filled != l_fragm_pkt->mem_shift) {
-            log_it(L_WARNING, "Input: wrong fragment position %u, have to be %zu. Drop packet", l_fragm_pkt->mem_shift, a_stream->buf_fragments_size_filled);
+            debug_if(s_dump_packet_headers, L_WARNING, "Input: wrong fragment position %u, have to be %zu. Drop packet", l_fragm_pkt->mem_shift, a_stream->buf_fragments_size_filled);
             l_is_clean_fragments = true;
             break;
         } else {
@@ -767,14 +762,12 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
             }
         }
 
-        if(l_ch){
-            l_ch->stat.bytes_read+=l_ch_pkt->hdr.size;
-            if(l_ch->proc && l_ch->proc->packet_in_callback){
-                if ( s_dump_packet_headers ){
-                    log_it(L_INFO,"Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X",(char) l_ch_pkt->hdr.id,
-                        l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id , l_ch_pkt->hdr.enc_type);
-                }
-                l_ch->proc->packet_in_callback(l_ch,l_ch_pkt);
+        if(l_ch) {
+            l_ch->stat.bytes_read += l_ch_pkt->hdr.size;
+            if(l_ch->proc && l_ch->proc->packet_in_callback) {
+                debug_if(s_dump_packet_headers, L_INFO, "Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X", (char ) l_ch_pkt->hdr.id,
+                         l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id, l_ch_pkt->hdr.enc_type);
+                l_ch->proc->packet_in_callback(l_ch, l_ch_pkt);
             }
         } else{
             log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );

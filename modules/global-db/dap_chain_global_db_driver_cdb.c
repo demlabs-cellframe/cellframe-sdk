@@ -195,7 +195,7 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
     }
     memset(l_cdb_path, '\0', sizeof(l_cdb_path));
     dap_snprintf(l_cdb_path, sizeof(l_cdb_path), "%s/%s", s_cdb_path, a_group);
-    cdb_options l_opts = { 100000, 256, 1024 };
+    cdb_options l_opts = { 1000000, 256, 1024 };
     if (cdb_option(l_cdb_i->cdb, l_opts.hsize, l_opts.pcacheMB, l_opts.rcacheMB) != CDB_SUCCESS) {
         log_it(L_ERROR, "Options are inacceptable: \"%s\"", cdb_errmsg(cdb_errno(l_cdb_i->cdb)));
         goto ERR;
@@ -215,11 +215,13 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
             cdb_iterate(l_cdb_i->cdb, dap_cdb_get_last_obj_iter_callback, (void*)&l_arg, l_iter);
             cdb_iterate_destroy(l_cdb_i->cdb, l_iter);
             l_cdb_i->id = l_arg.o->id;
-            //log_it(L_INFO, "Group \"%s\" found"             , l_cdb_i->local_group);
-            //log_it(L_INFO, "Records: %-24u"                 , l_cdb_stat.rnum);
-            //log_it(L_INFO, "Average read latency: %-24u"    , l_cdb_stat.rlatcy);
-            //log_it(L_INFO, "Average write latency: %-24u"   , l_cdb_stat.wlatcy);
-            //log_it(L_INFO, "Last id: %-24u"                 , l_cdb_i->id);
+            log_it(L_INFO,
+                     "Group \"%s\"\r\n"
+                     "Records: %-24lu\r\n"
+                     "Average read latency: %-24u\r\n"
+                     "Average write latency: %-24u\r\n"
+                     "Last id: %-24lu\r\n",
+                     l_cdb_i->local_group, l_cdb_stat.rnum, l_cdb_stat.rlatcy, l_cdb_stat.wlatcy, l_cdb_i->id);
             DAP_DELETE(l_arg.o);
         } else {
             log_it(L_INFO, "Group \"%s\" created", l_cdb_i->local_group);

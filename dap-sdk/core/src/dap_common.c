@@ -370,6 +370,11 @@ int     olen, len;
 struct tm _tm;
 struct timespec now;
 
+    if ( (a_ll == -1) )
+        return;
+
+
+
 	clock_gettime(CLOCK_REALTIME, &now);
 
 #ifdef	WIN32
