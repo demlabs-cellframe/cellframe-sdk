@@ -178,7 +178,11 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
 #else
     l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #endif
+#ifdef DAP_OS_DARWIN
+    if(l_retcode != 0 && l_retcode != EPFNOSUPPORT)
+#else
     if(l_retcode != 0)
+#endif
     {
         char l_errbuf[128]={0};
         switch (l_retcode) {
@@ -188,6 +192,7 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
             case EPFNOSUPPORT: strncpy(l_errbuf,"System doesn't support thread affinity set",sizeof (l_errbuf)-1); break;
             default:     strncpy(l_errbuf,"Unknown error",sizeof (l_errbuf)-1);
         }
+
         log_it(L_ERROR, "Worker #%u: error in set affinity thread call: %s (%d)",a_cpu_id, l_errbuf , l_retcode);
         //abort();
     }
