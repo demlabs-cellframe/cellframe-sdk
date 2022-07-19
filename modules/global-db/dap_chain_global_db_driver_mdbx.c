@@ -34,7 +34,9 @@
 
          19-MAY-2022    RRL Added routines' decsriptions
 
-          1-JUN-2023    RRL Introduced dap_assert()
+           1-JUN-2022   RRL Introduced dap_assert()
+
+          18-JUL-2022   RRL Fixed unitialized l_obj_arr in the s_db_mdbx_read_store_obj()
  */
 
 #include <stddef.h>
