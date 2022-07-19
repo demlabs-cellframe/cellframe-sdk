@@ -3566,6 +3566,32 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
 }
 
 /**
+ * @brief Get all transactions from the cache with the out_cond item
+ * @param a_ledger
+ * @param a_srv_uid
+ * @return
+ */
+dap_list_t* dap_chain_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger,dap_chain_net_srv_uid_t a_srv_uid)
+{
+    dap_list_t * l_ret = NULL;
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+    dap_chain_ledger_tx_item_t *l_iter_current = NULL, *l_item_tmp = NULL;
+    HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp) {
+        dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
+        dap_chain_hash_fast_t *l_tx_hash = &l_iter_current->tx_hash_fast;
+        int l_tx_out_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, &l_tx_out_cond_idx);
+        if(l_tx_out_cond){ // Is present cond out
+            if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64 ) // is srv uid is same as we're searching for?
+                l_ret = dap_list_append(l_ret,l_tx);
+        }
+
+    }
+    return l_ret;
+}
+
+
+/**
  * Get the transaction in the cache with the out_cond item
  *
  * a_addr[in] wallet address, whose owner can use the service
