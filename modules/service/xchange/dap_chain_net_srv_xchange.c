@@ -67,7 +67,7 @@ int dap_chain_net_srv_xchange_init()
          "\tExchange tokens with specified order within specified net name. Specify how datoshies to buy\n"
 
     "srv_xchange tx_list -net <net name> [-time_from <yymmdd> -time_to <yymmdd>]"
-        "[[-addr <wallet_addr>  [-status closed | open] ]\n"                /* @RRL:  #6238  */
+        "[[-addr <wallet_addr>  [-status closed | open] ]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions\n"
 
     "srv_xchange token_pair -net <net name> list all\n"
@@ -872,8 +872,6 @@ int l_item_idx;
 dap_string_t *l_reply_str;
 dap_hash_fast_t l_hash;
 dap_chain_tx_out_cond_t *l_out_cond_item;
-char    *l_value_str;
-uint256_t   l_256value;
 
 
     if ( !(l_reply_str = dap_string_new("")) )                              /* Prepare output string discriptor*/
@@ -918,10 +916,22 @@ uint256_t   l_256value;
             if ( a_tx_closed )
                 dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
 
-            l_256value = l_out_cond_item->subtype.srv_xchange.value;
-            l_value_str = dap_cvt_uint256_to_str(l_256value);
-            dap_string_append_printf(l_reply_str, "value: %s %s", l_value_str, l_out_cond_item->subtype.srv_xchange.token);
-            DAP_DELETE(l_value_str);
+            uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.value;
+            char *l_value_str = dap_cvt_uint256_to_str(l_value_to);
+
+            const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
+
+            uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(a_net, l_datum_tx);
+            char *l_tx_input_values_str = dap_cvt_uint256_to_str(l_tx_input_values);
+
+            char *l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
+            char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
+
+            dap_string_append_printf(l_reply_str, "From: : %s %s", l_tx_input_values_str, l_tx_input_ticker);
+            dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
+
+            DAP_DELETE(l_value_from_str);
+            DAP_DELETE(l_value_to_str);
         }
 
         dap_string_append(l_reply_str, "\n\n");
@@ -1064,7 +1074,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
         } break;
         case CMD_TX_LIST: {
             const char *l_net_str = NULL, *l_time_begin_str = NULL, *l_time_end_str = NULL;
-            const char *l_status_str = NULL, *l_addr_str = NULL;  /* @RRL:  #6238 */
+            const char *l_status_str = NULL, *l_addr_str = NULL;  /* @RRL:  #6294 */
             int     l_status_closed;
             dap_chain_addr_t *l_addr;
 
@@ -1074,7 +1084,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-time_to", &l_time_end_str);
 
             /*
-             * @RRL:  #6238: [[-addr <addr> [-status closed | open]]
+             * @RRL:  #6294: [[-addr <addr> [-status closed | open]]
              * we should check for valid combination of the status and addr options
              */
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
