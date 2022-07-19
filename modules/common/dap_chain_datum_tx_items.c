@@ -395,7 +395,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_external_st
 	l_item->header.srv_uid = a_srv_uid;
 	l_item->subtype.srv_external_stake.count_months = count_months;
 	l_item->subtype.srv_external_stake.time_staking = time_staking;
-	memcpy(&l_item->subtype.srv_external_stake.addr_owner, addr_owner, sizeof(dap_chain_addr_t));
+	memcpy(&l_item->subtype.srv_external_stake.addr_holder, addr_owner, sizeof(dap_chain_addr_t));
 	return l_item;
 }
 

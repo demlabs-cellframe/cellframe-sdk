@@ -27,53 +27,176 @@
 
 #define LOG_TAG "dap_chain_net_external_stake"
 
-static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply);
+static void s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply);
 
-int dap_chain_net_srv_external_stake_init(void)
+bool dap_chain_net_srv_external_stake_init(void)
 {
 	dap_chain_node_cli_cmd_item_create("stake_ext", s_cli_srv_external_stake, "External stake service commands",
-									   "stake_ext create -net <net name> -addr_owner <addr> -token <ticker> -coins <value> -cert <name>\n"
+									   "stake_ext hold -net <net name> -addr_holder <addr> -token <ticker> -coins <value> -cert <name>\n"
+									   			"stake_ext take"
 	);
 
-	return 1;
+	return true;
 }
 
 static dap_chain_datum_tx_receipt_t *s_external_stake_receipt_create(dap_hash_fast_t hash_burning_transaction, const char *token, uint256_t datoshi_burned)
 {
-	uint32_t l_ext_size = sizeof(dap_hash_fast_t) + dap_strlen(token) + 1;
-	uint8_t *l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
+	uint32_t l_ext_size	= sizeof(dap_hash_fast_t) + dap_strlen(token) + 1;
+	uint8_t *l_ext		= DAP_NEW_S_SIZE(uint8_t, l_ext_size);
+
 	memcpy(l_ext, &hash_burning_transaction, sizeof(dap_hash_fast_t));
 	strcpy((char *)&l_ext[sizeof(dap_hash_fast_t)], token);
-	dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
-	dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID };
-	dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, datoshi_burned,
+
+	dap_chain_net_srv_price_unit_uid_t l_unit	= { .uint32 = SERV_UNIT_UNDEFINED};
+	dap_chain_net_srv_uid_t l_uid				= { .uint64 = DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID };
+	dap_chain_datum_tx_receipt_t *l_receipt		= dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, datoshi_burned,
 																				 l_ext, l_ext_size);
 	return l_receipt;
 }
 
-static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply)
+static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
 {
-	enum {
-		CMD_NONE, CMD_CREATE
+	const char *l_net_str, *l_token_str, *l_coins_str, *l_addr_holder_str, *l_cert_str;
+	l_net_str = l_token_str = l_coins_str = l_addr_holder_str = l_cert_str = NULL;
+	dap_chain_net_t		*l_net			= NULL;
+	uint256_t 			l_value;
+	dap_chain_addr_t	*l_addr_holder;
+	dap_cert_t			*l_cert;
+	int 				l_arg_index		= a_arg_index + 1;
+
+	dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+	if (NULL == l_net_str)
+		return NET_ARG_ERROR;
+
+	if (NULL == (l_net = dap_chain_net_by_name(l_net_str))) {
+		dap_chain_node_cli_set_reply_text(a_str_reply, "%s", l_net_str);
+		return NET_ERROR;
+	}
+
+	dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_str);
+	if (NULL == l_token_str)
+		return TOKEN_ARG_ERROR;
+
+	if (NULL == dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_str)) {
+		dap_chain_node_cli_set_reply_text(a_str_reply, "%s", l_token_str);
+		return TOKEN_ERROR;
+	}
+
+	dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_coins_str);
+	if (NULL == l_coins_str)
+		return COINS_ARG_ERROR;
+
+	if (IS_ZERO_256( (l_value = dap_chain_balance_scan(l_coins_str)) ))
+		return COINS_FORMAT_ERROR;
+
+	dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr_holder", &l_addr_holder_str);
+	if (NULL == l_addr_holder_str)
+		return ADDR_ARG_ERROR;
+
+	if (NULL == (l_addr_holder = dap_chain_addr_from_str(l_addr_holder_str)))
+		return ADDR_FORMAT_ERROR;
+
+	dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
+	if (NULL == l_cert_str)
+		return CERT_ARG_ERROR;
+
+	if (NULL == (l_cert = dap_cert_find_by_name(l_cert_str))) {
+		dap_chain_node_cli_set_reply_text(a_str_reply, "%s", l_cert_str);
+		return CERT_LOAD_ERROR;
+	}
+
+	return NO_ERROR;
+}
+
+static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
+{
+	return NO_ERROR;
+}
+
+static void s_error_handler(error_code errorCode, char **a_str_reply)
+{
+	switch (errorCode)
+	{
+		case NET_ARG_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -net");
+			} return;
+
+		case NET_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, " - network not found");
+			} return;
+
+		case TOKEN_ARG_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -token");
+			} return;
+
+		case TOKEN_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, " - token ticker not found");
+			} return;
+
+		case COINS_ARG_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -coins");
+			} return;
+
+		case COINS_FORMAT_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "format -coins <256 bit integer>");dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -addr_holder");
+			} return;
+
+		case ADDR_ARG_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -addr_holder");
+			} return;
+
+		case ADDR_FORMAT_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "wrong address holder format");
+			} return;
+
+		case CERT_ARG_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -cert");
+			} return;
+
+		case CERT_LOAD_ERROR: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, " - can't load cert");
+		} return;
+
+		default: {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "unrecognized error");
+			} return;
+	}
+}
+
+static void s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply)
+{
+	enum{
+		CMD_NONE, CMD_HOLD, CMD_TAKE
 	};
 
+	error_code errorCode;
 	int l_arg_index = 1;
 	int l_cmd_num = CMD_NONE;
 
-	if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "create", NULL)) {
-		l_cmd_num = CMD_CREATE;
-	}
+	if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "hold", NULL))
+		l_cmd_num = CMD_HOLD;
+	else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "take", NULL))
+		l_cmd_num = CMD_TAKE;
 
 	switch (l_cmd_num) {
-		case CMD_CREATE:
-			;
-			return 1;
+
+		case CMD_HOLD: {
+			errorCode = s_cli_srv_external_stake_hold(a_argc, a_argv, l_arg_index + 1, a_str_reply);
+			} break;
+
+		case CMD_TAKE: {
+			errorCode = s_cli_srv_external_stake_take(a_argc, a_argv, l_arg_index + 1, a_str_reply);
+			} break;
+
 		default: {
 			dap_chain_node_cli_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
-			return -1;
-		}
+			} return;
 	}
-	return 0;
+
+	if (NO_ERROR != errorCode)
+		s_error_handler(errorCode, a_str_reply);
+	else
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Contribution successfully made");
 }
 
 bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)

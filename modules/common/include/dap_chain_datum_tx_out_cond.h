@@ -106,11 +106,12 @@ typedef struct dap_chain_tx_out_cond {
             // Nothing here
         } fee;
 		struct {
-			dap_chain_addr_t addr_owner;
+			dap_chain_addr_t addr_holder;
 			uint64_t time_staking;
             uint64_t time_unlock;
 			uint8_t count_months;
             uint256_t value;
+			char token[DAP_CHAIN_TICKER_SIZE_MAX];
 		} srv_external_stake;
         byte_t free_space[128]; // for future changes
     } subtype;
