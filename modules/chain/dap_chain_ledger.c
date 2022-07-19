@@ -1806,26 +1806,46 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
 }
 
 void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
-        char *** a_tickers, size_t * a_tickers_size) {
-    dap_ledger_wallet_balance_t *wallet_balance, *tmp;
-    size_t l_count = HASH_COUNT(PVT(a_ledger)->balance_accounts);
-    if(l_count){
-        char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
-        l_count = 0;
-        char *l_addr = dap_chain_addr_to_str(a_addr);
-        pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
-        HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
-            char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
-            if (!dap_strcmp(l_keys[0], l_addr)) {
-                l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
-                ++l_count;
+        char *** a_tickers, size_t * a_tickers_size)
+{
+    if (a_addr == NULL){ // Get all tockens
+        pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+        size_t l_count = HASH_COUNT(PVT(a_ledger)->tokens);
+        if (l_count && a_tickers){
+            dap_chain_ledger_token_item_t * l_token_item, *l_tmp;
+            char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
+            HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp) {
+                l_tickers[l_count] = dap_strdup(l_token_item->ticker);
+                l_count++;
             }
-            dap_strfreev(l_keys);
+            *a_tickers = l_tickers;
         }
-        pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
-        *a_tickers = l_tickers;
+        pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+        if(a_tickers_size)
+            *a_tickers_size = l_count;
+    }else{ // Calc only tokens from address balance
+        dap_ledger_wallet_balance_t *wallet_balance, *tmp;
+        size_t l_count = HASH_COUNT(PVT(a_ledger)->balance_accounts);
+        if(l_count){
+            char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
+            l_count = 0;
+            char *l_addr = dap_chain_addr_to_str(a_addr);
+            pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
+            HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
+                char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
+                if (!dap_strcmp(l_keys[0], l_addr)) {
+                    l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
+                    ++l_count;
+                }
+                dap_strfreev(l_keys);
+            }
+            pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
+            if(a_tickers)
+                *a_tickers = l_tickers;
+        }
+        if(a_tickers_size)
+            *a_tickers_size = l_count;
     }
-    *a_tickers_size = l_count;
 }
 
 
@@ -2114,12 +2134,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
             if (!l_emission_item) {
-                log_it(L_WARNING, "Emission for tx_token wasn't found");
+                debug_if(g_debug_reactor, L_DEBUG, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                 break;
             }
             if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
-                log_it(L_WARNING, "Emission for tx_token is already used");
+                debug_if(g_debug_reactor, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
                 l_err_num = -22;
                 break;
             }

@@ -1356,7 +1356,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     dap_string_t *l_reply_str = dap_string_new("");
                     char ** l_tickers = NULL;
                     size_t l_tickers_count = 0;
-                    dap_chain_ledger_addr_get_token_ticker_all( l_net->pub.ledger,NULL,&l_tickers,&l_tickers_count);
+                    dap_chain_ledger_addr_get_token_ticker_all_fast( l_net->pub.ledger,NULL,&l_tickers,&l_tickers_count);
 
                     size_t l_pairs_count = 0;
                     if(l_tickers){

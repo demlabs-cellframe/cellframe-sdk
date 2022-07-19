@@ -62,7 +62,7 @@ const char* connection_type_str[] =
 
 #define DAPMP_VERSION 13
 bool stream_check_proto_version(unsigned int ver);
-void s_proc(struct dap_http_simple *cl_st, void * arg);
+void s_dap_stream_ctl_proc(struct dap_http_simple *cl_st, void * arg);
 
 static struct {
     size_t size;
@@ -96,7 +96,7 @@ void dap_stream_ctl_deinit()
  */
 void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url)
 {
-     dap_http_simple_proc_add(sh,url,14096,s_proc);
+     dap_http_simple_proc_add(sh,url,14096,s_dap_stream_ctl_proc);
 }
 
 
@@ -105,7 +105,7 @@ void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url)
  * @param cl_st HTTP server instance
  * @param arg Not used
  */
-void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
+void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
 {
     http_status_code_t * return_code = (http_status_code_t*)a_arg;
 
