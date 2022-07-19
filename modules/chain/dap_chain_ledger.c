@@ -1967,6 +1967,7 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
         if (l_count && a_tickers){
             dap_chain_ledger_token_item_t * l_token_item, *l_tmp;
             char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
+            l_count = 0;
             HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp) {
                 l_tickers[l_count] = dap_strdup(l_token_item->ticker);
                 l_count++;
