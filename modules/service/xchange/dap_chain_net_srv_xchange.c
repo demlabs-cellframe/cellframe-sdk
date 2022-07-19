@@ -82,10 +82,10 @@ int dap_chain_net_srv_xchange_init()
         "\tList of all token pairs\n"
     "srv_xchange token_pair -net <net name> price average -token1 <token 1> -token2 <token 2> [-time_from <From time>] [-time_to <To time>]  \n"
         "\tGet average price for token pair <token 1>:<token 2> from <From time> to <To time> \n"
-        "\tAll times are in RFC822"
+        "\tAll times are in RFC822\n"
     "srv_xchange token_pair -net <net name> price history -token1 <token 1> -token2 <token 2> [-time_from <From time>] [-time_to <To time>] \n"
         "\tPrint price history for token pair <token 1>:<token 2> from <From time> to <To time>\n"
-        "\tAll times are in RFC822"
+        "\tAll times are in RFC822\n"
     "srv_xchange enable\n"
          "\tEnable eXchange service\n"
     "srv_xchange disable\n"
@@ -1204,8 +1204,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     if(l_tickers){
                         for(size_t i = 0; i< l_tickers_count; i++){
                             for(size_t j = i+1; j< l_tickers_count; j++){
-                                dap_string_append_printf(l_reply_str,"%s:%s ", l_tickers[i], l_tickers[j]);
-                                l_pairs_count++;
+                                if(l_tickers[i] && l_tickers[j]){
+                                    dap_string_append_printf(l_reply_str,"%s:%s ", l_tickers[i], l_tickers[j]);
+                                    l_pairs_count++;
+                                }
                             }
 
                         }
