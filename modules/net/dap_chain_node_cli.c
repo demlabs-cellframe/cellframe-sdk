@@ -790,7 +790,7 @@ int dap_chain_node_cli_find_option_val( char** argv, int arg_start, int arg_end,
         char * l_argv_cur = argv[arg_index];
         arg_string = l_argv_cur;
         // find opt_name
-        if(arg_string && opt_name && arg_string[0] && opt_name[0] && !strcmp(arg_string, opt_name)) {
+        if(arg_string && opt_name && arg_string[0] && opt_name[0] && !dap_strcmp(arg_string, opt_name)) {
             // find opt_value
             if(opt_value) {
                 arg_string = argv[++arg_index];

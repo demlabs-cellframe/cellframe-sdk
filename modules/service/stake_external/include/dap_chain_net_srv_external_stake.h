@@ -29,17 +29,20 @@
 #define DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID 0x12
 
 typedef enum external_stake_error_code {
-	NO_ERROR 			= 0,
-	NET_ARG_ERROR		= 1,
-	NET_ERROR			= 2,
-	TOKEN_ARG_ERROR 	= 3,
-	TOKEN_ERROR			= 4,
-	COINS_ARG_ERROR		= 5,
-	COINS_FORMAT_ERROR	= 6,
-	ADDR_ARG_ERROR		= 7,
-	ADDR_FORMAT_ERROR	= 8,
-	CERT_ARG_ERROR		= 9,
-	CERT_LOAD_ERROR		= 10,
+	NO_ERROR 				= 0,
+	NET_ARG_ERROR			= 1,
+	NET_ERROR				= 2,
+	TOKEN_ARG_ERROR 		= 3,
+	TOKEN_ERROR				= 4,
+	COINS_ARG_ERROR			= 5,
+	COINS_FORMAT_ERROR		= 6,
+	ADDR_ARG_ERROR			= 7,
+	ADDR_FORMAT_ERROR		= 8,
+	CERT_ARG_ERROR			= 9,
+	CERT_LOAD_ERROR			= 10,
+	CHAIN_ERROR				= 11,
+	CHAIN_EMISSION_ERROR	= 12,
+	MONTHS_ERROR			= 13
 } error_code;
 
 bool	dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
