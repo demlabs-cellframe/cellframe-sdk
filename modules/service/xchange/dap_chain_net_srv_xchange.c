@@ -23,6 +23,8 @@
 */
 
 #include <math.h>
+#include "dap_chain_datum_token.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_node_cli.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
@@ -64,6 +66,12 @@ int dap_chain_net_srv_xchange_init()
          "\tExchange tokens with specified order within specified net name. Specify how datoshies to buy\n"
     "srv_xchange tx_list -net <net name> [-time_from <yymmdd> -time_to <yymmdd>]\n"
         "\tList of exchange transactions\n"
+    "srv_xchange token_pair -net <net name> list all\n"
+        "\tList of all token pairs\n"
+    "srv_xchange token_pair -net <net name> price average -token1 <token 1> -token2 <token 2> [-interval <interval length>] [-time <Moment to calc>]  \n"
+        "\tGet average price for token pair <token 1>:<token 2> from time -time with interval length -interval \n"
+    "srv_xchange token_pair -net <net name> price history -token1 <token 1> -token2 <token 2> [-time_from <From time>] [-time_to <To time>] \n"
+        "\tPrint price history for token pair <token 1>:<token 2> from time -time with interval length -interval \n"
     "srv_xchange enable\n"
          "\tEnable eXchange service\n"
     "srv_xchange disable\n"
@@ -857,7 +865,7 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
 static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_PRICE, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST
+        CMD_NONE, CMD_PRICE, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR
     };
     int l_arg_index = 1;
     int l_cmd_num = CMD_NONE;
@@ -878,6 +886,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
     }
     else if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "tx_list", NULL)) {
         l_cmd_num = CMD_TX_LIST;
+    }
+    else if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "token_pair", NULL)) {
+        l_cmd_num = CMD_TOKEN_PAIR;
     }
     switch (l_cmd_num) {
         case CMD_PRICE:
@@ -981,6 +992,109 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
         case CMD_DISABLE: {
             s_srv_xchange->enabled = false;
         } break;
+
+        // Token pair control
+        case CMD_TOKEN_PAIR: {
+
+            // Find and check the network
+            const char *l_net_str = NULL;
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+            if(!l_net_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'token_pair' required parameter -net");
+                return -3;
+            }
+            dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+            if(!l_net) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+                return -4;
+            }
+
+
+            // Select subcommands
+
+            // check for price subcommand
+            const char * l_price_subcommand = NULL;
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "price", &l_price_subcommand);
+
+            // check for get subcommand
+            if ( l_price_subcommand ){
+                // Check for token1
+                const char * l_token1 = NULL;
+                dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token1", &l_token1);
+                if(!l_token1){
+                    dap_chain_node_cli_set_reply_text(a_str_reply,"No argument '-token1'");
+                    return -5;
+                }
+                dap_chain_datum_token_t * l_token1_datum = dap_chain_ledger_token_ticker_check( l_net->pub.ledger, l_token1);
+                if(!l_token1_datum){
+                    dap_chain_node_cli_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token1' ", l_token1, l_net->pub.name);
+                    return -6;
+                }
+
+                // Check for token2
+                const char * l_token2 = NULL;
+                dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token2", &l_token2);
+                if(!l_token2){
+                    dap_chain_node_cli_set_reply_text(a_str_reply,"No argument '-token2'");
+                    return -5;
+                }
+                dap_chain_datum_token_t * l_token2_datum = dap_chain_ledger_token_ticker_check( l_net->pub.ledger, l_token2);
+                if(!l_token2_datum){
+                    dap_chain_node_cli_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token2' ", l_token2, l_net->pub.name);
+                    return -6;
+                }
+
+                // Check for price subcommand
+                if (strcmp(l_price_subcommand,"average") == 0){
+
+                }else if (strcmp(l_price_subcommand,"history") == 0){
+
+
+
+                    dap_string_t *l_reply_str = dap_string_new("");
+
+                    // Find SRV_XCHANGE out_cond item
+                    dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
+
+                }
+            }
+
+            const char * l_list_subcommand = NULL;
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "list", &l_list_subcommand);
+            if( l_list_subcommand ){
+                if (strcmp(l_list_subcommand,"all") == 0){
+                    dap_string_t *l_reply_str = dap_string_new("");
+                    char ** l_tickers = NULL;
+                    size_t l_tickers_count = 0;
+                    dap_chain_ledger_addr_get_token_ticker_all_fast( l_net->pub.ledger,NULL,&l_tickers,&l_tickers_count);
+
+                    size_t l_pairs_count = 0;
+                    if(l_tickers){
+                        for(size_t i = 0; i< l_tickers_count; i++){
+                            for(size_t j = i+1; j< l_tickers_count; j++){
+                                dap_string_append_printf(l_reply_str,"%s:%s ", l_tickers[i], l_tickers[j]);
+                                l_pairs_count++;
+                            }
+
+                        }
+
+                        // Free tickers array
+                        for(size_t i = 0; i< l_tickers_count; i++){
+                            DAP_DELETE(l_tickers[i]);
+                        }
+                        DAP_DELETE(l_tickers);
+                    }
+                    dap_string_prepend_printf( l_reply_str,"Tokens count pair: %zd\n", l_pairs_count);
+                    *a_str_reply = dap_string_free(l_reply_str, false);
+                    break;
+                }
+            }
+
+            // No subcommand selected
+            dap_chain_node_cli_set_reply_text(a_str_reply,"Command 'token pair' required proper subcommand, please read its manual with command 'help srv_xchange'");
+
+
+        } break;
         case CMD_TX_LIST: {
             const char *l_net_str = NULL;
             const char *l_time_begin_str = NULL;
@@ -1048,7 +1162,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             dap_list_free(l_datum_list0);
             *a_str_reply = dap_string_free(l_reply_str, false);
         }
-            break;
+        break;
         default: {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
             return -1;
