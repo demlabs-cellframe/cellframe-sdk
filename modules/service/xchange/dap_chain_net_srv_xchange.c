@@ -1177,6 +1177,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             // Get input token ticker
                             const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
                                         l_net->pub.ledger, l_tx_hash);
+                            DAP_DEL_Z(l_tx_hash);
 
                             // Compare with token1 and token2
                             if( dap_strcmp(l_tx_input_ticker, l_token1) != 0 &&
@@ -1276,7 +1277,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     *a_str_reply = dap_string_free(l_reply_str, false);
                     break;
 
-                }
+                }break;
             }
 
             const char * l_list_subcommand = NULL;
