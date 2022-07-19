@@ -370,7 +370,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
         log_it( L_DEBUG, "No data section, execution proc callback" );
         dap_events_socket_set_readable_unsafe(a_http_client->esocket, false);
         //DAP_HTTP_SIMPLE(a_http_client)->http_client_uuid = a_http_client->esocket->uuid;
-        //a_http_client->esocket->_inheritor = NULL;
+        a_http_client->esocket->_inheritor = NULL;
         dap_proc_queue_add_callback_inter_ext( l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple, DAP_QUE$K_PRI_HIGH);
     }
 }
@@ -427,7 +427,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
         log_it( L_INFO,"Data for http_simple_request collected" );
         dap_events_socket_set_readable_unsafe(a_http_client->esocket, false);
         //DAP_HTTP_SIMPLE(a_http_client)->http_client_uuid = a_http_client->esocket->uuid;
-        a_http_client->_inheritor = NULL; // Prevent from deleting the field while travelling between contexts
+        a_http_client->esocket->_inheritor = NULL;
         dap_proc_queue_add_callback_inter_ext( l_http_simple->worker->proc_queue_input , s_proc_queue_callback, l_http_simple, DAP_QUE$K_PRI_HIGH);
     }
 }

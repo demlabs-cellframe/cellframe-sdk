@@ -176,11 +176,18 @@ dap_proc_queue_t    *l_queue;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_queue = l_thread->proc_queue;
 
+    struct timespec l_time_start, l_time_end;
+    clock_gettime(CLOCK_REALTIME, &l_time_start);
     do {
         l_is_processed = 0;
         for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
         {
-            if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
+            if ( !l_queue->list[l_cur_pri].items.nr) {                        /* A lockless quick check */
+                continue;
+            }
+
+            clock_gettime(CLOCK_REALTIME, &l_time_end);
+            if (l_time_end.tv_nsec - l_time_start.tv_nsec >= 500000)
                 continue;
 
             pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
@@ -752,7 +759,8 @@ static void * s_proc_thread_function(void * a_arg)
                 switch (l_cur->type) {
                     case DESCRIPTOR_TYPE_QUEUE:
                         dap_events_socket_queue_proc_input_unsafe(l_cur);
-                        break;
+                        //break;
+                        continue; // We don't need to process the further event since it's implied by queue incoming msg
                     case DESCRIPTOR_TYPE_EVENT:
                         dap_events_socket_event_proc_input_unsafe (l_cur);
                         break;

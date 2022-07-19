@@ -861,10 +861,10 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                 log_it(L_ERROR, "Can't read message from pipe");
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-            char l_body[DAP_QUEUE_MAX_BUFLEN * 512] = { '\0' };
+            char l_body[DAP_QUEUE_MAX_BUFLEN * DAP_QUEUE_MAX_MSGS] = { '\0' };
             ssize_t l_ret, l_shift;
             for (l_ret = 0, l_shift = 0;
-                 (l_ret = mq_receive(a_esocket->mqd, l_body + l_shift, sizeof(void*), NULL)) == sizeof(void*);
+                 ((l_ret = mq_receive(a_esocket->mqd, l_body + l_shift, sizeof(void*), NULL)) == sizeof(void*)) && ((size_t)l_shift < sizeof(l_body) - sizeof(void*));
                  l_shift += l_ret)
             {
                 l_queue_ptr = *(void**)(l_body + l_shift);
@@ -1312,6 +1312,9 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg) {
     case EINTR:
     case EWOULDBLOCK:
         log_it(L_ERROR, "Can't send ptr to queue (err %d), will be resent again in a while...", l_errno);
+        struct mq_attr l_attr = { 0 };
+        mq_getattr(a_es->mqd, &l_attr);
+        log_it(L_ERROR, "Number of pending messages: %ld", l_attr.mq_curmsgs);
         add_ptr_to_buf(a_es, a_arg);
         return 0;
     default: {
