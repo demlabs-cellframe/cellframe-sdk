@@ -1239,6 +1239,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
                                         l_net->pub.ledger, l_tx_hash);
 
+                            DAP_DEL_Z(l_tx_hash);
                             // Compare with token1 and token2
                             if( dap_strcmp(l_tx_input_ticker, l_token1) != 0 &&
                                     dap_strcmp(l_tx_input_ticker, l_token2) != 0)
