@@ -51,6 +51,13 @@
 static bool s_request_line_parse( dap_http_client_t *cl_ht, char *buf, size_t buf_length );
 static bool s_debug_http = false;
 
+static const char *dap_http_client_state_str[] = {
+    [DAP_HTTP_CLIENT_STATE_NONE]    = "None",
+    [DAP_HTTP_CLIENT_STATE_START]   = "Start",
+    [DAP_HTTP_CLIENT_STATE_HEADERS] = "Headers",
+    [DAP_HTTP_CLIENT_STATE_DATA]    = "Data"
+};
+
 /**
  * @brief dap_http_client_init Init HTTP client module
  * @return  Zero if ok others if not
@@ -118,28 +125,6 @@ void dap_http_client_delete( dap_events_socket_t * a_esocket, void *a_arg )
 }
 
 
-/**
- * @brief detect_end_of_line Detect end of line, return position of its end (with \n symbols)
- * @param buf Input buffer
- * @param max_size Maximum size of this buffer minus 1 (for terminating zero)
- * @return position of the end of line
- */
-
-#if 1
-static int detect_end_of_line( const char *a_buf, size_t a_max_size )
-{
-  size_t i;
-
-  for( i = 0; i < a_max_size; i++ ) {
-    if ( a_buf[i] == '\n' ) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-#endif
-
 static char  *z_basename( char *path, uint32_t len )
 {
   if ( !len )
@@ -157,7 +142,7 @@ static char  *z_basename( char *path, uint32_t len )
     }
     --ptr;
   }
-    
+
   return ptr;
 }
 
@@ -207,7 +192,7 @@ static int32_t  z_rootdirname( char *path, uint32_t len )
     return 0;
 
   path[ len2 ] = 0;
-    
+
   return len2;
 }
 
@@ -333,10 +318,10 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
     UNUSED(a_arg);
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
 
-//  log_it( L_DEBUG, "dap_http_client_read..." );
     do{
-        if(s_debug_http)
-            log_it( L_DEBUG, "HTTP client in state read %d taked bytes in input %"DAP_UINT64_FORMAT_U, l_http_client->state_read, a_esocket->buf_in_size );
+        debug_if(s_debug_http, L_DEBUG, "l_http_client: %p, state %s, buf_in_size: %"DAP_UINT64_FORMAT_U,
+                 l_http_client, dap_http_client_state_str[l_http_client->state_read], a_esocket->buf_in_size );
+
         switch( l_http_client->state_read ) {
             case DAP_HTTP_CLIENT_STATE_START: { // Beginning of the session. We try to detect
                 char l_buf_line[4096];
@@ -416,6 +401,9 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                     // Check if present cache
                     pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                     dap_http_cache_t * l_http_cache = l_http_client->proc->cache;
+
+                    assert ( !l_http_cache );
+
                     if(l_http_cache){
                         if ( ! l_http_cache->ts_expire || l_http_cache->ts_expire >= time(NULL) ){
                             l_http_client->out_headers = dap_http_headers_dup(l_http_cache->headers);
@@ -423,9 +411,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                             l_http_client->reply_status_code = l_http_cache->response_code;
                             if(l_http_cache->response_phrase)
                                 strncpy(l_http_client->reply_reason_phrase,l_http_cache->response_phrase,sizeof (l_http_client->reply_reason_phrase)-1);
-
-                            if(s_debug_http)
-                                log_it(L_DEBUG,"%"DAP_FORMAT_SOCKET" Out: prepare cached headers", l_http_client->esocket->socket);
+                            debug_if(s_debug_http, L_DEBUG,"%"DAP_FORMAT_SOCKET" Out: prepare cached headers", l_http_client->esocket->socket);
 
                         } else {
                             pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
@@ -489,13 +475,11 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                         l_http_client->proc->headers_read_callback( l_http_client, NULL );
                     }else{
                         pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
-                        if(s_debug_http)
-                            log_it(L_DEBUG, "Cache is present, don't call underlaying callbacks");
+                        debug_if(s_debug_http, L_DEBUG, "Cache is present, don't call underlaying callbacks");
                     }
                     // If no headers callback we go to the DATA processing
                     if( l_http_client->in_content_length ) {
-                        if(s_debug_http)
-                            log_it( L_DEBUG, "headers -> DAP_HTTP_CLIENT_STATE_DATA" );
+                        debug_if(s_debug_http, L_DEBUG, "headers -> DAP_HTTP_CLIENT_STATE_DATA" );
                         l_http_client->state_read = DAP_HTTP_CLIENT_STATE_DATA;
                     }else{ // No data, its over
                         l_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
@@ -507,8 +491,6 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
             } break;
             case DAP_HTTP_CLIENT_STATE_DATA:{
                 size_t read_bytes = 0;
-                if(s_debug_http)
-                    log_it(L_DEBUG, "dap_http_client_read: DAP_HTTP_CLIENT_STATE_DATA");
                 pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                 if ( l_http_client->proc->cache == NULL && l_http_client->proc->data_read_callback ) {
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
@@ -520,6 +502,8 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
                     l_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
                     dap_http_client_write(a_esocket, NULL);
                 }
+
+                debug_if(s_debug_http, L_DEBUG, "l_http_client:%p, read_bytes: %zu",  l_http_client, read_bytes);
             } break;
             case DAP_HTTP_CLIENT_STATE_NONE: {
                 a_esocket->buf_in_size = 0;
@@ -537,11 +521,16 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
  */
 void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
 {
-    //  log_it( L_DEBUG, "dap_http_client_write..." );
+    UNUSED(a_arg);
 
-    (void) a_arg;
+    log_it( L_DEBUG, "Entering: a_esocket: %p, a_arg: %p", a_esocket, a_arg);
+
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
-    //log_it(L_WARNING,"HTTP client write callback in state %d",l_http_client->state_write);
+
+    if ( !l_http_client )
+        return  log_it( L_ERROR, "dap_http_client_t context is NULL");
+
+    log_it(L_WARNING,"HTTP client write callback in state %d", l_http_client->state_write);
 
     switch( l_http_client->state_write ) {
         case DAP_HTTP_CLIENT_STATE_NONE:
@@ -599,7 +588,7 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
                 if (!l_http_client->proc->cache) {
                     debug_if(s_debug_http, L_DEBUG, "No cache so we call write callback");
                     pthread_rwlock_unlock(&l_http_client->proc->cache_rwlock);
-                    l_http_client->proc->data_write_callback( l_http_client, NULL );    
+                    l_http_client->proc->data_write_callback( l_http_client, NULL );
                     if (l_http_client->esocket->flags & DAP_SOCK_SIGNAL_CLOSE)
                         l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
                 } else {
@@ -638,8 +627,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
     char buf[1024];
 
     if ( a_http_client->reply_status_code == 200 ) {
-        if (s_debug_http)
-            log_it(L_DEBUG, "Out headers generate for sock %"DAP_FORMAT_SOCKET, a_http_client->esocket->socket);
+        debug_if(s_debug_http, L_DEBUG, "Out headers generate for sock %"DAP_FORMAT_SOCKET, a_http_client->esocket->socket);
         if ( a_http_client->out_last_modified ) {
             dap_time_to_str_rfc822( buf, sizeof(buf), a_http_client->out_last_modified );
             dap_http_header_add( &a_http_client->out_headers, "Last-Modified", buf );
@@ -654,8 +642,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
             log_it(L_DEBUG,"output: Content-Length = %zu",a_http_client->out_content_length);
         }
     }else
-        if (s_debug_http)
-            log_it(L_WARNING, "Out headers: nothing generate for sock %"DAP_FORMAT_SOCKET", http code %d", a_http_client->esocket->socket,
+        debug_if(s_debug_http, L_WARNING, "Out headers: nothing generate for sock %"DAP_FORMAT_SOCKET", http code %d", a_http_client->esocket->socket,
                    a_http_client->reply_status_code);
 
     if ( a_http_client->out_connection_close || !a_http_client->keep_alive )
