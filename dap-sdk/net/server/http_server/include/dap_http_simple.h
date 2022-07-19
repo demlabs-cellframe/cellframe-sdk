@@ -39,7 +39,7 @@ typedef struct dap_http_simple {
     dap_worker_t            *worker;
     dap_http_client_t       *http_client;
 
-    uint128_t http_client_uuid;
+    dap_events_socket_uuid_t http_client_uuid;
 
     char    *request;
     size_t  request_size;

@@ -459,8 +459,11 @@ DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, co
 void    _log_it_ext( const char *, unsigned, enum dap_log_level, const char * format, ... );
 void    _dump_it (const char *, unsigned , const char *a_var_name, const void *src, unsigned short srclen);
 #undef  log_it
-#define log_it( _log_level, ...) _log_it_ext( __func__, __LINE__, (_log_level), ##__VA_ARGS__)
-#define dump_it(v,s,l) _dump_it( __func__, __LINE__, (v), (s), (l))
+#define log_it( _log_level, ...)        _log_it_ext( __func__, __LINE__, (_log_level), ##__VA_ARGS__)
+#undef  debug_if
+#define debug_if(flg, _log_level, ...)  _log_it_ext( __func__, __LINE__, (flg) ? (_log_level) : -1 , ##__VA_ARGS__)
+
+#define dump_it(v,s,l)                  _dump_it( __func__, __LINE__, (v), (s), (l))
 #else
 #define dump_it(v,s,l)
 #endif

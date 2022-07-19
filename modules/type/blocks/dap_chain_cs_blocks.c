@@ -697,12 +697,12 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
             default:
                 l_res=-1;
         }
-        if (l_res != 1 ){
-            log_it(L_WARNING, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
-                   dap_chain_datum_type_id_to_str(l_datum->header.type_id),
-                                      a_block_cache->block_hash_str, l_res);
-        } 
-        else {
+        if (l_res != 1) {
+            /* @RRL: disabled due spaming ...
+            debug_if(g_debug_reactor, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
+                     dap_chain_datum_type_id_to_str(l_datum->header.type_id), a_block_cache->block_hash_str, l_res);
+            */
+        } else {
             l_ret++;
         }
     }
@@ -723,12 +723,10 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
                 a_blocks->callback_block_verify(a_blocks,a_block_cache->block, a_block_cache->block_size)
                 : 0;
     if (res == 0 || memcmp( &a_block_cache->block_hash, &PVT(a_blocks)->genesis_block_hash, sizeof(a_block_cache->block_hash) ) == 0) {
-        log_it(L_DEBUG,"Block %s checked, add it to ledger", a_block_cache->block_hash_str );
+        debug_if(g_debug_reactor, L_DEBUG, "Block %s checked, add it to ledger", a_block_cache->block_hash_str);
         pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
         res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
-        if (!res) {
-            log_it(L_INFO,"Block %s checked, but ledger declined", a_block_cache->block_hash_str );
-        }
+        debug_if(g_debug_reactor && !res, L_DEBUG, "Block %s checked, but ledger declined", a_block_cache->block_hash_str);
         //All correct, no matter for result
         pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
         HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
@@ -829,7 +827,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     dap_hash_fast(a_atom,a_atom_size, & l_block_hash);
     dap_chain_block_cache_t * l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
     if (l_block_cache ){
-        log_it(L_DEBUG, "... already present in blocks %s",l_block_cache->block_hash_str);
+        debug_if(g_debug_reactor, L_DEBUG, "... already present in blocks %s", l_block_cache->block_hash_str);
         pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
         return ATOM_PASS;
     } else {
@@ -839,7 +837,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
             return ATOM_REJECT;
         }
-        log_it(L_DEBUG, "... new block %s",l_block_cache->block_hash_str);
+        debug_if(g_debug_reactor, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         ret = ATOM_ACCEPT;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
@@ -847,14 +845,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     // verify hashes and consensus
     if(ret == ATOM_ACCEPT){
         ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
-        log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
+        debug_if(g_debug_reactor, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
                                                        (ret == ATOM_REJECT ? "rejected" : "thresholded"));
     }
 
     if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_add_atom_to_blocks(l_blocks, a_chain->ledger, l_block_cache);
         if(l_consensus_check == 1){
-             log_it(L_DEBUG, "... added");
+             //log_it(L_DEBUG, "... added");
         }else if (l_consensus_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS){
             pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
             HASH_ADD(hh, PVT(l_blocks)->blocks_tx_treshold, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
@@ -1294,7 +1292,7 @@ void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
     char *l_gdb_group = l_blocks->gdb_group_datums_queue;
     size_t l_objs_size = 0;
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
-    
+
     if (l_objs_size) {
         for (size_t i = 0; i < l_objs_size; i++) {
             if (!l_objs[i].value_len) {
