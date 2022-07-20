@@ -288,7 +288,7 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
     memcpy(l_round_item->event_n_signs,                 a_event, a_event_size);
     memcpy(l_round_item->event_n_signs + a_event_size,  l_signs, l_signs_size);
 
-    l_round_item->round_info.ts_update = dap_time_now();
+    l_round_item->round_info.ts_update = dap_nanotime_now();
 
     size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(a_round_item);
     bool ret = dap_global_db_set(a_dag->gdb_group_events_round_new, a_event_hash_str, l_round_item,

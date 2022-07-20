@@ -630,10 +630,9 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
     if (l_hashes_linked || s_seed_mode ) {
         dap_chain_cs_dag_event_t * l_event = NULL;
         size_t l_event_size = 0;
-        if(l_dag->callback_cs_event_create) {
+        if(l_dag->callback_cs_event_create)
             l_event = l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size);
-            DAP_DELETE(l_hashes);
-        }
+        DAP_DELETE(l_hashes);
         if (l_event && l_event_size) { // Event is created
             if (l_dag->is_add_directly) {
                 l_cell = a_chain->cells;

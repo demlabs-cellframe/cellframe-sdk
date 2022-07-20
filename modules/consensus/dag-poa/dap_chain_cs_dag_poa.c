@@ -407,18 +407,26 @@ static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t * a_g
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(l_chain);
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(l_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
-    char *l_gdb_group_round_new = l_dag->gdb_group_events_round_new;
 
-    size_t l_events_count = 0;
     if (a_values_count) {
         for (size_t i = 0; i<a_values_count; i++) {
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
+<<<<<<< HEAD
             if (  (dap_time_now() - l_event_round_item->round_info.ts_update) >
                     (l_poa_pvt->confirmations_timeout+l_poa_pvt->wait_sync_before_complete+10)  ) {
                 dap_global_db_del_unsafe(a_global_db_context, l_gdb_group_round_new,  a_values[i].key );
                 log_it(L_MSG, "DAG-PoA: Remove event %s from round by timer.", a_values[i].key);
             } else {
                 l_events_count++;
+=======
+            uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
+            uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
+            uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
+            if (l_time_diff > l_timeuot && l_round_id < l_dag->round_completed) {
+                dap_global_db_del_unsafe(a_global_db_context, a_group,  a_values[i].key);
+                log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" by timer.",
+                                a_values[i].key, l_round_id);
+>>>>>>> features-6091
             }
         }
     }
@@ -459,8 +467,9 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
     dap_chain_cs_dag_poa_callback_timer_arg_t * l_callback_arg = DAP_NEW_Z(dap_chain_cs_dag_poa_callback_timer_arg_t);
     l_callback_arg->dag = a_dag;
     l_callback_arg->round_id = a_round_id;
-    a_event_round_info->ts_update = dap_time_now();
-    int l_timeout = a_event_round_info->ts_update - (int)time(NULL) + PVT(l_poa)->confirmations_timeout;
+    l_callback_arg->round_id = a_round_id;
+    long l_timediff = dap_gdb_time_to_sec(a_event_round_info->ts_update - dap_nanotime_now());
+    int l_timeout = l_timediff + PVT(l_poa)->confirmations_timeout;
     // placement in chain by timer
     if (dap_timerfd_start(l_timeout * 1000,
                         (dap_timerfd_callback_t)s_callback_round_event_to_chain,
