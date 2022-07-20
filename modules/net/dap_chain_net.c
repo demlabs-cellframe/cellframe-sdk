@@ -1439,6 +1439,15 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+    bool l_found = dap_chain_net_sync_trylock_nolock(a_net, a_client);
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    return !l_found;
+}
+
+bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
+{
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     bool l_found = false;
     if (l_net_pvt->active_link) {
         for (dap_list_t *l_links = l_net_pvt->net_links; l_links; l_links = dap_list_next(l_links)) {
@@ -1473,7 +1482,7 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
         l_net_pvt->active_link = NULL;
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
         dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
-        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
+        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid, false);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
             DAP_DELETE(l_net_pvt->links_queue->data);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
