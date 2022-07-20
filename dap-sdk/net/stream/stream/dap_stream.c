@@ -836,7 +836,7 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
 //    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
     a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
 
-    return l_count_lost_packets >= 0;
+    return l_count_lost_packets < 0;
 }
 
 /**

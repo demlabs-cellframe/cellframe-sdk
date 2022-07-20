@@ -395,7 +395,7 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
     }
     log_it(L_INFO,"Connection accepted from %s (%s)", l_es_new->hostaddr, l_es_new->service );
     dap_worker_t *l_worker = dap_events_worker_get_auto();
-    if (l_worker->id == a_es->worker->id) {
+    //if (l_worker->id == a_es->worker->id) {
 #ifdef DAP_OS_UNIX
 #if defined (SO_INCOMING_CPU)
         int l_cpu = l_worker->id;
@@ -418,11 +418,11 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
             if (l_es_new->callbacks.worker_assign_callback)
                 l_es_new->callbacks.worker_assign_callback(l_es_new, l_worker);
         }
-        debug_if(g_debug_reactor, L_INFO, "Direct addition of esocket %p uuid %"DAP_UINT64_FORMAT_U" to worker %d",
-                 *l_es_new, l_es_new->uuid, l_worker->id);
-    } else {
-        dap_worker_add_events_socket_auto(l_es_new);
-    }
+        debug_if(g_debug_reactor, L_INFO, "Direct addition of esocket %p uuid 0x%"DAP_UINT64_FORMAT_x" to worker %d",
+                 l_es_new, l_es_new->uuid, l_worker->id);
+    //} else {
+    //    dap_worker_add_events_socket_auto(l_es_new);
+    //}
 }
 
 

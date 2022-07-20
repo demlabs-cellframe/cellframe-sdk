@@ -483,9 +483,10 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
                     DAP_DELETE(l_link);
                     continue;
                 }
-                dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
+                if (!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                      l_chain_id.uint64, l_cell_id.uint64, l_data_out,
-                                                     sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
+                                                     sizeof(dap_store_obj_pkt_t) + l_data_out->data_size))
+                    debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
             }
             DAP_DELETE(l_data_out);
             if (it)
@@ -563,9 +564,10 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
                     DAP_DELETE(l_link);
                     continue;
                 }
-                dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+                if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
                                                  l_net->pub.id.uint64, l_chain->id.uint64, l_cell_id,
-                                                 l_obj_cur->value, l_obj_cur->value_len);
+                                                 l_obj_cur->value, l_obj_cur->value_len))
+                    debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
             }
             s_atom_obj_free(l_obj_cur);
             if (it)
