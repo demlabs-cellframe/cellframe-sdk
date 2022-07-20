@@ -911,7 +911,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
         }
 
         dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
-        dap_string_append_printf(l_reply_str, "orderHash: %s\n", l_hash_str);
+        dap_string_append_printf(l_reply_str, "Hash: %s\n", l_hash_str);
 
         /* Find SRV_XCHANGE out_cond item */
         for (l_out_cond_item = NULL, l_item_idx = 0;
@@ -1156,7 +1156,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                     dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_tx_hash);
                     dap_chain_hash_fast_to_str(&l_tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
-                    dap_string_append_printf(l_reply_str, "orderHash: %s\n", l_hash_str);
+                    dap_string_append_printf(l_reply_str, "Hash: %s\n", l_hash_str);
 
                     // Get input token ticker
                     const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
@@ -1176,7 +1176,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             char *l_value_to_str = dap_cvt_uint256_to_str(value);
                             char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
 
-                            dap_string_append_printf(l_reply_str, "From: %s %s\n", l_value_from_str, l_tx_input_ticker);
+                            dap_string_append_printf(l_reply_str, "From: %s %s   ", l_value_from_str, l_tx_input_ticker);
                             dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
 
                             DAP_DELETE(l_value_from_str);
