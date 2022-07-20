@@ -1152,11 +1152,18 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     }
 
                     // Tx hash
-                    dap_hash_fast_t l_hash = {0};
+                    dap_hash_fast_t l_tx_hash = {0};
 
-                    dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_hash);
-                    dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
+                    dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_tx_hash);
+                    dap_chain_hash_fast_to_str(&l_tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
                     dap_string_append_printf(l_reply_str, "orderHash: %s\n", l_hash_str);
+
+                    // Get input token ticker
+                    const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
+                                l_net->pub.ledger, &l_tx_hash);
+                    // Calc inputs
+                    uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(l_net, l_datum_tx);
+
 
                     // Find SRV_XCHANGE out_cond item
                     dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
@@ -1167,10 +1174,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
                             uint256_t value = l_out_cond_item->subtype.srv_xchange.value;
                             char *l_value_to_str = dap_cvt_uint256_to_str(value);
+                            char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
 
-                            //dap_string_append_printf(l_reply_str, "From: %s %s\n", l_tx_input_values_str, l_tx_input_ticker);
+                            dap_string_append_printf(l_reply_str, "From: %s %s\n", l_value_from_str, l_tx_input_ticker);
                             dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
 
+                            DAP_DELETE(l_value_from_str);
                             DAP_DELETE(l_value_to_str);
                         }
                     }

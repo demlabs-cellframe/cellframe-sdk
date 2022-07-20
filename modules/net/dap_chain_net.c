@@ -1145,6 +1145,8 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     if(l_net_pvt->links_dns_requests)
         l_net_pvt->links_dns_requests--;
 
+    log_it(L_DEBUG, "Still %u link dns requests in process",l_net_pvt->links_dns_requests );
+
     if(!l_net_pvt->links_dns_requests ){
         if( l_net_pvt->state_target != NET_STATE_OFFLINE){
             log_it(L_WARNING,"Can't prepare links via DNS requests. Prefilling links with root addresses");
