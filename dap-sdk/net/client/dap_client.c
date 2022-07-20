@@ -356,10 +356,6 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
         log_it(L_ERROR, "dap_client_go_stage, a_client == NULL");
         return;
     }
-    if(NULL == a_stage_end_callback) {
-        log_it(L_ERROR, "dap_client_go_stage, a_stage_end_callback == NULL");
-        return;
-    }
     dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(a_client->pvt_uuid);
 
     if (NULL == l_client_pvt) {

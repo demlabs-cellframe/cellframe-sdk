@@ -233,7 +233,7 @@ char* dap_ctime_r(dap_time_t *a_time, char* a_buf)
  * @param a_buf The minimum buffer size is 26 elements.
  * @return
  */
-char* dap_gdb_ctime_r(dap_nanotime_t *a_chain_time, char* a_buf){
+char* dap_nanotime_to_str(dap_nanotime_t *a_chain_time, char* a_buf){
     dap_time_t l_time = dap_gdb_time_to_sec(*a_chain_time);
     return dap_ctime_r(&l_time, a_buf);
 }

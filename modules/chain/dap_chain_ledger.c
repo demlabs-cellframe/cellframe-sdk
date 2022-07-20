@@ -1110,6 +1110,11 @@ dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger)
     return l_str_ret;
 }
 
+/**
+ * @brief Compose string list of all tokens with information
+ * @param a_ledger
+ * @return
+ */
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 {
     dap_list_t *l_ret_list = NULL;
@@ -1899,12 +1904,12 @@ const char* dap_chain_ledger_tx_get_token_ticker_by_hash(dap_ledger_t *a_ledger,
 }
 
 /**
- * @brief dap_chain_ledger_addr_get_token_ticker_all
+ * @brief dap_chain_ledger_addr_get_token_ticker_all_depricated
  * @param a_addr
  * @param a_tickers
  * @param a_tickers_size
  */
-void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
+void dap_chain_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size)
 {
     dap_chain_hash_fast_t l_tx_first_hash = { 0 };
@@ -1945,27 +1950,55 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
     *a_tickers_size = l_tickers_pos;
 }
 
-void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
-        char *** a_tickers, size_t * a_tickers_size) {
-    dap_ledger_wallet_balance_t *wallet_balance, *tmp;
-    size_t l_count = HASH_COUNT(PVT(a_ledger)->balance_accounts);
-    if(l_count){
-        char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
-        l_count = 0;
-        char *l_addr = dap_chain_addr_to_str(a_addr);
-        pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
-        HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
-            char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
-            if (!dap_strcmp(l_keys[0], l_addr)) {
-                l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
-                ++l_count;
+
+/**
+ * @brief Get list of all tickets for ledger and address. If address is NULL returns all the tockens present in system
+ * @param a_ledger
+ * @param a_addr
+ * @param a_tickers
+ * @param a_tickers_size
+ */
+void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
+        char *** a_tickers, size_t * a_tickers_size)
+{
+    if (a_addr == NULL){ // Get all tockens
+        pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+        size_t l_count = HASH_COUNT(PVT(a_ledger)->tokens);
+        if (l_count && a_tickers){
+            dap_chain_ledger_token_item_t * l_token_item, *l_tmp;
+            char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
+            l_count = 0;
+            HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp) {
+                l_tickers[l_count] = dap_strdup(l_token_item->ticker);
+                l_count++;
             }
-            dap_strfreev(l_keys);
+            *a_tickers = l_tickers;
         }
-        pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
-        *a_tickers = l_tickers;
+        pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+        if(a_tickers_size)
+            *a_tickers_size = l_count;
+    }else{ // Calc only tokens from address balance
+        dap_ledger_wallet_balance_t *wallet_balance, *tmp;
+        size_t l_count = HASH_COUNT(PVT(a_ledger)->balance_accounts);
+        if(l_count && a_tickers){
+            char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
+            l_count = 0;
+            char *l_addr = dap_chain_addr_to_str(a_addr);
+            pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
+            HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
+                char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
+                if (!dap_strcmp(l_keys[0], l_addr)) {
+                    l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
+                    ++l_count;
+                }
+                dap_strfreev(l_keys);
+            }
+            pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
+            *a_tickers = l_tickers;
+        }
+        if(a_tickers_size)
+            *a_tickers_size = l_count;
     }
-    *a_tickers_size = l_count;
 }
 
 
@@ -3710,6 +3743,32 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     return l_cur_tx;
 }
+
+/**
+ * @brief Get all transactions from the cache with the out_cond item
+ * @param a_ledger
+ * @param a_srv_uid
+ * @return
+ */
+dap_list_t* dap_chain_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger,dap_chain_net_srv_uid_t a_srv_uid)
+{
+    dap_list_t * l_ret = NULL;
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+    dap_chain_ledger_tx_item_t *l_iter_current = NULL, *l_item_tmp = NULL;
+    HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp) {
+        dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
+        dap_chain_hash_fast_t *l_tx_hash = &l_iter_current->tx_hash_fast;
+        int l_tx_out_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, &l_tx_out_cond_idx);
+        if(l_tx_out_cond){ // Is present cond out
+            if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64 ) // is srv uid is same as we're searching for?
+                l_ret = dap_list_append(l_ret,l_tx);
+        }
+
+    }
+    return l_ret;
+}
+
 
 /**
  * Get the transaction in the cache with the out_cond item

@@ -167,12 +167,14 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         }
         if (l_node_client->keep_connection) {
             dap_events_socket_uuid_t *l_uuid = DAP_DUP(&l_node_client->uuid);
-            l_node_client->sync_timer = dap_timerfd_start_on_worker(l_node_client->stream_worker
-                                                                         ? l_node_client->stream_worker->worker
-                                                                         : dap_events_worker_get_auto(),
-                                                                    s_timer_update_states * 1000,
+            if(l_node_client->stream_worker){
+                l_node_client->sync_timer = dap_timerfd_start_on_worker(  l_node_client->stream_worker->worker
+                                                                      ,  s_timer_update_states * 1000,
                                                                     s_timer_update_states_callback,
                                                                     l_uuid);
+            }else{
+                log_it(L_ERROR,"After NODE_CLIENT_STATE_DISCONNECTED: Node client has no worker, too dangerous to run update states in alien context");
+            }
         }
         return;
     }
@@ -330,12 +332,16 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             l_node_client->stream_worker = l_stream->stream_worker;
             if (l_node_client->keep_connection) {
                 dap_events_socket_uuid_t *l_uuid = DAP_DUP(&l_node_client->uuid);
-                dap_worker_exec_callback_on(l_stream->esocket->context->worker, s_node_client_connected_synchro_start_callback, l_uuid);
                 dap_events_socket_uuid_t *l_uuid_timer = DAP_DUP(&l_node_client->uuid);
-                l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->context->worker,
-                                                                        s_timer_update_states * 1000,
-                                                                        s_timer_update_states_callback,
-                                                                        l_uuid_timer);
+                if(l_node_client->stream_worker){
+                    dap_worker_exec_callback_on(l_stream->esocket->context->worker, s_node_client_connected_synchro_start_callback, l_uuid);
+                    l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->context->worker,
+                                                                            s_timer_update_states * 1000,
+                                                                            s_timer_update_states_callback,
+                                                                            l_uuid_timer);
+                }else{
+                    log_it(L_ERROR,"After NODE_CLIENT_STATE_ESTABLISHED: Node client has no worker, too dangerous to run update states in alien context");
+                }
             }
         }
 #ifndef _WIN32

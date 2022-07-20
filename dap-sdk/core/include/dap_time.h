@@ -42,7 +42,7 @@ void dap_usleep(dap_time_t a_microseconds);
  * @return
  */
 char* dap_ctime_r(dap_time_t *a_time, char* a_buf);
-char* dap_gdb_ctime_r(dap_nanotime_t *a_time, char* a_buf);
+char* dap_nanotime_to_str(dap_nanotime_t *a_time, char* a_buf);
 
 
 int dap_time_to_str_rfc822(char * out, size_t out_size_max, dap_time_t t);
