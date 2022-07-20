@@ -58,19 +58,16 @@ typedef struct dap_chain_cs_dag
     dap_chain_hash_fast_t static_genesis_event_hash;
     dap_chain_cs_dag_hal_item_t *hal;
 
-    dap_chain_cs_dag_event_round_info_t event_round_info; // for verify function
-    bool use_event_round_info;
+    atomic_uint_fast64_t round_current;
+    uint64_t round_completed;
     bool broadcast_disable;
 
     uint16_t datum_add_hashes_count;
     char * gdb_group_events_round_new;
-    char *gdb_group_datums_queue;
 
     dap_chain_cs_dag_callback_t callback_delete;
     dap_chain_cs_dag_callback_event_create_t callback_cs_event_create;
     dap_chain_cs_dag_callback_event_t callback_cs_verify;
-    dap_chain_cs_dag_callback_get_round_info_t callback_cs_get_round_info;
-    dap_chain_cs_dag_callback_set_event_round_info_t callback_cs_set_event_round_info;
     dap_chain_cs_dag_callback_event_round_sync_t callback_cs_event_round_sync;
 
     void * _pvt;
@@ -84,10 +81,6 @@ void dap_chain_cs_dag_deinit(void);
 
 int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain);
-
-//dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger);
 void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag);
-
 dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag,
                                                               dap_chain_hash_fast_t * a_hash);
-int dap_chain_cs_new_event_add_datums(dap_chain_t *a_chain, bool a_round_check, dap_chain_cs_dag_callback_rc_ptr_t a_callback, void * a_callback_arg);
