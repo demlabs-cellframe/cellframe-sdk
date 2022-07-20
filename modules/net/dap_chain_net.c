@@ -230,8 +230,6 @@ static const char * c_net_states[]={
 };
 
 static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name , const char * a_node_role);
-inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state);
-
 
 // Node link callbacks
 static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_client, void * a_arg);
@@ -352,17 +350,6 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
         }
     }
     return NULL;
-}
-
-/**
- * @brief convert dap_chain_net_state_t net state object to string
- *
- * @param l_state dap_chain_net_state_t
- * @return const char*
- */
-inline static const char * s_net_state_to_str(dap_chain_net_state_t l_state)
-{
-    return c_net_states[l_state];
 }
 
 /**

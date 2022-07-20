@@ -268,8 +268,7 @@ void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, const char a_op
  * @return
  */
 bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
-                                    size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item,
-                                    const char *a_group)
+                                    size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item)
 {
     size_t l_signs_size = (size_t)(a_round_item->data_size-a_round_item->event_size);
     uint8_t *l_signs = (uint8_t*)a_round_item->event_n_signs + (size_t)a_round_item->event_size;
@@ -291,12 +290,9 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
 
     l_round_item->round_info.ts_update = dap_time_now();
 
-    bool ret = dap_global_db_set(a_group, a_event_hash_str, l_round_item,
-            dap_chain_cs_dag_event_round_item_get_size(l_round_item),true, NULL, NULL) == 0;
-
-    /*size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(a_round_item);
-    dap_chain_cs_dag_event_broadcast(a_dag, DAP_DB$K_OPTYPE_ADD, a_dag->gdb_group_events_round_new,
-            a_key, a_round_item, l_round_item_size);*/
+    size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(a_round_item);
+    bool ret = dap_global_db_set(a_dag->gdb_group_events_round_new, a_event_hash_str, l_round_item,
+                                 l_round_item_size,true, NULL, NULL) == 0;
     DAP_DELETE(l_round_item);
     return ret;
 }
