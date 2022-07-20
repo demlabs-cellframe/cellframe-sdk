@@ -704,5 +704,17 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
             return -7;
         }
     }
-    return dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
+    ssize_t l_res =  dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
+    if (a_chain->callback_atom_add_from_treshold) {
+        dap_chain_atom_ptr_t l_atom_treshold;
+        do {
+            size_t l_atom_treshold_size;
+            l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
+            if (l_atom_treshold) {
+                dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
+                log_it(L_INFO, "Added atom from treshold");
+            }
+        } while(l_atom_treshold);
+    }
+    return l_res;
 }

@@ -544,36 +544,6 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         } else {
             dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         }
-        dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
-        dap_chain_t *l_cur_chain;
-        bool l_processed;
-        do {
-            l_processed = false;
-            DL_FOREACH(l_net->pub.chains, l_cur_chain) {
-                if (l_cur_chain->callback_atom_add_from_treshold) {
-                    dap_chain_atom_ptr_t l_atom_treshold;
-                    do {
-                        size_t l_atom_treshold_size;
-                        if (s_debug_more)
-                            log_it(L_DEBUG, "Try to add atom from treshold");
-                        l_atom_treshold = l_cur_chain->callback_atom_add_from_treshold(l_cur_chain, &l_atom_treshold_size);
-                        if (l_atom_treshold) {
-                            dap_chain_cell_id_t l_cell_id = (l_cur_chain == l_chain) ? l_sync_request->request_hdr.cell_id
-                                                                                     : l_cur_chain->cells->id;
-                            int l_res = dap_chain_atom_save(l_cur_chain, l_atom_treshold, l_atom_treshold_size, l_cell_id);
-                            log_it(L_INFO, "Added atom from treshold");
-                            if (l_res < 0) {
-                                dap_hash_fast(l_atom_treshold, l_atom_treshold_size, &l_atom_hash);
-                                dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str, sizeof(l_atom_hash_str) - 1);
-                                log_it(L_ERROR, "Can't save atom %s from treshold to file", l_atom_hash_str);
-                            } else if (l_cur_chain == l_chain) {
-                                dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
-                            }
-                        }
-                    } while(l_atom_treshold);
-                }
-            }
-        } while (l_processed);
         break;
     case ATOM_REJECT: {
         if (s_debug_more) {

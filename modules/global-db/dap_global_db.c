@@ -1382,6 +1382,7 @@ static void s_store_obj_get_callback (dap_global_db_context_t * a_global_db_cont
         l_args->data = DAP_DUP_SIZE(a_value, a_value_size);
         l_args->data_size = a_value_size;
         l_args->ts = a_value_ts;
+        l_args->is_pinned = a_is_pinned;
     }
 
     pthread_mutex_lock(&l_args->mutex);
