@@ -1035,8 +1035,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     continue;
                 // TODO add filters to list (tokens, network, etc.)
                 l_price = s_xchange_price_from_order(l_net, l_order);
-                dap_string_append_printf(l_reply_str, "%s %s %s %s %s %s %s\n", l_orders[i].key, l_price->token_sell,
-                                         l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
+                dap_string_append_printf(l_reply_str, "orderHash:%s tokSel: %s, netSel: %s, tokBuy: %s, netBuy: %s, amount: %s, rate: %s\n", l_orders[i].key,
+                                         l_price->token_sell, l_price->net_sell->pub.name,
+                                         l_price->token_buy, l_price->net_buy->pub.name,
                                          dap_chain_balance_print(l_price->datoshi_sell), dap_chain_balance_print(l_price->rate));
                 DAP_DELETE(l_price);
             }
