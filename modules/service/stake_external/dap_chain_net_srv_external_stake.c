@@ -65,6 +65,7 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	dap_chain_t				*l_chain			= NULL;
 	dap_chain_t				*l_chain_emission	= NULL;
 	dap_chain_net_srv_uid_t	l_uid				= { .uint64 = DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID };
+	char					*l_hash_str;
 	dap_hash_fast_t			*l_tx_cond_hash;
 	dap_enc_key_t			*l_key_from;
 	dap_pkey_t				*l_key_cond;
@@ -72,7 +73,7 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	dap_chain_wallet_t		*l_wallet;
 	dap_chain_addr_t		*l_addr_holder;
 	dap_cert_t				*l_cert;
-	int 					l_arg_index			= a_arg_index + 1;
+	int 					l_arg_index			= a_arg_index;
 	int						l_months			= 0;
 
 	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-months", &l_months_str)
@@ -169,9 +170,16 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 																	 l_value, l_uid, l_addr_holder, l_months, time(NULL));
 
 	dap_chain_wallet_close(l_wallet);
-	DAP_DELETE(l_key_cond);
+	DAP_DEL_Z(l_key_cond);
 
-//	dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+	l_hash_str = (l_tx_cond_hash) ? dap_chain_hash_fast_to_str_new(l_tx_cond_hash) : NULL;
+
+	if (l_hash_str)
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully hash=%s\n", l_hash_str);
+	else
+		return ERROR;
+
+	DAP_DEL_Z(l_hash_str);
 
 	return NO_ERROR;
 }

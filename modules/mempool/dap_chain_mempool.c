@@ -629,7 +629,7 @@ static dap_chain_datum_t* dap_chain_tx_create_cond_external_stake(dap_chain_net_
 	// add 'out_cond' and 'out' items
 	{
 		uint256_t l_value_pack = {}; // how much coin add to 'out' items
-		if(dap_chain_datum_tx_add_out_cond_external_stake_item(&l_tx, a_key_cond, a_srv_uid, a_value, a_addr_holder, a_count_months, a_time_staking) == 1) {
+		if(dap_chain_datum_tx_add_out_cond_external_stake_item(&l_tx, a_key_cond, a_srv_uid, a_value, a_addr_holder, a_count_months, a_time_staking, a_token_ticker) == 1) {
 			SUM_256_256(l_value_pack, a_value, &l_value_pack);
 			// transaction fee
 //			if (!IS_ZERO_256(a_value_fee)) {

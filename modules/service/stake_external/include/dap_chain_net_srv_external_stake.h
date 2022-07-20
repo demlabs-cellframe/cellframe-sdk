@@ -47,7 +47,8 @@ typedef enum external_stake_error_code {
 	WALLET_ARG_ERROR		= 15,
 	WALLET_OPEN_ERROR		= 16,
 	CERT_KEY_ERROR			= 17,
-	WALLET_ADDR_ERROR		= 18
+	WALLET_ADDR_ERROR		= 18,
+	ERROR					= 19
 } error_code;
 
 bool	dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);

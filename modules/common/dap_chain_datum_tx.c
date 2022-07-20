@@ -204,9 +204,9 @@ int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_pkey_t
 }
 
 int dap_chain_datum_tx_add_out_cond_external_stake_item(dap_chain_datum_tx_t **a_tx, dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
-														dap_chain_addr_t *a_addr_holder, uint8_t a_count_months, uint64_t a_time_staking)
+														dap_chain_addr_t *a_addr_holder, uint8_t a_count_months, uint64_t a_time_staking, const char token[DAP_CHAIN_TICKER_SIZE_MAX])
 {
-	dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_external_stake(a_key, a_srv_uid, a_value, a_addr_holder, a_time_staking, a_count_months);
+	dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_external_stake(a_key, a_srv_uid, a_value, a_addr_holder, a_time_staking, a_count_months, token);
 	if(l_tx_out) {
 		dap_chain_datum_tx_add_item(a_tx, (const uint8_t *) l_tx_out);
 		DAP_DELETE(l_tx_out);
