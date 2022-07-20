@@ -204,7 +204,7 @@ size_t i;
         return;
 
     for(l_objs = a_objs, i = a_count; i--; l_objs++)        /* Run over array's elements */
-        dap_chain_global_db_obj_clean(a_objs);
+        dap_chain_global_db_obj_clean(l_objs);
 
     DAP_DELETE(a_objs);                                     /* Finaly kill the the array */
 }
