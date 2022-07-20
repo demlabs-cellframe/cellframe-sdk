@@ -210,9 +210,10 @@ void *dap_worker_thread(void *arg)
         }
 
         time_t l_cur_time = time( NULL);
+        l_worker->esocket_current = l_sockets_max;
         for(ssize_t n = 0; n < l_sockets_max; n++) {
             int l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
-
+            l_worker->esocket_current = n;
 #ifdef DAP_EVENTS_CAPS_EPOLL
             l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
             uint32_t l_cur_flags = l_epoll_events[n].events;
@@ -248,25 +249,28 @@ void *dap_worker_thread(void *arg)
         struct kevent * l_kevent_selected = &l_worker->kqueue_events_selected[n];
         if ( l_kevent_selected->filter == EVFILT_USER){ // If we have USER event it sends little different pointer
             dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
+            if(l_es_w_data){
             //if(g_debug_reactor)
             //    log_it(L_DEBUG,"EVFILT_USER: udata=%p", l_es_w_data);
 
-            l_cur = l_es_w_data->esocket;
-            assert(l_cur);
-            memcpy(&l_cur->kqueue_event_catched_data, l_es_w_data, sizeof (*l_es_w_data)); // Copy event info for further processing
+                l_cur = l_es_w_data->esocket;
+                assert(l_cur);
+                memcpy(&l_cur->kqueue_event_catched_data, l_es_w_data, sizeof (*l_es_w_data)); // Copy event info for further processing
 
-            if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
-                                           // we must drop write flag and set read flag
-                l_flag_read  = true;
-            }else{
-                l_flag_write = true;
-            }
-            void * l_ptr = &l_cur->kqueue_event_catched_data;
-            if(l_es_w_data != l_ptr){
-                DAP_DELETE(l_es_w_data);
-            }else if (g_debug_reactor){
-                log_it(L_DEBUG,"Own event signal without actual event data");
-            }
+                if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
+                                               // we must drop write flag and set read flag
+                    l_flag_read  = true;
+                }else{
+                    l_flag_write = true;
+                }
+                void * l_ptr = &l_cur->kqueue_event_catched_data;
+                if(l_es_w_data != l_ptr){
+                    DAP_DELETE(l_es_w_data);
+                }else if (g_debug_reactor){
+                    log_it(L_DEBUG,"Own event signal without actual event data");
+                }
+            }else
+                l_cur = NULL;
         }else{
             switch (l_kevent_selected->filter) {
                 case EVFILT_TIMER:

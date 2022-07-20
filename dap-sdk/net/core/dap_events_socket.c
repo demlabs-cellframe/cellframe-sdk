@@ -1892,6 +1892,13 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 
+    //Check if its present on current selection
+    for (ssize_t n = a_worker->esocket_current + 1; n< a_worker->esockets_selected; n++ ){
+        struct epoll_event * l_event = &a_worker->epoll_events[n];
+        if ( l_event->data.ptr == a_es ) // Found in selection
+            l_event->data.ptr = NULL; // signal to skip on its iteration
+    }
+
     if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
         int l_errno = errno;
         char l_errbuf[128];
@@ -1902,6 +1909,28 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
+        for (ssize_t n = a_worker->esocket_current+1; n< a_worker->esockets_selected; n++ ){
+            struct kevent * l_kevent_selected = &a_worker->kqueue_events_selected[n];
+            dap_events_socket_t * l_cur = NULL;
+
+            // Extract current esocket
+            if ( l_kevent_selected->filter == EVFILT_USER){
+                dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
+                if(l_es_w_data){
+                    l_cur = l_es_w_data->esocket;
+                }
+            }else{
+                l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+            }
+
+            // Compare it with current thats removing
+            if (l_cur == a_es){
+                l_kevent_selected->udata = NULL; // Singal to the loop to remove it from processing
+            }
+
+        }
+
+        // Delete from kqueue
         struct kevent * l_event = &a_es->kqueue_event;
         if (a_es->kqueue_base_filter){
             EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);

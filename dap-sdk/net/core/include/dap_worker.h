@@ -86,6 +86,8 @@ typedef struct dap_worker
 #else
 #error "Not defined worker for your platform"
 #endif
+    ssize_t esocket_current;
+    ssize_t  esockets_selected;
     pthread_cond_t started_cond;
     pthread_mutex_t started_mutex;
     void * _inheritor;
