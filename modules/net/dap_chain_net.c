@@ -1158,6 +1158,7 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
             s_fill_links_from_root_aliases(l_net);
             dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
             DAP_DELETE(l_dns_request);
+            pthread_rwlock_unlock(&l_net_pvt->rwlock);
             return;
         }
     }
