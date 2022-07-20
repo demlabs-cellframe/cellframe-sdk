@@ -521,7 +521,7 @@ int l_rc, l_rc2;
 dap_db_ctx_t *l_db_ctx;
 MDBX_val    l_key, l_data;
 
-    if (!a_group)                                                           /* Sanity check */
+    if (!a_group || !a_key )                                                /* Sanity check */
         return 0;
 
     if ( !(l_db_ctx = s_get_db_ctx_for_group(a_group)) )                    /* Get DB Context for group/table */
