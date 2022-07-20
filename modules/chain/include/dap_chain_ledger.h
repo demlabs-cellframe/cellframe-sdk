@@ -214,6 +214,10 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
 dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_first_hash,
                                                               dap_chain_tx_out_cond_t **a_out_cond, int *a_out_cond_idx, char *a_token_ticker);
 
+// Get all transactions from the cache with the specified out_cond items
+dap_list_t* dap_chain_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid);
+
+
 // Get the value from all transactions in the cache with out_cond item
 uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr,
         dap_chain_tx_out_cond_t **tx_out_cond);

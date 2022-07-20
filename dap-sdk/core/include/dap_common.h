@@ -189,9 +189,15 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #define DAP_CLIENT_PROTOCOL_VERSION   24
 
 #if __SIZEOF_LONG__==8
+#define DAP_UINT64_FORMAT_X  "llX"
+#define DAP_UINT64_FORMAT_x  "llx"
+#define DAP_UINT64_FORMAT_U  "llu"
+#ifdef DAP_OS_DARWIN
+#else
 #define DAP_UINT64_FORMAT_X  "lX"
 #define DAP_UINT64_FORMAT_x  "lx"
 #define DAP_UINT64_FORMAT_U  "lu"
+#endif
 #elif __SIZEOF_LONG__==4
 #define DAP_UINT64_FORMAT_X  "llX"
 #define DAP_UINT64_FORMAT_x  "llx"
