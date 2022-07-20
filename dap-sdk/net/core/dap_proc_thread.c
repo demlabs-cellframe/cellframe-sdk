@@ -180,12 +180,11 @@ dap_proc_queue_t    *l_queue;
     clock_gettime(CLOCK_REALTIME, &l_time_start);
     do {
         l_is_processed = 0;
-        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
+        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_iter_cnt++ )                          /* Run from higest to lowest ... */
         {
-            if ( !l_queue->list[l_cur_pri].items.nr) {                        /* A lockless quick check */
+            if ( !l_queue->list[l_cur_pri].items.nr) {                       /* A lockless quick check */
+                l_cur_pri--;
                 continue;
-            } else {
-                l_cur_pri++;
             }
 
             clock_gettime(CLOCK_REALTIME, &l_time_end);
