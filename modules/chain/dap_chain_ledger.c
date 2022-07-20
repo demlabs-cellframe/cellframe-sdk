@@ -1806,26 +1806,47 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
 }
 
 void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
-        char *** a_tickers, size_t * a_tickers_size) {
-    dap_ledger_wallet_balance_t *wallet_balance, *tmp;
-    size_t l_count = HASH_COUNT(PVT(a_ledger)->balance_accounts);
-    if(l_count){
-        char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
-        l_count = 0;
-        char *l_addr = dap_chain_addr_to_str(a_addr);
-        pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
-        HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
-            char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
-            if (!dap_strcmp(l_keys[0], l_addr)) {
-                l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
-                ++l_count;
+        char *** a_tickers, size_t * a_tickers_size)
+{
+    if (a_addr == NULL){ // Get all tockens
+        pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+        size_t l_count = HASH_COUNT(PVT(a_ledger)->tokens);
+        if (l_count && a_tickers){
+            dap_chain_ledger_token_item_t * l_token_item, *l_tmp;
+            char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
+            size_t i = 0;
+            HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp) {
+                l_tickers[i] = dap_strdup(l_token_item->ticker);
+                i++;
             }
-            dap_strfreev(l_keys);
+            *a_tickers = l_tickers;
         }
-        pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
-        *a_tickers = l_tickers;
+        pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+        if(a_tickers_size)
+            *a_tickers_size = l_count;
+    }else{ // Calc only tokens from address balance
+        dap_ledger_wallet_balance_t *wallet_balance, *tmp;
+        size_t l_count = HASH_COUNT(PVT(a_ledger)->balance_accounts);
+        if(l_count){
+            char **l_tickers = DAP_NEW_Z_SIZE(char*, l_count * sizeof(char*));
+            l_count = 0;
+            char *l_addr = dap_chain_addr_to_str(a_addr);
+            pthread_rwlock_rdlock(&PVT(a_ledger)->balance_accounts_rwlock);
+            HASH_ITER(hh, PVT(a_ledger)->balance_accounts, wallet_balance, tmp) {
+                char **l_keys = dap_strsplit(wallet_balance->key, " ", -1);
+                if (!dap_strcmp(l_keys[0], l_addr)) {
+                    l_tickers[l_count] = dap_strdup(wallet_balance->token_ticker);
+                    ++l_count;
+                }
+                dap_strfreev(l_keys);
+            }
+            pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
+            if(a_tickers)
+                *a_tickers = l_tickers;
+        }
+        if(a_tickers_size)
+            *a_tickers_size = l_count;
     }
-    *a_tickers_size = l_count;
 }
 
 
@@ -2114,12 +2135,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
             if (!l_emission_item) {
-                log_it(L_WARNING, "Emission for tx_token wasn't found");
+                debug_if(g_debug_reactor, L_DEBUG, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                 break;
             }
             if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
-                log_it(L_WARNING, "Emission for tx_token is already used");
+                debug_if(g_debug_reactor, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
                 l_err_num = -22;
                 break;
             }
@@ -3566,6 +3587,32 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
 }
 
 /**
+ * @brief Get all transactions from the cache with the out_cond item
+ * @param a_ledger
+ * @param a_srv_uid
+ * @return
+ */
+dap_list_t* dap_chain_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger,dap_chain_net_srv_uid_t a_srv_uid)
+{
+    dap_list_t * l_ret = NULL;
+    dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+    dap_chain_ledger_tx_item_t *l_iter_current = NULL, *l_item_tmp = NULL;
+    HASH_ITER(hh, l_ledger_priv->ledger_items, l_iter_current, l_item_tmp) {
+        dap_chain_datum_tx_t *l_tx = l_iter_current->tx;
+        dap_chain_hash_fast_t *l_tx_hash = &l_iter_current->tx_hash_fast;
+        int l_tx_out_cond_idx = 0;
+        dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, &l_tx_out_cond_idx);
+        if(l_tx_out_cond){ // Is present cond out
+            if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64 ) // is srv uid is same as we're searching for?
+                l_ret = dap_list_append(l_ret,l_tx);
+        }
+
+    }
+    return l_ret;
+}
+
+
+/**
  * Get the transaction in the cache with the out_cond item
  *
  * a_addr[in] wallet address, whose owner can use the service
@@ -3727,6 +3774,75 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
             }
         }
         dap_list_free(l_list_out_items);
+    }
+
+    // nothing to tranfer (not enough funds)
+    if(!l_list_used_out || compare256(l_value_transfer, a_value_need) == -1) {
+        dap_list_free_full(l_list_used_out, free);
+        return NULL;
+    }
+
+    if (a_value_transfer) {
+        *a_value_transfer = l_value_transfer;
+    }
+    return l_list_used_out;
+}
+
+/**
+ * @brief dap_chain_ledger_get_list_tx_cond_outs_with_val
+ * @param a_ledger
+ * @param a_token_ticker
+ * @param a_addr_from
+ * @param a_subtype
+ * @param a_value_need
+ * @param a_value_transfer
+ * @return
+ */
+dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
+        dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t a_value_need, uint256_t *a_value_transfer)
+{
+    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+    dap_chain_hash_fast_t l_tx_cur_hash = { 0 };
+    uint256_t l_value_transfer = { };
+    while(compare256(l_value_transfer, a_value_need) == -1)
+    {
+        // Get the transaction in the cache by the addr in out item
+        dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_addr(a_ledger, a_token_ticker, a_addr_from, &l_tx_cur_hash);
+        if(!l_tx)
+            break;
+        // Get all item from transaction by type
+        dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND, NULL);
+
+        uint32_t l_out_idx_tmp = 0; // current index of 'out' item
+        for(dap_list_t *l_list_tmp = l_list_out_cond_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_out_idx_tmp++) {
+            dap_chain_tx_item_type_t l_type = *(uint8_t*) l_list_tmp->data;
+            uint256_t l_value = { };
+            switch (l_type) {
+            case TX_ITEM_TYPE_OUT_COND: {
+                dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*) l_list_tmp->data;
+                if(IS_ZERO_256(l_out_cond->header.value) || a_subtype != l_out_cond->header.subtype) {
+                    continue;
+                }
+                l_value = l_out_cond->header.value;
+            }
+                break;
+            default:
+                continue;
+            }
+            if (!IS_ZERO_256(l_value)) {
+                list_used_item_t *l_item = DAP_NEW(list_used_item_t);
+                memcpy(&l_item->tx_hash_fast, &l_tx_cur_hash, sizeof(dap_chain_hash_fast_t));
+                l_item->num_idx_out = l_out_idx_tmp;
+                l_item->value = l_value;
+                l_list_used_out = dap_list_append(l_list_used_out, l_item);
+                SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
+                // already accumulated the required value, finish the search for 'out' items
+                if (compare256(l_value_transfer, a_value_need) != -1) {
+                    break;
+                }
+            }
+        }
+        dap_list_free(l_list_out_cond_items);
     }
 
     // nothing to tranfer (not enough funds)

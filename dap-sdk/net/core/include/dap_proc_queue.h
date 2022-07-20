@@ -64,7 +64,7 @@ typedef struct dap_proc_queue{
 
         struct {
         pthread_mutex_t     lock;                                           /* To coordinate access to the queuee's entries */
-        dap_slist_t         items;                                          /* An array of list according of priority numbers */
+        dap_slist_t         items;                                          /* Entries list  */
         } list [DAP_QUE$K_PRIMAX];
 } dap_proc_queue_t;
 
