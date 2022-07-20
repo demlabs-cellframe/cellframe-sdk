@@ -102,8 +102,10 @@ static inline dap_worker_t * dap_worker_get_current(){
 
 static inline int dap_worker_add_events_socket_unsafe(dap_worker_t *a_worker, dap_events_socket_t *a_esocket)
 {
-    a_esocket->is_initalized = true;
-    return dap_context_add(a_worker->context, a_esocket);
+    int err = dap_context_add(a_worker->context, a_esocket);
+    if (!err)
+        a_esocket->is_initalized = true;
+    return err;
 }
 
 void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker);
