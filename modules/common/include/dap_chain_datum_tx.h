@@ -128,6 +128,9 @@ int dap_chain_datum_tx_add_out_ext_item(dap_chain_datum_tx_t **a_tx, const dap_c
 int dap_chain_datum_tx_add_out_cond_item(dap_chain_datum_tx_t **a_tx, dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
         uint256_t a_value, uint256_t a_value_max_per_unit, dap_chain_net_srv_price_unit_uid_t a_unit, const void *a_cond, size_t a_cond_size);
 
+int dap_chain_datum_tx_add_out_cond_external_stake_item(dap_chain_datum_tx_t **a_tx, dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
+														dap_chain_addr_t *a_addr_holder, uint8_t a_count_months, uint64_t a_time_staking);
+
 /**
 * Sign a transaction (Create sign item and insert to transaction)
  *

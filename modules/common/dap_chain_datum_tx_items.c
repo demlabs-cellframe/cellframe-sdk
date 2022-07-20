@@ -383,7 +383,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_external_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, dap_chain_addr_t *addr_owner,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_external_stake(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, dap_chain_addr_t *addr_holder,
 																					uint64_t time_staking, uint8_t count_months)
 {
 	if (IS_ZERO_256(a_value))
@@ -395,7 +395,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_external_st
 	l_item->header.srv_uid = a_srv_uid;
 	l_item->subtype.srv_external_stake.count_months = count_months;
 	l_item->subtype.srv_external_stake.time_staking = time_staking;
-	memcpy(&l_item->subtype.srv_external_stake.addr_holder, addr_owner, sizeof(dap_chain_addr_t));
+	memcpy(&l_item->subtype.srv_external_stake.addr_holder, addr_holder, sizeof(dap_chain_addr_t));
+	dap_hash_fast(a_key->pkey, a_key->header.size, &l_item->subtype.srv_external_stake.pkey_hash);
 	return l_item;
 }
 

@@ -159,7 +159,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
                                                                                dap_chain_addr_t *a_fee_addr, dap_chain_addr_t *a_hldr_addr,
                                                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr);
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_external_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, dap_chain_addr_t *addr_owner,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_external_stake(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, dap_chain_addr_t *addr_holder,
 																					uint64_t time_staking, uint8_t count_months);
 /**
  * Create item dap_chain_tx_sig_t
