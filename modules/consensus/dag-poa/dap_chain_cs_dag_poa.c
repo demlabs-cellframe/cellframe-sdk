@@ -411,14 +411,6 @@ static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t * a_g
     if (a_values_count) {
         for (size_t i = 0; i<a_values_count; i++) {
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
-<<<<<<< HEAD
-            if (  (dap_time_now() - l_event_round_item->round_info.ts_update) >
-                    (l_poa_pvt->confirmations_timeout+l_poa_pvt->wait_sync_before_complete+10)  ) {
-                dap_global_db_del_unsafe(a_global_db_context, l_gdb_group_round_new,  a_values[i].key );
-                log_it(L_MSG, "DAG-PoA: Remove event %s from round by timer.", a_values[i].key);
-            } else {
-                l_events_count++;
-=======
             uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
@@ -426,7 +418,6 @@ static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t * a_g
                 dap_global_db_del_unsafe(a_global_db_context, a_group,  a_values[i].key);
                 log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" by timer.",
                                 a_values[i].key, l_round_id);
->>>>>>> features-6091
             }
         }
     }
