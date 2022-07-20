@@ -999,6 +999,8 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
+
+
 /* Multiplicates 256-bit value to fixed-point value, represented as 256-bit value
  * @param a_val
  * @param a_mult
