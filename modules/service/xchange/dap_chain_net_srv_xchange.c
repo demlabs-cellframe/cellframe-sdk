@@ -569,11 +569,17 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
     switch (l_cmd_num) {
         case CMD_CREATE: {
             dap_chain_net_srv_xchange_price_t *l_price = NULL;
+
+#if 0       /* Disabled on behalf of GD */
             HASH_FIND_STR(s_srv_xchange->pricelist, l_strkey, l_price);
+
             if (l_price) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Price with provided pair of token ticker + net name already exist");
                 return -7;
             }
+#endif
+
+
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL, *l_wallet_str = NULL;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
             if (!l_val_sell_str) {
@@ -669,12 +675,14 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
         } break;
         case CMD_REMOVE:
         case CMD_UPDATE: {
+
             dap_chain_net_srv_xchange_price_t *l_price = NULL;
             HASH_FIND_STR(s_srv_xchange->pricelist, l_strkey, l_price);
             if (!l_price) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Price with provided pair of token ticker + net name is not exist");
                 return -1;
             }
+
             if (l_cmd_num == CMD_REMOVE) {
                 dap_string_t *l_str_reply = dap_string_new("");
                 HASH_DEL(s_srv_xchange->pricelist, l_price);
@@ -903,18 +911,19 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
         }
 
         dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
-        dap_string_append_printf(l_reply_str, "hash: %s\n", l_hash_str);
+        dap_string_append_printf(l_reply_str, "orderHash: %s\n", l_hash_str);
 
         /* Find SRV_XCHANGE out_cond item */
         for (l_out_cond_item = NULL, l_item_idx = 0;
             (l_out_cond_item = (dap_chain_tx_out_cond_t *) dap_chain_datum_tx_item_get(l_datum_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL));
                 l_item_idx++)
         {
-            if ( l_out_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
+            if ( l_out_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE )
                 continue;
 
             if ( a_status_closed )
                 dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
+
 
             const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
 
@@ -925,20 +934,22 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             char *l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
             char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
 
-            dap_string_append_printf(l_reply_str, "From: : %s %s", l_tx_input_values_str, l_tx_input_ticker);
-            dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
+            dap_string_append_printf(l_reply_str, "From: %s %s   ", l_tx_input_values_str, l_tx_input_ticker);
+            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
 
             DAP_DELETE(l_value_from_str);
             DAP_DELETE(l_value_to_str);
         }
 
-        dap_string_append(l_reply_str, "\n\n");
+
+        dap_string_append(l_reply_str, "\n");
     }
 
 
     *a_str_reply = dap_string_free(l_reply_str, false);                     /* Free string descriptor, but keep ASCIZ buffer itself */
     return  0;
 }
+
 
 
 
@@ -1120,26 +1131,33 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
             // Prepare output string
             dap_string_t *l_reply_str = dap_string_new("");
+
             // Find transactions using filter function s_filter_tx_list()
             dap_list_t *l_datum_list0 = dap_chain_datum_list(l_net, NULL, s_filter_tx_list, l_time);
             size_t l_datum_num = dap_list_length(l_datum_list0);
+
             if(l_datum_num > 0) {
                 dap_string_append_printf(l_reply_str, "Found %zu transactions:\n", l_datum_num);
                 dap_list_t *l_datum_list = l_datum_list0;
-                char *l_hash_str = DAP_NEW_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE+1);
+
+                char l_hash_str [DAP_CHAIN_HASH_FAST_STR_SIZE + 8] = {0};
+
                 while(l_datum_list) {
                     dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_datum_list->data)->data;
                     size_t l_datum_tx_size = dap_chain_datum_tx_get_size(l_datum_tx);
+
                     // Delimiter between tx
                     if(l_datum_list != l_datum_list0) {
                         dap_string_append(l_reply_str, "\n\n");
                     }
+
                     // Tx hash
-                    dap_hash_fast_t l_hash;
-                    memset(&l_hash, 0, sizeof(dap_hash_fast_t));
+                    dap_hash_fast_t l_hash = {0};
+
                     dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_hash);
                     dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
-                    dap_string_append_printf(l_reply_str, "hash: %s\n", l_hash_str);
+                    dap_string_append_printf(l_reply_str, "orderHash: %s\n", l_hash_str);
+
                     // Find SRV_XCHANGE out_cond item
                     dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
                     int l_item_idx = 0;
@@ -1147,17 +1165,19 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         l_out_cond_item = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(l_datum_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL);
                         l_item_idx++;
                         if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
-                            const char *token = l_out_cond_item->subtype.srv_xchange.token;
                             uint256_t value = l_out_cond_item->subtype.srv_xchange.value;
-                            char *value_str = dap_cvt_uint256_to_str(value);
-                            dap_string_append_printf(l_reply_str, "value: %s %s", value_str, token);
-                            DAP_DELETE(value_str);
+                            char *l_value_to_str = dap_cvt_uint256_to_str(value);
+
+                            //dap_string_append_printf(l_reply_str, "From: %s %s\n", l_tx_input_values_str, l_tx_input_ticker);
+                            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
+
+                            DAP_DELETE(l_value_to_str);
                         }
                     }
                     while(l_out_cond_item);
+
                     l_datum_list = dap_list_next(l_datum_list);
                 }
-                DAP_DELETE(l_hash_str);
             }
             else{
                 dap_string_append(l_reply_str, "Transactions not found");
@@ -1303,8 +1323,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                             char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);\
 
-                            char l_tx_ts_created_str[72];
-                            l_tx_ts_created_str[0] = '\0';
+                            char l_tx_ts_created_str[72] = {0};
+
                             dap_time_to_str_rfc822(l_tx_ts_created_str,sizeof(l_tx_ts_created_str),l_tx->header.ts_created);
                             dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str);
                             dap_string_append_printf(l_reply_str,"\tts_created: %s\n", l_tx_ts_created_str);
@@ -1325,9 +1345,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                     uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.value;
                                     char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
                                     char * l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
-                                    dap_string_append_printf(l_reply_str,
-                                                             "\tFrom %s %s To %s %s\n",l_tx_input_ticker,l_value_from_str,
-                                                             l_value_to_str,l_out_cond_item->subtype.srv_xchange.token );
+
+                                    dap_string_append_printf(l_reply_str, "From: : %s %s   ", l_tx_input_ticker,l_value_from_str);
+                                    dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token );
+
                                     DAP_DELETE(l_value_from_str);
                                     DAP_DELETE(l_value_to_str);
                                 }
