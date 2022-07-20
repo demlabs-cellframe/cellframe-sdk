@@ -40,6 +40,7 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE = 0x3,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE = 0x05,
+	DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE = 0xFA       // Virtual type for stake update verificator //TODO change it to new type of callback for ledger tx add
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
@@ -109,6 +110,14 @@ typedef struct dap_chain_tx_out_cond {
         struct {
             // Nothing here
         } fee;
+		struct {
+			uint64_t            time_staking;
+            uint64_t            time_unlock;
+			uint8_t             count_months;
+            uint256_t           value;
+			char                token[DAP_CHAIN_TICKER_SIZE_MAX];
+		} srv_external_stake;
+			dap_chain_addr_t    addr_holder;
         byte_t free_space[128]; // for future changes
     } subtype;
     uint32_t params_size; // Condition parameters size
