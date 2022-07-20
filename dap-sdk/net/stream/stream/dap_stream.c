@@ -643,19 +643,22 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
             }
 
             size_t l_pkt_offset = (((uint8_t*) l_pkt) - l_buf_in);
+            l_buf_in += l_pkt_offset;
             l_buf_in_left -= l_pkt_offset;
 
             size_t l_pkt_size = l_pkt->hdr.size + sizeof(dap_stream_pkt_hdr_t);
+
+            //log_it(L_DEBUG, "read packet offset=%zu size=%zu buf_in_left=%zu)",l_pkt_offset, l_pkt_size, l_buf_in_left);
 
             // Got the whole package
             if(l_buf_in_left >= l_pkt_size) {
                 // Process data
                 s_stream_proc_pkt_in(a_stream, (dap_stream_pkt_t*) l_pkt, l_pkt_size);
                 // Go to the next data
-                l_buf_in += (l_pkt_offset + l_pkt_size);
+                l_buf_in += l_pkt_size;
                 l_buf_in_left -= l_pkt_size;
             } else {
-                log_it(L_DEBUG, "Input: Not all stream packet in input (pkt_size=%zu buf_in_left=%zu)", l_pkt_size, l_buf_in_left);
+                log_it(L_DEBUG, "Input: Not found a whole stream packet in input (pkt_size=%zu buf_in_left=%zu)", l_pkt_size, l_buf_in_left);
                 break;
             }
         }
@@ -666,11 +669,14 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         if(!l_pkt) {
             // pkt header not found, maybe l_buf_in_left is too small to detect pkt header, will do that next time
             l_pkt = (dap_stream_pkt_t*) l_buf_in;
+            log_it(L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes, l_pkt=0", l_buf_in_left);
         }
         if(l_pkt) {
             a_stream->pkt_buf_in_data_size = l_buf_in_left;
-            if(l_pkt != a_stream->pkt_buf_in)
+            if(l_pkt != a_stream->pkt_buf_in){
                 memmove(a_stream->pkt_buf_in, l_pkt, a_stream->pkt_buf_in_data_size);
+                //log_it(L_DEBUG, "dap_stream_data_proc_read() l_pkt=%zu != a_stream->pkt_buf_in=%zu", l_pkt, a_stream->pkt_buf_in);
+            }
 
             log_it(L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes", l_buf_in_left);
         }
@@ -840,8 +846,11 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
         } // else client don't support seqid functionality
     }
-//    log_it(L_DEBUG, "Packet seq id: %d", ch_pkt->hdr.seq_id);
+    log_it(L_DEBUG, "Packet seq id: %d, last: %d", l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
 //    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
+    if(l_ch_pkt->hdr.seq_id==47175920789504){
+        int ggs=4;
+    }
     a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
 
     return false;
