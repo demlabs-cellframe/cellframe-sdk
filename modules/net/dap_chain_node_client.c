@@ -293,7 +293,6 @@ static bool s_timer_update_states_callback(void *a_arg)
         DAP_DELETE(l_uuid);
         return false;
     }
-    DAP_DELETE(l_uuid);
     return true;
 }
 
