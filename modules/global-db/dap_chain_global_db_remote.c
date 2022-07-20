@@ -718,7 +718,7 @@ dap_store_obj_t *l_store_obj_arr, *l_obj;
     }
 
 
-    assert(pdata >= pdata_end);
+    assert(pdata > pdata_end);
 
     // Return the number of completely filled dap_store_obj_t structures
     // because l_cur_count may be less than l_count due to too little memory
