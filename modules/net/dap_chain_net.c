@@ -1473,11 +1473,9 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
         l_net_pvt->active_link = NULL;
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
         dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
-        pthread_rwlock_unlock(&l_net_pvt->rwlock);
         dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
-        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
-            DAP_DELETE(l_uuid);
+            DAP_DELETE(l_net_pvt->links_queue->data);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
             l_net_pvt->links_queue = l_net_pvt->links_queue->next;
             DAP_DELETE(l_to_remove);

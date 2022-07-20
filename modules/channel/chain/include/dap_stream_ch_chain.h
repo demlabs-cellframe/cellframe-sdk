@@ -59,6 +59,7 @@ typedef struct dap_stream_ch_chain_hash_item{
 
 typedef struct dap_stream_ch_chain {
     void *_inheritor;
+    dap_stream_ch_t * ch;
 
     dap_stream_ch_chain_state_t state;
     dap_chain_node_client_t * node_client; // Node client associated with stream
