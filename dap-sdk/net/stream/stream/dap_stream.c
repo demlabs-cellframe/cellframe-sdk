@@ -820,15 +820,15 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
 {
     dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
-    int l_count_loosed_packets = l_ch_pkt->hdr.seq_id - (a_stream->client_last_seq_id_packet + 1);
+    long long l_count_loosed_packets = (long long) l_ch_pkt->hdr.seq_id - (long long) (a_stream->client_last_seq_id_packet + 1);
     if(l_count_loosed_packets > 0)
     {
-        log_it(L_WARNING, "Detected loosed %d packets. "
+        log_it(L_WARNING, "Detected loosed %lld packets. "
                           "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
     } else if(l_count_loosed_packets < 0) {
         if(a_stream->client_last_seq_id_packet != 0 && l_ch_pkt->hdr.seq_id != 0) {
-        log_it(L_WARNING, "Something wrong. count_loosed packets %d can't less than zero. "
+        log_it(L_WARNING, "Something wrong. count_loosed packets %lld can't less than zero. "
                           "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
         } // else client don't support seqid functionality
