@@ -1042,11 +1042,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                 // TODO add filters to list (tokens, network, etc.)
                 l_price = s_xchange_price_from_order(l_net, l_order);
-                dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)&l_order->ext_n_sign;
                 uint256_t l_datoshi_buy;
                 char *l_cp1, *l_cp2, *l_cp3;
 
-                MULT_256_COIN(l_ext->datoshi_sell, l_price->datoshi_sell, &l_datoshi_buy);  /* sell/buy computation */
+                MULT_256_COIN(l_price->datoshi_sell, l_price->rate, &l_datoshi_buy);  /* sell/buy computation */
 
                 dap_string_append_printf(l_reply_str, "orderHash: %s tokSel: %s, netSel: %s, tokBuy: %s, netBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
                                          l_price->token_sell, l_price->net_sell->pub.name,
