@@ -44,7 +44,7 @@ bool dap_chain_net_srv_external_stake_init(void)
 static dap_chain_datum_tx_receipt_t *s_external_stake_receipt_create(dap_hash_fast_t hash_burning_transaction, const char *token, uint256_t datoshi_burned)
 {
 	uint32_t l_ext_size	= sizeof(dap_hash_fast_t) + dap_strlen(token) + 1;
-	uint8_t *l_ext		= DAP_NEW_S_SIZE(uint8_t, l_ext_size);
+	uint8_t *l_ext		= DAP_NEW_STACK_SIZE(uint8_t, l_ext_size);
 
 	memcpy(l_ext, &hash_burning_transaction, sizeof(dap_hash_fast_t));
 	strcpy((char *)&l_ext[sizeof(dap_hash_fast_t)], token);
