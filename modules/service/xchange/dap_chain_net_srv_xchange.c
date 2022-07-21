@@ -906,7 +906,7 @@ char l_hash_str [DAP_CHAIN_HASH_FAST_STR_SIZE + 8] = {0};
 dap_chain_hash_fast_t l_tx_first_hash = {0};
 dap_chain_datum_tx_t    *l_datum_tx;
 size_t  l_datum_tx_size, l_tx_total, l_tx_count;
-int l_item_idx;
+int l_item_idx, l_rc;
 dap_string_t *l_reply_str;
 dap_hash_fast_t l_hash;
 dap_chain_tx_out_cond_t *l_out_cond_item;
@@ -964,8 +964,12 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             char *l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
             char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
 
-            dap_string_append_printf(l_reply_str, "From: %s %s   ", l_tx_input_values_str, l_tx_input_ticker);
-            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
+            l_rc = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
+
+            dap_string_append_printf(l_reply_str, "Status: is %s used out", l_rc ? "" : "NOT");
+
+            dap_string_append_printf(l_reply_str, " From: %s %s   ", l_tx_input_values_str, l_tx_input_ticker);
+            dap_string_append_printf(l_reply_str, " To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
 
             DAP_DELETE(l_value_from_str);
             DAP_DELETE(l_value_to_str);
@@ -1232,8 +1236,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             char *l_value_to_str = dap_cvt_uint256_to_str(value);
                             char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
 
-                            dap_string_append_printf(l_reply_str, "From: %s %s   ", l_value_from_str, l_tx_input_ticker);
-                            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
+                            l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_hash, l_item_idx);
+
+                            dap_string_append_printf(l_reply_str, "Status: is %s used out", l_rc ? "" : "NOT");
+
+                            dap_string_append_printf(l_reply_str, " From: %s %s   ", l_value_from_str, l_tx_input_ticker);
+                            dap_string_append_printf(l_reply_str, " To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
 
                             DAP_DELETE(l_value_from_str);
                             DAP_DELETE(l_value_to_str);
