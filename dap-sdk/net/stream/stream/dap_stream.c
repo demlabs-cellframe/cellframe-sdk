@@ -756,27 +756,26 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
             break;
         }
 
-        s_detect_loose_packet(a_stream);
-
-        // Find channel
-        dap_stream_ch_t * l_ch = NULL;
-        for(size_t i=0;i<a_stream->channel_count;i++){
-            if(a_stream->channel[i]->proc){
-                if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
-                    l_ch=a_stream->channel[i];
+        // If seq_id is less than previous - doomp eet
+        if (!s_detect_loose_packet(a_stream)) {
+            dap_stream_ch_t * l_ch = NULL;
+            for(size_t i=0;i<a_stream->channel_count;i++){
+                if(a_stream->channel[i]->proc){
+                    if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
+                        l_ch=a_stream->channel[i];
+                    }
                 }
             }
-        }
-
-        if(l_ch) {
-            l_ch->stat.bytes_read += l_ch_pkt->hdr.size;
-            if(l_ch->proc && l_ch->proc->packet_in_callback) {
-                debug_if(s_dump_packet_headers, L_INFO, "Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X", (char ) l_ch_pkt->hdr.id,
-                         l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id, l_ch_pkt->hdr.enc_type);
-                l_ch->proc->packet_in_callback(l_ch, l_ch_pkt);
+            if(l_ch) {
+                l_ch->stat.bytes_read += l_ch_pkt->hdr.size;
+                if(l_ch->proc && l_ch->proc->packet_in_callback) {
+                    debug_if(s_dump_packet_headers, L_INFO, "Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X", (char ) l_ch_pkt->hdr.id,
+                             l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id, l_ch_pkt->hdr.enc_type);
+                    l_ch->proc->packet_in_callback(l_ch, l_ch_pkt);
+                }
+            } else{
+                log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
             }
-        } else{
-            log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
         }
         // packet already defragmented
         if(l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET) {
@@ -826,16 +825,16 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
 {
     dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
-    long long l_count_loosed_packets = (long long) l_ch_pkt->hdr.seq_id - (long long) (a_stream->client_last_seq_id_packet + 1);
-    if(l_count_loosed_packets > 0)
+    long long l_count_lost_packets = (long long) l_ch_pkt->hdr.seq_id - (long long) (a_stream->client_last_seq_id_packet + 1);
+    if(l_count_lost_packets > 0)
     {
         log_it(L_WARNING, "Detected loosed %lld packets. "
-                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
+                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_lost_packets,
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
-    } else if(l_count_loosed_packets < 0) {
+    } else if(l_count_lost_packets < 0) {
         if(a_stream->client_last_seq_id_packet != 0 && l_ch_pkt->hdr.seq_id != 0) {
         log_it(L_WARNING, "Something wrong. count_loosed packets %lld can't less than zero. "
-                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
+                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_lost_packets,
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
         } // else client don't support seqid functionality
     }
@@ -846,7 +845,7 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
     }
     a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
 
-    return false;
+    return l_count_lost_packets < 0;
 }
 
 /**
