@@ -3266,7 +3266,7 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
             // Add it to cache
             l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_SPENT_TXS_STR);
             char *l_tx_hash_str = dap_hash_fast_to_str_new(a_tx_hash);
-            if ( dap_global_db_set(l_gdb_group, l_tx_hash_str, l_item_used->token_ticker, -1, false, NULL, NULL)) {
+            if ( dap_global_db_set(l_gdb_group, l_tx_hash_str, l_item_used->token_ticker, dap_strlen(l_item_used->token_ticker), false, NULL, NULL)) {
                 if(s_debug_more)
                     log_it(L_WARNING, "Ledger cache mismatch");
             }
