@@ -898,7 +898,7 @@ static int s_cli_srv_xchange_tx_list_addr (
                         dap_time_t      a_after,
                         dap_time_t      a_before,
                     dap_chain_addr_t    *a_addr,
-                            int         a_status_closed,
+                            int         a_status,
                                 char    **a_str_reply
                                           )
 {
@@ -951,9 +951,19 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             if ( l_out_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE )
                 continue;
 
-            if ( a_status_closed )
-                dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
 
+
+
+            if (a_status)                                                   /* 1 - closed, 2 - open  */
+            {
+                l_rc = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
+
+                if ( (a_status == 1) && !l_rc )
+                    continue;
+
+                if ( (a_status == 2) && l_rc )
+                    continue;
+            }
 
             const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
 
@@ -964,7 +974,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             char *l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
             char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
 
-            l_rc = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
+
 
             dap_string_append_printf(l_reply_str, "Status: is %s used out", l_rc ? "" : "NOT");
 
@@ -1058,7 +1068,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 s_div_256_coin (l_ext->datoshi_sell, l_price->datoshi_sell,  &l_rate);  /* sell/buy computation */
 
 
-                dap_string_append_printf(l_reply_str, "orderHash:%s tokSel: %s, netSel: %s, tokBuy: %s, netBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
+                dap_string_append_printf(l_reply_str, "orderHash: %s tokSel: %s, netSel: %s, tokBuy: %s, netBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
                                          l_price->token_sell, l_price->net_sell->pub.name,
                                          l_price->token_buy, l_price->net_buy->pub.name,
                                          l_cp1 = dap_chain_balance_print(l_price->datoshi_sell), l_cp2 = dap_chain_balance_print(l_ext->datoshi_sell),
@@ -1144,7 +1154,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
         case CMD_TX_LIST: {
             const char *l_net_str = NULL, *l_time_begin_str = NULL, *l_time_end_str = NULL;
             const char *l_status_str = NULL, *l_addr_str = NULL;  /* @RRL:  #6294 */
-            int     l_status_closed;
+            int     l_status;
             dap_chain_addr_t *l_addr;
 
             l_arg_index++;
@@ -1179,12 +1189,19 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             /* Dispatch request processing to ... */
             if ( l_addr_str )
             {
-                l_status_closed = (!l_addr_str) ? 0 : !dap_strncmp (l_status_str, "close", 5);
-
                 if ( !(l_addr = dap_chain_addr_from_str(l_addr_str)) )
                     return  dap_chain_node_cli_set_reply_text(a_str_reply, "Cannot convert -addr '%s' to internal representative", l_addr_str), -EINVAL;
 
-                return  s_cli_srv_xchange_tx_list_addr (l_net, l_time[0], l_time[1], l_addr, l_status_closed, a_str_reply);
+                l_status = 0; /* 0 - all */
+
+                if ( l_status_str )
+                {
+                    /* 1 - closed, 2 - open  */
+                    l_status = !dap_strncmp (l_status_str, "close", 5);
+                    l_status += !dap_strncmp (l_status_str, "open", 4);
+                }
+
+                return  s_cli_srv_xchange_tx_list_addr (l_net, l_time[0], l_time[1], l_addr, l_status, a_str_reply);
             }
 
 
