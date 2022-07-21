@@ -839,10 +839,7 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
         } // else client don't support seqid functionality
     }
     debug_if(s_debug, L_DEBUG, "Packet seq id: %d, last: %d", l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
-//    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
-    if(l_ch_pkt->hdr.seq_id==47175920789504){
-        int ggs=4;
-    }
+    debug_if(s_debug, L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
     a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
 
     return l_count_lost_packets < 0;
