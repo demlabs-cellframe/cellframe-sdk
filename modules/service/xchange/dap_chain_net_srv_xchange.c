@@ -987,6 +987,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {CMD_NONE = 0, CMD_PRICE, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
     int l_arg_index = 1, l_cmd_num = CMD_NONE, l_rc;
+    dap_chain_hash_fast_t l_hash;
+
 
     if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "price", NULL)) {
         l_cmd_num = CMD_PRICE;
@@ -1027,21 +1029,59 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
                 return -3;
             }
+
+
+#if 0
+            const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
+
+            uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.value;
+            uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(a_net, l_datum_tx);
+
+            char *l_tx_input_values_str = dap_cvt_uint256_to_str(l_tx_input_values);
+            char *l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
+            char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
+
+            dap_string_append_printf(l_reply_str, "From: %s %s   ", l_tx_input_values_str, l_tx_input_ticker);
+            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
+#endif
+
+
             char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
+
             size_t l_orders_count = 0;
             dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str, &l_orders_count);
             dap_chain_net_srv_xchange_price_t *l_price;
             dap_string_t *l_reply_str = dap_string_new("");
-            for (size_t i = 0; i < l_orders_count; i++) {
+
+
+            dap_srv_xchange_order_ext_t l_ext;
+
+
+            for (size_t i = 0; i < l_orders_count; i++)
+            {
                 dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
+
                 if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID)
                     continue;
+
                 // TODO add filters to list (tokens, network, etc.)
                 l_price = s_xchange_price_from_order(l_net, l_order);
-                dap_string_append_printf(l_reply_str, "orderHash:%s tokSel: %s, netSel: %s, tokBuy: %s, netBuy: %s, amount: %s, rate: %s\n", l_orders[i].key,
+                dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)&l_order->ext_n_sign;
+                uint256_t   l_rate;
+                char *l_cp1, *l_cp2, *l_cp3;
+
+                s_div_256_coin (l_ext->datoshi_sell, l_price->datoshi_sell,  &l_rate);
+
+
+                dap_string_append_printf(l_reply_str, "orderHash:%s tokSel: %s, netSel: %s, tokBuy: %s, netBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
                                          l_price->token_sell, l_price->net_sell->pub.name,
                                          l_price->token_buy, l_price->net_buy->pub.name,
-                                         dap_chain_balance_print(l_price->datoshi_sell), dap_chain_balance_print(l_price->rate));
+                                         l_cp1 = dap_chain_balance_print(l_price->datoshi_sell), l_cp2 = dap_chain_balance_print(l_ext->datoshi_sell),
+                                         l_cp3 = dap_chain_balance_to_coins(l_rate) ); /* RRL: dap_chain_balance_print(l_rate) ); */
+
+                DAP_DEL_Z(l_cp1);
+                DAP_DEL_Z(l_cp2);
+                DAP_DEL_Z(l_cp3);
                 DAP_DELETE(l_price);
             }
             dap_chain_global_db_objs_delete(l_orders, l_orders_count);
