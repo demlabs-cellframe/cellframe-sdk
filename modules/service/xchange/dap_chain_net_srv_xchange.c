@@ -256,14 +256,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
     uint256_t l_value_buy = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
-	uint256_t l_datoshi_buy = uint256_0; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate); +++
-    if( compare256(a_price->rate, uint256_0) != 0 )
-        DIV_256(dap_chain_coins_to_balance("1.0"), a_price->rate, &l_datoshi_buy);
+    uint256_t l_datoshi_buy = uint256_0;
+    DIV_256_COIN(a_price->datoshi_sell, a_price->rate, &l_datoshi_buy);
 
-	if (MULT_256_COIN(a_price->datoshi_sell, l_datoshi_buy, &l_datoshi_buy)) {
-		log_it(L_WARNING, "DANGER: MULT_256_COIN overflow! in s_xchange_tx_create_exchange()");
-		l_datoshi_buy = uint256_0;
-	}
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
                                                                              l_seller_addr, l_datoshi_buy, &l_value_buy);
     if(!l_list_used_out) {
@@ -429,18 +424,6 @@ static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, d
 }
 
 
-/* @RRL: on behalf of RKh */
-static inline void s_div_256_coin(uint256_t a, uint256_t  b, uint256_t *res)
-{
-    uint256_t tmp = uint256_0;
-    if( compare256(b, uint256_0) != 0 )
-        DIV_256(dap_chain_coins_to_balance("1000000000000000000.0"), b, &tmp);
-    MULT_256_COIN(a, tmp, res);
-}
-
-
-
-
 char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_datum_tx_t *a_tx)
 {
     dap_chain_hash_fast_t l_tx_hash = {};
@@ -454,9 +437,8 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_price->net_sell);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
-	uint256_t l_datoshi_buy = uint256_0; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate); +++
-
-	s_div_256_coin(dap_chain_coins_to_balance("1.0"), a_price->rate, &l_datoshi_buy);
+    uint256_t l_datoshi_buy = uint256_0;
+    DIV_256_COIN(a_price->datoshi_sell, a_price->rate, &l_datoshi_buy);
 
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net_buy, SERV_DIR_SELL, l_uid, *l_node_addr,
                                                             l_tx_hash, &l_datoshi_buy, l_unit, a_price->token_buy, 0,
@@ -476,8 +458,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     strcpy(l_price->token_sell, l_ext->token_sell);
     l_price->net_buy = a_net;
     strcpy(l_price->token_buy, a_order->price_ticker);
-    //DIV_256(l_price->datoshi_sell, a_order->price, &l_price->rate);//l_price->rate = dap_chain_coins_to_balance("1.0");//1; // TODO (long double)l_price->datoshi_sell / a_order->price;
-    s_div_256_coin(l_price->datoshi_sell, a_order->price, &l_price->rate);
+    DIV_256_COIN(l_price->datoshi_sell, a_order->price, &l_price->rate);
 
     return l_price;
 }
