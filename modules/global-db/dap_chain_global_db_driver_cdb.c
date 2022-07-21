@@ -222,7 +222,7 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
                      "Average write latency: %-24u\r\n"
                      "Last id: %-24lu\r\n",
                      l_cdb_i->local_group, l_cdb_stat.rnum, l_cdb_stat.rlatcy, l_cdb_stat.wlatcy, l_cdb_i->id);
-            DAP_DELETE(l_arg.o);
+            dap_store_obj_free_one(l_arg.o);
         } else {
             log_it(L_INFO, "Group \"%s\" created", l_cdb_i->local_group);
             l_cdb_i->id = 0;
