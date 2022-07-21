@@ -128,7 +128,7 @@ void *dap_worker_thread(void *arg)
 #endif
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event *l_epoll_events = l_work->epoll_events;
+    struct epoll_event *l_epoll_events = l_worker->epoll_events;
     log_it(L_INFO, "Worker #%d started with epoll fd %"DAP_FORMAT_HANDLE" and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_worker->kqueue_fd = kqueue();
