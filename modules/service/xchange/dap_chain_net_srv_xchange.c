@@ -1030,31 +1030,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 return -3;
             }
 
-
-#if 0
-            const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
-
-            uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.value;
-            uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(a_net, l_datum_tx);
-
-            char *l_tx_input_values_str = dap_cvt_uint256_to_str(l_tx_input_values);
-            char *l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
-            char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
-
-            dap_string_append_printf(l_reply_str, "From: %s %s   ", l_tx_input_values_str, l_tx_input_ticker);
-            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
-#endif
-
-
             char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
 
             size_t l_orders_count = 0;
             dap_global_db_obj_t * l_orders = dap_chain_global_db_gr_load(l_gdb_group_str, &l_orders_count);
             dap_chain_net_srv_xchange_price_t *l_price;
             dap_string_t *l_reply_str = dap_string_new("");
-
-
-            dap_srv_xchange_order_ext_t l_ext;
 
 
             for (size_t i = 0; i < l_orders_count; i++)
@@ -1070,7 +1051,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 uint256_t   l_rate;
                 char *l_cp1, *l_cp2, *l_cp3;
 
-                s_div_256_coin (l_ext->datoshi_sell, l_price->datoshi_sell,  &l_rate);
+                s_div_256_coin (l_ext->datoshi_sell, l_price->datoshi_sell,  &l_rate);  /* sell/buy computation */
 
 
                 dap_string_append_printf(l_reply_str, "orderHash:%s tokSel: %s, netSel: %s, tokBuy: %s, netBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
@@ -1082,7 +1063,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 DAP_DEL_Z(l_cp1);
                 DAP_DEL_Z(l_cp2);
                 DAP_DEL_Z(l_cp3);
-                DAP_DELETE(l_price);
+                DAP_DEL_Z(l_price);
             }
             dap_chain_global_db_objs_delete(l_orders, l_orders_count);
             DAP_DELETE( l_gdb_group_str);
