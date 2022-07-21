@@ -180,9 +180,10 @@ dap_proc_queue_t    *l_queue;
     clock_gettime(CLOCK_REALTIME, &l_time_start);
     do {
         l_is_processed = 0;
-        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
+        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_iter_cnt++ )                          /* Run from higest to lowest ... */
         {
-            if ( !l_queue->list[l_cur_pri].items.nr) {                        /* A lockless quick check */
+            if ( !l_queue->list[l_cur_pri].items.nr) {                       /* A lockless quick check */
+                l_cur_pri--;
                 continue;
             }
 
@@ -201,24 +202,6 @@ dap_proc_queue_t    *l_queue;
 
             debug_if (g_debug_reactor, L_INFO, "Proc event callback (l_item: %p) : %p/%p, prio=%d, iteration=%d",
                            l_item, l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
-
-
-    #ifdef  DAP_OS_LINUX
-            if ( g_debug_reactor )
-            {
-                #include <execinfo.h>
-
-                char **rtn_name;
-                void *rtn_arr[] = {l_item->callback};
-
-                rtn_name = backtrace_symbols (rtn_arr, 1);
-
-                log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
-
-                free(rtn_name);
-            }
-    #endif      /* DAP_OS_LINUX */
-
 
             l_is_processed += 1;
             l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
@@ -1064,6 +1047,7 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
     dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
+    debug_if(g_debug_reactor, L_INFO, "Msg with arg %p -> worker %d", a_arg, a_worker_id);
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
 
     // TODO Make this code platform-independent
