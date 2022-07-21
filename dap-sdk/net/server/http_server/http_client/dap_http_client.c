@@ -523,14 +523,14 @@ void dap_http_client_write( dap_events_socket_t * a_esocket, void *a_arg )
 {
     UNUSED(a_arg);
 
-    log_it( L_DEBUG, "Entering: a_esocket: %p, a_arg: %p", a_esocket, a_arg);
+    debug_if(s_debug_http ,L_DEBUG, "Entering: a_esocket: %p, a_arg: %p", a_esocket, a_arg);
 
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
 
     if ( !l_http_client )
         return  log_it( L_ERROR, "dap_http_client_t context is NULL");
 
-    log_it(L_WARNING,"HTTP client write callback in state %d", l_http_client->state_write);
+    debug_if(s_debug_http ,  L_WARNING,"HTTP client write callback in state %d", l_http_client->state_write);
 
     switch( l_http_client->state_write ) {
         case DAP_HTTP_CLIENT_STATE_NONE:
