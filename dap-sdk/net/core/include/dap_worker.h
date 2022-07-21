@@ -68,6 +68,7 @@ typedef struct dap_worker
 
 #if defined DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
+    struct epoll_event epoll_events[ DAP_EVENTS_SOCKET_MAX];
 #elif defined ( DAP_EVENTS_CAPS_POLL)
     int poll_fd;
     struct pollfd * poll;
@@ -86,6 +87,8 @@ typedef struct dap_worker
 #else
 #error "Not defined worker for your platform"
 #endif
+    ssize_t esocket_current;
+    ssize_t  esockets_selected;
     pthread_cond_t started_cond;
     pthread_mutex_t started_mutex;
     void * _inheritor;

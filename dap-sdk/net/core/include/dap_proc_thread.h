@@ -45,6 +45,7 @@ typedef struct dap_proc_thread{
     int signal_exit;
 
     dap_events_socket_t * event_exit;
+    ssize_t esocket_current, esockets_selected;
 
 
 #ifdef DAP_EVENTS_CAPS_EPOLL

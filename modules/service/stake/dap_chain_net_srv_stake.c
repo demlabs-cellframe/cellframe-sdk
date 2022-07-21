@@ -74,7 +74,7 @@ int dap_chain_net_srv_stake_init()
     );
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
-    
+
     uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
@@ -524,7 +524,7 @@ static bool s_stake_tx_invalidate(dap_chain_net_srv_stake_item_t *a_stake, dap_c
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return false;
-    }   
+    }
     int l_prev_cond_idx;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_stake->tx_hash, l_prev_cond_idx)) {
@@ -571,7 +571,7 @@ char *s_stake_order_create(dap_chain_net_srv_stake_item_t *a_item, dap_enc_key_t
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_ID };
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_item->net, l_dir, l_uid, *l_node_addr,
-                                                            l_tx_hash, a_item->value, l_unit, a_item->token, 0,
+                                                            l_tx_hash, &a_item->value, l_unit, a_item->token, 0,
                                                             (uint8_t *)&l_ext, l_ext_size, NULL, 0, l_key);
     return l_order_hash_str;
 }
@@ -1114,7 +1114,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_stake, l_wallet);
                 dap_chain_wallet_close(l_wallet);
                 if (l_tx && s_stake_tx_put(l_tx, l_net)) {
-                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);         
+                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);
                     // TODO send a notification to order owner to delete it
                     dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
                 }

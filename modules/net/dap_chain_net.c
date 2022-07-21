@@ -483,9 +483,10 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
                     DAP_DELETE(l_link);
                     continue;
                 }
-                dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
+                if (!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                      l_chain_id.uint64, l_cell_id.uint64, l_data_out,
-                                                     sizeof(dap_store_obj_pkt_t) + l_data_out->data_size);
+                                                     sizeof(dap_store_obj_pkt_t) + l_data_out->data_size))
+                    debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
             }
             DAP_DELETE(l_data_out);
             if (it)
@@ -563,9 +564,10 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
                     DAP_DELETE(l_link);
                     continue;
                 }
-                dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+                if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
                                                  l_net->pub.id.uint64, l_chain->id.uint64, l_cell_id,
-                                                 l_obj_cur->value, l_obj_cur->value_len);
+                                                 l_obj_cur->value, l_obj_cur->value_len))
+                    debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
             }
             s_atom_obj_free(l_obj_cur);
             if (it)
@@ -1012,18 +1014,21 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg)
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net->pub.name,
+    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net? l_net->pub.name : "(unknown)" ,
            NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-    struct json_object *l_json = net_states_json_collect(l_net);
-    char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, sizeof (a_node_client->info->hdr.ext_addr_v4));
-    char l_err_str[128] = { };
-    dap_snprintf(l_err_str, sizeof(l_err_str)
-                 , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
-                 , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address), l_node_addr_str, a_error);
-    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-    dap_notify_server_send_mt(json_object_get_string(l_json));
-    json_object_put(l_json);
+
+    if(l_net){
+        struct json_object *l_json = net_states_json_collect(l_net);
+        char l_node_addr_str[INET_ADDRSTRLEN] = {};
+        inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, sizeof (a_node_client->info->hdr.ext_addr_v4));
+        char l_err_str[128] = { };
+        dap_snprintf(l_err_str, sizeof(l_err_str)
+                     , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
+                     , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address), l_node_addr_str, a_error);
+        json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);
+    }
 }
 
 /**
@@ -1144,6 +1149,8 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     if(l_net_pvt->links_dns_requests)
         l_net_pvt->links_dns_requests--;
+
+    log_it(L_DEBUG, "Still %u link dns requests in process",l_net_pvt->links_dns_requests );
 
     if(!l_net_pvt->links_dns_requests ){
         if( l_net_pvt->state_target != NET_STATE_OFFLINE){
@@ -1434,6 +1441,14 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+    bool l_found = dap_chain_net_sync_trylock_nolock(a_net, a_client);
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    return !l_found;
+}
+
+bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
+{
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     bool l_found = false;
     if (l_net_pvt->active_link) {
         for (dap_list_t *l_links = l_net_pvt->net_links; l_links; l_links = dap_list_next(l_links)) {
@@ -1454,7 +1469,6 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
         dap_events_socket_uuid_t *l_uuid = DAP_DUP(&a_client->uuid);
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, l_uuid);
     }
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     return !l_found;
 }
 
@@ -1463,16 +1477,15 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
     if (!a_net)
         return false;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    bool l_ret = false;
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
         dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
-        pthread_rwlock_unlock(&l_net_pvt->rwlock);
-        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
-        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid, false);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
-            DAP_DELETE(l_uuid);
+            DAP_DELETE(l_net_pvt->links_queue->data);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
             l_net_pvt->links_queue = l_net_pvt->links_queue->next;
             DAP_DELETE(l_to_remove);
@@ -1480,8 +1493,9 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
             break;
         }
     }
+    l_ret = l_net_pvt->active_link;
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    return l_net_pvt->active_link;
+    return l_ret;
 }
 /**
  * @brief dap_chain_net_client_create_n_connect
@@ -3211,6 +3225,132 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
 
     }
 }
+
+/**
+ * @brief dap_chain_net_get_tx_cond_all_by_srv_uid
+ * @param a_net
+ * @param a_srv_uid
+ * @param a_search_type
+ * @return
+ */
+dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
+                                                      const dap_time_t a_time_from, const dap_time_t a_time_to,
+                                                     const dap_chain_net_tx_search_type_t a_search_type)
+{
+    dap_ledger_t * l_ledger = a_net->pub.ledger;
+    dap_list_t * l_ret = NULL;
+
+    switch (a_search_type) {
+        case TX_SEARCH_TYPE_NET:
+        case TX_SEARCH_TYPE_CELL:
+        case TX_SEARCH_TYPE_LOCAL:
+        case TX_SEARCH_TYPE_CELL_SPENT:
+        case TX_SEARCH_TYPE_NET_SPENT: {
+            // pass all chains
+            for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
+                dap_chain_cell_t * l_cell, *l_cell_tmp;
+                // Go through all cells
+                HASH_ITER(hh,l_chain->cells,l_cell, l_cell_tmp){
+                    dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain,l_cell->id, false  );
+                    // try to find transaction in chain ( inside shard )
+                    size_t l_atom_size = 0;
+                    dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+
+                    // Check atoms in chain
+                    while(l_atom && l_atom_size) {
+                        dap_chain_datum_t *l_datum = (dap_chain_datum_t*) l_atom;
+                        // transaction
+                        dap_chain_datum_tx_t *l_tx = NULL;
+
+                        // Check if its transaction
+                        if ( l_datum && (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)) {
+                            l_tx = (dap_chain_datum_tx_t*) l_datum->data;
+                        }
+
+                        // If found TX
+                        if (l_tx){
+                            // Check for time from
+                            if(a_time_from && l_tx->header.ts_created < a_time_from)
+                                    continue;
+
+                            // Check for time to
+                            if(a_time_to && l_tx->header.ts_created > a_time_to)
+                                    continue;
+
+                            if(a_search_type == TX_SEARCH_TYPE_CELL_SPENT || a_search_type == TX_SEARCH_TYPE_NET_SPENT ){
+                                dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
+                                bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
+                                DAP_DELETE(l_tx_hash);
+                                if(!l_is_spent)
+                                    continue;
+                            }
+                            // Check for OUT_COND items
+                            dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND , NULL);
+                            if(l_list_out_cond_items){
+                                dap_list_t *l_list_cur = l_list_out_cond_items;
+                                while(l_list_cur){ // Go through all cond items
+                                    l_list_cur = dap_list_next(l_list_cur);
+                                    dap_chain_tx_out_cond_t * l_tx_out_cond = (dap_chain_tx_out_cond_t *)l_list_cur->data;
+                                    if(l_tx_out_cond) // If we found cond out with target srv_uid
+                                        if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64)
+                                            l_ret = dap_list_append(l_ret,l_tx);
+                                }
+                                dap_list_free(l_list_out_cond_items);
+                            }
+                        }
+
+                        // go to next atom
+                        l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
+
+                    }
+                }
+            }
+        } break;
+
+        case TX_SEARCH_TYPE_NET_UNSPENT:
+        case TX_SEARCH_TYPE_CELL_UNSPENT:
+            l_ret = dap_chain_ledger_tx_cache_find_out_cond_all(l_ledger, a_srv_uid);
+            break;
+    }
+    return l_ret;
+
+}
+
+/**
+ * @brief Summarize all tx inputs
+ * @param a_net
+ * @param a_tx
+ * @return
+ */
+uint256_t dap_chain_net_get_tx_total_value(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx)
+{
+    uint256_t l_ret = {0};
+    int l_item_idx = 0;
+    dap_chain_tx_in_t *l_in_item = NULL;
+    do {
+        l_in_item = (dap_chain_tx_in_t*) dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN , NULL);
+        l_item_idx++;
+        if(l_in_item ) {
+            //const char *token = l_out_cond_item->subtype.srv_xchange.token;
+            dap_chain_datum_tx_t * l_tx_prev = dap_chain_net_get_tx_by_hash(a_net,&l_in_item->header.tx_prev_hash, TX_SEARCH_TYPE_NET_SPENT);
+            if(l_tx_prev){
+                int l_tx_prev_out_index = l_in_item->header.tx_out_prev_idx;
+                dap_chain_tx_out_t *  l_tx_prev_out =(dap_chain_tx_out_t *)
+                        dap_chain_datum_tx_item_get(l_tx_prev,&l_tx_prev_out_index, TX_ITEM_TYPE_OUT,NULL);
+                if( l_tx_prev_out_index == l_in_item->header.tx_out_prev_idx && l_tx_prev_out){
+                    uint256_t l_in_value = l_tx_prev_out->header.value;
+                    if(SUM_256_256(l_in_value,l_ret, &l_ret )!= 0)
+                        log_it(L_ERROR, "Overflow on inputs values calculation (summing)");
+                }else{
+                    log_it(L_WARNING, "Can't find item with index %d in prev tx hash", l_tx_prev_out_index);
+                }
+            }else
+                log_it(L_WARNING, "Can't find prev tx hash");
+        }
+    } while(l_in_item);
+    return l_ret;
+}
+
 
 /**
  * @brief dap_chain_net_tx_get_by_hash

@@ -37,7 +37,7 @@ typedef struct dap_chain_net_srv_xchange_price {
     uint256_t datoshi_sell;
     dap_chain_net_t *net_buy;
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
-    long double rate;
+    uint256_t rate;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
     dap_enc_key_t *wallet_key;
@@ -53,7 +53,7 @@ typedef struct dap_chain_net_srv_xchange_db_item {
     uint64_t net_sell_id;
     uint64_t net_buy_id;
     uint256_t datoshi_sell;
-    long double rate;
+    uint256_t rate;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
     char wallet_str[];
@@ -70,6 +70,8 @@ typedef struct dap_chain_net_srv_xchange {
     dap_chain_net_srv_xchange_price_t *pricelist;
     bool enabled;
 } dap_chain_net_srv_xchange_t;
+
+extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();

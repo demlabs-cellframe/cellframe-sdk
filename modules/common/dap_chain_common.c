@@ -572,8 +572,8 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
                        l_len, DATOSHI_POW256), l_nul;
 
     /* Find , check and remove 'precision' dot symbol */
-    memcpy (l_buf, a_coins, l_len);                                         /* Make local coy */
-    if ( !(l_point = memchr(l_buf, '.', l_len)) )                            /* Is there 'dot' ? */
+    memcpy (l_buf, a_coins, l_len);                                         /* Make local copy */
+    if ( !(l_point = memchr(l_buf, '.', l_len)) )                           /* Is there 'dot' ? */
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - no precision mark", a_coins),
                 l_nul;
 

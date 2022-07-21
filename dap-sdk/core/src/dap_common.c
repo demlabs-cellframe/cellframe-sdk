@@ -373,6 +373,8 @@ struct timespec now;
     if ( (a_ll == -1) )
         return;
 
+    if ( a_ll < s_dap_log_level )
+        return;
 
 
 	clock_gettime(CLOCK_REALTIME, &now);

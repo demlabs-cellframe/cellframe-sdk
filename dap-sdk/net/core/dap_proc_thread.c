@@ -180,9 +180,10 @@ dap_proc_queue_t    *l_queue;
     clock_gettime(CLOCK_REALTIME, &l_time_start);
     do {
         l_is_processed = 0;
-        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
+        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_iter_cnt++ )                          /* Run from higest to lowest ... */
         {
-            if ( !l_queue->list[l_cur_pri].items.nr) {                        /* A lockless quick check */
+            if ( !l_queue->list[l_cur_pri].items.nr) {                       /* A lockless quick check */
+                l_cur_pri--;
                 continue;
             }
 
@@ -201,24 +202,6 @@ dap_proc_queue_t    *l_queue;
 
             debug_if (g_debug_reactor, L_INFO, "Proc event callback (l_item: %p) : %p/%p, prio=%d, iteration=%d",
                            l_item, l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
-
-
-    #ifdef  DAP_OS_LINUX
-            if ( g_debug_reactor )
-            {
-                #include <execinfo.h>
-
-                char **rtn_name;
-                void *rtn_arr[] = {l_item->callback};
-
-                rtn_name = backtrace_symbols (rtn_arr, 1);
-
-                log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
-
-                free(rtn_name);
-            }
-    #endif      /* DAP_OS_LINUX */
-
 
             l_is_processed += 1;
             l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
@@ -657,7 +640,9 @@ static void * s_proc_thread_function(void * a_arg)
 #endif
             break;
         }
+        l_thread->esockets_selected = l_sockets_max;
         for(size_t n = 0; n < l_sockets_max; n++) {
+            l_thread->esocket_current = n;
             dap_events_socket_t * l_cur;
             int l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error,
                     l_flag_nval,l_flag_pri,l_flag_msg;
@@ -695,32 +680,38 @@ static void * s_proc_thread_function(void * a_arg)
 
             if (l_kevent->filter & EVFILT_USER){
                 dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t*) l_kevent->udata;
-                assert(l_es_w_data);
-                l_cur = l_es_w_data->esocket;
-                assert(l_cur);
-                memcpy(&l_cur->kqueue_event_catched_data,l_es_w_data,sizeof(*l_es_w_data));
-                if(l_es_w_data != &l_cur->kqueue_event_catched_data )
-                    DAP_DELETE(l_es_w_data);
-                else if (g_debug_reactor)
-                    log_it(L_DEBUG,"Own event signal without actual event data");
-                if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
-                                               // we must drop write flag and set read flag
-                    l_flag_read = true;
-                }else{
-                    l_flag_write = true;
-                }
+                if(l_es_w_data){
+                    l_cur = l_es_w_data->esocket;
+                    assert(l_cur);
+                    memcpy(&l_cur->kqueue_event_catched_data,l_es_w_data,sizeof(*l_es_w_data));
+                    if(l_es_w_data != &l_cur->kqueue_event_catched_data )
+                        DAP_DELETE(l_es_w_data);
+                    else if (g_debug_reactor)
+                        log_it(L_DEBUG,"Own event signal without actual event data");
+                    if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
+                                                   // we must drop write flag and set read flag
+                        l_flag_read = true;
+                    }else{
+                        l_flag_write = true;
+                    }
+                }else
+                    l_cur = NULL;
             }else{
                 l_cur = (dap_events_socket_t*) l_kevent->udata;
-                assert(l_cur);
-
-                switch (l_kevent->filter) {
-                    case EVFILT_TIMER:
-                    case EVFILT_READ: l_flag_read = true; break;
-                    case EVFILT_WRITE: l_flag_write = true; break;
-                    case EVFILT_EXCEPT : l_flag_rdhup = true; break;
-                    default: log_it(L_CRITICAL,"Unknown filter type in polling, exit thread"); return NULL;
+                if(l_cur){
+                    switch (l_kevent->filter) {
+                        case EVFILT_TIMER:
+                        case EVFILT_READ: l_flag_read = true; break;
+                        case EVFILT_WRITE: l_flag_write = true; break;
+                        case EVFILT_EXCEPT : l_flag_rdhup = true; break;
+                        default: log_it(L_CRITICAL,"Unknown filter type in polling, exit thread"); return NULL;
+                    }
                 }
+            }
 
+            if( !l_cur) {
+                log_it(L_WARNING, "dap_events_socket was destroyed earlier");
+                continue;
             }
             l_cur->kqueue_event_catched = l_kevent;
 #ifndef DAP_OS_DARWIN
@@ -1056,6 +1047,7 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
     dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
+    debug_if(g_debug_reactor, L_INFO, "Msg with arg %p -> worker %d", a_arg, a_worker_id);
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
 
     // TODO Make this code platform-independent

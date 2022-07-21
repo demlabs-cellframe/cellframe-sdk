@@ -392,6 +392,7 @@ int dilithium_crypto_sign_open( unsigned char *m, unsigned long long mlen, dilit
             return -7;
         }
 
+    free(p);
     return 0;
 }
 
