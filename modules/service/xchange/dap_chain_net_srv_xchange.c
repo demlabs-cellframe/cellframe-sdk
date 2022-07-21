@@ -54,7 +54,7 @@ int dap_chain_net_srv_xchange_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
     "srv_xchange price create -net_sell <net_name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker> -wallet <name> -coins <value> -rate <value>\n"
-        "\tCreate a new price with specified amount of datoshi to exchange with specified rate (sell : buy)\n"
+        "\tCreate a new price with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
     "srv_xchange price remove -net_sell <net_name> -token_sell <token ticker> -net_buy <net_name> -token_buy <token ticker>\n"
          "\tRemove price with specified tickers within specified net names\n"
     "srv_xchange price list\n"
@@ -123,7 +123,8 @@ bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_
     if (a_owner)
         return true;
     /* Check the condition for verification success
-     * a_cond.srv_xchange.rate >= a_tx.out.rate
+     * a_cond.srv_xchange.rate (a_cond->header.value / a_cond->subtype.srv_xchange.buy_value) >=
+     * a_tx.out.rate ((a_cond->header.value - l_back_val) / l_out_val)
      */
     dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_EXT, NULL);
     uint256_t l_out_val = {}, l_back_val = {};
@@ -133,7 +134,7 @@ bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_
         if (memcmp(&l_tx_out->addr, &a_cond->params, sizeof(dap_chain_addr_t))) {
             continue;
         }
-        if (strcmp(l_tx_out->token, a_cond->subtype.srv_xchange.token)) {
+        if (strcmp(l_tx_out->token, a_cond->subtype.srv_xchange.buy_token)) {
             if (l_ticker_ctrl && strcmp(l_ticker_ctrl, l_tx_out->token)) {
                 return false;   // too many tokens
             }
@@ -144,10 +145,10 @@ bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_
         }
     }
     //long double l_buyer_rate = (a_cond->header.value - l_back_val) / (long double)l_out_val;
-    //long double l_seller_rate = (long double)a_cond->header.value / a_cond->subtype.srv_xchange.value;
+    //long double l_seller_rate =
     uint256_t l_buyer_val = {}, l_buyer_mul = {}, l_seller_mul = {};
     SUBTRACT_256_256(a_cond->header.value, l_back_val, &l_buyer_val);
-    MULT_256_256(l_buyer_val, a_cond->subtype.srv_xchange.value, &l_buyer_mul);
+    MULT_256_256(l_buyer_val, a_cond->subtype.srv_xchange.buy_value, &l_buyer_mul);
     MULT_256_256(l_out_val, a_cond->header.value, &l_seller_mul);
     if (compare256(l_seller_mul, l_buyer_mul) == -1) {
         return false;           // wrong changing rate
@@ -157,16 +158,17 @@ bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_
 
 
 
-static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_xchange_price_t *a_price)
+static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_xchange_price_t *a_price, uint256_t a_datoshi_buy)
 {
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
     uint8_t *l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
-    uint256_t l_datoshi_buy = {}; // TODO rework it with fixed point MULT_256_FRAC_FRAC(a_price->datoshi_sell, 1 / a_price->rate);
-    memcpy(l_ext, &l_datoshi_buy, sizeof(uint256_t));
+    memcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t));
     strcpy((char *)&l_ext[sizeof(uint256_t)], a_price->token_buy);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
-    dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, a_price->datoshi_sell,
+    uint256_t l_datoshi_sell = {};
+    DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
+    dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, l_datoshi_sell,
                                                                                  l_ext, l_ext_size);
     return l_receipt;
 }
@@ -206,9 +208,11 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
 
     // add 'out_cond' & 'out' items
     {
+        uint256_t l_datoshi_buy = uint256_0;
+        MULT_256_COIN(a_price->datoshi_sell, a_price->rate, &l_datoshi_buy);
         dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
-        dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_uid, a_price->net_sell->pub.id,
-                                                                                                a_price->token_sell, a_price->datoshi_sell,
+        dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_uid, a_price->net_sell->pub.id, a_price->datoshi_sell,
+                                                                                                a_price->net_buy->pub.id, a_price->token_buy, l_datoshi_buy,
                                                                                                 (void *)l_seller_addr, sizeof(dap_chain_addr_t));
         if (!l_tx_out) {
             dap_chain_datum_tx_delete(l_tx);
@@ -242,7 +246,8 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     return l_tx;
 }
 
-static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_hash_fast_t *a_tx_cond_hash, dap_chain_wallet_t *a_wallet)
+static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xchange_price_t *a_price,
+                                                          dap_chain_wallet_t *a_wallet, uint256_t a_datoshi_buy)
 {
     if (!a_price || !a_price->net_sell || !a_price->net_buy || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
         return NULL;
@@ -256,11 +261,8 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
     uint256_t l_value_buy = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
-    uint256_t l_datoshi_buy = uint256_0;
-    DIV_256_COIN(a_price->datoshi_sell, a_price->rate, &l_datoshi_buy);
-
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
-                                                                             l_seller_addr, l_datoshi_buy, &l_value_buy);
+                                                                             l_seller_addr, a_datoshi_buy, &l_value_buy);
     if(!l_list_used_out) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_WARNING, "Nothing to change (not enough funds)");
@@ -268,7 +270,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     }
 
     // create and add reciept
-    dap_chain_datum_tx_receipt_t *l_receipt = s_xchage_receipt_create(a_price);
+    dap_chain_datum_tx_receipt_t *l_receipt = s_xchage_receipt_create(a_price, a_datoshi_buy);
     dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
     DAP_DELETE(l_receipt);
     // add 'in' items to sell
@@ -281,7 +283,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
     // add 'in' item to buy from conditional transaction
-    dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_cond_hash);
+    dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &a_price->tx_hash);
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return NULL;
@@ -292,12 +294,12 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         return false;
     }
-    dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_cond_hash, l_prev_cond_idx, 0);
+    dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, l_prev_cond_idx, 0);
     // add 'out' items
     {
         // transfer selling coins
         const dap_chain_addr_t *l_buyer_addr = (dap_chain_addr_t *)l_tx_out_cond->params;
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, l_datoshi_buy, a_price->token_buy) == -1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, a_datoshi_buy, a_price->token_buy) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_seller_addr);
             log_it(L_ERROR, "Can't add selling coins output");
@@ -305,7 +307,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         }
         // coin back
         uint256_t l_value_back = {};
-        SUBTRACT_256_256(l_value_buy, l_datoshi_buy, &l_value_back);
+        SUBTRACT_256_256(l_value_buy, a_datoshi_buy, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, l_value_back, a_price->token_buy) == -1) {
                 dap_chain_datum_tx_delete(l_tx);
@@ -379,7 +381,7 @@ static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, d
     dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
 
     // create and add reciept
-    dap_chain_datum_tx_receipt_t *l_receipt = s_xchage_receipt_create(a_price);
+    dap_chain_datum_tx_receipt_t *l_receipt = s_xchage_receipt_create(a_price, uint256_0);
     dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
     DAP_DELETE(l_receipt);
 
@@ -432,15 +434,15 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     dap_srv_xchange_order_ext_t l_ext;
     l_ext.net_sell_id = a_price->net_sell->pub.id.uint64;
     l_ext.datoshi_sell = a_price->datoshi_sell;
-    strcpy(l_ext.token_sell, a_price->token_sell);
+    strncpy(l_ext.token_sell, a_price->token_sell, DAP_CHAIN_TICKER_SIZE_MAX);
     uint32_t l_ext_size = sizeof(dap_srv_xchange_order_ext_t);
     dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_price->net_sell);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     uint256_t l_datoshi_buy = uint256_0;
-    DIV_256_COIN(a_price->datoshi_sell, a_price->rate, &l_datoshi_buy);
+    MULT_256_COIN(a_price->datoshi_sell, a_price->rate, &l_datoshi_buy);
 
-    char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net_buy, SERV_DIR_SELL, l_uid, *l_node_addr,
+    char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net_buy, SERV_DIR_BUY, l_uid, *l_node_addr,
                                                             l_tx_hash, &l_datoshi_buy, l_unit, a_price->token_buy, 0,
                                                             (uint8_t *)&l_ext, l_ext_size, NULL, 0, a_price->wallet_key);
     return l_order_hash_str;
@@ -452,14 +454,14 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 {
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)a_order->ext_n_sign;
-    dap_chain_net_id_t l_net_buy_id = { .uint64 = dap_lendian_get64((uint8_t *)&l_ext->net_sell_id) };
-    l_price->net_sell = dap_chain_net_by_id(l_net_buy_id);
+    dap_chain_net_id_t l_net_sell_id = { .uint64 = dap_lendian_get64((uint8_t *)&l_ext->net_sell_id) };
+    l_price->net_sell = dap_chain_net_by_id(l_net_sell_id);
     l_price->datoshi_sell = l_ext->datoshi_sell;
     strcpy(l_price->token_sell, l_ext->token_sell);
     l_price->net_buy = a_net;
     strcpy(l_price->token_buy, a_order->price_ticker);
-    DIV_256_COIN(l_price->datoshi_sell, a_order->price, &l_price->rate);
-
+    DIV_256_COIN(a_order->price, l_price->datoshi_sell, &l_price->rate);
+    memcpy(&l_price->tx_hash, &a_order->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
     return l_price;
 }
 
@@ -841,6 +843,7 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
 // Filter for find tx with DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE
 static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, void *a_filter_func_param)
 {
+    UNUSED(a_chain);
     // Datum type filter -> only tx
     if(!a_datum || a_datum->header.type_id != DAP_CHAIN_DATUM_TX)
         return false;
@@ -938,7 +941,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
 
             const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
 
-            uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.value;
+            uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
             uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(a_net, l_datum_tx);
 
             char *l_tx_input_values_str = dap_cvt_uint256_to_str(l_tx_input_values);
@@ -946,7 +949,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
 
             dap_string_append_printf(l_reply_str, "From: %s %s   ", l_tx_input_values_str, l_tx_input_ticker);
-            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
+            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
 
             DAP_DELETE(l_value_from_str);
             DAP_DELETE(l_value_to_str);
@@ -967,7 +970,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
 static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {CMD_NONE = 0, CMD_PRICE, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
-    int l_arg_index = 1, l_cmd_num = CMD_NONE, l_rc;
+    int l_arg_index = 1, l_cmd_num = CMD_NONE;
 
     if(dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "price", NULL)) {
         l_cmd_num = CMD_PRICE;
@@ -1035,7 +1038,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
 
         case CMD_PURCHASE: {
-            const char *l_net_str = NULL, *l_wallet_str = NULL, *l_order_hash_str = NULL, *l_val_sell_str = NULL;
+            const char *l_net_str = NULL, *l_wallet_str = NULL, *l_order_hash_str = NULL, *l_val_buy_str = NULL;
             l_arg_index++;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
@@ -1062,22 +1065,21 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'purchase' required parameter -order");
                 return -12;
             }
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
-            if (!l_val_sell_str) {
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_buy_str);
+            if (!l_val_buy_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'purchase' required parameter -coins");
                 return -8;
             }
-            uint256_t l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
-            if (IS_ZERO_256(l_datoshi_sell)) {
+            uint256_t l_datoshi_buy = dap_chain_balance_scan(l_val_buy_str);
+            if (IS_ZERO_256(l_datoshi_buy)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
                 return -9;
             }
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
             if (l_order) {
                 dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order);
-                l_price->datoshi_sell = l_datoshi_sell;
                 // Create conditional transaction
-                dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, &l_order->tx_cond_hash, l_wallet);
+                dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, l_wallet, l_datoshi_buy);
                 if (l_tx && s_xchange_tx_put(l_tx, l_net)) {
                     // TODO send request to seller to update / delete order & price
                     dap_chain_net_srv_order_delete_by_hash_str(l_price->net_buy, l_order_hash_str);
@@ -1188,12 +1190,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         l_out_cond_item = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(l_datum_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL);
                         l_item_idx++;
                         if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
-                            uint256_t value = l_out_cond_item->subtype.srv_xchange.value;
+                            uint256_t value = l_out_cond_item->subtype.srv_xchange.buy_value;
                             char *l_value_to_str = dap_cvt_uint256_to_str(value);
                             char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
 
                             dap_string_append_printf(l_reply_str, "From: %s %s   ", l_value_from_str, l_tx_input_ticker);
-                            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
+                            dap_string_append_printf(l_reply_str, "To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
 
                             DAP_DELETE(l_value_from_str);
                             DAP_DELETE(l_value_to_str);
@@ -1305,9 +1307,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 l_item_idx++;
                                 if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
                                     //const char *token = l_out_cond_item->subtype.srv_xchange.token;
-                                    uint256_t value = l_out_cond_item->subtype.srv_xchange.value;
+                                    uint256_t value = l_out_cond_item->subtype.srv_xchange.buy_value;
                                     uint256_t l_total_rates_old = l_total_rates;
-                                    if(SUM_256_256(l_out_cond_item->subtype.srv_xchange.value,l_total_rates_old, &l_total_rates )!= 0)
+                                    if(SUM_256_256(value,l_total_rates_old, &l_total_rates )!= 0)
                                         log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
                                     INCR_256(&l_total_rates_count);
                                 }
@@ -1368,12 +1370,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 l_item_idx++;
                                 if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
                                     //const char *token = l_out_cond_item->subtype.srv_xchange.token;
-                                    uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.value;
+                                    uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
                                     char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
                                     char * l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
 
                                     dap_string_append_printf(l_reply_str, "From: : %s %s   ", l_tx_input_ticker,l_value_from_str);
-                                    dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token );
+                                    dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
 
                                     DAP_DELETE(l_value_from_str);
                                     DAP_DELETE(l_value_to_str);
