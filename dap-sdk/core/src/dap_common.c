@@ -785,6 +785,7 @@ char * exec_with_ret(const char * a_cmd)
 FIN:
     return strdup(buf);
 }
+#endif
 
 /**
  * @brief exec_with_ret_multistring performs a command with a result return in the form of a multistring
@@ -811,7 +812,6 @@ char * exec_with_ret_multistring(const char * a_cmd)
 FIN:
     return strdup(retbuf);
 }
-#endif
 
 static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
