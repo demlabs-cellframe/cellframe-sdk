@@ -720,7 +720,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_external_stake(dap_chain
 	char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
 	char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
 
-	if( dap_chain_global_db_gr_set( l_key_str, l_datum, dap_chain_datum_size(l_datum), l_gdb_group ) ) {
+	if( dap_global_db_set(l_gdb_group, l_key_str, l_datum, dap_chain_datum_size(l_datum), true, NULL, NULL ) == 0 ) {
 		log_it(L_NOTICE, "Transaction %s placed in mempool group %s", l_key_str, l_gdb_group);
 	}
 
