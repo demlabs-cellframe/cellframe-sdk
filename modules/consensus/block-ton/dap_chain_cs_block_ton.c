@@ -146,7 +146,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
    	l_ton_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton","auth_certs_number", 0);
     if ( !l_ton_pvt->validators_list_by_stake ) { // auth by cert for PoA mode
 	    if (l_ton_pvt->auth_certs_count) {
-	        l_ton_pvt->auth_certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_ton_pvt->auth_certs_count * sizeof(dap_cert_t));
+            l_ton_pvt->auth_certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_ton_pvt->auth_certs_count * sizeof(dap_cert_t*));
 	        char l_cert_name[512];
 	        for (size_t i = 0; i < l_ton_pvt->auth_certs_count; i++ ){
 	            dap_snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_ton_pvt->auth_certs_prefix, i);
@@ -914,8 +914,8 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
     dap_chain_cs_block_ton_message_item_t *l_message_item=NULL, *l_message_tmp=NULL;
     HASH_ITER(hh, a_session->old_round.messages_items, l_message_item, l_message_tmp) {
         // Clang bug at this, l_message_item should change at every loop cycle
-        HASH_DEL(a_session->old_round.messages_items, l_message_item);
         DAP_DELETE(l_message_item->message);
+        HASH_DEL(a_session->old_round.messages_items, l_message_item);
         DAP_DELETE(l_message_item);
     }
 

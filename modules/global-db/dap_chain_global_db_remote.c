@@ -464,17 +464,21 @@ char	l_key[DAP_DB_K_MAXKEYLEN];
  */
 uint64_t dap_db_get_last_id_remote(uint64_t a_node_addr, char *a_group)
 {
-    char *l_node_addr_str = dap_strdup_printf("%ju%s", a_node_addr, a_group);
-    size_t l_id_len = 0;
-    uint8_t *l_id = dap_chain_global_db_gr_get((const char*) l_node_addr_str, &l_id_len,
-                                                GROUP_LOCAL_NODE_LAST_ID);
-    uint64_t l_ret_id = 0;
-    if (l_id) {
+char l_node_addr_str [512];
+size_t l_id_len = 0;
+uint8_t *l_id;
+uint64_t l_ret_id = 0;
+
+    dap_snprintf(l_node_addr_str, sizeof(l_node_addr_str) - 1, "%ju%s", a_node_addr, a_group);
+
+    if ( (l_id = dap_chain_global_db_gr_get( l_node_addr_str, &l_id_len, GROUP_LOCAL_NODE_LAST_ID)) )
+    {
         if (l_id_len == sizeof(uint64_t))
-            memcpy(&l_ret_id, l_id, l_id_len);
+            l_ret_id = *((uint64_t *) l_id);
+
         DAP_DELETE(l_id);
     }
-    DAP_DELETE(l_node_addr_str);
+
     return l_ret_id;
 }
 
@@ -504,12 +508,12 @@ char	l_key[DAP_DB_K_MAXKEYLEN];
  */
 dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain)
 {
-    char *l_node_chain_str = dap_strdup_printf("%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
-    size_t l_hash_len = 0;
-    uint8_t *l_hash = dap_chain_global_db_gr_get((const char*)l_node_chain_str, &l_hash_len,
-                                                 GROUP_LOCAL_NODE_LAST_ID);
-    DAP_DELETE(l_node_chain_str);
-    return (dap_chain_hash_fast_t *)l_hash;
+char l_node_chain_str[512];
+size_t l_hash_len = 0;
+
+    dap_snprintf(l_node_chain_str, sizeof(l_node_chain_str) - 1, "%ju%s%s", a_node_addr, a_chain->net_name, a_chain->name);
+
+    return  (dap_chain_hash_fast_t *) dap_chain_global_db_gr_get((const char*)l_node_chain_str, &l_hash_len, GROUP_LOCAL_NODE_LAST_ID);
 }
 
 /**
@@ -523,6 +527,7 @@ static size_t dap_db_get_size_pdap_store_obj_t(pdap_store_obj_t store_obj)
     size_t size = sizeof(uint32_t) + 2 * sizeof(uint16_t) +
             3 * sizeof(uint64_t) + dap_strlen(store_obj->group) +
             dap_strlen(store_obj->key) + store_obj->value_len;
+
     return size;
 }
 
@@ -613,77 +618,111 @@ unsigned char *pdata;
  */
 dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, size_t *a_store_obj_count)
 {
+uint32_t l_count, l_cur_count;
+uint64_t l_offset, l_size ;
+unsigned char *pdata, *pdata_end;
+dap_store_obj_t *l_store_obj_arr, *l_obj;
+
     if(!a_pkt || a_pkt->data_size < sizeof(dap_store_obj_pkt_t))
         return NULL;
-    uint64_t l_offset = 0;
-    uint32_t l_count = a_pkt->obj_count, l_cur_count;
-    uint64_t l_size = l_count <= UINT16_MAX ? l_count * sizeof(struct dap_store_obj) : 0;
-    dap_store_obj_t *l_store_obj = DAP_NEW_Z_SIZE(dap_store_obj_t, l_size);
-    if (!l_store_obj || !l_size) {
-        log_it(L_ERROR, "Invalid size: can't allocate %"DAP_UINT64_FORMAT_U" bytes", l_size);
-        DAP_DEL_Z(l_store_obj)
+
+    l_count = a_pkt->obj_count;
+    l_offset = 0;
+    l_size = l_count <= UINT16_MAX ? l_count * sizeof(struct dap_store_obj) : 0;
+
+    l_store_obj_arr = DAP_NEW_Z_SIZE(dap_store_obj_t, l_size);
+
+    if (!l_store_obj_arr || !l_size)
+    {
+        log_it(L_ERROR, "Invalid size: can't allocate %"DAP_UINT64_FORMAT_U" bytes, errno=%d", l_size, errno);
+        DAP_DEL_Z(l_store_obj_arr)
         return NULL;
     }
-    for(l_cur_count = 0; l_cur_count < l_count; ++l_cur_count) {
-        dap_store_obj_t *l_obj = l_store_obj + l_cur_count;
-        uint16_t l_str_length;
 
-        uint32_t l_type;
-        if (l_offset+sizeof (uint32_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'type' field"); break;} // Check for buffer boundries
-        memcpy(&l_type, a_pkt->data + l_offset, sizeof(uint32_t));
-        l_obj->type = l_type;
-        l_offset += sizeof(uint32_t);
 
-        if (l_offset+sizeof (uint16_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'group_length' field"); break;} // Check for buffer boundries
-        memcpy(&l_str_length, a_pkt->data + l_offset, sizeof(uint16_t));
-        l_offset += sizeof(uint16_t);
 
-        if (l_offset + l_str_length > a_pkt->data_size || !l_str_length) {log_it(L_ERROR, "Broken GDB element: can't read 'group' field"); break;} // Check for buffer boundries
-        l_obj->group = DAP_NEW_Z_SIZE(char, l_str_length + 1);
-        memcpy(l_obj->group, a_pkt->data + l_offset, l_str_length);
-        l_offset += l_str_length;
+    pdata = (unsigned char *) a_pkt->data;                                  /* Set <pdata> to begin of payload */
+    pdata_end = pdata + a_pkt->data_size;                                   /* Set <pdata_end> to end of payload area
+                                                                              will be used to prevent out-of-buffer case */
+    l_obj = l_store_obj_arr;
 
-        if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'id' field");
-                                                           DAP_DEL_Z(l_obj->group); break;} // Check for buffer boundries
-        memcpy(&l_obj->id, a_pkt->data + l_offset, sizeof(uint64_t));
-        l_offset += sizeof(uint64_t);
+    for ( l_cur_count = l_count ; l_cur_count; l_cur_count--, l_obj++ )
+    {
+        if ( (pdata  + sizeof (uint32_t)) > pdata_end )                     /* Check for buffer boundaries */
+            {log_it(L_ERROR, "Broken GDB element: can't read 'type' field"); break;}
+        l_obj->type = *((uint32_t *) pdata);
+        pdata += sizeof(uint32_t);
 
-        if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'timestamp' field");
-                                                           DAP_DEL_Z(l_obj->group); break;} // Check for buffer boundries
-        memcpy(&l_obj->timestamp, a_pkt->data + l_offset, sizeof(uint64_t));
-        l_offset += sizeof(uint64_t);
 
-        if (l_offset+sizeof (uint16_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'key_length' field");
-                                                           DAP_DEL_Z(l_obj->group); break;} // Check for buffer boundries
-        memcpy(&l_str_length, a_pkt->data + l_offset, sizeof(uint16_t));
-        l_offset += sizeof(uint16_t);
+        if ( (pdata  + sizeof (uint16_t)) > pdata_end )
+            {log_it(L_ERROR, "Broken GDB element: can't read 'group_length' field"); break;}
+        l_obj->group_len = *((uint16_t *) pdata);
+        pdata += sizeof(uint16_t);
 
-        if (l_offset + l_str_length > a_pkt->data_size || !l_str_length) {log_it(L_ERROR, "Broken GDB element: can't read 'key' field: len %s",
-                                                                                 l_str_length ? "OVER" : "NULL");
-                                                                          DAP_DEL_Z(l_obj->group); break;} // Check for buffer boundries
-        l_obj->key = DAP_NEW_Z_SIZE(char, l_str_length + 1);
-        memcpy((char *)l_obj->key, a_pkt->data + l_offset, l_str_length);
-        l_offset += l_str_length;
+        if ( !l_obj->group_len )
+            {log_it(L_ERROR, "Broken GDB element: 'group_len' field is zero"); break;}
 
-        if (l_offset+sizeof (uint64_t)> a_pkt->data_size) {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field");
-                                                           DAP_DEL_Z(l_obj->group); DAP_DEL_Z(l_obj->key); break;} // Check for buffer boundries
-        memcpy(&l_obj->value_len, a_pkt->data + l_offset, sizeof(uint64_t));
-        l_offset += sizeof(uint64_t);
 
-        if (l_offset + l_obj->value_len > a_pkt->data_size || ! l_obj->value_len) {log_it(L_ERROR, "Broken GDB element: can't read 'value' field");
-                                                          DAP_DEL_Z(l_obj->group); DAP_DEL_Z(l_obj->key);break;} // Check for buffer boundries
-        l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
-        memcpy(l_obj->value, a_pkt->data + l_offset, l_obj->value_len);
-        l_offset += l_obj->value_len;
+        if ( (pdata + l_obj->group_len) > pdata_end )
+            {log_it(L_ERROR, "Broken GDB element: can't read 'group' field"); break;}
+        l_obj->group = DAP_NEW_Z_SIZE(char, l_obj->group_len + 1);
+        memcpy(l_obj->group, pdata, l_obj->group_len);
+        pdata += l_obj->group_len;
+
+
+
+        if ( (pdata + sizeof (uint64_t)) > pdata_end )
+            {log_it(L_ERROR, "Broken GDB element: can't read 'id' field"); break;}
+        l_obj->id = *((uint64_t *) pdata);
+        pdata += sizeof(uint64_t);
+
+
+
+        if ( (pdata + sizeof (uint64_t)) > pdata_end )
+            {log_it(L_ERROR, "Broken GDB element: can't read 'timestamp' field");  break;}
+        l_obj->timestamp = *((uint64_t *) pdata);
+        pdata += sizeof(uint64_t);
+
+
+        if ( (pdata + sizeof (uint16_t)) > pdata_end)
+            {log_it(L_ERROR, "Broken GDB element: can't read 'key_length' field"); break;}
+        l_obj->key_len = *((uint16_t *) pdata);
+        pdata += sizeof(uint16_t);
+
+        if ( !l_obj->key_len )
+            {log_it(L_ERROR, "Broken GDB element: 'key_length' field is zero"); break;}
+
+        if ( (pdata + l_obj->key_len) > pdata_end )
+            {log_it(L_ERROR, "Broken GDB element: 'key_length' field is out from allocated memory"); break;}
+
+        l_obj->key_byte = DAP_NEW_SIZE(byte_t, l_obj->key_len + 1);
+        memcpy( l_obj->key_byte, pdata, l_obj->key_len);
+        l_obj->key_byte[l_obj->key_len] = '\0';
+        pdata += l_obj->key_len;
+
+
+        if ( (pdata + sizeof (uint64_t)) > pdata_end )
+        {log_it(L_ERROR, "Broken GDB element: can't read 'value_length' field"); break;}
+        l_obj->value_len = *((uint64_t *) pdata);
+        pdata += sizeof(uint64_t);
+
+        if ( !l_obj->value_len )
+            {log_it(L_DEBUG, "GDB element: 'value_length' field is zero");}
+        else {
+            if ( (pdata + l_obj->value_len) > pdata_end )
+                {log_it(L_ERROR, "Broken GDB element: can't read 'value' field"); break;}
+            l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
+            memcpy(l_obj->value, pdata, l_obj->value_len);
+            pdata += l_obj->value_len;
+        }
     }
-    if (a_pkt->data_size != l_offset) {
-        if (l_cur_count)
-            dap_store_obj_free(l_store_obj, l_cur_count);
-        return NULL;
-    }
+
+    assert( pdata <= pdata_end );
+
     // Return the number of completely filled dap_store_obj_t structures
     // because l_cur_count may be less than l_count due to too little memory
-    if(a_store_obj_count)
+    if (a_store_obj_count)
         *a_store_obj_count = l_cur_count;
-    return l_store_obj;
+
+    return l_store_obj_arr;
 }

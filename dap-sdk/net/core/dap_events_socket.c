@@ -124,8 +124,8 @@ int l_rc;
      * @RRL: #6157
      * Use this thread's attribute to eliminate resource consuming by terminated threads
      */
-    assert ( !(l_rc = pthread_attr_init(&s_attr_detached)) );
-    assert ( !(l_rc = pthread_attr_setdetachstate(&s_attr_detached, PTHREAD_CREATE_DETACHED)) );
+    pthread_attr_init(&s_attr_detached);
+    pthread_attr_setdetachstate(&s_attr_detached, PTHREAD_CREATE_DETACHED);
 
 #if defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
 #include <sys/time.h>
@@ -465,11 +465,10 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
 
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->buf_out_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
+    l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max );
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
-    //l_es->buf_out_size  = 8 * sizeof(void*);
     l_es->events = a_es->events;
     l_es->uuid = dap_uuid_generate_uint64();
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -496,15 +495,14 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 
     l_es->mqd_id = a_es->mqd_id;
     l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
-    l_mq_attr.mq_msgsize = sizeof (void*);                                  // We send only pointer on memory (???!!!),
+    l_mq_attr.mq_msgsize = DAP_QUEUE_MAX_BUFLEN;
                                                                             // so use it with shared memory if you do access from another process
-
     snprintf(l_mq_name,sizeof (l_mq_name), "/%s-queue_ptr-%u", dap_get_appname(), l_es->mqd_id );
 
     //if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
     //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
 
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_WRONLY |O_NONBLOCK, 0700, &l_mq_attr)) )
+    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_WRONLY|O_NONBLOCK, 0700, &l_mq_attr)) )
     {
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
                            (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
@@ -589,7 +587,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
 
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void*);
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
     l_es->buf_out = NULL;
 
@@ -610,11 +608,10 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     int l_pipe[2];
-    char l_errbuf[255];
+    char l_errbuf[255] = { '\0' };
     int l_errno;
-    l_errbuf[0]=0;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-    if( pipe2(l_pipe,O_DIRECT | O_NONBLOCK ) < 0 ){
+    if( pipe2(l_pipe, O_DIRECT | O_NONBLOCK ) < 0 ){
 #elif defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     if( pipe(l_pipe) < 0 ){
 #endif
@@ -662,14 +659,13 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 #endif
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-    int  l_errno;
     char l_errbuf[128] = {0}, l_mq_name[64] = {0};
-    struct mq_attr l_mq_attr;
+    struct mq_attr l_mq_attr = { 0 };
     static atomic_uint l_mq_last_number = 0;
 
 
     l_mq_attr.mq_maxmsg = DAP_QUEUE_MAX_MSGS;                               // Don't think we need to hold more than 1024 messages
-    l_mq_attr.mq_msgsize = sizeof (void*);                                  // We send only pointer on memory (???!!!),
+    l_mq_attr.mq_msgsize = DAP_QUEUE_MAX_BUFLEN;
                                                                             // so use it with shared memory if you do access from another process
 
     l_es->mqd_id = atomic_fetch_add( &l_mq_last_number, 1);
@@ -677,7 +673,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     // if ( (l_errno = mq_unlink(l_mq_name)) )                                 /* Mark this MQ to be deleted as the process will be terminated */
     //    log_it(L_DEBUG, "mq_unlink(%s)->%d", l_mq_name, l_errno);
 
-    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR |O_NONBLOCK, 0700, &l_mq_attr)) )
+    if ( 0 >= (l_es->mqd = mq_open(l_mq_name, O_CREAT|O_RDWR|O_NONBLOCK, 0700, &l_mq_attr)) )
     {
         log_it(L_CRITICAL,"Can't create mqueue descriptor %s: \"%s\" code %d (%s)", l_mq_name, l_errbuf, errno,
                            (strerror_r(errno, l_errbuf, sizeof (l_errbuf)), l_errbuf) );
@@ -849,33 +845,53 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
     }
 #endif
     if (a_esocket->callbacks.queue_callback){
-        if (a_esocket->flags & DAP_SOCK_QUEUE_PTR){
+        if (a_esocket->flags & DAP_SOCK_QUEUE_PTR) {
             void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-            ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr,sizeof (void *));
-            int l_read_errno = errno;
-            if( l_read_ret == (ssize_t) sizeof (void *))
-                a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
-            else if ( (errno != EAGAIN) && (errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
-                log_it(L_WARNING, "Can't read packet from pipe");
-#elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-            ssize_t l_ret = mq_receive(a_esocket->mqd,(char*) &l_queue_ptr, sizeof (l_queue_ptr),NULL);
-            if (l_ret == -1){
-                int l_errno = errno;
-                char l_errbuf[128];
-                l_errbuf[0]=0;
-                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it(L_ERROR, "Error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
-                return -1;
+            char l_body[DAP_QUEUE_MAX_BUFLEN] = { '\0' };
+            ssize_t l_read_ret = read(a_esocket->fd, l_body, sizeof(l_body));
+            int l_errno = errno;
+            if(l_read_ret > 0) {
+                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from pipe", l_read_ret);
+                for (long shift = 0; shift < l_read_ret; shift += sizeof(void*)) {
+                    l_queue_ptr = *(void **)(l_body + shift);
+                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                }
             }
-            a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
+            else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+                log_it(L_ERROR, "Can't read message from pipe");
+#elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+            char l_body[DAP_QUEUE_MAX_BUFLEN * DAP_QUEUE_MAX_MSGS] = { '\0' };
+            ssize_t l_ret, l_shift;
+            for (l_ret = 0, l_shift = 0;
+                 ((l_ret = mq_receive(a_esocket->mqd, l_body + l_shift, sizeof(void*), NULL)) == sizeof(void*)) && ((size_t)l_shift < sizeof(l_body) - sizeof(void*));
+                 l_shift += l_ret)
+            {
+                l_queue_ptr = *(void**)(l_body + l_shift);
+                a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+            }
+            if (l_ret == -1) {
+                int l_errno = errno;
+                switch (l_errno) {
+                case EAGAIN:
+                    debug_if(g_debug_reactor, L_INFO, "Received and processed %lu callbacks in 1 pass", l_shift / 8);
+                    break;
+                default: {
+                    char l_errbuf[128];
+                    l_errbuf[0]=0;
+                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                    log_it(L_ERROR, "mq_receive error in esocket queue_ptr:\"%s\" code %d", l_errbuf, l_errno);
+                    return -1;
+                }
+                }
+            }
 #elif defined DAP_EVENTS_CAPS_MSMQ
             DWORD l_mp_id = 0;
             MQMSGPROPS    l_mps;
             MQPROPVARIANT l_mpvar[2];
             MSGPROPID     l_p_id[2];
 
-            UCHAR l_body[64] = { 0 };
+            UCHAR l_body[4096] = { 0 }; // Normally a limit for MSMQ is ~4MB
             l_p_id[l_mp_id]				= PROPID_M_BODY;
             l_mpvar[l_mp_id].vt			= VT_UI1 | VT_VECTOR;
             l_mpvar[l_mp_id].caub.cElems = sizeof(l_body);
@@ -898,14 +914,13 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                     log_it(L_ERROR, "An error %ld occured receiving a message from queue", hr);
                     return -3;
                 }
+                debug_if(l_mpvar[1].ulVal > 8, L_NOTICE, "MSMQ: processing %d bytes in 1 pass", l_mpvar[1].ulVal);
                 debug_if(g_debug_reactor, L_DEBUG, "Received msg: %p len %lu", *(void **)l_body, l_mpvar[1].ulVal);
-                if (l_mpvar[1].ulVal != sizeof(void*)) {
-                    log_it(L_ERROR, "Queue message size incorrect: %lu", l_mpvar[1].ulVal);
-                    continue;
-                }
                 if (a_esocket->callbacks.queue_ptr_callback) {
-                    l_queue_ptr = *(void **)l_body;
-                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                    for (long shift = 0; shift < (long)l_mpvar[1].ulVal; shift += sizeof(void*)) {
+                        l_queue_ptr = *(void **)(l_body + shift);
+                        a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                    }
                 }
             }
 #elif defined DAP_EVENTS_CAPS_KQUEUE
@@ -926,6 +941,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 
         a_esocket->callbacks.queue_callback(a_esocket, l_queue_ptr, l_queue_ptr_size);
 #elif !defined(DAP_OS_WINDOWS)
+            debug_if(g_debug_reactor, L_NOTICE, "Why are we even here?");
             size_t l_read = read(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max );
 #endif
         }
@@ -1256,17 +1272,12 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
         log_it(L_ERROR,"No pipe_out pointer for queue socket, possible created wrong");
         return -2;
     }
-
-#else
-    void * l_arg = a_arg;
-    /*if (a_es_input->buf_out_size >= sizeof(void*)) {
-        if (memcmp(a_es_input->buf_out + a_es_input->buf_out_size - sizeof(void*), a_arg, sizeof(void*))) {
-            log_it(L_INFO, "Ptr 0x%x already present in input, drop it", a_arg);
-            return 2;
-        }
-    }*/
+#elif defined (DAP_EVENTS_CAPS_QUEUE_PIPE2)
+    void *l_arg = a_arg;
     return dap_events_socket_write_unsafe(a_es_input, &l_arg, sizeof(l_arg))
             == sizeof(l_arg) ? 0 : -1;
+#else
+    return dap_events_socket_queue_ptr_send(a_es_input, a_arg);
 #endif
 }
 
@@ -1277,31 +1288,42 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
  */
 int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
-    int l_ret = -1024, l_errno;
-
-    if (g_debug_reactor)
-        log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
-
+    int l_ret = -1024, l_errno=0;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-    l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg));
+    if ((l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg)) == sizeof(a_arg))) {
+        debug_if(g_debug_reactor, L_NOTICE, "send %d bytes to pipe", l_ret);
+        return 0;
+    }
     l_errno = errno;
+    char l_errbuf[128] = { '\0' };
+    strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
+    log_it(L_ERROR, "Can't send ptr to pipe:\"%s\" code %d", l_errbuf, l_errno);
+    return l_errno;
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
     assert(a_es);
     assert(a_es->mqd);
-
-    l_ret = mq_send(a_es->mqd, (const char *)&a_arg, sizeof (a_arg), 0);
-    l_errno = errno;
-    if ( l_ret == EPERM){
-        log_it(L_ERROR,"No permissions to send data in mqueue");
+    //struct timespec tmo = {0};
+    //tmo.tv_sec = 7 + time(NULL);
+    if (!mq_send(a_es->mqd, (const char*)&a_arg, sizeof(a_arg), 0)) {
+        debug_if (g_debug_reactor, L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
+        return 0;
     }
-
-    if (l_errno == EINVAL || l_errno == EINTR || l_errno == ETIMEDOUT)
-        l_errno = EAGAIN;
-    if (l_ret == 0)
-        l_ret = sizeof (a_arg);
-    else if (l_ret > 0)
-        l_ret = -l_ret;
-
+    switch (l_errno = errno) {
+    case EINVAL:
+    case EINTR:
+    case EWOULDBLOCK:
+        log_it(L_ERROR, "Can't send ptr to queue (err %d), will be resent again in a while...", l_errno);
+        struct mq_attr l_attr = { 0 };
+        mq_getattr(a_es->mqd, &l_attr);
+        log_it(L_ERROR, "Number of pending messages: %ld", l_attr.mq_curmsgs);
+        add_ptr_to_buf(a_es, a_arg);
+        return l_errno;
+    default: {
+        char l_errbuf[128] = { '\0' };
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", l_errbuf, l_errno);
+        return l_errno;
+    }}
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     struct timespec l_timeout;
     clock_gettime(CLOCK_REALTIME, &l_timeout);
@@ -1380,7 +1402,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     }
 
     if(l_n != -1 ){
-        return sizeof(a_arg);
+        return 0;
     }else{
         l_errno = errno;
         log_it(L_ERROR,"Sending kevent error code %d", l_errno);
@@ -1390,20 +1412,6 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 #else
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
-    if (l_ret == sizeof(a_arg) ){
-        return 0;
-    }else{
-        // Try again
-        if(l_errno == EAGAIN || l_errno == EWOULDBLOCK ){
-            add_ptr_to_buf(a_es, a_arg);
-            return 0;
-        }else {
-            char l_errbuf[128];
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", l_errbuf, l_errno);
-            return l_errno;
-        }
-    }
 }
 
 
@@ -1880,6 +1888,13 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 
+    //Check if its present on current selection
+    for (ssize_t n = a_worker->esocket_current + 1; n< a_worker->esockets_selected; n++ ){
+        struct epoll_event * l_event = &a_worker->epoll_events[n];
+        if ( l_event->data.ptr == a_es ) // Found in selection
+            l_event->data.ptr = NULL; // signal to skip on its iteration
+    }
+
     if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
         int l_errno = errno;
         char l_errbuf[128];
@@ -1890,6 +1905,28 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
+        for (ssize_t n = a_worker->esocket_current+1; n< a_worker->esockets_selected; n++ ){
+            struct kevent * l_kevent_selected = &a_worker->kqueue_events_selected[n];
+            dap_events_socket_t * l_cur = NULL;
+
+            // Extract current esocket
+            if ( l_kevent_selected->filter == EVFILT_USER){
+                dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
+                if(l_es_w_data){
+                    l_cur = l_es_w_data->esocket;
+                }
+            }else{
+                l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+            }
+
+            // Compare it with current thats removing
+            if (l_cur == a_es){
+                l_kevent_selected->udata = NULL; // Singal to the loop to remove it from processing
+            }
+
+        }
+
+        // Delete from kqueue
         struct kevent * l_event = &a_es->kqueue_event;
         if (a_es->kqueue_base_filter){
             EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);
@@ -2231,10 +2268,7 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
 
     if (cl->buf_in_size > shrink_size)
     {
-        size_t buf_size=cl->buf_in_size-shrink_size;
-        uint8_t* tmp = cl->buf_in + shrink_size;
-        memmove(cl->buf_in,tmp,buf_size);
-        cl->buf_in_size=buf_size;
+        memmove(cl->buf_in, cl->buf_in + shrink_size,  cl->buf_in_size -= shrink_size);
     }else{
         //log_it(WARNING,"Shrinking size of input buffer on amount bigger than actual buffer's size");
         cl->buf_in_size=0;

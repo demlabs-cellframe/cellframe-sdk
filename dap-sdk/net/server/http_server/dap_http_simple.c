@@ -228,17 +228,25 @@ inline static bool s_is_supported_user_agents_list_setted()
   return cnt;
 }
 
-static void s_esocket_worker_write_callback(dap_worker_t *a_worker, void *a_arg)
-{
-    UNUSED(a_worker);
-    dap_http_client_write((dap_events_socket_t *)a_arg, NULL);
+static void s_esocket_worker_write_callback(dap_worker_t *a_worker, void *a_arg) {
+    dap_http_simple_t *l_http_simple = (dap_http_simple_t*)a_arg;
+    dap_events_socket_t *l_es = dap_worker_esocket_find_uuid(a_worker, l_http_simple->http_client_uuid);
+    if (!l_es) {
+        debug_if(g_debug_reactor, L_INFO, "Esocket 0x%"DAP_UINT64_FORMAT_x" is already deleted", l_http_simple->http_client_uuid);
+        DAP_DEL_Z(l_http_simple->request);
+        DAP_DEL_Z(l_http_simple->reply);
+        DAP_DEL_Z(l_http_simple->http_client);
+        DAP_DELETE(a_arg); // http_simple itself
+        return;
+    }
+    l_es->_inheritor = l_http_simple->http_client; // Back to the owner
+    dap_http_client_write(l_es, NULL);
 }
 
-inline static void s_write_data_to_socket(dap_proc_thread_t *a_thread, dap_http_simple_t * a_simple)
-{
+inline static void s_write_data_to_socket(dap_proc_thread_t *a_thread, dap_http_simple_t * a_simple) {
     dap_http_client_out_header_generate(a_simple->http_client);
     a_simple->http_client->state_write = DAP_HTTP_CLIENT_STATE_START;
-    dap_proc_thread_worker_exec_callback(a_thread, a_simple->worker->id, s_esocket_worker_write_callback, a_simple->esocket);
+    dap_proc_thread_worker_exec_callback(a_thread, a_simple->worker->id, s_esocket_worker_write_callback, a_simple);
 }
 
 static void s_copy_reply_and_mime_to_response( dap_http_simple_t *a_simple )
@@ -278,15 +286,11 @@ inline static void s_write_response_bad_request( dap_http_simple_t * a_http_simp
  * @brief dap_http_simple_proc Execute procession callback and switch to write state
  * @param cl_sh HTTP simple client instance
  */
-static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
-{
+static bool s_proc_queue_callback(dap_proc_thread_t *a_thread, void *a_arg) {
     (void) a_thread;
-     dap_http_simple_t *l_http_simple = (dap_http_simple_t*) a_arg;
     log_it(L_DEBUG, "dap http simple proc");
-//  Sleep(300);
-
+    dap_http_simple_t *l_http_simple = (dap_http_simple_t*)a_arg;
     http_status_code_t return_code = (http_status_code_t)0;
-
     if(s_is_supported_user_agents_list_setted() == true) {
         dap_http_header_t *header = dap_http_header_find(l_http_simple->http_client->in_headers, "User-Agent");
         if (!header && !is_unknown_user_agents_pass) {
@@ -306,7 +310,7 @@ static bool s_proc_queue_callback(dap_proc_thread_t * a_thread, void * a_arg )
             }
     }
 
-    DAP_HTTP_SIMPLE_URL_PROC(l_http_simple->http_client->proc)->proc_callback(l_http_simple,&return_code);
+    DAP_HTTP_SIMPLE_URL_PROC(l_http_simple->http_client->proc)->proc_callback(l_http_simple, &return_code);
 
     if(return_code) {
         log_it(L_DEBUG, "Request was processed well return_code=%d", return_code);
@@ -331,16 +335,16 @@ static void s_http_client_delete( dap_http_client_t *a_http_client, void *arg )
 static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *a_arg )
 {
     (void) a_arg;
-    a_http_client->_inheritor = DAP_NEW_Z( dap_http_simple_t );
-    dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
-    //  log_it(L_DEBUG,"dap_http_simple_headers_read");
-    //  Sleep(300);
+    a_http_client->_inheritor = DAP_NEW_Z(dap_http_simple_t);
+    dap_http_simple_t *l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
+
 
     l_http_simple->esocket = a_http_client->esocket;
+    l_http_simple->http_client_uuid = a_http_client->esocket->uuid;
     l_http_simple->http_client = a_http_client;
     l_http_simple->worker = a_http_client->esocket->worker;
     l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
-    l_http_simple->reply = DAP_NEW_Z_SIZE(uint8_t, DAP_HTTP_SIMPLE(a_http_client)->reply_size_max );
+    l_http_simple->reply = DAP_NEW_Z_SIZE(uint8_t, l_http_simple->reply_size_max );
 
 //    Made a temporary solution to handle simple CORS requests.
 //    This is necessary in order to be able to request information using JavaScript obtained from another source.
@@ -353,10 +357,10 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     if( a_http_client->in_content_length ) {
         // dbg if( a_http_client->in_content_length < 3){
         if( a_http_client->in_content_length > 0){
-            DAP_HTTP_SIMPLE(a_http_client)->request_size_max = a_http_client->in_content_length + 1;
-            DAP_HTTP_SIMPLE(a_http_client)->request = DAP_NEW_Z_SIZE(void, DAP_HTTP_SIMPLE(a_http_client)->request_size_max);
-            if(!DAP_HTTP_SIMPLE(a_http_client)->request){
-                DAP_HTTP_SIMPLE(a_http_client)->request_size_max = 0;
+            l_http_simple->request_size_max = a_http_client->in_content_length + 1;
+            l_http_simple->request = DAP_NEW_Z_SIZE(void, l_http_simple->request_size_max);
+            if(!l_http_simple->request){
+                l_http_simple->request_size_max = 0;
                 log_it(L_ERROR, "Too big content-length %zu in request", a_http_client->in_content_length);
             }
         }
@@ -365,7 +369,9 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     } else {
         log_it( L_DEBUG, "No data section, execution proc callback" );
         dap_events_socket_set_readable_unsafe(a_http_client->esocket, false);
-        dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple);
+        //DAP_HTTP_SIMPLE(a_http_client)->http_client_uuid = a_http_client->esocket->uuid;
+        a_http_client->esocket->_inheritor = NULL;
+        dap_proc_queue_add_callback_inter_ext( l_http_simple->worker->proc_queue_input, s_proc_queue_callback, l_http_simple, DAP_QUE$K_PRI_HIGH);
     }
 }
 
@@ -420,7 +426,9 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
         // bool isOK=true;
         log_it( L_INFO,"Data for http_simple_request collected" );
         dap_events_socket_set_readable_unsafe(a_http_client->esocket, false);
-        dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input , s_proc_queue_callback, l_http_simple);
+        //DAP_HTTP_SIMPLE(a_http_client)->http_client_uuid = a_http_client->esocket->uuid;
+        a_http_client->esocket->_inheritor = NULL;
+        dap_proc_queue_add_callback_inter_ext( l_http_simple->worker->proc_queue_input , s_proc_queue_callback, l_http_simple, DAP_QUE$K_PRI_HIGH);
     }
 }
 

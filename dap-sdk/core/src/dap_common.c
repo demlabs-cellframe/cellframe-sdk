@@ -370,6 +370,13 @@ int     olen, len;
 struct tm _tm;
 struct timespec now;
 
+    if ( (a_ll == -1) )
+        return;
+
+    if ( a_ll < s_dap_log_level )
+        return;
+
+
 	clock_gettime(CLOCK_REALTIME, &now);
 
 #ifdef	WIN32
