@@ -128,7 +128,7 @@ void *dap_worker_thread(void *arg)
 #endif
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event *l_epoll_events = l_work->epoll_events;
+    struct epoll_event *l_epoll_events = l_worker->epoll_events;
     log_it(L_INFO, "Worker #%d started with epoll fd %"DAP_FORMAT_HANDLE" and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_worker->kqueue_fd = kqueue();
@@ -817,7 +817,7 @@ void *dap_worker_thread(void *arg)
             {
                 if (l_cur->buf_out_size == 0) {
                     if(g_debug_reactor)
-                        log_it(L_INFO, "Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr 0x%p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [thread %u]",
+                        log_it(L_INFO, "Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr %p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [thread %u]",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
                                l_cur->type, l_tn);
 

@@ -1289,10 +1289,6 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
 int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
     int l_ret = -1024, l_errno=0;
-
-    if (g_debug_reactor)
-        log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
-
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     if ((l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg)) == sizeof(a_arg))) {
         debug_if(g_debug_reactor, L_NOTICE, "send %d bytes to pipe", l_ret);
@@ -1321,7 +1317,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         mq_getattr(a_es->mqd, &l_attr);
         log_it(L_ERROR, "Number of pending messages: %ld", l_attr.mq_curmsgs);
         add_ptr_to_buf(a_es, a_arg);
-        return 0;
+        return l_errno;
     default: {
         char l_errbuf[128] = { '\0' };
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));

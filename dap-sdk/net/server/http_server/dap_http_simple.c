@@ -232,7 +232,7 @@ static void s_esocket_worker_write_callback(dap_worker_t *a_worker, void *a_arg)
     dap_http_simple_t *l_http_simple = (dap_http_simple_t*)a_arg;
     dap_events_socket_t *l_es = dap_worker_esocket_find_uuid(a_worker, l_http_simple->http_client_uuid);
     if (!l_es) {
-        debug_if(g_debug_reactor, L_INFO, "Esocket %"DAP_UINT64_FORMAT_U" has already finished =(", l_http_simple->http_client_uuid);
+        debug_if(g_debug_reactor, L_INFO, "Esocket 0x%"DAP_UINT64_FORMAT_x" is already deleted", l_http_simple->http_client_uuid);
         DAP_DEL_Z(l_http_simple->request);
         DAP_DEL_Z(l_http_simple->reply);
         DAP_DEL_Z(l_http_simple->http_client);
