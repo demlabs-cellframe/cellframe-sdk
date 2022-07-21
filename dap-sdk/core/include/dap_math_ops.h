@@ -1029,7 +1029,8 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
     if (compare256(rem, five) >= 0) {
         SUM_256_256(tmp, ten, &tmp);
     }
-    DIV_256(tmp, ten, result);
+    if( compare256(ten, uint256_0) != 0 )
+        DIV_256(tmp, ten, result);
     return overflow;
 }
 

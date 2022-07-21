@@ -250,7 +250,6 @@ dap_db_ctx_t *l_db_ctx = NULL, *l_tmp;
 
     HASH_ITER(hh, s_db_ctxs, l_db_ctx, l_tmp)                               /* run over the hash table of the DB contexts */
     {
-        HASH_DEL(s_db_ctxs, l_db_ctx);                                      /* Delete DB context from the hash-table */
 
         pthread_mutex_lock(&l_db_ctx->dbi_mutex);
         if (l_db_ctx->txn)                                                  /* Commit, close table */
@@ -260,6 +259,7 @@ dap_db_ctx_t *l_db_ctx = NULL, *l_tmp;
             mdbx_dbi_close(s_mdbx_env, l_db_ctx->dbi);
         pthread_mutex_unlock(&l_db_ctx->dbi_mutex);
 
+        HASH_DEL(s_db_ctxs, l_db_ctx);                                      /* Delete DB context from the hash-table */
         DAP_DELETE(l_db_ctx);                                               /* Release memory of DB context area */
     }
 
@@ -419,7 +419,7 @@ dap_store_obj_t *s_db_mdbx_read_last_store_obj(const char *a_group)
 {
 int l_rc;
 dap_db_ctx_t *l_db_ctx;
-MDBX_val    l_key, l_data, l_last_data, l_last_key;
+MDBX_val    l_key={0}, l_data={0}, l_last_data={0}, l_last_key={0};
 MDBX_cursor *l_cursor = NULL;
 struct  __record_suffix__   *l_suff;
 uint64_t    l_id;
@@ -489,12 +489,15 @@ dap_store_obj_t *l_obj;
         memcpy((char *) l_obj->key, l_last_key.iov_base, l_obj->key_len);
 
         l_obj->value_len = l_last_data.iov_len - sizeof(struct __record_suffix__);
-        memcpy(l_obj->value, l_last_data.iov_base, l_obj->value_len);
+        if(l_last_data.iov_base)
+            memcpy(l_obj->value, l_last_data.iov_base, l_obj->value_len);
 
         l_suff = (struct __record_suffix__ *) (l_last_data.iov_base + l_obj->value_len);
-        l_obj->id = l_suff->id;
-        l_obj->timestamp = l_suff->ts;
-        l_obj->flags = l_suff->flags;
+        if(l_suff){
+            l_obj->id = l_suff->id;
+            l_obj->timestamp = l_suff->ts;
+            l_obj->flags = l_suff->flags;
+        }
 
         l_obj->group = dap_strdup(a_group);
         l_obj->group_len = strlen(l_obj->group);
@@ -569,13 +572,13 @@ MDBX_val    l_key, l_data;
 */
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
 {
-int l_rc;
-dap_db_ctx_t *l_db_ctx;
-MDBX_val    l_key, l_data;
+int l_rc = 0;
+dap_db_ctx_t *l_db_ctx = NULL;
+MDBX_val    l_key={0}, l_data={0};
 MDBX_cursor *l_cursor;
-struct  __record_suffix__   *l_suff;
-dap_store_obj_t *l_obj, *l_obj_arr;
-size_t  l_cnt, l_count_out;
+struct  __record_suffix__   *l_suff = NULL;
+dap_store_obj_t *l_obj = NULL, *l_obj_arr = NULL;
+size_t  l_cnt = 0, l_count_out = 0;
 
     if (!a_group)                                                           /* Sanity check */
         return NULL;
@@ -609,7 +612,9 @@ size_t  l_cnt, l_count_out;
 
 
         /* Iterate cursor to retrieve records from DB */
-        *a_count_out = l_cnt = 0;
+        l_cnt = 0;
+        if(a_count_out)
+            *a_count_out = l_cnt;
         for (int i = l_count_out; i && (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))); i--)
         {
             l_suff = (struct __record_suffix__ *) (l_data.iov_base + l_data.iov_len - sizeof(struct __record_suffix__));
@@ -670,7 +675,8 @@ size_t  l_cnt, l_count_out;
     mdbx_txn_commit(l_db_ctx->txn);
     pthread_mutex_unlock(&l_db_ctx->dbi_mutex);
 
-    *a_count_out = l_cnt;
+    if(a_count_out)
+        *a_count_out = l_cnt;
     return l_obj_arr;
 }
 
