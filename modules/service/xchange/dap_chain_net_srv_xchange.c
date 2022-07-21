@@ -951,18 +951,18 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             if ( l_out_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE )
                 continue;
 
-
-
-
-            if (a_status)                                                   /* 1 - closed, 2 - open  */
+            if (a_status)
             {
                 l_rc = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
 
-                if ( (a_status == 1) && !l_rc )
-                    continue;
+                /* l_rc: 1 = has been used, 0 - is not yet */
+                /* a_status: 1 - closed, 2 - open  */
 
-                if ( (a_status == 2) && l_rc )
-                    continue;
+                if ( ((a_status == 1) && !l_rc )
+                    || ( (a_status == 2) && l_rc ) )
+                {
+                    log_it(L_DEBUG, "Skip by conditions: %s", l_hash_str);
+                }
             }
 
             const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
@@ -976,7 +976,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
 
 
 
-            dap_string_append_printf(l_reply_str, "Status: is %s used out", l_rc ? "" : "NOT");
+            dap_string_append_printf(l_reply_str, " Status: is %s used out", l_rc ? "" : "NOT");
 
             dap_string_append_printf(l_reply_str, " From: %s %s   ", l_tx_input_values_str, l_tx_input_ticker);
             dap_string_append_printf(l_reply_str, " To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
@@ -1236,8 +1236,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     dap_string_append_printf(l_reply_str, "Hash: %s\n", l_hash_str);
 
                     // Get input token ticker
-                    const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
-                                l_net->pub.ledger, &l_tx_hash);
+                    const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_tx_hash);
                     // Calc inputs
                     uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(l_net, l_datum_tx);
 
@@ -1255,7 +1254,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                             l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_hash, l_item_idx);
 
-                            dap_string_append_printf(l_reply_str, "Status: is %s used out", l_rc ? "" : "NOT");
+                            dap_string_append_printf(l_reply_str, " Status: is %s used out", l_rc ? "" : "NOT");
 
                             dap_string_append_printf(l_reply_str, " From: %s %s   ", l_value_from_str, l_tx_input_ticker);
                             dap_string_append_printf(l_reply_str, " To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.token);
