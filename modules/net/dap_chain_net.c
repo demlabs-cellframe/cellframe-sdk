@@ -1158,7 +1158,6 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
             s_fill_links_from_root_aliases(l_net);
             dap_proc_queue_add_callback_inter( a_worker->proc_queue_input,s_net_states_proc,l_net );
             DAP_DELETE(l_dns_request);
-            pthread_rwlock_unlock(&l_net_pvt->rwlock);
             return;
         }
     }
@@ -1448,7 +1447,6 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
 bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     bool l_found = false;
     if (l_net_pvt->active_link) {
         for (dap_list_t *l_links = l_net_pvt->net_links; l_links; l_links = dap_list_next(l_links)) {
@@ -1469,7 +1467,6 @@ bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_cl
         dap_events_socket_uuid_t *l_uuid = DAP_DUP(&a_client->uuid);
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, l_uuid);
     }
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     return !l_found;
 }
 
@@ -1478,6 +1475,7 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
     if (!a_net)
         return false;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    bool l_ret = false;
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
@@ -1493,8 +1491,9 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
             break;
         }
     }
+    l_ret = l_net_pvt->active_link;
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    return l_net_pvt->active_link;
+    return l_ret;
 }
 /**
  * @brief dap_chain_net_client_create_n_connect
