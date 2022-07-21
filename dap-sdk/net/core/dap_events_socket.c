@@ -1286,8 +1286,9 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
  * @param a_es
  * @param a_arg
  */
-int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg) {
-    int l_ret = -1024, l_errno;
+int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
+{
+    int l_ret = -1024, l_errno=0;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     if ((l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg)) == sizeof(a_arg))) {
         debug_if(g_debug_reactor, L_NOTICE, "send %d bytes to pipe", l_ret);
@@ -1316,7 +1317,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg) {
         mq_getattr(a_es->mqd, &l_attr);
         log_it(L_ERROR, "Number of pending messages: %ld", l_attr.mq_curmsgs);
         add_ptr_to_buf(a_es, a_arg);
-        return 0;
+        return l_errno;
     default: {
         char l_errbuf[128] = { '\0' };
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
@@ -1401,7 +1402,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg) {
     }
 
     if(l_n != -1 ){
-        return sizeof(a_arg);
+        return 0;
     }else{
         l_errno = errno;
         log_it(L_ERROR,"Sending kevent error code %d", l_errno);
@@ -1887,6 +1888,13 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
 
+    //Check if its present on current selection
+    for (ssize_t n = a_worker->esocket_current + 1; n< a_worker->esockets_selected; n++ ){
+        struct epoll_event * l_event = &a_worker->epoll_events[n];
+        if ( l_event->data.ptr == a_es ) // Found in selection
+            l_event->data.ptr = NULL; // signal to skip on its iteration
+    }
+
     if ( epoll_ctl( a_worker->epoll_fd, EPOLL_CTL_DEL, a_es->socket, &a_es->ev) == -1 ) {
         int l_errno = errno;
         char l_errbuf[128];
@@ -1897,6 +1905,28 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
+        for (ssize_t n = a_worker->esocket_current+1; n< a_worker->esockets_selected; n++ ){
+            struct kevent * l_kevent_selected = &a_worker->kqueue_events_selected[n];
+            dap_events_socket_t * l_cur = NULL;
+
+            // Extract current esocket
+            if ( l_kevent_selected->filter == EVFILT_USER){
+                dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
+                if(l_es_w_data){
+                    l_cur = l_es_w_data->esocket;
+                }
+            }else{
+                l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+            }
+
+            // Compare it with current thats removing
+            if (l_cur == a_es){
+                l_kevent_selected->udata = NULL; // Singal to the loop to remove it from processing
+            }
+
+        }
+
+        // Delete from kqueue
         struct kevent * l_event = &a_es->kqueue_event;
         if (a_es->kqueue_base_filter){
             EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);
