@@ -1047,7 +1047,7 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
     dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
-    debug_if(g_debug_reactor, L_INFO, "Msg with arg %p -> worker %d", a_arg, a_worker_id);
+    debug_if(g_debug_reactor, L_INFO, "Msg with arg %p -> worker %zu", a_arg, a_worker_id);
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
 
     // TODO Make this code platform-independent

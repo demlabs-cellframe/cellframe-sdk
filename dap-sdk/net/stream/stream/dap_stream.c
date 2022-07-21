@@ -838,7 +838,8 @@ static bool s_detect_loose_packet(dap_stream_t * a_stream)
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
         } // else client don't support seqid functionality
     }
-    debug_if(s_debug, L_DEBUG, "Packet seq id: %d, last: %d", l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
+    debug_if(s_debug, L_DEBUG, "Packet seq id: %"DAP_UINT64_FORMAT_U", last: %zu",
+                                l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
     a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
 
     return l_count_lost_packets < 0;
