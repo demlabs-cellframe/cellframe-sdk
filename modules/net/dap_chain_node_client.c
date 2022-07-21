@@ -196,7 +196,13 @@ static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worke
         DAP_DELETE(a_arg);
 }
 
-dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_uuid_t *a_uuid)
+/**
+ * @brief dap_chain_node_client_start_sync
+ * @param a_uuid
+ * @param a_wrlock
+ * @return
+ */
+dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_uuid_t *a_uuid, bool a_wrlock)
 {
     dap_chain_node_client_handle_t *l_client_found = NULL;
     HASH_FIND(hh, s_clients, a_uuid, sizeof(*a_uuid), l_client_found);
@@ -228,7 +234,9 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
                     // If we do nothing - init sync process
 
                     if (l_ch_chain->state == CHAIN_STATE_IDLE) {
-                        if (dap_chain_net_sync_trylock(l_net, l_node_client)) {
+                        bool l_trylocked = a_wrlock ? dap_chain_net_sync_trylock(l_net, l_node_client)
+                                                    : dap_chain_net_sync_trylock_nolock(l_net, l_node_client);
+                        if (l_trylocked) {
                             log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
                             dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
                             l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -258,7 +266,7 @@ static bool s_timer_update_states_callback(void *a_arg)
 {
     dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;
     assert(l_uuid);
-    dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
+    dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid, true);
     if (l_status == NODE_SYNC_STATUS_MISSING) {
         DAP_DELETE(l_uuid);
         return false;
@@ -344,6 +352,8 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                 }
             }
         }
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
 #ifndef _WIN32
         pthread_cond_broadcast(&l_node_client->wait_cond);
 #else

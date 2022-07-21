@@ -68,6 +68,7 @@ typedef struct dap_worker
 
 #if defined DAP_EVENTS_CAPS_EPOLL
     EPOLL_HANDLE epoll_fd;
+    struct epoll_event epoll_events[ DAP_EVENTS_SOCKET_MAX];
 #elif defined ( DAP_EVENTS_CAPS_POLL)
     int poll_fd;
     struct pollfd * poll;

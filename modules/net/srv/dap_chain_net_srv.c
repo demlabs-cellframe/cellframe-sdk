@@ -93,7 +93,7 @@ static void s_load_all(void);
  * @return
  */
 int dap_chain_net_srv_init()
-{    
+{
     dap_stream_ch_chain_net_srv_init();
     m_uid = NULL;
     m_uid_count = 0;
@@ -467,8 +467,8 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_node_addr_t l_node_addr={0};
                 dap_chain_hash_fast_t l_tx_cond_hash={{0}};
-                dap_time_t l_expires=0; // TS when the service expires
-                uint256_t l_price = {};
+                dap_time_t l_expires = 0; // TS when the service expires
+                uint256_t l_price = {0};
                 char l_price_token[DAP_CHAIN_TICKER_SIZE_MAX]={0};
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
@@ -512,7 +512,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 }
                 // create order
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
-                            l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
+                            l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
                             l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_region_str, l_continent_num, l_key);
                 if(l_cert)
                     dap_cert_delete(l_cert);
@@ -959,7 +959,7 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
  * @param a_price
  * @return
  */
-dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,                                                         
+dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
                                                                const void * a_ext, size_t a_ext_size)
 {

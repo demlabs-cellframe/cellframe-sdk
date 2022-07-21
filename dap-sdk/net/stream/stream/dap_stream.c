@@ -612,7 +612,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         memcpy(a_stream->pkt_buf_in, l_buf_in, l_buf_in_size);
     }
     else {
-        log_it(L_DEBUG, "dap_stream_data_proc_read() Receive previously unprocessed data %zu bytes + new %zu bytes", a_stream->pkt_buf_in_data_size, l_buf_in_size);
+        debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_proc_read() Receive previously unprocessed data %zu bytes + new %zu bytes", a_stream->pkt_buf_in_data_size, l_buf_in_size);
         // The current data is added to rest of the previous package
         byte_t *l_tmp = DAP_NEW_SIZE(byte_t, a_stream->pkt_buf_in_data_size + l_buf_in_size);
         memcpy(l_tmp, a_stream->pkt_buf_in, a_stream->pkt_buf_in_data_size);
@@ -650,7 +650,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
                 l_buf_in += (l_pkt_offset + l_pkt_size);
                 l_buf_in_left -= l_pkt_size;
             } else {
-                log_it(L_DEBUG, "Input: Not all stream packet in input (pkt_size=%zu buf_in_left=%zu)", l_pkt_size, l_buf_in_left);
+                debug_if(s_dump_packet_headers,L_DEBUG, "Input: Not all stream packet in input (pkt_size=%zu buf_in_left=%zu)", l_pkt_size, l_buf_in_left);
                 break;
             }
         }
@@ -667,7 +667,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
             if(l_pkt != a_stream->pkt_buf_in)
                 memmove(a_stream->pkt_buf_in, l_pkt, a_stream->pkt_buf_in_data_size);
 
-            log_it(L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes", l_buf_in_left);
+            debug_if(s_dump_packet_headers,L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes", l_buf_in_left);
         }
         else {
             log_it(L_ERROR, "dap_stream_data_proc_read() pkt header not found, drop %zu bytes", l_buf_in_left);
