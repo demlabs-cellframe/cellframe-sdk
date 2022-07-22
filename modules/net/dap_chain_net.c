@@ -705,7 +705,7 @@ static size_t s_get_dns_max_links_count_from_cfg(dap_chain_net_t *a_net)
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if(!l_net_pvt)
         return 0;
-    return (size_t)(l_net_pvt->seed_aliases_count + l_net_pvt->bootstrap_nodes_count);
+    return (size_t)l_net_pvt->seed_aliases_count + l_net_pvt->bootstrap_nodes_count;
 }
 
 /**
