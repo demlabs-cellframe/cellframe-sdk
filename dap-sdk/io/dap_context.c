@@ -1270,7 +1270,7 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
     if ( a_es->type == DESCRIPTOR_TYPE_QUEUE ){
         goto lb_exit;
     }
-    if ( a_es->type == DESCRIPTOR_TYPE_EVENT && a_es->pipe_out){
+    if ( a_es->type == DESCRIPTOR_TYPE_EVENT /*&& a_es->pipe_out*/){
         goto lb_exit;
     }
     struct kevent l_event;
@@ -1284,14 +1284,15 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
         l_errno = -1;
         goto lb_exit;
     }
-    if (a_es->type == DESCRIPTOR_TYPE_EVENT ){
+    /*if (a_es->type == DESCRIPTOR_TYPE_EVENT ){
         EV_SET(&l_event, a_es->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_es->kqueue_event_catched_data );
         if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL)!=0){
             l_is_error = true;
             l_errno = errno;
             goto lb_exit;
         }
-    }else{
+    }else*/
+    {
         if( l_filter){
             EV_SET(&l_event, a_es->socket, l_filter,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
             if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
