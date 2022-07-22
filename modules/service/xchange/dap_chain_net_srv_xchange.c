@@ -822,9 +822,13 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             dap_string_t *l_reply_str = dap_string_new("");
             HASH_ITER(hh, s_srv_xchange->pricelist, l_price, l_tmp) {
                 char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
+                char *l_balance = dap_chain_balance_print(l_price->datoshi_sell);
+                char *l_balance_rate = dap_chain_balance_print(l_price->rate);
                 dap_string_append_printf(l_reply_str, "%s %s %s %s %s %s %s %s\n", l_order_hash_str, l_price->token_sell,
                                          l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
-                                         dap_chain_balance_print(l_price->datoshi_sell), dap_chain_balance_print(l_price->rate), l_price->wallet_str);
+                                         l_balance, l_balance_rate, l_price->wallet_str);
+                DAP_DELETE(l_balance);
+                DAP_DELETE(l_balance_rate);
                 DAP_DELETE(l_order_hash_str);
             }
             if (!l_reply_str->len) {
