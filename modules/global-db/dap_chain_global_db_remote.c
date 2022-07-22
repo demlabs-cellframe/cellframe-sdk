@@ -790,7 +790,7 @@ dap_store_obj_t *l_store_obj_arr, *l_obj;
     // Return the number of completely filled dap_store_obj_t structures
     // because l_cur_count may be less than l_count due to too little memory
     if (a_store_obj_count)
-        *a_store_obj_count = l_cur_count;
+        *a_store_obj_count = l_count;
 
     return l_store_obj_arr;
 }

@@ -2719,6 +2719,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             l_chain_prior->chains_path = l_chains_path;
                             // add chain to load list;
                             l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
+                            dap_config_close(l_cfg);
                         }
                     }
                 }
