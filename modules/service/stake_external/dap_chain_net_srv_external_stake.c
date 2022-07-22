@@ -258,9 +258,9 @@ static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a
 	const char *l_net_str, *l_token_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_coins_str;
 	l_net_str = l_token_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_coins_str = NULL;
 	dap_chain_net_t			*l_net					= NULL;
-	dap_hash_fast_t			*l_tx_hash				= NULL;
 	const char				*l_wallets_path 		= dap_chain_wallet_get_path(g_config);
 	dap_chain_wallet_t		*l_wallet;
+	dap_hash_fast_t			l_tx_hash;
 	dap_hash_fast_t 		l_tx_burning_hash;
 	uint256_t 				l_value;
 
@@ -268,7 +268,7 @@ static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a
 	l_net = dap_chain_net_by_name(l_net_str);
 
 	dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_str);
-	dap_chain_hash_fast_from_hex_str(l_tx_str, l_tx_hash);
+	dap_chain_hash_fast_from_hex_str(l_tx_str, &l_tx_hash);
 
 	dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-tx_burning", &l_tx_burning_str);
 	dap_chain_hash_fast_from_hex_str(l_tx_burning_str, &l_tx_burning_hash);
@@ -293,16 +293,16 @@ static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a
 	dap_chain_addr_t	*l_owner_addr	= (dap_chain_addr_t *)dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 	dap_enc_key_t		*l_owner_key	= dap_chain_wallet_get_key(l_wallet, 0);
 
-	dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_hash);
+	dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
 
 	int l_prev_cond_idx = 0;
 	dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
-	if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, l_tx_hash, l_prev_cond_idx)) {
+	if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
 		log_it(L_WARNING, "ERROR");
 		return ERROR;
 	}
 
-	dap_chain_datum_tx_add_in_cond_item(&l_tx, l_tx_hash, l_prev_cond_idx, 0);
+	dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0);
 
 	dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_tx_out_cond->header.value);
 
@@ -320,7 +320,7 @@ static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a
 
 	dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
 	if (!l_chain) {
-		return false;
+		return ERROR;
 	}
 	// Processing will be made according to autoprocess policy
 	char *l_ret = NULL;
