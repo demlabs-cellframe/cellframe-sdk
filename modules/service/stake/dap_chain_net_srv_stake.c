@@ -1159,8 +1159,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 // TODO add filters to list (token, address, etc.)
                 l_stake = s_stake_item_from_order(l_net, l_order);
                 char *l_addr = dap_chain_addr_to_str(&l_stake->signing_addr);
-                dap_string_append_printf(l_reply_str, "%s %s %s %s %s\n", l_orders[i].key, dap_chain_balance_print(l_stake->value),
-                                                                           l_stake->token, l_addr, dap_chain_balance_to_coins(l_stake->fee_value));
+                char *l_balance = dap_chain_balance_print(l_stake->value);
+                char *l_fee = dap_chain_balance_to_coins(l_stake->fee_value);
+                dap_string_append_printf(l_reply_str, "%s %s %s %s %s\n", l_orders[i].key, l_balance, l_stake->token, l_addr, l_fee);
+                DAP_DELETE(l_balance);
+                DAP_DELETE(l_fee);
                 DAP_DELETE(l_addr);
                 DAP_DELETE(l_stake);
             }
@@ -1370,10 +1373,14 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 char *l_addr_hldr_str = dap_chain_addr_to_str(&l_stake->addr_hldr);
                 char *l_signing_addr_str = dap_chain_addr_to_str(&l_stake->signing_addr);
                 char *l_addr_fee_str = dap_chain_addr_to_str(&l_stake->addr_fee);
+                char *l_balance = dap_chain_balance_print(l_stake->value);
+                char *l_fee = dap_chain_balance_to_coins(l_stake->fee_value);
                 dap_string_append_printf(l_reply_str, "%s %s %s %s %s %s %s\n", l_tx_hash_str, l_stake->token,
-                                                                                 dap_chain_balance_print(l_stake->value), l_addr_hldr_str,
-                                                                                 l_signing_addr_str, l_addr_fee_str,
-                                                                                 dap_chain_balance_to_coins(l_stake->fee_value));
+                                                                                l_balance, l_addr_hldr_str,
+                                                                                l_signing_addr_str, l_addr_fee_str,
+                                                                                l_fee);
+                DAP_DELETE(l_balance);
+                DAP_DELETE(l_fee);
                 DAP_DELETE(l_tx_hash_str);
                 DAP_DELETE(l_addr_hldr_str);
                 DAP_DELETE(l_signing_addr_str);
