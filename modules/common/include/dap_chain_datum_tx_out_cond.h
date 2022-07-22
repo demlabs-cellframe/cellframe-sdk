@@ -87,12 +87,14 @@ typedef struct dap_chain_tx_out_cond {
             uint256_t unit_price_max_datoshi;
         } srv_pay;
         struct {
-            // Token ticker to change to
-            char token[DAP_CHAIN_TICKER_SIZE_MAX];
+            // Chain network to change from
+            dap_chain_net_id_t sell_net_id;
             // Chain network to change to
-            dap_chain_net_id_t net_id;
+            dap_chain_net_id_t buy_net_id;
             // Total amount of datoshi to change to
-            uint256_t value;
+            uint256_t buy_value;
+            // Token ticker to change to
+            char buy_token[DAP_CHAIN_TICKER_SIZE_MAX];
         } srv_xchange;
         struct {
             // Stake holder address

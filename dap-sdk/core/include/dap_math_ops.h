@@ -1031,6 +1031,27 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
     return overflow;
 }
 
+/**
+ * Divides to fixed-point values, represented as 256-bit values
+ * @param a_val
+ * @param b_val
+ * @param result is a fixed-point value, represented as 256-bit value
+ * @return
+ */
+static inline void DIV_256_COIN(uint256_t a, uint256_t b, uint256_t *res)
+{
+    // define 10^36
+#ifdef DAP_GLOBAL_IS_INT128
+    uint128_t quad = *(uint128_t *)"\x0\x0\x0\x0\x10\x9f\x4b\xb3\x15\x07\xc9\x7b\xce\x97\xc0\x0";
+#else
+    uint128_t quad = {.lo = 54210108624275221ULL, .hi = 12919594847110692864ULL};
+#endif
+    uint256_t quad256 = GET_256_FROM_128(quad);
+    uint256_t tmp = uint256_0;
+    DIV_256(quad256, b, &tmp);  // assertion with zero divisor inside
+    MULT_256_COIN(a, tmp, res);
+}
+
 #ifdef __cplusplus
 }
 #endif

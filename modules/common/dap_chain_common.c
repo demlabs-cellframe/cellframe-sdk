@@ -605,10 +605,10 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 3);
     int l_pos = 0;
+#ifdef DAP_GLOBAL_IS_INT128
     uint256_t l_value = a_uint256;
     uint256_t uint256_ten = {.hi = 0, .lo = 10};
     uint256_t rem;
-#ifdef DAP_GLOBAL_IS_INT128
     do {
         divmod_impl_256(l_value, uint256_ten, &l_value, &rem);
         l_buf[l_pos++] = rem.lo + '0';
