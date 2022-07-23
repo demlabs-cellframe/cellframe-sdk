@@ -265,19 +265,8 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
     a_thread->esockets[a_thread->poll_count] = a_thread->proc_queue->esocket;
     a_thread->poll_count++;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-/*    u_short l_flags = a_esocket->kqueue_base_flags;
-    u_int   l_fflags = a_esocket->kqueue_base_fflags;
-    short l_filter = a_esocket->kqueue_base_filter;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-            l_fflags |= NOTE_READ;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-            l_fflags |= NOTE_WRITE;
-
-        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
-        return kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
-*/
     // Nothing to do if its input
-    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE && a_esocket->pipe_out)
+    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE || a_esocket->type == DESCRIPTOR_TYPE_EVENT )
         return 0;
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
@@ -342,12 +331,8 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
     // Check & add
     int l_is_error=false;
     int l_errno=0;
-    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
-        EV_SET(l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
-        if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL)!=0){
-            l_is_error = true;
-            l_errno = errno;
-        }
+    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
+         // Do nothing
     }else{
         EV_SET(l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
         if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
