@@ -321,7 +321,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, l_datoshi_sell, a_price->token_sell) == -1) {
             dap_chain_datum_tx_delete(l_tx);
-            DAP_DELETE(l_seller_addr);
+            DAP_DELETE(l_buyer_addr);
             log_it(L_ERROR, "Can't add selling coins output");
             return NULL;
         }
@@ -331,6 +331,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         if (!IS_ZERO_256(l_value_back)) {
             if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, l_value_back, a_price->token_sell) == -1) {
                 log_it(L_WARNING, "Can't add buying selling back output (cashback)");
+                dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
         }
@@ -956,9 +957,9 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
             uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(a_net, l_datum_tx);
 
-            char *l_tx_input_values_str = dap_cvt_uint256_to_str(l_tx_input_values);
-            char *l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
-            char *l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
+            char *l_tx_input_values_str = dap_chain_balance_to_coins(l_tx_input_values);
+            char *l_value_from_str = dap_chain_balance_to_coins(l_tx_input_values);
+            char *l_value_to_str = dap_chain_balance_to_coins(l_value_to);
 
             dap_string_append_printf(l_reply_str, "Status: is %s used out", l_rc ? "" : "NOT");
 
@@ -1230,8 +1231,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         l_item_idx++;
                         if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
                             uint256_t value = l_out_cond_item->subtype.srv_xchange.buy_value;
-                            char *l_value_to_str = dap_cvt_uint256_to_str(value);
-                            char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
+                            char *l_value_to_str = dap_chain_balance_to_coins(value);
+                            char * l_value_from_str = dap_chain_balance_to_coins(l_tx_input_values);
 
                             l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_hash, l_item_idx);
 
@@ -1349,10 +1350,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 l_out_cond_item = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(l_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL);
                                 l_item_idx++;
                                 if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
-                                    //const char *token = l_out_cond_item->subtype.srv_xchange.token;
-                                    uint256_t value = l_out_cond_item->subtype.srv_xchange.buy_value;
-                                    uint256_t l_total_rates_old = l_total_rates;
-                                    if(SUM_256_256(value,l_total_rates_old, &l_total_rates )!= 0)
+                                    uint256_t l_value_sell = l_out_cond_item->header.value;
+                                    uint256_t l_value_buy = l_out_cond_item->subtype.srv_xchange.buy_value;
+                                    uint256_t l_rate = {};
+                                    DIV_256_COIN(l_value_buy, l_value_sell, &l_rate);
+                                    if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
                                         log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
                                     INCR_256(&l_total_rates_count);
                                 }
@@ -1362,11 +1364,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         }
                         l_cur = dap_list_next(l_cur);
                     }
-                    dap_list_free(l_tx_cond_list);
+                    dap_list_free_full(l_tx_cond_list, NULL);
                     uint256_t l_rate_average = {0};
                     if( compare256(l_total_rates_count, uint256_0) != 0 )
                         DIV_256(l_total_rates,l_total_rates_count,&l_rate_average);
-                    char *l_rate_average_str = dap_cvt_uint256_to_str(l_rate_average);
+                    char *l_rate_average_str = dap_chain_balance_to_coins(l_rate_average);
                     dap_string_append_printf(l_reply_str,"Average rate: %s",l_rate_average_str);
                     DAP_DELETE(l_rate_average_str);
 
@@ -1402,9 +1404,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             DAP_DEL_Z(l_tx_hash);
                             DAP_DEL_Z(l_tx_hash_str);
 
-                            // Calc inputs
-                            uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(l_net, l_tx);
-
                             // Find output
                             int l_item_idx = 0;
                             dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
@@ -1412,10 +1411,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 l_out_cond_item = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(l_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL);
                                 l_item_idx++;
                                 if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
-                                    //const char *token = l_out_cond_item->subtype.srv_xchange.token;
+                                    uint256_t l_value_from = l_out_cond_item->header.value;
                                     uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
-                                    char * l_value_from_str = dap_cvt_uint256_to_str(l_tx_input_values);
-                                    char * l_value_to_str = dap_cvt_uint256_to_str(l_value_to);
+                                    char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
+                                    char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
 
                                     dap_string_append_printf(l_reply_str, "From: : %s %s   ", l_tx_input_ticker,l_value_from_str);
                                     dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
@@ -1433,7 +1432,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         l_cur = dap_list_next(l_cur);
                     }
 
-                    dap_list_free(l_tx_cond_list);
+                    dap_list_free_full(l_tx_cond_list, NULL);
 
                     *a_str_reply = dap_string_free(l_reply_str, false);
                     break;

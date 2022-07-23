@@ -3258,47 +3258,51 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
 
                     // Check atoms in chain
                     while(l_atom && l_atom_size) {
-                        dap_chain_datum_t *l_datum = (dap_chain_datum_t*) l_atom;
+                        size_t l_datums_count = 0;
+                        dap_chain_datum_t **l_datums = l_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
                         // transaction
                         dap_chain_datum_tx_t *l_tx = NULL;
 
-                        // Check if its transaction
-                        if ( l_datum && (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)) {
-                            l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-                        }
-
-                        // If found TX
-                        if (l_tx){
-                            // Check for time from
-                            if(a_time_from && l_tx->header.ts_created < a_time_from)
-                                    continue;
-
-                            // Check for time to
-                            if(a_time_to && l_tx->header.ts_created > a_time_to)
-                                    continue;
-
-                            if(a_search_type == TX_SEARCH_TYPE_CELL_SPENT || a_search_type == TX_SEARCH_TYPE_NET_SPENT ){
-                                dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
-                                bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
-                                DAP_DELETE(l_tx_hash);
-                                if(!l_is_spent)
-                                    continue;
+                        for (size_t i = 0; i < l_datums_count; i++) {
+                            // Check if its transaction
+                            if (l_datums && (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX)) {
+                                l_tx = (dap_chain_datum_tx_t *)l_datums[i]->data;
                             }
-                            // Check for OUT_COND items
-                            dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND , NULL);
-                            if(l_list_out_cond_items){
-                                dap_list_t *l_list_cur = l_list_out_cond_items;
-                                while(l_list_cur){ // Go through all cond items
-                                    l_list_cur = dap_list_next(l_list_cur);
-                                    dap_chain_tx_out_cond_t * l_tx_out_cond = (dap_chain_tx_out_cond_t *)l_list_cur->data;
-                                    if(l_tx_out_cond) // If we found cond out with target srv_uid
-                                        if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64)
-                                            l_ret = dap_list_append(l_ret,l_tx);
+
+                            // If found TX
+                            if (l_tx){
+                                // Check for time from
+                                if(a_time_from && l_tx->header.ts_created < a_time_from)
+                                        continue;
+
+                                // Check for time to
+                                if(a_time_to && l_tx->header.ts_created > a_time_to)
+                                        continue;
+
+                                if(a_search_type == TX_SEARCH_TYPE_CELL_SPENT || a_search_type == TX_SEARCH_TYPE_NET_SPENT ){
+                                    dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
+                                    bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
+                                    DAP_DELETE(l_tx_hash);
+                                    if(!l_is_spent)
+                                        continue;
                                 }
-                                dap_list_free(l_list_out_cond_items);
+                                // Check for OUT_COND items
+                                dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND , NULL);
+                                if(l_list_out_cond_items){
+                                    dap_list_t *l_list_cur = l_list_out_cond_items;
+                                    while(l_list_cur){ // Go through all cond items
+                                        dap_chain_tx_out_cond_t * l_tx_out_cond = (dap_chain_tx_out_cond_t *)l_list_cur->data;
+                                        if(l_tx_out_cond) // If we found cond out with target srv_uid
+                                            if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64)
+                                                l_ret = dap_list_append(l_ret,
+                                                                        DAP_DUP_SIZE(l_tx, dap_chain_datum_tx_get_size(l_tx)));
+                                        l_list_cur = dap_list_next(l_list_cur);
+                                    }
+                                    dap_list_free(l_list_out_cond_items);
+                                }
                             }
                         }
-
+                        DAP_DEL_Z(l_datums);
                         // go to next atom
                         l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
 
@@ -3337,7 +3341,7 @@ uint256_t dap_chain_net_get_tx_total_value(dap_chain_net_t * a_net, dap_chain_da
                 int l_tx_prev_out_index = l_in_item->header.tx_out_prev_idx;
                 dap_chain_tx_out_t *  l_tx_prev_out =(dap_chain_tx_out_t *)
                         dap_chain_datum_tx_item_get(l_tx_prev,&l_tx_prev_out_index, TX_ITEM_TYPE_OUT,NULL);
-                if( l_tx_prev_out_index == l_in_item->header.tx_out_prev_idx && l_tx_prev_out){
+                if ((uint32_t)l_tx_prev_out_index == l_in_item->header.tx_out_prev_idx && l_tx_prev_out) {
                     uint256_t l_in_value = l_tx_prev_out->header.value;
                     if(SUM_256_256(l_in_value,l_ret, &l_ret )!= 0)
                         log_it(L_ERROR, "Overflow on inputs values calculation (summing)");
