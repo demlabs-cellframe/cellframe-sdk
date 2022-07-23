@@ -89,15 +89,17 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
                 dap_chain_datum_token_flags_dump(a_str_out,
                                                  dap_tsd_get_scalar(l_tsd, uint16_t));
             break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: // 256
-                dap_string_append_printf(a_str_out,"total_supply: %s\n",
-                                    dap_chain_balance_print(
-                                            dap_tsd_get_scalar(l_tsd, uint256_t)));
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
+                char *l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint256_t));
+                dap_string_append_printf(a_str_out, "total_supply: %s\n", l_balance);
+                DAP_DELETE(l_balance);
+            }
             break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: // 128
-                dap_string_append_printf(a_str_out,"total_supply: %s\n",
-                                    dap_chain_balance_print(GET_256_FROM_128(
-                                        dap_tsd_get_scalar(l_tsd, uint128_t))));
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: {// 128
+                char *l_balance = dap_chain_balance_print(GET_256_FROM_128(dap_tsd_get_scalar(l_tsd, uint128_t)));
+                dap_string_append_printf(a_str_out, "total_supply: %s\n", l_balance);
+                DAP_DELETE(l_balance);
+            }
             break;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
                 dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",

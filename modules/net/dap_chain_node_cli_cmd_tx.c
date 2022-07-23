@@ -268,12 +268,15 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                                                 (l_tx_out_256) ? dap_chain_addr_to_str(&l_tx_out_256->addr) : NULL;
 
                 if(l_tx_out || l_tx_out_256) {
-                    if ( l_type_256 ) // 256
+                    if(l_type_256) { // 256
+                        char *l_balance = dap_chain_balance_print(l_tx_out_256->header.value);
                         dap_string_append_printf(l_str_out, " OUT 256bit item %s %s to %s\n",
-                            dap_chain_balance_print(l_tx_out_256->header.value),
-                            dap_strlen(l_token_str) > 0 ? l_token_str : "?",
-                            l_dst_to_str ? l_dst_to_str : "?"
-                        );
+                                l_balance,
+                                dap_strlen(l_token_str) > 0 ? l_token_str : "?",
+                                l_dst_to_str ? l_dst_to_str : "?"
+                                               );
+                        DAP_DELETE(l_balance);
+                    }
                     else
                         dap_string_append_printf(l_str_out, " OUT item %"DAP_UINT64_FORMAT_U" %s to %s\n",
                             l_tx_out->header.value,
@@ -329,8 +332,10 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                         dap_chain_tx_out_t *l_tx_prev_out =
                                 l_list_out_prev_item ? (dap_chain_tx_out_t*)l_list_out_prev_item->data : NULL;
                         // print value from prev out item
-                        dap_string_append_printf(l_str_out, "  prev OUT 256bitt item value=%s",
-                                l_tx_prev_out ? dap_chain_balance_print(l_tx_prev_out->header.value) : "0");
+                        char *l_balance = dap_chain_balance_print(l_tx_prev_out->header.value);
+                        dap_string_append_printf(l_str_out, "  prev OUT 256bit item value=%s",
+                                l_tx_prev_out ? l_balance : "0");
+                        DAP_DELETE(l_balance);
                     } else {
                         dap_list_t *l_list_out_prev_items = dap_chain_datum_tx_items_get(l_tx_prev,
                                 TX_ITEM_TYPE_OUT_OLD, NULL);
