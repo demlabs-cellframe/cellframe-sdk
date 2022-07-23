@@ -330,7 +330,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         SUBTRACT_256_256(l_tx_out_cond->header.value, l_datoshi_sell, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, l_value_back, a_price->token_sell) == -1) {
-                log_it(L_WARNING, "Can't add selling coins back output (cashback)"););
+                log_it(L_WARNING, "Can't add selling coins back output (cashback)");
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
