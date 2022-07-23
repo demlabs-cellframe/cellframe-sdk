@@ -330,7 +330,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         SUBTRACT_256_256(l_tx_out_cond->header.value, l_datoshi_sell, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, l_value_back, a_price->token_sell) == -1) {
-                log_it(L_WARNING, "Can't add buying selling back output (cashback)");
+                log_it(L_WARNING, "Can't add selling coins back output (cashback)"););
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
@@ -825,9 +825,13 @@ static int s_cli_srv_xchange_price(int a_argc, char **a_argv, int a_arg_index, c
             dap_string_t *l_reply_str = dap_string_new("");
             HASH_ITER(hh, s_srv_xchange->pricelist, l_price, l_tmp) {
                 char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
+                char *l_balance = dap_chain_balance_print(l_price->datoshi_sell);
+                char *l_balance_rate = dap_chain_balance_print(l_price->rate);
                 dap_string_append_printf(l_reply_str, "%s %s %s %s %s %s %s %s\n", l_order_hash_str, l_price->token_sell,
                                          l_price->net_sell->pub.name, l_price->token_buy, l_price->net_buy->pub.name,
-                                         dap_chain_balance_print(l_price->datoshi_sell), dap_chain_balance_print(l_price->rate), l_price->wallet_str);
+                                         l_balance, l_balance_rate, l_price->wallet_str);
+                DAP_DELETE(l_balance);
+                DAP_DELETE(l_balance_rate);
                 DAP_DELETE(l_order_hash_str);
             }
             if (!l_reply_str->len) {

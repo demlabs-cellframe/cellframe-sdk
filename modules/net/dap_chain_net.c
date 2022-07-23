@@ -664,7 +664,7 @@ static size_t s_get_dns_max_links_count_from_cfg(dap_chain_net_t *a_net)
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if(!l_net_pvt)
         return 0;
-    return (size_t)(l_net_pvt->seed_aliases_count + l_net_pvt->bootstrap_nodes_count);
+    return (size_t)l_net_pvt->seed_aliases_count + l_net_pvt->bootstrap_nodes_count;
 }
 
 /**
@@ -1441,9 +1441,9 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-    bool l_found = dap_chain_net_sync_trylock_nolock(a_net, a_client);
+    bool l_not_found = dap_chain_net_sync_trylock_nolock(a_net, a_client);
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    return !l_found;
+    return l_not_found;
 }
 
 bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
@@ -2682,6 +2682,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                             l_chain_prior->chains_path = l_chains_path;
                             // add chain to load list;
                             l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
+                            dap_config_close(l_cfg);
                         }
                     }
                 }

@@ -108,7 +108,7 @@ void INTT_GS_rev2std_12289(int32_t* a, const int32_t* omegainv_rev, const int32_
     for (j = 0; j < k; j++) {
         U = a[j];
         V = a[j+k];
-        a[j] = reduce12289((int64_t)(U+V)*Ninv);
+        a[j] = reduce12289(((int64_t)U+V)*Ninv);
         a[j+k] = reduce12289((int64_t)(U-V)*omegainv1N_rev);
     }
     return;
