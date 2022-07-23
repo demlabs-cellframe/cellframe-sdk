@@ -479,8 +479,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     // Here we have event identy thats we copy
     l_es->fd = a_es->fd; //
     l_es->pipe_out = a_es;
-    l_es->kqueue_base_flags = EV_CLEAR;
-    l_es->kqueue_base_fflags = 0;
+    l_es->kqueue_base_flags = EV_ONESHOT;
+    l_es->kqueue_base_fflags = NOTE_FFNOP | NOTE_TRIGGER;
     l_es->kqueue_base_filter = EVFILT_USER;
     l_es->kqueue_event_catched_data.esocket = l_es;
 
@@ -597,8 +597,8 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_es->kqueue_event_catched_data.esocket = l_es;
-    l_es->kqueue_base_flags =  EV_CLEAR;
-    l_es->kqueue_base_fflags = 0;
+    l_es->kqueue_base_flags =  EV_ONESHOT;
+    l_es->kqueue_base_fflags = NOTE_FFNOP | NOTE_TRIGGER;
     l_es->kqueue_base_filter = EVFILT_USER;
     l_es->socket = arc4random();
 #else
@@ -975,7 +975,8 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    l_es->kqueue_base_flags =  EV_CLEAR;
+    l_es->kqueue_base_flags =  EV_ONESHOT;
+    l_es->kqueue_base_fflags = NOTE_FFNOP | NOTE_TRIGGER;
     l_es->kqueue_base_filter = EVFILT_USER;
     l_es->socket = arc4random();
     l_es->kqueue_event_catched_data.esocket = l_es;
@@ -1254,7 +1255,7 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
 
         l_es_w_data->esocket = l_es;
         l_es_w_data->ptr = a_arg;
-        EV_SET(&l_event,a_es_input->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_CLEAR | EV_ONESHOT, NOTE_FFCOPY | NOTE_TRIGGER ,0, l_es_w_data);
+        EV_SET(&l_event,a_es_input->socket+arc4random()  , EVFILT_USER,EV_ADD |EV_ONESHOT, NOTE_FFNOP | NOTE_TRIGGER ,0, l_es_w_data);
         if(l_es->worker)
             l_ret=kevent(l_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
         else if (l_es->proc_thread)
@@ -1374,7 +1375,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 
     l_es_w_data->esocket = a_es;
     l_es_w_data->ptr = a_arg;
-    EV_SET(&l_event,a_es->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_CLEAR | EV_ONESHOT, NOTE_FFCOPY | NOTE_TRIGGER ,0, l_es_w_data);
+    EV_SET(&l_event,a_es->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_ONESHOT, NOTE_FFNOP | NOTE_TRIGGER ,0, l_es_w_data);
     int l_n;
     if(a_es->pipe_out){ // If we have pipe out - we send events directly to the pipe out kqueue fd
         if(a_es->pipe_out->worker){
@@ -1446,7 +1447,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     l_es_w_data->esocket = a_es;
     l_es_w_data->value = a_value;
 
-    EV_SET(&l_event,a_es->socket, EVFILT_USER,0, NOTE_TRIGGER ,(intptr_t) a_es->socket, l_es_w_data);
+    EV_SET(&l_event,a_es->socket, EVFILT_USER, EV_ADD | EV_ONESHOT , NOTE_FFNOP | NOTE_TRIGGER ,(intptr_t) a_es->socket, l_es_w_data);
 
     int l_n;
 
@@ -1604,12 +1605,8 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
         // Check & add
         bool l_is_error=false;
         int l_errno=0;
-        if (a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
-            EV_SET(l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
-            if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) == -1){
-                l_is_error = true;
-                l_errno = errno;
-            }
+        if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
+            // Do nothing
         }else{
             EV_SET(l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
             if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
@@ -1904,7 +1901,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     } //else
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
+    if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_EVENT && a_es->type != DESCRIPTOR_TYPE_QUEUE && a_es->type != DESCRIPTOR_TYPE_TIMER){
         for (ssize_t n = a_worker->esocket_current+1; n< a_worker->esockets_selected; n++ ){
             struct kevent * l_kevent_selected = &a_worker->kqueue_events_selected[n];
             dap_events_socket_t * l_cur = NULL;
