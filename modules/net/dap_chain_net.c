@@ -1441,9 +1441,9 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
-    bool l_found = dap_chain_net_sync_trylock_nolock(a_net, a_client);
+    bool l_not_found = dap_chain_net_sync_trylock_nolock(a_net, a_client);
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    return !l_found;
+    return l_not_found;
 }
 
 bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
