@@ -61,7 +61,7 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_external_stake(dap_chain
 																	   dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
 																	   const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
 																	   uint256_t a_value, dap_chain_net_srv_uid_t a_srv_uid,
-																	   dap_chain_addr_t *a_addr_holder, uint8_t a_count_months, uint64_t a_time_staking);
+																	   dap_chain_addr_t *a_addr_holder, uint8_t a_count_months);
 
 dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
                                                   const dap_chain_addr_t* a_addr_to, dap_enc_key_t *a_key_tx_sign,

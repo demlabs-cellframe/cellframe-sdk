@@ -26,7 +26,9 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
 
-#define LOG_TAG "dap_chain_net_external_stake"
+#define LOG_TAG		"dap_chain_net_external_stake"
+#define MONTH_INDEX	8
+#define YEAR_INDEX	12
 
 static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_reply);
 
@@ -83,6 +85,8 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	||	(l_months = atoi(l_months_str)) > 8
 	||	l_months < 1)
 		return MONTHS_ERROR;
+
+	l_months *= 3;
 
 	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str)
 	||	NULL == l_net_str)
@@ -172,7 +176,7 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	}
 
 	l_tx_cond_hash = dap_chain_mempool_tx_create_cond_external_stake(l_net, l_key_from, l_key_cond, l_token_str,
-																	 l_value, l_uid, l_addr_holder, l_months, time(NULL));
+																	 l_value, l_uid, l_addr_holder, l_months);
 
 	dap_chain_wallet_close(l_wallet);
 	DAP_DEL_Z(l_key_cond);
@@ -456,16 +460,62 @@ static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_repl
 	return 0;
 }
 
+static uint8_t s_give_month_count_from_time_str(char *time)
+{
+	const uint8_t len_month = 3;
+
+	if (!memcmp(&time[MONTH_INDEX], "Jan", len_month))
+		return 1;
+	else if (!memcmp(&time[MONTH_INDEX], "Feb", len_month))
+		return 2;
+	else if (!memcmp(&time[MONTH_INDEX], "Mar", len_month))
+		return 3;
+	else if (!memcmp(&time[MONTH_INDEX], "Apr", len_month))
+		return 4;
+	else if (!memcmp(&time[MONTH_INDEX], "May", len_month))
+		return 5;
+	else if (!memcmp(&time[MONTH_INDEX], "Jun", len_month))
+		return 6;
+	else if (!memcmp(&time[MONTH_INDEX], "Jul", len_month))
+		return 7;
+	else if (!memcmp(&time[MONTH_INDEX], "Aug", len_month))
+		return 8;
+	else if (!memcmp(&time[MONTH_INDEX], "Sep", len_month))
+		return 9;
+	else if (!memcmp(&time[MONTH_INDEX], "Oct", len_month))
+		return 10;
+	else if (!memcmp(&time[MONTH_INDEX], "Nov", len_month))
+		return 11;
+	else if (!memcmp(&time[MONTH_INDEX], "Dec", len_month))
+		return 12;
+	else
+		return 0;
+}
+
+static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
+{
+	return time;
+}
+
 bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
+	char time[50];
+
 	/*if (!a_owner) TODO: ???
 		return false;*/
 
 	if (a_cond->subtype.srv_external_stake.count_months % 3 != 0)
 		return false;
 
-	if (a_cond->subtype.srv_external_stake.time_unlock > time(NULL))
+	if (dap_time_to_str_rfc822(time, sizeof(time), dap_time_now()) <= 0)
 		return false;
+
+	if (dap_time_from_str_rfc822(s_update_date_by_using_month_count(time, a_cond->subtype.srv_external_stake.count_months))
+	>	dap_time_now())
+		return false;
+
+//	if (a_cond->subtype.srv_external_stake.time_unlock > time(NULL))
+//		return false;
 
 	dap_list_t *l_list_receipt = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_RECEIPT, NULL);
 	if (!l_list_receipt)
@@ -521,8 +571,11 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 	if (!burning_transaction)
 		return false;
 
-	if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
-	&&	!compare256(burning_transaction->header.value, a_cond->subtype.srv_external_stake.value))
-		return true;
+	if (!compare256(burning_transaction->header.value,
+					a_cond->subtype.srv_external_stake.value))
+	{
+		if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast))
+			return true;
+	}
 	return false;
 }

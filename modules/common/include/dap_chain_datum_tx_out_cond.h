@@ -113,9 +113,9 @@ typedef struct dap_chain_tx_out_cond {
 		struct {
 			dap_chain_addr_t    addr_holder;
 			dap_hash_fast_t     pkey_hash;
-			uint64_t            time_staking;
-            uint64_t            time_unlock;
 			uint8_t             count_months;
+			dap_time_t			time_staking;
+/*			dap_time_t			time_unlock; <<--- poor use of memory */
             uint256_t           value;
 			char                token[DAP_CHAIN_TICKER_SIZE_MAX];
 		} srv_external_stake;

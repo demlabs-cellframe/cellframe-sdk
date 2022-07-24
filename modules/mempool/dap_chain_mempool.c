@@ -632,7 +632,7 @@ static dap_chain_datum_t* dap_chain_tx_create_cond_external_stake(dap_chain_net_
 												   dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
 												   const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
 												   uint256_t a_value, dap_chain_net_srv_uid_t a_srv_uid,
-												   dap_chain_addr_t *a_addr_holder, uint8_t a_count_months, uint64_t a_time_staking)
+												   dap_chain_addr_t *a_addr_holder, uint8_t a_count_months)
 {
 	dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
 	// check valid param
@@ -666,7 +666,7 @@ static dap_chain_datum_t* dap_chain_tx_create_cond_external_stake(dap_chain_net_
 	// add 'out_cond' and 'out' items
 	{
 		uint256_t l_value_pack = {}; // how much coin add to 'out' items
-		if(dap_chain_datum_tx_add_out_cond_external_stake_item(&l_tx, a_key_cond, a_srv_uid, a_value, a_addr_holder, a_count_months, a_time_staking, a_token_ticker) == 1) {
+		if(dap_chain_datum_tx_add_out_cond_external_stake_item(&l_tx, a_key_cond, a_srv_uid, a_value, a_addr_holder, a_count_months, a_token_ticker) == 1) {
 			SUM_256_256(l_value_pack, a_value, &l_value_pack);
 			// transaction fee
 //			if (!IS_ZERO_256(a_value_fee)) {
@@ -702,11 +702,11 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond_external_stake(dap_chain
 														dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
 														const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
 														uint256_t a_value, dap_chain_net_srv_uid_t a_srv_uid,
-														dap_chain_addr_t *a_addr_holder, uint8_t a_count_months, uint64_t a_time_staking)
+														dap_chain_addr_t *a_addr_holder, uint8_t a_count_months)
 {
 	// Make transfer transaction
 	dap_chain_datum_t *l_datum = dap_chain_tx_create_cond_external_stake(a_net, a_key_from, a_key_cond, a_token_ticker, a_value, a_srv_uid,
-																		 a_addr_holder, a_count_months, a_time_staking);
+																		 a_addr_holder, a_count_months);
 
 	if(!l_datum)
 		return NULL;
