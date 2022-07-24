@@ -58,17 +58,16 @@ static dap_chain_datum_tx_receipt_t *s_external_stake_receipt_create(dap_hash_fa
 	return l_receipt;
 }
 
-static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
+static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
 	const char *l_net_str, *l_token_str, *l_coins_str, *l_wallet_str, *l_cert_str, *l_chain_str, *l_chain_emission_str, *l_months_str;
 	l_net_str = l_token_str = l_coins_str = l_wallet_str = l_cert_str = l_chain_str = l_chain_emission_str = l_months_str = NULL;
-	const char *l_wallets_path = dap_chain_wallet_get_path(g_config);
+	const char *l_wallets_path												= dap_chain_wallet_get_path(g_config);
 	char 					delegate_token_str[DAP_CHAIN_TICKER_SIZE_MAX] 	= {[0] = 'm'};
 	dap_chain_net_t			*l_net											= NULL;
 	dap_chain_t				*l_chain										= NULL;
 	dap_chain_t				*l_chain_emission								= NULL;
 	dap_chain_net_srv_uid_t	l_uid											= { .uint64 = DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID };
-	int 					l_arg_index										= a_arg_index;
 	int						l_months										= 0;
 	char					*l_hash_str;
 	dap_hash_fast_t			*l_tx_cond_hash;
@@ -80,7 +79,9 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	dap_chain_addr_t		*l_addr_holder;
 	dap_cert_t				*l_cert;
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-months", &l_months_str)
+	dap_string_append_printf(output_line, "---> HOLD <---\n");
+
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-months", &l_months_str)
 	||	NULL == l_months_str
 	||	(l_months = atoi(l_months_str)) > 8
 	||	l_months < 1)
@@ -88,28 +89,28 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 
 	l_months *= 3;
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str)
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
 	||	NULL == l_net_str)
 		return NET_ARG_ERROR;
 
 	if (NULL == (l_net = dap_chain_net_by_name(l_net_str))) {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "'%s'", l_net_str);
+		dap_string_append_printf(output_line, "'%s'", l_net_str);
 		return NET_ERROR;
 	}
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_str)
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_token_str)
 	||	NULL == l_token_str
 	||	dap_strlen(l_token_str) > 8) // for 'm' delegated
 		return TOKEN_ARG_ERROR;
 
 	if (NULL == dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_str)) {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "'%s'", l_token_str);
+		dap_string_append_printf(output_line, "'%s'", l_token_str);
 		return TOKEN_ERROR;
 	}
 
 	strcpy(delegate_token_str + 1, l_token_str);
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_coins_str)
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str)
 	||	NULL == l_coins_str)
 		return COINS_ARG_ERROR;
 
@@ -123,16 +124,16 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	if (NULL == (l_addr_holder = dap_chain_addr_from_str(l_addr_holder_str)))
 		return ADDR_FORMAT_ERROR;
 */
-	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str)
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str)
 	||	NULL == l_cert_str)
 		return CERT_ARG_ERROR;
 
 	if (NULL == (l_cert = dap_cert_find_by_name(l_cert_str))) {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "'%s'", l_cert_str);
+		dap_string_append_printf(output_line, "'%s'", l_cert_str);
 		return CERT_LOAD_ERROR;
 	}
 
-	if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_str)
+	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-chain", &l_chain_str)
 	&&	l_chain_str)
 		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
 	else
@@ -140,7 +141,7 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	if(!l_chain)
 		return CHAIN_ERROR;
 
-	if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-chain_emission", &l_chain_emission_str)
+	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-chain_emission", &l_chain_emission_str)
 	&&	l_chain_emission_str)
 		l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
 	else
@@ -148,12 +149,12 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	if(!l_chain_emission)
 		return CHAIN_EMISSION_ERROR;
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str)
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
 	||	NULL == l_wallet_str)
 		return WALLET_ARG_ERROR;
 
 	if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "'%s'", l_wallet_str);
+		dap_string_append_printf(output_line, "'%s'", l_wallet_str);
 		return WALLET_OPEN_ERROR;
 	}
 
@@ -164,14 +165,14 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 
 	if (NULL == (l_addr_holder = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id))) {
 		dap_chain_wallet_close(l_wallet);
-		dap_chain_node_cli_set_reply_text(a_str_reply, "'%s'", l_wallet_str);
+		dap_string_append_printf(output_line, "'%s'", l_wallet_str);
 		return WALLET_ADDR_ERROR;
 	}
 
 	l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
 	if (NULL == (l_key_cond = dap_pkey_from_enc_key(l_cert->enc_key))) {
 		dap_chain_wallet_close(l_wallet);
-		dap_chain_node_cli_set_reply_text(a_str_reply, "'%s'", l_cert_str);
+		dap_string_append_printf(output_line, "'%s'", l_cert_str);
 		return CERT_KEY_ERROR;
 	}
 
@@ -184,7 +185,7 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	l_hash_str = (l_tx_cond_hash) ? dap_chain_hash_fast_to_str_new(l_tx_cond_hash) : NULL;
 
 	if (l_hash_str)
-		dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully hash=%s\n", l_hash_str);
+		dap_string_append_printf(output_line, "Successfully hash=%s\n", l_hash_str);
 	else {
 		DAP_DEL_Z(l_addr_holder);
 		return ERROR;
@@ -257,7 +258,7 @@ static error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a
 	return NO_ERROR;
 }
 
-static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
+static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
 	const char *l_net_str, *l_token_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_coins_str;
 	l_net_str = l_token_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_coins_str = NULL;
@@ -336,89 +337,89 @@ static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a
 	return NO_ERROR;
 }
 
-static void s_error_handler(error_code errorCode, char **a_str_reply)
+static void s_error_handler(error_code errorCode, dap_string_t *output_line)
 {
 	switch (errorCode)
 	{
 		case NET_ARG_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -net");
-			} return;
+			dap_string_append_printf(output_line, "stake_ext command required parameter -net");
+			} break;
 
 		case NET_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, " - network not found");
-			} return;
+			dap_string_append_printf(output_line, " - network not found");
+			} break;
 
 		case TOKEN_ARG_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -token");
-			} return;
+			dap_string_append_printf(output_line, "stake_ext command required parameter -token");
+			} break;
 
 		case TOKEN_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, " - token ticker not found");
-			} return;
+			dap_string_append_printf(output_line, " - token ticker not found");
+			} break;
 
 		case COINS_ARG_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -coins");
-			} return;
+			dap_string_append_printf(output_line, "stake_ext command required parameter -coins");
+			} break;
 
 		case COINS_FORMAT_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "format -coins <256 bit integer>");dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -addr_holder");
-			} return;
+			dap_string_append_printf(output_line, "Format -coins <256 bit integer>");
+			} break;
 
 		case ADDR_ARG_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -addr_holder");
-			} return;
+			dap_string_append_printf(output_line, "stake_ext command required parameter -addr_holder");
+			} break;
 
 		case ADDR_FORMAT_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "wrong address holder format");
-			} return;
+			dap_string_append_printf(output_line, "wrong address holder format");
+			} break;
 
 		case CERT_ARG_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -cert");
-			} return;
+			dap_string_append_printf(output_line, "stake_ext command required parameter -cert");
+			} break;
 
 		case CERT_LOAD_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, " - can't load cert");
-			} return;
+			dap_string_append_printf(output_line, " - can't load cert");
+			} break;
 
 		case CHAIN_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command requires parameter '-chain'.\n"
+			dap_string_append_printf(output_line, "stake_ext command requires parameter '-chain'.\n"
 														   				"you can set default datum type in chain configuration file");
-			} return;
+			} break;
 
 		case CHAIN_EMISSION_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command requires parameter '-chain_emission'.\n"
+			dap_string_append_printf(output_line, "stake_ext command requires parameter '-chain_emission'.\n"
 														   				"you can set default datum type in chain configuration file");
-			} return;
+			} break;
 
 		case MONTHS_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command requires parameter '-months'.\n"
+			dap_string_append_printf(output_line, "stake_ext command requires parameter '-months'.\n"
 														   				"use values from 1 to 8. 1 unit equals 3 months.\n"
 																		   "for example: if you need 1 year - write 4");
-			} return;
+			} break;
 
 		case NO_MONEY_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "Not enough money");
-			} return;
+			dap_string_append_printf(output_line, "Not enough money");
+			} break;
 
 		case WALLET_ARG_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "stake_ext command required parameter -wallet");
-			} return;
+			dap_string_append_printf(output_line, "stake_ext command required parameter -wallet");
+			} break;
 
 		case WALLET_OPEN_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, " - can't open wallet");
-			} return;
+			dap_string_append_printf(output_line, " - can't open wallet");
+			} break;
 
 		case CERT_KEY_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, " - cert doesn't contain a valid public key");
-			} return;
+			dap_string_append_printf(output_line, " - cert doesn't contain a valid public key");
+			} break;
 
 		case WALLET_ADDR_ERROR: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, " - failed to get wallet address");
-			} return;
+			dap_string_append_printf(output_line, " - failed to get wallet address");
+			} break;
 
 		default: {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "unrecognized error");
-			} return;
+			dap_string_append_printf(output_line, "Unrecognized error");
+			} break;
 	}
 }
 
@@ -428,9 +429,10 @@ static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_repl
 		CMD_NONE, CMD_HOLD, CMD_TAKE
 	};
 
-	error_code errorCode;
-	int l_arg_index = 1;
-	int l_cmd_num = CMD_NONE;
+	error_code		errorCode;
+	int				l_arg_index		= 1;
+	int				l_cmd_num		= CMD_NONE;
+	dap_string_t	*output_line	= dap_string_new(NULL);
 
 	if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "hold", NULL))
 		l_cmd_num = CMD_HOLD;
@@ -440,24 +442,75 @@ static int s_cli_srv_external_stake(int a_argc, char **a_argv, char **a_str_repl
 	switch (l_cmd_num) {
 
 		case CMD_HOLD: {
-			errorCode = s_cli_srv_external_stake_hold(a_argc, a_argv, l_arg_index + 1, a_str_reply);
+			errorCode = s_cli_srv_external_stake_hold(a_argc, a_argv, l_arg_index + 1, output_line);
 			} break;
 
 		case CMD_TAKE: {
-			errorCode = s_cli_srv_external_stake_take(a_argc, a_argv, l_arg_index + 1, a_str_reply);
+			errorCode = s_cli_srv_external_stake_take(a_argc, a_argv, l_arg_index + 1, output_line);
 			} break;
 
 		default: {
 			dap_chain_node_cli_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
+			dap_string_free(output_line, false);
 			} return 1;
 	}
 
 	if (NO_ERROR != errorCode)
-		s_error_handler(errorCode, a_str_reply);
+		s_error_handler(errorCode, output_line);
 	else
-		dap_chain_node_cli_set_reply_text(a_str_reply, "Contribution successfully made");
+		dap_string_append_printf(output_line, "Contribution successfully made");
+
+	dap_chain_node_cli_set_reply_text(a_str_reply, output_line->str);
+	dap_string_free(output_line, true);
 
 	return 0;
+}
+
+static const char *s_give_month_str_from_month_count(uint8_t month_count)
+{
+	switch (month_count)
+	{
+		case 1: {
+			return "Jan";
+		}
+		case 2: {
+			return "Feb";
+		}
+		case 3: {
+			return "Mar";
+		}
+		case 4: {
+			return "Apr";
+		}
+		case 5: {
+			return "May";
+		}
+		case 6: {
+			return "Jun";
+		}
+		case 7: {
+			return "Jul";
+		}
+		case 8: {
+			return "Aug";
+		}
+		case 9: {
+			return "Sep";
+		}
+		case 10: {
+			return "Oct";
+		}
+		case 11: {
+			return "Nov";
+		}
+		case 12: {
+			return "Dec";
+		}
+
+		default: {
+			return "";
+		}
+	}
 }
 
 static uint8_t s_give_month_count_from_time_str(char *time)
@@ -494,12 +547,48 @@ static uint8_t s_give_month_count_from_time_str(char *time)
 
 static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
 {
+	uint8_t		current_month;
+	int			current_year;
+	const char 	*month_str;
+	const char 	*year_str;
+
+	if (!time || !month_count)
+		return NULL;
+	if (	(current_month = s_give_month_count_from_time_str(time))	== 0	)
+		return NULL;
+	if (	(current_year = atoi(&time[YEAR_INDEX])) 					<= 0
+	||		current_year 												< 22
+	||		current_year 												> 99	)
+		return NULL;
+
+
+	for (uint8_t i = 0; i < month_count; i++) {
+		if (current_month == 12)
+		{
+			current_month = 1;
+			current_year++;
+		}
+		else
+			current_month++;
+	}
+
+	month_str	= s_give_month_str_from_month_count(current_month);
+	year_str	= dap_itoa(current_year);
+
+	if (*month_str
+	&&	*year_str
+	&&	dap_strlen(year_str) == 2) {
+		memcpy(&time[MONTH_INDEX],	month_str,	3);	// 3 == len month in time RFC822 format
+		memcpy(&time[YEAR_INDEX],	year_str,	2);	// 2 == len year in time RFC822 format
+	} else
+		return NULL;
+
 	return time;
 }
 
 bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
-	char time[50];
+	char	time[50];
 
 	/*if (!a_owner) TODO: ???
 		return false;*/
@@ -510,7 +599,10 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 	if (dap_time_to_str_rfc822(time, sizeof(time), dap_time_now()) <= 0)
 		return false;
 
-	if (dap_time_from_str_rfc822(s_update_date_by_using_month_count(time, a_cond->subtype.srv_external_stake.count_months))
+	if (NULL == s_update_date_by_using_month_count(time, a_cond->subtype.srv_external_stake.count_months))
+		return false;
+
+	if (dap_time_from_str_rfc822(time)
 	>	dap_time_now())
 		return false;
 
@@ -571,11 +663,8 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 	if (!burning_transaction)
 		return false;
 
-	if (!compare256(burning_transaction->header.value,
-					a_cond->subtype.srv_external_stake.value))
-	{
-		if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast))
-			return true;
-	}
+	if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
+	&&	!compare256(burning_transaction->header.value, a_cond->subtype.srv_external_stake.value))
+		return true;
 	return false;
 }
