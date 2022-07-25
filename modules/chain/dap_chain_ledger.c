@@ -1384,6 +1384,11 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
 
     dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
 
+    if (!l_token_item){
+        log_it(L_WARNING,"Ledger_token_emission_add_check. Token ticker %s was not found",c_token_ticker);
+        return -5;
+    }
+
     // check if such emission is already present in table
     dap_chain_hash_fast_t l_token_emission_hash={0};
     //dap_chain_hash_fast_t * l_token_emission_hash_ptr = &l_token_emission_hash;
@@ -1422,11 +1427,6 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     size_t l_emission_size = a_token_emission_size;
     dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
 
-    if (!l_token_item){
-        log_it(L_WARNING,"Ledger_token_emission_add_check. Token ticker %s was not found",c_token_ticker);
-        return -5;
-    }
-
     // if total_supply > 0 we can check current_supply
     if (!IS_ZERO_256(l_token_item->total_supply)){
         if(compare256(l_token_item->current_supply, l_emission->hdr.value_256) < 0) {
@@ -1436,6 +1436,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                     l_balance_cur, l_balance_em);
             DAP_DELETE(l_balance_cur);
             DAP_DELETE(l_balance_em);
+            DAP_DELETE(l_emission);
             return -4;
         }
     }
