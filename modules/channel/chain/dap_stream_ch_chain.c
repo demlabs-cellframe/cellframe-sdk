@@ -178,7 +178,7 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
     dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
     s_ch_chain_go_idle(l_ch_chain);
     s_free_log_list_gdb(l_ch_chain);
-    if (!DAP_STREAM_CH(l_ch_chain)->internal) {
+    if (!l_ch_chain->_inheritor) {
         if (l_ch_chain->callback_notify_packet_out)
             l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
                                                    l_ch_chain->callback_notify_arg);
@@ -194,9 +194,9 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    dap_stream_ch_chain_t *l_ch_chain = a_ch->internal;
+    DAP_STREAM_CH_CHAIN(a_ch)->_inheritor = NULL; // To delete ch chain
     a_ch->internal = NULL; // To prevent its cleaning in worker
-    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, l_ch_chain);
+    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, DAP_STREAM_CH_CHAIN(a_ch));
 }
 
 void dap_stream_ch_chain_reset(dap_stream_ch_chain_t *a_ch_chain)
