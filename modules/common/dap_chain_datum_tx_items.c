@@ -145,10 +145,12 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY;
     else if(!dap_strcmp(a_subtype_str, "srv_xchange"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
-    else if(!dap_strcmp(a_subtype_str, "srv_stake"))
-        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE;
+    else if(!dap_strcmp(a_subtype_str, "srv_stake_pos_delegate"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
+    else if(!dap_strcmp(a_subtype_str, "srv_stake_lock"))
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
     else if(!dap_strcmp(a_subtype_str, "srv_stake_update"))
-        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE;
+        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE;
     else if(!dap_strcmp(a_subtype_str, "fee"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE;
     return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
@@ -376,7 +378,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
-    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake.fee_value = a_fee_value;
     memcpy(&l_item->subtype.srv_stake.fee_addr, a_fee_addr, sizeof(dap_chain_addr_t));

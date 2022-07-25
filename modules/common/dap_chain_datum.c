@@ -425,7 +425,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     DAP_DELETE(l_value_str);
                     DAP_DELETE(l_coins_str);
                 } break;
-                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE: {
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
                     char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_value);
                     char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr);
                     dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"

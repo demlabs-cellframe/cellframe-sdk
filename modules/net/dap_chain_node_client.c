@@ -420,10 +420,11 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg)
 {
-    UNUSED(a_ch_chain);
     UNUSED(a_pkt_data_size);
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
-
+    dap_chain_net_t *l_net = l_node_client->net;
+    assert(l_net);
+    bool l_finished = false;
     switch (a_pkt_type) {
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
             dap_snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
@@ -431,12 +432,10 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
             log_it(L_WARNING, "In: Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
                     l_node_client->last_error);
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
-
-    #ifndef _WIN32
-            pthread_cond_broadcast(&l_node_client->wait_cond);
-    #else
-            SetEvent( l_node_client->wait_cond );
-    #endif
+            if (!strcmp(l_node_client->last_error, "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS")) {
+                dap_stream_ch_chain_reset(a_ch_chain);
+                l_finished = true;
+            }
         break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ:{
             l_node_client->state = NODE_CLIENT_STATE_SYNC_GDB_UPDATES;
@@ -464,8 +463,6 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         }break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB:
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
-            dap_chain_net_t *l_net = l_node_client->net;
-            assert(l_net);
             dap_chain_id_t  l_chain_id = {};
             dap_chain_cell_id_t l_cell_id = {};
             if (a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB) {
@@ -474,7 +471,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                         log_it(L_INFO,"In: Link %s."NODE_ADDR_FP_STR" synced GDB. Going to update chains", l_net->pub.name, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr ));
                     l_node_client->cur_chain = l_net->pub.chains;
                     l_node_client->cur_cell = l_node_client->cur_chain ? l_node_client->cur_chain->cells : NULL;
-                }
+                } else
+                    l_node_client->cur_chain = NULL;
             } else {
                 // Check if we over with it before
                 if ( ! l_node_client->cur_cell ){
@@ -514,27 +512,30 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                 dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,
                                                      l_net->pub.id.uint64 ,
                                                      l_chain_id.uint64,l_cell_id.uint64,NULL,0);
-            }else{ // If no - over with sync process
+            } else {// If no - over with sync process
                 log_it(L_INFO, "In: State node %s."NODE_ADDR_FP_STR" is SYNCED",l_net->pub.name, NODE_ADDR_FP_ARGS_S(l_node_addr) );
-                bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
-                l_node_client->state = NODE_CLIENT_STATE_SYNCED;
-                if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE) {
-                    dap_timerfd_reset(l_node_client->sync_timer);
-                    dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
-                } 
-                else if (!l_have_waiting)
-                {
-                    #ifndef _WIN32
-                        pthread_cond_broadcast(&l_node_client->wait_cond);
-                    #else
-                        SetEvent( l_node_client->wait_cond );
-                    #endif
-                    // l_node_client object is not presented after dap_chain_net_state_go_to with NET_STATE_OFFLINE
-                    dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
-                }
+                l_finished = true;
             }
         } break;
         default: break;
+    }
+    if (l_finished) {
+#ifndef _WIN32
+        pthread_cond_broadcast(&l_node_client->wait_cond);
+#else
+        SetEvent( l_node_client->wait_cond);
+#endif
+        bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
+        l_node_client->state = NODE_CLIENT_STATE_SYNCED;
+        if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE) {
+            dap_timerfd_reset(l_node_client->sync_timer);
+            dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
+        }
+        else if (!l_have_waiting)
+        {
+            // l_node_client object is not presented after dap_chain_net_state_go_to with NET_STATE_OFFLINE
+            dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
+        }
     }
 }
 

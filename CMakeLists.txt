@@ -12,16 +12,10 @@ set(DAPSDK_MODULES "")
 
 if(NOT DEFINED CELLFRAME_MODULES)
     include (cmake/OS_Detection.cmake)
-    if (WIN32)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(BSD)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(DARWIN)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(ANDROID)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(LINUX)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange modules-dynamic srv-vpn")
+    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake-pos-delegate srv-stake-lock srv-xchange")
+
+    if(LINUX)
+        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} modules-dynamic srv-vpn")
     endif()
 endif()
 
@@ -207,9 +201,15 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
 endif()
 
 # Enable service of delegated stake
-if (CELLFRAME_MODULES MATCHES "srv-stake")
-    message("[+] Module 'srv-stake'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
+if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
+    message("[+] Module 'srv-stake-pos-delegate'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate)
+endif()
+
+# Enable service of stake token
+if (CELLFRAME_MODULES MATCHES "srv-stake-lock")
+    message("[+] Module 'srv-stake-lock'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_lock)
 endif()
 
 # Enable service for dynamic modules
