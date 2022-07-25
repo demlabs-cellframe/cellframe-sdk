@@ -91,6 +91,29 @@ char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
     }
 }
 
+dap_chain_addr_t  *dap_chain_check_null_addr_from_str(const char *a_str)
+{
+	if (!a_str)
+		return NULL;
+
+	size_t i = 0;
+	size_t l_str_len = dap_strlen(a_str);
+	for (; i < l_str_len; i++)
+	{
+		if (a_str[i] == '0'
+		||	(i == 1 && a_str[i] == 'x'))
+			continue;
+		break;
+	}
+	if (i == l_str_len)
+	{
+		size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(1);
+		dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
+		return l_addr;
+	} else
+		return NULL;
+}
+
 /**
  * @brief dap_chain_str_to_addr
  * @param a_addr
@@ -98,7 +121,7 @@ char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
  */
 dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
 {
-    size_t l_str_len = (a_str) ? strlen(a_str) : 0;
+    size_t l_str_len = (a_str) ? dap_strlen(a_str) : 0;
     if(l_str_len <= 0)
         return NULL;
     size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);

@@ -343,83 +343,83 @@ static void s_error_handler(error_code errorCode, dap_string_t *output_line)
 	{
 		case NET_ARG_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command required parameter -net");
-			} break;
+			} return;
 
 		case NET_ERROR: {
 			dap_string_append_printf(output_line, " - network not found");
-			} break;
+			} return;
 
 		case TOKEN_ARG_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command required parameter -token");
-			} break;
+			} return;
 
 		case TOKEN_ERROR: {
 			dap_string_append_printf(output_line, " - token ticker not found");
-			} break;
+			} return;
 
 		case COINS_ARG_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command required parameter -coins");
-			} break;
+			} return;
 
 		case COINS_FORMAT_ERROR: {
 			dap_string_append_printf(output_line, "Format -coins <256 bit integer>");
-			} break;
+			} return;
 
 		case ADDR_ARG_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command required parameter -addr_holder");
-			} break;
+			} return;
 
 		case ADDR_FORMAT_ERROR: {
 			dap_string_append_printf(output_line, "wrong address holder format");
-			} break;
+			} return;
 
 		case CERT_ARG_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command required parameter -cert");
-			} break;
+			} return;
 
 		case CERT_LOAD_ERROR: {
 			dap_string_append_printf(output_line, " - can't load cert");
-			} break;
+			} return;
 
 		case CHAIN_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command requires parameter '-chain'.\n"
 														   				"you can set default datum type in chain configuration file");
-			} break;
+			} return;
 
 		case CHAIN_EMISSION_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command requires parameter '-chain_emission'.\n"
 														   				"you can set default datum type in chain configuration file");
-			} break;
+			} return;
 
 		case MONTHS_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command requires parameter '-months'.\n"
 														   				"use values from 1 to 8. 1 unit equals 3 months.\n"
 																		   "for example: if you need 1 year - write 4");
-			} break;
+			} return;
 
 		case NO_MONEY_ERROR: {
 			dap_string_append_printf(output_line, "Not enough money");
-			} break;
+			} return;
 
 		case WALLET_ARG_ERROR: {
 			dap_string_append_printf(output_line, "stake_ext command required parameter -wallet");
-			} break;
+			} return;
 
 		case WALLET_OPEN_ERROR: {
 			dap_string_append_printf(output_line, " - can't open wallet");
-			} break;
+			} return;
 
 		case CERT_KEY_ERROR: {
 			dap_string_append_printf(output_line, " - cert doesn't contain a valid public key");
-			} break;
+			} return;
 
 		case WALLET_ADDR_ERROR: {
 			dap_string_append_printf(output_line, " - failed to get wallet address");
-			} break;
+			} return;
 
 		default: {
 			dap_string_append_printf(output_line, "Unrecognized error");
-			} break;
+			} return;
 	}
 }
 
