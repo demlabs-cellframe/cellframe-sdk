@@ -24,9 +24,9 @@
 
 #pragma once
 
+#include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx_out_cond.h"
-#include "dap_chain_net.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_ID 0x12
 
