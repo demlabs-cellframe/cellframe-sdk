@@ -194,13 +194,16 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    DAP_STREAM_CH_CHAIN(a_ch)->_inheritor = NULL; // To delete ch chain
+    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    l_ch_chain->_inheritor = NULL; // To delete ch chain
     a_ch->internal = NULL; // To prevent its cleaning in worker
-    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, DAP_STREAM_CH_CHAIN(a_ch));
+    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, l_ch_chain);
 }
 
 void dap_stream_ch_chain_reset(dap_stream_ch_chain_t *a_ch_chain)
 {
+    if (!a_ch_chain)
+        return;
     dap_worker_exec_callback_on(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch_chain);
 }
 
