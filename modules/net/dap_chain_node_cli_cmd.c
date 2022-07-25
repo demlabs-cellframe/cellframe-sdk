@@ -4628,7 +4628,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     dap_chain_addr_t *l_addr_to = dap_chain_check_null_addr_from_str(addr_base58_to);
 
 	if (!l_addr_to)
-		dap_chain_addr_from_str(addr_base58_to);
+		l_addr_to = dap_chain_addr_from_str(addr_base58_to);
 
     if(!l_addr_to) {
         dap_chain_node_cli_set_reply_text(str_reply, "destination address is invalid");
