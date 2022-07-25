@@ -889,7 +889,7 @@ static int s_cli_srv_xchange_tx_list_addr (
                         dap_time_t      a_after,
                         dap_time_t      a_before,
                     dap_chain_addr_t    *a_addr,
-                            int         a_status,
+                            int         a_opt_status,
                                 char    **a_str_reply
                                           )
 {
@@ -942,18 +942,18 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             if ( l_out_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE )
                 continue;
 
-
-
-
-            if (a_status)                                                   /* 1 - closed, 2 - open  */
+            if (a_opt_status)                                                   /* 1 - closed, 2 - open  */
             {
                 l_rc = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
 
-                if ( (a_status == 1) && !l_rc )
-                    continue;
-
-                if ( (a_status == 2) && l_rc )
-                    continue;
+                if ( a_opt_status )
+                {
+                    if ( (a_opt_status == 1) && l_rc )              /* Select close only */
+                        {;}
+                    else if ( (a_opt_status == 2) &&  (!l_rc) )     /* Select open only */
+                        {;}
+                    else continue;
+                }
             }
 
             const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
@@ -965,10 +965,9 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             char *l_value_from_str = dap_chain_balance_to_coins(l_tx_input_values);
             char *l_value_to_str = dap_chain_balance_to_coins(l_value_to);
 
-            dap_string_append_printf(l_reply_str, "Status: %s,", l_rc ? "open" : "closed");
-
-            dap_string_append_printf(l_reply_str, " From: %s %s,", l_tx_input_values_str, l_tx_input_ticker);
-            dap_string_append_printf(l_reply_str, " To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
+            dap_string_append_printf(l_reply_str, "  Status: %s,", l_rc ? "closed" : "open");
+            dap_string_append_printf(l_reply_str, "  From: %s %s,", l_tx_input_values_str, l_tx_input_ticker);
+            dap_string_append_printf(l_reply_str, "  To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
 
             DAP_DELETE(l_value_from_str);
             DAP_DELETE(l_value_to_str);
