@@ -1345,9 +1345,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             DAP_DEL_Z(l_tx_hash);
                             // Compare with token1 and token2
                             if( dap_strcmp(l_tx_input_ticker, l_token1) != 0 &&
-                                    dap_strcmp(l_tx_input_ticker, l_token2) != 0)
+                                    dap_strcmp(l_tx_input_ticker, l_token2) != 0) {
+                                l_cur = dap_list_next(l_cur);
                                 continue;
-
+                            }
                             dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
                             int l_item_idx = 0;
                             do {
@@ -1420,7 +1421,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                     char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
                                     char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
 
-                                    dap_string_append_printf(l_reply_str, "From: : %s %s   ", l_tx_input_ticker,l_value_from_str);
+                                    dap_string_append_printf(l_reply_str, "From: %s %s   ", l_tx_input_ticker, l_value_from_str);
                                     dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
 
                                     DAP_DELETE(l_value_from_str);
