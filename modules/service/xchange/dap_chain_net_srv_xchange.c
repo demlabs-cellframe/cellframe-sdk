@@ -1139,7 +1139,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
         case CMD_TX_LIST: {
             const char *l_net_str = NULL, *l_time_begin_str = NULL, *l_time_end_str = NULL;
             const char *l_status_str = NULL, *l_addr_str = NULL;  /* @RRL:  #6294 */
-            int     l_status;
+            int     l_opt_status, l_show_tx_nr = 0;
             dap_chain_addr_t *l_addr;
 
             l_arg_index++;
@@ -1154,7 +1154,24 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-status", &l_status_str);
 
+
             /* Validate input arguments ... */
+            l_opt_status = 0;   /* 0 - all */
+
+            if ( l_status_str )
+            {
+                /* 1 - closed, 2 - open  */
+                if ( !dap_strncmp (l_status_str, "close", 5) )
+                    l_opt_status = 1;
+                else if ( !dap_strncmp (l_status_str, "open", 4) )
+                    l_opt_status = 2;
+                else    {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
+                    return -3;
+                }
+            }
+
+
             if(!l_net_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'tx_list' required parameter -net");
                 return -3;
@@ -1164,12 +1181,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
                 return -4;
             }
+
             dap_time_t l_time[2];
             l_time[0] = dap_time_from_str_rfc822(l_time_begin_str);
             l_time[1] = dap_time_from_str_rfc822(l_time_end_str);
 
-            if ( l_status_str && !l_addr_str )
-                return  dap_chain_node_cli_set_reply_text(a_str_reply, "Parameter -status require -addr"), -EINVAL;
 
             /* Dispatch request processing to ... */
             if ( l_addr_str )
@@ -1177,18 +1193,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 if ( !(l_addr = dap_chain_addr_from_str(l_addr_str)) )
                     return  dap_chain_node_cli_set_reply_text(a_str_reply, "Cannot convert -addr '%s' to internal representative", l_addr_str), -EINVAL;
 
-                l_status = 0; /* 0 - all */
-
-                if ( l_status_str )
-                {
-                    /* 1 - closed, 2 - open  */
-                    l_status = !dap_strncmp (l_status_str, "close", 5);
-                    l_status += !dap_strncmp (l_status_str, "open", 4);
-                }
-
-                return  s_cli_srv_xchange_tx_list_addr (l_net, l_time[0], l_time[1], l_addr, l_status, a_str_reply);
+                return  s_cli_srv_xchange_tx_list_addr (l_net, l_time[0], l_time[1], l_addr, l_opt_status, a_str_reply);
             }
-
 
 
             // Prepare output string
@@ -1199,9 +1205,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             size_t l_datum_num = dap_list_length(l_datum_list0);
 
             if(l_datum_num > 0) {
-                dap_string_append_printf(l_reply_str, "Found %zu transactions:\n", l_datum_num);
-                dap_list_t *l_datum_list = l_datum_list0;
+                //dap_string_append_printf(l_reply_str, "Found %zu transactions:\n", l_datum_num);
+                log_it(L_DEBUG,  "Found %zu transactions:\n", l_datum_num);
 
+                dap_list_t *l_datum_list = l_datum_list0;
                 char l_hash_str [DAP_CHAIN_HASH_FAST_STR_SIZE + 8] = {0};
 
                 while(l_datum_list) {
@@ -1221,16 +1228,16 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     size_t l_datum_tx_size = dap_chain_datum_tx_get_size(l_datum_tx);
 
                     // Delimiter between tx
-                    if(l_datum_list != l_datum_list0) {
-                        dap_string_append(l_reply_str, "\n\n");
-                    }
+//                    if(l_datum_list != l_datum_list0) {
+//                        dap_string_append(l_reply_str, "\n\n");
+//                    }
 
                     // Tx hash
                     dap_hash_fast_t l_tx_hash = {0};
 
                     dap_hash_fast(l_datum_tx, l_datum_tx_size, &l_tx_hash);
                     dap_chain_hash_fast_to_str(&l_tx_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
-                    dap_string_append_printf(l_reply_str, "Hash: %s\n", l_hash_str);
+//                    dap_string_append_printf(l_reply_str, "Hash: %s\n", l_hash_str);
 
                     // Get input token ticker
                     const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
@@ -1252,9 +1259,22 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             char *l_value_to_str = dap_chain_balance_to_coins(value);
                             char *l_value_from_str = dap_chain_balance_to_coins(l_tx_input_values);
 
+
                             l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_hash, l_item_idx);
 
-                            dap_string_append_printf(l_reply_str, "Status: %s,", l_rc ? "open" : "closed");
+                            if ( l_opt_status )
+                            {
+                                if ( (l_opt_status == 1) && l_rc )              /* Select close only */
+                                    {;}
+                                else if ( (l_opt_status == 2) &&  (!l_rc) )     /* Select open only */
+                                    {;}
+                                else continue;
+                            }
+
+                            l_show_tx_nr++;
+
+                            dap_string_append_printf(l_reply_str, "Hash: %s,", l_hash_str);
+                            dap_string_append_printf(l_reply_str, "  Status: %s,", l_rc ? "closed" : "open");
                             dap_string_append_printf(l_reply_str, "  From: %s %s,", l_value_from_str, l_tx_input_ticker);
                             dap_string_append_printf(l_reply_str, "  To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
 
@@ -1266,6 +1286,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                     l_datum_list = dap_list_next(l_datum_list);
                 }
+                dap_string_append_printf(l_reply_str, "Found %d transactions", l_show_tx_nr);
             }
             else{
                 dap_string_append(l_reply_str, "Transactions not found");

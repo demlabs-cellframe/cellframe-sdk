@@ -3633,11 +3633,16 @@ dap_chain_t *l_chain_cur;
                     }
 #endif
 
+                    /*
+                     * Make a copy of the datum, copy is placed into the list,
+                     * so don't forget to free whole list
+                     */
                     l_sz = sizeof(dap_chain_datum_t) + l_datum->header.data_size + 16;
                     l_datum2 = DAP_NEW_Z_SIZE(dap_chain_datum_t, l_sz);
                     assert ( l_datum2 );
                     memcpy(l_datum2, l_datum, l_sz);
 
+                    /* Add new entry into the list */
                     l_list = dap_list_append(l_list, l_datum2);
                 }
 
@@ -3649,7 +3654,7 @@ dap_chain_t *l_chain_cur;
         }
 
         // Only for one chain
-        if(a_chain)
+        if ( a_chain )
             break;
 
         // go to next chain
