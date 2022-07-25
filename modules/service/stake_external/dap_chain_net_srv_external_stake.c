@@ -287,14 +287,14 @@ static error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a
 
 	dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
-	dap_chain_net_srv_price_unit_uid_t l_unit 	= { .uint32 = SERV_UNIT_UNDEFINED};
-	dap_chain_net_srv_uid_t l_uid				= { .uint64 = DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID };
-	dap_chain_datum_tx_receipt_t *l_receipt		=	s_external_stake_receipt_create(l_tx_burning_hash, l_token_str, l_value);
+	dap_chain_net_srv_price_unit_uid_t	l_unit		=	{ .uint32 = SERV_UNIT_UNDEFINED};
+	dap_chain_net_srv_uid_t				l_uid		=	{ .uint64 = DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID };
+	dap_chain_datum_tx_receipt_t		*l_receipt	=	s_external_stake_receipt_create(l_tx_burning_hash, l_token_str, l_value);
 
 	dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
 
-	dap_ledger_t 		*l_ledger		= dap_chain_ledger_by_net_name(l_net->pub.name);
 	l_wallet							= dap_chain_wallet_open(l_wallet_str, l_wallets_path);
+	dap_ledger_t 		*l_ledger		= dap_chain_ledger_by_net_name(l_net->pub.name);
 	dap_chain_addr_t	*l_owner_addr	= (dap_chain_addr_t *)dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 	dap_enc_key_t		*l_owner_key	= dap_chain_wallet_get_key(l_wallet, 0);
 
@@ -588,7 +588,10 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
 
 bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
-	char	time[50];
+	char					time[50];
+	dap_chain_tx_out_t		*burning_transaction = NULL;
+	dap_hash_fast_t			hash_burning_transaction;
+	dap_chain_datum_tx_t	*out_tx;
 
 	/*if (!a_owner) TODO: ???
 		return false;*/
@@ -596,75 +599,63 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 	if (a_cond->subtype.srv_external_stake.count_months % 3 != 0)
 		return false;
 
-	if (dap_time_to_str_rfc822(time, sizeof(time), dap_time_now()) <= 0)
+	if (dap_time_to_str_rfc822(time, sizeof(time), a_cond->subtype.srv_external_stake.time_staking) <= 0)
 		return false;
 
 	if (NULL == s_update_date_by_using_month_count(time, a_cond->subtype.srv_external_stake.count_months))
 		return false;
 
 	if (dap_time_from_str_rfc822(time)
-	>	dap_time_now())
+	<	dap_time_now())//TODO: FIX THIS SHIT '>' (changed for test)
 		return false;
 
-//	if (a_cond->subtype.srv_external_stake.time_unlock > time(NULL))
-//		return false;
-
-	dap_list_t *l_list_receipt = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_RECEIPT, NULL);
-	if (!l_list_receipt)
-		return false;
-
-	dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT,NULL);
-	if (!l_list_out) {
-		dap_list_free(l_list_receipt);
-		return false;
-	}
-
-	dap_chain_tx_out_t *burning_transaction = NULL;
-
-	for (dap_list_t *l_list_receipt_tmp = l_list_receipt; l_list_receipt_tmp; l_list_receipt_tmp = dap_list_next(l_list_receipt_tmp)) {
-		dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)l_list_receipt_tmp->data;
+	dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
 
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-		if (l_receipt->receipt_info.srv_uid.uint64 != DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID)
-			continue;
+	if (l_receipt->receipt_info.srv_uid.uint64 != DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID)
+		return false;
 #elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
-		if (l_receipt->receipt_info.srv_uid.uint128 != DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID)
-			continue;
+	if (l_receipt->receipt_info.srv_uid.uint128 != DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID)
+		return false;
 #endif
 
-		dap_hash_fast_t hash_burning_transaction;
-		char ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];//not used TODO: check ticker?
-		if (l_receipt->exts_size) {
-			memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
-			strcpy(ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
-		}
-		else
-			continue;
-
-		if (dap_hash_fast_is_blank(&hash_burning_transaction))
-			continue;
-
-		for (dap_list_t *l_list_out_tmp = l_list_out; l_list_out_tmp; l_list_out_tmp = dap_list_next(l_list_out_tmp)) {
-			dap_hash_fast_t *out_tx_hash = dap_chain_node_datum_tx_calc_hash((dap_chain_datum_tx_t *)l_list_out_tmp->data);
-			if (dap_hash_fast_compare(&hash_burning_transaction, out_tx_hash)) {
-				burning_transaction = (dap_chain_tx_out_t *)l_list_out_tmp->data;
-				DAP_DEL_Z(out_tx_hash);
-				break;
-			}
-			DAP_DEL_Z(out_tx_hash);
-		}
-		if (burning_transaction)
-			break;
+	char ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];//not used TODO: check ticker?
+	if (l_receipt->exts_size) {
+		memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
+		strcpy(ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
 	}
-
-	dap_list_free(l_list_receipt);
-	dap_list_free(l_list_out);
-
-	if (!burning_transaction)
+	else
 		return false;
 
-	if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
-	&&	!compare256(burning_transaction->header.value, a_cond->subtype.srv_external_stake.value))
-		return true;
+	if (dap_hash_fast_is_blank(&hash_burning_transaction))
+		return false;
+
+//	if (memcmp(ticker, a_cond->subtype.srv_external_stake.token, max(dap_strlen(ticker), dap_strlen(a_cond->subtype.srv_external_stake.token))))
+//		return false;
+
+	dap_chain_net_t *net = dap_chain_net_by_id(a_cond->subtype.addr_holder.net_id);
+	dap_ledger_t *ledger = dap_chain_ledger_by_net_name(net->pub.name);
+	out_tx = dap_chain_ledger_tx_find_by_hash(ledger, &hash_burning_transaction);
+//	if (!out_tx)
+//		out_tx = net->pub.chains->callback_atom_find_by_hash(hash_burning_transaction);
+
+	dap_list_t *l_list_out = dap_chain_datum_tx_items_get(out_tx, TX_ITEM_TYPE_OUT,NULL);
+	if (!l_list_out) {
+		return false;
+	}
+
+	for (dap_list_t *l_list_out_tmp = l_list_out; l_list_out_tmp; l_list_out_tmp = dap_list_next(l_list_out_tmp)) {
+		burning_transaction = (dap_chain_tx_out_t *)l_list_out_tmp->data;
+		if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
+		&&	!compare256(burning_transaction->header.value, a_cond->subtype.srv_external_stake.value))
+			return true;
+/*		dap_hash_fast_t *out_tx_hash = dap_chain_node_datum_tx_calc_hash((dap_chain_datum_tx_t *)l_list_out_tmp->data);
+		if (dap_hash_fast_compare(&hash_burning_transaction, out_tx_hash)) {
+			burning_transaction = (dap_chain_tx_out_t *)l_list_out_tmp->data;
+			DAP_DEL_Z(out_tx_hash);
+			break;
+		}
+		DAP_DEL_Z(out_tx_hash);*/
+	}
 	return false;
 }
