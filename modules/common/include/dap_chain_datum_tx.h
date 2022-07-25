@@ -45,7 +45,6 @@ typedef struct dap_chain_datum_tx{
     uint8_t tx_items[];
 } DAP_ALIGN_PACKED dap_chain_datum_tx_t;
 
-
 /**
  * Create empty transaction
  *

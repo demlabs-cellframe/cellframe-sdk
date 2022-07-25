@@ -66,6 +66,7 @@
 typedef struct dap_chain_ledger_verificator {
     int subtype;    // hash key
     dap_chain_ledger_verificator_callback_t callback;
+    dap_chain_ledger_verificator_callback_out_t callback_added;
     UT_hash_handle hh;
 } dap_chain_ledger_verificator_t;
 
@@ -2446,7 +2447,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     // find 'out' items
     dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
     uint256_t l_value = {};
-    for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp)) {
+    int l_item_idx = 0;
+    for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_item_idx++) {
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
         dap_chain_addr_t l_tx_out_to={0};
         switch (l_type) {
@@ -2488,6 +2490,25 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -18;
                 break;
             }
+
+            // Check for add out callback
+            dap_chain_ledger_verificator_t * l_verificator;
+            int l_tmp = l_tx_out->header.subtype;
+
+            pthread_rwlock_rdlock(&s_verificators_rwlock);
+            HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
+            pthread_rwlock_unlock(&s_verificators_rwlock);
+            if (!l_verificator ) {
+                if(s_debug_more)
+                    log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
+                l_err_num = -13;
+                break;
+            }
+            if ( l_verificator->callback_added && l_verificator->callback_added( a_tx, l_tx_out) == false) {
+                l_err_num = -14;
+                break;
+            }
+
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } break;
@@ -2831,9 +2852,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             l_tx_prev_out_used_idx = l_tx_in_cond->header.tx_out_prev_idx;
             // Update stakes if any
             dap_chain_tx_out_cond_t *l_cond = bound_item->out.tx_prev_out_cond_256;
-            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE) {
+            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE) {
                 dap_chain_ledger_verificator_t *l_verificator;
-                int l_tmp = (int)DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE;
+                int l_tmp = (int)DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE;
                 pthread_rwlock_rdlock(&s_verificators_rwlock);
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
@@ -2906,9 +2927,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         if (l_type == TX_ITEM_TYPE_OUT_COND) {
             // Update stakes if any
             dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)l_tx_out->data;
-            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE && !l_stake_updated) {
+            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE && !l_stake_updated) {
                 dap_chain_ledger_verificator_t *l_verificator;
-                int l_tmp = (int)DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE;
+                int l_tmp = (int)DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE;
                 pthread_rwlock_rdlock(&s_verificators_rwlock);
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
@@ -3897,7 +3918,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
 }
 
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
-int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback)
+int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added)
 {
     dap_chain_ledger_verificator_t *l_new_verificator;
     int l_tmp = (int)a_subtype;
@@ -3911,6 +3932,7 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
     l_new_verificator = DAP_NEW(dap_chain_ledger_verificator_t);
     l_new_verificator->subtype = (int)a_subtype;
     l_new_verificator->callback = a_callback;
+    l_new_verificator->callback_added = a_callback_added;
     pthread_rwlock_wrlock(&s_verificators_rwlock);
     HASH_ADD_INT(s_verificators, subtype, l_new_verificator);
     pthread_rwlock_unlock(&s_verificators_rwlock);
