@@ -1375,7 +1375,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         DIV_256(l_total_rates,l_total_rates_count,&l_rate_average);
                     char *l_rate_average_str = dap_chain_balance_to_coins(l_rate_average);
                     char *l_last_rate_str = dap_chain_balance_to_coins(l_rate);
-                    dap_string_append_printf(l_reply_str,"Average rate: %s,   Last rate: %s", l_rate_average_str, l_last_rate_str);
+                    dap_string_append_printf(l_reply_str,"Average rate: %s   Last rate: %s", l_rate_average_str, l_last_rate_str);
                     DAP_DELETE(l_rate_average_str);
                     DAP_DELETE(l_last_rate_str);
 
