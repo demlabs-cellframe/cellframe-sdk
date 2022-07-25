@@ -4626,11 +4626,12 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
 
     dap_chain_addr_t *l_addr_to;
+	bool burning_addr = false;
 
 	if (NULL == (l_addr_to = dap_chain_check_null_addr_from_str(addr_base58_to)))
 		l_addr_to = dap_chain_addr_from_str(addr_base58_to);
 	else
-		l_addr_to->net_id.uint64 = l_net->pub.id.uint64;
+		burning_addr = true;
 
     if(!l_addr_to) {
         dap_chain_node_cli_set_reply_text(str_reply, "destination address is invalid");
@@ -4672,7 +4673,8 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
 
     // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
-    if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
+    if (!burning_addr
+	&&	l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
         dap_chain_node_cli_set_reply_text(str_reply, "destination wallet network ID=0x%llx and network ID=0x%llx is not equal. Please, change network name or wallet address",
                                             l_addr_to->net_id.uint64, l_net->pub.id.uint64);
         return -13;
@@ -4700,7 +4702,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
 
     dap_chain_node_cli_set_reply_text(str_reply, string_ret->str);
-    dap_string_free(string_ret, false);
+    dap_string_free(string_ret, true);
 
     DAP_DELETE(l_addr_to);
     dap_chain_wallet_close(l_wallet);

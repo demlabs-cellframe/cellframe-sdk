@@ -107,8 +107,8 @@ dap_chain_addr_t  *dap_chain_check_null_addr_from_str(const char *a_str)
 	}
 	if (i == l_str_len)
 	{
-		size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(1);
-		dap_chain_addr_t *l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
+//		size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(1);
+		dap_chain_addr_t *l_addr = DAP_NEW_Z(dap_chain_addr_t);
 		return l_addr;
 	} else
 		return NULL;

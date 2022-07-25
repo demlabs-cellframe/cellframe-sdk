@@ -644,11 +644,19 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 		return false;
 	}
 
+	dap_chain_addr_t *l_addr_ref = dap_chain_check_null_addr_from_str("0x0");
+//	l_addr_ref->net_id = a_cond->subtype.addr_holder.net_id;
+
 	for (dap_list_t *l_list_out_tmp = l_list_out; l_list_out_tmp; l_list_out_tmp = dap_list_next(l_list_out_tmp)) {
 		burning_transaction = (dap_chain_tx_out_t *)l_list_out_tmp->data;
-		if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
-		&&	!compare256(burning_transaction->header.value, a_cond->subtype.srv_external_stake.value))
+		if (dap_hash_fast_compare(&burning_transaction->addr.data.hash_fast, &l_addr_ref->data.hash_fast))
+		{
+			DAP_DEL_Z(l_addr_ref);
 			return true;
+		}
+//		if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
+//		&&	!compare256(burning_transaction->header.value, a_cond->subtype.srv_external_stake.value))
+//			return true;
 /*		dap_hash_fast_t *out_tx_hash = dap_chain_node_datum_tx_calc_hash((dap_chain_datum_tx_t *)l_list_out_tmp->data);
 		if (dap_hash_fast_compare(&hash_burning_transaction, out_tx_hash)) {
 			burning_transaction = (dap_chain_tx_out_t *)l_list_out_tmp->data;
