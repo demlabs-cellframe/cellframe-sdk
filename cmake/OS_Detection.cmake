@@ -140,7 +140,7 @@ if(WIN32)
     add_definitions("-DHAVE_MMAP")
     add_definitions("-DHAVE_STRNDUP")
     add_definitions("-DNGHTTP2_STATICLIB")
-    #add_compile_definitions(WINVER=0x0600 _WIN32_WINNT=0x0600)
+    add_compile_definitions(WINVER=0x0600 _WIN32_WINNT=0x0600)
     add_definitions ("-DDAP_OS_WINDOWS")
 
      if(DAP_DEBUG)
