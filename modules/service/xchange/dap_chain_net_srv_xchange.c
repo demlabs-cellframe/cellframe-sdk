@@ -1385,7 +1385,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     dap_string_t *l_reply_str = dap_string_new("");
 
                     dap_list_t *l_tx_cond_list = dap_chain_net_get_tx_cond_all_by_srv_uid(l_net, c_dap_chain_net_srv_xchange_uid,
-                                                                                          l_time_from,l_time_to,TX_SEARCH_TYPE_NET_SPENT );
+                                                                                          l_time_from,l_time_to,TX_SEARCH_TYPE_NET );
                     dap_list_t * l_cur = l_tx_cond_list;
                     while(l_cur){
                         dap_chain_datum_tx_t * l_tx =(dap_chain_datum_tx_t *) l_cur->data;
@@ -1423,7 +1423,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                     uint256_t l_value_from = l_out_cond_item->header.value;
                                     uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
                                     uint256_t l_rate = {};
-                                    DIV_256_COIN(l_value_from, l_value_to, &l_rate);
+                                    DIV_256_COIN(l_value_to, l_value_from, &l_rate);
                                     char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
                                     char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
                                     char *l_rate_str = dap_chain_balance_to_coins(l_rate);
@@ -1445,7 +1445,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                         l_cur = dap_list_next(l_cur);
                     }
-
                     dap_list_free_full(l_tx_cond_list, NULL);
 
                     *a_str_reply = dap_string_free(l_reply_str, false);
