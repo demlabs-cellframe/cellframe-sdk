@@ -1333,6 +1333,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     dap_list_t * l_cur = l_tx_cond_list;
                     uint256_t l_total_rates = {0};
                     uint256_t l_total_rates_count = {0};
+                    uint256_t l_rate = {};
                     while(l_cur){
                         dap_chain_datum_tx_t * l_tx =(dap_chain_datum_tx_t *) l_cur->data;
                         if(l_tx){
@@ -1357,7 +1358,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
                                     uint256_t l_value_sell = l_out_cond_item->header.value;
                                     uint256_t l_value_buy = l_out_cond_item->subtype.srv_xchange.buy_value;
-                                    uint256_t l_rate = {};
                                     DIV_256_COIN(l_value_buy, l_value_sell, &l_rate);
                                     if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
                                         log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
@@ -1374,8 +1374,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     if( compare256(l_total_rates_count, uint256_0) != 0 )
                         DIV_256(l_total_rates,l_total_rates_count,&l_rate_average);
                     char *l_rate_average_str = dap_chain_balance_to_coins(l_rate_average);
-                    dap_string_append_printf(l_reply_str,"Average rate: %s",l_rate_average_str);
+                    char *l_last_rate_str = dap_chain_balance_to_coins(l_rate);
+                    dap_string_append_printf(l_reply_str,"Average rate: %s,   Last rate: %s", l_rate_average_str, l_last_rate_str);
                     DAP_DELETE(l_rate_average_str);
+                    DAP_DELETE(l_last_rate_str);
 
                     *a_str_reply = dap_string_free(l_reply_str, false);
                     break;
@@ -1396,8 +1398,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                             // Compare with token1 and token2
                             if( dap_strcmp(l_tx_input_ticker, l_token1) != 0 &&
-                                    dap_strcmp(l_tx_input_ticker, l_token2) != 0)
+                                    dap_strcmp(l_tx_input_ticker, l_token2) != 0) {
+                                l_cur = dap_list_next(l_cur);
                                 continue;
+                            }
 
                             char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);\
 
@@ -1418,14 +1422,19 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
                                     uint256_t l_value_from = l_out_cond_item->header.value;
                                     uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
+                                    uint256_t l_rate = {};
+                                    DIV_256_COIN(l_value_from, l_value_to, &l_rate);
                                     char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
                                     char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
+                                    char *l_rate_str = dap_chain_balance_to_coins(l_rate);
 
                                     dap_string_append_printf(l_reply_str, "From: %s %s   ", l_tx_input_ticker, l_value_from_str);
-                                    dap_string_append_printf(l_reply_str, "To: %s %s", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
+                                    dap_string_append_printf(l_reply_str, "To: %s %s   ", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
+                                    dap_string_append_printf(l_reply_str, "Rate: %s", l_rate_str);
 
                                     DAP_DELETE(l_value_from_str);
                                     DAP_DELETE(l_value_to_str);
+                                    DAP_DELETE(l_rate_str);
                                 }
                             }
                             while(l_out_cond_item);
