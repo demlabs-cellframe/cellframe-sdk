@@ -289,6 +289,10 @@ void *dap_worker_thread(void *arg)
             log_it(L_WARNING, "dap_events_socket was destroyed earlier");
             continue;
         }
+        // Previously deleted socket, its really bad when it appears
+        if(l_cur->socket == 0 && l_cur->type == 0 ){
+
+        }
 
 
         l_cur->kqueue_event_catched = l_kevent_selected;

@@ -1464,7 +1464,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                     dap_string_append_printf(l_reply_str, "  From: %s %s   ", l_tx_input_ticker, l_value_from_str);
                                     dap_string_append_printf(l_reply_str, "  To: %s %s   ", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
                                     dap_string_append_printf(l_reply_str, "  Rate: %s", l_rate_str);
-
                                     DAP_DELETE(l_value_from_str);
                                     DAP_DELETE(l_value_to_str);
                                     DAP_DELETE(l_rate_str);

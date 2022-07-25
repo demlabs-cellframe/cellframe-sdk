@@ -1052,10 +1052,6 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
             l_net_pvt->links_connected_count--;
         else
             log_it(L_ERROR, "Links count is zero in delete callback");
-        // If the last link is lost, change the status to NET_STATE_OFFLINE
-        if(!l_net_pvt->links_connected_count) {
-            l_net_pvt->state = NET_STATE_OFFLINE;
-        }
     }
     dap_chain_net_sync_unlock(l_net, a_node_client);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);

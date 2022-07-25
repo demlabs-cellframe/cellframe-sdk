@@ -4362,7 +4362,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 }
             }
                 break;
-            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:{
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:{
                 dap_chain_net_srv_uid_t l_srv_uid;
                 if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
                     // Default service DAP_CHAIN_NET_SRV_STAKE_ID
