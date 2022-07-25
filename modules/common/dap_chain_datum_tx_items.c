@@ -358,21 +358,24 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
     return l_item;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_net_id,
-                                                                             const char *a_token, uint256_t a_value,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
+                                                                             uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
+                                                                             const char *a_token, uint256_t a_value_buy,
                                                                              const void *a_params, uint32_t a_params_size)
 {
     if (!a_token)
         return NULL;
-    if (IS_ZERO_256(a_value))
+    if (IS_ZERO_256(a_value_sell) || IS_ZERO_256(a_value_buy))
         return NULL;
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
-    l_item->header.value = a_value;
+    l_item->header.value = a_value_sell;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE;
     l_item->header.srv_uid = a_srv_uid;
-    l_item->subtype.srv_xchange.net_id = a_net_id;
-    strcpy(l_item->subtype.srv_xchange.token, a_token);
+    l_item->subtype.srv_xchange.buy_net_id = a_buy_net_id;
+    l_item->subtype.srv_xchange.sell_net_id = a_sell_net_id;
+    strncpy(l_item->subtype.srv_xchange.buy_token, a_token, DAP_CHAIN_TICKER_SIZE_MAX);
+    l_item->subtype.srv_xchange.buy_value = a_value_buy;
     l_item->params_size = a_params_size;
     if (a_params_size) {
         memcpy(l_item->params, a_params, a_params_size);

@@ -425,8 +425,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     // Here we have event identy thats we copy
     l_es->fd = a_es->fd; //
-    l_es->kqueue_base_flags = EV_CLEAR;
-    l_es->kqueue_base_fflags = 0;
+    l_es->kqueue_base_flags = EV_ONESHOT;
+    l_es->kqueue_base_fflags = NOTE_TRIGGER | NOTE_FFNOP;
     l_es->kqueue_base_filter = EVFILT_USER;
     l_es->kqueue_event_catched_data.esocket = l_es;
 
@@ -886,7 +886,7 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
 
         l_es_w_data->esocket = l_es;
         l_es_w_data->ptr = a_arg;
-        EV_SET(&l_event,a_es_input->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_CLEAR | EV_ONESHOT, NOTE_FFCOPY | NOTE_TRIGGER ,0, l_es_w_data);
+        EV_SET(&l_event,a_es_input->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_ONESHOT, NOTE_FFNOP | NOTE_TRIGGER ,0, l_es_w_data);
         if(l_es->context)
             l_ret=kevent(l_es->context->kqueue_fd,&l_event,1,NULL,0,NULL);
         else
@@ -1019,7 +1019,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 
     l_es_w_data->esocket = a_es;
     l_es_w_data->ptr = a_arg;
-    EV_SET(&l_event,a_es->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_CLEAR | EV_ONESHOT, NOTE_FFCOPY | NOTE_TRIGGER ,0, l_es_w_data);
+    EV_SET(&l_event,a_es->socket+arc4random()  , EVFILT_USER,EV_ADD | EV_ONESHOT, NOTE_FFNOP | NOTE_TRIGGER ,0, l_es_w_data);
     int l_n;
     if(a_es->pipe_out){ // If we have pipe out - we send events directly to the pipe out kqueue fd
         if(a_es->pipe_out->context){
@@ -1108,7 +1108,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     l_es_w_data->esocket = a_es;
     l_es_w_data->value = a_value;
 
-    EV_SET(&l_event,a_es->socket, EVFILT_USER,0, NOTE_TRIGGER ,(intptr_t) a_es->socket, l_es_w_data);
+    EV_SET(&l_event,a_es->socket, EVFILT_USER,EV_ADD | EV_ONESHOT, NOTE_TRIGGER | NOTE_FFNOP ,(intptr_t) a_es->socket, l_es_w_data);
 
     int l_n;
 

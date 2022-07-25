@@ -89,15 +89,17 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
                 dap_chain_datum_token_flags_dump(a_str_out,
                                                  dap_tsd_get_scalar(l_tsd, uint16_t));
             break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: // 256
-                dap_string_append_printf(a_str_out,"total_supply: %s\n",
-                                    dap_chain_balance_print(
-                                            dap_tsd_get_scalar(l_tsd, uint256_t)));
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
+                char *l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint256_t));
+                dap_string_append_printf(a_str_out, "total_supply: %s\n", l_balance);
+                DAP_DELETE(l_balance);
+            }
             break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: // 128
-                dap_string_append_printf(a_str_out,"total_supply: %s\n",
-                                    dap_chain_balance_print(GET_256_FROM_128(
-                                        dap_tsd_get_scalar(l_tsd, uint128_t))));
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: {// 128
+                char *l_balance = dap_chain_balance_print(GET_256_FROM_128(dap_tsd_get_scalar(l_tsd, uint128_t)));
+                dap_string_append_printf(a_str_out, "total_supply: %s\n", l_balance);
+                DAP_DELETE(l_balance);
+            }
             break;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
                 dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",
@@ -436,15 +438,15 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     DAP_DELETE(l_coins_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
-                    char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.value);
-                    char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.value);
+                    char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
+                    char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
                     dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                         "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                         "\t\t\t token: %s\n"
                                                         "\t\t\t value: %s (%s)\n",
                                              ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64,
-                                             ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.net_id.uint64,
-                                             ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.token,
+                                             ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64,
+                                             ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token,
                                              l_coins_str,
                                              l_value_str);
                     DAP_DELETE(l_value_str);
