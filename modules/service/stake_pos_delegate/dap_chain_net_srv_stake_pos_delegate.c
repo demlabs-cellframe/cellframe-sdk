@@ -31,7 +31,7 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_cs_block_poa.h"
 #include "dap_chain_cs_dag_poa.h"
-#include "dap_chain_net_srv_stake.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake"
 
@@ -49,7 +49,7 @@ static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
  * @param vpn_mask Zero if only client mode. Mask if the node shares its local VPN
  * @return 0 if everything is okay, lesser then zero if errors
  */
-int dap_chain_net_srv_stake_init()
+int dap_chain_net_srv_stake_pos_delegate_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
     "srv_stake order create -net <net_name> -addr_hldr <addr> -token <token_ticker> -coins <value> -cert <priv_cert_name> -fee_percent <value>\n"
@@ -100,7 +100,7 @@ int dap_chain_net_srv_stake_init()
             if (!l_tx_tmp) {
                 break;
             }
-            if (l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE)
+            if (l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE)
                 continue;
             if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_cur_hash, l_out_cond_idx))
                 continue;
@@ -142,7 +142,7 @@ int dap_chain_net_srv_stake_init()
     return 1;
 }
 
-void dap_chain_net_srv_stake_deinit()
+void dap_chain_net_srv_stake_pos_delegate_deinit()
 {
     dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
@@ -167,7 +167,7 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
         return;
     }
     dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
-    if (!l_out_cond || l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE) {
+    if (!l_out_cond || l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE) {
         // Stake tx is used out
         HASH_DEL(s_srv_stake->itemlist, l_stake);
         DAP_DELETE(l_stake);
@@ -244,7 +244,7 @@ static bool s_stake_conditions_calc(dap_chain_tx_out_cond_t *a_cond, dap_chain_d
     return false;
 }
 
-bool dap_chain_net_srv_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool dap_chain_net_srv_stake_pos_delegate_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
     if (!s_srv_stake) {
         return false;

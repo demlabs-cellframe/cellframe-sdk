@@ -163,8 +163,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t);
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     l_ch_chain->_inheritor = a_ch;
-    l_ch_chain->ch = a_ch;
-    pthread_rwlock_init(&l_ch_chain->idle_lock, NULL);
     a_ch->stream->esocket->callbacks.write_finished_callback = s_stream_ch_io_complete;
 }
 
@@ -178,13 +176,14 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
 {
     UNUSED(a_worker);
     dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
-    if (l_ch_chain->callback_notify_packet_out)
-        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
-                                               l_ch_chain->callback_notify_arg);
     s_ch_chain_go_idle(l_ch_chain);
     s_free_log_list_gdb(l_ch_chain);
-    pthread_rwlock_destroy(&l_ch_chain->idle_lock);
-    DAP_DELETE(l_ch_chain);
+    if (!l_ch_chain->_inheritor) {
+        if (l_ch_chain->callback_notify_packet_out)
+            l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
+                                                   l_ch_chain->callback_notify_arg);
+        DAP_DELETE(l_ch_chain);
+    }
 }
 
 /**
@@ -195,8 +194,17 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch->internal);
+    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    l_ch_chain->_inheritor = NULL; // To delete ch chain
     a_ch->internal = NULL; // To prevent its cleaning in worker
+    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, l_ch_chain);
+}
+
+void dap_stream_ch_chain_reset(dap_stream_ch_chain_t *a_ch_chain)
+{
+    if (!a_ch_chain)
+        return;
+    dap_worker_exec_callback_on(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch_chain);
 }
 
 /**
@@ -917,7 +925,7 @@ static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
 {
     dap_worker_t * l_worker = DAP_STREAM_CH(a_ch_chain)->stream_worker->worker;
-    dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&a_ch_chain->ch->uuid);
+    dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
     a_ch_chain->activity_timer = dap_timerfd_start_on_worker( l_worker, 20, s_chain_timer_callback, (void *)l_uuid);
 }
 
@@ -1046,14 +1054,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB:{
             if(s_debug_more)
                 log_it(L_INFO, "In: UPDATE_GLOBAL_DB pkt data_size=%zu", l_chain_pkt_data_size);
-            if (l_ch_chain->state != CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE ||
-                    memcmp(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_stream_ch_chain_pkt_t))) {
-                log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
-                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
-                        "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
-                break;
-            }
             for ( dap_stream_ch_chain_update_element_t * l_element =(dap_stream_ch_chain_update_element_t *) l_chain_pkt->data;
                    (size_t) (((byte_t*)l_element) - l_chain_pkt->data ) < l_chain_pkt_data_size;
                   l_element++){
