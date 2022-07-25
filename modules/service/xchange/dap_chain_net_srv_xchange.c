@@ -1241,47 +1241,33 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     // Get input token ticker
                     const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
                                 l_net->pub.ledger, &l_tx_hash);
-                    // Calc inputs
-                    uint256_t l_tx_input_values = dap_chain_net_get_tx_total_value(l_net, l_datum_tx);
-
 
                     // Find SRV_XCHANGE out_cond item
-                    dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
-                    int l_item_idx = 0;
-                    do {
-                        l_out_cond_item = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(l_datum_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL);
-                        l_item_idx++;
+                    int l_prev_cond_idx = 0;
+                    dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_datum_tx, &l_prev_cond_idx);
+                    if ( l_out_cond_item && (l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) )
+                    {
+                        uint256_t l_value_from = l_out_cond_item->header.value;
+                        uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
+                        char *l_value_to_str = dap_chain_balance_to_coins(l_value_to);
+                        char *l_value_from_str = dap_chain_balance_to_coins(l_value_from);
 
-                        if ( l_out_cond_item && (l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) )
-                        {
-                            uint256_t value = l_out_cond_item->subtype.srv_xchange.buy_value;
-                            char *l_value_to_str = dap_chain_balance_to_coins(value);
-                            char *l_value_from_str = dap_chain_balance_to_coins(l_tx_input_values);
+                        l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_tx_hash, l_prev_cond_idx);
 
+                        if ((l_opt_status == 1 && !l_rc) ||       /* Select close only */
+                                (l_opt_status == 2 &&  l_rc))     /* Select open only */
+                            continue;
 
-                            l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_hash, l_item_idx);
+                        l_show_tx_nr++;
 
-                            if ( l_opt_status )
-                            {
-                                if ( (l_opt_status == 1) && l_rc )              /* Select close only */
-                                    {;}
-                                else if ( (l_opt_status == 2) &&  (!l_rc) )     /* Select open only */
-                                    {;}
-                                else continue;
-                            }
+                        dap_string_append_printf(l_reply_str, "Hash: %s,", l_hash_str);
+                        dap_string_append_printf(l_reply_str, "  Status: %s,", l_rc ? "closed" : "open");
+                        dap_string_append_printf(l_reply_str, "  From: %s %s,", l_value_from_str, l_tx_input_ticker);
+                        dap_string_append_printf(l_reply_str, "  To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
 
-                            l_show_tx_nr++;
-
-                            dap_string_append_printf(l_reply_str, "Hash: %s,", l_hash_str);
-                            dap_string_append_printf(l_reply_str, "  Status: %s,", l_rc ? "closed" : "open");
-                            dap_string_append_printf(l_reply_str, "  From: %s %s,", l_value_from_str, l_tx_input_ticker);
-                            dap_string_append_printf(l_reply_str, "  To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
-
-                            DAP_DELETE(l_value_from_str);
-                            DAP_DELETE(l_value_to_str);
-                        }
+                        DAP_DELETE(l_value_from_str);
+                        DAP_DELETE(l_value_to_str);
                     }
-                    while(l_out_cond_item);
 
                     l_datum_list = dap_list_next(l_datum_list);
                 }
@@ -1376,29 +1362,25 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
                                         l_net->pub.ledger, l_tx_hash);
 
-                            DAP_DEL_Z(l_tx_hash);
                             // Compare with token1 and token2
                             if( dap_strcmp(l_tx_input_ticker, l_token1) != 0 &&
                                     dap_strcmp(l_tx_input_ticker, l_token2) != 0) {
                                 l_cur = dap_list_next(l_cur);
+                                DAP_DEL_Z(l_tx_hash);
                                 continue;
                             }
-                            dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
-                            int l_item_idx = 0;
-                            do {
-                                l_out_cond_item = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(l_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL);
-                                l_item_idx++;
-                                if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
-                                    uint256_t l_value_sell = l_out_cond_item->header.value;
-                                    uint256_t l_value_buy = l_out_cond_item->subtype.srv_xchange.buy_value;
-                                    DIV_256_COIN(l_value_buy, l_value_sell, &l_rate);
-                                    if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
-                                        log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
-                                    INCR_256(&l_total_rates_count);
-                                }
+                            int l_prev_cond_idx = 0;
+                            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, &l_prev_cond_idx);
+                            if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE &&
+                                    dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_prev_cond_idx)) {
+                                uint256_t l_value_sell = l_out_cond_item->header.value;
+                                uint256_t l_value_buy = l_out_cond_item->subtype.srv_xchange.buy_value;
+                                DIV_256_COIN(l_value_buy, l_value_sell, &l_rate);
+                                if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
+                                    log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
+                                INCR_256(&l_total_rates_count);
                             }
-                            while(l_out_cond_item);
-
+                            DAP_DEL_Z(l_tx_hash);
                         }
                         l_cur = dap_list_next(l_cur);
                     }
@@ -1447,29 +1429,24 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             DAP_DEL_Z(l_tx_hash_str);
 
                             // Find output
-                            int l_item_idx = 0;
-                            dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
-                            do {
-                                l_out_cond_item = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(l_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL);
-                                l_item_idx++;
-                                if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
-                                    uint256_t l_value_from = l_out_cond_item->header.value;
-                                    uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
-                                    uint256_t l_rate = {};
-                                    DIV_256_COIN(l_value_to, l_value_from, &l_rate);
-                                    char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
-                                    char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
-                                    char *l_rate_str = dap_chain_balance_to_coins(l_rate);
+                            int l_prev_cond_idx = 0;
+                            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, &l_prev_cond_idx);
+                            if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                                uint256_t l_value_from = l_out_cond_item->header.value;
+                                uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
+                                uint256_t l_rate = {};
+                                DIV_256_COIN(l_value_to, l_value_from, &l_rate);
+                                char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
+                                char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
+                                char *l_rate_str = dap_chain_balance_to_coins(l_rate);
 
-                                    dap_string_append_printf(l_reply_str, "  From: %s %s   ", l_tx_input_ticker, l_value_from_str);
-                                    dap_string_append_printf(l_reply_str, "  To: %s %s   ", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
-                                    dap_string_append_printf(l_reply_str, "  Rate: %s", l_rate_str);
-                                    DAP_DELETE(l_value_from_str);
-                                    DAP_DELETE(l_value_to_str);
-                                    DAP_DELETE(l_rate_str);
-                                }
+                                dap_string_append_printf(l_reply_str, "  From: %s %s   ", l_tx_input_ticker, l_value_from_str);
+                                dap_string_append_printf(l_reply_str, "  To: %s %s   ", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
+                                dap_string_append_printf(l_reply_str, "  Rate: %s", l_rate_str);
+                                DAP_DELETE(l_value_from_str);
+                                DAP_DELETE(l_value_to_str);
+                                DAP_DELETE(l_rate_str);
                             }
-                            while(l_out_cond_item);
 
                         }
                         // Delimiter between tx
