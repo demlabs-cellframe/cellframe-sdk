@@ -4353,7 +4353,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 }
                 const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
                 size_t l_params_size = dap_strlen(l_params_str);
-                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
+                dap_chain_tx_out_cond_t *l_out_cond_item = NULL; //dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
@@ -4362,7 +4362,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 }
             }
                 break;
-            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:{
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:{
                 dap_chain_net_srv_uid_t l_srv_uid;
                 if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
                     // Default service DAP_CHAIN_NET_SRV_STAKE_ID

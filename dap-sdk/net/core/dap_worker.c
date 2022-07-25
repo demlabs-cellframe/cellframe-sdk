@@ -20,6 +20,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "dap_events_socket.h"
 #include <time.h>
 #include <errno.h>
 #include <unistd.h>
@@ -287,6 +288,10 @@ void *dap_worker_thread(void *arg)
         if( !l_cur) {
             log_it(L_WARNING, "dap_events_socket was destroyed earlier");
             continue;
+        }
+        // Previously deleted socket, its really bad when it appears
+        if(l_cur->socket == 0 && l_cur->type == 0 ){
+
         }
 
 
@@ -1215,9 +1220,10 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
         return 0;
     }
-    if ( a_esocket->type == DESCRIPTOR_TYPE_EVENT && a_esocket->pipe_out){
+    if ( a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
         return 0;
     }
+
     struct kevent l_event;
     u_short l_flags = a_esocket->kqueue_base_flags;
     u_int   l_fflags = a_esocket->kqueue_base_fflags;
@@ -1229,13 +1235,9 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     // Check & add
     bool l_is_error=false;
     int l_errno=0;
-    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
-        EV_SET(&l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
-        if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL)!=0){
-            l_is_error = true;
-            l_errno = errno;
-        }
-    }else{
+
+
+    {
         if( l_filter){
             EV_SET(&l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
             if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){

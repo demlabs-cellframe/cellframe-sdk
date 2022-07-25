@@ -821,24 +821,26 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
  * @param a_stream
  * @return
  */
-static bool s_detect_loose_packet(dap_stream_t * a_stream)
-{
+static bool s_detect_loose_packet(dap_stream_t * a_stream) {
     dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
 
-    long long l_count_lost_packets = (long long) l_ch_pkt->hdr.seq_id - (long long) (a_stream->client_last_seq_id_packet + 1);
+    long long l_count_lost_packets =
+            l_ch_pkt->hdr.seq_id || a_stream->client_last_seq_id_packet
+            ? (long long) l_ch_pkt->hdr.seq_id - (long long) (a_stream->client_last_seq_id_packet + 1)
+            : 0;
+
     if(l_count_lost_packets > 0)
     {
-        log_it(L_WARNING, "Detected loosed %lld packets. "
-                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_lost_packets,
+        log_it(L_WARNING, "Detected lost %lld packets. "
+                          "Last read seq_id: %zu, current seq_id: %"DAP_UINT64_FORMAT_U, l_count_lost_packets,
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
     } else if(l_count_lost_packets < 0) {
-        if(a_stream->client_last_seq_id_packet != 0 && l_ch_pkt->hdr.seq_id != 0) {
-        log_it(L_WARNING, "Something wrong. count_loosed packets %lld can't less than zero. "
-                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_lost_packets,
+        log_it(L_WARNING, "Detected repeating of %lld packets. "
+                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, -l_count_lost_packets,
                a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
-        } // else client don't support seqid functionality
     }
-    debug_if(s_debug, L_DEBUG, "Packet seq id: %d, last: %d", l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
+    debug_if(s_debug, L_DEBUG, "Packet seq id: %"DAP_UINT64_FORMAT_U", last: %zu",
+                                l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
     a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
 
     return l_count_lost_packets < 0;
