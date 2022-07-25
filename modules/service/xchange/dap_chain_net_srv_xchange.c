@@ -965,9 +965,9 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             char *l_value_from_str = dap_chain_balance_to_coins(l_tx_input_values);
             char *l_value_to_str = dap_chain_balance_to_coins(l_value_to);
 
-            dap_string_append_printf(l_reply_str, "Status: is %s used out", l_rc ? "" : "NOT");
+            dap_string_append_printf(l_reply_str, "Status: %s,", l_rc ? "open" : "closed");
 
-            dap_string_append_printf(l_reply_str, " From: %s %s   ", l_tx_input_values_str, l_tx_input_ticker);
+            dap_string_append_printf(l_reply_str, " From: %s %s,", l_tx_input_values_str, l_tx_input_ticker);
             dap_string_append_printf(l_reply_str, " To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
 
             DAP_DELETE(l_value_from_str);
@@ -1058,7 +1058,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                          l_price->token_sell, l_price->net_sell->pub.name,
                                          l_price->token_buy, l_price->net_buy->pub.name,
                                          l_cp1 = dap_chain_balance_print(l_price->datoshi_sell), l_cp2 = dap_chain_balance_print(l_datoshi_buy),
-                                         l_cp3 = dap_chain_balance_to_coins(l_price->rate)); /* RRL: dap_chain_balance_print(l_rate) ); */
+                                         l_cp3 = dap_chain_balance_to_coins(l_price->rate));
 
                 DAP_DEL_Z(l_cp1);
                 DAP_DEL_Z(l_cp2);
@@ -1205,6 +1205,18 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 char l_hash_str [DAP_CHAIN_HASH_FAST_STR_SIZE + 8] = {0};
 
                 while(l_datum_list) {
+#if 0
+                    {/* @RRL */
+                    dap_chain_datum_t *p1 = (dap_chain_datum_t *) l_datum_list->data;
+                    log_it(L_CRITICAL, "l_datum: %p, [ver: %d, typ: %d, size: %d, ts: %llu]",
+                        p1, p1->header.version_id, p1->header.type_id, p1->header.data_size, p1->header.ts_create);
+
+                    dap_chain_datum_tx_t *p2 = (dap_chain_datum_tx_t*) p1->data;
+                    log_it(L_CRITICAL, "l_datum_tx: %p, [ts_created: %llu, size: %d]",
+                        p2, p2->header.ts_created, p2->header.tx_items_size);
+                    }
+#endif
+
                     dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_datum_list->data)->data;
                     size_t l_datum_tx_size = dap_chain_datum_tx_get_size(l_datum_tx);
 
@@ -1233,17 +1245,18 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     do {
                         l_out_cond_item = (dap_chain_tx_out_cond_t*) dap_chain_datum_tx_item_get(l_datum_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND, NULL);
                         l_item_idx++;
-                        if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+
+                        if ( l_out_cond_item && (l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) )
+                        {
                             uint256_t value = l_out_cond_item->subtype.srv_xchange.buy_value;
                             char *l_value_to_str = dap_chain_balance_to_coins(value);
-                            char * l_value_from_str = dap_chain_balance_to_coins(l_tx_input_values);
+                            char *l_value_from_str = dap_chain_balance_to_coins(l_tx_input_values);
 
                             l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_hash, l_item_idx);
 
-                            dap_string_append_printf(l_reply_str, "Status: is %s used out", l_rc ? "" : "NOT");
-
-                            dap_string_append_printf(l_reply_str, " From: %s %s   ", l_value_from_str, l_tx_input_ticker);
-                            dap_string_append_printf(l_reply_str, " To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
+                            dap_string_append_printf(l_reply_str, "Status: %s,", l_rc ? "open" : "closed");
+                            dap_string_append_printf(l_reply_str, "  From: %s %s,", l_value_from_str, l_tx_input_ticker);
+                            dap_string_append_printf(l_reply_str, "  To: %s %s\n", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token);
 
                             DAP_DELETE(l_value_from_str);
                             DAP_DELETE(l_value_to_str);
@@ -1257,7 +1270,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             else{
                 dap_string_append(l_reply_str, "Transactions not found");
             }
-            dap_list_free(l_datum_list0);
+            dap_list_free_full(l_datum_list0, NULL);
             *a_str_reply = dap_string_free(l_reply_str, false);
         } break;
         // Token pair control
@@ -1428,9 +1441,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                     char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
                                     char *l_rate_str = dap_chain_balance_to_coins(l_rate);
 
-                                    dap_string_append_printf(l_reply_str, "From: %s %s   ", l_tx_input_ticker, l_value_from_str);
-                                    dap_string_append_printf(l_reply_str, "To: %s %s   ", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
-                                    dap_string_append_printf(l_reply_str, "Rate: %s", l_rate_str);
+                                    dap_string_append_printf(l_reply_str, "  From: %s %s   ", l_tx_input_ticker, l_value_from_str);
+                                    dap_string_append_printf(l_reply_str, "  To: %s %s   ", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
+                                    dap_string_append_printf(l_reply_str, "  Rate: %s", l_rate_str);
 
                                     DAP_DELETE(l_value_from_str);
                                     DAP_DELETE(l_value_to_str);
