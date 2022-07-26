@@ -803,11 +803,13 @@ static dap_chain_datum_t* s_mempool_create(dap_chain_net_t *a_net,
         dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_net_srv_stake_lock_create_cond_out(a_key_cond, a_srv_uid, a_value, a_time_staking);
         if(l_tx_out_cond) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
+			dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);
+//			DAP_DEL_Z(l_tx_out_cond);
             // transaction fee
 //			if (!IS_ZERO_256(a_value_fee)) {
                 // TODO add condition with fee for mempool-as-service
 //			}
-        }
+        }//TODO: else return false;
         // coin back
         uint256_t l_value_back = {};
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
@@ -847,7 +849,7 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
 {
     if (IS_ZERO_256(a_value))
         return NULL;
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t)+sizeof(cond_params_t);
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t)+sizeof(cond_params_t);//TODO: ???
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
