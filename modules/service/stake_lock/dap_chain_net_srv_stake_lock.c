@@ -214,7 +214,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
     // Read time staking
     dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str);
     if(l_time_staking_str){
-        l_time_staking = dap_time_from_str_rfc822(l_time_staking_str);
+        l_time_staking = 10;//dap_time_from_str_rfc822(l_time_staking_str);
     }
 
 	if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
