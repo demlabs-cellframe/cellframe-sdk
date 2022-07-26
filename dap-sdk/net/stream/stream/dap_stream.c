@@ -734,6 +734,7 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
         if(a_stream->buf_fragments_size_filled < l_fragm_pkt->full_size) {
             break;
         }
+        // All fragments collected, move forward
     }
     case STREAM_PKT_TYPE_DATA_PACKET: {
         dap_stream_ch_pkt_t *l_ch_pkt = l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET
@@ -815,7 +816,9 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
  * @return
  */
 static bool s_detect_loose_packet(dap_stream_t * a_stream) {
-    dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
+    dap_stream_ch_pkt_t *l_ch_pkt = a_stream->buf_fragments_size_filled
+            ? (dap_stream_ch_pkt_t*)a_stream->buf_fragments
+            : (dap_stream_ch_pkt_t*)a_stream->pkt_cache;
 
     long long l_count_lost_packets =
             l_ch_pkt->hdr.seq_id || a_stream->client_last_seq_id_packet

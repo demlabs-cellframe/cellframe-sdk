@@ -264,7 +264,7 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
             l_fragment->size        = l_fragment_size;
             l_fragment->full_size   = l_max_size;
             l_fragment->mem_shift   = l_max_size - l_data_size;
-            memcpy(l_fragment->data, l_fragment->mem_shift ? &l_hdr : a_data + l_fragment->mem_shift - sizeof(dap_stream_ch_pkt_hdr_t),
+            memcpy(l_fragment->data, l_fragment->mem_shift ? a_data + l_fragment->mem_shift - sizeof(dap_stream_ch_pkt_hdr_t) : &l_hdr,
                    l_fragment_size);
             l_ret += dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_FRAGMENT_PACKET, l_fragment,
                                                   l_fragment_size + sizeof(dap_stream_fragment_pkt_t));
