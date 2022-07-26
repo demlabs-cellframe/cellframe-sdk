@@ -726,7 +726,8 @@ static bool dap_chain_net_link_is_present(dap_chain_net_t *a_net, dap_chain_node
         return false;
     dap_list_t *l_net_links = l_net_pvt->net_links;
     while(l_net_links) {
-        dap_chain_node_info_t *l_link_node_info = (dap_chain_node_info_t*) l_net_links->data;
+        struct net_link *l_net_link = (struct net_link*) l_net_links->data;
+        dap_chain_node_info_t *l_link_node_info = l_net_link->link_info;
         if(dap_chain_node_info_addr_match(l_link_node_info, a_link_node_info))
             return true;
         l_net_links = dap_list_next(l_net_links);
@@ -755,6 +756,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
              continue;
 
          if (l_link_addr->uint64 == l_own_addr) {
+             DAP_DELETE(l_link_addr);
              continue;   // Do not link with self
          }
          dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(a_net, l_link_addr);
@@ -769,6 +771,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
                     NODE_ADDR_FP_ARGS(l_link_addr));
              DAP_DELETE(l_link_node_info);
          }
+         DAP_DELETE(l_link_addr);
      }
 }
 
@@ -1764,11 +1767,15 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
     char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
     if (dap_mkdir_with_parents(l_cache_dir) != 0) {
         log_it(L_WARNING,"Error during disposable cache check file creation");
+        DAP_DELETE(l_cache_dir);
         return false;
     }
     // create file, if it not presented. If file exists, ledger cache operation is stopped
     char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "5B0FEEF6-B0D5-48A9-BFA2-32E8B294366D");
+    DAP_DELETE(l_cache_dir);
     if (dap_file_simple_test(l_cache_file)) {
+        log_it(L_WARNING, "Cache file '%s' already exists", l_cache_file);
+        DAP_DELETE(l_cache_file);
         return false;
     }
 
@@ -1788,6 +1795,7 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
     if (dap_file_simple_test(l_cache_file))
         s_chain_net_ledger_cache_reload(l_net);
     fclose(s_cache_file);
+    DAP_DELETE(l_cache_file);
     return true;
 }
 
@@ -2647,6 +2655,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                            l_net_pvt->node_info->hdr.links_number,
                            l_net_pvt->node_info->hdr.cell_id.uint64);
                 }
+                DAP_DELETE(l_addr_hash_str);
             }
             else{
                 log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
@@ -2824,6 +2833,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         // Start the proc thread
         log_it(L_INFO, "Chain network \"%s\" initialized",l_net_item->name);
 
+        DAP_DELETE(l_node_addr_str);
         dap_config_close(l_cfg);
     }
     return 0;
