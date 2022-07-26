@@ -2105,8 +2105,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                                                           &l_prev_tx_count);
     if (l_list_tmp) {
         // add conditional input to common list
-        l_list_in = dap_list_append(l_list_in, l_list_tmp->data);
-        dap_list_free(l_list_tmp);
+        l_list_in = dap_list_concat(l_list_in, l_list_tmp);
     }
     l_list_tmp = l_list_in;
     if (!l_list_in) {
@@ -2114,9 +2113,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         return -22;
     }
     dap_chain_ledger_tx_bound_t *bound_item;
-    int l_list_tmp_num = 0;
      // find all previous transactions
-    for (dap_list_t *l_list_tmp = l_list_in; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_list_tmp_num++) {
+    for (int l_list_tmp_num = 0; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_list_tmp_num++) {
         bound_item = DAP_NEW_Z(dap_chain_ledger_tx_bound_t);
         dap_chain_tx_in_t *l_tx_in = NULL;
         dap_chain_addr_t l_tx_in_from={0};
