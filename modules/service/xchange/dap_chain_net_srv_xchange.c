@@ -812,8 +812,6 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
             continue;
         }
 
-        dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
-        dap_string_append_printf(l_reply_str, "Hash: %s\n", l_hash_str);
 
         /* Find SRV_XCHANGE out_cond item */
         for (l_out_cond_item = NULL, l_item_idx = 0;
@@ -836,6 +834,9 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
                     else continue;
                 }
             }
+            dap_chain_hash_fast_to_str(&l_hash, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE + 1);
+            dap_string_append_printf(l_reply_str, "Hash: %s\n", l_hash_str);
+
 
             const char *l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_hash);
 
@@ -1044,6 +1045,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     l_opt_status = 1;
                 else if ( !dap_strncmp (l_status_str, "open", 4) )
                     l_opt_status = 2;
+                if ( !dap_strncmp (l_status_str, "all", 4) )
+                                    l_opt_status = 0;
                 else    {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
                     return -3;
