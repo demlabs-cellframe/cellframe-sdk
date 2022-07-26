@@ -902,7 +902,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'purchase' required parameter -net");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'orders' required parameter -net");
                 return -2;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -936,7 +936,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 dap_string_append_printf(l_reply_str, "orderHash: %s tokSel: %s, net: %s, tokBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
                                          l_price->token_sell, l_price->net->pub.name,
                                          l_price->token_buy,
-                                         l_cp1 = dap_chain_balance_print(l_price->datoshi_sell), l_cp2 = dap_chain_balance_print(l_datoshi_buy),
+                                         l_cp1 = dap_chain_balance_to_coins(l_price->datoshi_sell), l_cp2 = dap_chain_balance_to_coins(l_datoshi_buy),
                                          l_cp3 = dap_chain_balance_to_coins(l_price->rate));
 
                 DAP_DEL_Z(l_cp1);
@@ -1046,7 +1046,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     l_opt_status = 2;
                 else if ( dap_strcmp (l_status_str, "all") == 0 )
                     l_opt_status = 0;
-                else    {
+                else  {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
                     return -3;
                 }
@@ -1300,19 +1300,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 continue;
                             }
 
-                            char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
-
-                            char l_tx_ts_created_str[92] = {0};
-                            struct tm l_tm;                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
-                            uint64_t l_ts = l_tx->header.ts_created;
-                            if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
-                                asctime_r (&l_tm, l_tx_ts_created_str);
-
-                            dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str);
-                            dap_string_append_printf(l_reply_str,"\tts_created: %s\n", l_tx_ts_created_str);
-                            DAP_DEL_Z(l_tx_hash);
-                            DAP_DEL_Z(l_tx_hash_str);
-
                             // Find output
                             int l_cond_idx = 0;
                             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, &l_cond_idx);
@@ -1320,6 +1307,19 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE &&
                                     dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx )
                                     ) {
+                                char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
+
+                                char l_tx_ts_created_str[92] = {0};
+                                struct tm l_tm;                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
+                                uint64_t l_ts = l_tx->header.ts_created;
+                                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
+                                    asctime_r (&l_tm, l_tx_ts_created_str);
+
+                                dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str);
+                                dap_string_append_printf(l_reply_str,"\tts_created: %s\n", l_tx_ts_created_str);
+                                DAP_DEL_Z(l_tx_hash);
+                                DAP_DEL_Z(l_tx_hash_str);
+
                                 uint256_t l_value_from = l_out_cond_item->header.value;
                                 uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
                                 uint256_t l_rate = {};
@@ -1334,11 +1334,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 DAP_DELETE(l_value_from_str);
                                 DAP_DELETE(l_value_to_str);
                                 DAP_DELETE(l_rate_str);
+                                dap_string_append_printf(l_reply_str,"\n\n");
                             }
 
                         }
                         // Delimiter between tx
-                        dap_string_append_printf(l_reply_str,"\n\n");
 
                         l_cur = dap_list_next(l_cur);
                     }
