@@ -77,6 +77,7 @@ int dap_chain_net_srv_order_init(void)
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_srv_order_callback_notify, l_net_list[i]);
     }
+    DAP_DELETE(l_net_list);
     //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
     return 0;
 }
