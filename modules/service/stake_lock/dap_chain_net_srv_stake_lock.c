@@ -147,7 +147,6 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 
 	dap_string_append_printf(output_line, "---> HOLD <---\n");
 
-
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
 	||	NULL == l_net_str)
 		return NET_ARG_ERROR;
@@ -257,18 +256,20 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 	}
 
 	DAP_DEL_Z(l_hash_str);
-/*
-	l_base_tx_hash = dap_chain_mempool_base_tx_create(l_chain_emission, l_tx_cond_hash, l_chain_emission->id,
-																  l_value, delegate_token_str, l_addr_holder, &l_cert, 1);
 
-	if (l_base_tx_hash){
+	l_base_tx_hash = dap_chain_mempool_base_tx_create(l_chain_emission, l_tx_cond_hash, l_chain_emission->id,
+																  l_value, delegate_token_str, l_addr_holder,
+																  &l_cert, 1, STAKE_DELEGATED);
+
+	if (l_base_tx_hash) {
 //		char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
 //		dap_chain_hash_fast_to_str(l_base_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
 //		dap_string_append_printf(string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
 		log_it(L_INFO, "GOOD!");
 		DAP_DEL_Z(l_base_tx_hash);
+	}
 
-
+/*
 		dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_create(l_value, delegate_token_str, l_addr_holder);
 		l_emission = dap_chain_datum_emission_add_sign(l_cert->enc_key, l_emission);
 		size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)l_emission);

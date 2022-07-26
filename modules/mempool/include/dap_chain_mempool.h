@@ -70,6 +70,6 @@ int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_
 
 dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
                                                         dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
-                                                        dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count);
+                                                        dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count, dap_chain_tx_token_type_t token_type);
 dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_chain, const char *a_emission_hash_str);
 dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size);
