@@ -914,7 +914,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                     log_it(L_ERROR, "An error %ld occured receiving a message from queue", hr);
                     return -3;
                 }
-                debug_if(l_mpvar[1].ulVal > 8, L_NOTICE, "MSMQ: processing %d bytes in 1 pass", l_mpvar[1].ulVal);
+                debug_if(l_mpvar[1].ulVal > 8, L_NOTICE, "MSMQ: processing %lu bytes in 1 pass", l_mpvar[1].ulVal);
                 debug_if(g_debug_reactor, L_DEBUG, "Received msg: %p len %lu", *(void **)l_body, l_mpvar[1].ulVal);
                 if (a_esocket->callbacks.queue_ptr_callback) {
                     for (long shift = 0; shift < (long)l_mpvar[1].ulVal; shift += sizeof(void*)) {

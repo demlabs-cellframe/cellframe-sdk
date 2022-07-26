@@ -32,7 +32,7 @@
 #include "dap_time.h"
 
 enum error_code {
-    NO_ERROR 				= 0,
+    STAKE_NO_ERROR 			= 0,
     NET_ARG_ERROR			= 1,
     NET_ERROR				= 2,
     TOKEN_ARG_ERROR 		= 3,
@@ -51,7 +51,7 @@ enum error_code {
     WALLET_OPEN_ERROR		= 16,
     CERT_KEY_ERROR			= 17,
     WALLET_ADDR_ERROR		= 18,
-    ERROR					= 19
+    STAKE_ERROR  			= 19
 };
 
 /**
@@ -252,7 +252,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 		dap_string_append_printf(output_line, "Successfully hash=%s\n", l_hash_str);
 	else {
 		DAP_DEL_Z(l_addr_holder);
-		return ERROR;
+        return STAKE_ERROR;
 	}
 
 	DAP_DEL_Z(l_hash_str);
@@ -321,7 +321,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 	DAP_DEL_Z(l_tx_cond_hash);
 	DAP_DEL_Z(l_addr_holder);
 
-	return NO_ERROR;
+    return STAKE_NO_ERROR;
 }
 
 static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
@@ -370,7 +370,7 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 	dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
 	if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
 		log_it(L_WARNING, "ERROR");
-		return ERROR;
+        return STAKE_ERROR;
 	}
 
 	dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0);
@@ -382,7 +382,7 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 	if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
 		dap_chain_datum_tx_delete(l_tx);
 		log_it( L_ERROR, "Can't add sign output");
-		return ERROR;
+        return STAKE_ERROR;
 	}
 
 	// Put the transaction to mempool or directly to chains
@@ -391,16 +391,16 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 
 	dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
 	if (!l_chain) {
-		return ERROR;
+        return STAKE_ERROR;
 	}
 	// Processing will be made according to autoprocess policy
 	char *l_ret = NULL;
 	if ((l_ret = dap_chain_mempool_datum_add(l_datum, l_chain)) == NULL) {
 		DAP_DELETE(l_datum);
-		return ERROR;
+        return STAKE_ERROR;
 	}
 
-	return NO_ERROR;
+    return STAKE_NO_ERROR;
 }
 
 static void s_error_handler(enum error_code errorCode, dap_string_t *output_line)
@@ -521,7 +521,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
 			} return 1;
 	}
 
-	if (NO_ERROR != errorCode)
+    if (STAKE_NO_ERROR != errorCode)
 		s_error_handler(errorCode, output_line);
 	else
 		dap_string_append_printf(output_line, "Contribution successfully made");
