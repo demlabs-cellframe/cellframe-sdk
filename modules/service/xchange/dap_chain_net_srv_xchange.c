@@ -853,10 +853,9 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
 
             DAP_DELETE(l_value_from_str);
             DAP_DELETE(l_value_to_str);
+            dap_string_append(l_reply_str, "\n");
         }
 
-
-        dap_string_append(l_reply_str, "\n");
     }
 
 
@@ -1041,12 +1040,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             if ( l_status_str )
             {
                 /* 1 - closed, 2 - open  */
-                if ( !dap_strncmp (l_status_str, "close", 5) )
+                if ( dap_strcmp (l_status_str, "close") == 0 )
                     l_opt_status = 1;
-                else if ( !dap_strncmp (l_status_str, "open", 4) )
+                else if ( dap_strcmp (l_status_str, "open") == 0 )
                     l_opt_status = 2;
-                if ( !dap_strncmp (l_status_str, "all", 4) )
-                                    l_opt_status = 0;
+                else if ( dap_strcmp (l_status_str, "all") == 0 )
+                    l_opt_status = 0;
                 else    {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
                     return -3;
@@ -1303,9 +1302,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                             char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
 
-                            char l_tx_ts_created_str[72] = {0};
+                            char l_tx_ts_created_str[92] = {0};
+                            struct tm l_tm;                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
+                            uint64_t l_ts = l_tx->header.ts_created;
+                            if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
+                                asctime_r (&l_tm, l_tx_ts_created_str);
 
-                            dap_time_to_str_rfc822(l_tx_ts_created_str,sizeof(l_tx_ts_created_str),l_tx->header.ts_created);
                             dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str);
                             dap_string_append_printf(l_reply_str,"\tts_created: %s\n", l_tx_ts_created_str);
                             DAP_DEL_Z(l_tx_hash);
