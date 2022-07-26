@@ -3590,50 +3590,83 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
  */
 dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, datum_filter_func_t *a_filter_func, void *a_filter_func_param)
 {
-    dap_list_t *l_list = NULL;
+dap_list_t *l_list;
+size_t  l_sz;
+void *l_chain_tmp = (void*) 0x1;
+dap_chain_t *l_chain_cur;
+
     if(!a_net)
-        return l_list;
-    //dap_ledger_t *l_ledger = a_net->pub.ledger;
-    void *l_chain_tmp = (void*) 0x1;
-    int l_num = 0;
-    dap_chain_t *l_chain_cur;
-    if(a_chain)
-        l_chain_cur = a_chain;
-    else
-        l_chain_cur = dap_chain_enum(&l_chain_tmp);
-    while(l_chain_cur) {
+        return NULL;
+
+    l_chain_tmp = (void *) 0x1;
+    l_chain_cur = a_chain ? a_chain : dap_chain_enum(&l_chain_tmp);
+
+    l_list = NULL;
+
+    while(l_chain_cur)
+    {
         // Use chain only for selected net and with callback_atom_get_datums
-        if(a_net->pub.id.uint64 == l_chain_cur->net_id.uint64 && l_chain_cur->callback_atom_get_datums) {
+        if(a_net->pub.id.uint64 == l_chain_cur->net_id.uint64 && l_chain_cur->callback_atom_get_datums)
+        {
             dap_chain_cell_t *l_cell = l_chain_cur->cells;
             size_t l_atom_size = 0;
             dap_chain_atom_iter_t *l_atom_iter = l_chain_cur->callback_atom_iter_create(l_chain_cur, l_cell->id, 0);
             dap_chain_atom_ptr_t l_atom = l_chain_cur->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
-            while(l_atom && l_atom_size) {
+
+            while(l_atom && l_atom_size)
+            {
                 size_t l_datums_count = 0;
-                dap_chain_datum_t **l_datums = l_chain_cur->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
-                for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
-                    dap_chain_datum_t *l_datum = l_datums[l_datum_n];
-                    if(l_datum) {
-                        // If there is a filter, then check the datum in it
-                        if(a_filter_func) {
-                            if(a_filter_func(l_datum, l_chain_cur, a_filter_func_param))
-                                l_list = dap_list_append(l_list, l_datum);
-                        }
-                        else
-                            l_list = dap_list_append(l_list, l_datum);
+                dap_chain_datum_t **l_datums = l_chain_cur->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count),
+                                *l_datum, *l_datum2;
+
+                for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++)
+                {
+                    if ( ! (l_datum = l_datums[l_datum_n]) )
+                        continue;
+
+                    if ( a_filter_func)
+                        if ( !a_filter_func(l_datum, l_chain_cur, a_filter_func_param) )
+                            continue;
+#if 0
+                    {/* @RRL */
+                    dap_chain_datum_t *p1 = l_datum;
+                    log_it(L_CRITICAL, "l_datum: %p, [ver: %d, typ: %d, size: %d, ts: %llu]",
+                        p1, p1->header.version_id, p1->header.type_id, p1->header.data_size, p1->header.ts_create);
+
+                    dap_chain_datum_tx_t *p2 = (dap_chain_datum_tx_t*) p1->data;
+                    log_it(L_CRITICAL, "l_datum_tx: %p, [ts_created: %llu, size: %d]",
+                        p2, p2->header.ts_created, p2->header.tx_items_size);
                     }
+#endif
+
+                    /*
+                     * Make a copy of the datum, copy is placed into the list,
+                     * so don't forget to free whole list
+                     */
+                    l_sz = sizeof(dap_chain_datum_t) + l_datum->header.data_size + 16;
+                    l_datum2 = DAP_NEW_Z_SIZE(dap_chain_datum_t, l_sz);
+                    assert ( l_datum2 );
+                    memcpy(l_datum2, l_datum, l_sz);
+
+                    /* Add new entry into the list */
+                    l_list = dap_list_append(l_list, l_datum2);
                 }
-                DAP_DELETE(l_datums);
+
+                DAP_DEL_Z(l_datums);
+
                 // go to next transaction
                 l_atom = l_chain_cur->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
             }
         }
+
         // Only for one chain
-        if(a_chain)
+        if ( a_chain )
             break;
+
         // go to next chain
         dap_chain_enum_unlock();
         l_chain_cur = dap_chain_enum(&l_chain_tmp);
     }
+
     return l_list;
 }

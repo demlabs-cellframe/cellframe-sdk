@@ -128,10 +128,10 @@ void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_c
 static void s_dag_chain_cs_set_event_round_info(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_round_info_t * a_event_round_info);
 
 static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
-static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page);
+static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
-static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page);
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
@@ -1956,7 +1956,9 @@ static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain){
     size_t l_count = HASH_COUNT(PVT(l_dag)->tx_events);
     return l_count;
 }
-static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page){
+static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
+{
+    UNUSED(a_reverse);
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     size_t l_count = s_dap_chain_callback_get_count_tx(a_chain);
     size_t l_offset = a_count * a_page;
@@ -1987,7 +1989,9 @@ static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain){
     return l_count;
 }
 
-static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page){
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
+{
+    UNUSED(a_reverse);
     dap_chain_cs_dag_t  *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);
     size_t l_offset = a_count * (a_page - 1);

@@ -1341,7 +1341,8 @@ static size_t s_callback_count_atom(dap_chain_t *a_chain){
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
     return l_blocks_pvt->blocks_count;
 }
-static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool reverse){
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
+{
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
     size_t l_offset = a_count * (a_page - 1);
@@ -1354,7 +1355,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    if (reverse) {
+    if (a_reverse) {
         dap_chain_block_cache_t *l_ptr = l_blocks_pvt->blocks->hh.tbl->tail->prev;
         if (!l_ptr)
             l_ptr = l_blocks_pvt->blocks;
