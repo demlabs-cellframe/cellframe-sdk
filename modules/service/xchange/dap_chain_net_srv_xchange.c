@@ -23,6 +23,7 @@
 */
 
 #include <math.h>
+#include "dap_chain_ledger.h"
 #include "dap_chain_node_cli.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
@@ -1262,10 +1263,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 DAP_DEL_Z(l_tx_hash);
                                 continue;
                             }
-                            int l_prev_cond_idx = 0;
-                            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, &l_prev_cond_idx);
+                            int l_cond_idx = 0;
+                            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, &l_cond_idx);
                             if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE &&
-                                    dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_prev_cond_idx)) {
+                                    dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx)) {
                                 uint256_t l_value_sell = l_out_cond_item->header.value;
                                 uint256_t l_value_buy = l_out_cond_item->subtype.srv_xchange.buy_value;
                                 DIV_256_COIN(l_value_buy, l_value_sell, &l_rate);
@@ -1311,7 +1312,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 continue;
                             }
 
-                            char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);\
+                            char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
 
                             char l_tx_ts_created_str[72] = {0};
 
@@ -1322,9 +1323,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             DAP_DEL_Z(l_tx_hash_str);
 
                             // Find output
-                            int l_prev_cond_idx = 0;
-                            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, &l_prev_cond_idx);
-                            if(l_out_cond_item && l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                            int l_cond_idx = 0;
+                            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, &l_cond_idx);
+                            if(l_out_cond_item &&
+                               l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE &&
+                                    dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx )
+                                    ) {
                                 uint256_t l_value_from = l_out_cond_item->header.value;
                                 uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
                                 uint256_t l_rate = {};
