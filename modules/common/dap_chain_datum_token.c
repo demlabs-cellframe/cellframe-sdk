@@ -189,8 +189,9 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
     size_t l_signs_offset = a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE
                                                  ? sizeof(dap_chain_datum_token_old_t)
                                                  : sizeof(dap_chain_datum_token_t);
-    if ((a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) ||
-            (a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)) {
+    if ((a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+	||	(a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+	||	(a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED)) {
         l_signs_offset += a_datum_token->header_native_decl.tsd_total_size;
     }
     while( l_offset < (a_datum_token_size - l_signs_offset) && n < a_datum_token->signs_total ) {

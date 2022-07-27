@@ -67,6 +67,7 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
     case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
         l_offset_max = a_token->header_private_update.tsd_total_size; break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
+	case DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED:
         l_offset_max = a_token->header_native_decl.tsd_total_size; break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:
         l_offset_max = a_token->header_native_update.tsd_total_size; break;
@@ -562,6 +563,17 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size,
                                                      l_certs_field_size, a_hash_out_type);
                 }break;
+				case DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED:{
+					dap_string_append(a_str_out, "type: CF20_STAKE_DELEGATED\n");
+					dap_string_append(a_str_out, "decimals: 18\n");
+					dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
+					dap_string_append(a_str_out, "flags: ");
+					dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
+					s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+					size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
+					dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size,
+													 l_certs_field_size, a_hash_out_type);
+				}break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{
                     dap_string_append(a_str_out,"type: PUBLIC\n");
                 }break;

@@ -32,12 +32,12 @@ typedef enum dap_chain_tx_cond_type {
     COND_SERVICE_BILL = 0x30, //
 
 } dap_chain_tx_cond_type_t;
-
+/*
 typedef enum dap_chain_tx_token_type {
 	NO_TOKEN_TYPE	= 0x0,
 	STAKE_DELEGATED = 0x10,
 }			dap_chain_tx_token_type_t;
-
+*/
 /**
   * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items

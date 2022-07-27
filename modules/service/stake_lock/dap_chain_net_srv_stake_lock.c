@@ -259,7 +259,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 
 	l_base_tx_hash = dap_chain_mempool_base_tx_create(l_chain_emission, l_tx_cond_hash, l_chain_emission->id,
 																  l_value, delegate_token_str, l_addr_holder,
-																  &l_cert, 1, STAKE_DELEGATED);
+																  &l_cert, 1/*, STAKE_DELEGATED*/);
 
 	if (l_base_tx_hash) {
 //		char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];

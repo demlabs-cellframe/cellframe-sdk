@@ -2053,8 +2053,9 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     }
 
     size_t l_tsd_size = 0;
-    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-            (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+	||	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+	||	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED))
         l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
 
     for(size_t i = 0; i < l_certs_count; i++)
@@ -2163,8 +2164,9 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
                 dap_chain_datum_token_t *l_datum_token = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
                 DAP_DELETE(l_datum);
-                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-                        (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+				||	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+				||	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED))
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
@@ -2997,7 +2999,9 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
             l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC; // 256
         }else if (strcmp(l_params->l_type_str, "CF20") == 0){
             l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
-        }else{
+        }else if (strcmp(l_params->l_type_str, "CF20_STAKE_DELEGATED") == 0){
+			l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED;
+		}else{
             dap_chain_node_cli_set_reply_text(a_str_reply,
                         "Unknown token type %s was specified. Supported types:\n"
                         "   private_simple\n"
@@ -3102,7 +3106,8 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
     }
 
     // check l_decimals in CF20 token
-    if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL){
+    if ((l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+	||	(l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED)){
         if(!l_params->l_decimals_str) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
             return -3;
@@ -3212,6 +3217,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
         case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
+		case DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED:
         { // 256
             dap_list_t *l_tsd_list = NULL;
             size_t l_tsd_total_size = 0;
@@ -3614,7 +3620,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     if(l_chain_base_tx) {
         dap_chain_hash_fast_t *l_datum_tx_hash = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
                                                                 l_chain_emission->id, l_emission_value, l_ticker,
-                                                                l_addr, l_certs, l_certs_size, NO_TOKEN_TYPE);
+                                                                l_addr, l_certs, l_certs_size/*, NO_TOKEN_TYPE*/);
         char *l_tx_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(l_datum_tx_hash)
                                            : dap_enc_base58_encode_hash_to_str(l_datum_tx_hash);
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is%s placed in datum pool",
@@ -4868,7 +4874,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     if (l_emission_hash_str) {
         dap_hash_fast_t *l_tx_hash = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
                                                                       l_value, l_token_ticker, l_addr_to, l_certs,
-																	  l_certs_count, NO_TOKEN_TYPE);
+																	  l_certs_count/*, NO_TOKEN_TYPE*/);
         if (l_tx_hash){
             char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof (l_tx_hash_str));

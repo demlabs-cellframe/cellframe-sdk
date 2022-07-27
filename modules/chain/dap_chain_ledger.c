@@ -379,6 +379,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     switch (a_token->type) {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+		case DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED:
             l_size_tsd_section = a_token->header_native_decl.tsd_total_size;
             break;
     }
@@ -532,6 +533,16 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
         }
         s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
         break;
+	case DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED:
+		if(s_debug_more) {
+			char *l_balance = dap_chain_balance_to_coins(a_token->total_supply);
+			log_it(L_NOTICE, "CF20 token %s with type=DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED added (total_supply = %s total_signs_valid=%hu signs_total=%hu)",
+				   a_token->ticker, l_balance,
+				   a_token->signs_valid, a_token->signs_total);
+			DAP_DELETE(l_balance);
+		}
+		s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
+		break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
         if(s_debug_more)
             log_it( L_WARNING, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE. Not processed, wait for software update", a_token->ticker);
@@ -1155,6 +1166,8 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                 l_type_str = "CF20"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE: // 256
                 l_type_str = "CF20_UPDATE"; break;
+			case DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED:
+				l_type_str = "CF20_STAKE_DELEGATED"; break;
             case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC: // 256
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
                 l_type_str = "PUBLIC";
@@ -1163,7 +1176,9 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
         }
        char *l_item_str = NULL;
 
-        if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) || (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)){
+        if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED)){
                 l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
                                                 "\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
@@ -1463,13 +1478,13 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     }
         
     //additional check for private tokens
-    if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-            (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) ||
-            (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) ||
-             (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
+    if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+	||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+	||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+	||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+	||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED)) {
         //s_ledger_permissions_check(l_token_item)
-        //    return -5;
-
+        //    return -5;  /*TODO: ???*/
     }
     switch (l_emission->hdr.type){
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
@@ -1611,10 +1626,11 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                                                                                         &l_token_emission_item->datum_token_emission_size);
 
             //additional check for private tokens
-            if((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-                    (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) ||
-                    (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) ||
-                    (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
+            if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED)) {
                     if (!s_chain_ledger_token_tsd_check(l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
                         return -114;
             }
@@ -2132,7 +2148,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     dap_chain_ledger_token_item_t * l_token_item = NULL;
     dap_chain_hash_fast_t *l_emission_hash = NULL;
 
-	bool add_in_hash_table_if_stake_lock_pass = false;
+//	bool add_in_hash_table_if_stake_lock_pass = false;
 
     // check all previous transactions
     int l_err_num = 0;
@@ -2549,8 +2565,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 break;
             }
 
-			if (l_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
-				add_in_hash_table_if_stake_lock_pass = true;
+//			if (l_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
+//				add_in_hash_table_if_stake_lock_pass = true;
 
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
@@ -2650,8 +2666,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         *a_list_tx_out = l_list_tx_out;
     }
 
-	if (!l_err_num)
-		;//TODO: ADD TO HASH TABLE;
+//	if (!l_err_num && add_in_hash_table_if_stake_lock_pass)
+//		;//TODO: ADD TO HASH TABLE;
 
     return l_err_num;
 }
