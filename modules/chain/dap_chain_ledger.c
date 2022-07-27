@@ -60,6 +60,7 @@
 #include "json-c/json.h"
 #include "json-c/json_object.h"
 #include "dap_notify_srv.h"
+#include "dap_chain_net_srv.h"
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -81,6 +82,14 @@ typedef struct dap_chain_ledger_token_emission_item {
     dap_chain_hash_fast_t tx_used_out;
     UT_hash_handle hh;
 } dap_chain_ledger_token_emission_item_t;
+
+typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
+	dap_chain_hash_fast_t datum_token_emission_hash;
+	dap_chain_datum_token_emission_t *datum_token_emission;
+	size_t datum_token_emission_size;
+	dap_chain_hash_fast_t tx_used_out;
+	UT_hash_handle hh;
+} dap_chain_ledger_token_emission_for_stake_lock_item_t;
 
 typedef struct dap_chain_ledger_token_item {
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -302,6 +311,17 @@ void dap_chain_ledger_load_end(dap_ledger_t *a_ledger)
     PVT(a_ledger)->load_mode = false;
 }
 
+bool dap_chain_ledger_verificators_init()
+{
+	dap_chain_ledger_verificator_rwlock_init();
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, dap_chain_net_srv_pay_verificator, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, dap_chain_net_srv_xchange_verificator, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, dap_chain_net_srv_stake_pos_delegate_verificator, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE, dap_chain_net_srv_stake_updater, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, dap_chain_ledger_fee_verificator, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, dap_chain_net_srv_stake_lock_verificator, dap_chain_net_srv_stake_lock_verificator_added);
+	return true;
+}
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_bal) {
     struct json_object *l_json = json_object_new_object();
@@ -1733,6 +1753,25 @@ dap_chain_ledger_token_emission_item_t *s_emission_item_find(dap_ledger_t *a_led
     return l_token_emission_item;
 }
 
+dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_find(dap_ledger_t *a_ledger,
+															 const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash)
+{
+	dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+	dap_chain_ledger_token_item_t *l_token_item = NULL;
+	pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
+	HASH_FIND_STR(l_ledger_priv->tokens, a_token_ticker, l_token_item);
+	pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+
+	if (!l_token_item)
+		return NULL;
+	dap_chain_ledger_token_emission_for_stake_lock_item_t *l_token_emission_item = NULL;
+	pthread_rwlock_rdlock(&l_token_item->token_emissions_rwlock);
+	HASH_FIND(hh, l_token_item->token_emissions, a_token_emission_hash, sizeof(*a_token_emission_hash),
+			  l_token_emission_item);
+	pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
+	return l_token_emission_item;
+}
+
 /**
  * @brief dap_chain_ledger_token_emission_find
  * @param a_token_ticker
@@ -2092,6 +2131,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     char *l_token = NULL;
     dap_chain_ledger_token_item_t * l_token_item = NULL;
     dap_chain_hash_fast_t *l_emission_hash = NULL;
+
+	bool add_in_hash_table_if_stake_lock_pass = false;
 
     // check all previous transactions
     int l_err_num = 0;
@@ -2508,6 +2549,9 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 break;
             }
 
+			if (l_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
+				add_in_hash_table_if_stake_lock_pass = true;
+
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } break;
@@ -2605,6 +2649,9 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     } else {
         *a_list_tx_out = l_list_tx_out;
     }
+
+	if (!l_err_num)
+		;//TODO: ADD TO HASH TABLE;
 
     return l_err_num;
 }
