@@ -171,7 +171,13 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
     }
     struct tm l_tm;
     memset(&l_tm, 0, sizeof(struct tm));
-    strptime(a_time_str, "%y%m%d%H%M%S", &l_tm);
+	
+#ifndef _WIN32
+    strptime(a_time_str, "%a, %d %b %y %T %z", &l_tm);
+#else
+	strptime(a_time_str, "%a, %d %b %y %H:%M:%S", &l_tm);
+#endif
+
     l_time = mktime(&l_tm);
     return l_time;
 }
