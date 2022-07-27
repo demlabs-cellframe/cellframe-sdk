@@ -28,6 +28,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_hash.h"
+#include "dap_math_ops.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
@@ -163,10 +164,15 @@ static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_x
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     uint256_t l_datoshi_sell = {};
-    DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
-    dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, l_datoshi_sell,
+    if (compare256(a_price->rate, uint256_0)!=0){
+        DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
+        dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, l_datoshi_sell,
                                                                                  l_ext, l_ext_size);
-    return l_receipt;
+        return l_receipt;
+    }else{
+        DAP_DELETE(l_ext);
+        return NULL;
+    }
 }
 
 static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
@@ -267,6 +273,11 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
 
     // create and add reciept
     dap_chain_datum_tx_receipt_t *l_receipt = s_xchage_receipt_create(a_price, a_datoshi_buy);
+    if( l_receipt == NULL){
+        DAP_DELETE(l_buyer_addr);
+        log_it(L_ERROR, "Can't compose the receipt");
+        return NULL;
+    }
     dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
     DAP_DELETE(l_receipt);
     // add 'in' items to sell
@@ -314,11 +325,18 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         }
         //transfer selling coins
         uint256_t l_datoshi_sell = {};
-        DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
-        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, l_datoshi_sell, a_price->token_sell) == -1) {
-            dap_chain_datum_tx_delete(l_tx);
+        if (compare256(a_price->rate, uint256_0)!=0){
+            DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
+
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, l_datoshi_sell, a_price->token_sell) == -1) {
+                dap_chain_datum_tx_delete(l_tx);
+                DAP_DELETE(l_buyer_addr);
+                log_it(L_ERROR, "Can't add selling coins output");
+                return NULL;
+            }
+        }else{
             DAP_DELETE(l_buyer_addr);
-            log_it(L_ERROR, "Can't add selling coins output");
+            log_it(L_ERROR, "Can't add selling coins output because price rate is 0");
             return NULL;
         }
         DAP_DELETE(l_buyer_addr);
@@ -381,6 +399,10 @@ static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, d
 
     // create and add reciept
     dap_chain_datum_tx_receipt_t *l_receipt = s_xchage_receipt_create(a_price, uint256_0);
+    if (!l_receipt) {
+        log_it(L_WARNING, "Can't create receipt");
+        return false;
+    }
     dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
     DAP_DELETE(l_receipt);
 
@@ -456,9 +478,14 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     strcpy(l_price->token_sell, l_ext->token_sell);
     l_price->net = a_net;
     strcpy(l_price->token_buy, a_order->price_ticker);
-    DIV_256_COIN(a_order->price, l_price->datoshi_sell, &l_price->rate);
-    memcpy(&l_price->tx_hash, &a_order->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
-    return l_price;
+    if( compare256(l_price->datoshi_sell, uint256_0) !=0 ){
+        DIV_256_COIN(a_order->price, l_price->datoshi_sell, &l_price->rate);
+        memcpy(&l_price->tx_hash, &a_order->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
+        return l_price;
+    }else{
+        DAP_DELETE(l_price);
+        return NULL;
+    }
 }
 
 static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
@@ -475,6 +502,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
     }
     else if(dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "update", NULL)) {
         l_cmd_num = CMD_UPDATE;
+    }
+    else if(dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "history", NULL)) {
+        l_cmd_num = CMD_HISTORY;
     }
     int l_arg_index = a_arg_index + 1;
     const char *l_net_str = NULL;
@@ -676,6 +706,11 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -13;
             }
             dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order);
+            if (!l_order) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't create price object from order");
+                return -13;
+            }
+
             if (l_cmd_num == CMD_REMOVE) {
                 dap_string_t *l_str_reply = dap_string_new("");
                 bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet);
@@ -1057,6 +1092,11 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                 // TODO add filters to list (tokens, network, etc.)
                 l_price = s_xchange_price_from_order(l_net, l_order);
+                if( !l_price ){
+                    log_it(L_WARNING,"Can't create price from order");
+                    continue;
+                }
+
                 uint256_t l_datoshi_buy;
                 char *l_cp1, *l_cp2, *l_cp3;
 
@@ -1123,6 +1163,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
             if (l_order) {
                 dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order);
+                if(!l_price){
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't create price from order");
+                    return -13;
+                }
                 // Create conditional transaction
                 dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, l_wallet, l_datoshi_buy);
                 if (l_tx && s_xchange_tx_put(l_tx, l_net)) {
@@ -1386,10 +1430,14 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                     dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx)) {
                                 uint256_t l_value_sell = l_out_cond_item->header.value;
                                 uint256_t l_value_buy = l_out_cond_item->subtype.srv_xchange.buy_value;
-                                DIV_256_COIN(l_value_buy, l_value_sell, &l_rate);
-                                if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
-                                    log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
-                                INCR_256(&l_total_rates_count);
+                                if(compare256(l_value_sell,uint256_0) !=0 ){
+                                    DIV_256_COIN(l_value_buy, l_value_sell, &l_rate);
+                                    if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
+                                        log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
+                                    INCR_256(&l_total_rates_count);
+                                }else{
+                                    log_it(L_ERROR, "Sell value is 0 in avarage price calculation (summing)");
+                                }
                             }
                             DAP_DEL_Z(l_tx_hash);
                         }
@@ -1464,7 +1512,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 uint256_t l_value_from = l_out_cond_item->header.value;
                                 uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
                                 uint256_t l_rate = {};
-                                DIV_256_COIN(l_value_to, l_value_from, &l_rate);
+                                if(compare256(l_value_from, uint256_0) != 0)
+                                    DIV_256_COIN(l_value_to, l_value_from, &l_rate);
                                 char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
                                 char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
                                 char *l_rate_str = dap_chain_balance_to_coins(l_rate);
