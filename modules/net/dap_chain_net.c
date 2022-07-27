@@ -3287,57 +3287,59 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
                                     if(!l_is_spent)
                                         continue;
                                 }
-                                // Check for IN_COND items
-                                dap_chain_datum_tx_spends_item_t * l_item_in = NULL; // Item to add if found
-                                dap_list_t *l_list_in_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_COND  , NULL);
-                                if(l_list_in_cond_items){
-                                    dap_list_t *l_list_cur = l_list_in_cond_items;
-                                    while(l_list_cur){ // Go through all cond items
-                                        dap_chain_tx_in_cond_t * l_tx_in_cond = (dap_chain_tx_in_cond_t *)l_list_cur->data;
-                                        if(l_tx_in_cond) {// TODO rework to check only IN_COND for target srv_uid}
 
+                                // Go through all items
+                                uint32_t l_tx_items_pos = 0, l_tx_items_size = l_tx->header.tx_items_size;
+                                int l_item_idx = 0;
+                                while (l_tx_items_pos < l_tx_items_size) {
+                                    uint8_t *l_item = l_tx->tx_items + l_tx_items_pos;
+                                    int l_item_size = dap_chain_datum_item_tx_get_size(l_item);
+                                    if(!l_item_size)
+                                        break;
+                                    // check type
+                                    dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_get_type(l_item);
+                                    switch (l_item_type){
+                                        case TX_ITEM_TYPE_IN_COND:{
+                                            dap_chain_tx_in_cond_t * l_tx_in_cond = (dap_chain_tx_in_cond_t *) l_item;
                                             dap_chain_datum_tx_spends_item_t  *l_tx_prev_out_item = NULL;
                                             HASH_FIND(hh, l_ret->tx_outs, &l_tx_in_cond->header.tx_prev_hash,sizeof(l_tx_in_cond->header.tx_prev_hash), l_tx_prev_out_item);
 
                                             if (l_tx_prev_out_item){ // we found previous out_cond with target srv_uid
-                                                l_item_in = DAP_NEW_Z(dap_chain_datum_tx_spends_item_t);
+                                                dap_chain_datum_tx_spends_item_t *l_item_in = DAP_NEW_Z(dap_chain_datum_tx_spends_item_t);
                                                 size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
                                                 dap_chain_datum_tx_t * l_tx_dup = DAP_DUP_SIZE(l_tx,l_tx_size);
                                                 dap_hash_fast(l_tx_dup,l_tx_size, &l_item_in->tx_hash);
 
                                                 l_item_in->tx = l_tx_dup;
-                                                l_item_in->in_cond = l_tx_in_cond;
+                                                // Calc same offset from tx duplicate
+                                                l_item_in->in_cond = (dap_chain_tx_in_cond_t*) (l_tx_dup->tx_items + l_tx_items_pos);
                                                 HASH_ADD_KEYPTR(hh,l_ret->tx_ins, &l_item_in->tx_hash, sizeof(l_item_in->tx_hash), l_item_in);
 
                                                 // Link previous out with current in
                                                 l_tx_prev_out_item->tx_next = l_tx_dup;
                                             }
-                                        }
-                                        l_list_cur = dap_list_next(l_list_cur);
-                                    }
-                                    dap_list_free(l_list_in_cond_items);
-                                }
-
-                                // Check for OUT_COND items
-                                dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND , NULL);
-                                if(l_list_out_cond_items){
-                                    dap_list_t *l_list_cur = l_list_out_cond_items;
-                                    while(l_list_cur){ // Go through all cond items
-                                        dap_chain_tx_out_cond_t * l_tx_out_cond = (dap_chain_tx_out_cond_t *)l_list_cur->data;
-                                        if(l_tx_out_cond) // If we found cond out with target srv_uid
+                                        }break;
+                                        case TX_ITEM_TYPE_OUT_COND:{
+                                            dap_chain_tx_out_cond_t * l_tx_out_cond = (dap_chain_tx_out_cond_t *)l_item;
                                             if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64){
                                                 dap_chain_datum_tx_spends_item_t * l_item = DAP_NEW_Z(dap_chain_datum_tx_spends_item_t);
                                                 size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+                                                dap_chain_datum_tx_t * l_tx_dup = DAP_DUP_SIZE(l_tx,l_tx_size);
                                                 dap_hash_fast(l_tx,l_tx_size, &l_item->tx_hash);
-                                                l_item->tx = DAP_DUP_SIZE(l_tx, l_tx_size);
-                                                l_item->out_cond = l_tx_out_cond;
-                                                HASH_ADD_KEYPTR(hh,l_ret->tx_outs, &l_item->tx_hash, sizeof(l_item->tx_hash), l_item);
-                                            }
-                                        l_list_cur = dap_list_next(l_list_cur);
-                                    }
-                                    dap_list_free(l_list_out_cond_items);
-                                }
+                                                l_item->tx = l_tx_dup;
+                                                // Calc same offset from tx duplicate
+                                                l_item->out_cond = (dap_chain_tx_out_cond_t*) (l_tx_dup->tx_items + l_tx_items_pos);
 
+                                                HASH_ADD_KEYPTR(hh,l_ret->tx_outs, &l_item->tx_hash, sizeof(l_item->tx_hash), l_item);
+                                                break; // We're seaching only for one specified OUT_COND output per transaction
+                                            }
+                                        } break;
+                                        default:;
+                                    }
+
+                                    l_tx_items_pos += l_item_size;
+                                    l_item_idx++;
+                                }
                             }
                         }
                         DAP_DEL_Z(l_datums);

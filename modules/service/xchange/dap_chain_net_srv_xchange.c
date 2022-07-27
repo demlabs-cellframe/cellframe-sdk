@@ -1512,8 +1512,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 uint256_t l_value_from = l_out_cond_item->header.value;
                                 uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
                                 uint256_t l_rate = {};
-                                if(compare256(l_value_from, uint256_0) != 0)
+                                if(compare256(l_value_from, uint256_0) != 0){
                                     DIV_256_COIN(l_value_to, l_value_from, &l_rate);
+                                }else
+                                    log_it(L_ERROR,"Value_from is zero, can't calc rate");
                                 char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
                                 char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
                                 char *l_rate_str = dap_chain_balance_to_coins(l_rate);

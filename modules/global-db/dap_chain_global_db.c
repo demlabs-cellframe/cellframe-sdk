@@ -284,9 +284,9 @@ int dap_chain_global_db_init(dap_config_t * g_config)
 {
     const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
 #ifdef DAP_OS_DARWIN
-    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "sqlite");
+    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "sqlite");
 #else
-    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "mdbx");
+    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "mdbx");
 #endif
     //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
 
