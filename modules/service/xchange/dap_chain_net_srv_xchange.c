@@ -1463,7 +1463,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             l_time_from,l_time_to,TX_SEARCH_TYPE_NET);
 
 
-                    dap_chain_datum_tx_spends_item_t * l_cur, *l_tmp;
+                    dap_chain_datum_tx_spends_item_t * l_cur = NULL, *l_tmp = NULL;
                     HASH_ITER(hh, l_tx_spends->tx_outs, l_cur,l_tmp) {
                         dap_chain_datum_tx_t * l_tx =l_cur->tx;
                         if(l_tx){
