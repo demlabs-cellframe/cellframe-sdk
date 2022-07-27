@@ -5,7 +5,6 @@ project(core_test)
 set(CMAKE_C_STANDARD 11)
 file(GLOB SRCS *.c)
 
-add_subdirectory(libdap-test)
 
 if(UNIX)
     file(GLOB PLATROFM_DEP_SRC unix/*.c unix/*.h)
