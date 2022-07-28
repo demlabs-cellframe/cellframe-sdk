@@ -2217,6 +2217,24 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_token = l_tx_token->header.ticker;
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
+			if (!l_emission_item) {
+				dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
+				if (l_datum_token
+				&&	l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) {
+					if (l_datum_token->header_native_decl.tsd_total_size) {
+						dap_tsd_t *l_tsd;
+						if (NULL != (l_tsd = dap_tsd_find(l_datum_token->data_n_tsd, l_datum_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+							dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+							if (dap_chain_ledger_token_ticker_check(a_ledger, l_tsd_section.ticker_token_from)) {
+								;
+								;
+								;
+								break;
+							}
+						}
+					}
+				}
+			}
             if (!l_emission_item) {
                 debug_if(g_debug_reactor, L_DEBUG, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
