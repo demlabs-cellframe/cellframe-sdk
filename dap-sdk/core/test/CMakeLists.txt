@@ -56,7 +56,7 @@ add_test(
 
 add_test(
     NAME rpm-test
-    COMMAND rpmalloc
+    COMMAND rpmalloc_test
 )
 
 if(UNIX)
