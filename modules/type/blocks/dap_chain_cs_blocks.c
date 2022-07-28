@@ -694,16 +694,16 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
                 pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
                 HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);
                 pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+                l_res = 0;
             } break;
             default:
                 l_res=-1;
         }
-        if (l_res != 1) {
+        if (l_res) {
             /* @RRL: disabled due spaming ...
             debug_if(s_debug_more, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                      dap_chain_datum_type_id_to_str(l_datum->header.type_id), a_block_cache->block_hash_str, l_res);
             */
-        } else {
             l_ret++;
         }
     }
@@ -727,7 +727,8 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         debug_if(s_debug_more, L_DEBUG, "Block %s checked, add it to ledger", a_block_cache->block_hash_str);
         pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
         res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
-        debug_if(s_debug_more && !res, L_DEBUG, "Block %s checked, but ledger declined", a_block_cache->block_hash_str);
+        debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
+                                                                res ? "but ledger declined" : "all correct");
         //All correct, no matter for result
         pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
         HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
