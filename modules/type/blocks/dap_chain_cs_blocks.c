@@ -138,7 +138,7 @@ static size_t s_callback_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool reverse);
 
 static bool s_seed_mode=false;
-
+static bool s_debug_more = false;
 
 /**
  * @brief dap_chain_cs_blocks_init
@@ -148,6 +148,7 @@ int dap_chain_cs_blocks_init()
 {
     dap_chain_cs_type_add("blocks", dap_chain_cs_blocks_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
+    s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_chain_node_cli_cmd_item_create ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:"
             "block -net <chain net name> -chain <chain name> new\n"
@@ -699,7 +700,7 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         }
         if (l_res != 1) {
             /* @RRL: disabled due spaming ...
-            debug_if(g_debug_reactor, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
+            debug_if(s_debug_more, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                      dap_chain_datum_type_id_to_str(l_datum->header.type_id), a_block_cache->block_hash_str, l_res);
             */
         } else {
@@ -723,10 +724,10 @@ static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
                 a_blocks->callback_block_verify(a_blocks,a_block_cache->block, a_block_cache->block_size)
                 : 0;
     if (res == 0 || memcmp( &a_block_cache->block_hash, &PVT(a_blocks)->genesis_block_hash, sizeof(a_block_cache->block_hash) ) == 0) {
-        debug_if(g_debug_reactor, L_DEBUG, "Block %s checked, add it to ledger", a_block_cache->block_hash_str);
+        debug_if(s_debug_more, L_DEBUG, "Block %s checked, add it to ledger", a_block_cache->block_hash_str);
         pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
         res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
-        debug_if(g_debug_reactor && !res, L_DEBUG, "Block %s checked, but ledger declined", a_block_cache->block_hash_str);
+        debug_if(s_debug_more && !res, L_DEBUG, "Block %s checked, but ledger declined", a_block_cache->block_hash_str);
         //All correct, no matter for result
         pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
         HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
@@ -827,7 +828,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     dap_hash_fast(a_atom,a_atom_size, & l_block_hash);
     dap_chain_block_cache_t * l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
     if (l_block_cache ){
-        debug_if(g_debug_reactor, L_DEBUG, "... already present in blocks %s", l_block_cache->block_hash_str);
+        debug_if(s_debug_more, L_DEBUG, "... already present in blocks %s", l_block_cache->block_hash_str);
         pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
         return ATOM_PASS;
     } else {
@@ -837,7 +838,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
             pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
             return ATOM_REJECT;
         }
-        debug_if(g_debug_reactor, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
+        debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         ret = ATOM_ACCEPT;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
@@ -845,7 +846,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     // verify hashes and consensus
     if(ret == ATOM_ACCEPT){
         ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
-        debug_if(g_debug_reactor, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
+        debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
                                                        (ret == ATOM_REJECT ? "rejected" : "thresholded"));
     }
 

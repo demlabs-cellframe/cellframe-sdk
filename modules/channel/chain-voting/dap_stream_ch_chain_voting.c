@@ -191,8 +191,6 @@ static void s_callback_send_all_unsafe_on_worker(dap_worker_t *a_worker, void *a
 
 void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t *a_sendto_nodes) {
     //if (dap_chain_net_get_state(a_net) == NET_STATE_ONLINE) {
-        pthread_rwlock_wrlock(&s_pkt_items->rwlock_out);
-
 		dap_list_t *l_nodes_list_temp = dap_list_first(a_sendto_nodes);
 		while(l_nodes_list_temp) {
 			dap_list_t *l_nodes_list = l_nodes_list_temp;
@@ -242,7 +240,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
 	            }
 	        }
 
-            //s_callback_channel_pkt_free_unsafe(l_remote_node_addr->uint64);
+            pthread_rwlock_wrlock(&s_pkt_items->rwlock_out);
 			dap_list_t* l_pkts_list_temp = dap_list_first(s_pkt_items->pkts_out);
 			while(l_pkts_list_temp) {
 				dap_list_t *l_pkts_list = l_pkts_list_temp;
@@ -258,26 +256,25 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
 					memcpy(&l_pkt_addr_new->voting_pkt->hdr.recipient_node_addr,
 								l_remote_node_addr, sizeof(dap_chain_node_addr_t));
 					s_pkt_items->pkts_out = dap_list_append(s_pkt_items->pkts_out, l_pkt_addr_new);
-					// s_callback_channel_pkt_buf_limit(l_remote_node_addr->uint64);
             	}
             }
+            pthread_rwlock_unlock(&s_pkt_items->rwlock_out);
 
 			if ( l_remote_node_addr->uint64 != dap_chain_net_get_cur_addr_int(a_net) ) {
                 if (dap_client_get_stage(l_node_item->node_client->client) != STAGE_STREAM_STREAMING)
                     dap_client_go_stage(l_node_item->node_client->client, STAGE_STREAM_STREAMING, s_callback_send_all_unsafe);
-                else
-                    dap_worker_exec_callback_on(l_node_item->node_client->stream_worker->worker, s_callback_send_all_unsafe_on_worker,
+                else {
+                    dap_stream_t *l_stream = dap_client_get_stream(l_node_item->node_client->client);
+                    dap_worker_exec_callback_on(l_stream->stream_worker->worker, s_callback_send_all_unsafe_on_worker,
                                                 l_node_item->node_client->client);
+                }
 	        } else {
 	        	s_callback_send_all_loopback(l_remote_node_addr);
 	        }
         }
-
-		s_callback_channel_pkt_free_unsafe(0);
-        pthread_rwlock_unlock(&s_pkt_items->rwlock_out);
 }
 static void s_callback_send_all_loopback(dap_chain_node_addr_t *a_remote_node_addr) {
-	pthread_rwlock_rdlock(&s_pkt_items->rwlock_out);
+    pthread_rwlock_rdlock(&s_pkt_items->rwlock_out);
 	dap_list_t* l_pkts_list = dap_list_first(s_pkt_items->pkts_out);
 	while(l_pkts_list) {
 		dap_list_t *l_pkts_list_next = l_pkts_list->next;
@@ -294,7 +291,7 @@ static void s_callback_send_all_loopback(dap_chain_node_addr_t *a_remote_node_ad
 		l_pkts_list = l_pkts_list_next;
 	}
     s_callback_channel_pkt_free_unsafe(a_remote_node_addr->uint64);
-	pthread_rwlock_unlock(&s_pkt_items->rwlock_out);
+    pthread_rwlock_unlock(&s_pkt_items->rwlock_out);
 }
 
 static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg){
@@ -314,6 +311,8 @@ static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg){
                     if (l_ch) {
                         dap_stream_ch_pkt_write_unsafe(l_ch,
 			    						l_voting_pkt->hdr.pkt_type, l_voting_pkt, l_voting_pkt_size);
+                        log_it(L_DEBUG, "Sent pkt size %zu to addr "NODE_ADDR_FP_STR, l_voting_pkt_size,
+                                                                    NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
 			    	}
 			    	else {
 						//printf("---!!! s_callback_send_all_unsafe() l_ch_chain in null \n");
@@ -423,6 +422,3 @@ size_t dap_stream_ch_chain_voting_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_
     DAP_DELETE(l_chain_pkt);
     return l_ret;
 }
-
-
-
