@@ -134,8 +134,6 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock{
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL          0x0009
 // Token update
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE        0x000A
-// Token stake delegated
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_STAKE_DELEGATED		0x000B
 // Open token with now ownership
 
 
