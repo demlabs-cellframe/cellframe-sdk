@@ -457,8 +457,7 @@ int l_res = -1;
     store_data.timestamp = a_timestamp;
 
     lock();
-    if (!dap_chain_global_db_driver_is(store_data.group, store_data.key))
-        l_res = dap_chain_global_db_driver_add(&store_data, 1);
+    l_res = dap_chain_global_db_driver_add(&store_data, 1);
     unlock();
 
     return  l_res;
