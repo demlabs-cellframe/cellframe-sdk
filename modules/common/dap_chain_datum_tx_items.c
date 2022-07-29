@@ -276,14 +276,15 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
  */
 dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint256_t a_value)
 {
-    if(!a_addr)
-        return NULL;
     if (IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_t *l_item = DAP_NEW_Z(dap_chain_tx_out_t);
+	if(!a_addr){
+		memset(&l_item->addr, 0, sizeof(dap_chain_addr_t));
+	} else
+		memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
     l_item->header.type = TX_ITEM_TYPE_OUT;
     l_item->header.value = a_value;
-    memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
     return l_item;
 }
 
