@@ -2289,18 +2289,18 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 					l_err_num = -23;
 					break;
 				}
-				int item_count = 0;
-				dap_chain_tx_out_t *out_tx = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, &item_count);
-				if (item_count != 1 || !out_tx) {
+//				int item_count = 0;
+				dap_chain_tx_out_t *out_tx = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, 0);//TODO: ADD CHECK COUNT TX
+				if (!out_tx) {
 					debug_if(g_debug_reactor, L_DEBUG, "No stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
 					l_err_num = -24;
 					break;
 				}
 				dap_chain_datum_tx_t *l_datum_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
-				dap_chain_tx_out_cond_t *out_cond_tx = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_datum_tx, 0, TX_ITEM_TYPE_OUT_COND, &item_count);
-				if (item_count != 1 || !out_cond_tx) {
+				dap_chain_tx_out_cond_t *out_cond_tx = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_datum_tx, 0, TX_ITEM_TYPE_OUT_COND, 0);//TODO: ADD CHECK COUNT TX
+				if (!out_cond_tx) {
 					debug_if(g_debug_reactor, L_DEBUG, "No stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
-					l_err_num = -24;
+					l_err_num = -30;
 					break;
 				}
 				if (out_cond_tx->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {

@@ -3239,8 +3239,8 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 }
             }
 			if (l_params->ext.delegated_token_from){
-				dap_chain_datum_token_t *l_delegated_token_for;
-				if (NULL == (l_delegated_token_for = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
+				dap_chain_datum_token_t *l_delegated_token_from;
+				if (NULL == (l_delegated_token_from = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
 					dap_chain_node_cli_set_reply_text(a_str_reply,"To create a delegated token %s, can't find token by ticket %s", l_ticker, l_params->ext.delegated_token_from);
 					return -91;
 				}
