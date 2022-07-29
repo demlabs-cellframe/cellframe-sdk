@@ -682,26 +682,42 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
         return false;
     l_params = (cond_params_t *) a_cond->params;
 
-    if( l_params->flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME ){
-        if ( l_params->time_unlock	<	dap_time_now())
+    if (l_params->flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME) {
+        if (l_params->time_unlock > dap_time_now())
             return false;
     }
 
-//	if (a_cond->subtype.srv_external_stake.time_unlock > time(NULL))
-//		return false;
-
-	dap_list_t *l_list_receipt = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_RECEIPT, NULL);
-	if (!l_list_receipt)
+	dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
+	if (!l_receipt)
 		return false;
 
-	dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT,NULL);
-	if (!l_list_out) {
-		dap_list_free(l_list_receipt);
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+	if (l_receipt->receipt_info.srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_LOCK_ID)
 		return false;
+#elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
+	if (l_receipt->receipt_info.srv_uid.uint128 != DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID)
+		return false;
+#endif
+
+	dap_hash_fast_t hash_burning_transaction;
+	char ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];//not used TODO: check ticker?
+	if (l_receipt->exts_size) {
+		memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
+		strcpy(ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
 	}
+
+	if (dap_hash_fast_is_blank(&hash_burning_transaction))
+		return false;
+
+
+//	dap_chain_net
+//	dap_chain_net_get_default_chain_by_chain_type();
+
+	dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
 
 	dap_chain_tx_out_t *burning_transaction = NULL;
 
+/*
 	for (dap_list_t *l_list_receipt_tmp = l_list_receipt; l_list_receipt_tmp; l_list_receipt_tmp = dap_list_next(l_list_receipt_tmp)) {
 		dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)l_list_receipt_tmp->data;
 
@@ -737,9 +753,7 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 		if (burning_transaction)
 			break;
 	}
-
-	dap_list_free(l_list_receipt);
-	dap_list_free(l_list_out);
+*/
 
 	if (!burning_transaction)
 		return false;
@@ -880,8 +894,10 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
     l_item->header.srv_uid = a_srv_uid;
     l_item->params_size = sizeof(cond_params_t);
     cond_params_t * l_params = (cond_params_t *) l_item->params;
-    if(a_time_staking)
-        l_params->time_unlock = dap_time_now() + a_time_staking;
+    if(a_time_staking) {
+		l_params->time_unlock = dap_time_now() + a_time_staking;
+		l_params->flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME;
+	}
     if(a_key)
         dap_hash_fast(a_key->pkey, a_key->header.size, &l_params->pkey_delegated );
 
