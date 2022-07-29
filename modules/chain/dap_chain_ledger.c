@@ -82,13 +82,13 @@ typedef struct dap_chain_ledger_token_emission_item {
     dap_chain_hash_fast_t tx_used_out;
     UT_hash_handle hh;
 } dap_chain_ledger_token_emission_item_t;
-
+/*TODO: use this table when issuing for special emission-transactions is approved. needed for smart contracts in the future
 typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
 	dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
 	const char 				datum_token_emission_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
 	UT_hash_handle hh;
 } dap_chain_ledger_token_emission_for_stake_lock_item_t;
-
+*/
 typedef struct dap_chain_ledger_token_item {
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t type;
@@ -1750,7 +1750,7 @@ dap_chain_ledger_token_emission_item_t *s_emission_item_find(dap_ledger_t *a_led
     pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
     return l_token_emission_item;
 }
-
+/*TODO: use this function when issuing for special emission-transactions is approved. needed for smart contracts in the future
 dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_find(dap_ledger_t *a_ledger,
 															 const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash)
 {
@@ -1769,7 +1769,7 @@ dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock
 	pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
 	return l_token_emission_item;
 }
-
+*/
 /**
  * @brief dap_chain_ledger_token_emission_find
  * @param a_token_ticker
@@ -2116,7 +2116,10 @@ static int s_check_out_cond_verificator_added(dap_chain_datum_tx_t *a_tx, dap_li
 			}
 			if (l_verificator->callback_added && l_verificator->callback_added(a_tx, l_tx_out) == false)
 				return -14;
+
 /*
+TODO: use this code when issuing for special emission-transactions is approved. needed for smart contracts in the future
+
 			dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
 			dap_chain_ledger_token_item_t * l_token_item = NULL;
 			pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
@@ -2248,7 +2251,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_token = l_tx_token->header.ticker;
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
-			if (!l_emission_item) {
+			if (!l_emission_item) {//check emission for STAKE_LOCK
 				dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
 				if (!l_datum_token
 				&&	l_datum_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) {
@@ -2294,8 +2297,21 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 				}
 				if (!EQUAL_256(out_cond_tx->header.value, out_tx->header.value)) {
 					debug_if(g_debug_reactor, L_DEBUG, "Value not equal for [%s]", l_tx_token->header.ticker);
+					l_err_num = -34;
+					break;
 				}
-				// TODO: ADD check tiker !!!
+				// check tiker
+				const char *tx_tiker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, l_emission_hash);
+				if (!tx_tiker) {
+					debug_if(g_debug_reactor, L_DEBUG, "No tiker stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
+					l_err_num = -33;
+					break;
+				}
+				if (strcmp(tx_tiker, l_tsd_section.ticker_token_from)) {
+					debug_if(g_debug_reactor, L_DEBUG, "Tikers not equal for [%s]", l_tx_token->header.ticker);
+					l_err_num = -34;
+					break;
+				}
 				debug_if(g_debug_reactor, L_DEBUG, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
 				break;
 			}
