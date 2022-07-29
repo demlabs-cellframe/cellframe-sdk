@@ -1406,12 +1406,11 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
     size_t l_buf_in_size = a_es->buf_in_size;
     struct iphdr *iph = (struct iphdr*) a_es->buf_in;
     if (s_debug_more) {
-        struct iphdr    *iph = (struct iphdr*)a_es->buf_in;
-        struct in_addr  in_daddr = { .s_addr = iph->daddr },
-                        in_saddr = { .s_addr = iph->saddr };
+        struct in_addr  l_in_daddr = { .s_addr = ((struct iphdr*)a_es->buf_in)->daddr },
+                        l_in_saddr = { .s_addr = ((struct iphdr*)a_es->buf_in)->saddr };
         char l_str_daddr[INET_ADDRSTRLEN], l_str_saddr[INET_ADDRSTRLEN];
-        dap_snprintf(l_str_saddr, sizeof(l_str_saddr), "%s", inet_ntoa(in_saddr));
-        dap_snprintf(l_str_daddr, sizeof(l_str_daddr), "%s", inet_ntoa(in_daddr));
+        inet_ntop(AF_INET, &l_in_saddr, l_str_saddr, sizeof(l_in_saddr));
+        inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, sizeof(l_in_daddr));
         log_it(L_DEBUG, "Received ip packet %s -> %s, tot_len: %u ",
                l_str_saddr, l_str_saddr, iph->tot_len);
     }
@@ -1438,7 +1437,7 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
         s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
     } else if (s_debug_more) {
         char l_str_daddr[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &l_in_daddr, l_str_daddr ,sizeof(l_in_daddr));
+        inet_ntop(AF_INET, &l_in_daddr, l_str_daddr, sizeof(l_in_daddr));
         log_it(L_WARNING, "Can't find route for desitnation %s", l_str_daddr);
     }
     a_es->buf_in_size=0;
