@@ -914,8 +914,6 @@ static bool s_chain_timer_callback(void *a_arg)
 
 static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
 {
-    if (s_ch_chain_get_idle(a_ch_chain))
-        return;
     if (!a_ch_chain->activity_timer) {
         dap_stream_ch_chain_timer_start( a_ch_chain);
     }

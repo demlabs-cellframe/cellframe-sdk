@@ -248,7 +248,7 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 
     l_cs_blocks_pvt->chunks = dap_chain_block_chunks_create(l_cs_blocks);
 
-    l_cs_blocks_pvt->block_size_maximum = 10 * 1024; // 1 Mb
+    l_cs_blocks_pvt->block_size_maximum = 1 * 1024 * 1024; // 1 Mb
     l_cs_blocks_pvt->fill_timeout = dap_config_get_item_uint64_default(a_chain_config, "blocks", "fill_timeout", 60) * 1000; // 1 min
     l_cs_blocks_pvt->blocks_count = 0;
 
