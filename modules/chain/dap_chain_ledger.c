@@ -2182,8 +2182,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     dap_chain_ledger_token_item_t * l_token_item = NULL;
     dap_chain_hash_fast_t *l_emission_hash = NULL;
 
-//	bool add_in_hash_table_if_stake_lock_pass = false;
-
     // check all previous transactions
     int l_err_num = 0;
     int l_prev_tx_count = 0;
@@ -2644,27 +2642,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -18;
                 break;
             }
-/*
-            // Check for add out callback
-            dap_chain_ledger_verificator_t * l_verificator;
-            int l_tmp = l_tx_out->header.subtype;
-
-            pthread_rwlock_rdlock(&s_verificators_rwlock);
-            HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
-            pthread_rwlock_unlock(&s_verificators_rwlock);
-            if (!l_verificator ) {
-                if(s_debug_more)
-                    log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
-                l_err_num = -13;
-                break;
-            }
-            if ( l_verificator->callback_added && l_verificator->callback_added( a_tx, l_tx_out) == false) {
-                l_err_num = -14;
-                break;
-            }
-*/
-//			if (l_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
-//				add_in_hash_table_if_stake_lock_pass = true;
 
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
@@ -2770,9 +2747,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     } else {
         *a_list_tx_out = l_list_tx_out;
     }
-
-//	if (!l_err_num && add_in_hash_table_if_stake_lock_pass)
-//		;//TODO: ADD TO HASH TABLE;
 
     return l_err_num;
 }

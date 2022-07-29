@@ -3631,7 +3631,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     if(l_chain_base_tx) {
         dap_chain_hash_fast_t *l_datum_tx_hash = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
                                                                 l_chain_emission->id, l_emission_value, l_ticker,
-                                                                l_addr, l_certs, l_certs_size/*, NO_TOKEN_TYPE*/);
+                                                                l_addr, l_certs, l_certs_size);
         char *l_tx_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(l_datum_tx_hash)
                                            : dap_enc_base58_encode_hash_to_str(l_datum_tx_hash);
         dap_chain_node_cli_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is%s placed in datum pool",
@@ -4885,7 +4885,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     if (l_emission_hash_str) {
         dap_hash_fast_t *l_tx_hash = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
                                                                       l_value, l_token_ticker, l_addr_to, l_certs,
-																	  l_certs_count/*, NO_TOKEN_TYPE*/);
+																	  l_certs_count);
         if (l_tx_hash){
             char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof (l_tx_hash_str));
