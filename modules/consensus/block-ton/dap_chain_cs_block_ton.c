@@ -733,21 +733,8 @@ static void s_session_candidate_to_chain(
     //DAP_DELETE(l_candidate);
 }
 
-static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session){
-    
-	// if (!a_session->my_candidate 
-	// 		|| a_session->my_candidate_attempts_count 
-	// 			>= PVT(a_session->ton)->my_candidate_attempts_max) {
-	// 	dap_chain_t *l_chain = a_session->chain;
-	// 	dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
-	// 	s_session_my_candidate_delete(a_session);
-	// 	if ( l_blocks->block_new_size && l_blocks->block_new) {
-	// 		a_session->my_candidate = (dap_chain_block_t *)DAP_DUP_SIZE(l_blocks->block_new, l_blocks->block_new_size);
-	// 		a_session->my_candidate_size = l_blocks->block_new_size;
-	// 		s_session_block_new_delete(a_session);
-	// 	}
-	// }
-	
+static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session)
+{
 	dap_chain_t *l_chain = a_session->chain;
 	dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 	s_session_my_candidate_delete(a_session);
@@ -761,11 +748,6 @@ static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session
 	size_t l_submit_size = a_session->my_candidate ? 
 				sizeof(dap_chain_cs_block_ton_message_submit_t)+a_session->my_candidate_size
 					: sizeof(dap_chain_cs_block_ton_message_submit_t);
-	
-	// dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain);
-	// size_t l_submit_size = l_blocks->block_new ? 
-	// 			sizeof(dap_chain_cs_block_ton_message_submit_t)+a_session->my_candidate_size
-	// 				: sizeof(dap_chain_cs_block_ton_message_submit_t);
 
 	dap_chain_cs_block_ton_message_submit_t *l_submit =
 							DAP_NEW_SIZE(dap_chain_cs_block_ton_message_submit_t, l_submit_size);
