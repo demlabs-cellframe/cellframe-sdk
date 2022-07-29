@@ -365,11 +365,6 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 
 	l_owner_key	= dap_chain_wallet_get_key(l_wallet, 0);
 
-	if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
-		dap_chain_datum_tx_delete(l_tx);
-		log_it( L_ERROR, "Can't add sign output");
-        return STAKE_ERROR;
-	}
 	//add burning tx
 	l_tx_burning_hash = dap_chain_mempool_tx_create(l_chain, l_owner_key, l_owner_addr, NULL,
 													delegate_token_str, l_tx_out_cond->header.value, l_value_fee);
@@ -380,6 +375,12 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 	l_receipt	=	s_external_stake_receipt_create(l_tx_burning_hash, delegate_token_str, l_tx_out_cond->header.value);
 
 	dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
+
+	if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
+		dap_chain_datum_tx_delete(l_tx);
+		log_it( L_ERROR, "Can't add sign output");
+		return STAKE_ERROR;
+	}
 
 	// Put the transaction to mempool or directly to chains
 	l_tx_size = dap_chain_datum_tx_get_size(l_tx);
