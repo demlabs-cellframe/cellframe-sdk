@@ -51,7 +51,10 @@ enum error_code {
     WALLET_OPEN_ERROR		= 16,
     CERT_KEY_ERROR			= 17,
     WALLET_ADDR_ERROR		= 18,
-    STAKE_ERROR  			= 19
+    STAKE_ERROR  			= 19,
+	TX_ARG_ERROR			= 20,
+	HASH_IS_BLANK_ERROR		= 21,
+	NO_TX_ERROR				= 22
 };
 
 /**
@@ -78,9 +81,9 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
 bool dap_chain_net_srv_stake_lock_init()
 {
     dap_chain_node_cli_cmd_item_create("stake_lock", s_cli_stake_lock, "Stake lock service commands",
-       "stake_lock hold -net <net name> -wallet <wallet name> -chain <chain> -chain_emission <chain>\n"
-	    "-months <from 1 to 8 (1 unit is equal to 3 months)> -token <ticker> -coins <value> -cert <name>\n"
-    "stake_lock take -net <net name> -token <ticker> -tx <transaction hash> -tx_burning <transaction hash> -wallet <wallet name> -coins <value>"
+       "stake_lock hold -net <net name> -wallet <wallet name> -time_staking <in rfc822>\n"
+	    		"-token <ticker> -coins <value> -cert <name> -chain <chain (not necessary)> -chain_emission <chain (not necessary)>\n"
+    			"stake_lock take -net <net name> -tx <transaction hash> -wallet <wallet name>"
 	);
 
 	return true;
@@ -174,14 +177,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 
 	if (IS_ZERO_256( (l_value = dap_chain_balance_scan(l_coins_str)) ))
 		return COINS_FORMAT_ERROR;
-/*
-	if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr_holder", &l_addr_holder_str)
-	||	NULL == l_addr_holder_str)
-		return ADDR_ARG_ERROR;
 
-	if (NULL == (l_addr_holder = dap_chain_addr_from_str(l_addr_holder_str)))
-		return ADDR_FORMAT_ERROR;
-*/
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str)
 	||	NULL == l_cert_str)
 		return CERT_ARG_ERROR;
@@ -262,62 +258,10 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 																  &l_cert, 1/*, STAKE_DELEGATED*/);
 
 	if (l_base_tx_hash) {
-//		char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-//		dap_chain_hash_fast_to_str(l_base_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
-//		dap_string_append_printf(string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
 		log_it(L_INFO, "GOOD!");
 		DAP_DEL_Z(l_base_tx_hash);
 	}
 
-/*
-		dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_create(l_value, delegate_token_str, l_addr_holder);
-		l_emission = dap_chain_datum_emission_add_sign(l_cert->enc_key, l_emission);
-		size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)l_emission);
-		dap_chain_hash_fast_t l_emission_hash;
-		dap_hash_fast(l_emission, l_emission_size, &l_emission_hash);
-		dap_chain_datum_t *l_datum_emission = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_EMISSION, l_emission, l_emission_size);
-		DAP_DEL_Z(l_emission);
-		char *l_gdb_group_mempool_emission = dap_chain_net_get_gdb_group_mempool_new(l_chain_emission);
-		size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
-		dap_chain_hash_fast_t l_datum_emission_hash;
-		dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_datum_emission_hash);
-		const char *l_emission_hash_str = NULL;
-		l_emission_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_emission_hash);
-		bool l_placed = dap_global_db_set_sync( l_gdb_group_mempool_emission, l_emission_hash_str,
-												l_datum_emission, l_datum_emission_size, true) == 0;
-		log_it(L_INFO, "Datum %s with emission is%s placed in datum pool", l_emission_hash_str, l_placed ? "" : " not");
-		DAP_DEL_Z(l_emission_hash_str);
-		if (!l_placed) {
-			DAP_DEL_Z(l_datum_emission);
-			return ERROR;
-		}
-//		if (l_emission_hash_str_remove)
-//			dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
-		if(l_chain_base_tx) {
-			dap_chain_hash_fast_t *l_datum_tx_hash = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
-																					  l_chain_emission->id, l_emission_value, l_ticker,
-																					  l_addr, l_certs, l_certs_size);
-			char *l_tx_hash_str = l_hex_format ? dap_chain_hash_fast_to_str_new(l_datum_tx_hash)
-											   : dap_enc_base58_encode_hash_to_str(l_datum_tx_hash);
-			dap_chain_node_cli_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is%s placed in datum pool",
-											  str_reply_tmp, l_tx_hash_str, l_placed ? "" : " not");
-			DAP_DEL_Z(l_tx_hash_str);
-			DAP_DEL_Z(str_reply_tmp);
-		} else{ // if transaction was not specified when emission was added we need output only emission result
-			dap_chain_node_cli_set_reply_text(a_str_reply, str_reply_tmp);
-		}
-		DAP_DEL_Z(str_reply_tmp);
-		DAP_DEL_Z(l_addr);
-		DAP_DEL_Z(l_certs);
-
-
-	} else {
-		log_it(L_INFO, "FALSE BASE TX");
-		DAP_DEL_Z(l_tx_cond_hash);
-		DAP_DEL_Z(l_addr_holder);
-		return ERROR;
-	}
-*/
 	DAP_DEL_Z(l_tx_cond_hash);
 	DAP_DEL_Z(l_addr_holder);
 
@@ -328,46 +272,91 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 {
 	const char *l_net_str, *l_token_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_coins_str;
 	l_net_str = l_token_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_coins_str = NULL;
-	dap_chain_net_t			*l_net					= NULL;
-	const char				*l_wallets_path 		= dap_chain_wallet_get_path(g_config);
-	dap_chain_wallet_t		*l_wallet;
-	dap_hash_fast_t			l_tx_hash;
-	dap_hash_fast_t 		l_tx_burning_hash;
-	uint256_t 				l_value;
+	dap_chain_net_t						*l_net				=	NULL;
+	const char							*l_wallets_path		=	dap_chain_wallet_get_path(g_config);
+	dap_chain_net_srv_price_unit_uid_t	l_unit				=	{ .uint32 = SERV_UNIT_UNDEFINED};
+	dap_chain_net_srv_uid_t				l_uid				=	{ .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+	int									l_prev_cond_idx		=	0;
+	dap_ledger_t						*l_ledger;
+	dap_chain_wallet_t					*l_wallet;
+	dap_hash_fast_t						l_tx_hash;
+	dap_hash_fast_t 					l_tx_burning_hash;
+	uint256_t 							l_value;
+	dap_chain_datum_tx_receipt_t		*l_receipt;
+	dap_chain_datum_tx_t				*l_tx;
+	dap_chain_datum_tx_t				*l_cond_tx;
+	dap_chain_tx_out_cond_t				*l_tx_out_cond;
+	dap_chain_addr_t					*l_owner_addr;
+	dap_enc_key_t						*l_owner_key;
+	size_t								l_tx_size;
+	dap_chain_datum_t					*l_datum;
+	dap_chain_t							*l_chain;
 
-	dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str);
-	l_net = dap_chain_net_by_name(l_net_str);
+	dap_string_append_printf(output_line, "---> TAKE <---\n");
 
-	dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_str);
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
+	||	NULL == l_net_str)
+		return NET_ARG_ERROR;
+
+	if (NULL == (l_net = dap_chain_net_by_name(l_net_str))) {
+		dap_string_append_printf(output_line, "'%s'", l_net_str);
+		return NET_ERROR;
+	}
+
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_str)
+	||	NULL == l_tx_str)
+		return TX_ARG_ERROR;
+
 	dap_chain_hash_fast_from_hex_str(l_tx_str, &l_tx_hash);
 
-	dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-tx_burning", &l_tx_burning_str);
-	dap_chain_hash_fast_from_hex_str(l_tx_burning_str, &l_tx_burning_hash);
+	if (dap_hash_fast_is_blank(&l_tx_hash))
+		return HASH_IS_BLANK_ERROR;
 
-	dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str);
+	l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
 
-	dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_token_str);
+	l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
 
-	dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str);
-	l_value = dap_chain_balance_scan(l_coins_str);
+	if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx)))
+		return STAKE_ERROR;
 
-	dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+	if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
+		return STAKE_ERROR;
+	}
 
-	dap_chain_net_srv_price_unit_uid_t l_unit 	= { .uint32 = SERV_UNIT_UNDEFINED};
-    dap_chain_net_srv_uid_t l_uid				= { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
-	dap_chain_datum_tx_receipt_t *l_receipt		=	s_external_stake_receipt_create(l_tx_burning_hash, l_token_str, l_value);
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
+	||	NULL == l_wallet_str)
+		return WALLET_ARG_ERROR;
+
+	if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path)))
+		return WALLET_OPEN_ERROR;
+
+	if (NULL == (l_owner_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(l_wallet, l_net->pub.id)))
+		return WALLET_ADDR_ERROR;
+
+	l_tx = dap_chain_datum_tx_create();
+
+	dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0);
+
+	dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_tx_out_cond->header.value);
+
+	dap_chain_wallet_close(l_wallet);
+	DAP_DEL_Z(l_owner_addr);
+
+//	l_value = dap_chain_balance_scan(l_coins_str);
+
+
+//	dap_chain_datum_tx_receipt_t		*l_receipt	=	s_external_stake_receipt_create(l_tx_burning_hash, l_token_str, l_value);
 
 	dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
 
-	dap_ledger_t 		*l_ledger		= dap_chain_ledger_by_net_name(l_net->pub.name);
-	l_wallet							= dap_chain_wallet_open(l_wallet_str, l_wallets_path);
-	dap_chain_addr_t	*l_owner_addr	= (dap_chain_addr_t *)dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-	dap_enc_key_t		*l_owner_key	= dap_chain_wallet_get_key(l_wallet, 0);
+//	dap_ledger_t 		*l_ledger		= dap_chain_ledger_by_net_name(l_net->pub.name);
 
-	dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
+	l_owner_addr	= (dap_chain_addr_t *)dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+	l_owner_key	= dap_chain_wallet_get_key(l_wallet, 0);
 
-	int l_prev_cond_idx = 0;
-	dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
+	l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
+
+	l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
 	if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
 		log_it(L_WARNING, "ERROR");
         return STAKE_ERROR;
@@ -377,7 +366,7 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 
 	dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_tx_out_cond->header.value);
 
-	DAP_DEL_Z(l_owner_addr);
+/*________________________________________________________________________________________________________________*/
 
 	if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
 		dap_chain_datum_tx_delete(l_tx);
@@ -386,10 +375,10 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 	}
 
 	// Put the transaction to mempool or directly to chains
-	size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-	dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+	l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+	l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
 
-	dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+	l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
 	if (!l_chain) {
         return STAKE_ERROR;
 	}
@@ -408,7 +397,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 	switch (errorCode)
 	{
 		case NET_ARG_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command required parameter -net");
+			dap_string_append_printf(output_line, "stake_lock command required parameter -net");
 			} break;
 
 		case NET_ERROR: {
@@ -416,7 +405,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case TOKEN_ARG_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command required parameter -token");
+			dap_string_append_printf(output_line, "stake_lock command required parameter -token");
 			} break;
 
 		case TOKEN_ERROR: {
@@ -424,7 +413,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case COINS_ARG_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command required parameter -coins");
+			dap_string_append_printf(output_line, "stake_lock command required parameter -coins");
 			} break;
 
 		case COINS_FORMAT_ERROR: {
@@ -432,7 +421,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case ADDR_ARG_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command required parameter -addr_holder");
+			dap_string_append_printf(output_line, "stake_lock command required parameter -addr_holder");
 			} break;
 
 		case ADDR_FORMAT_ERROR: {
@@ -440,7 +429,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case CERT_ARG_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command required parameter -cert");
+			dap_string_append_printf(output_line, "stake_lock command required parameter -cert");
 			} break;
 
 		case CERT_LOAD_ERROR: {
@@ -448,12 +437,12 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case CHAIN_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command requires parameter '-chain'.\n"
+			dap_string_append_printf(output_line, "stake_lock command requires parameter '-chain'.\n"
 														   				"you can set default datum type in chain configuration file");
 			} break;
 
 		case CHAIN_EMISSION_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command requires parameter '-chain_emission'.\n"
+			dap_string_append_printf(output_line, "stake_lock command requires parameter '-chain_emission'.\n"
 														   				"you can set default datum type in chain configuration file");
 			} break;
 
@@ -468,7 +457,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case WALLET_ARG_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command required parameter -wallet");
+			dap_string_append_printf(output_line, "stake_lock command required parameter -wallet");
 			} break;
 
 		case WALLET_OPEN_ERROR: {
@@ -481,6 +470,22 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 
 		case WALLET_ADDR_ERROR: {
 			dap_string_append_printf(output_line, " - failed to get wallet address");
+			} break;
+
+		case TX_ARG_ERROR: {
+			dap_string_append_printf(output_line, "stake_lock command required parameter -tx");
+			} break;
+
+		case HASH_IS_BLANK_ERROR: {
+			dap_string_append_printf(output_line, "tx hash is blank");
+			} break;
+
+		case NO_TX_ERROR: {
+			dap_string_append_printf(output_line, " - could not find transaction");
+			} break;
+
+		case STAKE_ERROR: {
+			dap_string_append_printf(output_line, "TAKE ERROR");
 			} break;
 
 		default: {
