@@ -178,7 +178,6 @@ static void s_ch_vpn_new(dap_stream_ch_t* ch, void* arg);
 static void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
 static void s_ch_packet_in(dap_stream_ch_t* ch, void* a_arg);
 static void s_ch_packet_out(dap_stream_ch_t* ch, void* arg);
-static void s_ch_vpn_io_complete(dap_events_socket_t *a_es, void *a_arg, int a_errno);
 
 //static int srv_ch_sf_raw_write(uint8_t op_code, const void * data, size_t data_size);
 //static void srv_stream_sf_disconnect(ch_vpn_socket_proxy_t * sf_sock);
@@ -194,6 +193,7 @@ static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg);
 static void s_es_tun_read(dap_events_socket_t * a_es, void * arg);
 static void s_es_tun_error(dap_events_socket_t * a_es,int arg);
 static void s_es_tun_write(dap_events_socket_t *a_es, void *arg);
+static void s_es_tun_write_finished(dap_events_socket_t *a_es, void *a_arg, int a_errno);
 
 static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void * a_msg );
 static void s_tun_send_msg_ip_assigned(uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr);
@@ -515,7 +515,7 @@ static dap_events_socket_t * s_tun_event_stream_create(dap_worker_t * a_worker, 
         .write_callback         = s_es_tun_write,
         .error_callback         = s_es_tun_error,
         .delete_callback        = s_es_tun_delete,
-        .write_finished_callback= s_ch_vpn_io_complete
+        .write_finished_callback= s_es_tun_write_finished
     };
     dap_events_socket_t * l_es = dap_events_socket_wrap_no_add(a_worker->events ,
                                           a_tun_fd, &l_s_callbacks);
@@ -1347,22 +1347,23 @@ static void s_es_tun_write(dap_events_socket_t *a_es, void *arg)
     (void) arg;
     dap_chain_net_srv_vpn_tun_socket_t *l_tun = CH_SF_TUN_SOCKET(a_es);
     assert(l_tun);
-    assert(l_tun->es == a_es); // If yes, why we ever need that inheritor?...
-    for (size_t l_shift = 0, l_pkt_size = 0, l_bytes_written = 0; l_tun->es->buf_out_size; ) {
+    assert(l_tun->es == a_es);
+    size_t l_shift = 0;
+    for (size_t l_pkt_size = 0, l_bytes_written = 0; l_tun->es->buf_out_size; ) {
         ch_vpn_pkt_t *l_vpn_pkt = (ch_vpn_pkt_t *)(l_tun->es->buf_out + l_shift);
         l_pkt_size = l_vpn_pkt->header.op_data.data_size;
         l_bytes_written = write(l_tun->es->fd, l_vpn_pkt->data, l_pkt_size);
-        if (l_bytes_written > 0) {
+        if (l_bytes_written == l_pkt_size) {
             l_pkt_size += sizeof(l_vpn_pkt->header);
             l_tun->es->buf_out_size -= l_pkt_size;
             l_shift += l_pkt_size;
-            debug_if(l_bytes_written != l_pkt_size, L_WARNING, /* How on earth can this be?... */
-                     "Error on writing pkt to tun: sent %zd / %zd bytes", l_bytes_written, l_pkt_size);
         } else {
             int l_errno = errno;
+            debug_if(l_bytes_written > 0, L_WARNING, /* How on earth can this be?... */
+                     "Error on writing pkt to tun: sent %zd / %zd bytes", l_bytes_written, l_pkt_size);
             switch (l_errno) {
             case EAGAIN:
-                /* Leaving the rest untouched untill next cycle */
+                /* Unwritten packets remain untouched in da buffa */
                 break;
             default: {
                 char l_errbuf[128];
@@ -1373,6 +1374,23 @@ static void s_es_tun_write(dap_events_socket_t *a_es, void *arg)
             break; // Finish the buffer processing immediately
         }
     }
+    if (l_tun->es->buf_out_size) {
+        memmove(l_tun->es->buf_out, &l_tun->es->buf_out[l_shift], l_tun->es->buf_out_size);
+    }
+    l_tun->buf_size_aux = l_tun->es->buf_out_size;  /* We backup the genuine buffer size... */
+    l_tun->es->buf_out_size = 0;                    /* ... and insure the socket against coursing thru regular writing operations */
+}
+
+static void s_es_tun_write_finished(dap_events_socket_t *a_es, void *a_arg, int a_errno) {
+    UNUSED(a_arg);
+    UNUSED(a_errno);
+    dap_chain_net_srv_vpn_tun_socket_t *l_tun = CH_SF_TUN_SOCKET(a_es);
+    assert(l_tun);
+    assert(l_tun->es == a_es);
+    l_tun->es->buf_out_size = l_tun->buf_size_aux; /* Backup the genuine buffer size */
+    dap_events_socket_set_writable_unsafe(a_es, l_tun->buf_size_aux > 0);
+    debug_if(s_debug_more, L_INFO, "%zd bytes still in buf_out, poll again", l_tun->buf_size_aux);
+    l_tun->buf_size_aux = 0;
 }
 
 /**
