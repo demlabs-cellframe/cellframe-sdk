@@ -134,6 +134,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 	dap_chain_t				*l_chain										= NULL;
 	dap_chain_t				*l_chain_emission								= NULL;
     dap_chain_net_srv_uid_t	l_uid											= { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+	dap_time_t              l_time_staking									= 0;
 	char					*l_hash_str;
 	dap_hash_fast_t			*l_tx_cond_hash;
 	dap_hash_fast_t 		*l_base_tx_hash;
@@ -143,7 +144,6 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 	dap_chain_wallet_t		*l_wallet;
 	dap_chain_addr_t		*l_addr_holder;
 	dap_cert_t				*l_cert;
-    dap_time_t              l_time_staking = 0;
 
 	dap_string_append_printf(output_line, "---> HOLD <---\n");
 
@@ -747,6 +747,18 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
  */
 bool	dap_chain_net_srv_stake_lock_verificator_added(dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
+	dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
+	if (!l_key_hash)
+		return false;
+	size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
+	dap_hash_fast( a_tx, l_tx_size, l_key_hash);
+	if (dap_hash_fast_is_blank(l_key_hash)) {
+		DAP_DEL_Z(l_key_hash);
+		return false;
+	}
+
+	DAP_DEL_Z(l_key_hash);
+
     return true;
 }
 
