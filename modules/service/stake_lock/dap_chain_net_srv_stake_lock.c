@@ -709,13 +709,30 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 	if (dap_hash_fast_is_blank(&hash_burning_transaction))
 		return false;
 
+	dap_chain_tx_out_t *burning_transaction = NULL;
 
 //	dap_chain_net
 //	dap_chain_net_get_default_chain_by_chain_type();
 
 	dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
 
-	dap_chain_tx_out_t *burning_transaction = NULL;
+	if (!l_tx_out)
+		return false;
+
+	dap_chain_net_t *l_net = dap_chain_net_by_id(l_tx_out->addr.net_id);
+	dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
+
+	burning_transaction = (dap_chain_tx_out_t *)dap_chain_ledger_tx_find_by_hash(l_ledger, &hash_burning_transaction);
+
+	if (!burning_transaction)
+		return false;
+
+	const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction->addr.data.hash_fast);
+	log_it(L_INFO, "ADDR from burning TX: %s", addr_srt);
+	DAP_DEL_Z(addr_srt);
+
+	if (!EQUAL_256(burning_transaction->header.value, l_tx_out->header.value))
+		return false;
 
 /*
 	for (dap_list_t *l_list_receipt_tmp = l_list_receipt; l_list_receipt_tmp; l_list_receipt_tmp = dap_list_next(l_list_receipt_tmp)) {
@@ -754,13 +771,14 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 			break;
 	}
 */
+//
+//	if (!burning_transaction)
+//		return false;
+//
+//	if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
+//    &&	!compare256(burning_transaction->header.value, a_cond->header.value ))
+//		return true;
 
-	if (!burning_transaction)
-		return false;
-
-	if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
-    &&	!compare256(burning_transaction->header.value, a_cond->header.value ))
-		return true;
 	return false;
 }
 
