@@ -8,7 +8,9 @@
 #include "dap_enc_tesla_test.h"
 #include "dap_enc_dilithium_test.h"
 #include "dap_enc_ringct20_test.h"
+#ifndef DAP_CRYPTO_MULTISIGN_TEST_OFF
 #include "dap_enc_sign_multi_test.h"
+#endif
 #include "rand/dap_rand.h"
 
 #include "dap_common.h"
@@ -19,7 +21,10 @@ int main(void) {
     // switch off debug info from library
     dap_log_level_set(L_CRITICAL);
     const int test_numbers = 100;
+#ifndef DAP_CRYPTO_NEWHOPE_TEST_OFF
     dap_enc_newhope_tests_run(test_numbers);
+#endif
+
     test_encypt_decrypt(test_numbers, DAP_ENC_KEY_TYPE_SALSA2012, 32);
     test_encypt_decrypt_fast(test_numbers, DAP_ENC_KEY_TYPE_SALSA2012, 32);
     test_encypt_decrypt(test_numbers, DAP_ENC_KEY_TYPE_SEED_OFB, 32);
@@ -48,7 +53,9 @@ int main(void) {
     dap_enc_defeo_tests_run();
     dap_enc_tesla_tests_run();
 
+#ifndef DAP_CRYPTO_MULTISIGN_TEST_OFF
     dap_enc_multi_sign_tests_run();
+#endif
 
     dap_enc_ringct20_tests_run(100);
 }
