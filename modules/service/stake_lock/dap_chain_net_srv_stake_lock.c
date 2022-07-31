@@ -45,7 +45,7 @@ enum error_code {
     CERT_LOAD_ERROR			= 10,
     CHAIN_ERROR				= 11,
     CHAIN_EMISSION_ERROR	= 12,
-    MONTHS_ERROR			= 13,
+    TIME_ERROR				= 13,
     NO_MONEY_ERROR			= 14,
     WALLET_ARG_ERROR		= 15,
     WALLET_OPEN_ERROR		= 16,
@@ -209,10 +209,14 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 		return WALLET_ARG_ERROR;
 
     // Read time staking
-    dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str);
-    if(l_time_staking_str){
-        l_time_staking = 10;//dap_time_from_str_rfc822(l_time_staking_str);
-    }
+    if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
+    ||	NULL == l_time_staking_str)
+		return TIME_ERROR;
+
+	if (dap_time_from_str_rfc822(l_time_staking_str) <= 0)//TODO: add proper validation!!!
+		return TIME_ERROR;
+
+	l_time_staking = dap_time_from_str_rfc822(l_time_staking_str);
 
 	if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
 		dap_string_append_printf(output_line, "'%s'", l_wallet_str);
@@ -369,9 +373,6 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 	l_tx_burning_hash = dap_chain_mempool_tx_create(l_chain, l_owner_key, l_owner_addr, NULL,
 													delegate_token_str, l_tx_out_cond->header.value, l_value_fee);
 
-	dap_chain_wallet_close(l_wallet);
-	DAP_DEL_Z(l_owner_addr);
-
 	l_receipt	=	s_external_stake_receipt_create(l_tx_burning_hash, delegate_token_str, l_tx_out_cond->header.value);
 
 	dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
@@ -381,6 +382,9 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 		log_it( L_ERROR, "Can't add sign output");
 		return STAKE_ERROR;
 	}
+
+	dap_chain_wallet_close(l_wallet);
+	DAP_DEL_Z(l_owner_addr);
 
 	// Put the transaction to mempool or directly to chains
 	l_tx_size = dap_chain_datum_tx_get_size(l_tx);
@@ -454,10 +458,8 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 														   				"you can set default datum type in chain configuration file");
 			} break;
 
-		case MONTHS_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command requires parameter '-months'.\n"
-														   				"use values from 1 to 8. 1 unit equals 3 months.\n"
-																		   "for example: if you need 1 year - write 4");
+		case TIME_ERROR: {
+			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in rfc822 format");
 			} break;
 
 		case NO_MONEY_ERROR: {
@@ -710,7 +712,8 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 	if (dap_hash_fast_is_blank(&hash_burning_transaction))
 		return false;
 
-	dap_chain_tx_out_t *burning_transaction = NULL;
+	dap_chain_datum_tx_t *burning_tx = NULL;
+	dap_chain_tx_out_t *burning_transaction_out = NULL;
 
 //	dap_chain_net
 //	dap_chain_net_get_default_chain_by_chain_type();
@@ -723,64 +726,26 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 	dap_chain_net_t *l_net = dap_chain_net_by_id(l_tx_out->addr.net_id);
 	dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
 
-	burning_transaction = (dap_chain_tx_out_t *)dap_chain_ledger_tx_find_by_hash(l_ledger, &hash_burning_transaction);
+	burning_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &hash_burning_transaction);
+	burning_transaction_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(burning_tx, 0, TX_ITEM_TYPE_OUT,0);
 
-	if (!burning_transaction)
+	if (!burning_transaction_out)
 		return false;
 
-	const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction->addr.data.hash_fast);
+	const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction_out->addr.data.hash_fast);
 	log_it(L_INFO, "ADDR from burning TX: %s", addr_srt);
+	if (!dap_hash_fast_is_blank(&burning_transaction_out->addr.data.hash_fast))
+		return false;
 	DAP_DEL_Z(addr_srt);
 
-	if (!EQUAL_256(burning_transaction->header.value, l_tx_out->header.value))
+	char *str1 = dap_chain_balance_print(burning_transaction_out->header.value);
+	char *str2 = dap_chain_balance_print(l_tx_out->header.value);
+	log_it(L_INFO, "burning: |%s| value: |%s|", str1, str2);
+
+	if (!EQUAL_256(burning_transaction_out->header.value, l_tx_out->header.value))
 		return false;
 
-/*
-	for (dap_list_t *l_list_receipt_tmp = l_list_receipt; l_list_receipt_tmp; l_list_receipt_tmp = dap_list_next(l_list_receipt_tmp)) {
-		dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)l_list_receipt_tmp->data;
-
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-        if (l_receipt->receipt_info.srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_LOCK_ID)
-			continue;
-#elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
-		if (l_receipt->receipt_info.srv_uid.uint128 != DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID)
-			continue;
-#endif
-
-		dap_hash_fast_t hash_burning_transaction;
-		char ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];//not used TODO: check ticker?
-		if (l_receipt->exts_size) {
-			memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
-			strcpy(ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
-		}
-		else
-			continue;
-
-		if (dap_hash_fast_is_blank(&hash_burning_transaction))
-			continue;
-
-		for (dap_list_t *l_list_out_tmp = l_list_out; l_list_out_tmp; l_list_out_tmp = dap_list_next(l_list_out_tmp)) {
-			dap_hash_fast_t *out_tx_hash = dap_chain_node_datum_tx_calc_hash((dap_chain_datum_tx_t *)l_list_out_tmp->data);
-			if (dap_hash_fast_compare(&hash_burning_transaction, out_tx_hash)) {
-				burning_transaction = (dap_chain_tx_out_t *)l_list_out_tmp->data;
-				DAP_DEL_Z(out_tx_hash);
-				break;
-			}
-			DAP_DEL_Z(out_tx_hash);
-		}
-		if (burning_transaction)
-			break;
-	}
-*/
-//
-//	if (!burning_transaction)
-//		return false;
-//
-//	if (dap_hash_fast_is_blank(&burning_transaction->addr.data.hash_fast)
-//    &&	!compare256(burning_transaction->header.value, a_cond->header.value ))
-//		return true;
-
-	return false;
+	return true;
 }
 
 /**
