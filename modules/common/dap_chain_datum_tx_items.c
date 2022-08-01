@@ -478,9 +478,9 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
  */
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count)
 {
-dap_list_t *items_list = NULL;
-int l_items_count = 0, l_item_idx_start = 0;
-uint8_t *l_tx_item;
+	dap_list_t *items_list = NULL;
+	int l_items_count = 0, l_item_idx_start = 0;
+	uint8_t *l_tx_item;
 
     // Get sign item from transaction
     while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL)) != NULL)
