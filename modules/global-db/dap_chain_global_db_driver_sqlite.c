@@ -610,7 +610,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
             return -1;
         char *l_blob_value = s_dap_db_driver_get_string_from_blob(a_store_obj->value, (int)a_store_obj->value_len);
         //add one record
-        l_query = sqlite3_mprintf("INSERT INTO '%s' values(NULL, '%s', x'', '%lld', x'%s')",
+        l_query = sqlite3_mprintf("REPLACE INTO '%s' values(NULL, '%s', x'', '%lld', x'%s')",
                                    l_table_name, a_store_obj->key, a_store_obj->timestamp, l_blob_value);
         s_dap_db_driver_sqlite_free(l_blob_value);
     }
