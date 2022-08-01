@@ -787,14 +787,16 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 
     //switch ledger params list | tx | info
     int l_cmd = CMD_NONE;
-    if (dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "list", NULL)){
+    if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
         l_cmd = CMD_LIST;
-    } else if (dap_chain_node_cli_find_option_val(a_argv, 1, 2, "tx", NULL)){
+    } else if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "tx", NULL)){
         l_cmd = CMD_TX_HISTORY;
-    } else if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "info", NULL))
+    } else if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "info", NULL))
         l_cmd = CMD_TX_INFO;
 
-    bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-all", NULL);
+    bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
+
+    arg_index++;
 
     // command tx_history
     if(l_cmd == CMD_TX_HISTORY) {
