@@ -283,7 +283,11 @@ static int s_check_db_version(dap_config_t *g_config)
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
     const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "mdbx");
+#if defined(DAP_OS_DARWIN) || defined (DAP_OS_WINDOWS)
+    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "sqlite");
+#else
+    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "mdbx");
+#endif
     //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
 
     s_track_history = dap_config_get_item_bool_default(g_config, "resources", "dap_global_db_track_history", s_track_history);

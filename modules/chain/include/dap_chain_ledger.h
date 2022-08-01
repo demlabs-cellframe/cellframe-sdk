@@ -66,6 +66,7 @@ typedef bool (* dap_chain_ledger_verificator_callback_out_t)(dap_ledger_t * a_le
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
 #define DAP_CHAIN_LEDGER_TXS_STR                 "txs"
 #define DAP_CHAIN_LEDGER_SPENT_TXS_STR           "spent_txs"
+#define DAP_CHAIN_LEDGER_SPENT_TXS_TIME_STR           "spent_txs_time"
 #define DAP_CHAIN_LEDGER_BALANCES_STR            "balances"
 
 int dap_chain_ledger_init();

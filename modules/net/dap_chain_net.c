@@ -26,6 +26,7 @@
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#include "dap_chain_datum_tx.h"
 #endif
 #ifndef  _XOPEN_SOURCE
 #define _XOPEN_SOURCE       /* See feature_test_macros(7) */
@@ -3233,6 +3234,165 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
     }
 }
 
+
+/**
+ * @brief For now it returns all COND_IN transactions
+ * @param a_net
+ * @param a_srv_uid
+ * @param a_search_type
+ * @return Hash lists of dap_chain_datum_tx_item_t with conditional transaction and it spending if present
+ */
+dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
+                                                      const dap_time_t a_time_from, const dap_time_t a_time_to,
+                                                     const dap_chain_net_tx_search_type_t a_search_type)
+{
+    dap_ledger_t * l_ledger = a_net->pub.ledger;
+    dap_chain_datum_tx_spends_items_t * l_ret = DAP_NEW_Z(dap_chain_datum_tx_spends_items_t);
+
+    switch (a_search_type) {
+        case TX_SEARCH_TYPE_NET:
+        case TX_SEARCH_TYPE_CELL:
+        case TX_SEARCH_TYPE_LOCAL:
+        case TX_SEARCH_TYPE_CELL_SPENT:
+        case TX_SEARCH_TYPE_NET_UNSPENT:
+        case TX_SEARCH_TYPE_CELL_UNSPENT:
+        case TX_SEARCH_TYPE_NET_SPENT: {
+            // pass all chains
+            for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
+                dap_chain_cell_t * l_cell, *l_cell_tmp;
+                // Go through all cells
+                HASH_ITER(hh,l_chain->cells,l_cell, l_cell_tmp){
+                    dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain,l_cell->id, false  );
+                    // try to find transaction in chain ( inside shard )
+                    size_t l_atom_size = 0;
+                    dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+
+                    // Check atoms in chain
+                    while(l_atom && l_atom_size) {
+                        size_t l_datums_count = 0;
+                        dap_chain_datum_t **l_datums = l_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
+                        // transaction
+                        dap_chain_datum_tx_t *l_tx = NULL;
+
+                        for (size_t i = 0; i < l_datums_count; i++) {
+                            // Check if its transaction
+                            if (l_datums && (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX)) {
+                                l_tx = (dap_chain_datum_tx_t *)l_datums[i]->data;
+                            }
+
+                            // If found TX
+                            if (l_tx){
+                                // Check for time from
+                                if(a_time_from && l_tx->header.ts_created < a_time_from)
+                                        continue;
+
+                                // Check for time to
+                                if(a_time_to && l_tx->header.ts_created > a_time_to)
+                                        continue;
+
+                                if(a_search_type == TX_SEARCH_TYPE_CELL_SPENT || a_search_type == TX_SEARCH_TYPE_NET_SPENT ){
+                                    dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
+                                    bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
+                                    DAP_DELETE(l_tx_hash);
+                                    if(!l_is_spent)
+                                        continue;
+                                }
+
+                                // Go through all items
+                                uint32_t l_tx_items_pos = 0, l_tx_items_size = l_tx->header.tx_items_size;
+                                int l_item_idx = 0;
+                                while (l_tx_items_pos < l_tx_items_size) {
+                                    uint8_t *l_item = l_tx->tx_items + l_tx_items_pos;
+                                    int l_item_size = dap_chain_datum_item_tx_get_size(l_item);
+                                    if(!l_item_size)
+                                        break;
+                                    // check type
+                                    dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_get_type(l_item);
+                                    switch (l_item_type){
+                                        case TX_ITEM_TYPE_IN_COND:{
+                                            dap_chain_tx_in_cond_t * l_tx_in_cond = (dap_chain_tx_in_cond_t *) l_item;
+                                            dap_chain_datum_tx_spends_item_t  *l_tx_prev_out_item = NULL;
+                                            HASH_FIND(hh, l_ret->tx_outs, &l_tx_in_cond->header.tx_prev_hash,sizeof(l_tx_in_cond->header.tx_prev_hash), l_tx_prev_out_item);
+
+                                            if (l_tx_prev_out_item){ // we found previous out_cond with target srv_uid
+                                                dap_chain_datum_tx_spends_item_t *l_item_in = DAP_NEW_Z(dap_chain_datum_tx_spends_item_t);
+                                                size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+                                                dap_chain_datum_tx_t * l_tx_dup = DAP_DUP_SIZE(l_tx,l_tx_size);
+                                                dap_hash_fast(l_tx_dup,l_tx_size, &l_item_in->tx_hash);
+
+                                                l_item_in->tx = l_tx_dup;
+                                                // Calc same offset from tx duplicate
+                                                l_item_in->in_cond = (dap_chain_tx_in_cond_t*) (l_tx_dup->tx_items + l_tx_items_pos);
+                                                HASH_ADD_KEYPTR(hh,l_ret->tx_ins, &l_item_in->tx_hash, sizeof(l_item_in->tx_hash), l_item_in);
+
+                                                // Link previous out with current in
+                                                l_tx_prev_out_item->tx_next = l_tx_dup;
+                                            }
+                                        }break;
+                                        case TX_ITEM_TYPE_OUT_COND:{
+                                            dap_chain_tx_out_cond_t * l_tx_out_cond = (dap_chain_tx_out_cond_t *)l_item;
+                                            if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64){
+                                                dap_chain_datum_tx_spends_item_t * l_item = DAP_NEW_Z(dap_chain_datum_tx_spends_item_t);
+                                                size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+                                                dap_chain_datum_tx_t * l_tx_dup = DAP_DUP_SIZE(l_tx,l_tx_size);
+                                                dap_hash_fast(l_tx,l_tx_size, &l_item->tx_hash);
+                                                l_item->tx = l_tx_dup;
+                                                // Calc same offset from tx duplicate
+                                                l_item->out_cond = (dap_chain_tx_out_cond_t*) (l_tx_dup->tx_items + l_tx_items_pos);
+
+                                                HASH_ADD_KEYPTR(hh,l_ret->tx_outs, &l_item->tx_hash, sizeof(l_item->tx_hash), l_item);
+                                                break; // We're seaching only for one specified OUT_COND output per transaction
+                                            }
+                                        } break;
+                                        default:;
+                                    }
+
+                                    l_tx_items_pos += l_item_size;
+                                    l_item_idx++;
+                                }
+                            }
+                        }
+                        DAP_DEL_Z(l_datums);
+                        // go to next atom
+                        l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
+
+                    }
+                }
+            }
+        } break;
+
+    }
+    return l_ret;
+
+}
+
+/**
+ * @brief dap_chain_datum_tx_spends_items_free
+ * @param a_items
+ */
+void dap_chain_datum_tx_spends_items_free(dap_chain_datum_tx_spends_items_t * a_items)
+{
+    assert(a_items);
+    dap_chain_datum_tx_spends_item_free(a_items->tx_ins);
+    dap_chain_datum_tx_spends_item_free(a_items->tx_outs);
+    DAP_DELETE(a_items);
+}
+
+/**
+ * @brief dap_chain_datum_tx_spends_item_free
+ * @param a_items
+ */
+void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_items)
+{
+    dap_chain_datum_tx_spends_item_t * l_item, *l_tmp;
+    HASH_ITER(hh,a_items,l_item,l_tmp){
+        DAP_DELETE(l_item->tx);
+        HASH_DELETE(hh,a_items, l_item);
+        DAP_DELETE(l_item);
+    }
+}
+
+
 /**
  * @brief dap_chain_net_get_tx_cond_all_by_srv_uid
  * @param a_net
@@ -3326,6 +3486,7 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
     return l_ret;
 
 }
+
 
 /**
  * @brief Summarize all tx inputs

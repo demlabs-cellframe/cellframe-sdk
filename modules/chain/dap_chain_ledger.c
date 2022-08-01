@@ -128,6 +128,7 @@ typedef struct dap_chain_ledger_tx_item {
 
 typedef struct dap_chain_ledger_tx_spent_item {
     dap_chain_hash_fast_t tx_hash_fast;
+    dap_time_t spent_time;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     UT_hash_handle hh;
 } dap_chain_ledger_tx_spent_item_t;
@@ -1309,6 +1310,12 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         dap_chain_hash_fast_from_str(l_objs[i].key, &l_tx_spent_item->tx_hash_fast);
         strncpy(l_tx_spent_item->token_ticker, (char *)l_objs[i].value,
                 min(l_objs[i].value_len, DAP_CHAIN_TICKER_SIZE_MAX - 1));
+        size_t l_spent_time_len = 0;
+        byte_t * l_spent_time_data = dap_chain_global_db_gr_get(l_objs[i].key,&l_spent_time_len,DAP_CHAIN_LEDGER_SPENT_TXS_TIME_STR);
+        if(l_spent_time_data && l_spent_time_len == sizeof(dap_time_t)){
+            memcpy(&l_tx_spent_item->spent_time, l_spent_time_data, l_spent_time_len);
+            DAP_DELETE(l_spent_time_data);
+        }
         HASH_ADD(hh, l_ledger_pvt->spent_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_spent_item);
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
