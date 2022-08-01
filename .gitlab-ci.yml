@@ -1,18 +1,28 @@
-stages:
-    - prepare
-    - analyze
-    - build
-    - test
-
 variables:
-    GIT_SUBMODULE_STRATEGY: normal
+    GIT_SUBMODULE_STRATEGY: recursive
 
-cellframe-sdk-analyze:
-    stage: analyze
-    tags:
-    - cellframe-sdk
-    script: ~/production/integration/PVS-studio/analyze.sh 
-    artifacts:
-      paths:
-      - report/issues.txt
-      when: always
+stages:
+    - build
+    - deploy
+
+.ci-polygon:
+  tags:
+     - ci-polygon
+  
+.tests:  
+  extends: .ci-polygon
+  stage: build
+  timeout: 3 hours 30 minutes
+  dependencies: []
+  
+  
+tests:
+    extends: .tests
+    image: demlabs/amd64/debian-bullseye:linuxbuilder
+    before_script: /opt/buildtools/prepare_environment.sh amd64-linux
+    script:
+      - mkdir build
+      - cd build && cmake .. -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make
+
+    
+
