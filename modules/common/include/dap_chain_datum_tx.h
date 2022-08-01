@@ -69,7 +69,7 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx);
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const uint8_t *a_item);
+int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item);
 
 /**
  * Create 'in' items from list and insert to transaction

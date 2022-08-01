@@ -2351,7 +2351,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -13;
                 break;
             }
-            if (l_verificator->callback(l_tx_prev_out_cond, a_tx, l_owner) == false) {
+            if (l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner) == false) {
                 l_err_num = -14;
                 break;
             }
@@ -2505,7 +2505,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -13;
                 break;
             }
-            if ( l_verificator->callback_added && l_verificator->callback_added( a_tx, l_tx_out) == false) {
+            if ( l_verificator->callback_added && l_verificator->callback_added(a_ledger, a_tx, l_tx_out) == false) {
                 l_err_num = -14;
                 break;
             }
@@ -2860,7 +2860,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(l_cond, a_tx, true);
+                    l_verificator->callback(a_ledger,l_cond, a_tx, true);
                 }
                 l_stake_updated = true;
             }
@@ -2935,7 +2935,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(NULL, a_tx, true);
+                    l_verificator->callback(a_ledger,NULL, a_tx, true);
                 }
             }
             continue;   // balance raise will be with next conditional transaction

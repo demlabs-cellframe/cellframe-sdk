@@ -20,3 +20,27 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
+#include "dap_chain_common.h"
+#include "dap_common.h"
+#include "dap_math_ops.h"
+#include "dap_time.h"
+#include <stdint.h>
+
+// Governance decree
+typedef struct dap_chain_datum_decree{
+    struct {
+        dap_time_t ts_created;
+        uint16_t type;
+        uint16_t action;
+    } DAP_ALIGN_PACKED header;
+    byte_t tsd_sections[];
+} DAP_ALIGN_PACKED dap_chain_decree_t;
+
+#define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                  0x0001
+#define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                 0x0002
+
+
+// Create from scratch, reset all previous values
+#define DAP_CHAIN_DATUM_DECREE_ACTION_CREATE                0x0001
+#define DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE                0x0002
