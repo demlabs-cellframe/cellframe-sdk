@@ -659,7 +659,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool dap_chain_net_srv_stake_lock_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
 
 	/*if (!a_owner) TODO: ???
@@ -744,7 +744,7 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
  * @param a_tx_item_idx
  * @return
  */
-bool	dap_chain_net_srv_stake_lock_verificator_added(dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
+bool	dap_chain_net_srv_stake_lock_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
     return true;
 }
