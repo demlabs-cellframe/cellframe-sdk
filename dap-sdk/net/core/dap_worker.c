@@ -631,6 +631,8 @@ void *dap_worker_thread(void *arg)
 
             if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
+                if (l_cur->callbacks.write_callback)
+                    l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
                 /*
                  * Socket is ready to write and not going to close
                  */
@@ -643,9 +645,6 @@ void *dap_worker_thread(void *arg)
 
                     l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
                 }
-
-                if (l_cur->callbacks.write_callback)
-                    l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
 
                 if ( l_cur->worker && l_flag_write ){ // esocket wasn't unassigned in callback, we need some other ops with it
                         switch (l_cur->type){

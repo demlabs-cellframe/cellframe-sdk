@@ -255,15 +255,15 @@ void dap_events_socket_assign_on_worker_inter(dap_events_socket_t * a_es_input, 
 void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
 {
     dap_worker_t * l_worker = a_es->worker;
-    dap_events_socket_t * l_queue_input= l_worker->queue_es_new_input[a_worker_new->id];
+    /* dap_events_socket_t * l_queue_input= l_worker->queue_es_new_input[a_worker_new->id]; */
     log_it(L_DEBUG, "Reassign between %u->%u workers: %p (%d)  ", l_worker->id, a_worker_new->id, a_es, a_es->fd );
 
     dap_events_socket_remove_from_worker_unsafe( a_es, l_worker );
     a_es->was_reassigned = true;
     if (a_es->callbacks.worker_unassign_callback)
         a_es->callbacks.worker_unassign_callback(a_es, l_worker);
-
-    dap_worker_add_events_socket_inter( l_queue_input,  a_es);
+    dap_worker_add_events_socket(a_es, a_worker_new);
+    /* dap_worker_add_events_socket_inter( l_queue_input,  a_es); */
 }
 
 /**
