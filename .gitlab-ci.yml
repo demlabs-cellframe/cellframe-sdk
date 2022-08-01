@@ -22,7 +22,7 @@ tests:
     before_script: /opt/buildtools/prepare_environment.sh amd64-linux
     script:
       - mkdir build
-      - cd build && cmake .. -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make
+      - cd build && cmake .. -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make -j$(nproc)
 
     
 
