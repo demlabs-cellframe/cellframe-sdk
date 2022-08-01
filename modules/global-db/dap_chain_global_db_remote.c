@@ -706,10 +706,8 @@ dap_store_obj_t *l_store_obj_arr, *l_obj;
         l_obj->value_len = *((uint64_t *) pdata);
         pdata += sizeof(uint64_t);
 
-        if ( !l_obj->value_len )
-            {log_it(L_DEBUG, "GDB element: 'value_length' field is zero");}
-        else {
-            if ( (pdata + l_obj->value_len) > pdata_end )
+        if (l_obj->value_len) {
+              if ( (pdata + l_obj->value_len) > pdata_end )
                 {log_it(L_ERROR, "Broken GDB element: can't read 'value' field"); break;}
             l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
             memcpy(l_obj->value, pdata, l_obj->value_len);
