@@ -100,7 +100,7 @@ bool dap_chain_net_srv_stake_lock_init()
        "stake_lock hold -net <net name> -wallet <wallet name> -time_staking <in rfc822>\n"
 	    		"-token <ticker> -coins <value> -cert <name> -chain <chain (not necessary)> -chain_emission <chain (not necessary)>\n"
     			"stake_lock take -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
-				"-chain <chain (not necessary)> -chain_emission <chain (not necessary)>\n"
+				"-chain <chain (not necessary)>\n"
 	);
 
 	return true;
