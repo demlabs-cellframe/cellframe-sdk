@@ -233,10 +233,17 @@ dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
         dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t a_value_need, uint256_t *a_value_transfer);
 
 //Init all verificators
-bool dap_chain_ledger_verificators_init(void);
-int dap_chain_ledger_verificator_rwlock_init(void);
+bool 	dap_chain_ledger_verificators_init(void);
+bool 	dap_chain_net_srv_pay_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool 	dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool 	dap_chain_net_srv_stake_pos_delegate_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool 	dap_chain_net_srv_stake_updater(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool 	dap_chain_ledger_fee_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool	dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool	dap_chain_net_srv_stake_lock_verificator_added(dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
+int 	dap_chain_ledger_verificator_rwlock_init(void);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
-int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added);
+int 	dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added);
 
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool reverse);
