@@ -26,6 +26,8 @@
 #ifdef DAP_OS_LINUX
 #include <netpacket/packet.h>
 #include <linux/if_tun.h>
+#include <linux/if.h>
+#include <sys/ioctl.h>
 #elif defined (DAP_OS_DARWIN)
 #include <net/if.h>
 #include <net/if_utun.h>

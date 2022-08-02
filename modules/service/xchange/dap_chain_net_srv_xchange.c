@@ -24,7 +24,6 @@
 
 #include <math.h>
 #include <pthread.h>
-#include <sys/_pthread/_pthread_rwlock_t.h>
 #include "dap_chain_datum_tx.h"
 #include "dap_time.h"
 #include "dap_chain_net_srv.h"
