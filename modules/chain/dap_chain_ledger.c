@@ -313,12 +313,6 @@ void dap_chain_ledger_load_end(dap_ledger_t *a_ledger)
 bool dap_chain_ledger_verificators_init()
 {
 	dap_chain_ledger_verificator_rwlock_init();
-	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, dap_chain_net_srv_pay_verificator, NULL);
-	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, dap_chain_net_srv_xchange_verificator, NULL);
-	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, dap_chain_net_srv_stake_pos_delegate_verificator, NULL);
-	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE, dap_chain_net_srv_stake_updater, NULL);
-	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, dap_chain_ledger_fee_verificator, NULL);
-	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, dap_chain_net_srv_stake_lock_verificator, dap_chain_net_srv_stake_lock_verificator_added);
 	return true;
 }
 
