@@ -28,6 +28,7 @@
 #include <linux/if_tun.h>
 #include <linux/if.h>
 #include <sys/ioctl.h>
+#include <netpacket/packet.h>
 #elif defined (DAP_OS_DARWIN)
 #include <net/if.h>
 #include <net/if_utun.h>
@@ -37,10 +38,10 @@
 #include <sys/socket.h>
 #include <sys/sys_domain.h>
 #include <netinet/in.h>
+#include <net/if.h>
 #endif
 
 
-#include <net/if.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 
