@@ -2112,7 +2112,7 @@ bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_cha
  * return 1 OK, -1 error
  */
 
-static int s_check_out_cond_verificator_added(dap_chain_datum_tx_t *a_tx, dap_list_t *a_list_tx_out_cond)
+static int s_check_out_cond_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_list_t *a_list_tx_out_cond)
 {
 	for (dap_list_t *list_tmp = a_list_tx_out_cond; list_tmp; list_tmp = dap_list_next(list_tmp)) {
 
@@ -2131,7 +2131,7 @@ static int s_check_out_cond_verificator_added(dap_chain_datum_tx_t *a_tx, dap_li
 					log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
 				return -13;
 			}
-			if (l_verificator->callback_added && l_verificator->callback_added(a_tx, l_tx_out) == false)
+			if (l_verificator->callback_added && l_verificator->callback_added(a_ledger, a_tx, l_tx_out) == false)
 				return -14;
 
 /*
@@ -2755,7 +2755,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     }
 
 	if (l_list_tx_out_cond && !l_err_num){
-		l_err_num = s_check_out_cond_verificator_added(a_tx, l_list_tx_out_cond);
+		l_err_num = s_check_out_cond_verificator_added(a_ledger, a_tx, l_list_tx_out_cond);
 		dap_list_free(l_list_tx_out_cond);
 	}
 

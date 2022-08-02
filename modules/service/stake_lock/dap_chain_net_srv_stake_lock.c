@@ -867,10 +867,10 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_ledger_t * a_ledger,dap_chain_
 	if (!l_tx_out)
 		return false;
 
-	dap_chain_net_t *l_net = dap_chain_net_by_id(l_tx_out->addr.net_id);
-	dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
+//	dap_chain_net_t *l_net = dap_chain_net_by_id(l_tx_out->addr.net_id);
+//	dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
 
-	burning_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &hash_burning_transaction);
+	burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
 	burning_transaction_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(burning_tx, 0, TX_ITEM_TYPE_OUT,0);
 
 	if (!burning_transaction_out)
