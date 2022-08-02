@@ -94,7 +94,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
  * @brief dap_chain_net_srv_external_stake_init
  * @return
  */
-bool dap_chain_net_srv_stake_lock_init()
+int dap_chain_net_srv_stake_lock_init()
 {
     dap_chain_node_cli_cmd_item_create("stake_lock", s_cli_stake_lock, "Stake lock service commands",
        "stake_lock hold -net <net name> -wallet <wallet name> -time_staking <in rfc822>\n"
@@ -102,8 +102,9 @@ bool dap_chain_net_srv_stake_lock_init()
     			"stake_lock take -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
 				"-chain <chain (not necessary)>\n"
 	);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, dap_chain_net_srv_stake_lock_verificator, dap_chain_net_srv_stake_lock_verificator_added);
 
-	return true;
+    return 0;
 }
 
 /**
@@ -821,7 +822,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool dap_chain_net_srv_stake_lock_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
 
 	/*if (!a_owner) TODO: ???
@@ -898,7 +899,7 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
  * @param a_tx_item_idx
  * @return
  */
-bool	dap_chain_net_srv_stake_lock_verificator_added(dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
+bool	dap_chain_net_srv_stake_lock_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
 	dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
 	if (!l_key_hash)

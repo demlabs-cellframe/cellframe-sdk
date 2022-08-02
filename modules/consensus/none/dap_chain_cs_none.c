@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#include "dap_chain.h"
 #include "utlist.h"
 
 #include "dap_chain_net.h"
@@ -338,37 +339,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
     dap_chain_gdb_private_t *l_gdb_priv = PVT(l_gdb);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
-    if ( a_atom_size < l_datum->header.data_size+ sizeof (l_datum->header) ){
-        log_it(L_INFO,"Corrupted atom rejected: wrong size %zd not equel or less atom size %zd",l_datum->header.data_size+ sizeof (l_datum->header),
-               a_atom_size);
+    if(dap_chain_datum_add (a_chain, l_datum, a_atom_size))
         return ATOM_REJECT;
-    }
-    switch (l_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_TOKEN_DECL:{
-            if (dap_chain_ledger_token_load(a_chain->ledger, (dap_chain_datum_token_t *)l_datum->data, l_datum->header.data_size))
-                return ATOM_REJECT;
-        }break;
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            if (dap_chain_ledger_token_emission_load(a_chain->ledger, l_datum->data, l_datum->header.data_size))
-                return ATOM_REJECT;
-        }break;
-        case DAP_CHAIN_DATUM_TX:{
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-            // TODO process with different codes from ledger to work with ledger thresholds
-            if (dap_chain_ledger_tx_load(a_chain->ledger, l_tx, NULL) != 1)
-                return ATOM_REJECT;
-        }break;
-        case DAP_CHAIN_DATUM_CA:{
-            if ( dap_cert_chain_file_save(l_datum, a_chain->net_name) < 0 )
-                return ATOM_REJECT;
-        }break;
-        case DAP_CHAIN_DATUM_SIGNER:
-		break;
-        case DAP_CHAIN_DATUM_CUSTOM:
-        break;
-        default:
-            return ATOM_REJECT;
-    }
 
     dap_chain_gdb_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_chain_gdb_datum_hash_item_t);
     size_t l_datum_size = dap_chain_datum_size(l_datum);

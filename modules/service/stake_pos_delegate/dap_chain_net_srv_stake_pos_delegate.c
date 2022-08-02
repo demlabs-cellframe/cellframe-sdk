@@ -139,7 +139,11 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     }
     DAP_DELETE(l_net_list);
     s_srv_stake->initialized = true;
-    return 1;
+
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, dap_chain_net_srv_stake_pos_delegate_verificator, NULL);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE, dap_chain_net_srv_stake_updater, NULL);
+
+    return 0;
 }
 
 void dap_chain_net_srv_stake_pos_delegate_deinit()
@@ -244,7 +248,7 @@ static bool s_stake_conditions_calc(dap_chain_tx_out_cond_t *a_cond, dap_chain_d
     return false;
 }
 
-bool dap_chain_net_srv_stake_pos_delegate_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool dap_chain_net_srv_stake_pos_delegate_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
     if (!s_srv_stake) {
         return false;
@@ -252,7 +256,7 @@ bool dap_chain_net_srv_stake_pos_delegate_verificator(dap_chain_tx_out_cond_t *a
     return s_stake_conditions_calc(a_cond, a_tx, a_owner, false);
 }
 
-bool dap_chain_net_srv_stake_updater(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool dap_chain_net_srv_stake_updater(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
     if (!s_srv_stake) {
         return false;

@@ -41,12 +41,12 @@
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME                  0x00000008
 
 
-bool	dap_chain_net_srv_stake_lock_init(void);
+int 	dap_chain_net_srv_stake_lock_init(void);
 void	dap_chain_net_srv_stake_lock_deinit(void);
 
-// Verificator callbacks <<-- included in dap_chain_net_srv.h for func dap_chain_ledger_verificators_init()
-bool	dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-bool	dap_chain_net_srv_stake_lock_verificator_added(dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
+// Verificator callbacks
+bool	dap_chain_net_srv_stake_lock_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool	dap_chain_net_srv_stake_lock_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
 
 
 // Create cond out

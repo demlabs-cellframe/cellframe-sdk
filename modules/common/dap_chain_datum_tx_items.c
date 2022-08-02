@@ -161,7 +161,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  *
  * return type, or TX_ITEM_TYPE_ANY if error
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item)
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item)
 {
     dap_chain_tx_item_type_t type = a_item ? *(dap_chain_tx_item_type_t *)a_item : TX_ITEM_TYPE_ANY;
     return type;
@@ -172,7 +172,7 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item)
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
+size_t dap_chain_datum_item_tx_get_size(const void *a_item)
 {
     dap_chain_tx_item_type_t type = dap_chain_datum_tx_item_get_type(a_item);
     size_t size = 0;

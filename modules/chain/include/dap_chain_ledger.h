@@ -42,10 +42,10 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
-typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-typedef bool (* dap_chain_ledger_verificator_callback_out_t)(dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
+typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+typedef bool (* dap_chain_ledger_verificator_callback_out_t)(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
 
-
+typedef struct dap_chain_net dap_chain_net_t;
 // Checks the emission of the token, usualy on zero chain
 #define DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION    0x0001
 
@@ -66,6 +66,7 @@ typedef bool (* dap_chain_ledger_verificator_callback_out_t)(dap_chain_datum_tx_
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
 #define DAP_CHAIN_LEDGER_TXS_STR                 "txs"
 #define DAP_CHAIN_LEDGER_SPENT_TXS_STR           "spent_txs"
+#define DAP_CHAIN_LEDGER_SPENT_TXS_TIME_STR           "spent_txs_time"
 #define DAP_CHAIN_LEDGER_BALANCES_STR            "balances"
 
 int dap_chain_ledger_init();
@@ -99,6 +100,8 @@ DAP_STATIC_INLINE char *dap_chain_ledger_get_gdb_group(dap_ledger_t *a_ledger, c
             ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net_name, a_suffix)
             : NULL;
 }
+
+dap_chain_net_t * dap_chain_ledger_get_net(dap_ledger_t * a_ledger);
 
 /**
  * Add new transaction to the cache
@@ -232,20 +235,11 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
 dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
         dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t a_value_need, uint256_t *a_value_transfer);
 
-//Init all verificators
-bool 	dap_chain_ledger_verificators_init(void);
-bool 	dap_chain_net_srv_pay_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-bool 	dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-bool 	dap_chain_net_srv_stake_pos_delegate_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-bool 	dap_chain_net_srv_stake_updater(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-bool 	dap_chain_ledger_fee_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-bool	dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-bool	dap_chain_net_srv_stake_lock_verificator_added(dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
-int 	dap_chain_ledger_verificator_rwlock_init(void);
+int dap_chain_ledger_verificator_rwlock_init(void);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
-int 	dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added);
+int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added);
 
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool reverse);
 
-//bool dap_chain_ledger_fee_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool dap_chain_ledger_fee_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);

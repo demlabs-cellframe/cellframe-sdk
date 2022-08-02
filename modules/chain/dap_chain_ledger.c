@@ -135,6 +135,7 @@ typedef struct dap_chain_ledger_tx_item {
 
 typedef struct dap_chain_ledger_tx_spent_item {
     dap_chain_hash_fast_t tx_hash_fast;
+    dap_time_t spent_time;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     UT_hash_handle hh;
 } dap_chain_ledger_tx_spent_item_t;
@@ -1006,6 +1007,16 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
     return 0;
 }
 
+/**
+ * @brief dap_chain_ledger_get_net
+ * @param a_ledger
+ * @return
+ */
+dap_chain_net_t * dap_chain_ledger_get_net(dap_ledger_t * a_ledger)
+{
+    return PVT(a_ledger)->net;
+}
+
 int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
     if (PVT(a_ledger)->load_mode) {
@@ -1328,6 +1339,12 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         dap_chain_hash_fast_from_str(l_objs[i].key, &l_tx_spent_item->tx_hash_fast);
         strncpy(l_tx_spent_item->token_ticker, (char *)l_objs[i].value,
                 min(l_objs[i].value_len, DAP_CHAIN_TICKER_SIZE_MAX - 1));
+        size_t l_spent_time_len = 0;
+        byte_t * l_spent_time_data = dap_chain_global_db_gr_get(l_objs[i].key,&l_spent_time_len,DAP_CHAIN_LEDGER_SPENT_TXS_TIME_STR);
+        if(l_spent_time_data && l_spent_time_len == sizeof(dap_time_t)){
+            memcpy(&l_tx_spent_item->spent_time, l_spent_time_data, l_spent_time_len);
+            DAP_DELETE(l_spent_time_data);
+        }
         HASH_ADD(hh, l_ledger_pvt->spent_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_spent_item);
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
@@ -2503,7 +2520,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -13;
                 break;
             }
-            if (l_verificator->callback(l_tx_prev_out_cond, a_tx, l_owner) == false) {
+            if (l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner) == false) {
                 l_err_num = -14;
                 break;
             }
@@ -3000,7 +3017,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(l_cond, a_tx, true);
+                    l_verificator->callback(a_ledger,l_cond, a_tx, true);
                 }
                 l_stake_updated = true;
             }
@@ -3075,7 +3092,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(NULL, a_tx, true);
+                    l_verificator->callback(a_ledger,NULL, a_tx, true);
                 }
             }
             continue;   // balance raise will be with next conditional transaction
@@ -4122,7 +4139,7 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     return l_list;
 }
 
-bool dap_chain_ledger_fee_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool dap_chain_ledger_fee_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
     return false;
 }
