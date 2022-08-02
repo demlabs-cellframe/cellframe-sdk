@@ -989,6 +989,16 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
     return 0;
 }
 
+/**
+ * @brief dap_chain_ledger_get_net
+ * @param a_ledger
+ * @return
+ */
+dap_chain_net_t * dap_chain_ledger_get_net(dap_ledger_t * a_ledger)
+{
+    return PVT(a_ledger)->net;
+}
+
 int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
     if (PVT(a_ledger)->load_mode) {

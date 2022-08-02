@@ -23,24 +23,34 @@
 */
 
 #include <math.h>
+#include <pthread.h>
+#include <sys/_pthread/_pthread_rwlock_t.h>
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
+#include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_math_ops.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_datum_decree.h"
+#include "dap_tsd.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_xchange.h"
 #include "uthash.h"
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
+//
+enum tsd_type{
+    TSD_FEE_PERCENT = 0x0001,
+    TSD_FEE_FIXED = 0x0002,
+    TSD_FEE_ADDR = 0x0003,
+};
 
-struct net_decree
+struct net_fee
 {
     dap_chain_net_id_t net_id;
 
@@ -50,10 +60,11 @@ struct net_decree
     dap_chain_addr_t fee_addr; // Addr collector
 
     UT_hash_handle hh;
-} *s_net_decrees = NULL; // Governance statements for networks
+} *s_net_fees = NULL; // Governance statements for networks
+pthread_rwlock_t s_net_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
-static struct net_decree * s_net_decree_get(dap_chain_net_id_t a_net_id);
-static void s_net_decree_parse(dap_chain_net_t * a_net, dap_chain_decree_t * a_decree);
+static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
+
 
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
 
@@ -115,14 +126,23 @@ int dap_chain_net_srv_xchange_init()
          "\tDisable eXchange service\n"
     );
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
-    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", s_callback_requested,
-                                                       s_callback_response_success, s_callback_response_error,
-                                                       s_callback_receipt_next_success, NULL);
+    dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
+    l_srv_callbacks.requested = s_callback_requested;
+    l_srv_callbacks.response_success = s_callback_response_success;
+    l_srv_callbacks.response_error = s_callback_response_error;
+    l_srv_callbacks.receipt_next_success = s_callback_receipt_next_success;
+    l_srv_callbacks.decree = s_callback_decree;
+
+
+    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
     l_srv->_internal = s_srv_xchange;
     s_srv_xchange->parent = l_srv;
     s_srv_xchange->enabled = false;
-    return 1;
+
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, dap_chain_net_srv_xchange_verificator, NULL);
+
+    return 0;
 }
 
 void dap_chain_net_srv_xchange_deinit()
@@ -137,20 +157,38 @@ bool dap_chain_net_srv_xchange_verificator(dap_ledger_t * a_ledger, dap_chain_tx
 {
     if (a_owner)
         return true;
+
+    pthread_rwlock_rdlock(&s_net_fees_rwlock);
+    struct net_fee * l_fee = NULL;
+    dap_chain_net_t * l_net = dap_chain_ledger_get_net(a_ledger);
+    HASH_FIND(hh,s_net_fees, &l_net->pub.id, sizeof(l_net->pub.id),l_fee);
+    if(l_fee == NULL)
+        pthread_rwlock_unlock(&s_net_fees_rwlock);
+
     /* Check the condition for verification success
      * a_cond.srv_xchange.rate (a_cond->header.value / a_cond->subtype.srv_xchange.buy_value) >=
      * a_tx.out.rate ((a_cond->header.value - l_back_val) / l_out_val)
      */
     dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_EXT, NULL);
-    uint256_t l_out_val = {}, l_back_val = {};
+    uint256_t l_out_val = {}, l_back_val = {}, l_fee_val = {};
     char *l_ticker_ctrl = NULL;
     for (dap_list_t *l_list_tmp = l_list_out; l_list_tmp;  l_list_tmp = l_list_tmp->next) {
         dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
+        if (memcmp(&l_tx_out->addr, &l_fee->fee_addr, sizeof(l_fee->fee_addr) == 0 ) ){
+            SUM_256_256(l_fee_val, l_tx_out->header.value, &l_fee_val);
+        }
+
+        // If its returning back to owner
         if (memcmp(&l_tx_out->addr, &a_cond->params, sizeof(dap_chain_addr_t))) {
             continue;
         }
+
+        // Chek if its buy token or not
         if (strcmp(l_tx_out->token, a_cond->subtype.srv_xchange.buy_token)) {
+
+            // If we alredy have buy token out
             if (l_ticker_ctrl && strcmp(l_ticker_ctrl, l_tx_out->token)) {
+                if(l_fee) pthread_rwlock_unlock(&s_net_fees_rwlock);
                 return false;   // too many tokens
             }
             l_ticker_ctrl = l_tx_out->token;
@@ -166,31 +204,57 @@ bool dap_chain_net_srv_xchange_verificator(dap_ledger_t * a_ledger, dap_chain_tx
     MULT_256_256(l_buyer_val, a_cond->subtype.srv_xchange.buy_value, &l_buyer_mul);
     MULT_256_256(l_out_val, a_cond->header.value, &l_seller_mul);
     if (compare256(l_seller_mul, l_buyer_mul) == -1) {
+        if(l_fee) pthread_rwlock_unlock(&s_net_fees_rwlock);
         return false;           // wrong changing rate
     }
+    if(l_fee) pthread_rwlock_unlock(&s_net_fees_rwlock);
     return true;
 }
 
 /**
- * @brief s_net_decree_get
- * @param a_net_id
- * @return
- */
-static struct net_decree * s_net_decree_get(dap_chain_net_id_t a_net_id)
-{
-    struct net_decree * l_ret = NULL;
-    HASH_FIND(hh, s_net_decrees, &a_net_id, sizeof(a_net_id), l_ret);
-    return l_ret;
-}
-
-/**
- * @brief s_net_decree_parse
+ * @brief s_callback_decree
+ * @param a_srv
  * @param a_net
+ * @param a_chain
  * @param a_decree
+ * @param a_decree_size
  */
-static void s_net_decree_parse(dap_chain_net_t *a_net, dap_chain_decree_t * a_decree)
+static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size)
 {
+    pthread_rwlock_wrlock(&s_net_fees_rwlock);
+    struct net_fee * l_fee = NULL;
+    switch(a_decree->header.action){
+        case DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE:{
+            HASH_FIND(hh,s_net_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
+            if(l_fee == NULL){
+                log_it(L_WARNING,"Decree update for net id 0x%016" DAP_UINT64_FORMAT_X" when such id can't find in hash table", a_net->pub.id.uint64);
+                return;
+            }
+        }break;
+        case DAP_CHAIN_DATUM_DECREE_ACTION_CREATE:{
+            l_fee = DAP_NEW_Z(struct net_fee);
+            l_fee->net_id = a_net->pub.id;
+            HASH_ADD(hh, s_net_fees, net_id, sizeof(l_fee->net_id), l_fee);
+        } break;
+    }
+    size_t l_tsd_offset = 0;
 
+    while(l_tsd_offset < (a_decree_size - sizeof(a_decree->header)) ){
+        dap_tsd_t *l_tsd = (dap_tsd_t*) (a_decree->tsd_sections + l_tsd_offset);
+        switch( (enum tsd_type) l_tsd->type){
+            case TSD_FEE_ADDR:{
+                l_fee->fee_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+            } break;
+            case TSD_FEE_PERCENT:{
+                l_fee->fee_percents = dap_tsd_get_scalar(l_tsd, uint256_t);
+            } break;
+            case TSD_FEE_FIXED:{
+                l_fee->fee_fixed = dap_tsd_get_scalar(l_tsd, uint256_t);
+            } break;
+        }
+        l_tsd_offset += dap_tsd_size(l_tsd);
+    }
+    pthread_rwlock_unlock(&s_net_fees_rwlock);
 }
 
 

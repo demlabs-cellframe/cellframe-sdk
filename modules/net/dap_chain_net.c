@@ -27,6 +27,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_node.h"
 #endif
 #ifndef  _XOPEN_SOURCE
 #define _XOPEN_SOURCE       /* See feature_test_macros(7) */
@@ -81,7 +82,9 @@
 
 #include "dap_enc_http.h"
 #include "dap_chain_common.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -3704,42 +3707,7 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
     return NULL;
 }
 
-/**
- * @brief dap_cert_chain_file_save
- * @param datum
- */
-int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
-{
-    const char *s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
-    if(dap_strlen(s_system_chain_ca_dir) == 0) {
-        log_it(L_ERROR, "Not found 'chain_ca_folder' in .cfg file");
-        return -1;
-    }
-    dap_cert_t *cert = dap_cert_mem_load(datum->data, datum->header.data_size);
-    if(!cert) {
-        log_it(L_ERROR, "Can't load cert, size: %d", datum->header.data_size);
-        return -1;
-    }
-    const char *cert_name = cert->name;
-    size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
-    char *cert_path = DAP_NEW_Z_SIZE(char, cert_path_length);
-    snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
-    // In cert_path resolve all `..` and `.`s
-    char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
-    DAP_DELETE(cert_path);
-    // Protect the ca folder from using "/.." in cert_name
-    if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
-        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
-        return -1;
-    }
-    int l_ret = dap_cert_file_save(cert, cert_path_c);
-    DAP_DELETE(cert_path_c);
-//  if ( access( l_cert_path, F_OK ) != -1 ) {
-//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
-//      return -1;
-//  } else
-    return l_ret;
-}
+
 
 /**
  * @brief dap_chain_datum_list
@@ -3830,4 +3798,82 @@ dap_chain_t *l_chain_cur;
     }
 
     return l_list;
+}
+
+/**
+ * @brief Add datum to the ledger or smth else
+ * @param a_chain
+ * @param a_datum
+ * @param a_datum_size
+ * @return
+ */
+int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size  )
+{
+    size_t l_datum_data_size = a_datum->header.data_size;
+    if ( a_datum_size < l_datum_data_size+ sizeof (a_datum->header) ){
+        log_it(L_INFO,"Corrupted datum rejected: wrong size %zd not equel or less datum size %zd",a_datum->header.data_size+ sizeof (a_datum->header),
+               a_datum_size );
+        return -1;
+    }
+    switch (a_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_DECREE:{
+            dap_chain_datum_decree_t * l_decree = (dap_chain_datum_decree_t *) a_datum->data;
+            if( sizeof(l_decree->header)> l_datum_data_size  ){
+                log_it(L_WARNING, "Corrupted decree, size %zd is smaller than ever decree header's size %zd", l_datum_data_size,
+                       sizeof(l_decree->header));
+                break;
+            }
+
+
+            switch(l_decree->header.type){
+                case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
+                    dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_decree->header.srv_id);
+                    if(l_srv){
+                        if(l_srv->callbacks.decree){
+                            dap_chain_net_t * l_net = dap_chain_net_by_id(a_chain->net_id);
+                            dap_chain_cell_id_t l_cell_id = {0};
+                            l_srv->callbacks.decree(l_srv,l_net,a_chain,l_decree,l_datum_data_size);
+                         }
+                    }else{
+                        log_it(L_WARNING,"Decree for unknown srv uid 0x%016"DAP_UINT64_FORMAT_X , l_decree->header.srv_id.uint64);
+                    }
+                }break;
+                default:;
+            }
+        }break;
+
+        case DAP_CHAIN_DATUM_TOKEN_DECL:{
+            if (dap_chain_ledger_token_load(a_chain->ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size))
+                return -2;
+        }break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+            if (dap_chain_ledger_token_emission_load(a_chain->ledger, a_datum->data, a_datum->header.data_size))
+                return -3;
+        }break;
+        case DAP_CHAIN_DATUM_TX:{
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) a_datum->data;
+            // Check tx correcntess
+            size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+            if (l_tx_size > l_datum_data_size  ){
+                log_it(L_WARNING, "Corrupted transaction in datum, size %zd is greater than datum's size %zd", l_tx_size, l_datum_data_size);
+                return -1;
+            }
+
+            // TODO process with different codes from ledger to work with ledger thresholds
+            if (dap_chain_ledger_tx_load(a_chain->ledger, l_tx, NULL) != 1)
+                return -4;
+        }break;
+        case DAP_CHAIN_DATUM_CA:{
+
+            if ( dap_cert_chain_file_save(a_datum, a_chain->net_name) < 0 )
+                return -5;
+        }break;
+        case DAP_CHAIN_DATUM_SIGNER:
+        break;
+        case DAP_CHAIN_DATUM_CUSTOM:
+        break;
+        default:
+            return -666;
+    }
+    return 0;
 }

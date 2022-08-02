@@ -75,15 +75,16 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
  * @brief dap_chain_net_srv_external_stake_init
  * @return
  */
-bool dap_chain_net_srv_stake_lock_init()
+int dap_chain_net_srv_stake_lock_init()
 {
     dap_chain_node_cli_cmd_item_create("stake_lock", s_cli_stake_lock, "Stake lock service commands",
        "stake_lock hold -net <net name> -wallet <wallet name> -chain <chain> -chain_emission <chain>\n"
 	    "-months <from 1 to 8 (1 unit is equal to 3 months)> -token <ticker> -coins <value> -cert <name>\n"
     "stake_lock take -net <net name> -token <ticker> -tx <transaction hash> -tx_burning <transaction hash> -wallet <wallet name> -coins <value>"
 	);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, dap_chain_net_srv_stake_lock_verificator, dap_chain_net_srv_stake_lock_verificator_added);
 
-	return true;
+    return 0;
 }
 
 /**

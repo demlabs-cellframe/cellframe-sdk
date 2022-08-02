@@ -32,10 +32,15 @@ typedef struct dap_chain_datum_decree{
     struct {
         dap_time_t ts_created;
         uint16_t type;
+        union{
+            dap_chain_net_srv_uid_t srv_id;
+            dap_chain_net_id_t net_id;
+            dap_chain_cell_id_t cell_id;
+        };
         uint16_t action;
     } DAP_ALIGN_PACKED header;
     byte_t tsd_sections[];
-} DAP_ALIGN_PACKED dap_chain_decree_t;
+} DAP_ALIGN_PACKED dap_chain_datum_decree_t;
 
 #define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                  0x0001
 #define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                 0x0002
@@ -44,3 +49,7 @@ typedef struct dap_chain_datum_decree{
 // Create from scratch, reset all previous values
 #define DAP_CHAIN_DATUM_DECREE_ACTION_CREATE                0x0001
 #define DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE                0x0002
+#define DAP_CHAIN_DATUM_DECREE_ACTION_DELETE                0x0003
+
+
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                0x0001

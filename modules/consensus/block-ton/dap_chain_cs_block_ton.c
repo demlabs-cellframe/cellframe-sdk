@@ -695,7 +695,7 @@ static void s_session_candidate_to_chain(
     if (l_signs_count * 3 >= a_session->old_round.validators_count * 2) {
 		//dap_chain_t *l_chain = a_session->chain;
 		//dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
-		dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
+        dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
 		char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
 		switch (l_res) {
 			case ATOM_ACCEPT: {

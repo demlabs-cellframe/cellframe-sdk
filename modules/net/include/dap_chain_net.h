@@ -232,7 +232,6 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net, struct dap_chain_node_info *a_link_info);
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( dap_chain_net_t * a_net,struct dap_chain_node_info *a_link_info,
                                                                                const char * a_channels);
-int dap_cert_chain_file_save(dap_chain_datum_t * l_datum, char * net_name);
 
 typedef bool (datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);
 /**
@@ -244,3 +243,5 @@ typedef bool (datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_c
  * @param a_filter_func_param
  */
 dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, datum_filter_func_t *a_filter_func, void *a_filter_func_param);
+
+int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size  );

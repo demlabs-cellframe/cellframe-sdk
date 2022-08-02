@@ -34,7 +34,6 @@
 #include <sys/select.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
-#include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -45,6 +44,7 @@
 
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
+#include <sys/epoll.h>
 #endif
 
 #include "dap_client.h"
@@ -64,7 +64,7 @@
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-#include "dap_modules_dynamic_cdb.h"
+//#include "dap_modules_dynamic_cdb.h"
 
 /*
  #if !defined( dap_http_client_state_t )
@@ -79,8 +79,9 @@
 
 #define LOG_TAG "vpn_client"
 
+#ifdef DAP_OS_LINUX
 static EPOLL_HANDLE sf_socks_epoll_fd;
-
+#endif
 
 static pthread_mutex_t sf_socks_mutex;
 

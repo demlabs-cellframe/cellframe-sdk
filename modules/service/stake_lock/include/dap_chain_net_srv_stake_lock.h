@@ -41,7 +41,7 @@
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME                  0x00000008
 
 
-bool	dap_chain_net_srv_stake_lock_init(void);
+int 	dap_chain_net_srv_stake_lock_init(void);
 void	dap_chain_net_srv_stake_lock_deinit(void);
 
 // Verificator callbacks

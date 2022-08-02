@@ -45,7 +45,7 @@ typedef struct dap_ledger {
 typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 typedef bool (* dap_chain_ledger_verificator_callback_out_t)(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
 
-
+typedef struct dap_chain_net dap_chain_net_t;
 // Checks the emission of the token, usualy on zero chain
 #define DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION    0x0001
 
@@ -100,6 +100,8 @@ DAP_STATIC_INLINE char *dap_chain_ledger_get_gdb_group(dap_ledger_t *a_ledger, c
             ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net_name, a_suffix)
             : NULL;
 }
+
+dap_chain_net_t * dap_chain_ledger_get_net(dap_ledger_t * a_ledger);
 
 /**
  * Add new transaction to the cache
