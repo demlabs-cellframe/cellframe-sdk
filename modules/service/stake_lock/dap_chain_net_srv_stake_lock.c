@@ -229,10 +229,11 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
     ||	NULL == l_time_staking_str)
 		return TIME_ERROR;
 
-	if (dap_time_from_str_rfc822(l_time_staking_str) <= 0)//TODO: add proper validation!!!
+	if (0 == (l_time_staking = dap_time_from_str_rfc822(l_time_staking_str))
+	||	(time_t)(l_time_staking - dap_time_now()) <= 0)
 		return TIME_ERROR;
 
-	l_time_staking = dap_time_from_str_rfc822(l_time_staking_str);
+	l_time_staking -= dap_time_now();
 
 	if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
 		dap_string_append_printf(output_line, "'%s'", l_wallet_str);
@@ -538,7 +539,8 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case TIME_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in rfc822 format");
+			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in rfc822 format\n"
+												  				"Example: \"Tue, 02 Aug 22 19:50:41 +0300\"");
 			} break;
 
 		case NO_MONEY_ERROR: {
@@ -959,7 +961,7 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
     l_item->params_size = sizeof(cond_params_t);
     cond_params_t * l_params = (cond_params_t *) l_item->params;
     if(a_time_staking) {
-		l_params->time_unlock = dap_time_now() + (a_time_staking - dap_time_now());
+		l_params->time_unlock = dap_time_now() + a_time_staking;
 		l_params->flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME;
 	}
     if(a_key)

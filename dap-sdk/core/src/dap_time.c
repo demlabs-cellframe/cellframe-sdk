@@ -178,7 +178,8 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
 	strptime(a_time_str, "%a, %d %b %y %H:%M:%S", &l_tm);
 #endif
 
-    l_time = mktime(&l_tm);
+    time_t tmp = mktime(&l_tm);
+    l_time = (tmp <= 0) ? 0 : tmp;
     return l_time;
 }
 
