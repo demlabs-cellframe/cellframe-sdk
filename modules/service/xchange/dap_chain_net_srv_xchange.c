@@ -22,13 +22,13 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <math.h>
+#include "dap_time.h"
+#include "dap_chain_net_srv.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_node_cli.h"
 #include "dap_string.h"
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
-#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_xchange.h"
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
@@ -1323,10 +1323,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
 
                                 char l_tx_ts_created_str[92] = {0};
-                                struct tm l_tm;                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
                                 uint64_t l_ts = l_tx->header.ts_created;
-                                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
-                                    asctime_r (&l_tm, l_tx_ts_created_str);
+                                dap_ctime_r(&l_ts, l_tx_ts_created_str);                    /* Convert ts to  Sat May 17 01:17:08 2014 */
 
                                 dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str);
                                 dap_string_append_printf(l_reply_str,"\tts_created: %s\n", l_tx_ts_created_str);

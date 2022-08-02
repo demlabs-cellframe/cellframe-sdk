@@ -316,35 +316,6 @@ dap_list_t *dap_list_concat(dap_list_t *list1, dap_list_t *list2)
     return list1;
 }
 
-static inline dap_list_t * _dap_list_remove_link(dap_list_t *list, dap_list_t *link)
-{
-    if(link == NULL)
-        return list;
-
-    if(link->prev)
-    {
-        if(link->prev->next == link)
-            link->prev->next = link->next;
-        else
-            log_it(L_ERROR, "corrupted double-linked list detected");
-    }
-    if(link->next)
-    {
-        if(link->next->prev == link)
-            link->next->prev = link->prev;
-        else
-            log_it(L_ERROR, "corrupted double-linked list detected");
-    }
-
-    if(link == list)
-        list = list->next;
-
-    link->next = NULL;
-    link->prev = NULL;
-
-    return list;
-}
-
 /**
  * dap_list_remove:
  * @list: a DapList, this must point to the top of the list
@@ -367,9 +338,7 @@ dap_list_t *dap_list_remove(dap_list_t *list, const void * data)
             tmp = tmp->next;
         else
         {
-            list = _dap_list_remove_link(list, tmp);
-            if (list == tmp)
-                list = NULL;
+            list = dap_list_remove_link(list, tmp);
             dap_list_free1(tmp);
             break;
         }
@@ -437,9 +406,33 @@ dap_list_t *dap_list_remove_all(dap_list_t *list, const void * data)
  *
  * Returns: the (possibly changed) start of the DapList
  */
-dap_list_t *dap_list_remove_link(dap_list_t *list, dap_list_t *llink)
+inline dap_list_t *dap_list_remove_link(dap_list_t *list, dap_list_t *link)
 {
-    return _dap_list_remove_link(list, llink);
+    if(link == NULL)
+        return list;
+
+    if(link->prev)
+    {
+        if(link->prev->next == link)
+            link->prev->next = link->next;
+        else
+            log_it(L_ERROR, "corrupted double-linked list detected");
+    }
+    if(link->next)
+    {
+        if(link->next->prev == link)
+            link->next->prev = link->prev;
+        else
+            log_it(L_ERROR, "corrupted double-linked list detected");
+    }
+
+    if(link == list)
+        list = list->next;
+
+    link->next = NULL;
+    link->prev = NULL;
+
+    return list;
 }
 
 /**
@@ -453,10 +446,10 @@ dap_list_t *dap_list_remove_link(dap_list_t *list, dap_list_t *llink)
  *
  * Returns: the (possibly changed) start of the DapList
  */
-dap_list_t *dap_list_delete_link(dap_list_t *list, dap_list_t *link_)
+dap_list_t *dap_list_delete_link(dap_list_t *list, dap_list_t *link)
 {
-    list = _dap_list_remove_link(list, link_);
-    dap_list_free1(link_);
+    list = dap_list_remove_link(list, link);
+    dap_list_free1(link);
 
     return list;
 }

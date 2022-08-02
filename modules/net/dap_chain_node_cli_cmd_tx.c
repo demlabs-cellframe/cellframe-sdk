@@ -482,10 +482,8 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
             l_time_str[0] = ' ', l_time_str[1] = '\0';                      /* Prefill string with the space */
 
             if ( l_tx->header.ts_created) {
-                struct tm l_tm;                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
                 uint64_t l_ts = l_tx->header.ts_created;
-                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
-                    asctime_r (&l_tm, l_time_str);
+                dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  Sat May 17 01:17:08 2014 */
             }
 
             char *l_tx_hash_str;
@@ -789,14 +787,16 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 
     //switch ledger params list | tx | info
     int l_cmd = CMD_NONE;
-    if (dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "list", NULL)){
+    if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
         l_cmd = CMD_LIST;
-    } else if (dap_chain_node_cli_find_option_val(a_argv, 1, 2, "tx", NULL)){
+    } else if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "tx", NULL)){
         l_cmd = CMD_TX_HISTORY;
-    } else if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "info", NULL))
+    } else if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "info", NULL))
         l_cmd = CMD_TX_INFO;
 
-    bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-all", NULL);
+    bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
+
+    arg_index++;
 
     // command tx_history
     if(l_cmd == CMD_TX_HISTORY) {

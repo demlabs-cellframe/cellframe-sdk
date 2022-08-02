@@ -382,7 +382,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     }
     size_t l_signs_size = a_token_size - sizeof(dap_chain_datum_token_t) - l_size_tsd_section;
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd + l_size_tsd_section, l_signs_size, &l_signs_unique);
-    if (l_signs_unique == a_token->signs_valid){
+    if (l_signs_unique >= a_token->signs_total){
         size_t l_signs_approve = 0;
         for (size_t i=0; i < l_signs_unique; i++){
             dap_sign_t *l_sign = l_signs[i];
@@ -392,15 +392,15 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
                 }
             }
         }
-        if (l_signs_approve == a_token->signs_valid){
+        if (l_signs_approve >= a_token->signs_total){
             return 0;
         } else {
-            log_it(L_WARNING, "The token declaration has %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_valid);
+            log_it(L_WARNING, "The token declaration has %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_total);
             return -5;
         }
     } else {
-        log_it(L_WARNING, "The number of unique valid tokens %zu is less than the value set to %zu.",
-               l_signs_unique, a_token->header_native_decl.tsd_total_size);
+        log_it(L_WARNING, "The number of unique token signs %zu is less than total token signs set to %hu.",
+               l_signs_unique, a_token->signs_total);
         return -4;
     }
     // Checks passed
