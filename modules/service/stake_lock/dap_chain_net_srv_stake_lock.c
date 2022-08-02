@@ -68,6 +68,9 @@ enum error_code {
 	CREATE_DATUM_ERROR			= 34,
 	ADD_DATUM_BURNING_TX_ERROR	= 35,
 	ADD_DATUM_TX_TAKE_ERROR		= 36,
+	BASE_TX_CREATE_ERROR		= 37,
+	WRONG_PARAM_SIZE			= 38,
+	NOT_ENOUGH_TIME				= 38
 };
 
 /**
@@ -250,6 +253,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 	l_key_from = dap_chain_wallet_get_key(l_wallet, 0);
 	if (NULL == (l_key_cond = dap_pkey_from_enc_key(l_cert->enc_key))) {
 		dap_chain_wallet_close(l_wallet);
+		DAP_DEL_Z(l_addr_holder);
 		dap_string_append_printf(output_line, "'%s'", l_cert_str);
 		return CERT_KEY_ERROR;
 	}
@@ -263,7 +267,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 	l_hash_str = (l_tx_cond_hash) ? dap_chain_hash_fast_to_str_new(l_tx_cond_hash) : NULL;
 
 	if (l_hash_str)
-		dap_string_append_printf(output_line, "Successfully hash=%s\n", l_hash_str);
+		dap_string_append_printf(output_line, "TX STAKE LOCK CREATED\nSuccessfully hash=%s\nSave to take!\n", l_hash_str);
 	else {
 		DAP_DEL_Z(l_addr_holder);
         return CREATE_LOCK_TX_ERROR;
@@ -275,13 +279,20 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
 																  l_value, delegate_token_str, l_addr_holder,
 																  &l_cert, 1);
 
-	if (l_base_tx_hash) {
-		log_it(L_INFO, "GOOD!");
-		DAP_DEL_Z(l_base_tx_hash);
+	l_hash_str = (l_base_tx_hash) ? dap_chain_hash_fast_to_str_new(l_base_tx_hash) : NULL;
+
+	if (l_hash_str)
+		dap_string_append_printf(output_line, "BASE_TX_DATUM_HASH=%s\n", l_hash_str);
+	else {
+		DAP_DEL_Z(l_addr_holder);
+		DAP_DEL_Z(l_tx_cond_hash);
+		return BASE_TX_CREATE_ERROR;
 	}
 
-	DAP_DEL_Z(l_tx_cond_hash);
 	DAP_DEL_Z(l_addr_holder);
+	DAP_DEL_Z(l_tx_cond_hash);
+	DAP_DEL_Z(l_base_tx_hash);
+	DAP_DEL_Z(l_hash_str);
 
     return STAKE_NO_ERROR;
 }
@@ -296,6 +307,7 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 	dap_chain_net_srv_uid_t				l_uid				=	{ .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
 	char 	delegate_token_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{[0] = 'm'};
 	int									l_prev_cond_idx		=	0;
+	cond_params_t						*l_params;
 	char 								*l_datum_hash_str;
 //	uint256_t 							l_value;
 	dap_ledger_t						*l_ledger;
@@ -361,6 +373,15 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 
 	if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
 		return IS_USED_OUT_ERROR;
+	}
+
+	if (l_tx_out_cond->params_size != sizeof(*l_params))// Wrong params size
+		return WRONG_PARAM_SIZE;
+	l_params = (cond_params_t *) l_tx_out_cond->params;
+
+	if (l_params->flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME) {
+		if (l_params->time_unlock > dap_time_now())
+			return NOT_ENOUGH_TIME;
 	}
 
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
@@ -556,8 +577,12 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			dap_string_append_printf(output_line, "STAKE ERROR");
 			} break;
 
+		case NOT_ENOUGH_TIME: {
+			dap_string_append_printf(output_line, "Not enough time has passed");
+			} break;
+
 		default: {
-			dap_string_append_printf(output_line, "Unrecognized error");
+			dap_string_append_printf(output_line, "STAKE_LOCK: Unrecognized error");
 			} break;
 	}
 }
@@ -773,9 +798,6 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_chain_tx_out_cond_t *a_cond, d
 	dap_chain_datum_tx_t *burning_tx = NULL;
 	dap_chain_tx_out_t *burning_transaction_out = NULL;
 
-//	dap_chain_net
-//	dap_chain_net_get_default_chain_by_chain_type();
-
 	dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
 
 	if (!l_tx_out)
@@ -937,7 +959,7 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
     l_item->params_size = sizeof(cond_params_t);
     cond_params_t * l_params = (cond_params_t *) l_item->params;
     if(a_time_staking) {
-		l_params->time_unlock = dap_time_now() + a_time_staking;
+		l_params->time_unlock = dap_time_now() + (a_time_staking - dap_time_now());
 		l_params->flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME;
 	}
     if(a_key)
