@@ -70,7 +70,7 @@ enum error_code {
 	ADD_DATUM_TX_TAKE_ERROR		= 36,
 	BASE_TX_CREATE_ERROR		= 37,
 	WRONG_PARAM_SIZE			= 38,
-	NOT_ENOUGH_TIME				= 38
+	NOT_ENOUGH_TIME				= 39
 };
 
 /**
@@ -486,6 +486,7 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 
 static void s_error_handler(enum error_code errorCode, dap_string_t *output_line)
 {
+	dap_string_append_printf(output_line, "ERROR!\n");
 	switch (errorCode)
 	{
 		case NET_ARG_ERROR: {
@@ -581,6 +582,66 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 
 		case NOT_ENOUGH_TIME: {
 			dap_string_append_printf(output_line, "Not enough time has passed");
+			} break;
+
+		case TX_TIKET_ERROR: {
+			dap_string_append_printf(output_line, "ticket not found");
+			} break;
+
+		case NO_DELEGATE_TOKEN_ERROR: {
+			dap_string_append_printf(output_line, "delegated token not found");
+			} break;
+
+		case NO_VALID_SUBTYPE_ERROR: {
+			dap_string_append_printf(output_line, "wrong subtype for transaction");
+			} break;
+
+		case IS_USED_OUT_ERROR: {
+			dap_string_append_printf(output_line, "tx hash is used out");
+			} break;
+
+		case OWNER_KEY_ERROR: {
+			dap_string_append_printf(output_line, "key retrieval error");
+			} break;
+
+		case CREATE_TX_ERROR: {
+			dap_string_append_printf(output_line, "memory allocation error when creating a transaction");
+			} break;
+
+		case CREATE_BURNING_TX_ERROR: {
+			dap_string_append_printf(output_line, "failed to create a transaction that burns funds");
+			} break;
+
+		case CREATE_RECEIPT_ERROR: {
+			dap_string_append_printf(output_line, "failed to create receipt");
+			} break;
+
+		case SIGN_ERROR: {
+			dap_string_append_printf(output_line, "failed to sign transaction");
+			} break;
+
+		case ADD_DATUM_BURNING_TX_ERROR: {
+			dap_string_append_printf(output_line, "failed to add datum with burning-transaction to mempool");
+			} break;
+
+		case ADD_DATUM_TX_TAKE_ERROR: {
+			dap_string_append_printf(output_line, "failed to add datum with take-transaction to mempool");
+			} break;
+
+		case BASE_TX_CREATE_ERROR: {
+			dap_string_append_printf(output_line, "failed to create the base transaction for emission");
+			} break;
+
+		case WRONG_PARAM_SIZE: {
+			dap_string_append_printf(output_line, "error while checking conditional transaction parameters");
+			} break;
+
+		case CREATE_LOCK_TX_ERROR: {
+			dap_string_append_printf(output_line, "error creating transaction");
+			} break;
+
+		case CREATE_DATUM_ERROR: {
+			dap_string_append_printf(output_line, "error while creating datum from transaction");
 			} break;
 
 		default: {
