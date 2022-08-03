@@ -25,6 +25,7 @@
     along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <sqlite3.h>
 #include <stddef.h>
 #include <string.h>
 #include <pthread.h>
@@ -275,8 +276,9 @@ struct  timespec tmo = {0, 500 * 1024 * 1024 /* ~0.5 sec */}, delta;
              && (l_rc != SQLITE_BUSY) )
             break;
 
-        if (s_dap_global_db_debug_more )
-            log_it(L_WARNING, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_db, l_query);
+        if (s_dap_global_db_debug_more ){
+            log_it(L_WARNING, "SQL error: \"%s\"%d, dap_db_driver_sqlite_exec(%p, %s), retry ...", sqlite3_errmsg(l_db),l_rc, l_db, l_query);
+        }
 
         for ( delta = tmo; nanosleep(&delta, &delta); );                        /* Wait some time ... */
     }
@@ -285,7 +287,7 @@ struct  timespec tmo = {0, 500 * 1024 * 1024 /* ~0.5 sec */}, delta;
     if ( l_rc != SQLITE_OK)
     {
         if ( l_rc != SQLITE_CONSTRAINT )
-            log_it (L_ERROR, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s)", l_rc, l_db, l_query);
+            log_it(L_ERROR, "SQL error: \"%s\"%d, dap_db_driver_sqlite_exec(%p, %s), retry ...", sqlite3_errmsg(l_db),l_rc, l_db, l_query);
 
         if(l_error_message && l_errmsg)
             *l_error_message = sqlite3_mprintf("SQL error %d: %s", l_rc, l_errmsg);
@@ -320,7 +322,8 @@ char    *l_error_message, l_query[512];
                     a_table_name);
 
     if ( (l_rc = s_dap_db_driver_sqlite_exec(l_conn->conn, (const char*) l_query, &l_error_message)) != SQLITE_OK) {
-        log_it (L_ERROR, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_conn->conn, l_query);
+        log_it(L_ERROR, "SQL error: \"%s\"%d, dap_db_driver_sqlite_exec(%p, %s), retry ...", sqlite3_errmsg(l_conn->conn),l_rc, l_conn->conn, l_query);
+
         s_dap_db_driver_sqlite_free(l_error_message);
         s_sqlite_free_connection(l_conn);
         return -1;
@@ -332,7 +335,7 @@ char    *l_error_message, l_query[512];
                 a_table_name);
 
     if ( (l_rc = s_dap_db_driver_sqlite_exec(l_conn->conn, (const char*) l_query, &l_error_message)) != SQLITE_OK) {
-        log_it (L_ERROR, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_conn->conn, l_query);
+        log_it(L_ERROR, "SQL error: \"%s\"%d, dap_db_driver_sqlite_exec(%p, %s), retry ...", sqlite3_errmsg(l_conn->conn),l_rc, l_conn->conn, l_query);
         s_dap_db_driver_sqlite_free(l_error_message);
         s_sqlite_free_connection(l_conn);
         return -1;

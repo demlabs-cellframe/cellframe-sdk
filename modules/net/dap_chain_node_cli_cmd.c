@@ -2053,8 +2053,8 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     }
 
     size_t l_tsd_size = 0;
-    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-            (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+	||	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
         l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
 
     for(size_t i = 0; i < l_certs_count; i++)
@@ -2163,8 +2163,8 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
                 dap_chain_datum_token_t *l_datum_token = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
                 DAP_DELETE(l_datum);
-                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-                        (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+				||	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
@@ -2929,6 +2929,7 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
 
 typedef struct _dap_cli_token_additional_params {
     const char* flags;
+    const char* delegated_token_from;
     const char* total_signs_valid;
     const char* datum_type_allowed;
     const char* datum_type_blocked;
@@ -2997,7 +2998,7 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
             l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC; // 256
         }else if (strcmp(l_params->l_type_str, "CF20") == 0){
             l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
-        }else{
+		}else{
             dap_chain_node_cli_set_reply_text(a_str_reply,
                         "Unknown token type %s was specified. Supported types:\n"
                         "   private_simple\n"
@@ -3053,6 +3054,7 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
 int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* l_params)
 {
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-flags", &l_params->ext.flags);
+    dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-delegated_token_from", &l_params->ext.delegated_token_from);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &l_params->ext.total_signs_valid);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-datum_type_allowed", &l_params->ext.datum_type_allowed);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-datum_type_blocked", &l_params->ext.datum_type_blocked);
@@ -3230,6 +3232,21 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                      l_str_flags++;
                 }
             }
+			if (l_params->ext.delegated_token_from){
+				dap_chain_datum_token_t *l_delegated_token_from;
+				if (NULL == (l_delegated_token_from = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
+					dap_chain_node_cli_set_reply_text(a_str_reply,"To create a delegated token %s, can't find token by ticket %s", l_ticker, l_params->ext.delegated_token_from);
+					return -91;
+				}
+				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
+				strcpy(l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
+//				l_tsd_section.token_from = dap_hash_fast();
+				l_tsd_section.emission_rate = dap_chain_coins_to_balance("1.0");//TODO: ???
+				dap_tsd_t * l_tsd = dap_tsd_create_scalar(
+														DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
+				l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+				l_tsd_total_size+= dap_tsd_size(l_tsd);
+			}
             if (l_params->ext.total_signs_valid){ // Signs valid
                 uint16_t l_param_value = (uint16_t)atoi(l_params->ext.total_signs_valid);
                 l_signs_total = l_param_value;
@@ -4867,7 +4884,8 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     int res = 0;
     if (l_emission_hash_str) {
         dap_hash_fast_t *l_tx_hash = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
-                                                                      l_value, l_token_ticker, l_addr_to, l_certs, l_certs_count);
+                                                                      l_value, l_token_ticker, l_addr_to, l_certs,
+																	  l_certs_count);
         if (l_tx_hash){
             char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof (l_tx_hash_str));

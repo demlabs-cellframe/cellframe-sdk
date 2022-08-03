@@ -161,7 +161,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  *
  * return type, or TX_ITEM_TYPE_ANY if error
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item)
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item)
 {
     dap_chain_tx_item_type_t type = a_item ? *(dap_chain_tx_item_type_t *)a_item : TX_ITEM_TYPE_ANY;
     return type;
@@ -172,7 +172,7 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item)
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item)
+size_t dap_chain_datum_item_tx_get_size(const void *a_item)
 {
     dap_chain_tx_item_type_t type = dap_chain_datum_tx_item_get_type(a_item);
     size_t size = 0;
@@ -276,14 +276,15 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
  */
 dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint256_t a_value)
 {
-    if(!a_addr)
-        return NULL;
     if (IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_t *l_item = DAP_NEW_Z(dap_chain_tx_out_t);
+	if(!a_addr){
+		memset(&l_item->addr, 0, sizeof(dap_chain_addr_t));
+	} else
+		memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
     l_item->header.type = TX_ITEM_TYPE_OUT;
     l_item->header.value = a_value;
-    memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
     return l_item;
 }
 
@@ -477,9 +478,9 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
  */
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count)
 {
-dap_list_t *items_list = NULL;
-int l_items_count = 0, l_item_idx_start = 0;
-uint8_t *l_tx_item;
+	dap_list_t *items_list = NULL;
+	int l_items_count = 0, l_item_idx_start = 0;
+	uint8_t *l_tx_item;
 
     // Get sign item from transaction
     while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL)) != NULL)
