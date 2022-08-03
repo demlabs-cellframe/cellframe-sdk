@@ -103,6 +103,14 @@ typedef struct dap_chain_datum_token{
     byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
+typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock{
+	char			ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
+//	dap_hash_fast_t	hash_token_from;//TODO: ???
+	uint256_t		emission_rate;	// In "coins", 1^18 == 1.0
+	int				flags;			// Some emission flags for future
+	byte_t			padding[256];	// Some free space for future
+} DAP_ALIGN_PACKED dap_chain_datum_token_tsd_delegate_from_stake_lock_t;
+
 // Token declaration type
 // Simple private token decl
 #define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE           0x0001
@@ -199,21 +207,24 @@ extern const char *c_dap_chain_datum_token_flag_str[];
 
 /// -------- General tsd types ----
 // Flags set/unsed
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS           0x0001
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS         0x0002
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS							0x0001
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS							0x0002
 
 // Total supply limits
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD    0x0003 // 128
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY        0x0026 // 256
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD						0x0003 // 128
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY							0x0026 // 256
 
 // Set total signs count value to set to be valid
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID   0x0004
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID					0x0004
 
 // Remove owner signature by pkey fingerprint
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE  0x0005
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE					0x0005
 
 // Add owner signature's pkey fingerprint
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD     0x0006
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD						0x0006
+
+// Emission for delegated token
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK	0x0026
 
 
 

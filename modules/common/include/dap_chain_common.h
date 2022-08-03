@@ -153,6 +153,7 @@ typedef union {
     uint128_t uint128;
 #endif
 } dap_chain_net_srv_uid_t;
+extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
 
 typedef enum {
     SERV_UNIT_UNDEFINED = 0 ,

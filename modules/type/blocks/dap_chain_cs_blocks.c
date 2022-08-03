@@ -661,50 +661,42 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
     }
     int l_ret = 0;
 
-    for(size_t i=0; i<a_block_cache->datum_count; i++){
+    size_t l_block_offset = 0;
+    size_t l_datum_size = 0;
+    for(size_t i=0; i<a_block_cache->datum_count && l_block_offset +sizeof(a_block_cache->block->hdr) < a_block_cache->block_size ;
+        i++, l_block_offset += l_datum_size ){
         dap_chain_datum_t *l_datum = a_block_cache->datum[i];
-        int l_res = -1;
-        switch (l_datum->header.type_id) {
-            case DAP_CHAIN_DATUM_TOKEN_DECL: {
-                dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-                l_res = dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
-            } break;
-            case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-                l_res = dap_chain_ledger_token_emission_load(a_ledger, l_datum->data, l_datum->header.data_size);
-            } break;
-            case DAP_CHAIN_DATUM_TX: {
-                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
-                // Check tx correcntess
-                size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-                if (l_tx_size + sizeof (a_block_cache->block->hdr) > a_block_cache->block_size){
-                    log_it(L_WARNING, "Corrupted transaction in block, size %zd is greater than block's size %zd", l_tx_size, a_block_cache->block_size);
-                    // l_res = -1;
-                    break;
-                }
-                // don't save bad transactions to base
-                l_res = dap_chain_ledger_tx_load(a_ledger, l_tx, NULL);
-                if( l_res != 1 )
-                    break;
-
-                // Save tx hash -> block_hash link in hash table
-                dap_chain_tx_block_index_t * l_tx_block= DAP_NEW_Z(dap_chain_tx_block_index_t);
-                l_tx_block->ts_added = time(NULL);
-                memcpy(&l_tx_block->block_hash, &a_block_cache->block_hash, sizeof ( l_tx_block->block_hash));
-                dap_hash_fast(l_tx, l_tx_size, &l_tx_block->tx_hash);
-                pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
-                HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);
-                pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
-                l_res = 0;
-            } break;
-            default:
-                l_res=-1;
+        size_t l_datum_data_size = l_datum->header.data_size;
+        l_datum_size = l_datum_data_size + sizeof(l_datum->header);
+        if(l_datum_size>a_block_cache->block_size- l_block_offset ){
+            log_it(L_WARNING,"Corrupted block %s has strange datum on offset %zd with size %zd out of block sizee",
+                   a_block_cache->block_hash_str, l_block_offset,l_datum_size );
+            break;
         }
-        if (l_res) {
+        int l_res = dap_chain_datum_add(a_blocks->chain, l_datum,l_datum_size );
+        if(l_res == 0 ){
+            switch (l_datum->header.type_id) {
+                case DAP_CHAIN_DATUM_TX: {
+                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) l_datum->data;
+                    // Check tx correcntess
+                    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+
+                    // Save tx hash -> block_hash link in hash table
+                    dap_chain_tx_block_index_t * l_tx_block= DAP_NEW_Z(dap_chain_tx_block_index_t);
+                    l_tx_block->ts_added = time(NULL);
+                    memcpy(&l_tx_block->block_hash, &a_block_cache->block_hash, sizeof ( l_tx_block->block_hash));
+                    dap_hash_fast(l_tx, l_tx_size, &l_tx_block->tx_hash);
+                    pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
+                    HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);
+                    pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+                } break;
+            }
+            l_ret++;
+        }else {
             /* @RRL: disabled due spaming ...
             debug_if(s_debug_more, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                      dap_chain_datum_type_id_to_str(l_datum->header.type_id), a_block_cache->block_hash_str, l_res);
             */
-            l_ret++;
         }
     }
     return l_ret;

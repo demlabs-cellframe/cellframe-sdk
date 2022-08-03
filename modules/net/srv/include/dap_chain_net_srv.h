@@ -24,6 +24,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
+#include "dap_chain_common.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_net.h"
 #include "dap_chain_net_remote.h"
 #include "dap_chain_wallet.h"
@@ -209,12 +211,39 @@ typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_
 typedef void* (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_usage_t *, const void *, size_t, size_t *);
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
 
+// Process service decree
+typedef void (*dap_chain_net_srv_callback_decree_t)(dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
+
+
 typedef struct dap_chain_net_srv_banlist_item {
     dap_chain_hash_fast_t client_pkey_hash;
     pthread_mutex_t *ht_mutex;
     struct dap_chain_net_srv_banlist_item **ht_head;
     UT_hash_handle hh;
 } dap_chain_net_srv_banlist_item_t;
+
+typedef struct dap_chain_net_srv_callbacks{
+    // For traffic control
+    dap_chain_callback_trafic_t traffic;
+    // Request for usage
+    dap_chain_net_srv_callback_data_t requested;
+    // Receipt first sign successfull
+    dap_chain_net_srv_callback_data_t response_success;
+    // Response error
+    dap_chain_net_srv_callback_data_t response_error;
+    // Receipt next sign succesfull
+    dap_chain_net_srv_callback_data_t receipt_next_success;
+    // Custom data processing
+    dap_chain_net_srv_callback_custom_data_t custom_data;
+
+    // Decree processing
+    dap_chain_net_srv_callback_decree_t decree;
+
+    // Stream CH callbacks - channel opened, closed and write
+    dap_chain_net_srv_callback_ch_t stream_ch_opened;
+    dap_chain_net_srv_callback_ch_t stream_ch_closed;
+    dap_chain_net_srv_callback_ch_t stream_ch_write;
+} dap_chain_net_srv_callbacks_t;
 
 typedef struct dap_chain_net_srv
 {
@@ -226,27 +255,8 @@ typedef struct dap_chain_net_srv
     pthread_mutex_t banlist_mutex;
     dap_chain_net_srv_banlist_item_t *ban_list;
 
-    dap_chain_callback_trafic_t callback_trafic;
+    dap_chain_net_srv_callbacks_t callbacks;
 
-    // Request for usage
-    dap_chain_net_srv_callback_data_t callback_requested;
-
-    // Receipt first sign successfull
-    dap_chain_net_srv_callback_data_t callback_response_success;
-
-    // Response error
-    dap_chain_net_srv_callback_data_t callback_response_error;
-
-    // Receipt next sign succesfull
-    dap_chain_net_srv_callback_data_t callback_receipt_next_success;
-
-    // Custom data processing
-    dap_chain_net_srv_callback_custom_data_t callback_custom_data;
-
-    // Stream CH callbacks - channel opened, closed and write
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_opened;
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_closed;
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_write;
     // Pointer to inheritor object
     void *_inheritor;
     // Pointer to internal server structure
@@ -255,21 +265,10 @@ typedef struct dap_chain_net_srv
 
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
-bool dap_chain_net_srv_pay_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool dap_chain_net_srv_pay_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
                                            const char *a_config_section,
-                                           dap_chain_net_srv_callback_data_t a_callback_requested,
-                                           dap_chain_net_srv_callback_data_t a_callback_response_success,
-                                           dap_chain_net_srv_callback_data_t a_callback_response_error,
-                                           dap_chain_net_srv_callback_data_t a_callback_receipt_next_success,
-                                           dap_chain_net_srv_callback_custom_data_t a_callback_custom_data
-                                           );
-
-int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_opened,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write
-                                       );
+                                           dap_chain_net_srv_callbacks_t *a_callbacks );
 
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);
 void dap_chain_net_srv_del_all(void);
