@@ -44,11 +44,6 @@
 int 	dap_chain_net_srv_stake_lock_init(void);
 void	dap_chain_net_srv_stake_lock_deinit(void);
 
-// Verificator callbacks
-bool	dap_chain_net_srv_stake_lock_verificator(dap_ledger_t *a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-bool	dap_chain_net_srv_stake_lock_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
-
-
 // Create cond out
 dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                     uint64_t a_time_staking);

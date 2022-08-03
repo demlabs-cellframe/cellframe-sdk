@@ -22,6 +22,7 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stake_lock.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_node_cli.h"
@@ -89,6 +90,10 @@ typedef struct cond_params{
 #define YEAR_INDEX	12
 
 static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
+// Verificator callbacks
+static bool	s_callback_verificator(dap_ledger_t *a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+static bool	s_callback_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
+static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
 
 /**
  * @brief dap_chain_net_srv_external_stake_init
@@ -102,8 +107,14 @@ int dap_chain_net_srv_stake_lock_init()
     			"stake_lock take -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
 				"-chain <chain (not necessary)>\n"
 	);
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, dap_chain_net_srv_stake_lock_verificator, dap_chain_net_srv_stake_lock_verificator_added);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,
+                                     s_callback_verificator, s_callback_verificator_added);
 
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+    dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
+    l_srv_callbacks.decree = s_callback_decree;
+
+    dap_chain_net_srv_t *l_srv = dap_chain_net_srv_add(l_uid, "stake_lock", &l_srv_callbacks);
     return 0;
 }
 
@@ -116,13 +127,26 @@ void dap_chain_net_srv_stake_lock_deinit()
 }
 
 /**
- * @brief s_external_stake_receipt_create
+ * @brief s_callback_decree
+ * @param a_srv
+ * @param a_net
+ * @param a_chain
+ * @param a_decree
+ * @param a_decree_size
+ */
+static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size)
+{
+
+}
+
+/**
+ * @brief s_receipt_create
  * @param hash_burning_transaction
  * @param token
  * @param datoshi_burned
  * @return
  */
-static dap_chain_datum_tx_receipt_t *s_external_stake_receipt_create(dap_hash_fast_t *hash_burning_transaction, const char *token, uint256_t datoshi_burned)
+static dap_chain_datum_tx_receipt_t *s_receipt_create(dap_hash_fast_t *hash_burning_transaction, const char *token, uint256_t datoshi_burned)
 {
 	uint32_t l_ext_size	= sizeof(dap_hash_fast_t) + dap_strlen(token) + 1;
     uint8_t *l_ext		= DAP_NEW_S_SIZE(uint8_t, l_ext_size);
@@ -138,14 +162,14 @@ static dap_chain_datum_tx_receipt_t *s_external_stake_receipt_create(dap_hash_fa
 }
 
 /**
- * @brief s_cli_srv_external_stake_hold
+ * @brief s_cli_hold
  * @param a_argc
  * @param a_argv
  * @param a_arg_index
  * @param output_line
  * @return
  */
-static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
+static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
     const char *l_net_str, *l_token_str, *l_coins_str, *l_wallet_str, *l_cert_str, *l_chain_str, *l_chain_emission_str, *l_time_staking_str;
     l_net_str = l_token_str = l_coins_str = l_wallet_str = l_cert_str = l_chain_str = l_chain_emission_str = l_time_staking_str = NULL;
@@ -299,7 +323,7 @@ static enum error_code s_cli_srv_external_stake_hold(int a_argc, char **a_argv, 
     return STAKE_NO_ERROR;
 }
 
-static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
+static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
 	const char *l_net_str, *l_token_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_chain_str;
 	l_net_str = l_token_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = NULL;
@@ -429,7 +453,7 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
 	//get tx hash
 	dap_hash_fast(l_datum_burning_tx->data, l_datum_burning_tx->header.data_size, &l_tx_burning_hash);
 
-	if (NULL == (l_receipt = s_external_stake_receipt_create(&l_tx_burning_hash, delegate_token_str, l_tx_out_cond->header.value))) {
+    if (NULL == (l_receipt = s_receipt_create(&l_tx_burning_hash, delegate_token_str, l_tx_out_cond->header.value))) {
 		dap_chain_wallet_close(l_wallet);
 		DAP_DEL_Z(l_owner_addr);
 		dap_chain_datum_tx_delete(l_tx);
@@ -485,6 +509,11 @@ static enum error_code s_cli_srv_external_stake_take(int a_argc, char **a_argv, 
     return STAKE_NO_ERROR;
 }
 
+/**
+ * @brief s_error_handler
+ * @param errorCode
+ * @param output_line
+ */
 static void s_error_handler(enum error_code errorCode, dap_string_t *output_line)
 {
 	dap_string_append_printf(output_line, "ERROR!\n");
@@ -651,6 +680,13 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 	}
 }
 
+/**
+ * @brief s_cli_stake_lock
+ * @param a_argc
+ * @param a_argv
+ * @param a_str_reply
+ * @return
+ */
 static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
 {
 	enum{
@@ -670,11 +706,11 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
 	switch (l_cmd_num) {
 
 		case CMD_HOLD: {
-			errorCode = s_cli_srv_external_stake_hold(a_argc, a_argv, l_arg_index + 1, output_line);
+            errorCode = s_cli_hold(a_argc, a_argv, l_arg_index + 1, output_line);
 			} break;
 
 		case CMD_TAKE: {
-			errorCode = s_cli_srv_external_stake_take(a_argc, a_argv, l_arg_index + 1, output_line);
+            errorCode = s_cli_take(a_argc, a_argv, l_arg_index + 1, output_line);
 			} break;
 
 		default: {
@@ -694,6 +730,11 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
 	return 0;
 }
 
+/**
+ * @brief s_give_month_str_from_month_count
+ * @param month_count
+ * @return
+ */
 static const char *s_give_month_str_from_month_count(uint8_t month_count)
 {
 
@@ -742,6 +783,11 @@ static const char *s_give_month_str_from_month_count(uint8_t month_count)
 	}
 }
 
+/**
+ * @brief s_give_month_count_from_time_str
+ * @param time
+ * @return
+ */
 static uint8_t s_give_month_count_from_time_str(char *time)
 {
 	const uint8_t len_month = 3;
@@ -774,6 +820,12 @@ static uint8_t s_give_month_count_from_time_str(char *time)
 		return 0;
 }
 
+/**
+ * @brief s_update_date_by_using_month_count
+ * @param time
+ * @param month_count
+ * @return
+ */
 static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
 {
 	uint8_t		current_month;
@@ -816,13 +868,13 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
 }
 
 /**
- * @brief dap_chain_net_srv_stake_lock_verificator
+ * @brief s_callback_verificator
  * @param a_cond
  * @param a_tx
  * @param a_owner
  * @return
  */
-bool dap_chain_net_srv_stake_lock_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
 
 	/*if (!a_owner) TODO: ???
@@ -893,13 +945,13 @@ bool dap_chain_net_srv_stake_lock_verificator(dap_ledger_t * a_ledger,dap_chain_
 }
 
 /**
- * @brief dap_chain_net_srv_stake_lock_added
+ * @brief s_callback_verificator_added
  * @param a_tx
  * @param a_tx_item
  * @param a_tx_item_idx
  * @return
  */
-bool	dap_chain_net_srv_stake_lock_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
+static bool	s_callback_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
 	dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
 	if (!l_key_hash)

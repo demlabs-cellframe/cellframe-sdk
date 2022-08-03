@@ -23,6 +23,9 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dap_chain_common.h"
+#include "dap_events.h"
+#include "dap_math_ops.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -247,6 +250,7 @@ static void wallet_info_notify();
 int dap_chain_ledger_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
+    pthread_rwlock_init(&s_verificators_rwlock, NULL);
     return 0;
 }
 
@@ -308,12 +312,6 @@ void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger)
 void dap_chain_ledger_load_end(dap_ledger_t *a_ledger)
 {
     PVT(a_ledger)->load_mode = false;
-}
-
-bool dap_chain_ledger_verificators_init()
-{
-	dap_chain_ledger_verificator_rwlock_init();
-	return true;
 }
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_bal) {
@@ -2264,74 +2262,95 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 				dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
 				if (!l_datum_token
 				&&	l_datum_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) {
-					debug_if(g_debug_reactor, L_DEBUG, "tx_token [%s] not declareted or no type DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL", l_tx_token->header.ticker);
+                    debug_if(s_debug_more, L_WARNING, "tx_token [%s] not declareted or no type DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL", l_tx_token->header.ticker);
 					l_err_num = -28;
 					break;
 				}
 				if (!l_datum_token->header_native_decl.tsd_total_size) {
-					debug_if(g_debug_reactor, L_DEBUG, "No TSD section for tx_token [%s]", l_tx_token->header.ticker);
+                    debug_if(s_debug_more, L_WARNING, "No TSD section for tx_token [%s]", l_tx_token->header.ticker);
 					l_err_num = -27;
 					break;
 				}
 				dap_tsd_t *l_tsd;
 				if (NULL == (l_tsd = dap_tsd_find(l_datum_token->data_n_tsd, l_datum_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
-					debug_if(g_debug_reactor, L_DEBUG, "No TSD section tyoe DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK for tx_token [%s]", l_tx_token->header.ticker);
+                    debug_if(s_debug_more, L_WARNING, "No TSD section tyoe DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK for tx_token [%s]", l_tx_token->header.ticker);
 					l_err_num = -26;
 					break;
 				}
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
 				if (!dap_chain_ledger_token_ticker_check(a_ledger, l_tsd_section.ticker_token_from)) {
-					debug_if(g_debug_reactor, L_DEBUG, "tx_token [%s] no found", l_tsd_section.ticker_token_from);
+                    debug_if(s_debug_more, L_WARNING, "tx_token [%s] no found", l_tsd_section.ticker_token_from);
 					l_err_num = -23;
 					break;
 				}
 //				int item_count = 0;
-				dap_chain_tx_out_t *out_tx = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, 0);//TODO: ADD CHECK COUNT TX
-				if (!out_tx) {
-					debug_if(g_debug_reactor, L_DEBUG, "No stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
+                dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, 0);//TODO: ADD CHECK COUNT TX
+                if (!l_tx_out) {
+                    debug_if(s_debug_more, L_WARNING, "Can't find OUT item for base TX with tx_token [%s]", l_tx_token->header.ticker);
 					l_err_num = -24;
 					break;
 				}
-				dap_chain_datum_tx_t *l_datum_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
-				dap_chain_tx_out_cond_t *out_cond_tx = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_datum_tx, 0, TX_ITEM_TYPE_OUT_COND, 0);//TODO: ADD CHECK COUNT TX
-				if (!out_cond_tx) {
-					debug_if(g_debug_reactor, L_DEBUG, "No stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
+                dap_chain_datum_tx_t *l_tx_stake_lock = dap_chain_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
+                dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_stake_lock, 0, TX_ITEM_TYPE_OUT_COND, 0);//TODO: ADD CHECK COUNT TX
+                if (!l_tx_stake_lock_out_cond) {
+                    debug_if(s_debug_more, L_WARNING, "No OUT_COND to for tx_token [%s]", l_tx_token->header.ticker);
 					l_err_num = -30;
 					break;
 				}
-				if (out_cond_tx->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
-					debug_if(g_debug_reactor, L_DEBUG, "No subtype stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
+                if (l_tx_stake_lock_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                    debug_if(s_debug_more, L_WARNING, "OUT_COND is not stake_lock subtype to for tx_token [%s]", l_tx_token->header.ticker);
 					l_err_num = -25;
 					break;
 				}
-				if (!EQUAL_256(out_cond_tx->header.value, out_tx->header.value)) {
-					debug_if(g_debug_reactor, L_DEBUG, "Value not equal for [%s]", l_tx_token->header.ticker);
+                uint256_t l_value_expected ={};
+                if (MULT_256_COIN(l_tx_stake_lock_out_cond->header.value, l_tsd_section.emission_rate, &l_value_expected)!=0){
+                    if(s_debug_more){
+                        char * l_emission_rate_str = dap_chain_balance_print(l_tsd_section.emission_rate);
+                        char * l_locked_value_str = dap_chain_balance_print(l_tx_stake_lock_out_cond->header.value);
+                        log_it( L_WARNING, "Multiplication overflow for %s emission: locked value %s emission rate %s"
+                                 , l_tx_token->header.ticker, l_locked_value_str, l_emission_rate_str);
+                        DAP_DELETE(l_emission_rate_str);
+                        DAP_DELETE(l_locked_value_str);
+                    }
+                    l_err_num = -25;
+                    break;
+                }
+
+                if (!EQUAL_256(l_value_expected, l_tx_out->header.value)) {
+                    char * l_value_expected_str = dap_chain_balance_print(l_value_expected);
+                    char * l_locked_value_str = dap_chain_balance_print(l_tx_out->header.value);
+
+                    debug_if(s_debug_more, L_WARNING, "Value %s not thats expected %s for [%s]",l_locked_value_str, l_value_expected_str,
+                             l_tx_token->header.ticker);
+
+                    DAP_DELETE(l_value_expected_str);
+                    DAP_DELETE(l_locked_value_str);
 					l_err_num = -34;
 					break;
 				}
 				// check tiker
 				const char *tx_tiker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, l_emission_hash);
 				if (!tx_tiker) {
-					debug_if(g_debug_reactor, L_DEBUG, "No tiker stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
+                    debug_if(s_debug_more, L_WARNING, "No tiker stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
 					l_err_num = -33;
 					break;
 				}
 				if (strcmp(tx_tiker, l_tsd_section.ticker_token_from)) {
-					debug_if(g_debug_reactor, L_DEBUG, "Tikers not equal for [%s]", l_tx_token->header.ticker);
+                    debug_if(s_debug_more, L_WARNING, "Tikers not equal for [%s]", l_tx_token->header.ticker);
 					l_err_num = -34;
 					break;
 				}
-				debug_if(g_debug_reactor, L_DEBUG, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
+                debug_if(s_debug_more, L_NOTICE, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
 				break;
 			}
 
             if (!l_emission_item) {
-                debug_if(g_debug_reactor, L_DEBUG, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
+                debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                 break;
             }
             if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
-                debug_if(g_debug_reactor, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
+                debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
                 l_err_num = -22;
                 break;
             }
@@ -4091,9 +4110,6 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
     return 0;
 }
 
-int dap_chain_ledger_verificator_rwlock_init(void) {
-    return pthread_rwlock_init(&s_verificators_rwlock, NULL);
-}
 
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool reverse){
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
