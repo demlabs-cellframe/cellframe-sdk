@@ -2121,7 +2121,7 @@ static int s_check_out_cond_verificator_added(dap_ledger_t *a_ledger, dap_chain_
 			if (!l_verificator) {
 				if (s_debug_more)
 					log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
-//				return -13;
+				return -13;
 			}
 			else if (l_verificator->callback_added && l_verificator->callback_added(a_ledger, a_tx, l_tx_out) == false)
 				return -14;
