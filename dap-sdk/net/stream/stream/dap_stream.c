@@ -664,7 +664,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         if(!l_pkt) {
             // pkt header not found, maybe l_buf_in_left is too small to detect pkt header, will do that next time
             l_pkt = (dap_stream_pkt_t*) l_buf_in;
-            log_it(L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes, l_pkt=0", l_buf_in_left);
+            debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes, l_pkt=0", l_buf_in_left);
         }
         if(l_pkt) {
             a_stream->pkt_buf_in_data_size = l_buf_in_left;
