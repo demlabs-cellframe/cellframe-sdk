@@ -21,8 +21,6 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include <sys/un.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -51,6 +49,9 @@
 #ifdef DAP_OS_LINUX
 #include <netpacket/packet.h>
 #include <linux/if_tun.h>
+#include <linux/if.h>
+#include <sys/ioctl.h>
+#include <netpacket/packet.h>
 #elif defined (DAP_OS_DARWIN)
 #include <net/if.h>
 #include <net/if_utun.h>
@@ -61,11 +62,6 @@
 #include <sys/sys_domain.h>
 #include <netinet/in.h>
 #endif
-
-
-#include <net/if.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
 
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_vpn_client.h"
@@ -371,53 +367,37 @@ void m_client_tun_new(dap_events_socket_t * a_es, void * arg)
 
 static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
 {
-    const static int tun_MTU = 100000; /// TODO Replace with detection of MTU size
-    uint8_t l_tmp_buf[tun_MTU];
+    dap_stream_ch_t* l_ch = dap_chain_net_vpn_client_get_stream_ch();
+    size_t l_read_bytes = 0, l_shift = 0;
 
-    size_t l_read_ret;
-    log_it(L_WARNING, __PRETTY_FUNCTION__);
-
-    do{
-        l_read_ret = dap_events_socket_pop_from_buf_in(a_es, l_tmp_buf, sizeof(l_tmp_buf));
-
-        if(l_read_ret > 0) {
+    for (; (l_read_bytes = MIN(a_es->buf_in_size, TUN_MTU)); a_es->buf_in_size -= l_read_bytes, l_shift += l_read_bytes) {
+        if (!l_ch) {
             struct in_addr in_daddr, in_saddr;
 #ifdef DAP_OS_LINUX
-            struct iphdr *iph = (struct iphdr*) l_tmp_buf;
+            struct iphdr* iph = (struct iphdr*)l_tmp_buf;
             in_daddr.s_addr = iph->daddr;
             in_saddr.s_addr = iph->saddr;
 #else
-            struct ip *iph = (struct ip*) l_tmp_buf;
+            struct ip* iph = (struct ip*)l_tmp_buf;
             in_daddr.s_addr = iph->ip_dst.s_addr;
             in_saddr.s_addr = iph->ip_src.s_addr;
 #endif
-            char str_daddr[42], str_saddr[42];
-            dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
-            dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
-
-            dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
-            if(l_ch) {
-                // form packet to vpn-server
-                ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_read_ret);
-                pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND; //VPN_PACKET_OP_CODE_VPN_RECV
-                pkt_out->header.sock_id = s_fd_tun;
-                pkt_out->header.op_data.data_size = l_read_ret;
-                memcpy(pkt_out->data, l_tmp_buf, l_read_ret);
-
-                pthread_mutex_lock(&s_clients_mutex);
-                // sent packet to vpn server
-                dap_stream_ch_pkt_write_mt(l_ch->stream_worker,l_ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
-                        pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                pthread_mutex_unlock(&s_clients_mutex);
-
-                DAP_DELETE(pkt_out);
-            }
-            else {
-                log_it(L_DEBUG, "No remote client for income IP packet with addr %s", inet_ntoa(in_daddr));
-            }
+            char l_str_daddr[INET_ADDRSTRLEN], l_str_saddr[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &in_daddr, l_str_daddr, sizeof(in_daddr));
+            inet_ntop(AF_INET, &in_saddr, l_str_saddr, sizeof(in_saddr));
+            log_it(L_ERROR, "No remote client for incoming ip packet %s -> %s", l_str_saddr, l_str_daddr);
+            break;
         }
-    }while(l_read_ret > 0);
-
+        ch_vpn_pkt_t* pkt_out = DAP_NEW_S_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header) + l_read_bytes);
+        pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND;
+        pkt_out->header.sock_id = s_fd_tun;
+        pkt_out->header.op_data.data_size = l_read_bytes;
+        memcpy(pkt_out->data, a_es->buf_in + l_shift, l_read_bytes);
+        // pthread_mutex_lock(&s_clients_mutex);
+        dap_stream_ch_pkt_write_mt(l_ch->stream_worker, l_ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+            pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+        // pthread_mutex_unlock(&s_clients_mutex);
+    }
     dap_events_socket_set_readable_unsafe(a_es, true);
 }
 
@@ -538,11 +518,11 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     pthread_mutex_init(&s_clients_mutex, NULL);
 
     static dap_events_socket_callbacks_t l_s_callbacks = {
-            .new_callback = m_client_tun_new,//m_es_tun_new;
-            .read_callback = m_client_tun_read,// for server
-            .write_callback = m_client_tun_write,// for client
-            .error_callback = m_client_tun_error,
-            .delete_callback = m_client_tun_delete
+            .new_callback       = m_client_tun_new,
+            .read_callback      = m_client_tun_read,     // for server
+            .write_callback     = m_client_tun_write,   // for client
+            .error_callback     = m_client_tun_error,
+            .delete_callback    = m_client_tun_delete
     };
 
     s_tun_events_socket = dap_events_socket_wrap_no_add(s_fd_tun, &l_s_callbacks);

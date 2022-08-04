@@ -65,7 +65,7 @@
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-#include "dap_modules_dynamic_cdb.h"
+//#include "dap_modules_dynamic_cdb.h"
 
 /*
  #if !defined( dap_http_client_state_t )
@@ -80,6 +80,11 @@
 
 #define LOG_TAG "vpn_client"
 
+#ifdef DAP_OS_LINUX
+static EPOLL_HANDLE sf_socks_epoll_fd;
+#endif
+
+
 static pthread_mutex_t sf_socks_mutex;
 
 static dap_chain_node_info_t *s_node_info = NULL;
@@ -87,17 +92,12 @@ static dap_chain_node_client_t *s_vpn_client = NULL;
 
 dap_stream_worker_t* dap_chain_net_vpn_client_get_stream_worker(void)
 {
-    if(!s_vpn_client)
-        return NULL;
-    return dap_client_get_stream_worker( s_vpn_client->client );
+    return s_vpn_client ? dap_client_get_stream_worker(s_vpn_client->client) : NULL;
 }
 
 dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void)
 {
-    if(!s_vpn_client)
-        return NULL;
-    dap_stream_ch_t *l_stream = dap_client_get_stream_ch_unsafe(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN);
-    return l_stream;
+    return s_vpn_client ? dap_client_get_stream_ch_unsafe(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN) : NULL;
 }
 
 /// TODO convert below callback to processor of stage
