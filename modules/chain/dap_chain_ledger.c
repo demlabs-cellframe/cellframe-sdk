@@ -2522,14 +2522,14 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             }
             // 5b. Call verificator for conditional output
             dap_chain_ledger_verificator_t *l_verificator;
-            int l_tmp = l_tx_prev_out_cond->header.subtype;
+            int l_sub_tmp = l_tx_prev_out_cond->header.subtype;
 
             pthread_rwlock_rdlock(&s_verificators_rwlock);
-            HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
+            HASH_FIND_INT(s_verificators, &l_sub_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (!l_verificator || !l_verificator->callback) {
                 if(s_debug_more)
-                    log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
+                    log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_sub_tmp);
                 l_err_num = -13;
                 break;
             }
