@@ -135,8 +135,6 @@ int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct time
  */
 int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
 {
-	log_it(L_INFO, "dap_time_to_str_rfc822 start\n");
-
   struct tm *l_tmp;
   time_t l_time = (time_t)a_t;
   l_tmp = localtime(&l_time);
@@ -148,10 +146,8 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
 
   int l_ret;
   #ifndef _WIN32
-	log_it(L_INFO, "MAC_VER\n");
 	l_ret = strftime( a_out, a_out_size_max, "%a, %d %b %y %T %z", l_tmp);
   #else
-	log_it(L_INFO, "WIN_VER\n");
     l_ret = strftime( a_out, a_out_size_max, "%a, %d %b %y %H:%M:%S", l_tmp );
   #endif
 
@@ -164,14 +160,14 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
 }
 
 /**
- * @brief Get time_t from string with RFC822 formatted [(not WIN32) "%a, %d %b %y %T %z" == "Tue, 02 Aug 22 19:50:41 +0300" || (WIN32) "%a, %d %b %y %H:%M:%S"]
+ * @brief Get time_t from string with RFC822 formatted
+ * @brief (not WIN32) "%a, %d %b %y %T %z" == "Tue, 02 Aug 22 19:50:41 +0300"
+ * @brief (WIN32) !DOES NOT WORK! please, use dap_time_from_str_simplified()
  * @param[out] a_time_str
  * @return time from string or 0 if bad time format
  */
 dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
 {
-	log_it(L_INFO, "dap_time_from_str_rfc822 start\n");
-
 	dap_time_t l_time = 0;
     if(!a_time_str) {
         return l_time;
@@ -180,11 +176,9 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
     memset(&l_tm, 0, sizeof(struct tm));
 	
 #ifndef _WIN32
-	log_it(L_INFO, "MAC_VER\n");
 	strptime(a_time_str, "%a, %d %b %y %T %z", &l_tm);
 #else
-	log_it(L_INFO, "WIN_VER\n");
-	strptime(a_time_str, "%y%m%d%H%M%S", &l_tm);
+	strptime(a_time_str, "%y%m%d%H%M%S", &l_tm);// <<--- TODO: _!-DOES NOT WORK-!_ { need rework strptime() in dap_strfuncs.c } | in the meantime please use --> dap_time_from_str_simplified()
 #endif
 
     time_t tmp = mktime(&l_tm);
@@ -195,22 +189,16 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
 #ifdef _WIN32
 static void tmp_strptime(const char *buff, struct tm *tm)
 {
-    char time[10] = {[2] = '.', [5] = '.', [8] = '\0'};
-    for (int i = 0, j = 0; i < 9; i += 3, j += 2) {
-        memcpy(time + i, buff + j, 2);
-    }
-    dap_sscanf(time, "%u.%u.%u", &tm->tm_year, &tm->tm_mon, &tm->tm_mday);
-    tm->tm_year += 100;
-}
-
-static void tmp2_strptime(const char *buff, struct tm *tm)
-{
-	char tbuff[50];
+	char tbuff[15];
 	uint8_t year;
 	uint8_t mon;
 	uint8_t day;
+	uint8_t len = dap_strlen(buff);
 
-	memcpy(tbuff, buff, dap_strlen(buff));
+	if (len > 12)
+		return;
+
+	memcpy(tbuff, buff, len);
 
 	day = atoi(&tbuff[4]);
 	tbuff[4] = '\0';
@@ -244,8 +232,6 @@ static void tmp2_strptime(const char *buff, struct tm *tm)
  */
 dap_time_t dap_time_from_str_simplified(const char *a_time_str)
 {
-	log_it(L_INFO, "dap_time_from_str_simplified start\n");
-
     dap_time_t l_time = 0;
     if(!a_time_str) {
         return l_time;
@@ -253,14 +239,10 @@ dap_time_t dap_time_from_str_simplified(const char *a_time_str)
     struct tm l_tm;
     memset(&l_tm, 0, sizeof(struct tm));
 
-//    strptime(a_time_str, "%y%m%d", &l_tm);
-
 #ifndef _WIN32
-	log_it(L_INFO, "MAC_VER\n");
 	strptime(a_time_str, "%y%m%d", &l_tm);
 #else
-	log_it(L_INFO, "WIN_VER\n");
-	tmp2_strptime(a_time_str, &l_tm);
+	tmp_strptime(a_time_str, &l_tm);
 #endif
 
     time_t tmp = mktime(&l_tm);

@@ -1362,8 +1362,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             l_time[0] = dap_time_from_str_rfc822(l_time_begin_str);
             l_time[1] = dap_time_from_str_rfc822(l_time_end_str);
 
-			log_it(L_INFO, "\n-time_from: %lld | -time_to: %lld\n", l_time[0], l_time[1]);
-
 
             /* Dispatch request processing to ... */
             if ( l_addr_str )
