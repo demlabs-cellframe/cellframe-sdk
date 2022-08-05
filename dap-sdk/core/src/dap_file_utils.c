@@ -1162,6 +1162,10 @@ char* dap_canonicalize_filename(const char *filename, const char *relative_to)
         while(DAP_IS_DIR_SEPARATOR(input[0]))
             input++;
 
+        /* Ignore % to prevent Unicode attacks*/
+        while (input[0] == '%')
+            input++;
+
         /* Ignore single dot directory components. */
         if(input[0] == '.' && (input[1] == 0 || DAP_IS_DIR_SEPARATOR(input[1])))
                 {

@@ -189,10 +189,20 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 #define DAP_CLIENT_PROTOCOL_VERSION   24
 
 #if __SIZEOF_LONG__==8 && !defined(DAP_OS_DARWIN)
+#define DAP_UINT64_FORMAT_X  "llX"
+#define DAP_UINT64_FORMAT_x  "llx"
+#define DAP_UINT64_FORMAT_U  "llu"
+#ifdef DAP_OS_DARWIN
+#else
+#undef DAP_UINT64_FORMAT_X
+#undef DAP_UINT64_FORMAT_x
+#undef DAP_UINT64_FORMAT_U
+
 #define DAP_UINT64_FORMAT_X  "lX"
 #define DAP_UINT64_FORMAT_x  "lx"
 #define DAP_UINT64_FORMAT_U  "lu"
-#elif __SIZEOF_LONG__==4 || defined (DAP_OS_DARWIN)
+#endif
+#if __SIZEOF_LONG__==4 || defined (DAP_OS_DARWIN)
 #define DAP_UINT64_FORMAT_X  "llX"
 #define DAP_UINT64_FORMAT_x  "llx"
 #define DAP_UINT64_FORMAT_U  "llu"
@@ -484,6 +494,7 @@ unsigned dap_gettid();
 int get_select_breaker(void);
 int send_select_break(void);
 int exec_with_ret(char**, const char*);
+char* exec_with_ret_multistring(const char* a_cmd);
 char * dap_random_string_create_alloc(size_t a_length);
 void dap_random_string_fill(char *str, size_t length);
 void dap_dump_hex(const void* data, size_t size);
