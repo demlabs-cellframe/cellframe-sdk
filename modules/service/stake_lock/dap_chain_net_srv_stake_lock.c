@@ -213,6 +213,11 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
 	strcpy(delegate_token_str + 1, l_token_str);
 
+	if (NULL == dap_chain_ledger_token_ticker_check(l_net->pub.ledger, delegate_token_str)) {
+		dap_string_append_printf(output_line, "'%s'", delegate_token_str);
+		return TOKEN_ERROR;
+	}
+
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str)
 	||	NULL == l_coins_str)
 		return COINS_ARG_ERROR;
@@ -254,7 +259,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     ||	NULL == l_time_staking_str)
 		return TIME_ERROR;
 
-	if (0 == (l_time_staking = dap_time_from_str_rfc822(l_time_staking_str))
+	if (0 == (l_time_staking = dap_time_from_str_simplified(l_time_staking_str))
 	||	(time_t)(l_time_staking - dap_time_now()) <= 0)
 		return TIME_ERROR;
 
@@ -524,7 +529,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case NET_ERROR: {
-			dap_string_append_printf(output_line, " - network not found");
+			dap_string_append_printf(output_line, " ^^^ network not found");
 			} break;
 
 		case TOKEN_ARG_ERROR: {
@@ -532,7 +537,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case TOKEN_ERROR: {
-			dap_string_append_printf(output_line, " - token ticker not found");
+			dap_string_append_printf(output_line, " ^^^ token ticker not found");
 			} break;
 
 		case COINS_ARG_ERROR: {
@@ -556,7 +561,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case CERT_LOAD_ERROR: {
-			dap_string_append_printf(output_line, " - can't load cert");
+			dap_string_append_printf(output_line, " ^^^ can't load cert");
 			} break;
 
 		case CHAIN_ERROR: {
@@ -570,8 +575,8 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case TIME_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in rfc822 format\n"
-												  				"Example: \"Tue, 02 Aug 22 19:50:41 +0300\"");
+			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in simplified format\n"
+												  				"Example: \"220610\" == \"10 june 2022 00:00\"");
 			} break;
 
 		case NO_MONEY_ERROR: {
@@ -583,15 +588,15 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case WALLET_OPEN_ERROR: {
-			dap_string_append_printf(output_line, " - can't open wallet");
+			dap_string_append_printf(output_line, " ^^^ can't open wallet");
 			} break;
 
 		case CERT_KEY_ERROR: {
-			dap_string_append_printf(output_line, " - cert doesn't contain a valid public key");
+			dap_string_append_printf(output_line, " ^^^ cert doesn't contain a valid public key");
 			} break;
 
 		case WALLET_ADDR_ERROR: {
-			dap_string_append_printf(output_line, " - failed to get wallet address");
+			dap_string_append_printf(output_line, " ^^^ failed to get wallet address");
 			} break;
 
 		case TX_ARG_ERROR: {
@@ -603,7 +608,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case NO_TX_ERROR: {
-			dap_string_append_printf(output_line, " - could not find transaction");
+			dap_string_append_printf(output_line, " ^^^ could not find transaction");
 			} break;
 
 		case STAKE_ERROR: {
