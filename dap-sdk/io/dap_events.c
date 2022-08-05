@@ -177,7 +177,11 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
 #else
     l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #endif
+#ifdef DAP_OS_DARWIN
+    if (l_retcode != 0 && l_retcode != EPFNOSUPPORT)
+#else
     if(l_retcode != 0)
+#endif
     {
         char l_errbuf[128]={0};
         switch (l_retcode) {
@@ -362,15 +366,15 @@ void dap_events_stop_all( )
  * @brief dap_worker_get_index_min
  * @return
  */
-uint32_t dap_events_thread_get_index_min( )
-{
+uint32_t dap_events_worker_get_index_min() {
     uint32_t min = 0;
 
-    if ( !s_workers_init )
+    if (!s_workers_init) {
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
-
-    for( uint32_t i = 1; i < s_threads_count; i++ ) {
-        if ( s_workers[min]->context->event_sockets_count > s_workers[i]->context->event_sockets_count )
+        return -1;
+    }
+    for(uint32_t i = 1; i < s_threads_count; i++) {
+        if (s_workers[min]->context->event_sockets_count > s_workers[i]->context->event_sockets_count)
             min = i;
     }
 
