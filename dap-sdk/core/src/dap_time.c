@@ -194,11 +194,91 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
 #ifdef _WIN32
 static void tmp_strptime(const char *buff, struct tm *tm)
 {
-    uint32_t len = strlen(buff);
-    dap_sscanf(buff, "%u%u%u", &tm->tm_year, &tm->tm_mon, &tm->tm_mday);
+    char time[10] = {[2] = '.', [5] = '.', [8] = '\0'};
+    for (int i = 0, j = 0; i < 9; i += 3, j += 2) {
+        memcpy(time + i, buff + j, 2);
+    }
+    dap_sscanf(time, "%u.%u.%u", &tm->tm_year, &tm->tm_mon, &tm->tm_mday);
     tm->tm_year += 100;
 }
 #endif
+/*
+void setCustomTimeAndDate(char *dateBuf, char *timeBuf)
+{
+	_u8 year;
+	_u8 mon;
+	_u8 day;
+	_u8 hour;
+	_u8 min;
+	_u8 sec;
+
+	struct timeval now;
+	mingw_gettimeofday(&now, NULL);
+
+	time_t gst = now.tv_sec;
+	
+	global_start_time = GetTick(0);
+
+	struct tm* timeinfo = localtime(&gst);
+
+	if (setDate)
+	{
+		day = atoi(&dateBuf[4]);
+		dateBuf[4] = '\0';
+		if (day == 0)
+			day = 1;
+
+		mon = atoi(&dateBuf[2]);
+		if (mon > 0)
+			mon--;
+		dateBuf[2] = '\0';
+
+		year = atoi(dateBuf);
+		if (year == 0)
+			year = 100;
+		else if (year < 70)
+			year += 100;
+	}
+	else
+	{
+		year = timeinfo->tm_year;
+		mon = timeinfo->tm_mon;
+		day = timeinfo->tm_mday;
+	}
+
+	if (setTime)
+	{
+		sec = atoi(&timeBuf[4]);
+		timeBuf[4] = '\0';
+		min = atoi(&timeBuf[2]);
+		timeBuf[2] = '\0';
+		hour = atoi(timeBuf);
+	}
+	else
+	{
+		hour = timeinfo->tm_hour;
+		min = timeinfo->tm_min;
+		sec = timeinfo->tm_sec;
+	}
+
+	if (year == 70
+	&&	mon == 0
+	&&	hour <= 3)
+	{
+		hour = 4;
+		min = 0;
+		sec = 0;
+	}
+
+	timeinfo->tm_year = year;
+	timeinfo->tm_mon = mon;
+	timeinfo->tm_mday = day;
+	timeinfo->tm_hour = hour;
+	timeinfo->tm_min = min;
+	timeinfo->tm_sec = sec;
+
+	global_initial_time = mktime(timeinfo);
+}*/
 
 /**
  * @brief Get time_t from string simplified formatted [%y%m%d = 220610 = 10 june 2022 00:00]
