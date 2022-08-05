@@ -134,6 +134,8 @@ int timespec_diff(struct timespec *a_start, struct timespec *a_stop, struct time
  */
 int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
 {
+	log_it(L_INFO, "dap_time_to_str_rfc822 start\n");
+
   struct tm *l_tmp;
   time_t l_time = (time_t)a_t;
   l_tmp = localtime(&l_time);
@@ -145,8 +147,10 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
 
   int l_ret;
   #ifndef _WIN32
-    l_ret = strftime( a_out, a_out_size_max, "%a, %d %b %y %T %z", l_tmp);
+	log_it(L_INFO, "MAC_VER\n");
+	l_ret = strftime( a_out, a_out_size_max, "%a, %d %b %y %T %z", l_tmp);
   #else
+	log_it(L_INFO, "WIN_VER\n");
     l_ret = strftime( a_out, a_out_size_max, "%a, %d %b %y %H:%M:%S", l_tmp );
   #endif
 
@@ -165,7 +169,9 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
  */
 dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
 {
-    dap_time_t l_time = 0;
+	log_it(L_INFO, "dap_time_from_str_rfc822 start\n");
+
+	dap_time_t l_time = 0;
     if(!a_time_str) {
         return l_time;
     }
@@ -174,7 +180,9 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
 	
 #ifndef _WIN32
     strptime(a_time_str, "%a, %d %b %y %T %z", &l_tm);
+	log_it(L_INFO, "MAC_VER\n");
 #else
+	log_it(L_INFO, "WIN_VER\n");
 	strptime(a_time_str, "%a, %d %b %y %H:%M:%S", &l_tm);
 #endif
 
@@ -190,6 +198,8 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
  */
 dap_time_t dap_time_from_str_simplified(const char *a_time_str)
 {
+	log_it(L_INFO, "dap_time_from_str_simplified start\n");
+
     dap_time_t l_time = 0;
     if(!a_time_str) {
         return l_time;
