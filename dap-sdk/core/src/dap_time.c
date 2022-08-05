@@ -191,6 +191,15 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
     return l_time;
 }
 
+#ifdef _WIN32
+static void tmp_strptime(const char *buff, struct tm *tm)
+{
+    uint32_t len = strlen(buff);
+    dap_sscanf(buff, "%u%u%u", &tm->tm_year, &tm->tm_mon, &tm->tm_mday);
+    tm->tm_year += 100;
+}
+#endif
+
 /**
  * @brief Get time_t from string simplified formatted [%y%m%d = 220610 = 10 june 2022 00:00]
  * @param[out] a_time_str
@@ -214,7 +223,7 @@ dap_time_t dap_time_from_str_simplified(const char *a_time_str)
 	strptime(a_time_str, "%y%m%d", &l_tm);
 #else
 	log_it(L_INFO, "WIN_VER\n");
-	strptime(a_time_str, "%y%m%d%H%M%S", &l_tm);
+	tmp_strptime(a_time_str, &l_tm);
 #endif
 
     time_t tmp = mktime(&l_tm);
