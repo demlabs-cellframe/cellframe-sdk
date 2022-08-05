@@ -259,7 +259,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     ||	NULL == l_time_staking_str)
 		return TIME_ERROR;
 
-	if (0 == (l_time_staking = dap_time_from_str_rfc822(l_time_staking_str))
+	if (0 == (l_time_staking = dap_time_from_str_simplified(l_time_staking_str))
 	||	(time_t)(l_time_staking - dap_time_now()) <= 0)
 		return TIME_ERROR;
 
@@ -575,8 +575,8 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case TIME_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in rfc822 format\n"
-												  				"Example: \"Tue, 02 Aug 22 19:50:41 +0300\"");
+			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in simplified format\n"
+												  				"Example: \"220610\" == \"10 june 2022 00:00\"");
 			} break;
 
 		case NO_MONEY_ERROR: {

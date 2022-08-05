@@ -159,7 +159,7 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
 }
 
 /**
- * @brief Get time_t from string with RFC822 formatted [%y%m%d = 220610 = 10 june 2022]
+ * @brief Get time_t from string with RFC822 formatted [(not WIN32) "%a, %d %b %y %T %z" == "Tue, 02 Aug 22 19:50:41 +0300" || (WIN32) "%a, %d %b %y %H:%M:%S"]
  * @param[out] a_time_str
  * @return time from string or 0 if bad time format
  */
@@ -177,6 +177,27 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
 #else
 	strptime(a_time_str, "%a, %d %b %y %H:%M:%S", &l_tm);
 #endif
+
+    time_t tmp = mktime(&l_tm);
+    l_time = (tmp <= 0) ? 0 : tmp;
+    return l_time;
+}
+
+/**
+ * @brief Get time_t from string simplified formatted [%y%m%d = 220610 = 10 june 2022 00:00]
+ * @param[out] a_time_str
+ * @return time from string or 0 if bad time format
+ */
+dap_time_t dap_time_from_str_simplified(const char *a_time_str)
+{
+    dap_time_t l_time = 0;
+    if(!a_time_str) {
+        return l_time;
+    }
+    struct tm l_tm;
+    memset(&l_tm, 0, sizeof(struct tm));
+
+    strptime(a_time_str, "%y%m%d", &l_tm);
 
     time_t tmp = mktime(&l_tm);
     l_time = (tmp <= 0) ? 0 : tmp;
