@@ -31,7 +31,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_pos.h"
-#include "dap_chain_net_srv_stake.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_dag_pos"
