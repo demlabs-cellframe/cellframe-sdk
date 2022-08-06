@@ -398,7 +398,7 @@ dap_list_t *dap_list_remove_all(dap_list_t *list, const void * data)
  *
  * Returns: the (possibly changed) start of the DapList
  */
-inline dap_list_t *dap_list_remove_link(dap_list_t *list, dap_list_t *llink)
+inline dap_list_t *dap_list_remove_link(dap_list_t *list, dap_list_t *link)
 {
     if (link == NULL)
         return list;
