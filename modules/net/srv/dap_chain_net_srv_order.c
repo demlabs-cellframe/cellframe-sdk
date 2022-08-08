@@ -78,6 +78,7 @@ int dap_chain_net_srv_order_init(void)
         dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_srv_order_callback_notify, l_net_list[i]);
     }
     //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
+    DAP_DELETE(l_net_list);
     return 0;
 }
 
@@ -247,7 +248,7 @@ char * dap_chain_net_srv_order_create(
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
-        uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
+        uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_time_t a_expires, // TS when the service expires
@@ -268,13 +269,12 @@ char * dap_chain_net_srv_order_create(
     return l_ret;
 }
 
-dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
-        dap_chain_net_t *a_net,
+dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_net,
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
-        uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
+        uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_time_t a_expires, // TS when the service expires
@@ -315,7 +315,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         l_order->node_addr.uint64 = a_node_addr.uint64;
 
     memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
-    l_order->price = a_price;
+    l_order->price = *a_price;
     l_order->price_unit.uint32 = a_price_unit.uint32;
 
     if ( a_price_ticker)
