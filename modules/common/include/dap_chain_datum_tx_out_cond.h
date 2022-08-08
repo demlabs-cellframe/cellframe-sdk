@@ -40,7 +40,8 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE = 0x3,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE = 0xFA,       // Virtual type for stake update verificator //TODO change it to new type of callback for ledger tx add
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
-    DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE = 0x05
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE = 0x05,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
 };
 typedef byte_t dap_chain_tx_out_cond_subtype_t;
 
