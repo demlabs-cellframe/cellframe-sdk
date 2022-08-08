@@ -177,7 +177,11 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
 #else
     l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #endif
+#ifdef DAP_OS_DARWIN
+    if(l_retcode != 0 && l_retcode != EPFNOSUPPORT)
+#else
     if(l_retcode != 0)
+#endif
     {
         char l_errbuf[128]={0};
         switch (l_retcode) {

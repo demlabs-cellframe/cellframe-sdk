@@ -89,9 +89,8 @@ static inline bool dap_hash_fast_compare(dap_hash_fast_t *a_hash1, dap_hash_fast
 {
     if(!a_hash1 || !a_hash2)
         return false;
-    if(!memcmp(a_hash1, a_hash2, sizeof(dap_hash_fast_t)))
-        return true;
-    return false;
+    return  ( !memcmp(a_hash1, a_hash2, sizeof(dap_hash_fast_t)) ); /*0 - true, <> 0 - false */
+
 }
 
 /**
