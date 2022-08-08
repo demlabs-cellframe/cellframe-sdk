@@ -38,7 +38,6 @@
 #include "dap_chain_global_db.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_chain_cs_block_poa"
 

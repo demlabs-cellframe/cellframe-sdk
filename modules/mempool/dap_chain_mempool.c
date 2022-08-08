@@ -111,7 +111,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
 {
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) || IS_ZERO_256(a_value))
+            !dap_chain_addr_check_sum(a_addr_from) || (a_addr_to && !dap_chain_addr_check_sum(a_addr_to)) || IS_ZERO_256(a_value))
         return NULL;
 
     // find the transactions from which to take away coins
@@ -236,7 +236,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
             dap_chain_hash_fast_to_str(&l_item->tx_hash_fast,l_in_hash_str,sizeof (l_in_hash_str) );
 
             char *l_balance = dap_chain_balance_print(l_item->value);
-            if(dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, (uint32_t)l_item->num_idx_out) == 1) {
+            if (dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, l_item->num_idx_out)) {
                 SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
                 log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
             }else{

@@ -914,8 +914,6 @@ static bool s_chain_timer_callback(void *a_arg)
 
 static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
 {
-    if (s_ch_chain_get_idle(a_ch_chain))
-        return;
     if (!a_ch_chain->activity_timer) {
         dap_stream_ch_chain_timer_start( a_ch_chain);
     }
@@ -976,7 +974,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         return;
     }
-    if (a_ch->stream->session->acl && !a_ch->stream->session->acl[l_acl_idx]) {
+    uint8_t l_acl = a_ch->stream->session->acl ? a_ch->stream->session->acl[l_acl_idx] : 1;
+    if (!l_acl) {
         log_it(L_WARNING, "Unauthorized request attempt from %s to network %s", a_ch->stream->esocket->remote_addr_str?
                    a_ch->stream->esocket->remote_addr_str: "<unknown>",
                dap_chain_net_by_id(l_chain_pkt->hdr.net_id)->pub.name);

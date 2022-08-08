@@ -283,7 +283,11 @@ static int s_check_db_version(dap_config_t *g_config)
 int dap_chain_global_db_init(dap_config_t * g_config)
 {
     const char *l_storage_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+#if defined(DAP_OS_DARWIN) || defined (DAP_OS_WINDOWS)
+    const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "sqlite");
+#else
     const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "mdbx");
+#endif
     //const char *l_driver_name = dap_config_get_item_str_default(g_config, "resources", "dap_global_db_driver", "cdb");
 
     s_track_history = dap_config_get_item_bool_default(g_config, "resources", "dap_global_db_track_history", s_track_history);
@@ -457,8 +461,7 @@ int l_res = -1;
     store_data.timestamp = a_timestamp;
 
     lock();
-    if (!dap_chain_global_db_driver_is(store_data.group, store_data.key))
-        l_res = dap_chain_global_db_driver_add(&store_data, 1);
+    l_res = dap_chain_global_db_driver_add(&store_data, 1);
     unlock();
 
     return  l_res;
@@ -477,7 +480,7 @@ char	l_group[DAP_DB_K_MAXGRPLEN];
 int	l_res = 0;
 
     if(!a_key)
-        return false;
+        return -1;;
 
     store_data.key = a_key;
     dap_snprintf(l_group, sizeof(l_group) - 1, "%s.del", a_group);
@@ -488,7 +491,7 @@ int	l_res = 0;
         l_res = dap_chain_global_db_driver_delete(&store_data, 1);
     unlock();
 
-    return  (l_res >= 0);    /*  ? true : false; */
+    return  l_res;
 }
 
 /**
@@ -775,24 +778,27 @@ dap_store_obj_t *l_store_obj;
     lock();
     int l_res = dap_chain_global_db_driver_apply(a_store_data, a_objs_count);
     unlock();
-
+    if (l_res == 1)
+        l_res = 0;  // Do not count errors with deletion of missing objects
     l_store_obj = (dap_store_obj_t *)a_store_data;
 
     int l_res_del = 0;
-    for(int  i = a_objs_count; i--; l_store_obj++) {
-        if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD && l_res)
-            // delete info about the deleted entry from the base if one present
-            global_db_gr_del_del(l_store_obj->key, l_store_obj->group);
-        else if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL)
-            // add to Del group
-            l_res_del = global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
-        if (!l_res || !l_res_del) {
-            // Extract prefix if added successfuly, add history log and call notify callback if present
-            dap_global_db_change_notify(l_store_obj);
+    if (!l_res) {
+        for(int  i = a_objs_count; i--; l_store_obj++) {
+            if (l_store_obj->type == DAP_DB$K_OPTYPE_ADD)
+                // delete info about the deleted entry from the base if one present
+                l_res_del = global_db_gr_del_del(l_store_obj->key, l_store_obj->group);
+            else if (l_store_obj->type == DAP_DB$K_OPTYPE_DEL)
+                // add to Del group
+                l_res_del = global_db_gr_del_add(l_store_obj->key, l_store_obj->group, l_store_obj->timestamp);
+            if (!l_res_del) {
+                // Extract prefix if added successfuly, add history log and call notify callback if present
+                dap_global_db_change_notify(l_store_obj);
+            }
         }
     }
 
-    return !(l_res & l_res_del);
+    return !(l_res && l_res_del);
 }
 
 /**
