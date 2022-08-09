@@ -80,9 +80,9 @@ enum error_code {
  */
 typedef struct cond_params{
     dap_time_t		time_unlock;
-	uint8_t			reinvest;
     uint32_t		flags;
-    uint8_t			padding[8];
+	uint8_t			reinvest;
+	uint8_t			padding[7];
     dap_hash_fast_t	token_delegated; // Delegate token
     dap_hash_fast_t	pkey_delegated; // Delegate public key
 } DAP_ALIGN_PACKED	cond_params_t;
