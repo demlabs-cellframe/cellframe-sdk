@@ -1,5 +1,6 @@
 #ifdef _WIN32
 #include <windows.h>
+#include <sys/time.h>
 #endif
 #include <errno.h>
 #include <string.h>
@@ -170,11 +171,76 @@ dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
     }
     struct tm l_tm;
     memset(&l_tm, 0, sizeof(struct tm));
-    
+
 #ifndef _WIN32
     strptime(a_time_str, "%a, %d %b %y %T %z", &l_tm);
 #else
-    strptime(a_time_str, "%a, %d %b %y %H:%M:%S", &l_tm);
+    strptime(a_time_str, "%y%m%d%H%M%S", &l_tm);// <<--- TODO: _!-DOES NOT WORK-!_ { need rework strptime() in dap_strfuncs.c } | in the meantime please use --> dap_time_from_str_simplified()
+#endif
+
+    time_t tmp = mktime(&l_tm);
+    l_time = (tmp <= 0) ? 0 : tmp;
+    return l_time;
+}
+
+#ifdef _WIN32
+static void tmp_strptime(const char *buff, struct tm *tm)
+{
+    char tbuff[15];
+    uint8_t year;
+    uint8_t mon;
+    uint8_t day;
+    uint8_t len = dap_strlen(buff);
+
+    if (len > 12)
+        return;
+
+    memcpy(tbuff, buff, len);
+
+    day = atoi(&tbuff[4]);
+    tbuff[4] = '\0';
+    if (day == 0)
+        day = 1;
+
+    mon = atoi(&tbuff[2]);
+    if (mon > 0)
+        mon--;
+    tbuff[2] = '\0';
+
+    year = atoi(tbuff);
+    if (year == 0)
+        year = 100;
+    else if (year < 69)
+        year += 100;
+
+    tm->tm_year = year;
+    tm->tm_mon = mon;
+    tm->tm_mday = day;
+    tm->tm_hour = 0;
+    tm->tm_min = 0;
+    tm->tm_sec = 0;
+}
+#endif
+
+/**
+ * @brief Get time_t from string simplified formatted [%y%m%d = 220610 = 10 june 2022 00:00]
+ * @param[out] a_time_str
+ * @return time from string or 0 if bad time format
+ */
+dap_time_t dap_time_from_str_simplified(const char *a_time_str)
+{
+    dap_time_t l_time = 0;
+    if(!a_time_str) {
+    }
+    struct tm l_tm;
+    memset(&l_tm, 0, sizeof(struct tm));
+    strptime(a_time_str, "%y%m%d%H%M%S", &l_tm);
+    l_time = mktime(&l_tm);
+
+#ifndef _WIN32
+    strptime(a_time_str, "%y%m%d", &l_tm);
+#else
+    tmp_strptime(a_time_str, &l_tm);
 #endif
 
     time_t tmp = mktime(&l_tm);

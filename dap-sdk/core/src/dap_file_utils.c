@@ -1141,6 +1141,10 @@ char* dap_canonicalize_filename(const char *filename, const char *relative_to)
     if(*output == DAP_DIR_SEPARATOR)
         output++;
 
+    /* Ignore % to prevent Unicode attacks*/
+    while(input[0] == '%' )
+       input++;
+
     /* POSIX allows double slashes at the start to mean something special
      * (as does windows too). So, "//" != "/", but more than two slashes
      * is treated as "/".

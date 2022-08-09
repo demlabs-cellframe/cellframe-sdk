@@ -279,7 +279,7 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 {
     dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
     // run user's callback
-    if(l_timerfd->callback && l_timerfd->callback(l_timerfd->callback_arg)) {
+    if(l_timer_fd && l_timerfd->callback && l_timerfd->callback(l_timerfd->callback_arg)) {
         s_timerfd_reset(l_timerfd, a_event_sock);
     } else {  
 #ifdef _WIN32
