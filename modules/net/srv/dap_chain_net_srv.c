@@ -102,17 +102,17 @@ int dap_chain_net_srv_init()
         return -1;
 
     dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
-        "                                         [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
+        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]"
+        "[-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <net_name> order delete -hash <Order hash>\n"
         "\tOrder delete\n"
         "net_srv -net <net_name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
-        "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
-        "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
-        "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
+        "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>"
+        " -price_unit <Price Unit> -price_token <token_ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]"
+        " [-expires <Unix time when expires>] [-cert <cert name to sign order>]"
+        " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
 #ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
             "net_srv -net <net_name> order static [save | delete]\n"

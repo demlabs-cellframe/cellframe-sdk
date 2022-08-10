@@ -148,18 +148,18 @@ int dap_chain_cs_dag_init(void)
     s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
 
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, "DAG commands",
-        "dag event create -net <net_name> -chain <chain name> -datum <datum hash> [-H {hex | base58(default)}]\n"
+        "dag event create -net <net_name> -chain <chain_name> -datum <datum hash> [-H {hex | base58(default)}]\n"
             "\tCreate event from datum mempool element\n\n"
-        "dag event cancel -net <net_name> -chain <chain name> -event <event hash>\n"
+        "dag event cancel -net <net_name> -chain <chain_name> -event <event hash>\n"
             "\tRemove event from forming new round and put back its datum to mempool\n\n"
-        "dag event sign -net <net_name> -chain <chain name> -event <event hash>\n"
+        "dag event sign -net <net_name> -chain <chain_name> -event <event hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag event dump -net <net_name> -chain <chain name> -event <event hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
+        "dag event dump -net <net_name> -chain <chain_name> -event <event hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> -chain <chain name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
+        "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
             "\tShow event list \n\n"
-        "dag round complete -net <net_name> -chain <chain name> \n"
+        "dag round complete -net <net_name> -chain <chain_name> \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
