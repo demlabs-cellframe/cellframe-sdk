@@ -86,7 +86,8 @@ const uint128_t uint128_1 = 1;
 
 const uint256_t uint256_0 = {};
 #ifndef DAP_GLOBAL_IS_INT128
-const uint256_t uint256_1 = {.hi = uint128_0, .lo = uint128_1};
+const uint256_t uint256_1 = {.hi = {}, .lo = {.hi = 0, .lo = 1}};
+
 #else // DAP_GLOBAL_IS_INT128
 const uint256_t uint256_1 = {.hi = 0, .lo = 1};
 #endif // DAP_GLOBAL_IS_INT128
