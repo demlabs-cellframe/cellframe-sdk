@@ -71,7 +71,8 @@ enum error_code {
 	ADD_DATUM_TX_TAKE_ERROR		= 36,
 	BASE_TX_CREATE_ERROR		= 37,
 	WRONG_PARAM_SIZE			= 38,
-	NOT_ENOUGH_TIME				= 39
+	NOT_ENOUGH_TIME				= 39,
+	REINVEST_ARG_ERROR			= 40
 };
 
 /**
@@ -80,7 +81,8 @@ enum error_code {
 typedef struct cond_params{
     dap_time_t		time_unlock;
     uint32_t		flags;
-    uint8_t			padding[8];
+	uint8_t			reinvest;
+	uint8_t			padding[7];
     dap_hash_fast_t	token_delegated; // Delegate token
     dap_hash_fast_t	pkey_delegated; // Delegate public key
 } DAP_ALIGN_PACKED	cond_params_t;
@@ -102,8 +104,9 @@ static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_n
 int dap_chain_net_srv_stake_lock_init()
 {
     dap_chain_node_cli_cmd_item_create("stake_lock", s_cli_stake_lock, "Stake lock service commands",
-       "stake_lock hold -net <net name> -wallet <wallet name> -time_staking <in rfc822>\n"
-	    		"-token <ticker> -coins <value> -cert <name> -chain <chain (not necessary)> -chain_emission <chain (not necessary)>\n"
+       "stake_lock hold -net <net name> -wallet <wallet name> -time_staking <in YYMMDD>\n"
+	    		"-token <ticker> -coins <value> -reinvest <percentage from 1 to 100 (not necessary)>\n"
+				"-cert <name> -chain <chain (not necessary)> -chain_emission <chain (not necessary)>\n"
     			"stake_lock take -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
 				"-chain <chain (not necessary)>\n"
 	);
@@ -171,8 +174,8 @@ static dap_chain_datum_tx_receipt_t *s_receipt_create(dap_hash_fast_t *hash_burn
  */
 static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
-    const char *l_net_str, *l_token_str, *l_coins_str, *l_wallet_str, *l_cert_str, *l_chain_str, *l_chain_emission_str, *l_time_staking_str;
-    l_net_str = l_token_str = l_coins_str = l_wallet_str = l_cert_str = l_chain_str = l_chain_emission_str = l_time_staking_str = NULL;
+    const char *l_net_str, *l_token_str, *l_coins_str, *l_wallet_str, *l_cert_str, *l_chain_str, *l_chain_emission_str, *l_time_staking_str, *reinvest_str;
+    l_net_str = l_token_str = l_coins_str = l_wallet_str = l_cert_str = l_chain_str = l_chain_emission_str = l_time_staking_str = reinvest_str = NULL;
 	const char *l_wallets_path												= dap_chain_wallet_get_path(g_config);
 	char 					delegate_token_str[DAP_CHAIN_TICKER_SIZE_MAX] 	= {[0] = 'm'};
 	dap_chain_net_t			*l_net											= NULL;
@@ -180,6 +183,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 	dap_chain_t				*l_chain_emission								= NULL;
     dap_chain_net_srv_uid_t	l_uid											= { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
 	dap_time_t              l_time_staking									= 0;
+	uint8_t					reinvest										= 0;
 	char					*l_hash_str;
 	dap_hash_fast_t			*l_tx_cond_hash;
 	dap_hash_fast_t 		*l_base_tx_hash;
@@ -265,6 +269,13 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
 	l_time_staking -= dap_time_now();
 
+	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &reinvest_str)
+	&&	NULL != reinvest_str) {
+		if ((reinvest = atoi(reinvest_str)) > 100
+		||	reinvest <= 0)
+			return REINVEST_ARG_ERROR;
+	}
+
 	if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
 		dap_string_append_printf(output_line, "'%s'", l_wallet_str);
 		return WALLET_OPEN_ERROR;
@@ -290,7 +301,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 	}
 
     l_tx_cond_hash = dap_chain_net_srv_stake_lock_mempool_create(l_net, l_key_from, l_key_cond, l_token_str,
-                                                                     l_value, l_uid, l_addr_holder, l_time_staking);
+                                                                     l_value, l_uid, l_addr_holder, l_time_staking, reinvest);
 
 	dap_chain_wallet_close(l_wallet);
 	DAP_DEL_Z(l_key_cond);
@@ -575,7 +586,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case TIME_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in simplified format\n"
+			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in simplified format YYMMDD\n"
 												  				"Example: \"220610\" == \"10 june 2022 00:00\"");
 			} break;
 
@@ -677,6 +688,10 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 
 		case CREATE_DATUM_ERROR: {
 			dap_string_append_printf(output_line, "error while creating datum from transaction");
+			} break;
+
+		case REINVEST_ARG_ERROR: {
+			dap_string_append_printf(output_line, "reinvestment is set as a percentage from 1 to 100");
 			} break;
 
 		default: {
@@ -879,7 +894,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
 
 	/*if (!a_owner) TODO: ???
@@ -989,7 +1004,7 @@ static dap_chain_datum_t* s_mempool_create(dap_chain_net_t *a_net,
                                                    dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
                                                    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                                    uint256_t a_value, dap_chain_net_srv_uid_t a_srv_uid,
-                                                   dap_chain_addr_t *a_addr_holder, dap_time_t a_time_staking)
+                                                   dap_chain_addr_t *a_addr_holder, dap_time_t a_time_staking, uint8_t reinvest)
 {
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     // check valid param
@@ -1023,7 +1038,7 @@ static dap_chain_datum_t* s_mempool_create(dap_chain_net_t *a_net,
     // add 'out_cond' and 'out' items
     {
         uint256_t l_value_pack = {}; // how much coin add to 'out' items
-        dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_net_srv_stake_lock_create_cond_out(a_key_cond, a_srv_uid, a_value, a_time_staking);
+        dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_net_srv_stake_lock_create_cond_out(a_key_cond, a_srv_uid, a_value, a_time_staking, reinvest);
         if(l_tx_out_cond) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
 			dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);
@@ -1068,7 +1083,7 @@ static dap_chain_datum_t* s_mempool_create(dap_chain_net_t *a_net,
  * @return
  */
 dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                                    uint64_t a_time_staking)
+                                                                                    uint64_t a_time_staking, uint8_t reinvest)
 {
     if (IS_ZERO_256(a_value))
         return NULL;
@@ -1079,6 +1094,7 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
     l_item->header.srv_uid = a_srv_uid;
     l_item->params_size = sizeof(cond_params_t);
     cond_params_t * l_params = (cond_params_t *) l_item->params;
+	l_params->reinvest = reinvest;
     if(a_time_staking) {
 		l_params->time_unlock = dap_time_now() + a_time_staking;
 		l_params->flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME;
@@ -1106,11 +1122,11 @@ dap_chain_hash_fast_t* dap_chain_net_srv_stake_lock_mempool_create(dap_chain_net
                                                                        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
                                                                        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                                                        uint256_t a_value, dap_chain_net_srv_uid_t a_srv_uid,
-                                                                       dap_chain_addr_t *a_addr_holder, uint64_t a_time_staking)
+                                                                       dap_chain_addr_t *a_addr_holder, uint64_t a_time_staking, uint8_t reinvest)
 {
     // Make transfer transaction
     dap_chain_datum_t *l_datum = s_mempool_create(a_net, a_key_from, a_key_cond, a_token_ticker, a_value, a_srv_uid,
-                                                                         a_addr_holder, a_time_staking);
+                                                                         a_addr_holder, a_time_staking, reinvest);
 
     if(!l_datum)
         return NULL;
