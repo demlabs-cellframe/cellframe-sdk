@@ -2,7 +2,7 @@ android {
     include (../../../3rdparty/json-c/json-c.pri)
 }
 
-unix {
+unix: !android {
     include (../../../3rdparty/json-c/json-c.pri)
 }
 
