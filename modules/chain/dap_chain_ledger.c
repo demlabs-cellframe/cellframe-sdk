@@ -1750,13 +1750,18 @@ dap_chain_ledger_token_emission_item_t *s_emission_item_find(dap_ledger_t *a_led
     HASH_FIND_STR(l_ledger_priv->tokens, a_token_ticker, l_token_item);
     pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
 
-    if (!l_token_item)
-        return NULL;
+    if (!l_token_item) {
+		log_it(L_INFO, "\nNO l_token_item\n");
+		return NULL;
+	}
     dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
     pthread_rwlock_rdlock(&l_token_item->token_emissions_rwlock);
     HASH_FIND(hh, l_token_item->token_emissions, a_token_emission_hash, sizeof(*a_token_emission_hash),
             l_token_emission_item);
     pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
+	if (!l_token_emission_item) {
+		log_it(L_INFO, "\nNO l_token_emission_item\n");
+	}
     return l_token_emission_item;
 }
 /*TODO: use this function when issuing for special emission-transactions is approved. needed for smart contracts in the future
