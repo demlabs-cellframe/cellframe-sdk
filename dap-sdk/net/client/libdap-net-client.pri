@@ -1,4 +1,4 @@
-android{
+unix: android: {
     include (../../../3rdparty/json-c/json-c.pri)
 }
 
