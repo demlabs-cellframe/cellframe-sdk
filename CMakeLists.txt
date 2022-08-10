@@ -229,6 +229,12 @@ if (DARWIN)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+
+if (LINUX)
+    add_subdirectory(3rdparty/json-c)
+    target_include_directories(json-c PUBLIC 3rdparty/)
+endif()
+
 #if(BUILD_DAP_TESTS)
 #    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/test/main_test.py
 #            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
