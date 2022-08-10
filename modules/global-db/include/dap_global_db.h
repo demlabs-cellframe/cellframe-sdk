@@ -61,7 +61,10 @@ typedef struct dap_store_obj {
     char *group;
     uint64_t group_len;
 
-    char *key;
+    union {
+        const char *key;
+        byte_t * key_byte;
+    };
     uint64_t key_len;
 
     uint8_t *value;
