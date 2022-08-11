@@ -277,15 +277,15 @@ static inline void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t
  */
 static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 {
-    dap_timerfd_t *l_timerfd = a_event_sock->_inheritor;
+    dap_timerfd_t *l_timer_fd = a_event_sock->_inheritor;
     // run user's callback
-    if(l_timer_fd && l_timerfd->callback && l_timerfd->callback(l_timerfd->callback_arg)) {
-        s_timerfd_reset(l_timerfd, a_event_sock);
+    if(l_timer_fd && l_timer_fd->callback && l_timer_fd->callback(l_timer_fd->callback_arg)) {
+        s_timerfd_reset(l_timer_fd, a_event_sock);
     } else {  
 #ifdef _WIN32
         DeleteTimerQueueTimer(hTimerQueue, l_timerfd->th, NULL);
 #endif
-        l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        l_timer_fd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
 
