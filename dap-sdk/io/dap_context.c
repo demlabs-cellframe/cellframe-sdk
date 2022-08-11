@@ -1267,10 +1267,7 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
     a_context->poll_count++;
     a_es->context = a_context;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-    if ( a_es->type == DESCRIPTOR_TYPE_QUEUE ){
-        goto lb_exit;
-    }
-    if ( a_es->type == DESCRIPTOR_TYPE_EVENT /*&& a_es->pipe_out*/){
+    if ( a_es->type == DESCRIPTOR_TYPE_QUEUE || a_es->type == DESCRIPTOR_TYPE_EVENT ){
         goto lb_exit;
     }
     struct kevent l_event;
