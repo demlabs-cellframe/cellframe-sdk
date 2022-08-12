@@ -111,7 +111,7 @@ struct  __record_suffix__ {
 };
 
 
-#if     DAP_SYS_DEBUG
+#ifdef     DAP_SYS_DEBUG
 /*
  *  DESCRIPTION: Dump all records from the table . Is supposed to be used at debug time.
  *
