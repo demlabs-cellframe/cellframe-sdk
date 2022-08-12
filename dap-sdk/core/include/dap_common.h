@@ -25,6 +25,9 @@
 //#define _XOPEN_SOURCE 700
 
 #pragma once
+
+#define DAP_SYS_DEBUG
+
 #ifndef __STDC_WANT_LIB_EXT1__
 #define __STDC_WANT_LIB_EXT1__ 1
 #endif
