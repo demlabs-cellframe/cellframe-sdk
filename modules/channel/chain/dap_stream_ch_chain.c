@@ -790,6 +790,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     l_obj->timestamp > (uint64_t)l_timestamp_cur &&
                     (l_obj->type != DAP_DB$K_OPTYPE_DEL || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
+				dump_it("l_obj->value", l_obj->value, l_obj->value_len);
             }
             if (s_debug_more){
                 char l_ts_str[50];

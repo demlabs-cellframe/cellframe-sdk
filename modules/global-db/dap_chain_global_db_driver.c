@@ -368,6 +368,8 @@ dap_worker_t        *l_dap_worker;
 
     debug_if(s_dap_global_db_debug_more, L_DEBUG, "[%p] DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
 
+	dump_it("a_store_obj->value", a_store_obj->value, a_store_obj->value_len);
+
     return  l_ret;
 }
 
