@@ -120,9 +120,8 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
             break;
         }
         struct timespec l_recv_time;
-        clock_gettime(CLOCK_MONOTONIC, &l_recv_time);
-        l_response->recv_time1.tv_sec = l_recv_time.tv_sec;
-        l_response->recv_time1.tv_nsec = l_recv_time.tv_nsec;
+        clock_gettime(CLOCK_REALTIME, &l_recv_time);
+        l_response->recv_time1 = l_recv_time;
         dap_chain_hash_fast_t l_data_hash;
         dap_hash_fast(l_response->data, l_response->data_size, &l_data_hash);
         if (!dap_hash_fast_compare(&l_data_hash, &l_response->data_hash)) {
