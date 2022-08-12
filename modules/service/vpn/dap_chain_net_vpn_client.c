@@ -503,9 +503,9 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
 
 
     // measuring connection time
-    struct timeval l_t;
-    gettimeofday(&l_t, NULL);//get_cur_time_msec
-    long l_t1 = (long) l_t.tv_sec * 1000 + l_t.tv_usec / 1000;
+    struct timespec l_t;
+    clock_gettime(CLOCK_REALTIME, &l_t);
+    long l_t1 = l_t.tv_sec * 1000 + l_t.tv_nsec / 1e6;
 
     const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), 0 }; //only R, without S
     if(a_ipv4_str)
@@ -532,13 +532,10 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
         return -3;
     }
 
-    gettimeofday(&l_t, NULL);
-    long l_t2 = (long) l_t.tv_sec * 1000 + l_t.tv_usec / 1000;
-    int l_dtime_connect_ms = l_t2-l_t1;
+    clock_gettime(CLOCK_REALTIME, &l_t);
+    long l_t2 = l_t.tv_sec * 1000 + l_t.tv_nsec / 1e6;
+    int l_dtime_connect_ms = l_t2 - l_t1;
 
-    //l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
-
-    // send first packet to server
     {
         uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
@@ -554,7 +551,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
             if(a_ipv4_str)
                 memcpy(l_request->ip_recv, a_ipv4_str, min(sizeof(l_request->ip_recv), strlen(a_ipv4_str)));
             l_request->time_connect_ms = l_dtime_connect_ms;
-            gettimeofday(&l_t, NULL);
+            clock_gettime(CLOCK_REALTIME, &l_t);
             l_t = l_request->send_time1;
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, l_request, l_request_size);
