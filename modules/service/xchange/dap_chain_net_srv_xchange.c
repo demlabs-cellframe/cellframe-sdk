@@ -264,7 +264,7 @@ static void s_callback_decree(dap_chain_net_srv_t* a_srv, dap_chain_net_t* a_net
 static dap_chain_datum_tx_receipt_t* s_xchage_receipt_create(dap_chain_net_srv_xchange_price_t* a_price, uint256_t a_datoshi_buy)
 {
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
-    uint8_t* l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
+    uint8_t* l_ext = DAP_NEW_STACK_SIZE(uint8_t, l_ext_size);
     memcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t));
     strcpy((char*)&l_ext[sizeof(uint256_t)], a_price->token_buy);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED };

@@ -78,11 +78,11 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
 
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRVDAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID _STAKE_ID };
-    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_stake", s_callback_requested,
-                                                       s_callback_response_success, s_callback_response_error,
-                                                       s_callback_receipt_next_success, NULL);
-    l_srv->_internal = s_srv_stake;
+//    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRVDAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID _STAKE_ID };
+//    dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_stake", s_callback_requested,
+//                                                       s_callback_response_success, s_callback_response_error,
+//                                                       s_callback_receipt_next_success, NULL);
+//    l_srv->_internal = s_srv_stake;
 
     uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
@@ -1158,7 +1158,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             dap_string_t *l_reply_str = dap_string_new("");
             for (size_t i = 0; i < l_orders_count; i++) {
                 dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
-                if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_ID)
+                if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
                     continue;
                 // TODO add filters to list (token, address, etc.)
                 l_stake = s_stake_item_from_order(l_net, l_order);

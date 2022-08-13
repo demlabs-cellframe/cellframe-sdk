@@ -1344,7 +1344,7 @@ static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *
         strncpy(l_tx_spent_item->token_ticker, (char *)a_values[i].value,
                 min(a_values[i].value_len, DAP_CHAIN_TICKER_SIZE_MAX - 1));
         size_t l_spent_time_len = 0;
-        byte_t* l_spent_time_data = dap_chain_global_db_gr_get(l_objs[i].key, &l_spent_time_len, DAP_CHAIN_LEDGER_SPENT_TXS_TIME_STR);
+        byte_t* l_spent_time_data = dap_global_db_get_sync(DAP_CHAIN_LEDGER_SPENT_TXS_TIME_STR, a_values[i].key, &l_spent_time_len, NULL, NULL);
         if (l_spent_time_data && l_spent_time_len == sizeof(dap_time_t)) {
             memcpy(&l_tx_spent_item->spent_time, l_spent_time_data, l_spent_time_len);
             DAP_DELETE(l_spent_time_data);

@@ -361,7 +361,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
  */
 static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void * a_msg )
 {
-    tun_socket_msg_t* l_msg = (tun_socket_msg_t*)a_m
+    tun_socket_msg_t* l_msg = (tun_socket_msg_t*)a_msg;
     switch (l_msg->type) {
         case TUN_SOCKET_MSG_ESOCKET_REASSIGNED: {
             assert(l_msg->esocket_reassigment.worker_id < s_tun_sockets_count);
@@ -1245,7 +1245,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_
 
     if ( l_ch_vpn->addr_ipv4.s_addr ) {
         log_it(L_WARNING, "IP address is already leased");
-        ch_vpn_pkt_t* pkt_out = DAP_NEW_S_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
+        ch_vpn_pkt_t* pkt_out = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
         pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
         pkt_out->header.sock_id = s_raw_server->tun_fd;
         pkt_out->header.usage_id = a_usage->id;
@@ -1273,7 +1273,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_
         HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
         pthread_rwlock_unlock( &s_clients_rwlock );
 
-        ch_vpn_pkt_t *l_pkt_out = DAP_NEW_S_SIZE(ch_vpn_pkt_t,
+        ch_vpn_pkt_t *l_pkt_out = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t,
                 sizeof(l_pkt_out->header) + sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_network_addr));
         l_pkt_out->header.sock_id = s_raw_server->tun_fd;
         l_pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REPLY;
@@ -1350,7 +1350,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_
             HASH_ADD(hh, s_ch_vpn_addrs, addr_ipv4, sizeof (l_ch_vpn->addr_ipv4), l_ch_vpn);
             pthread_rwlock_unlock( &s_clients_rwlock );
 
-            ch_vpn_pkt_t *pkt_out = DAP_NEW_S_SIZE(ch_vpn_pkt_t,
+            ch_vpn_pkt_t *pkt_out = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t,
                     sizeof(pkt_out->header) + sizeof(l_ch_vpn->addr_ipv4) + sizeof(s_raw_server->ipv4_gw));
             pkt_out->header.sock_id = s_raw_server->tun_fd;
             pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REPLY;
@@ -1376,7 +1376,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_
             }
         } else { // All the network is filled with clients, can't lease a new address
             log_it(L_ERROR, "No free IP address left, can't lease one...");
-            ch_vpn_pkt_t* pkt_out = DAP_NEW_S_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
+            ch_vpn_pkt_t* pkt_out = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
             pkt_out->header.sock_id = s_raw_server->tun_fd;
             pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
             pkt_out->header.usage_id = a_usage->id;
@@ -1617,8 +1617,8 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
             if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once && s_raw_server->auto_cpu_reassignment ){
                 log_it(L_NOTICE, "Reassigning from worker %u to %u", l_vpn_info->worker->id, a_es->context->worker->id);
                 l_vpn_info->is_reassigned_once = true;
-                s_tun_send_msg_esocket_reassigned_all_inter(l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->esocket_uuid,
-                    l_vpn_info->addr_ipv4, a_es->worker->id);
+                s_tun_send_msg_esocket_reassigned_all_inter(a_es->worker->id, l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->esocket_uuid,
+                    l_vpn_info->addr_ipv4);
                 dap_events_socket_reassign_between_workers_mt(l_vpn_info->worker, l_vpn_info->esocket, a_es->context->worker);
             }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);

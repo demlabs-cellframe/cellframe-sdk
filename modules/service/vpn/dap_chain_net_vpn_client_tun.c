@@ -47,6 +47,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #ifdef DAP_OS_LINUX
+#include <linux/ip.h>
 #include <netpacket/packet.h>
 #include <linux/if_tun.h>
 #include <linux/if.h>
@@ -374,7 +375,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
         if (!l_ch) {
             struct in_addr in_daddr, in_saddr;
 #ifdef DAP_OS_LINUX
-            struct iphdr* iph = (struct iphdr*)l_tmp_buf;
+            struct iphdr* iph = (struct iphdr*)a_es->buf_in;
             in_daddr.s_addr = iph->daddr;
             in_saddr.s_addr = iph->saddr;
 #else
@@ -388,7 +389,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
             log_it(L_ERROR, "No remote client for incoming ip packet %s -> %s", l_str_saddr, l_str_daddr);
             break;
         }
-        ch_vpn_pkt_t* pkt_out = DAP_NEW_S_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header) + l_read_bytes);
+        ch_vpn_pkt_t* pkt_out = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header) + l_read_bytes);
         pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND;
         pkt_out->header.sock_id = s_fd_tun;
         pkt_out->header.op_data.data_size = l_read_bytes;
