@@ -786,14 +786,11 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             dap_gdb_time_t l_timestamp_del = global_db_gr_del_get_timestamp(l_obj->group, l_obj->key);
             // check the applied object newer that we have stored or erased
-			log_it(L_DEBUG, "\n dump_it:");
-			dump_it("l_obj->value", l_obj->value, l_obj->value_len);
-			log_it(L_DEBUG, "\n :dump_it");
             if (l_obj->timestamp > (uint64_t)l_timestamp_del &&
                     l_obj->timestamp > (uint64_t)l_timestamp_cur &&
                     (l_obj->type != DAP_DB$K_OPTYPE_DEL || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
-				dump_it("l_obj->value", l_obj->value, l_obj->value_len);
+				dump_it("l_obj_pkt", l_obj_pkt, l_obj_pkt->data_size);
             }
             if (s_debug_more){
                 char l_ts_str[50];

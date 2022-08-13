@@ -261,6 +261,10 @@ dap_store_obj_t *l_store_obj_cur;
     if (a_store_count > 1 && s_drv_callback.transaction_start)
         s_drv_callback.transaction_start();
 
+	log_it(L_DEBUG, "\n dump_it:");
+	dump_it("a_store_obj", a_store_obj, a_store_count);
+	log_it(L_DEBUG, "\n :dump_it");
+
     if(s_drv_callback.apply_store_obj)
         for(int i = a_store_count; (!l_ret) && (i--); l_store_obj_cur++) {
             if ( 1 == (l_ret = s_drv_callback.apply_store_obj(l_store_obj_cur)) )
@@ -369,7 +373,7 @@ dap_worker_t        *l_dap_worker;
     debug_if(s_dap_global_db_debug_more, L_DEBUG, "[%p] DB Request has been enqueued (code %d)", l_store_obj_cur, l_ret);
 
 	log_it(L_DEBUG, "\n dump_it:");
-	dump_it("a_store_obj->value", a_store_obj->value, a_store_obj->value_len);
+	dump_it("a_store_obj", a_store_obj, a_store_count);
 	log_it(L_DEBUG, "\n :dump_it");
 
     return  l_ret;
