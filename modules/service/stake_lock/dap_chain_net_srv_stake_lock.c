@@ -149,7 +149,7 @@ static void s_callback_decree(dap_chain_net_srv_t* a_srv, dap_chain_net_t* a_net
 static dap_chain_datum_tx_receipt_t* s_receipt_create(dap_hash_fast_t* hash_burning_transaction, const char* token, uint256_t datoshi_burned)
 {
 	uint32_t l_ext_size = sizeof(dap_hash_fast_t) + dap_strlen(token) + 1;
-	uint8_t* l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
+	uint8_t* l_ext = DAP_NEW_STACK_SIZE(uint8_t, l_ext_size);
 
 	memcpy(l_ext, hash_burning_transaction, sizeof(dap_hash_fast_t));
 	strcpy((char*)&l_ext[sizeof(dap_hash_fast_t)], token);
@@ -1120,7 +1120,7 @@ dap_chain_hash_fast_t* dap_chain_net_srv_stake_lock_mempool_create(dap_chain_net
 	char* l_key_str = dap_chain_hash_fast_to_str_new(l_key_hash);
 	char* l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type(a_net, CHAIN_TYPE_TX);
 
-	if (dap_chain_global_db_gr_set(l_key_str, l_datum, dap_chain_datum_size(l_datum), l_gdb_group) == true) {
+	if (dap_global_db_set(l_gdb_group, l_key_str, l_datum, dap_chain_datum_size(l_datum), false, NULL, NULL) == true) {
 		log_it(L_NOTICE, "Transaction %s placed in mempool group %s", l_key_str, l_gdb_group);
 	}
 
