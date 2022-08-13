@@ -38,6 +38,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_node.h"
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
+#include "dap_time.h"
+#include "uthash.h"
 
 
 #define DAP_CHAIN_NET_NAME_MAX 32
@@ -121,6 +123,7 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net);
 
 bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client);
 bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client);
+bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t* a_net, dap_chain_node_client_t* a_client);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
@@ -165,6 +168,27 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type);
 
+typedef struct dap_chain_datum_tx_spends_item {
+    dap_chain_datum_tx_t* tx;
+    dap_hash_fast_t tx_hash;
+
+    dap_chain_tx_out_cond_t* out_cond;
+    dap_chain_tx_in_cond_t* in_cond;
+
+    dap_chain_datum_tx_t* tx_next;
+    UT_hash_handle hh;
+}dap_chain_datum_tx_spends_item_t;
+
+typedef struct dap_chain_datum_tx_spends_items {
+    dap_chain_datum_tx_spends_item_t* tx_outs;
+    dap_chain_datum_tx_spends_item_t* tx_ins;
+} dap_chain_datum_tx_spends_items_t;
+
+dap_chain_datum_tx_spends_items_t* dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t* a_net, const dap_chain_net_srv_uid_t a_srv_uid,
+    const dap_time_t a_time_from, const dap_time_t a_time_to,
+    const dap_chain_net_tx_search_type_t a_search_type);
+void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t* a_items);
+void dap_chain_datum_tx_spends_items_free(dap_chain_datum_tx_spends_items_t* a_items);
 
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 
@@ -208,7 +232,6 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net, struct dap_chain_node_info *a_link_info);
 struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( dap_chain_net_t * a_net,struct dap_chain_node_info *a_link_info,
                                                                                const char * a_channels);
-int dap_cert_chain_file_save(dap_chain_datum_t * l_datum, char * net_name);
 
 typedef bool (datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);
 /**
@@ -220,3 +243,5 @@ typedef bool (datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_c
  * @param a_filter_func_param
  */
 dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, datum_filter_func_t *a_filter_func, void *a_filter_func_param);
+
+int dap_chain_datum_add(dap_chain_t* a_chain, dap_chain_datum_t* a_datum, size_t a_datum_size);
