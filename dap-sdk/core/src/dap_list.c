@@ -62,11 +62,22 @@ void dap_list_free1(dap_list_t *list)
  * Convenience method, which frees all the memory used by a DapList,
  * and calls @free_func on every element's data.
  */
+/**
+ * dap_list_free_full:
+ * @list: a pointer to a DapList
+ * @free_func: the function to be called to free each element's data
+ *  if NULL it calls DAP_DELETE() for it
+ * Convenience method, which frees all the memory used by a DapList,
+ * and calls @free_func on every element's data.
+ */
 void dap_list_free_full(dap_list_t *a_list, dap_callback_destroyed_t a_free_func)
 {
     dap_list_t *l_list = a_list;
     while (l_list) {
-        a_free_func(l_list->data);
+        if(a_free_func)
+            a_free_func(l_list->data);
+        else
+            DAP_DELETE(l_list->data);
         l_list = l_list->next;
     }
     dap_list_free(a_list);
@@ -94,7 +105,7 @@ void dap_list_free_full(dap_list_t *a_list, dap_callback_destroyed_t a_free_func
  * // This is a list of strings.
  * string_list = dap_list_append (string_list, "first");
  * string_list = dap_list_append (string_list, "second");
- * 
+ *
  * // This is a list of integers.
  * number_list = dap_list_append (number_list, INT_TO_POINTER (27));
  * number_list = dap_list_append (number_list, INT_TO_POINTER (14));
@@ -108,12 +119,14 @@ dap_list_t * dap_list_append(dap_list_t *list, void* data)
     dap_list_t *last;
 
     new_list = dap_list_alloc();
-    if( !new_list) // Out of memory
-        return list;
+    if (!new_list) { // Out of memory
+		log_it(L_CRITICAL, "DANGER! Out of memory!");
+		return list;
+	}
     new_list->data = data;
     new_list->next = NULL;
 
-    if(list)
+    if (list)
     {
         last = dap_list_last(list);
         /* assert (last != NULL); */
@@ -137,7 +150,7 @@ dap_list_t * dap_list_append(dap_list_t *list, void* data)
  * Prepends a new element on to the start of the list.
  *
  * Note that the return value is the new start of the list,
- * which will have changed, so make sure you store the new value. 
+ * which will have changed, so make sure you store the new value.
  *
  * |[<!-- language="C" -->
  * // Notice that it is initialized to the empty list.
@@ -150,7 +163,7 @@ dap_list_t * dap_list_append(dap_list_t *list, void* data)
  * Do not use this function to prepend a new element to a different
  * element than the start of the list. Use dap_list_insert_before() instead.
  *
- * Returns: a pointer to the newly prepended element, which is the new 
+ * Returns: a pointer to the newly prepended element, which is the new
  *     start of the DapList
  */
 dap_list_t *dap_list_prepend(dap_list_t *list, void* data)
@@ -178,10 +191,10 @@ dap_list_t *dap_list_prepend(dap_list_t *list, void* data)
  * dap_list_insert:
  * @list: a pointer to a DapList, this must point to the top of the list
  * @data: the data for the new element
- * @position: the position to insert the element. If this is 
- *     negative, or is larger than the number of elements in the 
+ * @position: the position to insert the element. If this is
+ *     negative, or is larger than the number of elements in the
  *     list, the new element is added on to the end of the list.
- * 
+ *
  * Inserts a new element into the list at the given position.
  *
  * Returns: the (possibly changed) start of the DapList
@@ -213,7 +226,7 @@ dap_list_t *dap_list_insert(dap_list_t *list, void* data, int position)
 /**
  * dap_list_insert_before:
  * @list: a pointer to a DapList, this must point to the top of the list
- * @sibling: the list element before which the new element 
+ * @sibling: the list element before which the new element
  *     is inserted or %NULL to insert at the end of the list
  * @data: the data for the new element
  *
@@ -303,35 +316,6 @@ dap_list_t *dap_list_concat(dap_list_t *list1, dap_list_t *list2)
     return list1;
 }
 
-static inline dap_list_t * _dap_list_remove_link(dap_list_t *list, dap_list_t *link)
-{
-    if(link == NULL)
-        return list;
-
-    if(link->prev)
-    {
-        if(link->prev->next == link)
-            link->prev->next = link->next;
-        else
-            log_it(L_ERROR, "corrupted double-linked list detected");
-    }
-    if(link->next)
-    {
-        if(link->next->prev == link)
-            link->next->prev = link->prev;
-        else
-            log_it(L_ERROR, "corrupted double-linked list detected");
-    }
-
-    if(link == list)
-        list = list->next;
-
-    link->next = NULL;
-    link->prev = NULL;
-
-    return list;
-}
-
 /**
  * dap_list_remove:
  * @list: a DapList, this must point to the top of the list
@@ -354,9 +338,7 @@ dap_list_t *dap_list_remove(dap_list_t *list, const void * data)
             tmp = tmp->next;
         else
         {
-            list = _dap_list_remove_link(list, tmp);
-            if (list == tmp)
-                list = NULL;
+            list = dap_list_remove_link(list, tmp);
             dap_list_free1(tmp);
             break;
         }
@@ -410,13 +392,13 @@ dap_list_t *dap_list_remove_all(dap_list_t *list, const void * data)
  * @llink: an element in the DapList
  *
  * Removes an element from a DapList, without freeing the element.
- * The removed element's prev and next links are set to %NULL, so 
+ * The removed element's prev and next links are set to %NULL, so
  * that it becomes a self-contained list with one element.
  *
  * This function is for example used to move an element in the list
  * (see the example for dap_list_concat()) or to remove an element in
  * the list before freeing its data:
- * |[<!-- language="C" --> 
+ * |[<!-- language="C" -->
  * list = dap_list_remove_link (list, llink);
  * free_some_data_that_may_access_the_list_again (llink->data);
  * dap_list_free (llink);
@@ -424,9 +406,33 @@ dap_list_t *dap_list_remove_all(dap_list_t *list, const void * data)
  *
  * Returns: the (possibly changed) start of the DapList
  */
-dap_list_t *dap_list_remove_link(dap_list_t *list, dap_list_t *llink)
+inline dap_list_t *dap_list_remove_link(dap_list_t *list, dap_list_t *link)
 {
-    return _dap_list_remove_link(list, llink);
+    if(link == NULL)
+        return list;
+
+    if(link->prev)
+    {
+        if(link->prev->next == link)
+            link->prev->next = link->next;
+        else
+            log_it(L_ERROR, "corrupted double-linked list detected");
+    }
+    if(link->next)
+    {
+        if(link->next->prev == link)
+            link->next->prev = link->prev;
+        else
+            log_it(L_ERROR, "corrupted double-linked list detected");
+    }
+
+    if(link == list)
+        list = list->next;
+
+    link->next = NULL;
+    link->prev = NULL;
+
+    return list;
 }
 
 /**
@@ -434,16 +440,16 @@ dap_list_t *dap_list_remove_link(dap_list_t *list, dap_list_t *llink)
  * @list: a DapList, this must point to the top of the list
  * @link_: node to delete from @list
  *
- * Removes the node link_ from the list and frees it. 
+ * Removes the node link_ from the list and frees it.
  * Compare this to dap_list_remove_link() which removes the node
  * without freeing it.
  *
  * Returns: the (possibly changed) start of the DapList
  */
-dap_list_t *dap_list_delete_link(dap_list_t *list, dap_list_t *link_)
+dap_list_t *dap_list_delete_link(dap_list_t *list, dap_list_t *link)
 {
-    list = _dap_list_remove_link(list, link_);
-    dap_list_free1(link_);
+    list = dap_list_remove_link(list, link);
+    dap_list_free1(link);
 
     return list;
 }
@@ -454,8 +460,8 @@ dap_list_t *dap_list_delete_link(dap_list_t *list, dap_list_t *link_)
  *
  * Copies a DapList.
  *
- * Note that this is a "shallow" copy. If the list elements 
- * consist of pointers to data, the pointers are copied but 
+ * Note that this is a "shallow" copy. If the list elements
+ * consist of pointers to data, the pointers are copied but
  * the actual data is not. See dap_list_copy_deep() if you need
  * to copy the data as well.
  *
@@ -483,16 +489,16 @@ dap_list_t *dap_list_copy(dap_list_t *list)
  * if the copy function takes only one argument.
  *
  * For instance,
- * |[<!-- language="C" -->   
+ * |[<!-- language="C" -->
  * another_list = dap_list_copy_deep (list, (DapCopyFunc) dap_object_ref, NULL);
  * ]|
  *
  * And, to entirely free the new list, you could do:
- * |[<!-- language="C" --> 
+ * |[<!-- language="C" -->
  * dap_list_free_full (another_list, dap_object_unref);
  * ]|
  *
- * Returns: the start of the new list that holds a full copy of @list, 
+ * Returns: the start of the new list that holds a full copy of @list,
  *     use dap_list_free_full() to free it
  */
 dap_list_t *dap_list_copy_deep(dap_list_t *list, dap_callback_copy_t func, void* user_data)
@@ -560,7 +566,7 @@ dap_list_t * dap_list_reverse(dap_list_t *list)
  *
  * Gets the element at the given position in a DapList.
  *
- * Returns: the element, or %NULL if the position is off 
+ * Returns: the element, or %NULL if the position is off
  *     the end of the DapList
  */
 dap_list_t *dap_list_nth(dap_list_t *list, unsigned int n)
@@ -578,7 +584,7 @@ dap_list_t *dap_list_nth(dap_list_t *list, unsigned int n)
  *
  * Gets the element @n places before @list.
  *
- * Returns: the element, or %NULL if the position is 
+ * Returns: the element, or %NULL if the position is
  *     off the end of the DapList
  */
 dap_list_t *dap_list_nth_prev(dap_list_t *list, unsigned int n)
@@ -596,7 +602,7 @@ dap_list_t *dap_list_nth_prev(dap_list_t *list, unsigned int n)
  *
  * Gets the data of the element at the given position.
  *
- * Returns: the element's data, or %NULL if the position 
+ * Returns: the element's data, or %NULL if the position
  *     is off the end of the DapList
  */
 void* dap_list_nth_data(dap_list_t *list, unsigned int n)
@@ -632,12 +638,12 @@ dap_list_t *dap_list_find(dap_list_t *list, const void * data)
  * dap_list_find_custom:
  * @list: a DapList, this must point to the top of the list
  * @data: user data passed to the function
- * @func: the function to call for each element. 
+ * @func: the function to call for each element.
  *     It should return 0 when the desired element is found
  *
  * Finds an element in a DapList, using a supplied function to
- * find the desired element. It iterates over the list, calling 
- * the given function which should return 0 when the desired 
+ * find the desired element. It iterates over the list, calling
+ * the given function which should return 0 when the desired
  * element is found. The function takes two const pointer arguments,
  * the DapList element's data as the first argument and the
  * given user data.
@@ -663,7 +669,7 @@ dap_list_t *dap_list_find_custom(dap_list_t *list, const void * data, dap_callba
  * @list: a DapList, this must point to the top of the list
  * @llink: an element in the DapList
  *
- * Gets the position of the given element 
+ * Gets the position of the given element
  * in the DapList (starting from 0).
  *
  * Returns: the position of the element in the DapList,
@@ -690,10 +696,10 @@ int dap_list_position(dap_list_t *list, dap_list_t *llink)
  * @list: a DapList, this must point to the top of the list
  * @data: the data to find
  *
- * Gets the position of the element containing 
+ * Gets the position of the element containing
  * the given data (starting from 0).
  *
- * Returns: the index of the element containing the data, 
+ * Returns: the index of the element containing the data,
  *     or -1 if the data is not found
  */
 int dap_list_index(dap_list_t *list, const void * data)
@@ -876,7 +882,7 @@ dap_list_t *dap_list_insert_sorted(dap_list_t *list, void* data, dap_callback_co
  *     second parameter in the sort order.
  * @user_data: user data to pass to comparison function
  *
- * Inserts a new element into the list, using the given comparison 
+ * Inserts a new element into the list, using the given comparison
  * function to determine its position.
  *
  * If you are adding many new elements to a list, and the number of
@@ -955,8 +961,8 @@ static dap_list_t *dap_list_sort_real(dap_list_t *list, dap_callback_compare_dat
  * @list: a DapList, this must point to the top of the list
  * @compare_func: the comparison function used to sort the DapList.
  *     This function is passed the data from 2 elements of the DapList
- *     and should return 0 if they are equal, a negative value if the 
- *     first element comes before the second, or a positive value if 
+ *     and should return 0 if they are equal, a negative value if the
+ *     first element comes before the second, or a positive value if
  *     the first element comes after the second.
  *
  * Sorts a DapList using the given comparison function. The algorithm

@@ -32,42 +32,24 @@
 
 typedef struct dap_chain_net_srv_xchange_price {
     char *wallet_str;
-    dap_chain_net_t *net_sell;
     char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t datoshi_sell;
-    dap_chain_net_t *net_buy;
+    dap_chain_net_t *net;
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
-    long double rate;
+    uint256_t rate;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
     dap_enc_key_t *wallet_key;
-
-    char *key_ptr;
-    UT_hash_handle hh;
 } dap_chain_net_srv_xchange_price_t;
 
-typedef struct dap_chain_net_srv_xchange_db_item {
-    char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
-    char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint8_t padding[4];
-    uint64_t net_sell_id;
-    uint64_t net_buy_id;
-    uint256_t datoshi_sell;
-    long double rate;
-    dap_chain_hash_fast_t tx_hash;
-    dap_chain_hash_fast_t order_hash;
-    char wallet_str[];
-} DAP_ALIGN_PACKED dap_chain_net_srv_xchange_db_item_t;
-
 typedef struct dap_srv_xchange_order_ext {
-    uint64_t net_sell_id;
+    uint64_t padding;
     uint256_t datoshi_sell;
     char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
 } dap_srv_xchange_order_ext_t;
 
 typedef struct dap_chain_net_srv_xchange {
     dap_chain_net_srv_t *parent;
-    dap_chain_net_srv_xchange_price_t *pricelist;
     bool enabled;
 } dap_chain_net_srv_xchange_t;
 
@@ -75,4 +57,4 @@ extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
-bool dap_chain_net_srv_xchange_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool dap_chain_net_srv_xchange_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);

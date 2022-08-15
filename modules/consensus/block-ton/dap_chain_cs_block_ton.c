@@ -8,7 +8,7 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs_block_ton.h"
 #include "dap_stream_ch_chain_voting.h"
-#include "dap_chain_net_srv_stake.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_blocks_ton"
@@ -146,7 +146,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
    	l_ton_pvt->auth_certs_count = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton","auth_certs_number", 0);
     if ( !l_ton_pvt->validators_list_by_stake ) { // auth by cert for PoA mode
 	    if (l_ton_pvt->auth_certs_count) {
-	        l_ton_pvt->auth_certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_ton_pvt->auth_certs_count * sizeof(dap_cert_t));
+            l_ton_pvt->auth_certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_ton_pvt->auth_certs_count * sizeof(dap_cert_t*));
 	        char l_cert_name[512];
 	        for (size_t i = 0; i < l_ton_pvt->auth_certs_count; i++ ){
 	            dap_snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_ton_pvt->auth_certs_prefix, i);
@@ -379,7 +379,6 @@ static void s_session_round_start(dap_chain_cs_block_ton_items_t *a_session) {
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(a_session->gdb_group_store, &l_objs_size);
     if (l_objs_size) {
     	dap_chain_cs_block_ton_store_t *l_store_candidate_ready = NULL;
-    	size_t l_candidate_ready_size = 0;
         for (size_t i = 0; i < l_objs_size; i++) {
             if (!l_objs[i].value_len)
                 continue;
@@ -695,7 +694,7 @@ static void s_session_candidate_to_chain(
     if (l_signs_count * 3 >= a_session->old_round.validators_count * 2) {
 		//dap_chain_t *l_chain = a_session->chain;
 		//dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
-		dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
+        dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
 		char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
 		switch (l_res) {
 			case ATOM_ACCEPT: {
@@ -734,21 +733,8 @@ static void s_session_candidate_to_chain(
     //DAP_DELETE(l_candidate);
 }
 
-static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session){
-    
-	// if (!a_session->my_candidate 
-	// 		|| a_session->my_candidate_attempts_count 
-	// 			>= PVT(a_session->ton)->my_candidate_attempts_max) {
-	// 	dap_chain_t *l_chain = a_session->chain;
-	// 	dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
-	// 	s_session_my_candidate_delete(a_session);
-	// 	if ( l_blocks->block_new_size && l_blocks->block_new) {
-	// 		a_session->my_candidate = (dap_chain_block_t *)DAP_DUP_SIZE(l_blocks->block_new, l_blocks->block_new_size);
-	// 		a_session->my_candidate_size = l_blocks->block_new_size;
-	// 		s_session_block_new_delete(a_session);
-	// 	}
-	// }
-	
+static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session)
+{
 	dap_chain_t *l_chain = a_session->chain;
 	dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 	s_session_my_candidate_delete(a_session);
@@ -762,11 +748,6 @@ static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session
 	size_t l_submit_size = a_session->my_candidate ? 
 				sizeof(dap_chain_cs_block_ton_message_submit_t)+a_session->my_candidate_size
 					: sizeof(dap_chain_cs_block_ton_message_submit_t);
-	
-	// dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain);
-	// size_t l_submit_size = l_blocks->block_new ? 
-	// 			sizeof(dap_chain_cs_block_ton_message_submit_t)+a_session->my_candidate_size
-	// 				: sizeof(dap_chain_cs_block_ton_message_submit_t);
 
 	dap_chain_cs_block_ton_message_submit_t *l_submit =
 							DAP_NEW_SIZE(dap_chain_cs_block_ton_message_submit_t, l_submit_size);
@@ -866,7 +847,6 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(a_session->gdb_group_store, &l_objs_size);
     if (l_objs_size) {
     	dap_chain_cs_block_ton_store_t *l_store_candidate_ready = NULL;
-    	size_t l_candidate_ready_size = 0;
         for (size_t i = 0; i < l_objs_size; i++) {
             if (!l_objs[i].value_len)
                 continue;
@@ -914,8 +894,8 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
     dap_chain_cs_block_ton_message_item_t *l_message_item=NULL, *l_message_tmp=NULL;
     HASH_ITER(hh, a_session->old_round.messages_items, l_message_item, l_message_tmp) {
         // Clang bug at this, l_message_item should change at every loop cycle
-        HASH_DEL(a_session->old_round.messages_items, l_message_item);
         DAP_DELETE(l_message_item->message);
+        HASH_DEL(a_session->old_round.messages_items, l_message_item);
         DAP_DELETE(l_message_item);
     }
 
@@ -1503,7 +1483,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
 							l_session->attempt_current_number, l_candidate_hash_str);
 
-            pthread_rwlock_rdlock(&l_session->rwlock);
+            pthread_rwlock_wrlock(&l_session->rwlock);
 			
 			uint16_t l_reject_count = s_session_message_count(
 						l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT,
@@ -1583,7 +1563,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 							if (PVT(l_session->ton)->debug)
 								log_it(L_MSG, "TON: APPROVE: candidate found in store:%s & !approve_collected", l_candidate_hash_str);
 							l_store->hdr.approve_collected = true;
-							if (dap_chain_global_db_gr_set(dap_strdup(l_candidate_hash_str), l_store,
+                            if (dap_chain_global_db_gr_set(l_candidate_hash_str, l_store,
                                                                 l_store_size, l_session->gdb_group_store) ) {
 								if (PVT(l_session->ton)->debug)
 									log_it(L_MSG, "TON: APPROVE: candidate update:%s approve_collected=true", l_candidate_hash_str);

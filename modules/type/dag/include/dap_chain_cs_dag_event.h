@@ -86,6 +86,12 @@ static inline dap_chain_datum_t* dap_chain_cs_dag_event_get_datum(dap_chain_cs_d
             +a_event->header.hash_count*sizeof(dap_chain_hash_fast_t)): NULL;
 }
 
+static inline size_t dap_chain_cs_dag_event_get_datum_size_maximum(dap_chain_cs_dag_event_t * a_event,size_t a_event_size)
+{
+    return  a_event->header.hash_count*sizeof(dap_chain_hash_fast_t)<=a_event_size ?
+            a_event_size - a_event->header.hash_count*sizeof(dap_chain_hash_fast_t): 0;
+}
+
 dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src, size_t a_event_size);
 
 // Important: returns new deep copy of event

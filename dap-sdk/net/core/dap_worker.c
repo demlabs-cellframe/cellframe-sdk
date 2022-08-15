@@ -20,6 +20,7 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
+#include "dap_events_socket.h"
 #include <time.h>
 #include <errno.h>
 #include <unistd.h>
@@ -128,7 +129,7 @@ void *dap_worker_thread(void *arg)
 #endif
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    struct epoll_event l_epoll_events[ DAP_EVENTS_SOCKET_MAX]= {{0}};
+    struct epoll_event *l_epoll_events = l_worker->epoll_events;
     log_it(L_INFO, "Worker #%d started with epoll fd %"DAP_FORMAT_HANDLE" and assigned to dedicated CPU unit", l_worker->id, l_worker->epoll_fd);
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_worker->kqueue_fd = kqueue();
@@ -287,6 +288,10 @@ void *dap_worker_thread(void *arg)
         if( !l_cur) {
             log_it(L_WARNING, "dap_events_socket was destroyed earlier");
             continue;
+        }
+        // Previously deleted socket, its really bad when it appears
+        if(l_cur->socket == 0 && l_cur->type == 0 ){
+
         }
 
 
@@ -626,6 +631,8 @@ void *dap_worker_thread(void *arg)
 
             if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
+                if (l_cur->callbacks.write_callback)
+                    l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
                 /*
                  * Socket is ready to write and not going to close
                  */
@@ -638,9 +645,6 @@ void *dap_worker_thread(void *arg)
 
                     l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
                 }
-
-                if (l_cur->callbacks.write_callback)
-                    l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
 
                 if ( l_cur->worker && l_flag_write ){ // esocket wasn't unassigned in callback, we need some other ops with it
                         switch (l_cur->type){
@@ -817,7 +821,7 @@ void *dap_worker_thread(void *arg)
             {
                 if (l_cur->buf_out_size == 0) {
                     if(g_debug_reactor)
-                        log_it(L_INFO, "Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr 0x%p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [thread %u]",
+                        log_it(L_INFO, "Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr %p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [thread %u]",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
                                l_cur->type, l_tn);
 
@@ -1215,9 +1219,10 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
         return 0;
     }
-    if ( a_esocket->type == DESCRIPTOR_TYPE_EVENT && a_esocket->pipe_out){
+    if ( a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
         return 0;
     }
+
     struct kevent l_event;
     u_short l_flags = a_esocket->kqueue_base_flags;
     u_int   l_fflags = a_esocket->kqueue_base_fflags;
@@ -1229,13 +1234,9 @@ int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_wo
     // Check & add
     bool l_is_error=false;
     int l_errno=0;
-    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
-        EV_SET(&l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
-        if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL)!=0){
-            l_is_error = true;
-            l_errno = errno;
-        }
-    }else{
+
+
+    {
         if( l_filter){
             EV_SET(&l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
             if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){

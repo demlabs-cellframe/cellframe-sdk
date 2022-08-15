@@ -117,7 +117,7 @@ dap_config_t * dap_config_open(const char * a_name)
             long buf_len = ftell(f);
             char buf[buf_len];
             fseek(f, 0L, SEEK_SET);
-            log_it(L_DEBUG,"Opened config %s",a_name);
+            log_it(L_DEBUG,"Opened config %s", l_config_path);
             ret = DAP_NEW_Z(dap_config_t);
             dap_config_internal_t * l_config_internal = DAP_NEW_Z(dap_config_internal_t);
             ret->_internal = l_config_internal;
@@ -222,6 +222,7 @@ dap_config_t * dap_config_open(const char * a_name)
                                             if (l_param_value[0] == '[') {
                                                 if(l_param_value[1] == ']') {
                                                     //log_it(L_WARNING, "Empty array!");
+                                                    DAP_DELETE(l_line);
                                                     continue;
                                                 }
 

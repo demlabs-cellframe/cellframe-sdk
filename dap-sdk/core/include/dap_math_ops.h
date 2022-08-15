@@ -383,13 +383,13 @@ static inline int ADD_64_INTO_128(uint64_t a_64_bit,uint128_t *c_128_bit )
     *c_128_bit+=(uint128_t)a_64_bit;
     overflow_flag=(*c_128_bit<temp);
 #else
-    uint64_t overflow_64=0;
-    uint64_t temp=0;
-    temp=c_128_bit->lo;
-    overflow_flag=SUM_64_64(a_64_bit,temp,&c_128_bit->lo);
-    overflow_64=overflow_flag;
-    temp=c_128_bit->hi;
-    overflow_flag=SUM_64_64(overflow_64,temp,&c_128_bit->hi);
+    uint64_t overflow_64 = 0;
+    uint64_t temp = 0;
+    overflow_flag = SUM_64_64(a_64_bit, c_128_bit->lo, &temp);
+    overflow_64 = overflow_flag;
+    c_128_bit->lo = temp;
+    overflow_flag = SUM_64_64(overflow_64, c_128_bit->hi, &temp);
+    c_128_bit->hi = temp;
 #endif
     return overflow_flag;
 }
@@ -404,12 +404,15 @@ static inline int SUM_128_128(uint128_t a_128_bit,uint128_t b_128_bit,uint128_t*
     return overflow_flag;
 #else
     int overflow_flag_intermediate;
-    overflow_flag=SUM_64_64(a_128_bit.lo,b_128_bit.lo,&c_128_bit->lo);
+    uint64_t temp = 0;
+    overflow_flag=SUM_64_64(a_128_bit.lo,b_128_bit.lo,&temp);
+    c_128_bit->lo=temp;
     uint64_t carry_in_64=overflow_flag;
     uint64_t intermediate_value=0;
     overflow_flag=0;
     overflow_flag=SUM_64_64(carry_in_64,a_128_bit.hi,&intermediate_value);
-    overflow_flag_intermediate=SUM_64_64(intermediate_value,b_128_bit.hi,&c_128_bit->hi);
+    overflow_flag_intermediate=SUM_64_64(intermediate_value,b_128_bit.hi,&temp);
+    c_128_bit->hi=temp;
     int return_overflow=overflow_flag|overflow_flag_intermediate;
     return return_overflow;
 #endif
@@ -999,6 +1002,8 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
+
+
 /* Multiplicates 256-bit value to fixed-point value, represented as 256-bit value
  * @param a_val
  * @param a_mult
@@ -1027,8 +1032,31 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
     if (compare256(rem, five) >= 0) {
         SUM_256_256(tmp, ten, &tmp);
     }
-    DIV_256(tmp, ten, result);
+    if( compare256(ten, uint256_0) != 0 )
+        DIV_256(tmp, ten, result);
     return overflow;
+}
+
+
+/**
+ * Divides to fixed-point values, represented as 256-bit values
+ * @param a_val
+ * @param b_val
+ * @param result is a fixed-point value, represented as 256-bit value
+ * @return
+ */
+static inline void DIV_256_COIN(uint256_t a, uint256_t b, uint256_t *res)
+{
+    // define 10^36
+#ifdef DAP_GLOBAL_IS_INT128
+    uint128_t quad = *(uint128_t *)"\x0\x0\x0\x0\x10\x9f\x4b\xb3\x15\x07\xc9\x7b\xce\x97\xc0\x0";
+#else
+    uint128_t quad = {.lo = 54210108624275221ULL, .hi = 12919594847110692864ULL};
+#endif
+    uint256_t quad256 = GET_256_FROM_128(quad);
+    uint256_t tmp = uint256_0;
+    DIV_256(quad256, b, &tmp);  // assertion with zero divider inside
+    MULT_256_COIN(a, tmp, res);
 }
 
 #ifdef __cplusplus

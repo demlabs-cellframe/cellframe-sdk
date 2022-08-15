@@ -163,7 +163,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t);
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     l_ch_chain->_inheritor = a_ch;
-    pthread_rwlock_init(&l_ch_chain->idle_lock, NULL);
     a_ch->stream->esocket->callbacks.write_finished_callback = s_stream_ch_io_complete;
 }
 
@@ -177,13 +176,14 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
 {
     UNUSED(a_worker);
     dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
-    if (l_ch_chain->callback_notify_packet_out)
-        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
-                                               l_ch_chain->callback_notify_arg);
     s_ch_chain_go_idle(l_ch_chain);
     s_free_log_list_gdb(l_ch_chain);
-    pthread_rwlock_destroy(&l_ch_chain->idle_lock);
-    DAP_DELETE(l_ch_chain);
+    if (!l_ch_chain->_inheritor) {
+        if (l_ch_chain->callback_notify_packet_out)
+            l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
+                                                   l_ch_chain->callback_notify_arg);
+        DAP_DELETE(l_ch_chain);
+    }
 }
 
 /**
@@ -194,8 +194,17 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch->internal);
+    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    l_ch_chain->_inheritor = NULL; // To delete ch chain
     a_ch->internal = NULL; // To prevent its cleaning in worker
+    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, l_ch_chain);
+}
+
+void dap_stream_ch_chain_reset(dap_stream_ch_chain_t *a_ch_chain)
+{
+    if (!a_ch_chain)
+        return;
+    dap_worker_exec_callback_on(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch_chain);
 }
 
 /**
@@ -298,6 +307,7 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
     assert(l_chain);
     //pthread_rwlock_rdlock(&l_chain->atoms_rwlock);
     l_sync_request->chain.request_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_sync_request->request_hdr.cell_id, 1);
+    debug_if(g_debug_reactor, L_INFO, "Arg %p -> worker %d", l_sync_request, l_sync_request->worker->id);
     size_t l_first_size = 0;
     dap_chain_atom_ptr_t l_iter = l_chain->callback_atom_iter_get_first(l_sync_request->chain.request_atom_iter, &l_first_size);
     if (l_iter && l_first_size) {
@@ -413,7 +423,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         l_ch_chain->request_db_log  = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
     else
         dap_db_log_list_rewind(l_ch_chain->request_db_log);
-
+    debug_if(g_debug_reactor, L_INFO, "Arg %p -> worker %d", l_sync_request, l_sync_request->worker->id);
     if (l_ch_chain->request_db_log) {
         if (s_debug_more)
             log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_U" transactions from address "NODE_ADDR_FP_STR,
@@ -476,6 +486,7 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
     l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+    debug_if(g_debug_reactor, L_INFO, "Arg %p -> worker %d", l_sync_request, l_sync_request->worker->id);
     dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_update_gdb_start_worker_callback, l_sync_request);
     return true;
 }
@@ -689,7 +700,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
-            if (l_obj->timestamp >> 32 == 0 || l_obj->timestamp > l_time_now || l_obj->group == NULL)
+            if (l_obj->key_len == 0 || l_obj->timestamp >> 32 == 0 || l_obj->key == NULL ||
+                    l_obj->timestamp > l_time_now || l_obj->group == NULL)
                 continue;       // the object is broken
             if (s_list_white_groups) {
                 int l_ret = -1;
@@ -718,6 +730,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 l_sync_req_tsd->request.id_end = l_last_id;
                 l_sync_req_tsd->gdb.sync_group = l_obj->type == DAP_DB$K_OPTYPE_ADD ? dap_strdup(l_last_group) :
                                                                       dap_strdup_printf("%s.del", l_last_group);
+                debug_if(g_debug_reactor, L_INFO, "Arg %p -> worker %d", l_sync_req_tsd, l_sync_request->worker->id);
                 dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
                                                      s_gdb_sync_tsd_worker_callback, l_sync_req_tsd);
             }
@@ -872,19 +885,17 @@ static bool s_chain_timer_callback(void *a_arg)
 
 static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
 {
-    if (s_ch_chain_get_idle(a_ch_chain))
-        return;
     if (!a_ch_chain->activity_timer) {
-        dap_stream_ch_chain_timer_start(a_ch_chain);
+        dap_stream_ch_chain_timer_start( a_ch_chain);
     }
     a_ch_chain->timer_shots = 0;
 }
 
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
 {
+    dap_worker_t * l_worker = DAP_STREAM_CH(a_ch_chain)->stream_worker->worker;
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
-    a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
-                                                             20, s_chain_timer_callback, (void *)l_uuid);
+    a_ch_chain->activity_timer = dap_timerfd_start_on_worker( l_worker, 20, s_chain_timer_callback, (void *)l_uuid);
 }
 
 /**
@@ -934,7 +945,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         return;
     }
-    if (a_ch->stream->session->acl && !a_ch->stream->session->acl[l_acl_idx]) {
+    uint8_t l_acl = a_ch->stream->session->acl ? a_ch->stream->session->acl[l_acl_idx] : 1;
+    if (!l_acl) {
         log_it(L_WARNING, "Unauthorized request attempt from %s to network %s", a_ch->stream->esocket->remote_addr_str?
                    a_ch->stream->esocket->remote_addr_str: "<unknown>",
                dap_chain_net_by_id(l_chain_pkt->hdr.net_id)->pub.name);
@@ -1012,14 +1024,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB:{
             if(s_debug_more)
                 log_it(L_INFO, "In: UPDATE_GLOBAL_DB pkt data_size=%zu", l_chain_pkt_data_size);
-            if (l_ch_chain->state != CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE ||
-                    memcmp(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_stream_ch_chain_pkt_t))) {
-                log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB request because its already busy with syncronization");
-                s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
-                        l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
-                        "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS");
-                break;
-            }
             for ( dap_stream_ch_chain_update_element_t * l_element =(dap_stream_ch_chain_update_element_t *) l_chain_pkt->data;
                    (size_t) (((byte_t*)l_element) - l_chain_pkt->data ) < l_chain_pkt_data_size;
                   l_element++){

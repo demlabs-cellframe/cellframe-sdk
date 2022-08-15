@@ -612,7 +612,7 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         memcpy(a_stream->pkt_buf_in, l_buf_in, l_buf_in_size);
     }
     else {
-        log_it(L_DEBUG, "dap_stream_data_proc_read() Receive previously unprocessed data %zu bytes + new %zu bytes", a_stream->pkt_buf_in_data_size, l_buf_in_size);
+        debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_proc_read() Receive previously unprocessed data %zu bytes + new %zu bytes", a_stream->pkt_buf_in_data_size, l_buf_in_size);
         // The current data is added to rest of the previous package
         byte_t *l_tmp = DAP_NEW_SIZE(byte_t, a_stream->pkt_buf_in_data_size + l_buf_in_size);
         memcpy(l_tmp, a_stream->pkt_buf_in, a_stream->pkt_buf_in_data_size);
@@ -638,19 +638,22 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
             }
 
             size_t l_pkt_offset = (((uint8_t*) l_pkt) - l_buf_in);
+            l_buf_in += l_pkt_offset;
             l_buf_in_left -= l_pkt_offset;
 
             size_t l_pkt_size = l_pkt->hdr.size + sizeof(dap_stream_pkt_hdr_t);
+
+            //log_it(L_DEBUG, "read packet offset=%zu size=%zu buf_in_left=%zu)",l_pkt_offset, l_pkt_size, l_buf_in_left);
 
             // Got the whole package
             if(l_buf_in_left >= l_pkt_size) {
                 // Process data
                 s_stream_proc_pkt_in(a_stream, (dap_stream_pkt_t*) l_pkt, l_pkt_size);
                 // Go to the next data
-                l_buf_in += (l_pkt_offset + l_pkt_size);
+                l_buf_in += l_pkt_size;
                 l_buf_in_left -= l_pkt_size;
             } else {
-                log_it(L_DEBUG, "Input: Not all stream packet in input (pkt_size=%zu buf_in_left=%zu)", l_pkt_size, l_buf_in_left);
+                debug_if(s_dump_packet_headers,L_DEBUG, "Input: Not all stream packet in input (pkt_size=%zu buf_in_left=%zu)", l_pkt_size, l_buf_in_left);
                 break;
             }
         }
@@ -661,13 +664,16 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
         if(!l_pkt) {
             // pkt header not found, maybe l_buf_in_left is too small to detect pkt header, will do that next time
             l_pkt = (dap_stream_pkt_t*) l_buf_in;
+            debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes, l_pkt=0", l_buf_in_left);
         }
         if(l_pkt) {
             a_stream->pkt_buf_in_data_size = l_buf_in_left;
-            if(l_pkt != a_stream->pkt_buf_in)
+            if(l_pkt != a_stream->pkt_buf_in){
                 memmove(a_stream->pkt_buf_in, l_pkt, a_stream->pkt_buf_in_data_size);
+                //log_it(L_DEBUG, "dap_stream_data_proc_read() l_pkt=%zu != a_stream->pkt_buf_in=%zu", l_pkt, a_stream->pkt_buf_in);
+            }
 
-            log_it(L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes", l_buf_in_left);
+            debug_if(s_dump_packet_headers,L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes", l_buf_in_left);
         }
         else {
             log_it(L_ERROR, "dap_stream_data_proc_read() pkt header not found, drop %zu bytes", l_buf_in_left);
@@ -728,49 +734,42 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
         if(a_stream->buf_fragments_size_filled < l_fragm_pkt->full_size) {
             break;
         }
+        // All fragments collected, move forward
     }
     case STREAM_PKT_TYPE_DATA_PACKET: {
-        dap_stream_ch_pkt_t *l_ch_pkt;
-        size_t l_dec_pkt_size;
-        if(l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET) {
-            l_ch_pkt = (dap_stream_ch_pkt_t*) a_stream->buf_fragments;
-            l_dec_pkt_size = a_stream->buf_fragments_size_total;
-        } else {
-            l_ch_pkt = (dap_stream_ch_pkt_t*) a_stream->pkt_cache;
+        dap_stream_ch_pkt_t *l_ch_pkt = l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET
+                ? (dap_stream_ch_pkt_t*)a_stream->buf_fragments
+                : (dap_stream_ch_pkt_t*)a_stream->pkt_cache;
+        size_t l_dec_pkt_size = l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET
+                ? a_stream->buf_fragments_size_total
+                : dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache));
 
-            l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache));
-            if(l_dec_pkt_size == 0) {
-                log_it(L_WARNING, "Input: can't decode packet size = %zu", l_pkt_size);
-                break;
-            }
-        }
         if (l_dec_pkt_size != l_ch_pkt->hdr.size + sizeof(l_ch_pkt->hdr)) {
             log_it(L_WARNING, "Input: decoded packet has bad size = %zu, decoded size = %zu", l_ch_pkt->hdr.size + sizeof(l_ch_pkt->hdr), l_dec_pkt_size);
             l_is_clean_fragments = true;
             break;
         }
 
-        s_detect_loose_packet(a_stream);
-
-        // Find channel
-        dap_stream_ch_t * l_ch = NULL;
-        for(size_t i=0;i<a_stream->channel_count;i++){
-            if(a_stream->channel[i]->proc){
-                if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
-                    l_ch=a_stream->channel[i];
+        // If seq_id is less than previous - doomp eet
+        if (!s_detect_loose_packet(a_stream)) {
+            dap_stream_ch_t * l_ch = NULL;
+            for(size_t i=0;i<a_stream->channel_count;i++){
+                if(a_stream->channel[i]->proc){
+                    if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
+                        l_ch=a_stream->channel[i];
+                    }
                 }
             }
-        }
-
-        if(l_ch) {
-            l_ch->stat.bytes_read += l_ch_pkt->hdr.size;
-            if(l_ch->proc && l_ch->proc->packet_in_callback) {
-                debug_if(s_dump_packet_headers, L_INFO, "Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X", (char ) l_ch_pkt->hdr.id,
-                         l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id, l_ch_pkt->hdr.enc_type);
-                l_ch->proc->packet_in_callback(l_ch, l_ch_pkt);
+            if(l_ch) {
+                l_ch->stat.bytes_read += l_ch_pkt->hdr.size;
+                if(l_ch->proc && l_ch->proc->packet_in_callback) {
+                    debug_if(s_dump_packet_headers, L_INFO, "Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X", (char ) l_ch_pkt->hdr.id,
+                             l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id, l_ch_pkt->hdr.enc_type);
+                    l_ch->proc->packet_in_callback(l_ch, l_ch_pkt);
+                }
+            } else{
+                log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
             }
-        } else{
-            log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
         }
         // packet already defragmented
         if(l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET) {
@@ -816,28 +815,25 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
  * @param a_stream
  * @return
  */
-static bool s_detect_loose_packet(dap_stream_t * a_stream)
-{
-    dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
+static bool s_detect_loose_packet(dap_stream_t * a_stream) {
+    dap_stream_ch_pkt_t *l_ch_pkt = a_stream->buf_fragments_size_filled
+            ? (dap_stream_ch_pkt_t*)a_stream->buf_fragments
+            : (dap_stream_ch_pkt_t*)a_stream->pkt_cache;
 
-    long long l_count_loosed_packets = (long long) l_ch_pkt->hdr.seq_id - (long long) (a_stream->client_last_seq_id_packet + 1);
-    if(l_count_loosed_packets > 0)
-    {
-        log_it(L_WARNING, "Detected loosed %lld packets. "
-                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
-               a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
-    } else if(l_count_loosed_packets < 0) {
-        if(a_stream->client_last_seq_id_packet != 0 && l_ch_pkt->hdr.seq_id != 0) {
-        log_it(L_WARNING, "Something wrong. count_loosed packets %lld can't less than zero. "
-                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
-               a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
-        } // else client don't support seqid functionality
+    long long l_count_lost_packets =
+            l_ch_pkt->hdr.seq_id || a_stream->client_last_seq_id_packet
+            ? (long long) l_ch_pkt->hdr.seq_id - (long long) (a_stream->client_last_seq_id_packet + 1)
+            : 0;
+
+    if (l_count_lost_packets) {
+        log_it(L_WARNING, l_count_lost_packets > 0
+               ? "Packet loss detected. Current seq_id: %"DAP_UINT64_FORMAT_U", last seq_id: %"DAP_UINT64_FORMAT_U
+               : "Packet replay detected, seq_id: %"DAP_UINT64_FORMAT_U, l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
     }
-//    log_it(L_DEBUG, "Packet seq id: %d", ch_pkt->hdr.seq_id);
-//    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
+    debug_if(s_debug, L_DEBUG, "Current seq_id: %"DAP_UINT64_FORMAT_U", last: %"DAP_UINT64_FORMAT_U,
+                                l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
     a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
-
-    return false;
+    return l_count_lost_packets < 0;
 }
 
 /**

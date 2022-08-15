@@ -23,6 +23,9 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dap_chain_common.h"
+#include "dap_events.h"
+#include "dap_math_ops.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -60,12 +63,14 @@
 #include "json-c/json.h"
 #include "json-c/json_object.h"
 #include "dap_notify_srv.h"
+#include "dap_chain_net_srv.h"
 
 #define LOG_TAG "dap_chain_ledger"
 
 typedef struct dap_chain_ledger_verificator {
     int subtype;    // hash key
     dap_chain_ledger_verificator_callback_t callback;
+    dap_chain_ledger_verificator_callback_out_t callback_added;
     UT_hash_handle hh;
 } dap_chain_ledger_verificator_t;
 
@@ -80,7 +85,13 @@ typedef struct dap_chain_ledger_token_emission_item {
     dap_chain_hash_fast_t tx_used_out;
     UT_hash_handle hh;
 } dap_chain_ledger_token_emission_item_t;
-
+/*TODO: use this table when issuing for special emission-transactions is approved. needed for smart contracts in the future
+typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
+	dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
+	const char 				datum_token_emission_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
+	UT_hash_handle hh;
+} dap_chain_ledger_token_emission_for_stake_lock_item_t;
+*/
 typedef struct dap_chain_ledger_token_item {
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t type;
@@ -127,6 +138,7 @@ typedef struct dap_chain_ledger_tx_item {
 
 typedef struct dap_chain_ledger_tx_spent_item {
     dap_chain_hash_fast_t tx_hash_fast;
+    dap_time_t spent_time;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     UT_hash_handle hh;
 } dap_chain_ledger_tx_spent_item_t;
@@ -238,6 +250,7 @@ static void wallet_info_notify();
 int dap_chain_ledger_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
+    pthread_rwlock_init(&s_verificators_rwlock, NULL);
     return 0;
 }
 
@@ -301,7 +314,6 @@ void dap_chain_ledger_load_end(dap_ledger_t *a_ledger)
     PVT(a_ledger)->load_mode = false;
 }
 
-
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t *a_bal) {
     struct json_object *l_json = json_object_new_object();
     json_object_object_add(l_json, "class", json_object_new_string("Wallet"));
@@ -363,7 +375,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     }
     size_t l_signs_size = a_token_size - sizeof(dap_chain_datum_token_t) - l_size_tsd_section;
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd + l_size_tsd_section, l_signs_size, &l_signs_unique);
-    if (l_signs_unique == a_token->signs_valid){
+    if (l_signs_unique >= a_token->signs_total){
         size_t l_signs_approve = 0;
         for (size_t i=0; i < l_signs_unique; i++){
             dap_sign_t *l_sign = l_signs[i];
@@ -373,15 +385,15 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
                 }
             }
         }
-        if (l_signs_approve == a_token->signs_valid){
+        if (l_signs_approve >= a_token->signs_total){
             return 0;
         } else {
-            log_it(L_WARNING, "The token declaration has %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_valid);
+            log_it(L_WARNING, "The token declaration has %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_total);
             return -5;
         }
     } else {
-        log_it(L_WARNING, "The number of unique valid tokens %zu is less than the value set to %zu.",
-               l_signs_unique, a_token->header_native_decl.tsd_total_size);
+        log_it(L_WARNING, "The number of unique token signs %zu is less than total token signs set to %hu.",
+               l_signs_unique, a_token->signs_total);
         return -4;
     }
     // Checks passed
@@ -483,23 +495,32 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     switch(a_token->type) {
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
     case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
-        if(s_debug_more)
+        if(s_debug_more) {
+            char *l_balance = dap_chain_balance_to_coins(l_token->total_supply);
             log_it(L_NOTICE, "Simple token %s added (total_supply = %s total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE )",
-        l_token->ticker, dap_chain_balance_to_coins(l_token->total_supply),
-        l_token->signs_valid, l_token->signs_total);
+                    l_token->ticker, l_balance,
+                    l_token->signs_valid, l_token->signs_total);
+            DAP_DELETE(l_balance);
+        }
         break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL: // 256
-        if(s_debug_more)
+        if(s_debug_more) {
+            char *l_balance = dap_chain_balance_to_coins(a_token->total_supply);
             log_it(L_NOTICE, "Private token %s added (total_supply = %s total_signs_valid=%hu signs_total=%hu type=DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)",
-        a_token->ticker, dap_chain_balance_to_coins(a_token->total_supply),
-        a_token->signs_valid, a_token->signs_total);
+                    a_token->ticker, l_balance,
+                    a_token->signs_valid, a_token->signs_total);
+            DAP_DELETE(l_balance);
+        }
         s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
         break;
    case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL: // 256
-        if(s_debug_more)
+        if(s_debug_more) {
+            char *l_balance = dap_chain_balance_to_coins(a_token->total_supply);
             log_it(L_NOTICE, "CF20 token %s added (total_supply = %s total_signs_valid=%hu signs_total=%hu)",
-        a_token->ticker, dap_chain_balance_to_coins(a_token->total_supply),
-        a_token->signs_valid, a_token->signs_total);
+                    a_token->ticker, l_balance,
+                    a_token->signs_valid, a_token->signs_total);
+            DAP_DELETE(l_balance);
+        }
         s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
         break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
@@ -978,6 +999,16 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
     return 0;
 }
 
+/**
+ * @brief dap_chain_ledger_get_net
+ * @param a_ledger
+ * @return
+ */
+dap_chain_net_t * dap_chain_ledger_get_net(dap_ledger_t * a_ledger)
+{
+    return PVT(a_ledger)->net;
+}
+
 int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
 {
     if (PVT(a_ledger)->load_mode) {
@@ -1093,7 +1124,9 @@ dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger)
         dap_string_append(l_str_ret, ", token_ticker:");
         dap_string_append(l_str_ret, l_balance_item->token_ticker);
         dap_string_append(l_str_ret, ", balance:");
-        dap_string_append(l_str_ret, dap_chain_balance_print(l_balance_item->balance));
+        char *l_balance = dap_chain_balance_print(l_balance_item->balance);
+        dap_string_append(l_str_ret, l_balance);
+        DAP_DELETE(l_balance);
         dap_string_append(l_str_ret, "\n");
         l_counter +=1;
     }
@@ -1131,7 +1164,8 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
         }
        char *l_item_str = NULL;
 
-        if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) || (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)){
+        if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)){
                 l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
                                                 "\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
@@ -1140,14 +1174,18 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                                 HASH_COUNT(l_token_item->token_emissions));
         } else {
+                char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
+                char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
                 l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
                                                 "\tSupply (current/total) %s/%s\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
                                                 "\tTotal emissions %u\n",
                                                 &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags),
-                                                dap_chain_balance_print(l_token_item->current_supply), dap_chain_balance_print(l_token_item->total_supply),
+                                                l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                                 HASH_COUNT(l_token_item->token_emissions));
+                DAP_DELETE(l_balance_cur);
+                DAP_DELETE(l_balance_total);
         }
 
         l_ret_list = dap_list_append(l_ret_list, l_item_str);
@@ -1293,6 +1331,12 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         dap_chain_hash_fast_from_str(l_objs[i].key, &l_tx_spent_item->tx_hash_fast);
         strncpy(l_tx_spent_item->token_ticker, (char *)l_objs[i].value,
                 min(l_objs[i].value_len, DAP_CHAIN_TICKER_SIZE_MAX - 1));
+        size_t l_spent_time_len = 0;
+        byte_t * l_spent_time_data = dap_chain_global_db_gr_get(l_objs[i].key,&l_spent_time_len,DAP_CHAIN_LEDGER_SPENT_TXS_TIME_STR);
+        if(l_spent_time_data && l_spent_time_len == sizeof(dap_time_t)){
+            memcpy(&l_tx_spent_item->spent_time, l_spent_time_data, l_spent_time_len);
+            DAP_DELETE(l_spent_time_data);
+        }
         HASH_ADD(hh, l_ledger_pvt->spent_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_spent_item);
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
@@ -1369,6 +1413,11 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
 
     dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
 
+    if (!l_token_item){
+        log_it(L_WARNING,"Ledger_token_emission_add_check. Token ticker %s was not found",c_token_ticker);
+        return -5;
+    }
+
     // check if such emission is already present in table
     dap_chain_hash_fast_t l_token_emission_hash={0};
     //dap_chain_hash_fast_t * l_token_emission_hash_ptr = &l_token_emission_hash;
@@ -1383,9 +1432,12 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                                        : &l_ledger_priv->threshold_emissions_rwlock);
     if(l_token_emission_item ) {
         if(s_debug_more) {
-            if ( l_token_emission_item->datum_token_emission->hdr.version == 2 )
+            if ( l_token_emission_item->datum_token_emission->hdr.version == 2 ) {
+                char *l_balance = dap_chain_balance_print(l_token_emission_item->datum_token_emission->hdr.value_256);
                 log_it(L_ERROR, "Can't add token emission datum of %s %s ( %s ): already present in cache",
-                    dap_chain_balance_print(l_token_emission_item->datum_token_emission->hdr.value_256), c_token_ticker, l_hash_str);
+                        l_balance, c_token_ticker, l_hash_str);
+                DAP_DELETE(l_balance);
+            }
             else
                 log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s ): already present in cache",
                     l_token_emission_item->datum_token_emission->hdr.value, c_token_ticker, l_hash_str);
@@ -1404,29 +1456,27 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     size_t l_emission_size = a_token_emission_size;
     dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
 
-    if (!l_token_item){
-        log_it(L_WARNING,"Ledger_token_emission_add_check. Token ticker %s was not found",c_token_ticker);
-        return -5;
-    }
-
     // if total_supply > 0 we can check current_supply
     if (!IS_ZERO_256(l_token_item->total_supply)){
-        if (compare256(l_token_item->current_supply, l_emission->hdr.value_256) < 0){
-        log_it(L_WARNING,"Ledger_token_emission_add_check. current_supply %s is lower, then l_emission->hdr.value_256: %s",
-                        dap_chain_balance_print(l_token_item->current_supply),
-                        dap_chain_balance_print(l_emission->hdr.value_256));
-        return -4;
+        if(compare256(l_token_item->current_supply, l_emission->hdr.value_256) < 0) {
+            char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
+            char *l_balance_em = dap_chain_balance_print(l_emission->hdr.value_256);
+            log_it(L_WARNING, "Ledger_token_emission_add_check. current_supply %s is lower, then l_emission->hdr.value_256: %s",
+                    l_balance_cur, l_balance_em);
+            DAP_DELETE(l_balance_cur);
+            DAP_DELETE(l_balance_em);
+            DAP_DELETE(l_emission);
+            return -4;
         }
     }
         
     //additional check for private tokens
-    if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-            (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) ||
-            (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) ||
-             (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
+    if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+	||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+	||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+	||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
         //s_ledger_permissions_check(l_token_item)
-        //    return -5;
-
+        //    return -5;  /*TODO: ???*/
     }
     switch (l_emission->hdr.type){
         case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:{
@@ -1461,8 +1511,10 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                 }
                 if (l_aproves < l_aproves_valid ){
                     if(s_debug_more) {
-                       log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %u valid aproves when %u need",
-                           dap_chain_balance_print(l_emission->hdr.value_256), a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid );
+                        char *l_balance = dap_chain_balance_print(l_emission->hdr.value_256);
+                        log_it(L_WARNING, "Emission of %s datoshi of %s:%s is wrong: only %u valid aproves when %u need",
+                                l_balance, a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid);
+                        DAP_DELETE(l_balance);
                     }
                     l_ret = -3;
                 }
@@ -1566,10 +1618,10 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                                                                                         &l_token_emission_item->datum_token_emission_size);
 
             //additional check for private tokens
-            if((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-                    (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) ||
-                    (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) ||
-                    (l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
+            if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
                     if (!s_chain_ledger_token_tsd_check(l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
                         return -114;
             }
@@ -1610,11 +1662,12 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             DAP_DELETE(l_gdb_group);
             if(s_debug_more) {
                 char * l_token_emission_address_str = dap_chain_addr_to_str(&(l_token_emission_item->datum_token_emission->hdr.address));
+                char *l_balance = dap_chain_balance_to_coins(l_token_emission_item->datum_token_emission->hdr.value_256);
                 log_it(L_NOTICE, "Added token emission datum to emissions cache: type=%s value=%s token=%s to_addr=%s ",
                                c_dap_chain_datum_token_emission_type_str[l_token_emission_item->datum_token_emission->hdr.type],
-                               dap_chain_balance_to_coins(l_token_emission_item->datum_token_emission->hdr.value_256),
-                               c_token_ticker, l_token_emission_address_str);
+                               l_balance, c_token_ticker, l_token_emission_address_str);
                 DAP_DELETE(l_token_emission_address_str);
+                DAP_DELETE(l_balance);
             }
             s_threshold_txs_proc(a_ledger);
         } else if (HASH_COUNT(l_ledger_priv->threshold_emissions) < s_threshold_emissions_max) {
@@ -1642,9 +1695,11 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
     } else {
         if (l_token_item) {
             if(s_debug_more) {
-                if ( ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.version == 1 ) // && ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.type_256 ) // 256
-                    log_it(L_ERROR, "Duplicate token emission datum of %s %s ( %s )",
-                            dap_chain_balance_print(((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value_256), c_token_ticker, l_hash_str);
+                if ( ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.version == 1 ) { // && ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.type_256 ) // 256
+                    char *l_balance = dap_chain_balance_print(((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value_256);
+                    log_it(L_ERROR, "Duplicate token emission datum of %s %s ( %s )", l_balance, c_token_ticker, l_hash_str);
+                    DAP_DELETE(l_balance);
+                }
                 else
                     log_it(L_ERROR, "Duplicate token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s )",
                             ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value, c_token_ticker, l_hash_str);
@@ -1704,7 +1759,26 @@ dap_chain_ledger_token_emission_item_t *s_emission_item_find(dap_ledger_t *a_led
     pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
     return l_token_emission_item;
 }
+/*TODO: use this function when issuing for special emission-transactions is approved. needed for smart contracts in the future
+dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_find(dap_ledger_t *a_ledger,
+															 const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash)
+{
+	dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+	dap_chain_ledger_token_item_t *l_token_item = NULL;
+	pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
+	HASH_FIND_STR(l_ledger_priv->tokens, a_token_ticker, l_token_item);
+	pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
 
+	if (!l_token_item)
+		return NULL;
+	dap_chain_ledger_token_emission_for_stake_lock_item_t *l_token_emission_item = NULL;
+	pthread_rwlock_rdlock(&l_token_item->token_emissions_rwlock);
+	HASH_FIND(hh, l_token_item->token_emissions, a_token_emission_hash, sizeof(*a_token_emission_hash),
+			  l_token_emission_item);
+	pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
+	return l_token_emission_item;
+}
+*/
 /**
  * @brief dap_chain_ledger_token_emission_find
  * @param a_token_ticker
@@ -2029,6 +2103,52 @@ bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_cha
  *
  * return 1 OK, -1 error
  */
+
+static int s_check_out_cond_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_list_t *a_list_tx_out_cond)
+{
+	for (dap_list_t *list_tmp = a_list_tx_out_cond; list_tmp; list_tmp = dap_list_next(list_tmp)) {
+
+			dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *) a_list_tx_out_cond->data;
+
+			// Check for add out callback
+			dap_chain_ledger_verificator_t *l_verificator;
+			int l_tmp = l_tx_out->header.subtype;
+
+			pthread_rwlock_rdlock(&s_verificators_rwlock);
+			HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
+			pthread_rwlock_unlock(&s_verificators_rwlock);
+
+			if (!l_verificator) {
+				if (s_debug_more)
+					log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
+				return -13;
+			}
+			else if (l_verificator->callback_added && l_verificator->callback_added(a_ledger, a_tx, l_tx_out) == false)
+				return -14;
+
+/*
+TODO: use this code when issuing for special emission-transactions is approved. needed for smart contracts in the future
+
+			dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+			dap_chain_ledger_token_item_t * l_token_item = NULL;
+			pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
+			HASH_FIND_STR(l_ledger_priv->tokens, a_token_ticker, l_token_item);
+			pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+
+			if (!l_token_item)
+				return NULL;
+			dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
+			pthread_rwlock_rdlock(&l_token_item->token_emissions_rwlock);
+			HASH_FIND(hh, l_token_item->token_emissions, a_token_emission_hash, sizeof(*a_token_emission_hash),
+					  l_token_emission_item);
+			pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
+			return l_token_emission_item;
+*/
+
+	}
+	return 0;
+}
+
 // Checking a new transaction before adding to the cache
 int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
         bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out)
@@ -2058,6 +2178,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 
     dap_list_t *l_list_bound_items = NULL;
 
+	dap_list_t *l_list_tx_out = NULL;
+	if (a_list_tx_out)
+		*a_list_tx_out = l_list_tx_out;
+
+	dap_list_t *l_list_tx_out_cond = NULL;
+
     // sum of values in 'out' items from the previous transactions
     dap_chain_ledger_tokenizer_t *l_values_from_prev_tx = NULL, *l_values_from_cur_tx = NULL,
                                  *l_value_cur = NULL, *l_tmp = NULL, *l_res = NULL;
@@ -2078,8 +2204,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                                                           &l_prev_tx_count);
     if (l_list_tmp) {
         // add conditional input to common list
-        l_list_in = dap_list_append(l_list_in, l_list_tmp->data);
-        dap_list_free(l_list_tmp);
+        l_list_in = dap_list_concat(l_list_in, l_list_tmp);
     }
     l_list_tmp = l_list_in;
     if (!l_list_in) {
@@ -2087,9 +2212,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         return -22;
     }
     dap_chain_ledger_tx_bound_t *bound_item;
-    int l_list_tmp_num = 0;
      // find all previous transactions
-    for (dap_list_t *l_list_tmp = l_list_in; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_list_tmp_num++) {
+    for (int l_list_tmp_num = 0; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_list_tmp_num++) {
         bound_item = DAP_NEW_Z(dap_chain_ledger_tx_bound_t);
         dap_chain_tx_in_t *l_tx_in = NULL;
         dap_chain_addr_t l_tx_in_from={0};
@@ -2134,13 +2258,99 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_token = l_tx_token->header.ticker;
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
+			if (!l_emission_item) {//check emission for STAKE_LOCK
+				dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
+				if (!l_datum_token ||
+					l_datum_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) {
+                    debug_if(s_debug_more, L_WARNING, "tx_token [%s] not declareted or no type DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL", l_tx_token->header.ticker);
+					l_err_num = -28;
+					break;
+				}
+				if (!l_datum_token->header_native_decl.tsd_total_size) {
+                    debug_if(s_debug_more, L_WARNING, "No TSD section for tx_token [%s]", l_tx_token->header.ticker);
+					l_err_num = -27;
+					break;
+				}
+				dap_tsd_t *l_tsd;
+				if (NULL == (l_tsd = dap_tsd_find(l_datum_token->data_n_tsd, l_datum_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+                    debug_if(s_debug_more, L_WARNING, "No TSD section tyoe DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK for tx_token [%s]", l_tx_token->header.ticker);
+					l_err_num = -26;
+					break;
+				}
+				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+				if (!dap_chain_ledger_token_ticker_check(a_ledger, l_tsd_section.ticker_token_from)) {
+                    debug_if(s_debug_more, L_WARNING, "tx_token [%s] no found", l_tsd_section.ticker_token_from);
+					l_err_num = -23;
+					break;
+				}
+//				int item_count = 0;
+                dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, 0);//TODO: ADD CHECK COUNT TX
+                if (!l_tx_out) {
+                    debug_if(s_debug_more, L_WARNING, "Can't find OUT item for base TX with tx_token [%s]", l_tx_token->header.ticker);
+					l_err_num = -24;
+					break;
+				}
+                dap_chain_datum_tx_t *l_tx_stake_lock = dap_chain_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
+                dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_stake_lock, 0, TX_ITEM_TYPE_OUT_COND, 0);//TODO: ADD CHECK COUNT TX
+                if (!l_tx_stake_lock_out_cond) {
+                    debug_if(s_debug_more, L_WARNING, "No OUT_COND to for tx_token [%s]", l_tx_token->header.ticker);
+					l_err_num = -30;
+					break;
+				}
+                if (l_tx_stake_lock_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                    debug_if(s_debug_more, L_WARNING, "OUT_COND is not stake_lock subtype to for tx_token [%s]", l_tx_token->header.ticker);
+					l_err_num = -25;
+					break;
+				}
+                uint256_t l_value_expected ={};
+                if (MULT_256_COIN(l_tx_stake_lock_out_cond->header.value, l_tsd_section.emission_rate, &l_value_expected)!=0){
+                    if(s_debug_more){
+                        char * l_emission_rate_str = dap_chain_balance_print(l_tsd_section.emission_rate);
+                        char * l_locked_value_str = dap_chain_balance_print(l_tx_stake_lock_out_cond->header.value);
+                        log_it( L_WARNING, "Multiplication overflow for %s emission: locked value %s emission rate %s"
+                                 , l_tx_token->header.ticker, l_locked_value_str, l_emission_rate_str);
+                        DAP_DELETE(l_emission_rate_str);
+                        DAP_DELETE(l_locked_value_str);
+                    }
+                    l_err_num = -25;
+                    break;
+                }
+
+                if (!EQUAL_256(l_value_expected, l_tx_out->header.value)) {
+                    char * l_value_expected_str = dap_chain_balance_print(l_value_expected);
+                    char * l_locked_value_str = dap_chain_balance_print(l_tx_out->header.value);
+
+                    debug_if(s_debug_more, L_WARNING, "Value %s not thats expected %s for [%s]",l_locked_value_str, l_value_expected_str,
+                             l_tx_token->header.ticker);
+
+                    DAP_DELETE(l_value_expected_str);
+                    DAP_DELETE(l_locked_value_str);
+					l_err_num = -34;
+					break;
+				}
+				// check tiker
+				const char *tx_tiker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, l_emission_hash);
+				if (!tx_tiker) {
+                    debug_if(s_debug_more, L_WARNING, "No tiker stake_lock to for tx_token [%s]", l_tx_token->header.ticker);
+					l_err_num = -33;
+					break;
+				}
+				if (strcmp(tx_tiker, l_tsd_section.ticker_token_from)) {
+                    debug_if(s_debug_more, L_WARNING, "Tikers not equal for [%s]", l_tx_token->header.ticker);
+					l_err_num = -34;
+					break;
+				}
+                debug_if(s_debug_more, L_NOTICE, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
+				break;
+			}
+
             if (!l_emission_item) {
-                debug_if(g_debug_reactor, L_DEBUG, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
+                debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
                 break;
             }
             if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
-                debug_if(g_debug_reactor, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
+                debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
                 l_err_num = -22;
                 break;
             }
@@ -2312,18 +2522,18 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             }
             // 5b. Call verificator for conditional output
             dap_chain_ledger_verificator_t *l_verificator;
-            int l_tmp = l_tx_prev_out_cond->header.subtype;
+            int l_sub_tmp = l_tx_prev_out_cond->header.subtype;
 
             pthread_rwlock_rdlock(&s_verificators_rwlock);
-            HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
+            HASH_FIND_INT(s_verificators, &l_sub_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (!l_verificator || !l_verificator->callback) {
                 if(s_debug_more)
-                    log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
+                    log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_sub_tmp);
                 l_err_num = -13;
                 break;
             }
-            if (l_verificator->callback(l_tx_prev_out_cond, a_tx, l_owner) == false) {
+            if (l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner) == false) {
                 l_err_num = -14;
                 break;
             }
@@ -2416,11 +2626,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
     }
 
-    dap_list_t *l_list_tx_out = NULL;
     // find 'out' items
     dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
     uint256_t l_value = {};
-    for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp)) {
+    int l_item_idx = 0;
+    for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_item_idx++) {
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
         dap_chain_addr_t l_tx_out_to={0};
         switch (l_type) {
@@ -2462,8 +2672,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -18;
                 break;
             }
+
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
+            l_list_tx_out_cond = dap_list_append(l_list_tx_out_cond, l_tx_out);
         } break;
         default: {}
         }
@@ -2527,9 +2739,14 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
             HASH_FIND_STR(l_values_from_cur_tx, l_value_cur->token_ticker, l_res);
             if (!l_res || !EQUAL_256(l_res->sum, l_value_cur->sum) ) {
-                if(s_debug_more)
+                if(s_debug_more) {
+                    char *l_balance = dap_chain_balance_print(l_res ? l_res->sum : uint256_0);
+                    char *l_balance_cur = dap_chain_balance_print(l_value_cur->sum);
                     log_it(L_ERROR, "Sum of values of out items from current tx 256 (%s) is not equal outs from previous tx (%s) for token %s",
-                       dap_chain_balance_print(l_res ? l_res->sum : uint256_0), dap_chain_balance_print(l_value_cur->sum), l_value_cur->token_ticker);
+                            l_balance, l_balance_cur, l_value_cur->token_ticker);
+                    DAP_DELETE(l_balance);
+                    DAP_DELETE(l_balance_cur);
+                }
                 l_err_num = -12;
                 break;
             }
@@ -2549,6 +2766,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     } else {
         *a_list_bound_items = l_list_bound_items;
     }
+
+	if (l_list_tx_out_cond && !l_err_num){
+		l_err_num = s_check_out_cond_verificator_added(a_ledger, a_tx, l_list_tx_out_cond);
+		dap_list_free(l_list_tx_out_cond);
+	}
+
     if (!a_list_tx_out || l_err_num) {
         dap_list_free(l_list_tx_out);
     } else {
@@ -2775,8 +2998,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                     break;
                 }
 
-                if(s_debug_more)
-                    log_it(L_DEBUG,"SPEND %s from addr: %s", dap_chain_balance_print(l_value), l_wallet_balance_key);
+                if(s_debug_more) {
+                    char *l_balance = dap_chain_balance_print(l_value);
+                    log_it(L_DEBUG,"SPEND %s from addr: %s", l_balance, l_wallet_balance_key);
+                    DAP_DELETE(l_balance);
+                }
 
                 SUBTRACT_256_256(wallet_balance->balance, l_value, &wallet_balance->balance);
 
@@ -2797,14 +3023,14 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             l_tx_prev_out_used_idx = l_tx_in_cond->header.tx_out_prev_idx;
             // Update stakes if any
             dap_chain_tx_out_cond_t *l_cond = bound_item->out.tx_prev_out_cond_256;
-            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE) {
+            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE) {
                 dap_chain_ledger_verificator_t *l_verificator;
-                int l_tmp = (int)DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE;
+                int l_tmp = (int)DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE;
                 pthread_rwlock_rdlock(&s_verificators_rwlock);
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(l_cond, a_tx, true);
+                    l_verificator->callback(a_ledger,l_cond, a_tx, true);
                 }
                 l_stake_updated = true;
             }
@@ -2872,14 +3098,14 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         if (l_type == TX_ITEM_TYPE_OUT_COND) {
             // Update stakes if any
             dap_chain_tx_out_cond_t *l_cond = (dap_chain_tx_out_cond_t *)l_tx_out->data;
-            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE && !l_stake_updated) {
+            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE && !l_stake_updated) {
                 dap_chain_ledger_verificator_t *l_verificator;
-                int l_tmp = (int)DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_UPDATE;
+                int l_tmp = (int)DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE;
                 pthread_rwlock_rdlock(&s_verificators_rwlock);
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(NULL, a_tx, true);
+                    l_verificator->callback(a_ledger,NULL, a_tx, true);
                 }
             }
             continue;   // balance raise will be with next conditional transaction
@@ -2923,8 +3149,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                     break;
             }
 
-            if(s_debug_more)
-                log_it (L_DEBUG,"GOT %s to addr: %s", dap_chain_balance_print(l_value_256), l_wallet_balance_key);
+            if(s_debug_more) {
+                char *l_balance = dap_chain_balance_print(l_value_256);
+                log_it(L_DEBUG, "GOT %s to addr: %s", l_balance, l_wallet_balance_key);
+                DAP_DELETE(l_balance);
+            }
             pthread_rwlock_rdlock(&l_ledger_priv->balance_accounts_rwlock);
             HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, wallet_balance);
             pthread_rwlock_unlock(&l_ledger_priv->balance_accounts_rwlock);
@@ -3333,9 +3562,11 @@ uint256_t dap_chain_ledger_calc_balance(dap_ledger_t *a_ledger, const dap_chain_
     HASH_FIND_STR(PVT(a_ledger)->balance_accounts, l_wallet_balance_key, l_balance_item);
     pthread_rwlock_unlock(&PVT(a_ledger)->balance_accounts_rwlock);
     if (l_balance_item) {
-        if(s_debug_more)
-            log_it (L_INFO,"Found address in cache with balance %s",
-                            dap_chain_balance_print(l_balance_item->balance));
+        if(s_debug_more) {
+            char *l_balance = dap_chain_balance_print(l_balance_item->balance);
+            log_it(L_INFO, "Found address in cache with balance %s", l_balance);
+            DAP_DELETE(l_balance);
+        }
         l_ret = l_balance_item->balance;
     } else {
         if (s_debug_more)
@@ -3858,7 +4089,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
 }
 
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
-int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback)
+int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added)
 {
     dap_chain_ledger_verificator_t *l_new_verificator;
     int l_tmp = (int)a_subtype;
@@ -3872,15 +4103,13 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
     l_new_verificator = DAP_NEW(dap_chain_ledger_verificator_t);
     l_new_verificator->subtype = (int)a_subtype;
     l_new_verificator->callback = a_callback;
+    l_new_verificator->callback_added = a_callback_added;
     pthread_rwlock_wrlock(&s_verificators_rwlock);
     HASH_ADD_INT(s_verificators, subtype, l_new_verificator);
     pthread_rwlock_unlock(&s_verificators_rwlock);
     return 0;
 }
 
-int dap_chain_ledger_verificator_rwlock_init(void) {
-    return pthread_rwlock_init(&s_verificators_rwlock, NULL);
-}
 
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool reverse){
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
@@ -3920,7 +4149,7 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     return l_list;
 }
 
-bool dap_chain_ledger_fee_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool dap_chain_ledger_fee_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
     return false;
 }

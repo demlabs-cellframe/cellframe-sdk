@@ -180,9 +180,10 @@ dap_proc_queue_t    *l_queue;
     clock_gettime(CLOCK_REALTIME, &l_time_start);
     do {
         l_is_processed = 0;
-        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ )                          /* Run from higest to lowest ... */
+        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_iter_cnt++ )                          /* Run from higest to lowest ... */
         {
-            if ( !l_queue->list[l_cur_pri].items.nr) {                        /* A lockless quick check */
+            if ( !l_queue->list[l_cur_pri].items.nr) {                       /* A lockless quick check */
+                l_cur_pri--;
                 continue;
             }
 
@@ -201,24 +202,6 @@ dap_proc_queue_t    *l_queue;
 
             debug_if (g_debug_reactor, L_INFO, "Proc event callback (l_item: %p) : %p/%p, prio=%d, iteration=%d",
                            l_item, l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
-
-
-    #ifdef  DAP_OS_LINUX
-            if ( g_debug_reactor )
-            {
-                #include <execinfo.h>
-
-                char **rtn_name;
-                void *rtn_arr[] = {l_item->callback};
-
-                rtn_name = backtrace_symbols (rtn_arr, 1);
-
-                log_it (L_DEBUG, "Execute callback: %s", *rtn_name);
-
-                free(rtn_name);
-            }
-    #endif      /* DAP_OS_LINUX */
-
 
             l_is_processed += 1;
             l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
@@ -282,19 +265,8 @@ int dap_proc_thread_assign_esocket_unsafe(dap_proc_thread_t * a_thread, dap_even
     a_thread->esockets[a_thread->poll_count] = a_thread->proc_queue->esocket;
     a_thread->poll_count++;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-/*    u_short l_flags = a_esocket->kqueue_base_flags;
-    u_int   l_fflags = a_esocket->kqueue_base_fflags;
-    short l_filter = a_esocket->kqueue_base_filter;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_READ )
-            l_fflags |= NOTE_READ;
-        if(a_esocket->flags & DAP_SOCK_READY_TO_WRITE )
-            l_fflags |= NOTE_WRITE;
-
-        EV_SET(&a_esocket->kqueue_event , a_esocket->socket, l_filter, EV_ADD| l_flags | EV_CLEAR, l_fflags,0, a_esocket);
-        return kevent ( a_thread->kqueue_fd,&a_esocket->kqueue_event,1,NULL,0,NULL)==1 ? 0 : -1 ;
-*/
     // Nothing to do if its input
-    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE && a_esocket->pipe_out)
+    if ( a_esocket->type == DESCRIPTOR_TYPE_QUEUE || a_esocket->type == DESCRIPTOR_TYPE_EVENT )
         return 0;
 #else
 #error "Unimplemented new esocket on worker callback for current platform"
@@ -359,12 +331,8 @@ int dap_proc_thread_esocket_update_poll_flags(dap_proc_thread_t * a_thread, dap_
     // Check & add
     int l_is_error=false;
     int l_errno=0;
-    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE){
-        EV_SET(l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
-        if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL)!=0){
-            l_is_error = true;
-            l_errno = errno;
-        }
+    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
+         // Do nothing
     }else{
         EV_SET(l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
         if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
@@ -1064,6 +1032,7 @@ void dap_proc_thread_worker_exec_callback(dap_proc_thread_t * a_thread, size_t a
     dap_worker_msg_callback_t * l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
+    debug_if(g_debug_reactor, L_INFO, "Msg with arg %p -> worker %zu", a_arg, a_worker_id);
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id],l_msg );
 
     // TODO Make this code platform-independent

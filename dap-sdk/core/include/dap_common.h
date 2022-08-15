@@ -481,6 +481,7 @@ char *dap_itoa(int i);
 int get_select_breaker(void);
 int send_select_break(void);
 int exec_with_ret(char**, const char*);
+char * exec_with_ret_multistring(const char * a_cmd);
 char * dap_random_string_create_alloc(size_t a_length);
 void dap_random_string_fill(char *str, size_t length);
 void dap_dump_hex(const void* data, size_t size);

@@ -5,10 +5,6 @@ include (../net/server/libdap-net-server.pri)
 include (../net/stream/libdap-net-stream.pri)
 
 INCLUDEPATH += \
-#            /usr/include/json-c \
-#            /usr/include \
-#            /usr/include/x86_64-linux-gnu/bits \
-#            /usr/include/x86_64-linux-gnu \
             $$PWD/core/include \
             $$PWD/client/include \
             $$PWD/../net/server/http_server/http_client/include \
@@ -22,5 +18,3 @@ INCLUDEPATH += \
             $$PWD/../net/stream/ch/include \
             $$PWD/../core/src/unix
 
-
-#INCLUDEPATH += $$PWD/include $$PWD/../ $$PWD/src $$PWD/src/XKCP/lib/high/Keccak/FIPS202 $$PWD/src/XKCP/lib/high/Keccak/SP800-185 $$PWD/src/XKCP/lib/high/common $$PWD/src/XKCP/lib/common

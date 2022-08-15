@@ -691,8 +691,13 @@ dap_store_obj_t *l_store_obj_arr, *l_obj;
 
         if ( !l_obj->key_len )
             {log_it(L_ERROR, "Broken GDB element: 'key_length' field is zero"); break;}
-        l_obj->key = DAP_NEW_Z_SIZE(char, l_obj->key_len + 1);
-        memcpy((char *)l_obj->key, pdata, l_obj->key_len);
+
+        if ( (pdata + l_obj->key_len) > pdata_end )
+            {log_it(L_ERROR, "Broken GDB element: 'key_length' field is out from allocated memory"); break;}
+
+        l_obj->key_byte = DAP_NEW_SIZE(byte_t, l_obj->key_len + 1);
+        memcpy( l_obj->key_byte, pdata, l_obj->key_len);
+        l_obj->key_byte[l_obj->key_len] = '\0';
         pdata += l_obj->key_len;
 
 
@@ -701,23 +706,21 @@ dap_store_obj_t *l_store_obj_arr, *l_obj;
         l_obj->value_len = *((uint64_t *) pdata);
         pdata += sizeof(uint64_t);
 
-        if ( !l_obj->value_len )
-            {log_it(L_DEBUG, "GDB element: 'value_length' field is zero");}
-        else {
-            if ( (pdata + l_obj->value_len) > pdata_end )
+        if (l_obj->value_len) {
+              if ( (pdata + l_obj->value_len) > pdata_end )
                 {log_it(L_ERROR, "Broken GDB element: can't read 'value' field"); break;}
             l_obj->value = DAP_NEW_SIZE(uint8_t, l_obj->value_len);
-            memcpy(l_obj->value, pdata, l_obj->value_len);      pdata += l_obj->value_len;
+            memcpy(l_obj->value, pdata, l_obj->value_len);
+            pdata += l_obj->value_len;
         }
     }
 
-
-    assert(pdata == pdata_end);
+    assert( pdata <= pdata_end );
 
     // Return the number of completely filled dap_store_obj_t structures
     // because l_cur_count may be less than l_count due to too little memory
     if (a_store_obj_count)
-        *a_store_obj_count = l_cur_count;
+        *a_store_obj_count = l_count;
 
     return l_store_obj_arr;
 }

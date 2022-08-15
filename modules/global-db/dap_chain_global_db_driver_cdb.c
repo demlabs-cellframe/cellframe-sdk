@@ -215,14 +215,14 @@ pcdb_instance dap_cdb_init_group(const char *a_group, int a_flags) {
             cdb_iterate(l_cdb_i->cdb, dap_cdb_get_last_obj_iter_callback, (void*)&l_arg, l_iter);
             cdb_iterate_destroy(l_cdb_i->cdb, l_iter);
             l_cdb_i->id = l_arg.o->id;
-            log_it(L_INFO,
+            /*(log_it(L_INFO,
                      "Group \"%s\"\r\n"
                      "Records: %-24lu\r\n"
                      "Average read latency: %-24u\r\n"
                      "Average write latency: %-24u\r\n"
                      "Last id: %-24lu\r\n",
-                     l_cdb_i->local_group, l_cdb_stat.rnum, l_cdb_stat.rlatcy, l_cdb_stat.wlatcy, l_cdb_i->id);
-            DAP_DELETE(l_arg.o);
+                     l_cdb_i->local_group, l_cdb_stat.rnum, l_cdb_stat.rlatcy, l_cdb_stat.wlatcy, l_cdb_i->id); */
+            dap_store_obj_free_one(l_arg.o);
         } else {
             log_it(L_INFO, "Group \"%s\" created", l_cdb_i->local_group);
             l_cdb_i->id = 0;

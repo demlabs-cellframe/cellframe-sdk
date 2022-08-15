@@ -47,7 +47,7 @@
  *
  * return type, or TX_ITEM_TYPE_ANY if error
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const uint8_t *a_item);
+dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item);
 
 /**
  * Get item name by item type
@@ -93,7 +93,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  *
  * return size, 0 Error
  */
-size_t dap_chain_datum_item_tx_get_size(const uint8_t *a_item);
+size_t dap_chain_datum_item_tx_get_size(const void *a_item);
 
 /**
  * Create item dap_chain_tx_token_t
@@ -147,9 +147,10 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid,
-                                                                                 dap_chain_net_id_t a_net_id, const char *a_token, uint256_t a_value,
-                                                                                 const void *a_params, uint32_t a_params_size);
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
+                                                                             uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
+                                                                             const char *a_token, uint256_t a_value_buy,
+                                                                             const void *a_params, uint32_t a_params_size);
 /**
  * Create item dap_chain_tx_out_cond_t for stake service
  *

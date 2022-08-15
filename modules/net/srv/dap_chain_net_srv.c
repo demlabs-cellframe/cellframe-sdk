@@ -24,6 +24,7 @@
  */
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -93,7 +94,7 @@ static void s_load_all(void);
  * @return
  */
 int dap_chain_net_srv_init()
-{    
+{
     dap_stream_ch_chain_net_srv_init();
     m_uid = NULL;
     m_uid_count = 0;
@@ -101,17 +102,17 @@ int dap_chain_net_srv_init()
         return -1;
 
     dap_chain_node_cli_cmd_item_create ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
-        "                                         [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
+        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]"
+        "[-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
         "net_srv -net <net_name> order delete -hash <Order hash>\n"
         "\tOrder delete\n"
         "net_srv -net <net_name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
-        "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
-        "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
-        "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
+        "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>"
+        " -price_unit <Price Unit> -price_token <token_ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]"
+        " [-expires <Unix time when expires>] [-cert <cert name to sign order>]"
+        " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
 #ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
             "net_srv -net <net_name> order static [save | delete]\n"
@@ -122,6 +123,10 @@ int dap_chain_net_srv_init()
         );
 
     s_load_all();
+
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, dap_chain_net_srv_pay_verificator, NULL);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, dap_chain_ledger_fee_verificator, NULL);
+
     return 0;
 }
 
@@ -467,8 +472,8 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_node_addr_t l_node_addr={0};
                 dap_chain_hash_fast_t l_tx_cond_hash={{0}};
-                dap_time_t l_expires=0; // TS when the service expires
-                uint256_t l_price = {};
+                dap_time_t l_expires = 0; // TS when the service expires
+                uint256_t l_price = {0};
                 char l_price_token[DAP_CHAIN_TICKER_SIZE_MAX]={0};
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
@@ -512,7 +517,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 }
                 // create order
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
-                            l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, l_price, l_price_unit,
+                            l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
                             l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_region_str, l_continent_num, l_key);
                 if(l_cert)
                     dap_cert_delete(l_cert);
@@ -596,8 +601,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
     return ret;
 }
 
-bool dap_chain_net_srv_pay_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool dap_chain_net_srv_pay_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
+    UNUSED(a_ledger);
     if (!a_owner)
         return false;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
@@ -710,11 +716,7 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
  */
 dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
                                            const char *a_config_section,
-                                           dap_chain_net_srv_callback_data_t a_callback_request,
-                                           dap_chain_net_srv_callback_data_t a_callback_response_success,
-                                           dap_chain_net_srv_callback_data_t a_callback_response_error,
-                                           dap_chain_net_srv_callback_data_t a_callback_receipt_next_success,
-                                           dap_chain_net_srv_callback_custom_data_t a_callback_custom_data)
+                                           dap_chain_net_srv_callbacks_t *a_callbacks)
 
 {
     service_list_t *l_sdata = NULL;
@@ -725,11 +727,8 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     if(l_sdata == NULL) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
-        l_srv->callback_requested = a_callback_request;
-        l_srv->callback_response_success = a_callback_response_success;
-        l_srv->callback_response_error = a_callback_response_error;
-        l_srv->callback_receipt_next_success = a_callback_receipt_next_success;
-        l_srv->callback_custom_data = a_callback_custom_data;
+        if(a_callbacks)
+            memcpy(&l_srv->callbacks, a_callbacks,sizeof(*a_callbacks));
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
@@ -742,41 +741,6 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
     return l_srv;
-}
-
-/**
- * @brief dap_chain_net_srv_set_ch_callbacks
- * @param a_uid
- * @param a_callback_stream_ch_opened
- * @param a_callback_stream_ch_read
- * @param a_callback_stream_ch_write
- * @param a_callback_stream_ch_closed
- * @return
- */
-int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_opened,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write
-                                       )
-{
-    service_list_t *l_sdata = NULL;
-    int l_ret =0;
-    dap_chain_net_srv_t * l_srv = NULL;
-    dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
-
-    pthread_mutex_lock(&s_srv_list_mutex);
-    HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_sdata);
-    if( l_sdata ) {
-        l_srv = l_sdata->srv;
-        l_srv->callback_stream_ch_opened = a_callback_stream_ch_opened;
-        l_srv->callback_stream_ch_closed = a_callback_stream_ch_closed;
-        l_srv->callback_stream_ch_write = a_callback_stream_ch_write;
-    }else{
-        log_it(L_ERROR, "Can't find service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
-        l_ret= -1;
-    }
-    pthread_mutex_unlock(&s_srv_list_mutex);
-    return l_ret;
 }
 
 
@@ -810,8 +774,8 @@ void dap_chain_net_srv_call_write_all(dap_stream_ch_t * a_client)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
-        if ( l_sdata->srv->callback_stream_ch_write)
-         l_sdata->srv->callback_stream_ch_write(l_sdata->srv, a_client);
+        if ( l_sdata->srv->callbacks.stream_ch_write)
+         l_sdata->srv->callbacks.stream_ch_write(l_sdata->srv, a_client);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
@@ -826,8 +790,8 @@ void dap_chain_net_srv_call_opened_all(dap_stream_ch_t * a_client)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
-        if ( l_sdata->srv->callback_stream_ch_opened)
-         l_sdata->srv->callback_stream_ch_opened(l_sdata->srv, a_client);
+        if ( l_sdata->srv->callbacks.stream_ch_opened)
+         l_sdata->srv->callbacks.stream_ch_opened(l_sdata->srv, a_client);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
@@ -838,8 +802,8 @@ void dap_chain_net_srv_call_closed_all(dap_stream_ch_t * a_client)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
-        if ( l_sdata->srv->callback_stream_ch_closed)
-         l_sdata->srv->callback_stream_ch_closed(l_sdata->srv, a_client);
+        if ( l_sdata->srv->callbacks.stream_ch_closed)
+         l_sdata->srv->callbacks.stream_ch_closed(l_sdata->srv, a_client);
     }
     pthread_mutex_unlock(&s_srv_list_mutex);
 }
@@ -959,7 +923,7 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
  * @param a_price
  * @return
  */
-dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,                                                         
+dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
                                                                const void * a_ext, size_t a_ext_size)
 {

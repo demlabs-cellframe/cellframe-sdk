@@ -268,12 +268,15 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                                                 (l_tx_out_256) ? dap_chain_addr_to_str(&l_tx_out_256->addr) : NULL;
 
                 if(l_tx_out || l_tx_out_256) {
-                    if ( l_type_256 ) // 256
+                    if(l_type_256) { // 256
+                        char *l_balance = dap_chain_balance_print(l_tx_out_256->header.value);
                         dap_string_append_printf(l_str_out, " OUT 256bit item %s %s to %s\n",
-                            dap_chain_balance_print(l_tx_out_256->header.value),
-                            dap_strlen(l_token_str) > 0 ? l_token_str : "?",
-                            l_dst_to_str ? l_dst_to_str : "?"
-                        );
+                                l_balance,
+                                dap_strlen(l_token_str) > 0 ? l_token_str : "?",
+                                l_dst_to_str ? l_dst_to_str : "?"
+                                               );
+                        DAP_DELETE(l_balance);
+                    }
                     else
                         dap_string_append_printf(l_str_out, " OUT item %"DAP_UINT64_FORMAT_U" %s to %s\n",
                             l_tx_out->header.value,
@@ -329,8 +332,10 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                         dap_chain_tx_out_t *l_tx_prev_out =
                                 l_list_out_prev_item ? (dap_chain_tx_out_t*)l_list_out_prev_item->data : NULL;
                         // print value from prev out item
-                        dap_string_append_printf(l_str_out, "  prev OUT 256bitt item value=%s",
-                                l_tx_prev_out ? dap_chain_balance_print(l_tx_prev_out->header.value) : "0");
+                        char *l_balance = l_tx_prev_out ? dap_chain_balance_print(l_tx_prev_out->header.value) : NULL;
+                        dap_string_append_printf(l_str_out, "  prev OUT 256bit item value=%s",
+                                l_balance ? l_balance : "0");
+                        DAP_DEL_Z(l_balance);
                     } else {
                         dap_list_t *l_list_out_prev_items = dap_chain_datum_tx_items_get(l_tx_prev,
                                 TX_ITEM_TYPE_OUT_OLD, NULL);
@@ -477,10 +482,8 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
             l_time_str[0] = ' ', l_time_str[1] = '\0';                      /* Prefill string with the space */
 
             if ( l_tx->header.ts_created) {
-                struct tm l_tm;                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
                 uint64_t l_ts = l_tx->header.ts_created;
-                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
-                    asctime_r (&l_tm, l_time_str);
+                dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  Sat May 17 01:17:08 2014 */
             }
 
             char *l_tx_hash_str;
@@ -784,14 +787,16 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 
     //switch ledger params list | tx | info
     int l_cmd = CMD_NONE;
-    if (dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "list", NULL)){
+    if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
         l_cmd = CMD_LIST;
-    } else if (dap_chain_node_cli_find_option_val(a_argv, 1, 2, "tx", NULL)){
+    } else if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "tx", NULL)){
         l_cmd = CMD_TX_HISTORY;
-    } else if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "info", NULL))
+    } else if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "info", NULL))
         l_cmd = CMD_TX_INFO;
 
-    bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-all", NULL);
+    bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
+
+    arg_index++;
 
     // command tx_history
     if(l_cmd == CMD_TX_HISTORY) {

@@ -111,7 +111,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
 {
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) || IS_ZERO_256(a_value))
+            !dap_chain_addr_check_sum(a_addr_from) || (a_addr_to && !dap_chain_addr_check_sum(a_addr_to)) || IS_ZERO_256(a_value))
         return NULL;
 
     // find the transactions from which to take away coins
@@ -206,7 +206,9 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     uint256_t l_value_need = {};
     MULT_256_256(dap_chain_uint256_from(a_tx_num), l_single_val, &l_value_need);
     uint256_t l_value_transfer = {}; // how many coins to transfer
-    log_it(L_DEBUG,"Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, dap_chain_balance_to_coins(l_value_need)) ;
+    char *l_balance = dap_chain_balance_to_coins(l_value_need);
+    log_it(L_DEBUG, "Create %"DAP_UINT64_FORMAT_U" transactions, summary %s", a_tx_num, l_balance);
+    DAP_DELETE(l_balance);
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
@@ -233,12 +235,14 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
             dap_chain_hash_fast_to_str(&l_item->tx_hash_fast,l_in_hash_str,sizeof (l_in_hash_str) );
 
-            if(dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, (uint32_t)l_item->num_idx_out) == 1) {
+            char *l_balance = dap_chain_balance_print(l_item->value);
+            if (dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, l_item->num_idx_out)) {
                 SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
-                log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, dap_chain_balance_print(l_item->value));
+                log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
             }else{
-                log_it(L_WARNING, "Can't add input from %s with %s datoshi", l_in_hash_str, dap_chain_balance_print(l_item->value));
+                log_it(L_WARNING, "Can't add input from %s with %s datoshi", l_in_hash_str, l_balance);
             }
+            DAP_DELETE(l_balance);
             l_list_used_out = l_list_tmp->next;
             DAP_DELETE(l_list_tmp->data);
             dap_list_free1(l_list_tmp);
@@ -247,8 +251,11 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 break;
         }
         if (compare256(l_value_to_items, l_single_val) == -1) {
-            log_it(L_ERROR, "Not enough values on output to produce enough inputs: %s when need %s",
-                   dap_chain_balance_print(l_value_to_items), dap_chain_balance_print(l_single_val));
+            char *l_balance = dap_chain_balance_print(l_value_to_items);
+            char *l_balance_need = dap_chain_balance_print(l_single_val);
+            log_it(L_ERROR, "Not enough values on output to produce enough inputs: %s when need %s", l_balance, l_balance_need);
+            DAP_DELETE(l_balance);
+            DAP_DELETE(l_balance_need);
             DAP_DELETE(l_objs);
             return -5;
         }

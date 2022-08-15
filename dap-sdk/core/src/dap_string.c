@@ -69,7 +69,8 @@ dap_string_t * dap_string_sized_new(size_t a_dfl_size)
     l_string->str = NULL;
 
     dap_string_maybe_expand(l_string, max(a_dfl_size, 2));
-    l_string->str[0] = 0;
+    if(l_string->str)
+        l_string->str[0] = 0;
 
     return l_string;
 }

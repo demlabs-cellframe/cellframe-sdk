@@ -394,7 +394,35 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
         inet_ntop(AF_INET,&l_addr_remote,l_es_new->hostaddr,sizeof (l_addr_remote) );
     }
     log_it(L_INFO,"Connection accepted from %s (%s)", l_es_new->hostaddr, l_es_new->service );
-    dap_worker_add_events_socket_auto(l_es_new);
+    dap_worker_t *l_worker = dap_events_worker_get_auto();
+    if (l_worker->id == a_es->worker->id) {
+#ifdef DAP_OS_UNIX
+#if defined (SO_INCOMING_CPU)
+        int l_cpu = l_worker->id;
+        setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
+#endif
+#endif
+        l_es_new->worker = l_worker;
+        l_es_new->last_time_active = time(NULL);
+        if (l_es_new->callbacks.new_callback)
+            l_es_new->callbacks.new_callback(l_es_new, NULL);
+        l_es_new->is_initalized = true;
+        if (dap_worker_add_events_socket_unsafe(l_es_new,l_worker))
+            log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
+        else {
+            l_es_new->me = l_es_new;
+            pthread_rwlock_wrlock(&l_worker->esocket_rwlock);
+            HASH_ADD(hh_worker, l_worker->esockets, uuid, sizeof(l_es_new->uuid), l_es_new );
+            l_worker->event_sockets_count++;
+            pthread_rwlock_unlock(&l_worker->esocket_rwlock);
+            if (l_es_new->callbacks.worker_assign_callback)
+                l_es_new->callbacks.worker_assign_callback(l_es_new, l_worker);
+        }
+        debug_if(g_debug_reactor, L_INFO, "Direct addition of esocket %p uuid 0x%"DAP_UINT64_FORMAT_x" to worker %d",
+                 l_es_new, l_es_new->uuid, l_worker->id);
+    } else {
+        dap_worker_add_events_socket_auto(l_es_new);
+    }
 }
 
 

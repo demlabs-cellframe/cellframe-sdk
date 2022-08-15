@@ -78,7 +78,6 @@ typedef struct dap_stream_ch_chain {
     int timer_shots;
     dap_timerfd_t *activity_timer;
     int sent_breaks;
-    pthread_rwlock_t idle_lock;
 
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_out;
     dap_stream_ch_chain_callback_packet_t callback_notify_packet_in;
@@ -96,3 +95,4 @@ inline static uint8_t dap_stream_ch_chain_get_id(void) { return (uint8_t) 'C'; }
 dap_chain_t * dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name);
 void dap_stream_ch_chain_create_sync_request_gdb(dap_stream_ch_chain_t * a_ch_chain, dap_chain_net_t * a_net);
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain);
+void dap_stream_ch_chain_reset(dap_stream_ch_chain_t *a_ch_chain);

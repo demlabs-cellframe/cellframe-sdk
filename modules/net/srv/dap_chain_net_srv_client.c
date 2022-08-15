@@ -119,8 +119,8 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
                                               l_srv_client->callbacks_arg);
             break;
         }
-        struct timeval l_recv_time;
-        gettimeofday(&l_recv_time, NULL);
+        struct timespec l_recv_time;
+        clock_gettime(CLOCK_REALTIME, &l_recv_time);
         l_response->recv_time1 = l_recv_time;
         dap_chain_hash_fast_t l_data_hash;
         dap_hash_fast(l_response->data, l_response->data_size, &l_data_hash);

@@ -38,7 +38,6 @@
 #include "dap_chain_global_db.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
-#include "dap_chain_net_srv_stake.h"
 
 #define LOG_TAG "dap_chain_cs_block_poa"
 
@@ -76,7 +75,7 @@ int dap_chain_cs_block_poa_init(void)
     dap_chain_cs_add ("block_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_chain_node_cli_cmd_item_create ("block_poa", s_cli_block_poa, "Blockchain PoA commands",
-        "block_poa -net <net_name> -chain <chain name> block sign [-cert <priv_cert_name>] \n"
+        "block_poa -net <net_name> -chain <chain_name> block sign [-cert <priv_cert_name>] \n"
             "\tSign new block with certificate <cert name> or withs own PoA certificate\n\n");
 
     return 0;
@@ -188,7 +187,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         l_poa_pvt->auth_certs_prefix = strdup ( dap_config_get_item_str(a_chain_cfg,"block-poa","auth_certs_prefix") );
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify ) {
             // Type sizeof's misunderstanding in malloc?
-            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t));
+            l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t*));
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
                 dap_snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
