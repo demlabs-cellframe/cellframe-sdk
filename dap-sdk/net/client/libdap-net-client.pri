@@ -1,8 +1,4 @@
-android {
-    include (../../../3rdparty/json-c/json-c.pri)
-}
-
-unix: !android {
+android{
     include (../../../3rdparty/json-c/json-c.pri)
 }
 
