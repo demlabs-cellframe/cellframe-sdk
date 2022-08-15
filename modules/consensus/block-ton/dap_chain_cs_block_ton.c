@@ -8,7 +8,7 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_cs_block_ton.h"
 #include "dap_stream_ch_chain_voting.h"
-#include "dap_chain_net_srv_stake.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_blocks_ton"

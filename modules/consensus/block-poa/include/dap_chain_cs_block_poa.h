@@ -22,7 +22,6 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-#pragma once
 #include "dap_chain_cs_blocks.h"
 
 typedef struct dap_chain_cs_block_poa
