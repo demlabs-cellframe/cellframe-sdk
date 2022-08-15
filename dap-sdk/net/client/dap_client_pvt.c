@@ -364,6 +364,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     log_it(L_INFO, "Go to stage ENC: prepare the request");
 
 
+                    if (a_client_pvt->session_key_open)
+                        dap_enc_key_delete(a_client_pvt->session_key_open);
                     a_client_pvt->session_key_open = dap_enc_key_new_generate(a_client_pvt->session_key_open_type, NULL, 0, NULL, 0,
                                                                               a_client_pvt->session_key_block_size);
                     if (!a_client_pvt->session_key_open) {

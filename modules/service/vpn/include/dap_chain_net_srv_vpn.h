@@ -61,6 +61,8 @@
 #define VPN_PACKET_OP_CODE_PING             0xc0
 #define VPN_PACKET_OP_CODE_PONG             0xc1
 
+#define TUN_MTU 0xFFFF
+
 typedef struct ch_vpn_pkt {
     struct {
         int sock_id; // Client's socket id
@@ -112,6 +114,7 @@ typedef struct dap_chain_net_srv_vpn_tun_socket {
     dap_events_socket_t * es;
     dap_chain_net_srv_ch_vpn_info_t * clients; // Remote clients identified by destination address
     dap_events_socket_t ** queue_tun_msg_input;
+    size_t buf_size_aux;
     //UT_hash_handle hh;
 }dap_chain_net_srv_vpn_tun_socket_t;
 

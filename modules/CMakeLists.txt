@@ -108,9 +108,14 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
 endif()
 
-# Service of delegated stake
-if (CELLFRAME_MODULES MATCHES "srv-stake")
-    add_subdirectory(service/stake)
+# Service for token staking
+if (CELLFRAME_MODULES MATCHES "srv-stake-lock")
+    add_subdirectory(service/stake_lock)
+endif()
+
+# Service for PoS stake delegation
+if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
+    add_subdirectory(service/stake_pos_delegate)
 endif()
 
 # Support for dynamic modules

@@ -366,15 +366,15 @@ void dap_events_stop_all( )
  * @brief dap_worker_get_index_min
  * @return
  */
-uint32_t dap_events_thread_get_index_min( )
-{
+uint32_t dap_events_worker_get_index_min() {
     uint32_t min = 0;
 
-    if ( !s_workers_init )
+    if (!s_workers_init) {
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
-
-    for( uint32_t i = 1; i < s_threads_count; i++ ) {
-        if ( s_workers[min]->context->event_sockets_count > s_workers[i]->context->event_sockets_count )
+        return -1;
+    }
+    for(uint32_t i = 1; i < s_threads_count; i++) {
+        if (s_workers[min]->context->event_sockets_count > s_workers[i]->context->event_sockets_count)
             min = i;
     }
 

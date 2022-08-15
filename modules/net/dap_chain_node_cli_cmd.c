@@ -2009,7 +2009,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
 
         // Select chain
         if(l_chain_str) {
-            if ( (*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL ) { // Can't find such chain
+            if ((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
                 char l_str_to_reply_chain[500] = {0};
                 char *l_str_to_reply = NULL;
                 dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
@@ -2027,7 +2027,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
                 return -103;
             }
         }
-        else if ( (*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL ) {
+        else if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL) {
 				dap_chain_node_cli_set_reply_text(a_str_reply,
 												  "%s requires parameter '-chain' or set default datum type in chain configuration file",
 												  argv[0]);
@@ -2058,8 +2058,8 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     }
 
     size_t l_tsd_size = 0;
-    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-            (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) 
+        ||  (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
         l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
 
     for(size_t i = 0; i < l_certs_count; i++)
@@ -2168,8 +2168,8 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
                 dap_chain_datum_token_t *l_datum_token = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
                 DAP_DELETE(l_datum);
-                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) ||
-                        (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+                    ||  (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
@@ -2924,6 +2924,7 @@ dap_list_t* s_parse_wallet_addresses(const char *a_tx_address, dap_list_t *l_tsd
 
 typedef struct _dap_cli_token_additional_params {
     const char* flags;
+    const char* delegated_token_from;
     const char* total_signs_valid;
     const char* datum_type_allowed;
     const char* datum_type_blocked;
@@ -3049,6 +3050,7 @@ int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_
 {
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-flags", &l_params->ext.flags);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &l_params->ext.total_signs_valid);
+    dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-delegated_token_from", &l_params->ext.delegated_token_from);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-datum_type_allowed", &l_params->ext.datum_type_allowed);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-datum_type_blocked", &l_params->ext.datum_type_blocked);
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &l_params->ext.tx_receiver_allowed);
@@ -3224,6 +3226,21 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                      l_flags |= l_flag; // if we have multiple flags
                      l_str_flags++;
                 }
+            }
+            if (l_params->ext.delegated_token_from) {
+                dap_chain_datum_token_t* l_delegated_token_from;
+                if (NULL == (l_delegated_token_from = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "To create a delegated token %s, can't find token by ticket %s", l_ticker, l_params->ext.delegated_token_from);
+                    return -91;
+                }
+                dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
+                strcpy(l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
+                //				l_tsd_section.token_from = dap_hash_fast();
+                l_tsd_section.emission_rate = dap_chain_coins_to_balance("1.0");//TODO: ???
+                dap_tsd_t* l_tsd = dap_tsd_create_scalar(
+                    DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
+                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                l_tsd_total_size += dap_tsd_size(l_tsd);
             }
             if (l_params->ext.total_signs_valid){ // Signs valid
                 uint16_t l_param_value = (uint16_t)atoi(l_params->ext.total_signs_valid);
@@ -4344,7 +4361,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 l_item = (const uint8_t*) l_out_cond_item;
             }
                 break;
-            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE:{
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:{
                 dap_chain_net_srv_uid_t l_srv_uid;
                 if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
                     // Default service DAP_CHAIN_NET_SRV_STAKE_ID
