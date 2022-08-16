@@ -87,7 +87,6 @@ const uint128_t uint128_1 = 1;
 const uint256_t uint256_0 = {};
 #ifndef DAP_GLOBAL_IS_INT128
 const uint256_t uint256_1 = {.hi = {}, .lo = {.hi = 0, .lo = 1}};
-
 #else // DAP_GLOBAL_IS_INT128
 const uint256_t uint256_1 = {.hi = 0, .lo = 1};
 #endif // DAP_GLOBAL_IS_INT128
@@ -462,7 +461,10 @@ int     olen, len;
 struct tm _tm;
 struct timespec now;
 
-	clock_gettime(CLOCK_REALTIME, &now);
+    if ( a_ll < s_dap_log_level )
+        return;
+
+    clock_gettime(CLOCK_REALTIME, &now);
 
 #ifdef	WIN32
 	localtime_s(&_tm, (time_t *)&now);
@@ -850,6 +852,7 @@ char * exec_with_ret(const char * a_cmd)
 FIN:
     return strdup(buf);
 }
+#endif
 
 /**
  * @brief exec_with_ret_multistring performs a command with a result return in the form of a multistring
@@ -876,7 +879,6 @@ char * exec_with_ret_multistring(const char * a_cmd)
 FIN:
     return strdup(retbuf);
 }
-#endif
 
 static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
