@@ -88,6 +88,11 @@ static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all(void);
+static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out, dap_chain_tx_out_cond_t *a_cond,
+                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+
+static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in,dap_chain_tx_out_cond_t *a_cond,
+                                       dap_chain_datum_tx_t *a_tx_out, bool a_owner);
 
 /**
  * @brief dap_chain_net_srv_init
@@ -124,8 +129,8 @@ int dap_chain_net_srv_init()
 
     s_load_all();
 
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, dap_chain_net_srv_pay_verificator, NULL);
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, dap_chain_ledger_fee_verificator, NULL);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
 
     return 0;
 }
@@ -601,13 +606,38 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
     return ret;
 }
 
-bool dap_chain_net_srv_pay_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+/**
+ * @brief s_fee_verificator_callback
+ * @param a_ledger
+ * @param a_tx_in
+ * @param a_cond
+ * @param a_tx_out
+ * @param a_owner
+ * @return
+ */
+static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_in,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx_out, bool a_owner)
+{
+    return false;
+}
+
+/**
+ * @brief s_pay_verificator_callback
+ * @param a_ledger
+ * @param a_tx_out
+ * @param a_cond
+ * @param a_tx_in
+ * @param a_owner
+ * @return
+ */
+static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out, dap_chain_tx_out_cond_t *a_cond,
+                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     UNUSED(a_ledger);
+    UNUSED(a_tx_out);
     if (!a_owner)
         return false;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
-                                               dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
+                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
     if (!l_receipt)
         return false;
     dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);

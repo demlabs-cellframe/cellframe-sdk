@@ -91,7 +91,8 @@ typedef struct cond_params{
 
 static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
 // Verificator callbacks
-static bool	s_callback_verificator(dap_ledger_t *a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+static bool	s_callback_verificator(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out, dap_chain_tx_out_cond_t *a_cond,
+                                   dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 static bool	s_callback_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
 
@@ -874,12 +875,15 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
 
 /**
  * @brief s_callback_verificator
+ * @param a_ledger
+ * @param a_tx_out
  * @param a_cond
- * @param a_tx
+ * @param a_tx_in
  * @param a_owner
  * @return
  */
-static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out, dap_chain_tx_out_cond_t *a_cond,
+                                   dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
 
 	/*if (!a_owner) TODO: ???
@@ -894,7 +898,7 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond
             return false;
     }
 
-	dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
+    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_RECEIPT, 0);
 	if (!l_receipt)
 		return false;
 
@@ -919,7 +923,7 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond
 	dap_chain_datum_tx_t *burning_tx = NULL;
 	dap_chain_tx_out_t *burning_transaction_out = NULL;
 
-	dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
+    dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT,0);
 
 	if (!l_tx_out)
 		return false;

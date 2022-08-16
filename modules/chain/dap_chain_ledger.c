@@ -2533,7 +2533,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -13;
                 break;
             }
-            if (l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner) == false) {
+            if (l_verificator->callback(a_ledger, l_tx_prev, l_tx_prev_out_cond, a_tx, l_owner) == false) {
                 l_err_num = -14;
                 break;
             }
@@ -3030,7 +3030,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(a_ledger,l_cond, a_tx, true);
+                    l_verificator->callback(a_ledger,bound_item->tx_prev, l_cond, a_tx, true);
                 }
                 l_stake_updated = true;
             }
@@ -3105,7 +3105,8 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(a_ledger,NULL, a_tx, true);
+
+                    l_verificator->callback(a_ledger, NULL, NULL, a_tx, true);
                 }
             }
             continue;   // balance raise will be with next conditional transaction
@@ -4149,7 +4150,3 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     return l_list;
 }
 
-bool dap_chain_ledger_fee_verificator(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
-{
-    return false;
-}

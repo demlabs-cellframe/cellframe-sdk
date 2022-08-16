@@ -25,6 +25,7 @@
 #include <math.h>
 #include <pthread.h>
 #include "dap_chain_datum_tx.h"
+#include "dap_list.h"
 #include "dap_time.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_ledger.h"
@@ -80,6 +81,8 @@ static dap_chain_net_srv_xchange_price_t *s_xchange_db_load(char *a_key, uint8_t
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static void s_string_append_tx_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx );
 
+static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out,  dap_chain_tx_out_cond_t *a_cond,
+                                           dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
 
@@ -141,7 +144,7 @@ int dap_chain_net_srv_xchange_init()
     s_srv_xchange->parent = l_srv;
     s_srv_xchange->enabled = false;
 
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, dap_chain_net_srv_xchange_verificator, NULL);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_verificator_callback, NULL);
 
     return 0;
 }
@@ -154,10 +157,23 @@ void dap_chain_net_srv_xchange_deinit()
     DAP_DELETE(s_srv_xchange);
 }
 
-bool dap_chain_net_srv_xchange_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+/**
+ * @brief s_verificator_callback
+ * @param a_ledger
+ * @param a_tx_out
+ * @param a_cond
+ * @param a_tx_in
+ * @param a_owner
+ * @return
+ */
+static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out,  dap_chain_tx_out_cond_t *a_cond,
+                                           dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     if (a_owner)
         return true;
+    if(!a_tx_out || !a_tx_in || !a_cond)
+        return false;
+    bool l_ret = false;
 
     pthread_rwlock_rdlock(&s_net_fees_rwlock);
     struct net_fee * l_fee = NULL;
@@ -166,38 +182,47 @@ bool dap_chain_net_srv_xchange_verificator(dap_ledger_t * a_ledger, dap_chain_tx
     if(l_fee == NULL)
         pthread_rwlock_unlock(&s_net_fees_rwlock);
 
+    dap_hash_fast_t *l_tx_out_hash = dap_chain_node_datum_tx_calc_hash(a_tx_out);
+    const char * l_tx_out_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,l_tx_out_hash);
+    if(!l_tx_out_ticker ){
+        l_ret = false;
+        goto lb_end;
+    }
     /* Check the condition for verification success
      * a_cond.srv_xchange.rate (a_cond->header.value / a_cond->subtype.srv_xchange.buy_value) >=
      * a_tx.out.rate ((a_cond->header.value - l_back_val) / l_out_val)
      */
-    dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_EXT, NULL);
-    uint256_t l_out_val = {}, l_back_val = {}, l_fee_val = {};
+    dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_OUT_EXT, NULL);
+    uint256_t l_out_val = {}, l_back_val = {}, l_fee_val = {}, l_ret_to_owner_val = {};
     char *l_ticker_ctrl = NULL;
     for (dap_list_t *l_list_tmp = l_list_out; l_list_tmp;  l_list_tmp = l_list_tmp->next) {
-        dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
-        if (memcmp(&l_tx_out->addr, &l_fee->fee_addr, sizeof(l_fee->fee_addr) == 0 ) ){
-            SUM_256_256(l_fee_val, l_tx_out->header.value, &l_fee_val);
+        dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
+        if (memcmp(&l_tx_in_output->addr, &l_fee->fee_addr, sizeof(l_fee->fee_addr)) == 0){
+            SUM_256_256(l_fee_val, l_tx_in_output->header.value, &l_fee_val);
         }
 
         // If its returning back to owner
-        if (memcmp(&l_tx_out->addr, &a_cond->params, sizeof(dap_chain_addr_t))) {
+        if (memcmp(&l_tx_in_output->addr, &a_cond->params, sizeof(dap_chain_addr_t)) ) {
             continue;
         }
 
-        // Chek if its buy token or not
-        if (strcmp(l_tx_out->token, a_cond->subtype.srv_xchange.buy_token)) {
+        // Out is with token to buy
+        if (strcmp(l_tx_in_output->token, a_cond->subtype.srv_xchange.buy_token) == 0) {
+            SUM_256_256(l_out_val, l_tx_in_output->header.value, &l_out_val);
+        }else if(strcmp(l_tx_out_ticker, l_tx_in_output->token ) == 0){
+            // Check if its buy token or not
 
             // If we alredy have buy token out
-            if (l_ticker_ctrl && strcmp(l_ticker_ctrl, l_tx_out->token)) {
+            if (l_ticker_ctrl && strcmp(l_ticker_ctrl, l_tx_in_output->token)) {
                 if(l_fee) pthread_rwlock_unlock(&s_net_fees_rwlock);
                 return false;   // too many tokens
             }
-            l_ticker_ctrl = l_tx_out->token;
-            SUM_256_256(l_back_val, l_tx_out->header.value, &l_back_val);
-        } else {                // buying token
-            SUM_256_256(l_out_val, l_tx_out->header.value, &l_out_val);
+            l_ticker_ctrl = l_tx_in_output->token;
+            SUM_256_256(l_back_val, l_tx_in_output->header.value, &l_back_val);
         }
     }
+    dap_list_free(l_list_out);
+    l_list_out = NULL;
     //long double l_buyer_rate = (a_cond->header.value - l_back_val) / (long double)l_out_val;
     //long double l_seller_rate =
     uint256_t l_buyer_val = {}, l_buyer_mul = {}, l_seller_mul = {};
@@ -205,11 +230,15 @@ bool dap_chain_net_srv_xchange_verificator(dap_ledger_t * a_ledger, dap_chain_tx
     MULT_256_256(l_buyer_val, a_cond->subtype.srv_xchange.buy_value, &l_buyer_mul);
     MULT_256_256(l_out_val, a_cond->header.value, &l_seller_mul);
     if (compare256(l_seller_mul, l_buyer_mul) == -1) {
-        if(l_fee) pthread_rwlock_unlock(&s_net_fees_rwlock);
-        return false;           // wrong changing rate
+        l_ret = false;
+        goto lb_end;
     }
-    if(l_fee) pthread_rwlock_unlock(&s_net_fees_rwlock);
-    return true;
+
+lb_end:
+    DAP_DELETE(l_tx_out_hash);
+    if(l_fee)
+        pthread_rwlock_unlock(&s_net_fees_rwlock);
+    return l_ret;
 }
 
 /**
