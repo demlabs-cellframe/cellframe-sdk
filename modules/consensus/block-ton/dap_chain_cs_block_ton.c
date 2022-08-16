@@ -377,7 +377,6 @@ static bool  s_session_round_start_callback_load_session_store(dap_global_db_con
     dap_chain_cs_block_ton_session_t *l_session = (dap_chain_cs_block_ton_session_t*) a_arg;
     if (a_values_count) {
         dap_chain_cs_block_ton_store_t *l_store_candidate_ready = NULL;
-        size_t l_candidate_ready_size = 0;
         for (size_t i = 0; i < a_values_count; i++) {
             if (!a_values[i].value_len)
                 continue;
@@ -865,11 +864,6 @@ static void s_callback_block_new_add_datums_op_results (dap_chain_cs_blocks_t * 
                 sizeof(dap_chain_cs_block_ton_message_submit_t)+l_session->my_candidate_size
                     : sizeof(dap_chain_cs_block_ton_message_submit_t);
 
-    // dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain);
-    // size_t l_submit_size = l_blocks->block_new ?
-    // 			sizeof(dap_chain_cs_block_ton_message_submit_t)+a_session->my_candidate_size
-    // 				: sizeof(dap_chain_cs_block_ton_message_submit_t);
-
     dap_chain_cs_block_ton_message_submit_t *l_submit =
                             DAP_NEW_SIZE(dap_chain_cs_block_ton_message_submit_t, l_submit_size);
     l_submit->round_id.uint64 = l_session->cur_round.id.uint64;
@@ -923,21 +917,7 @@ static void s_callback_block_new_add_datums_op_results (dap_chain_cs_blocks_t * 
     dap_worker_exec_callback_inter( l_gdb_context->queue_worker_callback_input[l_worker->id],s_callback_worker_session_proc_state, l_session );
 }
 
-static void s_session_candidate_submit(dap_chain_cs_block_ton_session_t *a_session){
-    
-	// if (!a_session->my_candidate 
-	// 		|| a_session->my_candidate_attempts_count 
-	// 			>= PVT(a_session->ton)->my_candidate_attempts_max) {
-	// 	dap_chain_t *l_chain = a_session->chain;
-	// 	dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
-	// 	s_session_my_candidate_delete(a_session);
-	// 	if ( l_blocks->block_new_size && l_blocks->block_new) {
-	// 		a_session->my_candidate = (dap_chain_block_t *)DAP_DUP_SIZE(l_blocks->block_new, l_blocks->block_new_size);
-	// 		a_session->my_candidate_size = l_blocks->block_new_size;
-	// 		s_session_block_new_delete(a_session);
-	// 	}
-	// }
-	
+static void s_session_candidate_submit(dap_chain_cs_block_ton_session_t *a_session) {
 	dap_chain_t *l_chain = a_session->chain;
     s_session_my_candidate_delete(a_session);
     a_session->worker = dap_worker_get_current();
@@ -1071,8 +1051,8 @@ static bool s_session_round_finish_callback_load_store(dap_global_db_context_t *
     dap_chain_cs_block_ton_message_item_t *l_message_item=NULL, *l_message_tmp=NULL;
     HASH_ITER(hh, l_session->old_round.messages_items, l_message_item, l_message_tmp) {
         // Clang bug at this, l_message_item should change at every loop cycle
-        HASH_DEL(l_session->old_round.messages_items, l_message_item);
         DAP_DELETE(l_message_item->message);
+        HASH_DEL(l_session->old_round.messages_items, l_message_item);
         DAP_DELETE(l_message_item);
     }
 
@@ -2167,7 +2147,9 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 							l_session->attempt_current_number, l_candidate_hash_str);
 
 			
-			uint16_t l_reject_count = s_session_message_count(
+            pthread_rwlock_wrlock(&l_session->rwlock);
+
+            uint16_t l_reject_count = s_session_message_count(
 						l_session, DAP_TON$ROUND_CUR, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT,
 									l_candidate_hash, NULL);
 			l_reject_count++;
