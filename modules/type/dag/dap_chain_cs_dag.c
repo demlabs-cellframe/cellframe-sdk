@@ -128,7 +128,10 @@ static int s_cli_dag(int argc, char ** argv, char **str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
-static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page);
+static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
+
+static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain);
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
@@ -145,18 +148,18 @@ int dap_chain_cs_dag_init(void)
     s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
 
     dap_chain_node_cli_cmd_item_create ("dag", s_cli_dag, "DAG commands",
-        "dag event create -net <chain net name> -chain <chain name> -datum <datum hash> [-H {hex | base58(default)}]\n"
+        "dag event create -net <net_name> -chain <chain_name> -datum <datum hash> [-H {hex | base58(default)}]\n"
             "\tCreate event from datum mempool element\n\n"
-        "dag event cancel -net <chain net name> -chain <chain name> -event <event hash>\n"
+        "dag event cancel -net <net_name> -chain <chain_name> -event <event hash>\n"
             "\tRemove event from forming new round and put back its datum to mempool\n\n"
-        "dag event sign -net <chain net name> -chain <chain name> -event <event hash>\n"
+        "dag event sign -net <net_name> -chain <chain_name> -event <event hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag event dump -net <chain net name> -chain <chain name> -event <event hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
+        "dag event dump -net <net_name> -chain <chain_name> -event <event hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <chain net name> -chain <chain name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
+        "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
             "\tShow event list \n\n"
-        "dag round complete -net <chain net name> -chain <chain name> \n"
+        "dag round complete -net <net_name> -chain <chain_name> \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
@@ -239,6 +242,11 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_get_txs = s_dap_chain_callback_get_txs;
     // Get tx count
     a_chain->callback_count_tx = s_dap_chain_callback_get_count_tx;
+
+    // Get atom count in chain
+    a_chain->callback_count_atom = s_dap_chain_callback_get_count_atom;
+    // Get atom list in chain
+    a_chain->callback_get_atoms = s_callback_get_atoms;
 
     // Others
     a_chain->_inheritor = l_dag;
@@ -346,52 +354,47 @@ void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
 static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item)
 {
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) dap_chain_cs_dag_event_get_datum(a_event_item->event, a_event_item->event_size);
-    pthread_rwlock_t * l_events_rwlock = &PVT(a_dag)->events_rwlock;
-    switch (l_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_TOKEN_DECL: {
-            dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
-            return dap_chain_ledger_token_load(a_ledger, l_token, l_datum->header.data_size);
-        }
-        break;
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            return dap_chain_ledger_token_emission_load(a_ledger, l_datum->data, l_datum->header.data_size);
-        }
-        break;
-        case DAP_CHAIN_DATUM_TX: {
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-            dap_hash_fast_t l_tx_hash;
-            int l_ret = dap_chain_ledger_tx_load(a_ledger, l_tx, &l_tx_hash);
-            //TODO process return codes & different datums
-            unsigned l_hash_item_hashv;
-            HASH_VALUE(&l_tx_hash, sizeof(l_tx_hash), l_hash_item_hashv);
-            dap_chain_cs_dag_event_item_t *l_tx_event;
-            int l_err = pthread_rwlock_wrlock(l_events_rwlock);
-            HASH_FIND_BYHASHVALUE(hh, PVT(a_dag)->tx_events, &l_tx_hash, sizeof(l_tx_event->hash),
-                                  l_hash_item_hashv, l_tx_event);
-            if (!l_tx_event) {
-                l_tx_event = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-                l_tx_event->ts_added = a_event_item->ts_added;
-                l_tx_event->event = a_event_item->event;
-                l_tx_event->event_size = a_event_item->event_size;
-                memcpy(&l_tx_event->hash, &l_tx_hash, sizeof(l_tx_hash));
-                HASH_ADD_BYHASHVALUE(hh, PVT(a_dag)->tx_events, hash, sizeof(l_tx_event->hash),
-                                     l_hash_item_hashv, l_tx_event);
-            }
-            if (l_err != EDEADLK)
-                pthread_rwlock_unlock(l_events_rwlock);
-            return l_ret == 1 ? 0 : l_ret;
-        }
-        break;
-        case DAP_CHAIN_DATUM_CA:
-            dap_cert_chain_file_save(l_datum, a_dag->chain->net_name);
-            return DAP_CHAIN_DATUM_CA;
-        case DAP_CHAIN_DATUM_SIGNER:
-        case DAP_CHAIN_DATUM_CUSTOM:
-            return 0;
-        default:
-            return -1;
+    if(a_event_item->event_size< sizeof(l_datum->header) ){
+        log_it(L_WARNING, "Corrupted event, too small to fit datum in it");
+        return -1;
     }
-    return 0;
+    size_t l_datum_size = dap_chain_datum_size(l_datum);
+    size_t l_datum_size_max = dap_chain_cs_dag_event_get_datum_size_maximum(a_event_item->event, a_event_item->event_size);
+    if(l_datum_size >l_datum_size_max ){
+        log_it(L_WARNING, "Corrupted event, too big size %zd in header when event's size max is only %zd", l_datum_size, l_datum_size_max);
+        return -1;
+    }
+    if(dap_chain_datum_add(a_dag->chain,l_datum, l_datum_size) == 0){
+        pthread_rwlock_t * l_events_rwlock = &PVT(a_dag)->events_rwlock;
+        switch (l_datum->header.type_id) {
+            case DAP_CHAIN_DATUM_TX: {
+                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                dap_hash_fast_t l_tx_hash;
+                unsigned l_hash_item_hashv;
+                HASH_VALUE(&l_tx_hash, sizeof(l_tx_hash), l_hash_item_hashv);
+                dap_chain_cs_dag_event_item_t *l_tx_event;
+                int l_err = pthread_rwlock_wrlock(l_events_rwlock);
+                HASH_FIND_BYHASHVALUE(hh, PVT(a_dag)->tx_events, &l_tx_hash, sizeof(l_tx_event->hash),
+                                      l_hash_item_hashv, l_tx_event);
+                if (!l_tx_event) {
+                    l_tx_event = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+                    l_tx_event->ts_added = a_event_item->ts_added;
+                    l_tx_event->event = a_event_item->event;
+                    l_tx_event->event_size = a_event_item->event_size;
+                    memcpy(&l_tx_event->hash, &l_tx_hash, sizeof(l_tx_hash));
+                    HASH_ADD_BYHASHVALUE(hh, PVT(a_dag)->tx_events, hash, sizeof(l_tx_event->hash),
+                                         l_hash_item_hashv, l_tx_event);
+                }
+                if (l_err != EDEADLK)
+                    pthread_rwlock_unlock(l_events_rwlock);
+            } break;
+            case DAP_CHAIN_DATUM_CA:
+                return DAP_CHAIN_DATUM_CA;
+            default:;
+        }
+        return 0;
+    } else
+        return -1;
 }
 
 static int s_dap_chain_add_atom_to_events_table(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger, dap_chain_cs_dag_event_item_t * a_event_item )
@@ -1856,7 +1859,11 @@ static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain){
     size_t l_count = HASH_COUNT(PVT(l_dag)->tx_events);
     return l_count;
 }
-static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page){
+
+
+static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
+{
+    UNUSED(a_reverse);
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
     size_t l_count = s_dap_chain_callback_get_count_tx(a_chain);
     size_t l_offset = a_count * a_page;
@@ -1879,3 +1886,45 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     return l_list;
 }
 
+static size_t s_dap_chain_callback_get_count_atom(dap_chain_t *a_chain){
+    dap_chain_cs_dag_t  *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+    size_t l_count = HASH_COUNT(PVT(l_dag)->events);
+    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+    return l_count;
+}
+
+static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse)
+{
+    UNUSED(a_reverse);
+    dap_chain_cs_dag_t  *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(l_dag);
+    size_t l_offset = a_count * (a_page - 1);
+    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+    size_t l_count = HASH_COUNT(l_dag_pvt->events);
+    if (a_page < 2)
+        l_offset = 0;
+    if (l_offset > l_count){
+        return NULL;
+    }
+    dap_list_t *l_list = NULL;
+    size_t l_counter = 0;
+    size_t l_end = l_offset + a_count;
+    dap_chain_cs_dag_event_item_t *l_ptr = l_dag_pvt->events->hh.tbl->tail->prev;
+    if (!l_ptr)
+        l_ptr = l_dag_pvt->events;
+    else
+        l_ptr = l_ptr->hh.next;
+    for (dap_chain_cs_dag_event_item_t *ptr = l_ptr; ptr != NULL && l_counter < l_end; ptr = ptr->hh.prev){
+        if (l_counter >= l_offset){
+            dap_chain_cs_dag_event_t *l_event = ptr->event;
+            l_list = dap_list_append(l_list, l_event);
+//            void *l_size_event = DAP_NEW(size_t);
+            //memcpy(l_size_event, &ptr->event_size, sizeof(size_t));
+            l_list = dap_list_append(l_list, &ptr->event_size);
+        }
+        l_counter++;
+    }
+    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+    return l_list;
+}
