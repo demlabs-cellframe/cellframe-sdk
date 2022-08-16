@@ -37,6 +37,8 @@
 
 #define LOG_TAG "dap_chain_common"
 
+const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
+
 /*
  * Forward declarations
  */
@@ -572,8 +574,8 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
                        l_len, DATOSHI_POW256 + 2), l_nul;
 
     /* Find , check and remove 'precision' dot symbol */
-    memcpy (l_buf, a_coins, l_len);                                         /* Make local coy */
-    if ( !(l_point = memchr(l_buf, '.', l_len)) )                            /* Is there 'dot' ? */
+    memcpy (l_buf, a_coins, l_len);                                         /* Make local copy */
+    if ( !(l_point = memchr(l_buf, '.', l_len)) )                           /* Is there 'dot' ? */
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - no precision mark", a_coins),
                 l_nul;
 
@@ -604,8 +606,8 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 3);
-    int l_pos = 0;
 #ifdef DAP_GLOBAL_IS_INT128
+    int l_pos = 0;
     uint256_t l_value = a_uint256;
     uint256_t uint256_ten = {.hi = 0, .lo = 10};
     uint256_t rem;
