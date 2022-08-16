@@ -57,7 +57,7 @@ enum error_code {
 	HASH_IS_BLANK_ERROR			= 21,
 	NO_TX_ERROR					= 22,
 	CREATE_LOCK_TX_ERROR		= 23,
-	TX_TIKET_ERROR				= 24,
+	TX_TICKER_ERROR				= 24,
 	NO_DELEGATE_TOKEN_ERROR		= 25,
 	NO_VALID_SUBTYPE_ERROR		= 26,
 	IS_USED_OUT_ERROR			= 27,
@@ -184,15 +184,20 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     dap_chain_net_srv_uid_t	l_uid											= { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
 	dap_time_t              l_time_staking									= 0;
 	uint8_t					reinvest										= 0;
+	uint256_t				l_value_delegated								= {};
+	uint256_t 				l_value;
+	dap_ledger_t			*l_ledger;
 	char					*l_hash_str;
 	dap_hash_fast_t			*l_tx_cond_hash;
 	dap_hash_fast_t 		*l_base_tx_hash;
 	dap_enc_key_t			*l_key_from;
 	dap_pkey_t				*l_key_cond;
-	uint256_t 				l_value;
 	dap_chain_wallet_t		*l_wallet;
 	dap_chain_addr_t		*l_addr_holder;
 	dap_cert_t				*l_cert;
+	dap_chain_datum_token_t *delegate_token;
+	dap_tsd_t				*l_tsd;
+	dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
 
 	dap_string_append_printf(output_line, "---> HOLD <---\n");
 
@@ -210,17 +215,26 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 	||	dap_strlen(l_token_str) > 8) // for 'm' delegated
 		return TOKEN_ARG_ERROR;
 
-	if (NULL == dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_str)) {
+	l_ledger = l_net->pub.ledger;
+
+	if (NULL == dap_chain_ledger_token_ticker_check(l_ledger, l_token_str)) {
 		dap_string_append_printf(output_line, "'%s'", l_token_str);
 		return TOKEN_ERROR;
 	}
 
 	strcpy(delegate_token_str + 1, l_token_str);
 
-	if (NULL == dap_chain_ledger_token_ticker_check(l_net->pub.ledger, delegate_token_str)) {
+	if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(l_ledger, delegate_token_str))
+	||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+	||	!delegate_token->header_native_decl.tsd_total_size
+	||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
 		dap_string_append_printf(output_line, "'%s'", delegate_token_str);
 		return TOKEN_ERROR;
 	}
+
+	l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+	if (strcmp(l_token_str, l_tsd_section.ticker_token_from))
+		return TOKEN_ERROR;
 
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str)
 	||	NULL == l_coins_str)
@@ -228,6 +242,13 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
 	if (IS_ZERO_256( (l_value = dap_chain_balance_scan(l_coins_str)) ))
 		return COINS_FORMAT_ERROR;
+
+	if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
+		MULT_256_COIN(l_value, l_tsd_section.emission_rate, &l_value_delegated);
+		if (IS_ZERO_256(l_value_delegated))
+			return COINS_FORMAT_ERROR;
+	} else
+		l_value_delegated = l_value;
 
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str)
 	||	NULL == l_cert_str)
@@ -318,7 +339,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 	DAP_DEL_Z(l_hash_str);
 
 	l_base_tx_hash = dap_chain_mempool_base_tx_create(l_chain_emission, l_tx_cond_hash, l_chain_emission->id,
-																  l_value, delegate_token_str, l_addr_holder,
+													  l_value_delegated, delegate_token_str, l_addr_holder,
 																  &l_cert, 1);
 
 	l_hash_str = (l_base_tx_hash) ? dap_chain_hash_fast_to_str_new(l_base_tx_hash) : NULL;
@@ -398,7 +419,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
 
 	if (NULL == (l_token_str = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash)))
-		return TX_TIKET_ERROR;
+		return TX_TICKER_ERROR;
 
 	strcpy(delegate_token_str + 1, l_token_str);
 
@@ -630,8 +651,8 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			dap_string_append_printf(output_line, "Not enough time has passed");
 			} break;
 
-		case TX_TIKET_ERROR: {
-			dap_string_append_printf(output_line, "ticket not found");
+		case TX_TICKER_ERROR: {
+			dap_string_append_printf(output_line, "ticker not found");
 			} break;
 
 		case NO_DELEGATE_TOKEN_ERROR: {
