@@ -372,7 +372,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	dap_chain_net_srv_uid_t				l_uid				=	{ .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
 	char 	delegate_token_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{[0] = 'm'};
 	int									l_prev_cond_idx		=	0;
-	uint256_t							l_value_delegated	= {};
+	uint256_t							l_value_delegated	= 	{};
 	cond_params_t						*l_params;
 	char 								*l_datum_hash_str;
 //	uint256_t 							l_value;
@@ -512,7 +512,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	//get tx hash
 	dap_hash_fast(l_datum_burning_tx->data, l_datum_burning_tx->header.data_size, &l_tx_burning_hash);
 
-    if (NULL == (l_receipt = s_receipt_create(&l_tx_burning_hash, delegate_token_str, l_tx_out_cond->header.value))) {
+    if (NULL == (l_receipt = s_receipt_create(&l_tx_burning_hash, delegate_token_str, l_value_delegated))) {
 		dap_chain_wallet_close(l_wallet);
 		DAP_DEL_Z(l_owner_addr);
 		dap_chain_datum_tx_delete(l_tx);
@@ -965,11 +965,12 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
 #endif
 
 	dap_hash_fast_t hash_burning_transaction;
-	char ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];//not used TODO: check ticker?
+	char delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];//not used TODO: check ticker?
 	if (l_receipt->exts_size) {
 		memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
-		strcpy(ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
-	}
+		strcpy(delegated_ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
+	} else
+		return false;
 
 	if (dap_hash_fast_is_blank(&hash_burning_transaction))
 		return false;
@@ -980,6 +981,28 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
 	dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
 
 	if (!l_tx_out)
+		return false;
+
+	if (!EQUAL_256(a_cond->header.value, l_tx_out->header.value))
+		return false;
+
+	uint256_t				l_value_delegated = {};
+	dap_chain_datum_token_t *delegate_token;
+	dap_tsd_t							*l_tsd;
+	dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
+
+	if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(a_ledger, delegated_ticker))
+		||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+		||	!delegate_token->header_native_decl.tsd_total_size
+		||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+		return false;
+	}
+
+	l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+
+	dap_chain_tx_token_t *l_tx_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);//TODO: CHECK THIS
+
+	if (strcmp(l_tx_token->header.ticker, l_tsd_section.ticker_token_from))//TODO: CHECK THIS
 		return false;
 
 //	dap_chain_net_t *l_net = dap_chain_net_by_id(l_tx_out->addr.net_id);
@@ -993,15 +1016,24 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
 
 	const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction_out->addr.data.hash_fast);
 	log_it(L_INFO, "ADDR from burning TX: %s", addr_srt);
+	DAP_DEL_Z(addr_srt);
 	if (!dap_hash_fast_is_blank(&burning_transaction_out->addr.data.hash_fast))
 		return false;
-	DAP_DEL_Z(addr_srt);
 
 	char *str1 = dap_chain_balance_print(burning_transaction_out->header.value);
 	char *str2 = dap_chain_balance_print(l_tx_out->header.value);
 	log_it(L_INFO, "burning: |%s| value: |%s|", str1, str2);
+	DAP_DEL_Z(str1);
+	DAP_DEL_Z(str2);
 
-	if (!EQUAL_256(burning_transaction_out->header.value, l_tx_out->header.value))
+	if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
+		MULT_256_COIN(a_cond->header.value, l_tsd_section.emission_rate, &l_value_delegated);
+		if (IS_ZERO_256(l_value_delegated))
+			return COINS_FORMAT_ERROR;
+	} else
+		l_value_delegated = a_cond->header.value;
+
+	if (!EQUAL_256(burning_transaction_out->header.value, l_value_delegated))//MULT
 		return false;
 
 	return true;
