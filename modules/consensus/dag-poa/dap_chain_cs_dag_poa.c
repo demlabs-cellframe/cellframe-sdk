@@ -62,7 +62,7 @@ struct round_timer_arg {
     dap_chain_cs_dag_t *dag;
     uint64_t round_id;
     UT_hash_handle hh;
-} dap_chain_cs_dag_poa_callback_timer_arg_t;
+};
 
 typedef struct dap_chain_cs_dag_poa_pvt {
     pthread_rwlock_t rounds_rwlock;

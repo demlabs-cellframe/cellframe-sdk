@@ -21,17 +21,16 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_chain_common.h"
-#include "dap_chain_datum.h"
-#include "dap_chain_datum_decree.h"
-#include "dap_chain_net_srv.h"
 #include <sys/types.h>
 #include <dirent.h>
 #ifdef DAP_OS_LINUX
 #include <stdc-predef.h>
 #endif
 #include <unistd.h>
-
+#include "dap_chain_net_srv.h"
+#include "dap_chain_common.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"

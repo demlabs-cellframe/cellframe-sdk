@@ -23,9 +23,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dap_chain_common.h"
-#include "dap_events.h"
-#include "dap_math_ops.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -46,7 +43,9 @@
 
 #include "uthash.h"
 #include "utlist.h"
-
+#include "dap_chain_common.h"
+#include "dap_events.h"
+#include "dap_math_ops.h"
 #include "dap_list.h"
 #include "dap_hash.h"
 #include "dap_string.h"
