@@ -83,7 +83,7 @@ typedef struct dap_chain_cs_dag_poa_pvt {
 
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag);
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
-static bool s_poa_round_clean(void *a_arg);
+static void s_poa_round_clean(void *a_arg);
 static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_cfg);
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size);
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
@@ -372,9 +372,9 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
         if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
             if (!s_poa_round_timer) {
-                s_poa_round_timer = dap_timerfd_start(10*1000, 
-                                (dap_timerfd_callback_t)s_poa_round_clean,
-                                a_chain);
+                s_poa_round_timer = dap_interval_timer_create(10 * 1000,
+                                                              s_poa_round_clean,
+                                                              a_chain);
                 log_it(L_MSG, "DAG-PoA: Round timer is started");
             }
         }
@@ -383,7 +383,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     return 0;
 }
 
-static bool s_poa_round_clean(void *a_arg)
+static void s_poa_round_clean(void *a_arg)
 {
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG((dap_chain_t *)a_arg);
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(l_dag);
@@ -406,7 +406,6 @@ static bool s_poa_round_clean(void *a_arg)
         }
         dap_chain_global_db_objs_delete(l_objs, l_objs_size);
     }
-    return true;
 }
 
 static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_event,
@@ -586,6 +585,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
  */
 static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 {
+    dap_interval_timer_delete(s_poa_round_timer);
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA ( a_dag );
 
     if ( l_poa->_pvt ) {
@@ -711,7 +711,6 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         }
         DAP_DELETE(l_round_item);
     }
-    DAP_DELETE(l_event);
     return 0;
 }
 

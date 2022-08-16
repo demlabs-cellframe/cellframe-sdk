@@ -2257,7 +2257,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_token = l_tx_token->header.ticker;
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
-			if (!l_emission_item) {//check emission for STAKE_LOCK
+            if (false) {//(!l_emission_item) {//check emission for STAKE_LOCK
 				dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
 				if (!l_datum_token ||
 					l_datum_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL) {
