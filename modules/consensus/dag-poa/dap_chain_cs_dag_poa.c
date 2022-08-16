@@ -506,7 +506,7 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
     dap_hash_fast_t l_event_hash = {};
     dap_hash_fast(l_new_atom, l_event_size, &l_event_hash);
     char l_event_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-    dap_hash_fast_to_str(&l_event_hash, l_new_atom, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    dap_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
     dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
     if (l_res == ATOM_PASS || l_res == ATOM_REJECT) { // Add new atom in chain
         DAP_DELETE(l_new_atom);
