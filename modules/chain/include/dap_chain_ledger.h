@@ -29,6 +29,7 @@
 
 //#include "dap_enc_key.h"
 #include "dap_common.h"
+#include "dap_hash.h"
 #include "dap_list.h"
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
@@ -42,7 +43,7 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
-typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx_out,  dap_chain_tx_out_cond_t *a_tx_out_cond,
+typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
                                                          dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef bool (* dap_chain_ledger_verificator_callback_out_t)(dap_ledger_t * a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
 
@@ -82,6 +83,10 @@ void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger);
 //int dap_chain_ledger_load(const char *a_net_name, const char *a_chain_name);
 
 void dap_chain_ledger_set_local_cell_id(dap_ledger_t *a_ledger, dap_chain_cell_id_t a_local_cell_id);
+
+// Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
+int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added);
+
 
 /**
  * @brief dap_chain_node_datum_tx_calc_hash
@@ -236,8 +241,6 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
 dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
         dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t a_value_need, uint256_t *a_value_transfer);
 
-// Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
-int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added);
 
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool reverse);

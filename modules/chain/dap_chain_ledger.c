@@ -150,7 +150,7 @@ typedef struct dap_chain_ledger_tokenizer {
 } dap_chain_ledger_tokenizer_t;
 
 typedef struct dap_chain_ledger_tx_bound {
-    dap_chain_hash_fast_t tx_prev_hash_fast;
+    dap_chain_hash_fast_t tx_prev_hash;
     dap_chain_datum_tx_t *tx_prev;
     union {
         dap_chain_tx_in_t *tx_cur_in;
@@ -2230,7 +2230,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_tx_prev_hash = l_tx_in_cond->header.tx_prev_hash;
             bound_item->in.tx_cur_in_cond = l_tx_in_cond;
         }
-        memcpy(&bound_item->tx_prev_hash_fast, &l_tx_prev_hash, sizeof(dap_chain_hash_fast_t));
+        memcpy(&bound_item->tx_prev_hash, &l_tx_prev_hash, sizeof(dap_chain_hash_fast_t));
 
         bool l_is_blank = dap_hash_fast_is_blank(&l_tx_prev_hash);
         char l_tx_prev_hash_str[70]={[0]='\0'};
@@ -2533,7 +2533,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -13;
                 break;
             }
-            if (l_verificator->callback(a_ledger, l_tx_prev, l_tx_prev_out_cond, a_tx, l_owner) == false) {
+            if (l_verificator->callback(a_ledger, &l_tx_prev_hash, l_tx_prev_out_cond, a_tx, l_owner) == false) {
                 l_err_num = -14;
                 break;
             }
@@ -3030,7 +3030,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
                 pthread_rwlock_unlock(&s_verificators_rwlock);
                 if (l_verificator && l_verificator->callback) {
-                    l_verificator->callback(a_ledger,bound_item->tx_prev, l_cond, a_tx, true);
+                    l_verificator->callback(a_ledger,&bound_item->tx_prev_hash, l_cond, a_tx, true);
                 }
                 l_stake_updated = true;
             }
@@ -3053,7 +3053,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 
         // delete previous transactions from cache because all out is used
         if(l_prev_item_out->cache_data.n_outs_used == l_prev_item_out->cache_data.n_outs) {
-            dap_chain_hash_fast_t l_tx_prev_hash_to_del = bound_item->tx_prev_hash_fast;
+            dap_chain_hash_fast_t l_tx_prev_hash_to_del = bound_item->tx_prev_hash;
             // remove from memory ledger
             int res = dap_chain_ledger_tx_remove(a_ledger, &l_tx_prev_hash_to_del);
             if(res == -2) {

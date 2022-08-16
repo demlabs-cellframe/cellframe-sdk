@@ -41,9 +41,9 @@ static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_us
 static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 
-static bool s_verificator_stake_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out, dap_chain_tx_out_cond_t *a_cond,
+static bool s_verificator_stake_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-static bool s_verificator_stake_updater_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out, dap_chain_tx_out_cond_t *a_cond,
+static bool s_verificator_stake_updater_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                           dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
@@ -60,11 +60,11 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake order create -net <net_name> -addr_hldr <addr> -token <token_ticker> -coins <value> -cert <priv_cert_name> -fee_percent <value>\n"
         "\tCreate a new order with specified amount of datoshi to delegate specified cert from the specified address.\n"
         "\tThe fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
-    "srv_stake order declare -net <net_name> -wallet <name> -token <token_ticker> -coins <value> -fee_percent <value>"
+    "srv_stake order declare -net <net_name> -wallet <wallet_name> -token <token_ticker> -coins <value> -fee_percent <value>"
         "\tCreate a new order with specified amount of datoshi and fee which holder is ready to stake.\n"
     "srv_stake order remove -net <net_name> -order <order hash> [-H {hex | base58(default)}]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net_name> -order <order hash> {-cert <priv_cert_name> | -wallet <wallet_name>} [-H {hex | base58(default)}]{[-addr_hldr <addr>] [-token <token_ticker>] [-coins <value>] [-fee_percent <value>] | [-token <ticker>] [-coins <value>] -fee_percent <value>]}\n"
+    "srv_stake order update -net <net_name> -order <order hash> {-cert <priv_cert_name> | -wallet <wallet_name>} [-H {hex | base58(default)}] {[-addr_hldr <addr>] [-token <token_ticker>] [-coins <value>] [-fee_percent <value>] | [-token <token_ticker>] [-coins <value>] -fee_percent <value>]}\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net_name>\n"
          "\tGet the stake orders list within specified net name\n"
@@ -74,7 +74,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
          "\tApprove stake transaction by root node certificate within specified net name.\n"
     "srv_stake transactions -net <net_name> [-addr <addr from>]\n"
          "\tShow the list of requested, active and canceled stake transactions (optional delegated from addr)\n"
-    "srv_stake invalidate -net <net_name> -tx <transaction hash> -wallet <wallet name>\n"
+    "srv_stake invalidate -net <net_name> -tx <transaction hash> -wallet <wallet_name>\n"
          "\tInvalidate requested stake transaction by hash within net name and return stake to specified wallet\n"
     );
 
@@ -1282,9 +1282,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
     return 0;
 }
 
-static bool s_verificator_stake_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out, dap_chain_tx_out_cond_t *a_cond,
+static bool s_verificator_stake_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
+    UNUSED(a_tx_out_hash);
     if (!s_srv_stake) {
         return false;
     }
@@ -1300,9 +1301,10 @@ static bool s_verificator_stake_callback(dap_ledger_t * a_ledger,dap_chain_datum
  * @param a_owner
  * @return
  */
-static bool s_verificator_stake_updater_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out, dap_chain_tx_out_cond_t *a_cond,
+static bool s_verificator_stake_updater_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                           dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
+    UNUSED(a_tx_out_hash);
     if (!s_srv_stake) {
         return false;
     }

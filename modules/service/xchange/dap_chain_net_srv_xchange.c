@@ -81,7 +81,7 @@ static dap_chain_net_srv_xchange_price_t *s_xchange_db_load(char *a_key, uint8_t
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static void s_string_append_tx_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx );
 
-static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out,  dap_chain_tx_out_cond_t *a_cond,
+static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
@@ -96,31 +96,33 @@ static dap_chain_net_srv_xchange_t *s_srv_xchange;
 int dap_chain_net_srv_xchange_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
-    "srv_xchange order create -net <net_name> -token_sell <token ticker> -token_buy <token_ticker> -wallet <name> -coins <value> -rate <value>\n"
+
+    "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -wallet <wallet_name> -coins <value> -rate <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
     "srv_xchange order remove -net <net_name> -order <order_hash> -wallet <wallet_name>\n"
          "\tRemove order with specified order hash in specified net name\n"
-    "srv_xchange order update -net <net_name> -order <order_hash> -wallet <wallet_name> [-token_sell <token ticker>] "
-                            "[-net_buy <net_name>] [-token_buy <token ticker>] [-coins <value>] [-rate <value>]\n"
+    "srv_xchange order update -net <net_name> -order <order_hash> -wallet <wallet_name> [-token_sell <token_ticker>] "
+                            "[-net_buy <net_name>] [-token_buy <token_ticker>] [-coins <value>] [-rate <value>]\n"
          "\tUpdate order with specified order hash in specified net name\n"
     "srv_xchange orders -net <net_name>\n"
          "\tGet the exchange orders list within specified net name\n"
     "srv_xchange purchase -order <order hash> -net <net_name> -wallet <wallet_name> -coins <value>\n"
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
-    "srv_xchange tx_list -net <net name> [-time_from <yymmdd> -time_to <yymmdd>]"
+    "srv_xchange tx_list -net <net_name> [-time_from <yymmdd> -time_to <yymmdd>]"
         "[[-addr <wallet_addr>  [-status closed | open] ]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions\n"
 
-    "srv_xchange token_pair -net <net name> list all\n"
+    "srv_xchange token_pair -net <net_name> list all\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net name> price average -token_from <token from> -token_to <token to> [-time_from <From time>] [-time_to <To time>]  \n"
+
+    "srv_xchange token_pair -net <net_name> price average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From time>] [-time_to <To time>]  \n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
         "\tAll times are in RFC822\n"
-    "srv_xchange token_pair -net <net name> price last -token_from <token from> -token_to <token to> [-time_from <From time>] [-time_to <To time>]  \n"
+    "srv_xchange token_pair -net <net_name> price last -token_from <token_ticker> -token_to <token_ticker> [-time_from <From time>] [-time_to <To time>]  \n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
         "\tAll times are in RFC822\n"
-    "srv_xchange token_pair -net <net name> price history -token_from <token from> -token2 <token to> [-time_from <From time>] [-time_to <To time>] \n"
+    "srv_xchange token_pair -net <net_name> price history -token_from <token_ticker> -token2 <token_ticker> [-time_from <From time>] [-time_to <To time>] \n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
         "\tAll times are in RFC822\n"
 
@@ -160,18 +162,18 @@ void dap_chain_net_srv_xchange_deinit()
 /**
  * @brief s_verificator_callback
  * @param a_ledger
- * @param a_tx_out
+ * @param a_tx_out_hash
  * @param a_cond
  * @param a_tx_in
  * @param a_owner
  * @return
  */
-static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t *a_tx_out,  dap_chain_tx_out_cond_t *a_cond,
+static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     if (a_owner)
         return true;
-    if(!a_tx_out || !a_tx_in || !a_cond)
+    if(!a_tx_out_hash || !a_tx_in || !a_cond)
         return false;
     bool l_ret = false;
 
@@ -182,8 +184,8 @@ static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t 
     if(l_fee == NULL)
         pthread_rwlock_unlock(&s_net_fees_rwlock);
 
-    dap_hash_fast_t *l_tx_out_hash = dap_chain_node_datum_tx_calc_hash(a_tx_out);
-    const char * l_tx_out_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,l_tx_out_hash);
+    // TODO replace with tx hash cache
+    const char * l_tx_out_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,a_tx_out_hash);
     if(!l_tx_out_ticker ){
         l_ret = false;
         goto lb_end;
@@ -235,7 +237,6 @@ static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_chain_datum_tx_t 
     }
 
 lb_end:
-    DAP_DELETE(l_tx_out_hash);
     if(l_fee)
         pthread_rwlock_unlock(&s_net_fees_rwlock);
     return l_ret;
