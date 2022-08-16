@@ -220,6 +220,17 @@ inline static bool s_is_supported_user_agents_list_setted(void)
 static void s_esocket_worker_write_callback(dap_worker_t *a_worker, void *a_arg)
 {
     UNUSED(a_worker);
+    dap_http_simple_t *l_http_simple = (dap_http_simple_t*)a_arg;
+    dap_events_socket_t *l_es = dap_context_find(a_worker->context, l_http_simple->http_client_uuid);
+    if (!l_es) {
+        debug_if(g_debug_reactor, L_INFO, "Esocket 0x%"DAP_UINT64_FORMAT_x" is already deleted", l_http_simple->http_client_uuid);
+        DAP_DEL_Z(l_http_simple->request);
+        DAP_DEL_Z(l_http_simple->reply);
+        DAP_DEL_Z(l_http_simple->http_client);
+        DAP_DELETE(a_arg); // http_simple itself
+        return;
+    }
+    l_es->_inheritor = l_http_simple->http_client; // Back to the owner
     dap_http_client_write((dap_events_socket_t *)a_arg, NULL);
 }
 
@@ -417,6 +428,7 @@ void s_http_client_data_read( dap_http_client_t *a_http_client, void * a_arg )
         // bool isOK=true;
         log_it( L_INFO,"Data for http_simple_request collected" );
         dap_events_socket_set_readable_unsafe(a_http_client->esocket, false);
+        a_http_client->esocket->_inheritor = NULL;
         dap_proc_queue_add_callback_inter( l_http_simple->worker->proc_queue_input , s_proc_queue_callback, l_http_simple);
     }
 }
