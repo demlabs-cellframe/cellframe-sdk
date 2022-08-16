@@ -416,7 +416,7 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_cha
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     if (a_event->header.signs_count < l_poa_pvt->auth_certs_count_verify)
         return false;
-    int l_ret_event_verify = a_dag->callback_cs_verify(a_dag, a_event, a_event_size);
+    int l_ret_event_verify = s_callback_event_verify(a_dag, a_event, a_event_size);
     if (!l_ret_event_verify)
         return true;
     log_it(L_ERROR,"Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
@@ -629,12 +629,14 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
     }
     if ( s_seed_mode || (a_hashes && a_hashes_count) ){
         if ( !PVT(l_poa)->callback_pre_sign || !PVT(l_poa)->callback_pre_sign->callback) {
-            dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new( a_dag->chain->id, a_dag->chain->cells->id, a_datum,
-                                                             PVT(l_poa)->events_sign_cert->enc_key, a_hashes, a_hashes_count, a_event_size);
+            dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_dag->round_current,
+                                                                            a_datum, PVT(l_poa)->events_sign_cert->enc_key,
+                                                                            a_hashes, a_hashes_count, a_event_size);
             return l_event;
         } else {
-            dap_chain_cs_dag_event_t *l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_datum,
-                                                                            NULL, a_hashes, a_hashes_count, a_event_size);
+            dap_chain_cs_dag_event_t *l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_dag->round_current,
+                                                                           a_datum, NULL,
+                                                                           a_hashes, a_hashes_count, a_event_size);
             int ret = PVT(l_poa)->callback_pre_sign->callback(a_dag->chain, l_event, *a_event_size, PVT(l_poa)->callback_pre_sign->arg);    
             if (ret) {
                 DAP_DELETE(l_event);

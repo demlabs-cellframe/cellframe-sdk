@@ -631,6 +631,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
     if (l_hashes_linked || s_seed_mode ) {
         dap_chain_cs_dag_event_t * l_event = NULL;
         size_t l_event_size = 0;
+        uint64_t l_round_current = ++l_dag->round_current;
         if (l_dag->callback_cs_event_create)
             l_event = l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size);
         DAP_DELETE(l_hashes);
@@ -646,7 +647,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
                 }
 
             } else {    // add to new round into global_db
-                uint64_t l_round_current = l_event->header.round_id = ++l_dag->round_current;
                 dap_chain_global_db_gr_set(DAG_ROUND_CURRENT_KEY, &l_round_current, sizeof(uint64_t), l_dag->gdb_group_events_round_new);
                 dap_chain_hash_fast_t l_event_hash, l_datum_hash;
                 dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
