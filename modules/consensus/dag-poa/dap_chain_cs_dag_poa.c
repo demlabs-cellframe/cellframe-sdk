@@ -504,7 +504,7 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
             DAP_DELETE(l_new_atom);
             log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" not added in chain", l_event_hash_hex_str, a_callback_arg->round_id);
         } else {
-            log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U"added in %s successfully", l_event_hash_hex_str, a_callback_arg->round_id,
+            log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" added in %s successfully", l_event_hash_hex_str, a_callback_arg->round_id,
                                                                   l_res == ATOM_ACCEPT ? "chain" : "threshold");
             if (l_res == ATOM_ACCEPT)
                 dap_chain_atom_save(l_dag->chain, l_new_atom, l_event_size, l_dag->chain->cells->id);

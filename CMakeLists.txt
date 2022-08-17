@@ -2,7 +2,7 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "3.1-122")
+set(CELLFRAME_SDK_NATIVE_VERSION "3.1-222")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
@@ -228,14 +228,7 @@ if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
-
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
-
-if (LINUX)
-    add_definitions("-D_GNU_SOURCE")
-    add_subdirectory(3rdparty/json-c)
-    target_include_directories(json-c PUBLIC 3rdparty/)
-endif()
 
 #if(BUILD_DAP_TESTS)
 #    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/test/main_test.py
