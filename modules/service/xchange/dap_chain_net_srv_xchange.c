@@ -418,7 +418,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     return l_tx;
 }
 
-static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xchange_price_t *a_price,
+static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_hash_fast_t * a_tx_cond_hash, dap_chain_net_srv_xchange_price_t *a_price,
                                                           dap_chain_wallet_t *a_wallet, uint256_t a_datoshi_buy)
 {
     if (!a_price || !a_price->net || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
@@ -1357,7 +1357,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     return -13;
                 }
                 // Create conditional transaction
-                dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, l_wallet, l_datoshi_buy);
+                dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(&l_order->tx_cond_hash, l_price, l_wallet, l_datoshi_buy);
                 if (l_tx && s_xchange_tx_put(l_tx, l_net)) {
                     // TODO send request to seller to update / delete order & price
                     dap_chain_net_srv_order_delete_by_hash_str(l_price->net, l_order_hash_str);
