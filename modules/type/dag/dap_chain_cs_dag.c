@@ -651,7 +651,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
                 // set datum hash for round
                 dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_datum_hash);
                 dap_chain_cs_dag_event_round_item_t *l_round_item =
-                            DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
+                            DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_round_item_t,
                                             sizeof(dap_chain_cs_dag_event_round_item_t));
                 memcpy(&l_round_item->round_info.datum_hash, &l_datum_hash, sizeof(dap_chain_hash_fast_t));
                 dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
