@@ -278,7 +278,6 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     DAP_DEL_Z(l_gdb_group);
     dap_chain_global_db_add_sync_extra_group(l_net->pub.name, l_sync_groups_mask, s_history_callback_round_notify, l_dag);
     DAP_DEL_Z(l_sync_groups_mask);
-    dap_chain_global_db_gr_del(NULL, l_dag->gdb_group_events_round_new);
     l_dag->broadcast_disable = false;
 
     byte_t *l_current_round = dap_chain_global_db_gr_get(DAG_ROUND_CURRENT_KEY, NULL, l_gdb_group);
@@ -649,32 +648,29 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
             } else {    // add to new round into global_db
                 dap_chain_global_db_gr_set(DAG_ROUND_CURRENT_KEY, &l_round_current, sizeof(uint64_t), l_dag->gdb_group_events_round_new);
                 dap_chain_hash_fast_t l_event_hash, l_datum_hash;
-                dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
-                char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
-                dap_chain_cs_dag_event_round_info_t l_event_round_info = {};
                 // set datum hash for round
                 dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_datum_hash);
-                memcpy(&l_event_round_info.datum_hash, &l_datum_hash, sizeof(dap_chain_hash_fast_t));
-                dap_chain_cs_dag_event_round_item_t * l_round_item =
+                dap_chain_cs_dag_event_round_item_t *l_round_item =
                             DAP_NEW_SIZE(dap_chain_cs_dag_event_round_item_t,
-                                            sizeof(dap_chain_cs_dag_event_round_item_t)+l_event_size);
-                memcpy(&l_round_item->round_info, &l_event_round_info, sizeof(dap_chain_cs_dag_event_round_info_t));
-                l_round_item->data_size = l_round_item->event_size = 0;
-
-                if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event, l_event_size, l_round_item)) {
+                                            sizeof(dap_chain_cs_dag_event_round_item_t));
+                memcpy(&l_round_item->round_info.datum_hash, &l_datum_hash, sizeof(dap_chain_hash_fast_t));
+                dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
+                char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
+                bool l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event, l_event_size, l_round_item);
+                DAP_DELETE(l_round_item);
+                if (l_res)
                     log_it(L_INFO, "Event %s placed in the new forming round", l_event_hash_str);
-                    DAP_DEL_Z(l_event_hash_str);
-                } else {
+                else
                     log_it(L_ERROR,"Can't add new event to the new events round");
-                    return false;
-                }
+                DAP_DEL_Z(l_event_hash_str);
+                return l_res;
             }
         }else {
             log_it(L_ERROR,"Can't create new event!");
             return false;
         }
     }
-    return true;
+    return false;
 }
 
 
@@ -1827,6 +1823,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                           l_event_hash_str);
                         ret = -50;
                     }
+                    DAP_DELETE(l_round_item);
                 } else {
                     dap_chain_node_cli_set_reply_text(a_str_reply,
                                                       "Can't find event in round.new - only place where could be signed the new event\n",
