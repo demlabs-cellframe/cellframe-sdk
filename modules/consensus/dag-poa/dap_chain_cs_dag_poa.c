@@ -446,13 +446,13 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
             switch (l_stage) {
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_SIGNS:
                 if (l_event->header.signs_count < a_max_signs_counts)
-                    dap_list_remove_link(l_dups, it);
+                    l_dups = dap_list_remove_link(l_dups, it);
                 else if (l_round_item->round_info.ts_update < l_min_ts_update)
                     l_min_ts_update = l_round_item->round_info.ts_update;
                 break;
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_TS:
                 if (l_round_item->round_info.ts_update > l_min_ts_update)
-                    dap_list_remove_link(l_dups, it);
+                    l_dups = dap_list_remove_link(l_dups, it);
             default: break;
             }
         }
