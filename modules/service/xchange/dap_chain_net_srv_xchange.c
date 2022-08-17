@@ -25,7 +25,10 @@
 #include <math.h>
 #include <pthread.h>
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_out_cond.h"
+#include "dap_chain_datum_tx_sig.h"
 #include "dap_list.h"
+#include "dap_sign.h"
 #include "dap_time.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_ledger.h"
@@ -168,12 +171,12 @@ void dap_chain_net_srv_xchange_deinit()
  * @param a_owner
  * @return
  */
-static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_cond,
+static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     if (a_owner)
         return true;
-    if(!a_tx_out_hash || !a_tx_in || !a_cond)
+    if(!a_tx_out_hash || !a_tx_in || !a_tx_out_cond)
         return false;
     bool l_ret = false;
 
@@ -184,56 +187,86 @@ static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
     if(l_fee == NULL)
         pthread_rwlock_unlock(&s_net_fees_rwlock);
 
-    // TODO replace with tx hash cache
     const char * l_tx_out_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,a_tx_out_hash);
     if(!l_tx_out_ticker ){
         l_ret = false;
         goto lb_end;
     }
+
+    uint256_t l_buy_val = {}, l_back_val = {}, l_fee_val = {};
+    const char *l_ticker_ctrl = NULL;
+    int l_item_idx_start = 0;
+    byte_t * l_tx_item;
+
+    while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx_in, &l_item_idx_start, TX_ITEM_TYPE_OUT_ALL, NULL)) != NULL)
+    {
+        dap_chain_tx_item_type_t l_tx_out_type = dap_chain_datum_tx_item_get_type(l_tx_item);
+        switch(l_tx_out_type){
+            case TX_ITEM_TYPE_OUT_EXT:{
+                dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t *)l_tx_item;
+                const char * l_out_token = l_tx_in_output->token;
+                const uint256_t *l_out_value = &l_tx_in_output->header.value;
+                dap_chain_addr_t * l_out_addr = &l_tx_in_output->addr;
+                // Out is with token to buy
+                if (strcmp(l_out_token, a_tx_out_cond->subtype.srv_xchange.buy_token) == 0) {
+                    // If we alredy have buy token out
+                    if (l_ticker_ctrl) {
+                        // too many tokens
+                        goto lb_end;
+                    }
+                    SUM_256_256(l_buy_val, *l_out_value, &l_buy_val);
+                    l_ticker_ctrl = l_out_token;
+                // Out is with token to sell
+                }else if(strcmp(l_tx_out_ticker, l_out_token ) == 0){
+                    // Check if its buy token or not
+                    // If its returning back to owner
+                    if (memcmp(l_out_addr, &a_tx_out_cond->params, sizeof(*l_out_addr)) ) {
+                        SUM_256_256(l_back_val, l_tx_in_output->header.value, &l_back_val);
+                    // if its fee output
+                    }else if (memcmp(&l_out_addr, &l_fee->fee_addr, sizeof(l_fee->fee_addr)) == 0){
+                        if (strcmp(l_out_token, l_tx_out_ticker) == 0) { // Collecting fee in tokens thats going on exchange
+                            SUM_256_256(l_fee_val, l_tx_in_output->header.value, &l_fee_val);
+                        }
+                    }else{ // If any else address
+                    }
+                }
+            }break;
+            case TX_ITEM_TYPE_OUT_COND:{
+                dap_chain_tx_out_cond_t *l_tx_in_output = (dap_chain_tx_out_cond_t *)l_tx_item;
+                if( l_tx_in_output->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE){ // Transaction's fee, same with decree fee should be summed
+                    SUM_256_256(l_fee_val, l_tx_in_output->header.value, &l_fee_val);
+                }else if( l_tx_in_output->header.subtype == a_tx_out_cond->header.subtype&&                             // Same subtype
+                        l_tx_in_output->header.srv_uid.uint64 == a_tx_out_cond->header.srv_uid.uint64  &&         // Same service uid
+                        l_tx_in_output->header.ts_expires == a_tx_out_cond->header.ts_expires &&                  // Same expires time
+                        l_tx_in_output->params_size == a_tx_out_cond->params_size &&                              // Same params size
+                        memcmp(l_tx_in_output->params, a_tx_out_cond->params,l_tx_in_output->params_size) == 0 && // Same params itself
+                        memcmp(&l_tx_in_output->subtype.srv_xchange, &a_tx_out_cond->subtype.srv_xchange,         // Same subtype header
+                           sizeof(a_tx_out_cond->subtype.srv_xchange) ) == 0 ){
+                    SUM_256_256(l_back_val, l_tx_in_output->header.value, &l_back_val); // Calc is at back to owner value
+                }
+
+            }break;
+            default: continue;
+        }
+
+
+    }
+
     /* Check the condition for verification success
      * a_cond.srv_xchange.rate (a_cond->header.value / a_cond->subtype.srv_xchange.buy_value) >=
      * a_tx.out.rate ((a_cond->header.value - l_back_val) / l_out_val)
      */
-    dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_OUT_EXT, NULL);
-    uint256_t l_out_val = {}, l_back_val = {}, l_fee_val = {}, l_ret_to_owner_val = {};
-    char *l_ticker_ctrl = NULL;
-    for (dap_list_t *l_list_tmp = l_list_out; l_list_tmp;  l_list_tmp = l_list_tmp->next) {
-        dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
-        if (memcmp(&l_tx_in_output->addr, &l_fee->fee_addr, sizeof(l_fee->fee_addr)) == 0){
-            SUM_256_256(l_fee_val, l_tx_in_output->header.value, &l_fee_val);
-        }
 
-        // If its returning back to owner
-        if (memcmp(&l_tx_in_output->addr, &a_cond->params, sizeof(dap_chain_addr_t)) ) {
-            continue;
-        }
-
-        // Out is with token to buy
-        if (strcmp(l_tx_in_output->token, a_cond->subtype.srv_xchange.buy_token) == 0) {
-            SUM_256_256(l_out_val, l_tx_in_output->header.value, &l_out_val);
-        }else if(strcmp(l_tx_out_ticker, l_tx_in_output->token ) == 0){
-            // Check if its buy token or not
-
-            // If we alredy have buy token out
-            if (l_ticker_ctrl && strcmp(l_ticker_ctrl, l_tx_in_output->token)) {
-                if(l_fee) pthread_rwlock_unlock(&s_net_fees_rwlock);
-                return false;   // too many tokens
-            }
-            l_ticker_ctrl = l_tx_in_output->token;
-            SUM_256_256(l_back_val, l_tx_in_output->header.value, &l_back_val);
-        }
-    }
-    dap_list_free(l_list_out);
-    l_list_out = NULL;
     //long double l_buyer_rate = (a_cond->header.value - l_back_val) / (long double)l_out_val;
     //long double l_seller_rate =
     uint256_t l_buyer_val = {}, l_buyer_mul = {}, l_seller_mul = {};
-    SUBTRACT_256_256(a_cond->header.value, l_back_val, &l_buyer_val);
-    MULT_256_256(l_buyer_val, a_cond->subtype.srv_xchange.buy_value, &l_buyer_mul);
-    MULT_256_256(l_out_val, a_cond->header.value, &l_seller_mul);
-    if (compare256(l_seller_mul, l_buyer_mul) == -1) {
-        l_ret = false;
-        goto lb_end;
+    SUBTRACT_256_256(a_tx_out_cond->header.value, l_back_val, &l_buyer_val); // Substact back value
+    SUBTRACT_256_256(l_buyer_val, l_fee_val, &l_buyer_val);                  // Substract fee
+
+    MULT_256_256(l_buyer_val, a_tx_out_cond->subtype.srv_xchange.buy_value, &l_buyer_mul);
+    MULT_256_256(l_buy_val, a_tx_out_cond->header.value, &l_seller_mul);
+    if (compare256(l_seller_mul, l_buyer_mul) >=0) {
+        l_ret = true;
     }
 
 lb_end:
@@ -809,10 +842,12 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                     *a_str_reply = dap_string_free(l_str_reply, false);
                 }else if(l_rc == 2){
                     dap_string_t * l_str_reply = dap_string_new("");
-                    while(l_tx){
-                        s_string_append_tx_info(l_str_reply, l_net, l_tx);
-
+                    dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net,&l_order->tx_cond_hash, c_dap_chain_net_srv_xchange_uid );
+                    while(l_tx_list ){
+                        dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
+                        s_string_append_tx_info(l_str_reply, l_net, l_tx_cur );
                     }
+                    dap_list_free(l_tx_list);
                     *a_str_reply = dap_string_free(l_str_reply, false);
                 }else{
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Internal error!");

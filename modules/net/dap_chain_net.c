@@ -27,7 +27,10 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_in_cond.h"
+#include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_node.h"
+#include "dap_list.h"
 #endif
 #ifndef  _XOPEN_SOURCE
 #define _XOPEN_SOURCE       /* See feature_test_macros(7) */
@@ -3395,6 +3398,144 @@ void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_it
     }
 }
 
+/**
+ * @brief dap_chain_net_get_tx_all
+ * @param a_net
+ * @param a_search_type
+ * @param a_tx_callback
+ * @param a_arg
+ */
+void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_type_t a_search_type ,dap_chain_net_tx_hash_callback_t a_tx_callback, void * a_arg)
+{
+    assert(a_tx_callback);
+    dap_ledger_t * l_ledger = a_net->pub.ledger;
+    dap_list_t * l_ret = NULL;
+
+    switch (a_search_type) {
+        case TX_SEARCH_TYPE_NET_UNSPENT:
+        case TX_SEARCH_TYPE_CELL_UNSPENT:
+        case TX_SEARCH_TYPE_NET:
+        case TX_SEARCH_TYPE_CELL:
+        case TX_SEARCH_TYPE_LOCAL:
+        case TX_SEARCH_TYPE_CELL_SPENT:
+        case TX_SEARCH_TYPE_NET_SPENT: {
+            // pass all chains
+            for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
+                dap_chain_cell_t * l_cell, *l_cell_tmp;
+                // Go through all cells
+                HASH_ITER(hh,l_chain->cells,l_cell, l_cell_tmp){
+                    dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain,l_cell->id, false  );
+                    // try to find transaction in chain ( inside shard )
+                    size_t l_atom_size = 0;
+                    dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+
+                    // Check atoms in chain
+                    while(l_atom && l_atom_size) {
+                        size_t l_datums_count = 0;
+                        dap_chain_datum_t **l_datums = l_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
+                        // transaction
+                        dap_chain_datum_tx_t *l_tx = NULL;
+
+                        for (size_t i = 0; i < l_datums_count; i++) {
+                            // Check if its transaction
+                            if (l_datums && (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX)) {
+                                l_tx = (dap_chain_datum_tx_t *) l_datums[i]->data;
+                            }
+
+                            // If found TX
+                            if ( l_tx ) {
+                                a_tx_callback(a_net, l_tx, a_arg);
+                            }
+                        }
+                        DAP_DEL_Z(l_datums);
+                        // go to next atom
+                        l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
+
+                    }
+                }
+            }
+        } break;
+
+    }
+}
+
+/**
+ * @brief The get_tx_cond_all_from_tx struct
+ */
+struct get_tx_cond_all_from_tx
+{
+    dap_list_t * ret;
+    dap_hash_fast_t * tx_begin_hash;
+    dap_chain_datum_tx_t * tx_last;
+    dap_hash_fast_t tx_last_hash;
+    int tx_last_cond_idx;
+    dap_chain_net_srv_uid_t srv_uid;
+};
+
+/**
+ * @brief s_get_tx_cond_all_from_tx_callback
+ * @param a_net
+ * @param a_tx
+ * @param a_arg
+ */
+void s_get_tx_cond_all_from_tx_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+{
+    struct get_tx_cond_all_from_tx * l_args = (struct get_tx_cond_all_from_tx* ) a_arg;
+    dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+    if( l_args->ret ){
+        int l_item_idx = 0;
+        byte_t *l_tx_item;
+
+        // Get items from transaction
+        while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
+            dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *) l_tx_item;
+            if(dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_args->tx_last_hash) &&
+                    l_args->tx_last_cond_idx == l_in_cond->header.tx_out_prev_idx ){ // Found output
+                // We're the next tx in tx cond chain
+                l_args->ret = dap_list_append(l_args->ret, a_tx);
+            }
+            l_item_idx++;
+        }
+    }else if(dap_hash_fast_compare(l_tx_hash,l_args->tx_begin_hash)){
+        // Found condition
+        int l_item_idx = 0;
+        byte_t *l_tx_item;
+
+        // Get items from transaction
+        while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND , NULL)) != NULL){
+            dap_chain_tx_out_cond_t * l_out_cond = (dap_chain_tx_out_cond_t *) l_tx_item;
+            if ( l_out_cond->header.srv_uid.uint64 == l_args->srv_uid.uint64 ){ // We found output with target service uuid
+                l_args->tx_last = a_tx; // Record current transaction as the last in tx chain
+                memcpy(&l_args->tx_last_hash, l_tx_hash, sizeof(*l_tx_hash)); // Record current hash
+                l_args->tx_last_cond_idx = l_item_idx;
+                l_args->ret = dap_list_append(NULL, a_tx);
+                break;
+            }
+        }
+    }
+    DAP_DELETE(l_tx_hash);
+}
+
+/**
+ * @brief Return spends chain for conditioned transaction since beginning one
+ * @param a_net Network where to search for
+ * @param l_tx_hash TX hash of the Tx chain beginning
+ * @param a_srv_uid Service UID from witch cond output the chain begin
+ * @return List of conditioned transactions followin each other one by one as they do as spends
+ */
+dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_net_srv_uid_t a_srv_uid)
+{
+    dap_ledger_t * l_ledger = a_net->pub.ledger;
+
+    struct get_tx_cond_all_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_all_from_tx);
+    l_args->tx_begin_hash = a_tx_hash;
+    l_args->srv_uid = a_srv_uid;
+    dap_chain_net_get_tx_all(a_net,TX_SEARCH_TYPE_NET,s_get_tx_cond_all_from_tx_callback, l_args);
+    dap_list_t * l_ret = l_args->ret;
+    DAP_DELETE(l_args);
+    return l_ret;
+}
+
 
 /**
  * @brief dap_chain_net_get_tx_cond_all_by_srv_uid
@@ -3717,7 +3858,7 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
  * @param a_filter_func
  * @param a_filter_func_param
  */
-dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, datum_filter_func_t *a_filter_func, void *a_filter_func_param)
+dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param)
 {
 dap_list_t *l_list;
 size_t  l_sz;
