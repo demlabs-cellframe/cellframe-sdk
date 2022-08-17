@@ -939,10 +939,21 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  */
 static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
+	dap_chain_datum_tx_t									*burning_tx					= NULL;
+	dap_chain_tx_out_t										*burning_transaction_out	= NULL;
+	uint256_t												l_value_delegated			= {};
+	dap_hash_fast_t											hash_burning_transaction;
+	dap_chain_datum_token_tsd_delegate_from_stake_lock_t	l_tsd_section;
+	dap_tsd_t												*l_tsd;
+	cond_params_t 											*l_params;
+	dap_chain_datum_tx_receipt_t							*l_receipt;
+	dap_chain_tx_out_t										*l_tx_out;
+	dap_chain_tx_token_t									*l_tx_token;
+	dap_chain_datum_token_t									*delegate_token;
 
 	/*if (!a_owner) TODO: ???
-		return false;*/
-    cond_params_t * l_params;
+	return false;*/
+
     if (a_cond->params_size != sizeof(*l_params) )// Wrong params size
         return false;
     l_params = (cond_params_t *) a_cond->params;
@@ -952,7 +963,7 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
             return false;
     }
 
-	dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
+	l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
 	if (!l_receipt)
 		return false;
 
@@ -964,7 +975,6 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
 		return false;
 #endif
 
-	dap_hash_fast_t hash_burning_transaction;
 	char delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];//not used TODO: check ticker?
 	if (l_receipt->exts_size) {
 		memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
@@ -975,21 +985,13 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
 	if (dap_hash_fast_is_blank(&hash_burning_transaction))
 		return false;
 
-	dap_chain_datum_tx_t *burning_tx = NULL;
-	dap_chain_tx_out_t *burning_transaction_out = NULL;
-
-	dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
+	l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
 
 	if (!l_tx_out)
 		return false;
 
 	if (!EQUAL_256(a_cond->header.value, l_tx_out->header.value))
 		return false;
-
-	uint256_t				l_value_delegated = {};
-	dap_chain_datum_token_t *delegate_token;
-	dap_tsd_t							*l_tsd;
-	dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
 
 	if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(a_ledger, delegated_ticker))
 		||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
@@ -1000,7 +1002,7 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
 
 	l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
 
-	dap_chain_tx_token_t *l_tx_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);//TODO: CHECK THIS
+	l_tx_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);//TODO: CHECK THIS
 
 	if (strcmp(l_tx_token->header.ticker, l_tsd_section.ticker_token_from))//TODO: CHECK THIS
 		return false;
