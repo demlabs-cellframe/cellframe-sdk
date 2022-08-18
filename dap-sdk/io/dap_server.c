@@ -403,16 +403,9 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
         if (l_es_new->callbacks.new_callback)
             l_es_new->callbacks.new_callback(l_es_new, NULL);
         l_es_new->is_initalized = true;
-        if (dap_worker_add_events_socket_unsafe(l_es_new,l_worker))
-            log_it(L_CRITICAL,"Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
-        else {
-            l_es_new->me = l_es_new;
-            pthread_rwlock_wrlock(&l_worker->esocket_rwlock);
-            HASH_ADD(hh_worker, l_worker->esockets, uuid, sizeof(l_es_new->uuid), l_es_new );
-            l_worker->event_sockets_count++;
-            pthread_rwlock_unlock(&l_worker->esocket_rwlock);
-            if (l_es_new->callbacks.worker_assign_callback)
-                l_es_new->callbacks.worker_assign_callback(l_es_new, l_worker);
+        if (dap_worker_add_events_socket_unsafe(l_worker, l_es_new)) {
+            log_it(L_CRITICAL, "Can't add event socket's handler to worker i/o poll mechanism with error %d", errno);
+            return;
         }
         debug_if(g_debug_reactor, L_INFO, "Direct addition of esocket %p uuid 0x%"DAP_UINT64_FORMAT_x" to worker %d",
                  l_es_new, l_es_new->uuid, l_worker->id);
