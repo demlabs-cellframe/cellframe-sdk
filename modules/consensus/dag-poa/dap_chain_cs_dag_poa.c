@@ -529,9 +529,7 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
         log_it(L_WARNING, "No round candidates for round ID %"DAP_UINT64_FORMAT_U, a_callback_arg->round_id);
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
     HASH_DEL(l_poa_pvt->active_rounds, a_callback_arg);
-    if (l_new_atom && l_new_atom->header.round_id)
-        l_dag->round_completed = l_new_atom->header.round_id;
-    else
+    if (!l_new_atom || !l_new_atom->header.round_id)
         l_dag->round_completed++;
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     dap_list_free(l_dups_list);

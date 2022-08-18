@@ -465,6 +465,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         break;
     }
 
+    if (l_event->header.round_id < UINT_MAX)
+        l_dag->round_completed = l_event->header.round_id;
+
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD:
         pthread_rwlock_wrlock(l_events_rwlock);
