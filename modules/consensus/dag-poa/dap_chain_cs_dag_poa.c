@@ -397,7 +397,7 @@ static void s_poa_round_clean(void *a_arg)
             uint64_t l_time_diff = dap_gdb_time_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_gdb_time_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
-            if (l_time_diff > l_timeuot && l_round_id < l_dag->round_completed) {
+            if (l_time_diff > l_timeuot && l_round_id <= l_dag->round_completed) {
                 dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_round);
                 log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" by timer.",
                        l_objs[i].key, l_round_id);
@@ -427,6 +427,7 @@ enum dap_chain_poa_round_filter_stage {
     DAP_CHAIN_POA_ROUND_FILTER_STAGE_START,
     DAP_CHAIN_POA_ROUND_FILTER_STAGE_SIGNS,
     DAP_CHAIN_POA_ROUND_FILTER_STAGE_TS,
+    DAP_CHAIN_POA_ROUND_FILTER_STAGE_HASH,
     DAP_CHAIN_POA_ROUND_FILTER_STAGE_MAX
 };
 
@@ -438,6 +439,7 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
         return NULL;
     dap_list_t *l_dups = dap_list_copy(a_dups);
     uint64_t l_min_ts_update = (uint64_t)-1;
+    dap_hash_fast_t l_event_hash, l_winner_hash = {};
     enum dap_chain_poa_round_filter_stage l_stage = DAP_CHAIN_POA_ROUND_FILTER_STAGE_START;
     while (l_stage++ < DAP_CHAIN_POA_ROUND_FILTER_STAGE_MAX) {
         for (dap_list_t *it = l_dups; it; it = it->next) {
@@ -445,13 +447,25 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
             l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
             switch (l_stage) {
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_SIGNS:
-                if (l_event->header.signs_count < a_max_signs_counts)
+                if (l_event->header.signs_count != a_max_signs_counts)
                     l_dups = dap_list_remove_link(l_dups, it);
                 else if (l_round_item->round_info.ts_update < l_min_ts_update)
                     l_min_ts_update = l_round_item->round_info.ts_update;
                 break;
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_TS:
-                if (l_round_item->round_info.ts_update > l_min_ts_update)
+                if (l_round_item->round_info.ts_update != l_min_ts_update)
+                    l_dups = dap_list_remove_link(l_dups, it);
+                else {
+                    dap_chain_cs_dag_event_calc_hash((dap_chain_cs_dag_event_t *)l_round_item->event_n_signs,
+                                                     l_round_item->event_size, &l_event_hash);
+                    if (memcmp(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t)) < 0)
+                        memcpy(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t));
+                }
+                break;
+            case DAP_CHAIN_POA_ROUND_FILTER_STAGE_HASH:
+                dap_chain_cs_dag_event_calc_hash((dap_chain_cs_dag_event_t *)l_round_item->event_n_signs,
+                                                 l_round_item->event_size, &l_event_hash);
+                if (memcmp(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t)))
                     l_dups = dap_list_remove_link(l_dups, it);
             default: break;
             }
@@ -491,10 +505,10 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
         }
     }
     dap_chain_cs_dag_event_round_item_t *l_chosen_item = s_round_event_choose_dup(l_dups_list, l_max_signs_count);
+    dap_chain_cs_dag_event_t *l_new_atom = NULL;
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
-        dap_chain_atom_ptr_t l_new_atom = (dap_chain_atom_ptr_t)dap_chain_cs_dag_event_copy(
-                    (dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs, l_event_size);
+        l_new_atom = dap_chain_cs_dag_event_copy((dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs, l_event_size);
         dap_hash_fast_t l_event_hash = {};
         dap_hash_fast(l_new_atom, l_event_size, &l_event_hash);
         char l_event_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -507,12 +521,16 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
             log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" added in %s successfully", l_event_hash_hex_str, a_callback_arg->round_id,
                                                                   l_res == ATOM_ACCEPT ? "chain" : "threshold");
             if (l_res == ATOM_ACCEPT)
-                dap_chain_atom_save(l_dag->chain, l_new_atom, l_event_size, l_dag->chain->cells->id);
+                dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
         }
     } else
         log_it(L_WARNING, "No round candidates for round ID %"DAP_UINT64_FORMAT_U, a_callback_arg->round_id);
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
     HASH_DEL(l_poa_pvt->active_rounds, a_callback_arg);
+    if (l_new_atom && l_new_atom->header.round_id)
+        l_dag->round_completed = l_new_atom->header.round_id;
+    else
+        l_dag->round_completed++;
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     dap_list_free(l_dups_list);
     dap_store_obj_free(l_events_round, l_events_round_size);

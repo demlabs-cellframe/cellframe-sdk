@@ -466,9 +466,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         break;
     }
 
-    if (l_event->header.round_id)
-        l_dag->round_completed = l_event->header.round_id;
-
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD:
         pthread_rwlock_wrlock(l_events_rwlock);
@@ -630,6 +627,11 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
     if (l_hashes_linked || s_seed_mode ) {
         dap_chain_cs_dag_event_t * l_event = NULL;
         size_t l_event_size = 0;
+        byte_t *l_current_round = dap_chain_global_db_gr_get(DAG_ROUND_CURRENT_KEY, NULL, l_dag->gdb_group_events_round_new);
+        l_dag->round_current = l_current_round ? *(uint64_t *)l_current_round : 0;
+        DAP_DELETE(l_current_round);
+        if (l_dag->round_current < l_dag->round_completed)
+            l_dag->round_current = l_dag->round_completed;
         uint64_t l_round_current = ++l_dag->round_current;
         if (l_dag->callback_cs_event_create)
             l_event = l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size);
