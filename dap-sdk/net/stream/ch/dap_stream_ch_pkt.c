@@ -228,42 +228,56 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
     }
     //log_it(L_DEBUG,"Output: Has %u bytes of %c type for %c channel id",data_size, (char)type, (char) ch->proc->id );
 
-    dap_stream_ch_pkt_hdr_t l_hdr;
 
-    memset(&l_hdr,0,sizeof(l_hdr));
-    l_hdr.id = a_ch->proc->id;
-    l_hdr.size=(uint32_t) a_data_size;
-    l_hdr.type=a_type;
-    l_hdr.enc_type = a_ch->proc->enc_type;
 
-    l_hdr.seq_id=a_ch->stream->seq_id;
-    a_ch->stream->seq_id++;
+//    size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,l_buf_selected,a_data_size+sizeof(l_hdr));
+//    a_ch->stat.bytes_write+=a_data_size;
+//    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
 
-    if ( dap_stream_get_dump_packet_headers() ){
-        log_it(L_INFO,"Outgoing channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02hhX",
-            (char) l_hdr.id, l_hdr.size, l_hdr.type, l_hdr.seq_id , l_hdr.enc_type );
+    size_t  l_ret = 0, l_data_size,
+            l_max_size = l_data_size = a_data_size + sizeof(dap_stream_ch_pkt_hdr_t);
+    uint8_t *l_buf = a_ch->buf;
+
+    dap_stream_ch_pkt_hdr_t l_hdr = {
+        .id         = a_ch->proc->id,
+        .size       = (uint32_t)a_data_size,
+        .type       = a_type,
+        .enc_type   = a_ch->proc->enc_type,
+        .seq_id     = a_ch->stream->seq_id++
+    };
+
+    debug_if(dap_stream_get_dump_packet_headers(), L_INFO, "Outgoing channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02hhX",
+        (char) l_hdr.id, l_hdr.size, l_hdr.type, l_hdr.seq_id , l_hdr.enc_type);
+
+    if (l_data_size > 0 && l_data_size <= DAP_STREAM_PKT_FRAGMENT_SIZE) {
+        memcpy(l_buf, &l_hdr, sizeof(dap_stream_ch_pkt_hdr_t));
+        memcpy(l_buf + sizeof(dap_stream_ch_pkt_hdr_t), a_data, a_data_size);
+        l_ret = dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_DATA_PACKET, l_buf, l_data_size);
+    } else if (l_data_size > DAP_STREAM_PKT_FRAGMENT_SIZE) {
+        /* The first fragment (has no memory shift) is the channel header
+         The rest fragments just concatenate as-is */
+        size_t l_fragment_size;
+        dap_stream_fragment_pkt_t *l_fragment;
+        for (l_fragment = (dap_stream_fragment_pkt_t*)l_buf, l_fragment_size = sizeof(dap_stream_ch_pkt_hdr_t);
+             l_data_size > 0;
+             l_data_size -= l_fragment_size, l_fragment_size = MIN(l_data_size, DAP_STREAM_PKT_FRAGMENT_SIZE))
+        {
+            l_fragment->size        = l_fragment_size;
+            l_fragment->full_size   = l_max_size;
+            l_fragment->mem_shift   = l_max_size - l_data_size;
+            memcpy(l_fragment->data, l_fragment->mem_shift ? a_data + l_fragment->mem_shift - sizeof(dap_stream_ch_pkt_hdr_t) : &l_hdr,
+                   l_fragment_size);
+            l_ret += dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_FRAGMENT_PACKET, l_fragment,
+                                                  l_fragment_size + sizeof(dap_stream_fragment_pkt_t));
+        }
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+    } else {
+        a_ch->stat.bytes_write = 0;
+        log_it(L_WARNING, "Empty pkt, seq_id %"DAP_UINT64_FORMAT_U, l_hdr.seq_id);
+        return 0;
     }
-
-    uint8_t * l_buf_selected = a_ch->buf;
-    uint8_t * l_buf_allocated = NULL;
-    size_t  l_buf_size_required = a_data_size + sizeof(l_hdr);
-
-    if(l_buf_size_required > sizeof(a_ch->buf) ){
-        log_it(L_WARNING,"packet size is way too big: %zu bytes", a_data_size);
-        l_buf_allocated = DAP_NEW_Z_SIZE(uint8_t, l_buf_size_required);
-        l_buf_selected = l_buf_allocated;
-    }
-    
-    memcpy(l_buf_selected,&l_hdr,sizeof(l_hdr) );
-    if( a_data_size )
-        memcpy(l_buf_selected+sizeof(l_hdr),a_data,a_data_size );
-
-    size_t l_ret=dap_stream_pkt_write_unsafe(a_ch->stream,l_buf_selected,a_data_size+sizeof(l_hdr));
-    a_ch->stat.bytes_write+=a_data_size;
-    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-
-    if(l_buf_allocated)
-        DAP_DELETE(l_buf_allocated);
+    // Statistics without header sizes
+    a_ch->stat.bytes_write += a_data_size;
     return l_ret;
 
 }

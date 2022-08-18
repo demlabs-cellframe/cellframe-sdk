@@ -26,6 +26,7 @@
 typedef struct dap_stream dap_stream_t;
 typedef struct dap_stream_session dap_stream_session_t;
 #define STREAM_PKT_TYPE_DATA_PACKET 0x00
+#define STREAM_PKT_TYPE_FRAGMENT_PACKET 0x01
 #define STREAM_PKT_TYPE_SERVICE_PACKET 0xff
 #define STREAM_PKT_TYPE_KEEPALIVE   0x11
 #define STREAM_PKT_TYPE_ALIVE       0x12
@@ -41,6 +42,13 @@ typedef struct dap_stream_pkt_hdr{
     uint64_t src_addr; // Source address ( vasya@domain.net )
     uint64_t dst_addr; // Destination address ( general#domain.net )
 }  __attribute__((packed)) dap_stream_pkt_hdr_t;
+
+typedef struct dap_stream_fragment_pkt{
+    uint32_t size; // fragment size
+    uint32_t mem_shift; // fragment shift inside origin packet
+    uint32_t full_size; // full origin packet size
+    uint8_t data[];
+} __attribute__((packed)) dap_stream_fragment_pkt_t;
 
 typedef struct dap_stream_pkt{
     dap_stream_pkt_hdr_t hdr;
