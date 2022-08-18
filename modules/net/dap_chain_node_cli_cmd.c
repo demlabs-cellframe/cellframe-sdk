@@ -4841,10 +4841,14 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
                                                          "to be valid string containing hash in hex or base58 format");
             return -3;
         }
-        if (!l_emission_chain_name ||
-                (l_emission_chain = dap_chain_net_get_chain_by_name(l_net, l_emission_chain_name)) == NULL) {
+		if (l_emission_chain_name) {
+			l_emission_chain = dap_chain_net_get_chain_by_name(l_net, l_emission_chain_name);
+		} else {
+			l_emission_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION);
+		}
+        if (!l_emission_chain) {
             dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_chain' "
-                                                         "to be a valid chain name");
+                                                         "to be a valid chain name or set default datum type in chain configuration file");
             return -9;
         }
         if(!l_certs_str) {

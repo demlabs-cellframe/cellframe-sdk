@@ -89,6 +89,13 @@ typedef struct cond_params{
     dap_hash_fast_t	pkey_delegated; // Delegate public key
 } DAP_ALIGN_PACKED	cond_params_t;
 
+typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
+	dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
+	dap_chain_hash_fast_t	tx_used_out;
+//	const char 				datum_token_emission_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
+	UT_hash_handle hh;
+} dap_chain_ledger_token_emission_for_stake_lock_item_t;
+
 #define LOG_TAG		"dap_chain_net_stake_lock"
 #define MONTH_INDEX	8
 #define YEAR_INDEX	12
@@ -98,6 +105,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
 static bool	s_callback_verificator(dap_ledger_t *a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 static bool	s_callback_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
+dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 
 /**
  * @brief dap_chain_net_srv_external_stake_init
@@ -285,12 +293,12 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
     ||	NULL == l_time_staking_str)
 		return TIME_ERROR;
-
+/*
 	if (0 == (l_time_staking = dap_time_from_str_simplified(l_time_staking_str))
 	||	(time_t)(l_time_staking - dap_time_now()) <= 0)
 		return TIME_ERROR;
-
-	l_time_staking -= dap_time_now();
+*/
+	l_time_staking = 1;//-= dap_time_now();
 
 	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-l_reinvest_percent", &l_reinvest_percent_str)
 	&& NULL != l_reinvest_percent_str) {
@@ -1073,6 +1081,8 @@ static bool	s_callback_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum
 		DAP_DEL_Z(l_key_hash);
 		return false;
 	}
+
+	s_emission_for_stake_lock_item_add(a_ledger, l_key_hash);
 
 	DAP_DEL_Z(l_key_hash);
 
