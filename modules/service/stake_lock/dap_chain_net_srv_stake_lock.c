@@ -293,12 +293,12 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
     ||	NULL == l_time_staking_str)
 		return TIME_ERROR;
-/*
+
 	if (0 == (l_time_staking = dap_time_from_str_simplified(l_time_staking_str))
 	||	(time_t)(l_time_staking - dap_time_now()) <= 0)
 		return TIME_ERROR;
-*/
-	l_time_staking = 1;//-= dap_time_now();
+
+	l_time_staking -= dap_time_now();
 
 	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-l_reinvest_percent", &l_reinvest_percent_str)
 	&& NULL != l_reinvest_percent_str) {
