@@ -76,7 +76,6 @@ typedef struct dap_chain_cs_dag_pvt {
 } dap_chain_cs_dag_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
-#define DAG_ROUND_CURRENT_KEY "round_current"
 
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
 dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger);

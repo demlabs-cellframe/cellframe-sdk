@@ -393,6 +393,8 @@ static void s_poa_round_clean(void *a_arg)
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_round, &l_objs_size);
     if (l_objs_size) {
         for (size_t i = 0; i < l_objs_size; i++) {
+            if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
+                continue;
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
             uint64_t l_time_diff = dap_gdb_time_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_gdb_time_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
@@ -515,7 +517,7 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
         dap_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
         dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
         if (l_res == ATOM_PASS || l_res == ATOM_REJECT) { // Add new atom in chain
-            DAP_DELETE(l_new_atom);
+            DAP_DEL_Z(l_new_atom);
             log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" not added in chain", l_event_hash_hex_str, a_callback_arg->round_id);
         } else {
             log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" added in %s successfully", l_event_hash_hex_str, a_callback_arg->round_id,

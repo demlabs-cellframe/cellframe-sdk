@@ -26,6 +26,8 @@
 #include "dap_chain.h"
 #include "dap_chain_cs_dag_event.h"
 
+#define DAG_ROUND_CURRENT_KEY "round_current"
+
 typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
 typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *);
