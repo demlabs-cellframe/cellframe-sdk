@@ -953,15 +953,6 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         log_it(L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-    if ((l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg)) == sizeof(a_arg))) {
-        debug_if(g_debug_reactor, L_NOTICE, "send %d bytes to pipe", l_ret);
-        return 0;
-    }
-    l_errno = errno;
-    char l_errbuf[128] = { '\0' };
-    strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
-    log_it(L_ERROR, "Can't send ptr to pipe:\"%s\" code %d", l_errbuf, l_errno);
-    return l_errno;
 #if defined (DAP_EVENTS_CAPS_AIO)
     struct queue_ptr_aio * l_ptr_aio = DAP_NEW_Z(struct queue_ptr_aio);
     l_ptr_aio->self = l_ptr_aio;
@@ -972,7 +963,15 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     l_ptr_aio->aiocb->aio_nbytes = sizeof(*l_ptr_aio);
     l_ret =  aio_write(l_ptr_aio->aiocb) == 0? sizeof(a_arg) : 0;
 #else
-    l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg));
+    if ((l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg)) == sizeof(a_arg))) {
+        debug_if(g_debug_reactor, L_NOTICE, "send %d bytes to pipe", l_ret);
+        return 0;
+    }
+    l_errno = errno;
+    char l_errbuf[128] = { '\0' };
+    strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
+    log_it(L_ERROR, "Can't send ptr to pipe:\"%s\" code %d", l_errbuf, l_errno);
+    return l_errno;
 #endif
     l_errno = errno;
 
