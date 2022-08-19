@@ -395,7 +395,7 @@ dap_worker_t *dap_events_worker_get_auto( )
     if ( !s_workers_init )
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
 
-    return s_workers[dap_events_thread_get_index_min()];
+    return s_workers[dap_events_worker_get_index_min()];
 }
 
 /**

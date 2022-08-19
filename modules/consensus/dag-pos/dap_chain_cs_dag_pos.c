@@ -206,7 +206,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
         return NULL;
     }
     if(a_datum || (a_hashes && a_hashes_count)) {
-        dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_datum,
+        dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_dag->round_current, a_datum,
                                                                         PVT(l_pos)->events_sign_key, a_hashes, a_hashes_count, a_dag_event_size);
         return l_event;
     } else
