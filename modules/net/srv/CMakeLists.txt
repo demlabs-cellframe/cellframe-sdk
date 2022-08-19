@@ -13,10 +13,6 @@ if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     set(NET_SRV_LIBS ${NET_SRV_LIBS} dap_modules_dynamic_cdb)
 endif()
 
-#if (CELLFRAME_MODULES MATCHES "srv-stake")
-#    set(NET_SRV_LIBS ${NET_SRV_LIBS} dap_chain_net_srv_stake)
-#endif()
-
 target_link_libraries(${NET_SRV_LIBS})
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
