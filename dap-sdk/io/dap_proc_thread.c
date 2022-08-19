@@ -61,7 +61,6 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 static size_t s_threads_count = 0;
 static dap_proc_thread_t * s_threads = NULL;
 
-static void *s_proc_thread_function(void * a_arg);
 static void s_event_exit_callback( dap_events_socket_t * a_es, uint64_t a_flags);
 
 static void s_context_callback_started( dap_context_t * a_context, void *a_arg);
@@ -165,11 +164,12 @@ unsigned l_id_min = 0, l_size_min = UINT32_MAX, l_queue_size;
  */
 static void s_proc_event_callback(dap_events_socket_t * a_esocket, uint64_t __attribute__((unused))  a_value)
 {
-dap_proc_thread_t   *l_thread;
-dap_proc_queue_item_t *l_item;
-int     l_rc, l_is_anybody_in_queue, l_is_finished, l_iter_cnt, l_cur_pri;
-size_t  l_item_sz;
-dap_proc_queue_t    *l_queue;
+    dap_proc_thread_t   *l_thread;
+    dap_proc_queue_item_t *l_item;
+    int     l_rc, l_is_anybody_in_queue, l_is_finished, l_iter_cnt, l_cur_pri,
+            l_is_processed;
+    size_t  l_size;
+    dap_proc_queue_t    *l_queue;
 
     debug_if (g_debug_reactor, L_DEBUG, "--> Proc event callback start, a_esocket:%p ", a_esocket);
 
@@ -183,47 +183,55 @@ dap_proc_queue_t    *l_queue;
     /*@RRL:  l_iter_cnt = DAP_QUE$K_ITER_NR; */
     l_queue = l_thread->proc_queue;
 
-    for (l_cur_pri = (DAP_PROC_PRI_MAX - 1); l_cur_pri; l_cur_pri--, l_iter_cnt++ ) /* Run from higest to lowest ... */
-    {
-        if ( !l_queue->list[l_cur_pri].items.nr )                           /* A lockless quick check */
-            continue;
+    struct timespec l_time_start, l_time_end;
+    clock_gettime(CLOCK_REALTIME, &l_time_start);
+    do {
+        l_is_processed = 0;
+        for (l_cur_pri = (DAP_PROC_PRI_MAX - 1); l_cur_pri; l_iter_cnt++ )                          /* Run from higest to lowest ... */
+        {
+            if ( !l_queue->list[l_cur_pri].items.nr) {                       /* A lockless quick check */
+                l_cur_pri--;
+                continue;
+            }
 
-        //pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
-        l_rc = dap_slist_get4head (&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_item_sz);
-        //pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+            clock_gettime(CLOCK_REALTIME, &l_time_end);
+            if (l_time_end.tv_sec > l_time_start.tv_sec)
+                break;
 
-        if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
-            debug_if (g_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
-            continue;
-        }
+//            pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);                 /* Protect list from other threads */
+            l_rc = dap_slist_get4head(&l_queue->list[l_cur_pri].items, (void **) &l_item, &l_size);
+//            pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
 
-        debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d",
-                       l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
+            if  ( l_rc == -ENOENT ) {                                           /* Queue is empty ? */
+                debug_if (g_debug_reactor, L_DEBUG, "a_esocket:%p - nothing to do at prio: %d ", a_esocket, l_cur_pri);
+                continue;
+            }
 
-        l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
+            debug_if (g_debug_reactor, L_INFO, "Proc event callback (l_item: %p) : %p/%p, prio=%d, iteration=%d",
+                           l_item, l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt);
 
-        debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
-                           l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
+            l_is_processed += 1;
+            l_is_finished = l_item->callback(l_thread, l_item->callback_arg);
 
-        if ( !(l_is_finished) ) {
-                                                                            /* Rearm callback to be executed again */
-            //pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
-            l_rc = dap_slist_add2tail (&l_queue->list[l_cur_pri].items, l_item, l_item_sz );
-            //pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+            debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
+                               l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
 
-            if ( l_rc ) {
-                log_it(L_ERROR, "Error requeue event callback: %p/%p, errno=%d", l_item->callback, l_item->callback_arg, l_rc);
-                DAP_DELETE(l_item);
+            if ( !(l_is_finished) ) {                                       /* Put entry back to queue to repeat of execution */
+                pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
+                l_rc = dap_slist_add2tail(&l_queue->list[l_cur_pri].items, l_item, l_size);
+                pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
+            }
+            else    {
+                DAP_DEL_Z(l_item);
             }
         }
-        else    {
-            DAP_DELETE(l_item);
-    	}
-    }
-    for (l_cur_pri = (DAP_PROC_PRI_MAX - 1); l_cur_pri; l_cur_pri--)        /* Really ?! */
+    } while ( l_is_processed );
+
+
+    for (l_cur_pri = (DAP_PROC_PRI_MAX - 1); l_cur_pri; l_cur_pri--)
         l_is_anybody_in_queue += l_queue->list[l_cur_pri].items.nr;
 
-    if ( l_is_anybody_in_queue )                                            /* Arm event if we have something to proc again */
+    if ( l_is_anybody_in_queue )                                          /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
 
     debug_if(g_debug_reactor, L_DEBUG, "<-- Proc event callback end, items rest: %d, iterations: %d", l_is_anybody_in_queue, l_iter_cnt);
@@ -414,6 +422,7 @@ void dap_proc_thread_worker_exec_callback_inter(dap_proc_thread_t * a_thread, si
     dap_worker_msg_callback_t *l_msg = DAP_NEW_Z(dap_worker_msg_callback_t);
     l_msg->callback = a_callback;
     l_msg->arg = a_arg;
+    debug_if(g_debug_reactor, L_INFO, "Msg with arg %p -> worker %zu", a_arg, a_worker_id);
     dap_events_socket_queue_ptr_send_to_input(a_thread->queue_callback_input[a_worker_id], l_msg);
 }
 

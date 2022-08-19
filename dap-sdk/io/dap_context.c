@@ -379,7 +379,7 @@ static int s_thread_loop(dap_context_t * a_context)
 
     do {
 #ifdef DAP_EVENTS_CAPS_EPOLL
-        struct epoll_event *l_epoll_events = l_context->epoll_events;
+        struct epoll_event *l_epoll_events = a_context->epoll_events;
         l_selected_sockets = epoll_wait(a_context->epoll_fd, l_epoll_events, DAP_EVENTS_SOCKET_MAX, -1);
         l_sockets_max = l_selected_sockets;
 #elif defined(DAP_EVENTS_CAPS_POLL)
@@ -487,6 +487,9 @@ static int s_thread_loop(dap_context_t * a_context)
         if( !l_cur) {
             log_it(L_WARNING, "dap_events_socket was destroyed earlier");
             continue;
+        }
+        // Previously deleted socket, its really bad when it appears
+        if(l_cur->socket == 0 && l_cur->type == 0 ){
         }
 
 
@@ -696,7 +699,8 @@ static int s_thread_loop(dap_context_t * a_context)
                     case DESCRIPTOR_TYPE_QUEUE:
                         dap_events_socket_queue_proc_input_unsafe(l_cur);
                         dap_events_socket_set_writable_unsafe(l_cur, false);
-                    break;
+//                    break;
+                        continue;
                     case DESCRIPTOR_TYPE_EVENT:
                         dap_events_socket_event_proc_input_unsafe(l_cur);
                     break;
@@ -825,6 +829,9 @@ static int s_thread_loop(dap_context_t * a_context)
 
             if (l_flag_write && (l_cur->flags & DAP_SOCK_READY_TO_WRITE) && !(l_cur->flags & DAP_SOCK_CONNECTING)) {
                 debug_if (g_debug_reactor, L_DEBUG, "Main loop output: %zu bytes to send", l_cur->buf_out_size);
+                if (l_cur->callbacks.write_callback)
+                    l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
+
                 /*
                  * Socket is ready to write and not going to close
                  */
@@ -837,9 +844,6 @@ static int s_thread_loop(dap_context_t * a_context)
 
                     l_flag_write = 0;                                           /* Clear flag to exclude unecessary processing of output */
                 }
-
-                if (l_cur->callbacks.write_callback)
-                    l_cur->callbacks.write_callback(l_cur, NULL);           /* Call callback to process write event */
 
                 if ( l_cur->context && l_flag_write ){ // esocket wasn't unassigned in callback, we need some other ops with it
                         switch (l_cur->type){
@@ -1010,7 +1014,7 @@ static int s_thread_loop(dap_context_t * a_context)
             {
                 if (l_cur->buf_out_size == 0) {
                     if(g_debug_reactor)
-                        log_it(L_INFO, "Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr 0x%p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [context #%u]",
+                        log_it(L_INFO, "Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr %p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [context #%u]",
                            l_cur->remote_addr_str ? l_cur->remote_addr_str : "", l_cur->socket, l_cur, l_cur->uuid,
                                l_cur->type, a_context->id);
 
@@ -1150,59 +1154,54 @@ int dap_context_poll_update(dap_events_socket_t * a_esocket)
     }
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     if (a_esocket->socket != -1  ){ // Not everything we add in poll
-        struct kevent * l_event = &a_esocket->kqueue_event;
-        short l_filter  =a_esocket->kqueue_base_filter;
-        u_short l_flags =a_esocket->kqueue_base_flags;
-        u_int l_fflags =a_esocket->kqueue_base_fflags;
+    struct kevent * l_event = &a_esocket->kqueue_event;
+    short l_filter  =a_esocket->kqueue_base_filter;
+    u_short l_flags =a_esocket->kqueue_base_flags;
+    u_int l_fflags =a_esocket->kqueue_base_fflags;
 
-        int l_kqueue_fd = a_esocket->context? a_esocket->context->kqueue_fd : -1;
-        if ( l_kqueue_fd == -1 ){
-            log_it(L_ERROR, "Esocket is not assigned with anything ,exit");
-            return -667;
-        }
+    int l_kqueue_fd = a_esocket->worker? a_esocket->worker->kqueue_fd :
+                      a_esocket->proc_thread ? a_esocket->proc_thread->kqueue_fd : -1;
+    if ( l_kqueue_fd == -1 ){
+        log_it(L_ERROR, "Esocket is not assigned with anything ,exit");
+    }
 
-        // Check & add
-        bool l_is_error=false;
-        int l_errno=0;
-        if (a_esocket->type == DESCRIPTOR_TYPE_EVENT ){
-            EV_SET(l_event, a_esocket->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_esocket->kqueue_event_catched_data );
-            if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) == -1){
+    // Check & add
+    bool l_is_error=false;
+    int l_errno=0;
+    if (a_esocket->type == DESCRIPTOR_TYPE_EVENT || a_esocket->type == DESCRIPTOR_TYPE_QUEUE ){
+        // Do nothing
+    }else{
+        EV_SET(l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+        if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
+            EV_SET(l_event, a_esocket->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+            if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) == -1 ){
                 l_is_error = true;
                 l_errno = errno;
             }
-        }else{
-            EV_SET(l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
-            if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
-                EV_SET(l_event, a_esocket->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
-                if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) == -1 ){
+        }
+        if( !l_is_error){
+            if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING ){
+                EV_SET(l_event, a_esocket->socket, EVFILT_WRITE,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+                if(kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) == -1){
                     l_is_error = true;
                     l_errno = errno;
                 }
             }
-            if( !l_is_error){
-                if( a_esocket->flags & DAP_SOCK_READY_TO_WRITE || a_esocket->flags &DAP_SOCK_CONNECTING ){
-                    EV_SET(l_event, a_esocket->socket, EVFILT_WRITE,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
-                    if(kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) == -1){
-                        l_is_error = true;
-                        l_errno = errno;
-                    }
-                }
-            }
         }
-        if (l_is_error && l_errno == EBADF){
-            log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %zd:%zd bytes",
-                   a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
-            a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-            a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
-        }else if ( l_is_error && l_errno != EINPROGRESS && l_errno != ENOENT){
-            char l_errbuf[128];
-            l_errbuf[0]=0;
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
-                l_kqueue_fd, l_errbuf, l_errno);
-            return l_errno;
-        }
-     }
+    }
+    if (l_is_error && l_errno == EBADF){
+        log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_U":%" DAP_UINT64_FORMAT_U
+                     " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
+        a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
+    }else if ( l_is_error && l_errno != EINPROGRESS && l_errno != ENOENT){
+        char l_errbuf[128];
+        l_errbuf[0]=0;
+        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+        log_it(L_ERROR,"Can't update client socket state on kqueue fd %d: \"%s\" (%d)",
+            l_kqueue_fd, l_errbuf, l_errno);
+    }
+ }
 #else
 #error "Not defined dap_events_socket_set_writable_unsafe for your platform"
 #endif
@@ -1273,6 +1272,7 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
     if ( a_es->type == DESCRIPTOR_TYPE_EVENT /*&& a_es->pipe_out*/){
         goto lb_exit;
     }
+
     struct kevent l_event;
     u_short l_flags = a_es->kqueue_base_flags;
     u_int   l_fflags = a_es->kqueue_base_fflags;
@@ -1284,46 +1284,36 @@ int dap_context_add(dap_context_t * a_context, dap_events_socket_t * a_es )
         l_errno = -1;
         goto lb_exit;
     }
-    /*if (a_es->type == DESCRIPTOR_TYPE_EVENT ){
-        EV_SET(&l_event, a_es->socket, EVFILT_USER,EV_ADD| EV_CLEAR ,0,0, &a_es->kqueue_event_catched_data );
-        if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL)!=0){
+    if( l_filter){
+        EV_SET(&l_event, a_es->socket, l_filter,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
+        if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
             l_is_error = true;
             l_errno = errno;
             goto lb_exit;
+        }else if (g_debug_reactor){
+            log_it(L_DEBUG, "kevent set custom filter %d on fd %d",l_filter, a_es->socket);
         }
-    }else*/
-    {
-        if( l_filter){
-            EV_SET(&l_event, a_es->socket, l_filter,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
+    }else{
+        if( a_es->flags & DAP_SOCK_READY_TO_READ ){
+            EV_SET(&l_event, a_es->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
             if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
                 l_is_error = true;
                 l_errno = errno;
                 goto lb_exit;
             }else if (g_debug_reactor){
-                log_it(L_DEBUG, "kevent set custom filter %d on fd %d",l_filter, a_es->socket);
+                log_it(L_DEBUG, "kevent set EVFILT_READ on fd %d", a_es->socket);
             }
-        }else{
-            if( a_es->flags & DAP_SOCK_READY_TO_READ ){
-                EV_SET(&l_event, a_es->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
-                if( kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0 ){
+
+        }
+        if( !l_is_error){
+            if( a_es->flags & DAP_SOCK_READY_TO_WRITE || a_es->flags &DAP_SOCK_CONNECTING ){
+                EV_SET(&l_event, a_es->socket, EVFILT_WRITE,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
+                if(kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0){
                     l_is_error = true;
                     l_errno = errno;
                     goto lb_exit;
                 }else if (g_debug_reactor){
-                    log_it(L_DEBUG, "kevent set EVFILT_READ on fd %d", a_es->socket);
-                }
-
-            }
-            if( !l_is_error){
-                if( a_es->flags & DAP_SOCK_READY_TO_WRITE || a_es->flags &DAP_SOCK_CONNECTING ){
-                    EV_SET(&l_event, a_es->socket, EVFILT_WRITE,l_flags| EV_ADD,l_fflags,a_es->kqueue_data,a_es);
-                    if(kevent( l_kqueue_fd,&l_event,1,NULL,0,NULL) != 0){
-                        l_is_error = true;
-                        l_errno = errno;
-                        goto lb_exit;
-                    }else if (g_debug_reactor){
-                        log_it(L_DEBUG, "kevent set EVFILT_WRITE on fd %d", a_es->socket);
-                    }
+                    log_it(L_DEBUG, "kevent set EVFILT_WRITE on fd %d", a_es->socket);
                 }
             }
         }
@@ -1388,72 +1378,67 @@ int dap_context_remove( dap_events_socket_t * a_es)
     } //else
       //  log_it( L_DEBUG,"Removed epoll's event from context #%u", l_context->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_TIMER){
-        // Check if its present on current selection
+    if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_EVENT && a_es->type != DESCRIPTOR_TYPE_QUEUE && a_es->type != DESCRIPTOR_TYPE_TIMER){
+    for (ssize_t n = l_context->esocket_current+1; n< l_context->esockets_selected; n++ ){
+        struct kevent * l_kevent_selected = &l_context->kqueue_events_selected[n];
+        dap_events_socket_t * l_cur = NULL;
 
-        for (ssize_t n = l_context->esocket_current+1; n< l_context->esockets_selected; n++ ){
-            struct kevent * l_kevent_selected = &l_context->kqueue_events_selected[n];
-            dap_events_socket_t * l_cur = NULL;
-
-            // Extract current esocket
-            if ( l_kevent_selected->filter == EVFILT_USER){
-                dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
-                if(l_es_w_data){
-                    l_cur = l_es_w_data->esocket;
-                }
-            }else{
-                l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+        // Extract current esocket
+        if ( l_kevent_selected->filter == EVFILT_USER){
+            dap_events_socket_w_data_t * l_es_w_data = (dap_events_socket_w_data_t *) l_kevent_selected->udata;
+            if(l_es_w_data){
+                l_cur = l_es_w_data->esocket;
             }
-
-            // Compare it with current thats removing
-            if (l_cur == a_es){
-                l_kevent_selected->udata = NULL; // Singal to the loop to remove it from processing
-            }
-
+        }else{
+            l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
         }
 
-        // Delete from kqueue
-        struct kevent * l_event = &a_es->kqueue_event;
-        if (a_es->kqueue_base_filter){
-            EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);
+        // Compare it with current thats removing
+        if (l_cur == a_es){
+            l_kevent_selected->udata = NULL; // Singal to the loop to remove it from processing
+        }
+
+    }
+
+    // Delete from kqueue
+    struct kevent * l_event = &a_es->kqueue_event;
+    if (a_es->kqueue_base_filter){
+        EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);
+        if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+            int l_errno = errno;
+            char l_errbuf[128];
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter %d \"%s\" (%d)", a_es->socket,
+                l_context->kqueue_fd,a_es->kqueue_base_filter,  l_errbuf, l_errno);
+        }
+    }else{
+        EV_SET(l_event, a_es->socket, EVFILT_EXCEPT ,EV_DELETE, 0,0,a_es);
+        kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL); // If this filter is not set up - no warnings
+
+
+        if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
+            EV_SET(l_event, a_es->socket, EVFILT_WRITE ,EV_DELETE, 0,0,a_es);
             if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
                 int l_errno = errno;
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter %d \"%s\" (%d)", a_es->socket,
-                    l_context->kqueue_fd,a_es->kqueue_base_filter,  l_errbuf, l_errno);
-                l_ret = l_errno;
+                log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_WRITE \"%s\" (%d)", a_es->socket,
+                    l_context->kqueue_fd, l_errbuf, l_errno);
             }
-        }else{
-            EV_SET(l_event, a_es->socket, EVFILT_EXCEPT ,EV_DELETE, 0,0,a_es);
-            kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL); // If this filter is not set up - no warnings
-
-
-            if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
-                EV_SET(l_event, a_es->socket, EVFILT_WRITE ,EV_DELETE, 0,0,a_es);
-                if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-                    int l_errno = errno;
-                    char l_errbuf[128];
-                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                    log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_WRITE \"%s\" (%d)", a_es->socket,
-                        l_context->kqueue_fd, l_errbuf, l_errno);
-                    l_ret = l_errno;
-                }
-            }
-            if(a_es->flags & DAP_SOCK_READY_TO_READ){
-                EV_SET(l_event, a_es->socket, EVFILT_READ ,EV_DELETE, 0,0,a_es);
-                if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-                    int l_errno = errno;
-                    char l_errbuf[128];
-                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                    log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_READ \"%s\" (%d)", a_es->socket,
-                        l_context->kqueue_fd, l_errbuf, l_errno);
-                    l_ret = l_errno;
-                }
-            }
-
         }
+        if(a_es->flags & DAP_SOCK_READY_TO_READ){
+            EV_SET(l_event, a_es->socket, EVFILT_READ ,EV_DELETE, 0,0,a_es);
+            if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+                int l_errno = errno;
+                char l_errbuf[128];
+                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_READ \"%s\" (%d)", a_es->socket,
+                    l_context->kqueue_fd, l_errbuf, l_errno);
+            }
+        }
+
     }
+}
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (a_es->poll_index < l_context->poll_count ){
         l_context->poll[a_es->poll_index].fd = -1;
@@ -1519,8 +1504,8 @@ dap_events_socket_t *dap_context_find(dap_context_t * a_context, dap_events_sock
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     l_es->kqueue_event_catched_data.esocket = l_es;
-    l_es->kqueue_base_flags =  EV_CLEAR;
-    l_es->kqueue_base_fflags = 0;
+    l_es->kqueue_base_flags =  EV_ONESHOT;
+    l_es->kqueue_base_fflags = NOTE_FFNOP | NOTE_TRIGGER;
     l_es->kqueue_base_filter = EVFILT_USER;
     l_es->socket = arc4random();
 #else
@@ -1745,7 +1730,8 @@ dap_events_socket_t * dap_context_create_event(dap_context_t * a_context, dap_ev
 #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLIN | POLLERR | POLLRDHUP | POLLHUP;
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    l_es->kqueue_base_flags =  EV_CLEAR;
+    l_es->kqueue_base_flags =  EV_ONESHOT;
+    l_es->kqueue_base_fflags = NOTE_FFNOP | NOTE_TRIGGER;
     l_es->kqueue_base_filter = EVFILT_USER;
     l_es->socket = arc4random();
     l_es->kqueue_event_catched_data.esocket = l_es;
