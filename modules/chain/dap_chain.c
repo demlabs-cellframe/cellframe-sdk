@@ -21,17 +21,16 @@
     You should have received a copy of the GNU General Public License
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_chain_common.h"
-#include "dap_chain_datum.h"
-#include "dap_chain_datum_decree.h"
-#include "dap_chain_net_srv.h"
 #include <sys/types.h>
 #include <dirent.h>
 #ifdef DAP_OS_LINUX
 #include <stdc-predef.h>
 #endif
 #include <unistd.h>
-
+#include "dap_chain_net_srv.h"
+#include "dap_chain_common.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
@@ -709,8 +708,20 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
             log_it(L_ERROR, "Can't create cell with id 0x%"DAP_UINT64_FORMAT_x" to save event...", a_cell_id.uint64);
             return -7;
         }
+    }  
+    ssize_t l_res =  dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
+    if (a_chain->callback_atom_add_from_treshold) {
+        dap_chain_atom_ptr_t l_atom_treshold;
+        do {
+            size_t l_atom_treshold_size;
+            l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
+            if (l_atom_treshold) {
+                dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
+                log_it(L_INFO, "Added atom from treshold");
+            }
+        } while(l_atom_treshold);
     }
-    return dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
+    return l_res;
 }
 
 /**
