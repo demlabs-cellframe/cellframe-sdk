@@ -77,6 +77,17 @@ static dap_chain_ledger_verificator_t *s_verificators;
 static  pthread_rwlock_t s_verificators_rwlock;
 
 #define MAX_OUT_ITEMS   10
+
+typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
+	dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
+	dap_chain_hash_fast_t	tx_used_out;
+//	const char 				datum_token_emission_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
+	UT_hash_handle hh;
+} dap_chain_ledger_token_emission_for_stake_lock_item_t;
+
+static dap_chain_ledger_token_emission_for_stake_lock_item_t	*s_emission_for_stake_lock;
+static  pthread_rwlock_t 										s_emission_for_stake_lock_rwlock;
+
 typedef struct dap_chain_ledger_token_emission_item {
     dap_chain_hash_fast_t datum_token_emission_hash;
     dap_chain_datum_token_emission_t *datum_token_emission;
@@ -84,13 +95,7 @@ typedef struct dap_chain_ledger_token_emission_item {
     dap_chain_hash_fast_t tx_used_out;
     UT_hash_handle hh;
 } dap_chain_ledger_token_emission_item_t;
-/*TODO: use this table when issuing for special emission-transactions is approved. needed for smart contracts in the future
-typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
-	dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
-	const char 				datum_token_emission_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
-	UT_hash_handle hh;
-} dap_chain_ledger_token_emission_for_stake_lock_item_t;
-*/
+
 typedef struct dap_chain_ledger_token_item {
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t type;
@@ -250,6 +255,7 @@ int dap_chain_ledger_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
     pthread_rwlock_init(&s_verificators_rwlock, NULL);
+    pthread_rwlock_init(&s_emission_for_stake_lock_rwlock, NULL);
     return 0;
 }
 
@@ -1758,26 +1764,44 @@ dap_chain_ledger_token_emission_item_t *s_emission_item_find(dap_ledger_t *a_led
     pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
     return l_token_emission_item;
 }
-/*TODO: use this function when issuing for special emission-transactions is approved. needed for smart contracts in the future
-dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_find(dap_ledger_t *a_ledger,
-															 const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash)
+
+dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash)
 {
 	dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
-	dap_chain_ledger_token_item_t *l_token_item = NULL;
-	pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
-	HASH_FIND_STR(l_ledger_priv->tokens, a_token_ticker, l_token_item);
-	pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+	dap_chain_ledger_token_emission_for_stake_lock_item_t *l_new_stake_lock_emission;
+	pthread_rwlock_rdlock(&s_emission_for_stake_lock_rwlock);
+	HASH_FIND(hh, s_emission_for_stake_lock, a_token_emission_hash, sizeof(dap_hash_fast_t),
+			  l_new_stake_lock_emission);
+	pthread_rwlock_unlock(&s_emission_for_stake_lock_rwlock);
+	if (l_new_stake_lock_emission) {
+		return l_new_stake_lock_emission;
+	}
+	l_new_stake_lock_emission = DAP_NEW(dap_chain_ledger_token_emission_for_stake_lock_item_t);
+	memcpy(&l_new_stake_lock_emission->datum_token_emission_for_stake_lock_hash, a_token_emission_hash, sizeof(dap_chain_hash_fast_t));
+	memset(&l_new_stake_lock_emission->tx_used_out, 0, sizeof(dap_chain_hash_fast_t));
+	pthread_rwlock_wrlock(&s_emission_for_stake_lock_rwlock);
+	HASH_ADD(hh, s_emission_for_stake_lock, datum_token_emission_for_stake_lock_hash, sizeof(dap_chain_hash_fast_t), l_new_stake_lock_emission);
+	pthread_rwlock_unlock(&s_emission_for_stake_lock_rwlock);
 
-	if (!l_token_item)
-		return NULL;
-	dap_chain_ledger_token_emission_for_stake_lock_item_t *l_token_emission_item = NULL;
-	pthread_rwlock_rdlock(&l_token_item->token_emissions_rwlock);
-	HASH_FIND(hh, l_token_item->token_emissions, a_token_emission_hash, sizeof(*a_token_emission_hash),
-			  l_token_emission_item);
-	pthread_rwlock_unlock(&l_token_item->token_emissions_rwlock);
-	return l_token_emission_item;
+	if (!l_new_stake_lock_emission
+	&&	s_debug_more) {
+		log_it(L_ERROR, "Error: memory allocation when adding item 'dap_chain_ledger_token_emission_for_stake_lock_item_t' to hash-table");
+	}
+
+	return l_new_stake_lock_emission;
 }
-*/
+
+dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_find(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash)
+{
+	dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+	dap_chain_ledger_token_emission_for_stake_lock_item_t *l_new_stake_lock_emission;
+	pthread_rwlock_rdlock(&s_emission_for_stake_lock_rwlock);
+	HASH_FIND(hh, s_emission_for_stake_lock, a_token_emission_hash, sizeof(dap_chain_hash_fast_t),
+			  l_new_stake_lock_emission);
+	pthread_rwlock_unlock(&s_emission_for_stake_lock_rwlock);
+	return l_new_stake_lock_emission;
+}
+
 /**
  * @brief dap_chain_ledger_token_emission_find
  * @param a_token_ticker
@@ -2257,7 +2281,16 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_token = l_tx_token->header.ticker;
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
-			if (!l_emission_item) {//check emission for STAKE_LOCK
+			dap_chain_ledger_token_emission_for_stake_lock_item_t *stake_lock_emission = s_emission_for_stake_lock_item_find(a_ledger, l_emission_hash);
+			if (!l_emission_item && stake_lock_emission) {//check emission for STAKE_LOCK
+				dap_hash_fast_t cur_tx_hash;
+				dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &cur_tx_hash);
+				if (!dap_hash_fast_is_blank(&stake_lock_emission->tx_used_out)
+				&& 	!dap_hash_fast_compare(&cur_tx_hash, &stake_lock_emission->tx_used_out)) {
+					debug_if(s_debug_more, L_WARNING, "stake_lock_emission is used out for tx_token [%s]", l_token);
+					l_err_num = -22;
+					break;
+				}
 				dap_tsd_t *l_tsd;
 				dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
 				if (l_datum_token
@@ -2299,7 +2332,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 							DAP_DELETE(l_emission_rate_str);
 							DAP_DELETE(l_locked_value_str);
 						}
-						l_err_num = -25;
+						l_err_num = -26;
 						break;
 					}
 
@@ -2324,18 +2357,27 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 					}
 					if (strcmp(tx_tiker, l_tsd_section.ticker_token_from)) {
 						debug_if(s_debug_more, L_WARNING, "Tikers not equal for [%s]", l_tx_token->header.ticker);
-						l_err_num = -34;
+						l_err_num = -35;
 						break;
 					}
+
+					memcpy(&stake_lock_emission->tx_used_out, &cur_tx_hash, sizeof(dap_hash_fast_t));
+
 					debug_if(s_debug_more, L_NOTICE, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
 					break;
-                } else {
-                    debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
-                    l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
-                    break;
-                }
+
+				} else {
+					debug_if(s_debug_more, L_WARNING, "tx_token [%s] not valid for stake_lock transaction", l_token);
+					l_err_num = -31;
+					break;
+				}
 			}
 
+			if (!l_emission_item) {
+				debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
+				l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
+				break;
+			}
             if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
                 debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
                 l_err_num = -22;
