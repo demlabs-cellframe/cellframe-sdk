@@ -27,8 +27,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include <stdint.h>
 #include <string.h>
-#include "dap_chain_datum_tx.h"
 #include "dap_net.h"
+#include "dap_time.h"
 #include "dap_stream_ch.h"
 #include "dap_strfuncs.h"
 #include "dap_string.h"
@@ -37,7 +37,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_node.h"
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
-#include "dap_time.h"
+#include "dap_chain_datum_tx.h"
 #include "uthash.h"
 
 
