@@ -1503,7 +1503,7 @@ int dap_global_db_del_unsafe(dap_global_db_context_t * a_global_db_context, cons
     if (a_key) {
         if (l_res >= 0) {
             // add to Del group
-            l_res = s_record_del_history_add(l_store_obj.group, l_store_obj.key, dap_nanotime_now() );
+            l_res = s_record_del_history_add(l_store_obj.group, (char *)l_store_obj.key, dap_nanotime_now() );
         }
         // do not add to history if l_res=1 (already deleted)
         if (!l_res) {

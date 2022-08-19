@@ -10,16 +10,10 @@ set(DAPSDK_MODULES "")
 
 if(NOT DEFINED CELLFRAME_MODULES)
     include (cmake/OS_Detection.cmake)
-    #if(LINUX)
-    #    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange modules-dynamic srv-vpn")
-    #elseif(WIN32 OR BSD OR DARWIN OR ANDROID)
-    #    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    #else()
-    #    set(CELLFRAME_MODULES "core chains network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    #endif()
+
     set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake-pos-delegate srv-stake-lock srv-xchange")
 
-    if(LINUX)
+    if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} modules-dynamic srv-vpn")
     endif()
 

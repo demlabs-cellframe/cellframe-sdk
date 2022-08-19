@@ -2027,15 +2027,21 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int argc, ch
                 return -103;
             }
         }
-        else if ((*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL) {
-				dap_chain_node_cli_set_reply_text(a_str_reply,
-												  "%s requires parameter '-chain' or set default datum type in chain configuration file",
-												  argv[0]);
-				return -104;
+        else if (	!strcmp(argv[0], "token_decl")
+        ||			!strcmp(argv[0], "token_decl_sign")) {
+            if (	(*a_chain = dap_chain_net_get_default_chain_by_chain_type(*a_net, CHAIN_TYPE_TOKEN)) == NULL )
+            {
+                dap_chain_node_cli_set_reply_text(a_str_reply,
+                                                  "%s requires parameter '-chain' or set default datum type in chain configuration file",
+                                                  argv[0]);
+                return -104;
+            }
+        } else {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-chain'", argv[0]);
+            return -104;
         }
     }
     return 0;
-
 }
 
 /**

@@ -26,6 +26,8 @@
 #include "dap_chain.h"
 #include "dap_chain_cs_dag_event.h"
 
+#define DAG_ROUND_CURRENT_KEY "round_current"
+
 typedef struct dap_chain_cs_dag dap_chain_cs_dag_t;
 
 typedef void (*dap_chain_cs_dag_callback_t)(dap_chain_cs_dag_t *);
@@ -82,5 +84,4 @@ void dap_chain_cs_dag_deinit(void);
 int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_cs_dag_delete(dap_chain_t * a_chain);
 void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag);
-dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag,
-                                                              dap_chain_hash_fast_t * a_hash);
+dap_chain_cs_dag_event_t* dap_chain_cs_dag_find_event_by_hash(dap_chain_cs_dag_t * a_dag, dap_chain_hash_fast_t * a_hash);
