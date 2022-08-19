@@ -1172,18 +1172,14 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     int l_n;
 
     if(a_es->pipe_out){ // If we have pipe out - we send events directly to the pipe out kqueue fd
-        if(a_es->pipe_out->worker)
-            l_n = kevent(a_es->pipe_out->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
-        else if (a_es->pipe_out->proc_thread)
-            l_n = kevent(a_es->pipe_out->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
+        if(a_es->pipe_out->context)
+            l_n = kevent(a_es->pipe_out->context->kqueue_fd,&l_event,1,NULL,0,NULL);
         else {
             log_it(L_WARNING,"Trying to send pointer in pipe out queue thats not assigned to any worker or proc thread");
             l_n = -1;
         }
-    }else if(a_es->worker)
-        l_n = kevent(a_es->worker->kqueue_fd,&l_event,1,NULL,0,NULL);
-    else if (a_es->proc_thread)
-        l_n = kevent(a_es->proc_thread->kqueue_fd,&l_event,1,NULL,0,NULL);
+    }else if(a_es->context)
+        l_n = kevent(a_es->context->kqueue_fd,&l_event,1,NULL,0,NULL);
     else
         l_n = -1;
 
