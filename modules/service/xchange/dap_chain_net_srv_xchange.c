@@ -24,11 +24,11 @@
 
 #include <math.h>
 #include <pthread.h>
+#include "dap_chain_net.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_time.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_common.h"
 #include "dap_hash.h"
