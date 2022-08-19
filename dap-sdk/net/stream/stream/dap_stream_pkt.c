@@ -100,10 +100,7 @@ dap_stream_pkt_t * dap_stream_pkt_detect(void * a_data, size_t data_size)
  * @return
  */
 static size_t s_encode_dummy(const void * a_buf, size_t a_buf_size, void * a_buf_out){
-    if(memcpy(a_buf_out,a_buf,a_buf_size) != NULL)
-        return a_buf_size;
-    else
-        return 0;
+    return memcpy(a_buf_out,a_buf,a_buf_size) ? a_buf_size : 0;
 }
 
 /**
@@ -114,15 +111,7 @@ static size_t s_encode_dummy(const void * a_buf, size_t a_buf_size, void * a_buf
  */
 size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a_pkt, void * a_buf_out, size_t a_buf_out_size)
 {
-    size_t ds = a_stream->session->key->dec_na(a_stream->session->key,a_pkt->data,a_pkt->hdr.size,a_buf_out, a_buf_out_size);
-//    log_it(L_DEBUG,"Stream decoded %lu bytes ( last bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", ds,
-//           *((uint8_t *)buf_out+ds-4),*((uint8_t *)buf_out+ds-3),*((uint8_t *)buf_out+ds-2),*((uint8_t *)buf_out+ds-1)
-//           );
-//    size_t mv=35;
-//    log_it(L_DEBUG,"(Decoded  bytes with mv %lu bytes 0x%02x 0x%02x 0x%02x 0x%02x ) ", mv,
-//           *((uint8_t *)buf_out+mv-4),*((uint8_t *)buf_out+mv-3),*((uint8_t *)buf_out+mv-2),*((uint8_t *)buf_out+mv-1)
-//           );
-    return ds;
+    return a_stream->session->key->dec_na(a_stream->session->key,a_pkt->data,a_pkt->hdr.size,a_buf_out, a_buf_out_size);
 }
 
 /**
@@ -133,31 +122,20 @@ size_t dap_stream_pkt_read_unsafe( dap_stream_t * a_stream, dap_stream_pkt_t * a
  * @return
  */
 
-size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, const void * a_data, size_t a_data_size)
+size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, uint8_t a_type, const void * a_data, size_t a_data_size)
 {
     a_stream->is_active = true;
-    size_t ret=0;
-    dap_stream_pkt_hdr_t pkt_hdr;
-
-    uint8_t * l_buf_allocated = NULL;
-    uint8_t * l_buf_selected = a_stream->buf;
-    size_t  l_buf_size_required = a_data_size + DAP_STREAM_PKT_ENCRYPTION_OVERHEAD;
-
-    if(l_buf_size_required > sizeof(a_stream->buf) ){
-        l_buf_allocated = DAP_NEW_SIZE(uint8_t, l_buf_size_required);
-        l_buf_selected = l_buf_allocated;
-    }
-
-    memset(&pkt_hdr,0,sizeof(pkt_hdr));
-    memcpy(pkt_hdr.sig,c_dap_stream_sig,sizeof(pkt_hdr.sig));
-
-    pkt_hdr.size =(uint32_t) dap_enc_code( a_stream->session->key, a_data,a_data_size,l_buf_selected, l_buf_size_required, DAP_ENC_DATA_TYPE_RAW);
-
-    ret+=dap_events_socket_write_unsafe(a_stream->esocket,&pkt_hdr,sizeof(pkt_hdr));
-    ret+=dap_events_socket_write_unsafe(a_stream->esocket,l_buf_selected,pkt_hdr.size);
-
-    if(l_buf_allocated)
-        DAP_DELETE(l_buf_allocated);
+    size_t ret = 0;
+    uint8_t *l_buf = a_stream->buf;
+    dap_stream_pkt_hdr_t *l_pkt_hdr = (dap_stream_pkt_hdr_t*)l_buf;
+    memset(l_buf, 0, sizeof(dap_stream_pkt_hdr_t));
+    l_pkt_hdr->type = a_type;
+    memcpy(l_pkt_hdr->sig, c_dap_stream_sig, sizeof(l_pkt_hdr->sig));
+    l_pkt_hdr->size = (uint32_t)dap_enc_code(a_stream->session->key, a_data, a_data_size,
+                                             l_buf + sizeof(dap_stream_pkt_hdr_t),
+                                             a_data_size + DAP_STREAM_PKT_ENCRYPTION_OVERHEAD,
+                                             DAP_ENC_DATA_TYPE_RAW);
+    ret = dap_events_socket_write_unsafe(a_stream->esocket, l_buf, sizeof(dap_stream_pkt_hdr_t) + l_pkt_hdr->size);
     return ret;
 }
 

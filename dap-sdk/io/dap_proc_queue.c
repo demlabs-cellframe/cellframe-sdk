@@ -240,6 +240,7 @@ dap_proc_queue_msg_t *l_msg;
     l_msg->pri = a_pri;
 
     debug_if(g_debug_reactor, L_DEBUG, "Requested inter l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+
     return  dap_events_socket_queue_ptr_send_to_input( a_es_input , l_msg );
 }
 
