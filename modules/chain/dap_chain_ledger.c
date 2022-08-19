@@ -2373,6 +2373,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 				}
 			}
 
+			if (!l_emission_item) {
+				debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
+				l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
+				break;
+			}
             if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
                 debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
                 l_err_num = -22;
