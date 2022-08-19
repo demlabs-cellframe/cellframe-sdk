@@ -852,7 +852,7 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
                 DAP_DELETE(l_tx_hash_str);
             }
             char* l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
-            if (dap_chain_net_srv_order_delete_by_hash_str(l_price->net, l_order_hash_str)) {
+            if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str)) {
                 dap_string_append_printf(l_str_reply, "Can't remove order %s\n", l_order_hash_str);
             }
             DAP_DELETE(l_order_hash_str);
@@ -928,14 +928,14 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
             }
             // Update the order
             char* l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
-            dap_chain_net_srv_order_delete_by_hash_str(l_price->net, l_order_hash_str);
+            dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
             DAP_DELETE(l_order_hash_str);
             l_order_hash_str = s_xchange_order_create(l_price, l_tx);
             if (l_order_hash_str) {
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
                 if (!s_xchange_tx_put(l_tx, l_net)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
-                    dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
+                    dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_str);
                     DAP_DELETE(l_order_hash_str);
                     return -15;
                 }
@@ -1307,7 +1307,7 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
             dap_chain_datum_tx_t* l_tx = s_xchange_tx_create_exchange(l_price, l_wallet, l_datoshi_buy);
             if (l_tx && s_xchange_tx_put(l_tx, l_net)) {
                 // TODO send request to seller to update / delete order & price
-                dap_chain_net_srv_order_delete_by_hash_str(l_price->net, l_order_hash_str);
+                dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
             }
             DAP_DELETE(l_price);
             DAP_DELETE(l_order);
