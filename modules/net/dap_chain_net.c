@@ -1731,28 +1731,34 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain)
-    {
+    DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
-
         if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none"))
             dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
         else
             dap_chain_load_all(l_chain);
+    }
+
+    if (l_chain->callback_atom_add_from_treshold) {
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+                debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
-    bool l_processed;
-        do {
-            l_processed = false;
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-               if (l_chain->callback_atom_add_from_treshold) {
-                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                        log_it(L_DEBUG, "Added atom from treshold");
-                        l_processed = true;
-                    }
+    }
+
+    /*bool l_processed;
+    do {
+        l_processed = false;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            if (l_chain->callback_atom_add_from_treshold) {
+                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                    log_it(L_DEBUG, "Added atom from treshold");
+                    l_processed = true;
                 }
             }
-        } while (l_processed);
+        }
+    } while (l_processed); */ /* WTF is this? */
 }
 
 /**

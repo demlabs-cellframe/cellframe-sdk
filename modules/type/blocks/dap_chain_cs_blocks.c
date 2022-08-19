@@ -618,15 +618,15 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
  */
 static void s_callback_delete(dap_chain_t * a_chain)
 {
-    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS ( a_chain );
+    s_callback_cs_blocks_purge(a_chain);
+    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     if(l_blocks->callback_delete )
         l_blocks->callback_delete(l_blocks);
-    DAP_DEL_Z(l_blocks->_inheritor)
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->datums_lock);
-    dap_chain_block_chunks_delete(PVT(l_blocks)->chunks );
+    DAP_DEL_Z(l_blocks->_inheritor)
     DAP_DEL_Z(l_blocks->_pvt)
     log_it(L_INFO, "Block destructed");
 }
@@ -634,16 +634,15 @@ static void s_callback_delete(dap_chain_t * a_chain)
 static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
+    pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
     dap_chain_block_cache_t *l_block, *l_block_tmp;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
         DAP_DELETE(l_block->block);
-        DAP_DELETE(l_block);
+        dap_chain_block_cache_delete(l_block);
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
-    PVT(l_blocks)->chunks = DAP_NEW_Z(dap_chain_block_chunks_t);
 }
 
 /**
@@ -1120,7 +1119,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
             dap_chain_atom_ptr_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, l_block_cache->links_hash_count *sizeof (dap_chain_atom_ptr_t) );
             for (size_t i = 0; i< l_block_cache->links_hash_count; i ++){
                 dap_chain_cs_blocks_t *l_cs_blocks = (dap_chain_cs_blocks_t *)l_block_cache->_inheritor;
-                dap_chain_block_cache_t *l_link =  dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_block_cache->links_hash[i]);
+                dap_chain_block_cache_t *l_link = dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_block_cache->links_hash[i]);
                 assert(l_link);
                 (*a_links_size_ptr)[i] = l_link->block_size;
                 l_ret[i] = l_link->block;

@@ -611,7 +611,7 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                         log_it(L_WARNING, "Merkle root meta #%zu has wrong size %hu when expecting %zu", i, l_meta->hdr.data_size, sizeof (*a_nonce2));
                 }
             break;
-            default: { log_it(L_WARNING, "Unknown meta #%zu type 0x%02hx (size %hu), possible corrupted block or you need to upgrade your software",
+            default: { log_it(L_WARNING, "Unknown meta #%zu type 0x%02x (size %u), possible corrupted block or you need to upgrade your software",
                                  i, l_meta->hdr.type, l_meta->hdr.type); }
         }
     }
