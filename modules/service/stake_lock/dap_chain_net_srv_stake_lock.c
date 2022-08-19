@@ -685,7 +685,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case NO_DELEGATE_TOKEN_ERROR: {
-			dap_string_append_printf(output_line, "delegated token not found");
+			dap_string_append_printf(output_line, " ^^^ delegated token not found");
 			} break;
 
 		case NO_VALID_SUBTYPE_ERROR: {
