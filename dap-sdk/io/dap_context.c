@@ -1379,8 +1379,8 @@ int dap_context_remove( dap_events_socket_t * a_es)
       //  log_it( L_DEBUG,"Removed epoll's event from context #%u", l_context->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_EVENT && a_es->type != DESCRIPTOR_TYPE_QUEUE && a_es->type != DESCRIPTOR_TYPE_TIMER){
-    for (ssize_t n = a_worker->esocket_current+1; n< a_worker->esockets_selected; n++ ){
-        struct kevent * l_kevent_selected = &a_worker->kqueue_events_selected[n];
+    for (ssize_t n = l_context->esocket_current+1; n< l_context->esockets_selected; n++ ){
+        struct kevent * l_kevent_selected = &l_context->kqueue_events_selected[n];
         dap_events_socket_t * l_cur = NULL;
 
         // Extract current esocket
@@ -1404,36 +1404,36 @@ int dap_context_remove( dap_events_socket_t * a_es)
     struct kevent * l_event = &a_es->kqueue_event;
     if (a_es->kqueue_base_filter){
         EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);
-        if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+        if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
             int l_errno = errno;
             char l_errbuf[128];
             strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
             log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter %d \"%s\" (%d)", a_es->socket,
-                a_worker->kqueue_fd,a_es->kqueue_base_filter,  l_errbuf, l_errno);
+                l_context->kqueue_fd,a_es->kqueue_base_filter,  l_errbuf, l_errno);
         }
     }else{
         EV_SET(l_event, a_es->socket, EVFILT_EXCEPT ,EV_DELETE, 0,0,a_es);
-        kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL); // If this filter is not set up - no warnings
+        kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL); // If this filter is not set up - no warnings
 
 
         if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
             EV_SET(l_event, a_es->socket, EVFILT_WRITE ,EV_DELETE, 0,0,a_es);
-            if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+            if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
                 int l_errno = errno;
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
                 log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_WRITE \"%s\" (%d)", a_es->socket,
-                    a_worker->kqueue_fd, l_errbuf, l_errno);
+                    l_context->kqueue_fd, l_errbuf, l_errno);
             }
         }
         if(a_es->flags & DAP_SOCK_READY_TO_READ){
             EV_SET(l_event, a_es->socket, EVFILT_READ ,EV_DELETE, 0,0,a_es);
-            if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+            if ( kevent( l_context->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
                 int l_errno = errno;
                 char l_errbuf[128];
                 strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
                 log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_READ \"%s\" (%d)", a_es->socket,
-                    a_worker->kqueue_fd, l_errbuf, l_errno);
+                    l_context->kqueue_fd, l_errbuf, l_errno);
             }
         }
 

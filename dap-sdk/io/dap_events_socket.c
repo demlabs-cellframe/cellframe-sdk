@@ -543,20 +543,9 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             void * l_queue_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
             char l_body[DAP_QUEUE_MAX_MSGS] = { '\0' };
-            ssize_t l_read_ret = read(a_esocket->fd, l_body, sizeof(l_body));
-            int l_errno = errno;
-            if(l_read_ret > 0) {
-                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from pipe", l_read_ret);
-                for (long shift = 0; shift < l_read_ret; shift += sizeof(void*)) {
-                    l_queue_ptr = *(void **)(l_body + shift);
-                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
-                }
-            }
-            else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
-                log_it(L_ERROR, "Can't read message from pipe");
 #if defined (DAP_EVENTS_CAPS_AIO)
             struct queue_ptr_aio l_queue_ptr_aio={0};
-            l_read_ret = read( a_esocket->fd, &l_queue_ptr_aio,sizeof (l_queue_ptr_aio ));
+            ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr_aio,sizeof (l_queue_ptr_aio ));
 #else
             ssize_t l_read_ret = read( a_esocket->fd, &l_queue_ptr,sizeof (void *));
 #endif
@@ -588,10 +577,15 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                 log_it(L_DEBUG, "%s code received, do nothing on this loop",
                        l_read_errno == EAGAIN? "EAGAIN": l_read_errno == EWOULDBLOCK ? "EWOULDBLOCK": "UNKNOWN" );
 #else
-            if( l_read_ret == (ssize_t) sizeof (void *))
-                a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
-            else if ( (l_read_errno != EAGAIN) && (l_read_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
-                log_it(L_WARNING, "Can't read packet from pipe");
+            if(l_read_ret > 0) {
+                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from pipe", l_read_ret);
+                for (long shift = 0; shift < l_read_ret; shift += sizeof(void*)) {
+                    l_queue_ptr = *(void **)(l_body + shift);
+                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                }
+            }
+            else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+                log_it(L_ERROR, "Can't read message from pipe");
 #endif
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
