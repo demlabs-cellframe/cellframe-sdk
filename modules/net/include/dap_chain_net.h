@@ -86,41 +86,8 @@ typedef struct dap_chain_net{
     uint8_t pvt[];
 } dap_chain_net_t;
 
-typedef enum dap_chain_net_tx_search_type {
-    /// Search local, in memory, possible load data from drive to memory
-    TX_SEARCH_TYPE_LOCAL,
-    /// Do the request to the network if its not full node, search inside shard
-    TX_SEARCH_TYPE_CELL,
-    /// Do the request for unspent txs in cell
-    TX_SEARCH_TYPE_CELL_UNSPENT,
-    /// Do the search in whole network and request tx from others cells if need
-    TX_SEARCH_TYPE_NET,
-    /// Do the search in whole network but search only unspent
-    TX_SEARCH_TYPE_NET_UNSPENT,
-    /// Do the request for spent txs in cell
-    TX_SEARCH_TYPE_CELL_SPENT,
-    /// Do the search in whole
-    TX_SEARCH_TYPE_NET_SPENT
-}dap_chain_net_tx_search_type_t;
 
-typedef struct dap_chain_datum_tx_spends_item{
-    dap_chain_datum_tx_t * tx;
-    dap_hash_fast_t tx_hash;
-
-    dap_chain_tx_out_cond_t *out_cond;
-    dap_chain_tx_in_cond_t *in_cond;
-
-    dap_chain_datum_tx_t * tx_next;
-    UT_hash_handle hh;
-}dap_chain_datum_tx_spends_item_t;
-
-typedef struct dap_chain_datum_tx_spends_items{
-    dap_chain_datum_tx_spends_item_t * tx_outs;
-    dap_chain_datum_tx_spends_item_t * tx_ins;
-} dap_chain_datum_tx_spends_items_t;
 typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);
-typedef void (dap_chain_net_tx_hash_callback_t)(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg);
-
 
 
 int dap_chain_net_init(void);
@@ -179,33 +146,7 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net);
 
 
-// TX functions
-dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
-                                                     dap_chain_net_tx_search_type_t a_search_type);
 
-dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_net_srv_uid_t a_srv_uid);
-
-uint256_t dap_chain_net_get_tx_total_value(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx );
-
-void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_type_t a_search_type ,dap_chain_net_tx_hash_callback_t a_tx_callback, void * a_arg);
-
-
-dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
-                                                      const dap_time_t a_time_from, const dap_time_t a_time_to,
-                                                     const dap_chain_net_tx_search_type_t a_search_type);
-
-dap_list_t * dap_chain_net_get_tx_all_from_tx(dap_chain_net_t * a_net, dap_hash_fast_t * l_tx_hash);
-
-
-
-
-dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
-                                                      const dap_time_t a_time_from, const dap_time_t a_time_to,
-                                                     const dap_chain_net_tx_search_type_t a_search_type);
-void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_items);
-void dap_chain_datum_tx_spends_items_free(dap_chain_datum_tx_spends_items_t * a_items);
-
-//-------
 
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 
