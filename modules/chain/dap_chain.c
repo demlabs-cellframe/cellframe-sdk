@@ -415,9 +415,9 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 			{
                 log_it (L_NOTICE, "Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x, l_chain_id.uint64);
 
-                if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) )
+                if ( dap_config_get_item_path_default(l_cfg , "files","storage_dir",NULL ) )
 				{
-                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = dap_strdup( dap_config_get_item_str( l_cfg , "files","storage_dir" ) );
+                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = dap_strdup( dap_config_get_item_path( l_cfg , "files","storage_dir" ) );
                     if (dap_chain_load_all(l_chain) == 0)
                         log_it (L_NOTICE, "Loaded chain files");
                     else {
