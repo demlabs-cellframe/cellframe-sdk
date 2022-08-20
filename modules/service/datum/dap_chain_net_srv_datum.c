@@ -240,7 +240,7 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
         log_it(L_DEBUG, "Condition with required subtype SRV_PAY not found in requested tx");
     }
     dap_hash_fast_t l_sign_hash;
-    if (!dap_sign_get_pkey_hash((dap_sign_t *)&l_order->ext_n_sign[l_order->ext_size], &l_sign_hash)) {
+    if (!dap_sign_get_pkey_hash((dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size), &l_sign_hash)) {
          log_it(L_DEBUG, "Wrong order sign");
          return;
     }

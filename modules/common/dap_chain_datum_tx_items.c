@@ -245,7 +245,7 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
     dap_chain_tx_in_t *l_item = DAP_NEW_Z(dap_chain_tx_in_t);
     l_item->header.type = TX_ITEM_TYPE_IN;
     l_item->header.tx_out_prev_idx = a_tx_out_prev_idx;
-    memcpy(&l_item->header.tx_prev_hash, a_tx_prev_hash, sizeof(dap_chain_hash_fast_t));
+    l_item->header.tx_prev_hash = *a_tx_prev_hash;
     return l_item;
 }
 
@@ -265,7 +265,7 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
     l_item->header.type = TX_ITEM_TYPE_IN_COND;
     l_item->header.receipt_idx = a_receipt_idx;
     l_item->header.tx_out_prev_idx = a_tx_out_prev_idx;
-    memcpy(&l_item->header.tx_prev_hash, a_tx_prev_hash,sizeof(l_item->header.tx_prev_hash) );
+    l_item->header.tx_prev_hash = *a_tx_prev_hash;
     return l_item;
 }
 
@@ -279,10 +279,7 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
     if (IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_t *l_item = DAP_NEW_Z(dap_chain_tx_out_t);
-	if(!a_addr){
-		memset(&l_item->addr, 0, sizeof(dap_chain_addr_t));
-	} else
-		memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
+    l_item->addr = a_addr ? *a_addr : (dap_chain_addr_t) { 0 };
     l_item->header.type = TX_ITEM_TYPE_OUT;
     l_item->header.value = a_value;
     return l_item;
@@ -297,7 +294,7 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
     dap_chain_tx_out_ext_t *l_item = DAP_NEW_Z(dap_chain_tx_out_ext_t);
     l_item->header.type = TX_ITEM_TYPE_OUT_EXT;
     l_item->header.value = a_value;
-    memcpy(&l_item->addr, a_addr, sizeof(dap_chain_addr_t));
+    l_item->addr = *a_addr;
     strcpy(l_item->token, a_token);
     return l_item;
 }
@@ -382,10 +379,10 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake.fee_value = a_fee_value;
-    memcpy(&l_item->subtype.srv_stake.fee_addr, a_fee_addr, sizeof(dap_chain_addr_t));
-    memcpy(&l_item->subtype.srv_stake.hldr_addr, a_hldr_addr, sizeof(dap_chain_addr_t));
-    memcpy(&l_item->subtype.srv_stake.signing_addr, a_signing_addr, sizeof(dap_chain_addr_t));
-    memcpy(&l_item->subtype.srv_stake.signer_node_addr, a_signer_node_addr, sizeof(dap_chain_node_addr_t));
+    l_item->subtype.srv_stake.fee_addr = *a_fee_addr;
+    l_item->subtype.srv_stake.hldr_addr = *a_hldr_addr;
+    l_item->subtype.srv_stake.signing_addr = *a_signing_addr;
+    l_item->subtype.srv_stake.signer_node_addr = *a_signer_node_addr;
     return l_item;
 }
 

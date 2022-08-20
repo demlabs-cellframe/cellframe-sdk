@@ -463,7 +463,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
             l_node_info_read->hdr.links_number++;
             l_node_info_read_size = dap_chain_node_info_get_size(l_node_info_read);
             l_node_info_read = DAP_REALLOC(l_node_info_read, l_node_info_read_size);
-            memcpy(&(l_node_info_read->links[l_node_info_read->hdr.links_number-1]), link, sizeof(dap_chain_node_addr_t));
+            l_node_info_read->links[l_node_info_read->hdr.links_number-1] = *link;
             res_successful = true;
         }
     }
@@ -472,7 +472,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
         // move link list to one item prev
         if(index_link >= 0) {
             for(unsigned int j = (unsigned int) index_link; j < (l_node_info_read->hdr.links_number - 1); j++) {
-                memcpy(&(l_node_info_read->links[j]), &(l_node_info_read->links[j + 1]), sizeof(dap_chain_node_addr_t));
+                l_node_info_read->links[j] = l_node_info_read->links[j + 1];
             }
             l_node_info_read->hdr.links_number--;
             res_successful = true;
@@ -998,7 +998,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_digit_from_string(l_addr_str, l_node_addr.raw, sizeof(l_node_addr.raw));
         }
         if(l_node_info)
-            memcpy(&l_node_info->hdr.address, &l_node_addr, sizeof(dap_chain_node_addr_t));
+            l_node_info->hdr.address = l_node_addr;
     }
     if(l_port_str) {
         uint16_t l_node_port = 0;
@@ -1090,7 +1090,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
             if(address_tmp) {
-                memcpy(&l_node_addr, address_tmp, sizeof(*address_tmp));
+                l_node_addr = *address_tmp;
                 DAP_DELETE(address_tmp);
             }
             else {
@@ -1354,7 +1354,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
             if(address_tmp) {
-                memcpy(&l_node_addr, address_tmp, sizeof(*address_tmp));
+                l_node_addr = *address_tmp;
                 DAP_DELETE(address_tmp);
             }
             else {

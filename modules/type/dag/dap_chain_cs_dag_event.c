@@ -270,8 +270,8 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
 
     l_round_item->event_size = (uint32_t)a_event_size;
     l_round_item->data_size = (uint32_t)(a_event_size+l_signs_size);
+    l_round_item->round_info = a_round_item->round_info;
 
-    memcpy(&l_round_item->round_info, &a_round_item->round_info, sizeof(dap_chain_cs_dag_event_round_info_t));
     memcpy(l_round_item->event_n_signs,                 a_event, a_event_size);
     memcpy(l_round_item->event_n_signs + a_event_size,  l_signs, l_signs_size);
 
