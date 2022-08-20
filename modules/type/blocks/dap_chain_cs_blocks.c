@@ -643,6 +643,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
+    PVT(l_blocks)->chunks = DAP_NEW_Z(dap_chain_block_chunks_t);
 }
 
 /**
@@ -683,7 +684,7 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
                     // Save tx hash -> block_hash link in hash table
                     dap_chain_tx_block_index_t * l_tx_block= DAP_NEW_Z(dap_chain_tx_block_index_t);
                     l_tx_block->ts_added = time(NULL);
-                    memcpy(&l_tx_block->block_hash, &a_block_cache->block_hash, sizeof ( l_tx_block->block_hash));
+                    l_tx_block->block_hash = a_block_cache->block_hash;
                     dap_hash_fast(l_tx, l_tx_size, &l_tx_block->tx_hash);
                     pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
                     HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);

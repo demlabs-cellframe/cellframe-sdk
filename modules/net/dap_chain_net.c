@@ -1740,8 +1740,8 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
             dap_chain_load_all(l_chain);
     }
 
-    if (l_chain->callback_atom_add_from_treshold) {
-        DL_FOREACH(l_net->pub.chains, l_chain) {
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (l_chain->callback_atom_add_from_treshold) {
             while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
@@ -2638,7 +2638,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     l_net_pvt->node_info = dap_chain_node_info_read (l_net, l_node_addr);
                     if ( !l_net_pvt->node_info ) { // If not present - create it
                         l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                        memcpy(&l_net_pvt->node_info->hdr.address, l_node_addr,sizeof (*l_node_addr));
+                        l_net_pvt->node_info->hdr.address = *l_node_addr;
                         if (dap_config_get_item_bool_default(g_config,"server","enabled",false) ){
                             const char * l_ext_addr_v4 = dap_config_get_item_str_default(g_config,"server","ext_address",NULL);
                             const char * l_ext_addr_v6 = dap_config_get_item_str_default(g_config,"server","ext_address6",NULL);

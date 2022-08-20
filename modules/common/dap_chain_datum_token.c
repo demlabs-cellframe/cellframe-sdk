@@ -220,7 +220,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_va
     strncpy(l_emission->hdr.ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_emission->hdr.ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
     l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
-    memcpy(&l_emission->hdr.address, a_addr, sizeof(l_emission->hdr.address));
+    l_emission->hdr.address = *a_addr;
     dap_uuid_generate_nonce(&l_emission->hdr.nonce, DAP_CHAIN_DATUM_NONCE_SIZE);
     return l_emission;
 }

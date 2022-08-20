@@ -984,9 +984,9 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
 #endif
 
 	char delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-	if (l_receipt->exts_size) {
-		memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
-		strcpy(delegated_ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
+    if (l_receipt->exts_size) {
+        hash_burning_transaction = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
+        strcpy(delegated_ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
 	} else
 		return false;
 
