@@ -1171,26 +1171,33 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 
         if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
 		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)){
+				char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
+				char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
                 l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
+											   	"\tSupply (current/total) %s/%s\n"
                                                 "\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
                                                 "\tTotal emissions %u\n",
                                                 &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags),
+											   	l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                                 HASH_COUNT(l_token_item->token_emissions));
+				DAP_DEL_Z(l_balance_cur);
+				DAP_DEL_Z(l_balance_total);
         } else {
                 char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
                 char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
                 l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
                                                 "\tSupply (current/total) %s/%s\n"
+											   	"\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
                                                 "\tTotal emissions %u\n",
                                                 &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags),
                                                 l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                                 HASH_COUNT(l_token_item->token_emissions));
-                DAP_DELETE(l_balance_cur);
-                DAP_DELETE(l_balance_total);
+                DAP_DEL_Z(l_balance_cur);
+                DAP_DEL_Z(l_balance_total);
         }
 
         l_ret_list = dap_list_append(l_ret_list, l_item_str);
@@ -2329,8 +2336,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 							char * l_locked_value_str = dap_chain_balance_print(l_tx_stake_lock_out_cond->header.value);
 							log_it( L_WARNING, "Multiplication overflow for %s emission: locked value %s emission rate %s"
 							, l_tx_token->header.ticker, l_locked_value_str, l_emission_rate_str);
-							DAP_DELETE(l_emission_rate_str);
-							DAP_DELETE(l_locked_value_str);
+							DAP_DEL_Z(l_emission_rate_str);
+							DAP_DEL_Z(l_locked_value_str);
 						}
 						l_err_num = -26;
 						break;
@@ -2343,8 +2350,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 						debug_if(s_debug_more, L_WARNING, "Value %s not thats expected %s for [%s]",l_locked_value_str, l_value_expected_str,
 								 l_tx_token->header.ticker);
 
-						DAP_DELETE(l_value_expected_str);
-						DAP_DELETE(l_locked_value_str);
+						DAP_DEL_Z(l_value_expected_str);
+						DAP_DEL_Z(l_locked_value_str);
 						l_err_num = -34;
 						break;
 					}
@@ -2361,7 +2368,43 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 						break;
 					}
 
-					memcpy(&stake_lock_emission->tx_used_out, &cur_tx_hash, sizeof(dap_hash_fast_t));
+					//Update value in ledger memory object
+					if (dap_hash_fast_is_blank(&stake_lock_emission->tx_used_out)) {
+						l_token_item = NULL;
+						pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
+						HASH_FIND_STR(l_ledger_priv->tokens, l_token, l_token_item);
+						pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
+						if (!l_token_item){
+							if(s_debug_more)
+								log_it(L_WARNING, "No token item found for token %s", l_token);
+							l_err_num = -15;
+							break;
+						}
+						if (!IS_ZERO_256(l_token_item->total_supply)) {
+							if (compare256(l_token_item->current_supply, l_tx_out->header.value) >= 0){
+								SUBTRACT_256_256(l_token_item->current_supply, l_tx_out->header.value, &l_token_item->current_supply);
+								char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
+								log_it(L_DEBUG, "New current supply %s for token %s", l_balance, l_token_item->ticker);
+								DAP_DEL_Z(l_balance);
+							} else {
+								char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
+								char *l_value = dap_chain_balance_print(l_tx_out->header.value);
+								log_it(L_WARNING, "Token current supply %s lower, than emission value = %s",
+									   l_balance, l_value);
+								DAP_DEL_Z(l_balance);
+								DAP_DEL_Z(l_value);
+								l_err_num = -30;
+								break;
+							}
+							memcpy(&stake_lock_emission->tx_used_out, &cur_tx_hash, sizeof(dap_hash_fast_t));
+							//update current_supply in ledger cache and ledger memory object
+							s_update_token_cache(a_ledger, l_token_item);
+						} else {
+							log_it(L_DEBUG, "Total supply for token %s not found", l_token_item->ticker);
+							l_err_num = -32;
+							break;
+						}
+					}
 
 					debug_if(s_debug_more, L_NOTICE, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
 					break;
