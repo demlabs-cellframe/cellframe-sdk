@@ -172,7 +172,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
                     continue;
                 }
                 voting_node_client_list_t *l_node_client_item = DAP_NEW_Z(voting_node_client_list_t);
-                memcpy(&l_node_client_item->node_addr, l_remote_node_addr, sizeof(dap_chain_node_addr_t));
+                l_node_client_item->node_addr = *l_remote_node_addr;
                 l_node_client_item->node_info = l_node_info;
                 l_node_client_item->node_client = l_node_client;
                 HASH_ADD(hh, s_node_client_list, node_addr, sizeof(dap_chain_node_addr_t), l_node_client_item);
