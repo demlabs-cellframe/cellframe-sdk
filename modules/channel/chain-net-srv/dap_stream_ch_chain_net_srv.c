@@ -395,7 +395,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         l_request->err_code = 0;
         strncpy(l_request->ip_send, a_ch->stream->esocket->hostaddr, INET_ADDRSTRLEN);
         struct timespec l_recvtime2;
-        clock_gettime(CLOCK_REALTIME, &l_recvtime2);
+        clck_gettime(CLOCK_REALTIME, &l_recvtime2);
         l_request->recv_time2 = l_recvtime2;
 
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request,
@@ -556,7 +556,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         } else {
             l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t);
         }
-        dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_S_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+        dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
         l_success->hdr.usage_id         = l_usage->id;
         l_success->hdr.net_id.uint64    = l_usage->net->pub.id.uint64;
@@ -612,7 +612,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         size_t l_out_data_size = 0;
         void *l_out_data = l_srv->callbacks.custom_data(l_srv, l_usage, l_pkt->data, l_pkt_size, &l_out_data_size);
         if (l_out_data && l_out_data_size) {
-            pkt_t *l_data = DAP_NEW_S_SIZE(pkt_t, sizeof(pkt_t) + l_out_data_size);
+            pkt_t *l_data = DAP_NEW_STACK_SIZE(pkt_t, sizeof(pkt_t) + l_out_data_size);
             l_data->hdr.version     = 1;
             l_data->hdr.srv_uid     = l_srv->uid;
             l_data->hdr.usage_id    = l_pkt->hdr.usage_id;
