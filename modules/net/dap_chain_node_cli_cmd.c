@@ -424,7 +424,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
     }
     // TODO check the presence of link in the node base
 #ifdef DAP_CHAIN_NODE_CHECK_PRESENSE
-        dap_chain_node_cli_set_reply_text(a_str_reply, "node 0x%016llx not found in base", link->uint64);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "node 0x%016llx not found in base", link->uint64);
         return -1;
 #endif
 
@@ -1253,7 +1253,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             /*                if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
              l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
              sizeof(l_sync_request))) {
-             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
+             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
              // clean client struct
              dap_chain_node_client_close(l_node_client);
              DAP_DELETE(l_remote_node_info);
@@ -1433,7 +1433,7 @@ int com_traceroute(int argc, char** argv, char **str_reply)
     iputils_set_verbose();
     int res = (addr) ? traceroute_util(addr, &hops, &time_usec) : -EADDRNOTAVAIL;
     if(res >= 0) {
-        dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s hops=%d time=%.1lf ms", addr, hops,
+        dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s hops=%d time=%.1lf ms", addr, hops,
                 time_usec * 1. / 1000);
     }
     else {
@@ -1441,53 +1441,53 @@ int com_traceroute(int argc, char** argv, char **str_reply)
             switch (-res)
             {
             case EADDRNOTAVAIL:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", (addr) ? addr : "",
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", (addr) ? addr : "",
                         (addr) ? "Name or service not known" : "Host not defined");
                 break;
             case 2:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr,
                         "Unknown traceroute module");
                 break;
             case 3:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr, "first hop out of range");
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr, "first hop out of range");
                 break;
             case 4:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr,
                         "max hops cannot be more than 255");
                 break;
             case 5:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr,
                         "no more than 10 probes per hop");
                 break;
             case 6:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr,
                         "bad wait specifications");
                 break;
             case 7:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr, "too big packetlen ");
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr, "too big packetlen ");
                 break;
             case 8:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr,
                         "IP version mismatch in addresses specified");
                 break;
             case 9:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr, "bad sendtime");
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr, "bad sendtime");
                 break;
             case 10:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr, "init_ip_options");
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr, "init_ip_options");
                 break;
             case 11:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr, "calloc");
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr, "calloc");
                 break;
             case 12:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr, "parse cmdline");
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr, "parse cmdline");
                 break;
             case 13:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error: %s", addr,
                         "trace method's init failed");
                 break;
             default:
-                dap_chain_node_cli_set_reply_text(str_reply, "traceroute %s error(%d) %s", addr, res,
+                dap_cli_server_cmd_set_reply_text(str_reply, "traceroute %s error(%d) %s", addr, res,
                         "trace not found");
             }
         }
@@ -1523,7 +1523,7 @@ int com_tracepath(int argc, char** argv, char **str_reply)
     int res = (addr) ? tracepath_util(addr, &hops, &time_usec) : -EADDRNOTAVAIL;
     if(res >= 0) {
         if(str_reply)
-            dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s hops=%d time=%.1lf ms", addr, hops,
+            dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s hops=%d time=%.1lf ms", addr, hops,
                     time_usec * 1. / 1000);
     }
     else {
@@ -1531,48 +1531,48 @@ int com_tracepath(int argc, char** argv, char **str_reply)
             switch (-res)
             {
             case EADDRNOTAVAIL:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", (addr) ? addr : "",
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", (addr) ? addr : "",
                         (addr) ? "Name or service not known" : "Host not defined");
                 break;
             case ESOCKTNOSUPPORT:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't create socket");
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't create socket");
                 break;
             case 2:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr,
                         "Can't setsockopt IPV6_MTU_DISCOVER");
                 break;
             case 3:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr,
                         "Can't setsockopt IPV6_RECVERR");
                 break;
             case 4:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr,
                         "Can't setsockopt IPV6_HOPLIMIT");
                 break;
             case 5:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr,
                         "Can't setsockopt IP_MTU_DISCOVER");
                 break;
             case 6:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr,
                         "Can't setsockopt IP_RECVERR");
                 break;
             case 7:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr,
                         "Can't setsockopt IP_RECVTTL");
                 break;
             case 8:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr, "malloc");
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr, "malloc");
                 break;
             case 9:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr,
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr,
                         "Can't setsockopt IPV6_UNICAST_HOPS");
                 break;
             case 10:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IP_TTL");
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error: %s", addr, "Can't setsockopt IP_TTL");
                 break;
             default:
-                dap_chain_node_cli_set_reply_text(str_reply, "tracepath %s error(%d) %s", addr, res, "trace not found");
+                dap_cli_server_cmd_set_reply_text(str_reply, "tracepath %s error(%d) %s", addr, res, "trace not found");
             }
         }
     }
@@ -1601,7 +1601,7 @@ int com_ping(int argc, char** argv, char **str_reply)
 
     int n = 4;
     if(argc < 2) {
-        dap_chain_node_cli_set_reply_text(str_reply, "Host not specified");
+        dap_cli_server_cmd_set_reply_text(str_reply, "Host not specified");
         return -1;
     }
     const char *n_str = NULL;
@@ -1628,24 +1628,24 @@ int com_ping(int argc, char** argv, char **str_reply)
     DAP_DELETE(l_ping_handle);
     if(res >= 0) {
         if(str_reply)
-            dap_chain_node_cli_set_reply_text(str_reply, "Ping %s time=%.1lf ms", addr, res * 1. / 1000);
+            dap_cli_server_cmd_set_reply_text(str_reply, "Ping %s time=%.1lf ms", addr, res * 1. / 1000);
     }
     else {
         if(str_reply) {
             switch (-res)
             {
             case EDESTADDRREQ:
-                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", addr, "Destination address required");
+                dap_cli_server_cmd_set_reply_text(str_reply, "Ping %s error: %s", addr, "Destination address required");
                 break;
             case EADDRNOTAVAIL:
-                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", (addr) ? addr : "",
+                dap_cli_server_cmd_set_reply_text(str_reply, "Ping %s error: %s", (addr) ? addr : "",
                         (addr) ? "Host not found" : "Host not defined");
                 break;
             case EPFNOSUPPORT:
-                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error: %s", addr, "Unknown protocol family");
+                dap_cli_server_cmd_set_reply_text(str_reply, "Ping %s error: %s", addr, "Unknown protocol family");
                 break;
             default:
-                dap_chain_node_cli_set_reply_text(str_reply, "Ping %s error(%d)", addr, -res);
+                dap_cli_server_cmd_set_reply_text(str_reply, "Ping %s error(%d)", addr, -res);
             }
         }
     }
@@ -2394,7 +2394,7 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
     }
 
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net) != 0) {
-        //dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
+        //dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
         return -1;
     }
 
@@ -3785,7 +3785,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
         l_hash_str = l_tx_cond_hash ? dap_enc_base58_encode_hash_to_str(l_tx_cond_hash) : NULL;
     }
 
-    /*dap_chain_node_cli_set_reply_text(str_reply, "cond create=%s\n",
+    /*dap_cli_server_cmd_set_reply_text(str_reply, "cond create=%s\n",
             (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for service fee" : "False");
     return res;*/
 
@@ -4848,11 +4848,11 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
 		return -8;
 	}
 /*    if(!l_chain_str) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "tx_history requires parameter '-chain'");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-chain'");
         return -4;
     } else {
         if((l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str)) == NULL) { // Can't find such chain
-            dap_chain_node_cli_set_reply_text(a_str_reply,
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
                     "tx_history requires parameter '-chain' to be valid chain name in chain net %s",
                     l_net_str);
             return -5;
@@ -4967,7 +4967,7 @@ int com_stats(int argc, char ** argv, char **str_reply)
         break;
     }
 #else
-        dap_chain_node_cli_set_reply_text(str_reply, "only Linux or Windows environment supported");
+        dap_cli_server_cmd_set_reply_text(str_reply, "only Linux or Windows environment supported");
         return -1;
 #endif // DAP_OS_UNIX
     }
@@ -5118,7 +5118,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
     if (json_object_to_file(l_path, l_json) == -1) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );
-        dap_chain_node_cli_set_reply_text (a_str_reply, "Couldn't export JSON to file, error code %d", errno );
+        dap_cli_server_cmd_set_reply_text (a_str_reply, "Couldn't export JSON to file, error code %d", errno );
 #else
         log_it(L_CRITICAL, "Couldn't export JSON to file, err '%s'", json_util_get_last_err());
         dap_cli_server_cmd_set_reply_text(a_str_reply, json_util_get_last_err());
@@ -5155,7 +5155,7 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
     if (!l_json) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Import error occured: code %d", errno);
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Import error occured: code %d",errno);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Import error occured: code %d",errno);
 #else
         log_it(L_CRITICAL, "Import error occured: %s", json_util_get_last_err());
         dap_cli_server_cmd_set_reply_text(a_str_reply, json_util_get_last_err());

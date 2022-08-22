@@ -97,7 +97,6 @@ int dap_plugin_init(const char * a_root_path)
     return 0;
 }
 
-
 void dap_plugin_deinit(){
     log_it(L_NOTICE, "Deinitialize plugins");
     dap_plugin_stop_all();

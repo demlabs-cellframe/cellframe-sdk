@@ -823,7 +823,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         }
         //Select chain emission
         if(!l_chain_str) { // chain may be null -> then all chain use
-            //dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter '-chain'");
+            //dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-chain'");
             //return -4;
         } else {
             if((l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str)) == NULL) { // Can't find such chain

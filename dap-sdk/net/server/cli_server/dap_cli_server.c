@@ -885,7 +885,7 @@ static void* s_thread_main_func(void *args)
 
 
 /**
- * @brief dap_chain_node_cli_set_reply_text
+ * @brief dap_cli_server_cmd_set_reply_text
  * Write text to reply string
  * @param str_reply
  * @param str
