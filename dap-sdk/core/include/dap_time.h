@@ -8,7 +8,8 @@
 #define DAP_NSEC_PER_SEC 1000000000
 // Constant to convert seconds to microseconds
 #define DAP_USEC_PER_SEC 1000000
-
+// Seconds per day
+#define DAP_SEC_PER_DAY 86400
 
 // time in seconds
 typedef uint64_t dap_time_t;

@@ -70,10 +70,9 @@ typedef struct dap_chain_cs_dag_event_round_broadcast {
     int attempts;
 } dap_chain_cs_dag_event_round_broadcast_t;
 
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, dap_chain_datum_t * a_datum,
-                                                dap_enc_key_t * a_key,
-                                                dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count, size_t * a_event_size);
-
+dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, dap_chain_cell_id_t a_cell_id, uint64_t a_round_id,
+                                                     dap_chain_datum_t *a_datum, dap_enc_key_t *a_key,
+                                                     dap_chain_hash_fast_t *a_hashes, size_t a_hashes_count, size_t *a_event_size);
 
 /**
  * @brief dap_chain_cs_dag_event_get_datum
@@ -170,6 +169,6 @@ void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, const char a_op
 bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
                                     size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item);
 
-dap_chain_cs_dag_event_t* dap_chain_cs_dag_event_gdb_get(const char *a_event_hash_str, size_t *a_event_size,
-                                                        const char *a_group, dap_chain_cs_dag_event_round_info_t * a_event_round_info);
+dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_gdb_get(const char *a_event_hash_str, size_t *a_event_size,
+                                                         const char *a_group, dap_chain_cs_dag_event_round_info_t * a_event_round_info);
 

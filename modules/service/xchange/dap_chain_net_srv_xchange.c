@@ -24,11 +24,11 @@
 
 #include <math.h>
 #include <pthread.h>
+#include "dap_chain_net.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_time.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_common.h"
 #include "dap_hash.h"
@@ -729,7 +729,7 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
             if (!s_xchange_tx_put(l_tx, l_net)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
-                dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
+                dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);
                 DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
@@ -852,7 +852,7 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
                 DAP_DELETE(l_tx_hash_str);
             }
             char* l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
-            if (dap_chain_net_srv_order_delete_by_hash_str(l_price->net, l_order_hash_str)) {
+            if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str)) {
                 dap_string_append_printf(l_str_reply, "Can't remove order %s\n", l_order_hash_str);
             }
             DAP_DELETE(l_order_hash_str);
@@ -928,14 +928,14 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
             }
             // Update the order
             char* l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_price->order_hash);
-            dap_chain_net_srv_order_delete_by_hash_str(l_price->net, l_order_hash_str);
+            dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
             DAP_DELETE(l_order_hash_str);
             l_order_hash_str = s_xchange_order_create(l_price, l_tx);
             if (l_order_hash_str) {
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
                 if (!s_xchange_tx_put(l_tx, l_net)) {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
-                    dap_chain_net_srv_order_delete_by_hash_str(l_net, l_order_hash_str);
+                    dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_str);
                     DAP_DELETE(l_order_hash_str);
                     return -15;
                 }
@@ -1214,7 +1214,7 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
         char* l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
 
         size_t l_orders_count = 0;
-        dap_global_db_obj_t* l_orders = dap_chain_global_db_gr_load(l_gdb_group_str, &l_orders_count);
+        dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
         dap_chain_net_srv_xchange_price_t* l_price;
         dap_string_t* l_reply_str = dap_string_new("");
 
@@ -1249,7 +1249,7 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
             DAP_DEL_Z(l_cp3);
             DAP_DEL_Z(l_price);
         }
-        dap_chain_global_db_objs_delete(l_orders, l_orders_count);
+        dap_global_db_objs_delete(l_orders, l_orders_count);
         DAP_DELETE(l_gdb_group_str);
         if (!l_reply_str->len) {
             dap_string_append(l_reply_str, "No orders found");
@@ -1307,7 +1307,7 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
             dap_chain_datum_tx_t* l_tx = s_xchange_tx_create_exchange(l_price, l_wallet, l_datoshi_buy);
             if (l_tx && s_xchange_tx_put(l_tx, l_net)) {
                 // TODO send request to seller to update / delete order & price
-                dap_chain_net_srv_order_delete_by_hash_str(l_price->net, l_order_hash_str);
+                dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
             }
             DAP_DELETE(l_price);
             DAP_DELETE(l_order);
@@ -1725,7 +1725,7 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
                 dap_string_t* l_reply_str = dap_string_new("");
                 char** l_tickers = NULL;
                 size_t l_tickers_count = 0;
-                dap_chain_ledger_addr_get_token_ticker_all_fast(l_net->pub.ledger, NULL, &l_tickers, &l_tickers_count);
+                dap_chain_ledger_addr_get_token_ticker_all(l_net->pub.ledger, NULL, &l_tickers, &l_tickers_count);
 
                 size_t l_pairs_count = 0;
                 if (l_tickers) {
