@@ -14,3 +14,4 @@ target_link_libraries(${PROJECT_NAME} dap_core dap_chain_common dap_chain_mempoo
 target_include_directories(${PROJECT_NAME} INTERFACE . include/ ${GLIB_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/uthash/src)
+target_link_libraries(${PROJECT_NAME} dap_chain_net_srv_xchange dap_chain_net_srv_stake_pos_delegate dap_chain_net_srv_stake_lock)

@@ -71,7 +71,7 @@ typedef struct dap_chain_net dap_chain_net_t;
 
 int dap_chain_ledger_init();
 void dap_chain_ledger_deinit();
-bool dap_chain_global_rwlock_init(void);
+bool dap_chain_global_rwlocks_and_verificators_init(void);
 
 dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name);
 

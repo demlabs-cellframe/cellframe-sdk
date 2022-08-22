@@ -63,6 +63,9 @@
 #include "json-c/json_object.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_xchange.h"
+#include "dap_chain_net_srv_stake_lock.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -257,10 +260,16 @@ int dap_chain_ledger_init()
     return 0;
 }
 
-bool dap_chain_global_rwlock_init(void)
+bool dap_chain_global_rwlocks_and_verificators_init(void)
 {
 	pthread_rwlock_init(&s_verificators_rwlock, NULL);
 	pthread_rwlock_init(&s_emission_for_stake_lock_rwlock, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, dap_chain_net_srv_pay_verificator, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, dap_chain_ledger_fee_verificator, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, dap_chain_net_srv_xchange_verificator, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, dap_chain_net_srv_stake_pos_delegate_verificator, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE, dap_chain_net_srv_stake_updater, NULL);
+	dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_callback_verificator, s_callback_verificator_added);
 	return true;
 }
 

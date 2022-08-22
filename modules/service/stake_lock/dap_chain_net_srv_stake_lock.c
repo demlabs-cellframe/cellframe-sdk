@@ -102,8 +102,6 @@ typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
 
 static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
 // Verificator callbacks
-static bool	s_callback_verificator(dap_ledger_t *a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
-static bool	s_callback_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
 dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 
@@ -120,8 +118,6 @@ int dap_chain_net_srv_stake_lock_init()
     			"stake_lock take -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
 				"-chain <chain (not necessary)>\n"
 	);
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,
-                                     s_callback_verificator, s_callback_verificator_added);
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
     dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
@@ -944,7 +940,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
+bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
 {
 	dap_chain_datum_tx_t									*burning_tx					= NULL;
 	dap_chain_tx_out_t										*burning_transaction_out	= NULL;
@@ -1070,7 +1066,7 @@ static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond
  * @param a_tx_item_idx
  * @return
  */
-static bool	s_callback_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
+bool	s_callback_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
 	dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
 	if (!l_key_hash)
