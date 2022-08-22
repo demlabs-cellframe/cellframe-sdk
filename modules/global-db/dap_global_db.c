@@ -867,10 +867,17 @@ static bool s_msg_opcode_set_raw(struct queue_io_msg * a_msg)
     size_t i=0;
     if(a_msg->values_raw_total>0){
         l_ret = dap_chain_global_db_driver_add(a_msg->values_raw,a_msg->values_raw_total);
-        if(l_ret == 0){
+        int l_res_del = 0;
+        if(l_ret == 0) {
             for(;  i < a_msg->values_raw_total ; i++ ) {
-                s_record_del_history_del(a_msg->values_raw[i].key , a_msg->values_raw[i].group);
-                s_change_notify(&a_msg->values_raw[i] , a_msg->values_raw[i].type );
+                if (a_msg->values_raw[i].type == DAP_DB$K_OPTYPE_ADD)
+                    l_res_del = s_record_del_history_del(a_msg->values_raw[i].key , a_msg->values_raw[i].group);
+                else if (a_msg->values_raw[i].type == DAP_DB$K_OPTYPE_DEL)
+                    l_res_del = s_record_del_history_add((char*)a_msg->values_raw[i].key, a_msg->values_raw[i].group,
+                                                         a_msg->values_raw[i].timestamp);
+                if (!l_res_del) {
+                    s_change_notify(&a_msg->values_raw[i] , a_msg->values_raw[i].type);
+                }
             }
         }else
             log_it(L_ERROR,"Can't save raw gdb data, code %d ", l_ret);
@@ -1713,7 +1720,7 @@ char	l_group[DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX];
 int	l_res = 0;
 
    if(!a_key)
-       return false;
+       return -1;
 
    store_data.key =( char*) a_key;
    dap_snprintf(l_group, sizeof(l_group) - 1, "%s.del", a_group);
@@ -1722,7 +1729,7 @@ int	l_res = 0;
    if ( dap_chain_global_db_driver_is(store_data.group, store_data.key) )
        l_res = dap_chain_global_db_driver_delete(&store_data, 1);
 
-   return  (l_res >= 0);    /*  ? true : false; */
+   return  l_res;
 }
 
 /**
@@ -1744,8 +1751,7 @@ int l_res = -1;
     store_data.group = l_group;
     store_data.timestamp = a_timestamp;
 
-    if (!dap_chain_global_db_driver_is(store_data.group, store_data.key))
-        l_res = dap_chain_global_db_driver_add(&store_data, 1);
+    l_res = dap_chain_global_db_driver_add(&store_data, 1);
 
     return  l_res;
 }
