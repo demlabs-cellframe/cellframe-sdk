@@ -200,11 +200,7 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange)
 endif()
 
-# Enable service of delegated stake
-if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
-    message("[+] Module 'srv-stake-pos-delegate'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate)
-endif()
+
 
 # Enable service of stake token
 if (CELLFRAME_MODULES MATCHES "srv-stake-lock")
@@ -216,6 +212,12 @@ endif()
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     message("[+] Module 'dap_modules_dynamic_cdb'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb)
+endif()
+
+# Enable service of delegated stake
+if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
+    message("[+] Module 'srv-stake-pos-delegate'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate $<TARGET_FILE:dap_chain_cs_dag_poa> $<TARGET_FILE:dap_chain_cs_block_poa> $<TARGET_FILE:dap_chain_cs_dag>)
 endif()
 
 if (WIN32)
