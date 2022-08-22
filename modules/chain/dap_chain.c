@@ -27,7 +27,10 @@
 #include <stdc-predef.h>
 #endif
 #include <unistd.h>
-
+#include "dap_chain_net_srv.h"
+#include "dap_chain_common.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"

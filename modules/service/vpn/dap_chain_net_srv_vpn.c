@@ -298,7 +298,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     l_in_daddr.s_addr = ((dap_os_iphdr_t* ) l_pkt_out->data)->ip_dst.s_addr;
 #endif
     if(l_ch_vpn_info->is_on_this_worker){
-        dap_events_socket_t* l_es = dap_worker_esocket_find_uuid(l_ch_vpn_info->worker, l_ch_vpn_info->esocket_uuid);
+        dap_events_socket_t* l_es = dap_context_find(l_ch_vpn_info->worker->context, l_ch_vpn_info->esocket_uuid);
         if (!l_es) {
             log_it(L_ERROR, "No esocket %p on worker #%u, lost %zd data", l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id, a_data_size);
             return false;
@@ -444,7 +444,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
         }break; /* l_msg->type == TUN_SOCKET_MSG_IP_UNASSIGNED */
 
         case TUN_SOCKET_MSG_CH_VPN_SEND: {
-            if (dap_worker_esocket_find_uuid(a_esocket_queue->worker, l_msg->esocket_uuid) == l_msg->esocket) {
+            if (dap_context_find(a_esocket_queue->worker->context, l_msg->esocket_uuid) == l_msg->esocket) {
                 s_tun_client_send_data_unsafe(l_msg->ch_vpn, l_msg->ch_vpn_send.pkt);
                 if (s_debug_more) {
                     char l_addrbuf[INET_ADDRSTRLEN];
@@ -999,7 +999,7 @@ static void s_ch_vpn_esocket_assigned(dap_events_socket_t *a_es, dap_worker_t *a
         return;
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(l_ch);
     assert(l_ch_vpn);
-    s_tun_send_msg_esocket_reasigned_all_inter(a_worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
+    s_tun_send_msg_esocket_reassigned_all_inter(a_worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
                                                l_ch_vpn->ch->stream->esocket_uuid, l_ch_vpn->addr_ipv4);
 }
 
@@ -1012,7 +1012,7 @@ static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t 
    //dap_chain_net_srv_ch_vpn_info_t * l_info = NULL;
    // HASH_FIND(hh,l_tun_sock->clients,&l_ch_vpn->addr_ipv4 , sizeof (l_ch_vpn->addr_ipv4), l_info);
 
-    s_tun_send_msg_esocket_reasigned_all_inter(a_es->context->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
+    s_tun_send_msg_esocket_reassigned_all_inter(a_es->context->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
                                                l_ch_vpn->ch->stream->esocket_uuid, l_ch_vpn->addr_ipv4);
 }
 
@@ -1565,6 +1565,74 @@ static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg)
         dap_events_socket_remove_and_delete_unsafe(s_tun_sockets_queue_msg[a_es->context->worker->id],false);
         log_it(L_NOTICE,"Destroyed TUN event socket");
     }
+}
+
+/**
+ * @brief s_es_tun_write
+ * @param a_es
+ * @param arg
+ */
+static void s_es_tun_write(dap_events_socket_t *a_es, void *arg)
+{
+    (void) arg;
+    dap_chain_net_srv_vpn_tun_socket_t *l_tun = CH_SF_TUN_SOCKET(a_es);
+    assert(l_tun);
+    assert(l_tun->es == a_es);
+    size_t l_shift = 0;
+    debug_if(s_debug_more, L_DEBUG, "Write %lu bytes to tun", l_tun->es->buf_out_size);
+    for (ssize_t l_pkt_size = 0, l_bytes_written = 0; l_tun->es->buf_out_size; ) {
+        ch_vpn_pkt_t *l_vpn_pkt = (ch_vpn_pkt_t *)(l_tun->es->buf_out + l_shift);
+        l_pkt_size = l_vpn_pkt->header.op_data.data_size;
+        debug_if(s_debug_more, L_DEBUG, "Packet: op_code 0x%02x, data size %ld",
+                 l_vpn_pkt->header.op_code, l_pkt_size);
+        l_bytes_written = write(l_tun->es->fd, l_vpn_pkt->data, l_pkt_size);
+        if (l_bytes_written == l_pkt_size) {
+            l_pkt_size += sizeof(l_vpn_pkt->header);
+            l_tun->es->buf_out_size -= l_pkt_size;
+            l_shift += l_pkt_size;
+        } else {
+            int l_errno = errno;
+            debug_if(l_bytes_written > 0, L_WARNING, /* How on earth can this be?... */
+                     "Error on writing to tun: wrote %zd / %zd bytes", l_bytes_written, l_pkt_size);
+            switch (l_errno) {
+            case EAGAIN:
+                /* Unwritten packets remain untouched in da buffa */
+                break;
+            case EINVAL:
+                /* Something wrong with this packet... Doomp eet */
+                debug_if(s_debug_more, L_ERROR, "Skip this packet...");
+                l_pkt_size += sizeof(l_vpn_pkt->header);
+                l_tun->es->buf_out_size -= l_pkt_size;
+                l_shift += l_pkt_size;
+                break;
+            default: {
+                char l_errbuf[128];
+                strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
+                log_it(L_ERROR, "Error on writing to tun: \"%s\" code %d", l_errbuf, errno);
+                break;
+            }}
+            break; // Finish the buffer processing immediately
+        }
+    }
+    if (l_tun->es->buf_out_size) {
+        debug_if(s_debug_more, L_DEBUG, "Left %lu bytes unwritten", l_tun->es->buf_out_size);
+        if (l_shift)
+            memmove(l_tun->es->buf_out, &l_tun->es->buf_out[l_shift], l_tun->es->buf_out_size);
+    }
+    l_tun->buf_size_aux = l_tun->es->buf_out_size;  /* We backup the genuine buffer size... */
+    l_tun->es->buf_out_size = 0;                    /* ... and insure the socket against coursing thru regular writing operations */
+}
+
+static void s_es_tun_write_finished(dap_events_socket_t *a_es, void *a_arg, int a_errno) {
+    UNUSED(a_arg);
+    UNUSED(a_errno);
+    dap_chain_net_srv_vpn_tun_socket_t *l_tun = CH_SF_TUN_SOCKET(a_es);
+    assert(l_tun);
+    assert(l_tun->es == a_es);
+    l_tun->es->buf_out_size = l_tun->buf_size_aux; /* Backup the genuine buffer size */
+    dap_events_socket_set_writable_unsafe(a_es, l_tun->buf_size_aux > 0);
+    debug_if(s_debug_more && (l_tun->buf_size_aux > 0), L_INFO, "%zd bytes still in buf_out, poll again", l_tun->buf_size_aux);
+    l_tun->buf_size_aux = 0;
 }
 
 /**

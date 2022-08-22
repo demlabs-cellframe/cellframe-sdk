@@ -116,7 +116,6 @@ void dap_worker_exec_callback_inter(dap_events_socket_t * a_es_input, dap_worker
 
 bool dap_worker_check_esocket_polled_now(); // Check if esocket is right now polled and present in list
 // Context callbacks
-void *dap_worker_thread(void *arg);
 void dap_worker_context_callback_started( dap_context_t * a_context, void *a_arg);
 void dap_worker_context_callback_stopped( dap_context_t * a_context, void *a_arg);
 
