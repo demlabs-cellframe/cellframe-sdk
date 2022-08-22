@@ -1040,7 +1040,7 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
 
 
 /**
- * Divides to fixed-point values, represented as 256-bit values
+ * Divides two fixed-point values, represented as 256-bit values
  * @param a_val
  * @param b_val
  * @param result is a fixed-point value, represented as 256-bit value
@@ -1048,6 +1048,10 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
  */
 static inline void DIV_256_COIN(uint256_t a, uint256_t b, uint256_t *res)
 {
+    if (compare256(a, uint256_0) == 0) {
+        *res = uint256_0;
+        return;
+    }
     int counter = 0;
     uint256_t a_copy = a;
     uint256_t ten18 = GET_256_FROM_64(1000000000000000000ULL);
