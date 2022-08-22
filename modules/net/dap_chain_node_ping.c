@@ -138,7 +138,7 @@ static void* node_ping_proc(void *a_arg)
             long l_recv_count = 0;
             // recv data with error message
             if(l_send_count > 30)
-                l_recv_count = s_recv(l_socket, l_buf, l_buf_size, 1000);
+                l_recv_count = dap_net_recv(l_socket, l_buf, l_buf_size, 1000);
             // connect/send/recv was successful
             if(l_recv_count > 20) {
                 clock_gettime(CLOCK_MONOTONIC, &l_time_stop);

@@ -101,7 +101,7 @@ static void s_callback_decree(dap_chain_net_srv_t* a_srv, dap_chain_net_t* a_net
  */
 int dap_chain_net_srv_stake_lock_init()
 {
-	dap_chain_node_cli_cmd_item_create("stake_lock", s_cli_stake_lock, "Stake lock service commands",
+	dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands",
 		"stake_lock hold -net <net name> -wallet <wallet name> -time_staking <in rfc822>\n"
 		"-token <ticker> -coins <value> -cert <name> -chain <chain (not necessary)> -chain_emission <chain (not necessary)>\n"
 		"stake_lock take -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
@@ -192,7 +192,7 @@ static enum error_code s_cli_hold(int a_argc, char** a_argv, int a_arg_index, da
 
 	dap_string_append_printf(output_line, "---> HOLD <---\n");
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
 		|| NULL == l_net_str)
 		return NET_ARG_ERROR;
 
@@ -201,7 +201,7 @@ static enum error_code s_cli_hold(int a_argc, char** a_argv, int a_arg_index, da
 		return NET_ERROR;
 	}
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_token_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_token_str)
 		|| NULL == l_token_str
 		|| dap_strlen(l_token_str) > 8) // for 'm' delegated
 		return TOKEN_ARG_ERROR;
@@ -213,14 +213,14 @@ static enum error_code s_cli_hold(int a_argc, char** a_argv, int a_arg_index, da
 
 	strcpy(delegate_token_str + 1, l_token_str);
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str)
 		|| NULL == l_coins_str)
 		return COINS_ARG_ERROR;
 
 	if (IS_ZERO_256((l_value = dap_chain_balance_scan(l_coins_str))))
 		return COINS_FORMAT_ERROR;
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str)
 		|| NULL == l_cert_str)
 		return CERT_ARG_ERROR;
 
@@ -229,7 +229,7 @@ static enum error_code s_cli_hold(int a_argc, char** a_argv, int a_arg_index, da
 		return CERT_LOAD_ERROR;
 	}
 
-	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-chain", &l_chain_str)
+	if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-chain", &l_chain_str)
 		&& l_chain_str)
 		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
 	else
@@ -237,7 +237,7 @@ static enum error_code s_cli_hold(int a_argc, char** a_argv, int a_arg_index, da
 	if (!l_chain)
 		return CHAIN_ERROR;
 
-	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-chain_emission", &l_chain_emission_str)
+	if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-chain_emission", &l_chain_emission_str)
 		&& l_chain_emission_str)
 		l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
 	else
@@ -245,12 +245,12 @@ static enum error_code s_cli_hold(int a_argc, char** a_argv, int a_arg_index, da
 	if (!l_chain_emission)
 		return CHAIN_EMISSION_ERROR;
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
 		|| NULL == l_wallet_str)
 		return WALLET_ARG_ERROR;
 
 	// Read time staking
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
 		|| NULL == l_time_staking_str)
 		return TIME_ERROR;
 
@@ -353,7 +353,7 @@ static enum error_code s_cli_take(int a_argc, char** a_argv, int a_arg_index, da
 
 	dap_string_append_printf(output_line, "---> TAKE <---\n");
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-net", &l_net_str)
 		|| NULL == l_net_str)
 		return NET_ARG_ERROR;
 
@@ -362,7 +362,7 @@ static enum error_code s_cli_take(int a_argc, char** a_argv, int a_arg_index, da
 		return NET_ERROR;
 	}
 
-	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-chain", &l_chain_str)
+	if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-chain", &l_chain_str)
 		&& l_chain_str)
 		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
 	else
@@ -370,7 +370,7 @@ static enum error_code s_cli_take(int a_argc, char** a_argv, int a_arg_index, da
 	if (!l_chain)
 		return CHAIN_ERROR;
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-tx", &l_tx_str)
 		|| NULL == l_tx_str)
 		return TX_ARG_ERROR;
 
@@ -410,7 +410,7 @@ static enum error_code s_cli_take(int a_argc, char** a_argv, int a_arg_index, da
 			return NOT_ENOUGH_TIME;
 	}
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
+	if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
 		|| NULL == l_wallet_str)
 		return WALLET_ARG_ERROR;
 
@@ -698,9 +698,9 @@ static int s_cli_stake_lock(int a_argc, char** a_argv, char** a_str_reply)
 	int				l_cmd_num = CMD_NONE;
 	dap_string_t* output_line = dap_string_new(NULL);
 
-	if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "hold", NULL))
+	if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "hold", NULL))
 		l_cmd_num = CMD_HOLD;
-	else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "take", NULL))
+	else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "take", NULL))
 		l_cmd_num = CMD_TAKE;
 
 	switch (l_cmd_num) {
@@ -714,7 +714,7 @@ static int s_cli_stake_lock(int a_argc, char** a_argv, char** a_str_reply)
 	} break;
 
 	default: {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
+		dap_cli_server_cmd_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
 		dap_string_free(output_line, false);
 	} return 1;
 	}
@@ -724,7 +724,7 @@ static int s_cli_stake_lock(int a_argc, char** a_argv, char** a_str_reply)
 	else
 		dap_string_append_printf(output_line, "Contribution successfully made");
 
-	dap_chain_node_cli_set_reply_text(a_str_reply, output_line->str);
+	dap_cli_server_cmd_set_reply_text(a_str_reply, output_line->str);
 	dap_string_free(output_line, true);
 
 	return 0;

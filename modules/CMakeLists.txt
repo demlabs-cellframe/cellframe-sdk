@@ -1,7 +1,6 @@
 # Core
 if (CELLFRAME_MODULES MATCHES "core")
     add_subdirectory(common)
-    add_subdirectory(app-cli)
 endif()
 
 # Chains

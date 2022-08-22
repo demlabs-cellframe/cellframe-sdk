@@ -62,6 +62,16 @@
 #include <sys/socket.h>
 #include <sys/sys_domain.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
+#elif defined (DAP_OS_BSD)
+#include <net/if.h>
+#include <sys/kern_control.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/sys_domain.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
 #endif
 
 #include "dap_chain_net_srv_vpn.h"
@@ -379,7 +389,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
             in_daddr.s_addr = iph->daddr;
             in_saddr.s_addr = iph->saddr;
 #else
-            struct ip* iph = (struct ip*)l_tmp_buf;
+            struct ip* iph = (struct ip*)a_es->buf_in;
             in_daddr.s_addr = iph->ip_dst.s_addr;
             in_saddr.s_addr = iph->ip_src.s_addr;
 #endif

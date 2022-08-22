@@ -46,7 +46,7 @@
 #include "dap_common.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
-#include "dap_chain_node_cli.h" // for UNIX_SOCKET_FILE
+#include "dap_cli_server.h" // for UNIX_SOCKET_FILE
 #include "dap_app_cli.h"
 #include "dap_app_cli_net.h"
 #include "dap_enc_base64.h"

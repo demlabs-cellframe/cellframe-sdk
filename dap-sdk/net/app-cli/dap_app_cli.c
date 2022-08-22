@@ -27,11 +27,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "dap_chain_node_cli.h"
 //#include "dap_client.h"
 #include "dap_common.h"
 #include "dap_file_utils.h"
 #include "dap_strfuncs.h"
+#include "dap_cli_server.h"
 #include "dap_app_cli.h"
 #include "dap_app_cli_net.h"
 #include "dap_app_cli_shell.h"
@@ -85,7 +85,7 @@ static char** split_word(char *line, int *argc)
 int execute_line(dap_app_cli_connect_param_t *cparam, char *line)
 {
     register int i;
-    dap_chain_node_cmd_item_t *command;
+    dap_cli_cmd_t *command;
     char *word;
 
     /* Isolate the command word. */

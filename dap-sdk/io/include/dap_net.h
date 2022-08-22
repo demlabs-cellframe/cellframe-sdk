@@ -43,5 +43,7 @@
 #endif
 
 #include "dap_common.h"
+#include "dap_events_socket.h"
 
 int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_addr_out);
+long dap_net_recv(SOCKET sd, unsigned char *buf, size_t bufsize, int timeout);

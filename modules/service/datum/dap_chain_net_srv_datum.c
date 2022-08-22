@@ -40,7 +40,7 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
 
 int dap_chain_net_srv_datum_init()
 {
-    dap_chain_node_cli_cmd_item_create("srv_datum", s_srv_datum_cli, "Service Datum commands", 
+    dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", 
         "srv_datum -net <chain net name> -chain <chain name> datum save -datum <datum hash>\n"
             "\tSaving datum from mempool to file.\n\n"
         "srv_datum -net <chain net name> -chain <chain name> datum load -datum <datum hash>\n"
@@ -111,16 +111,16 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
     }
 
     const char * l_datum_hash_str = NULL;
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
     if (!l_datum_hash_str) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Command srv_datum requires parameter '-datum' <datum hash>");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command srv_datum requires parameter '-datum' <datum hash>");
         return -4;
     }
 
     const char * l_system_datum_folder = dap_config_get_item_str(g_config, "resources", "datum_folder");
 
     const char * l_datum_cmd_str = NULL;
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "datum", &l_datum_cmd_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "datum", &l_datum_cmd_str);
     if ( l_datum_cmd_str != NULL ) {
         if ( strcmp(l_datum_cmd_str, "save") == 0) {
             char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
@@ -168,11 +168,11 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
 
             char *l_ret;
             if ((l_ret = dap_chain_net_srv_datum_custom_add(l_chain, l_datum_data, l_datum_data_size)) == NULL) {
-                dap_chain_node_cli_set_reply_text(a_str_reply,
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Can't place datum custom \"%s\" to mempool", l_datum_hash_str);
             }
             else {
-                dap_chain_node_cli_set_reply_text(a_str_reply,
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Datum custom %s was successfully placed to mempool", l_datum_hash_str); 
                 DAP_DELETE(l_ret);
                 return 0;

@@ -14,6 +14,14 @@ if (DAPSDK_MODULES MATCHES "crypto")
     add_subdirectory(crypto)
 endif()
 
+if (DAPSDK_MODULES MATCHES "app-cli")
+    add_subdirectory(net/app-cli)
+endif()
+
+if (DAPSDK_MODULES MATCHES "plugin")
+    add_subdirectory(plugin)
+endif()
+
 # I/O subsystem
 if (DAPSDK_MODULES MATCHES "io")
     add_subdirectory(io)

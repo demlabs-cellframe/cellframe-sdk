@@ -35,7 +35,7 @@ endif()
 
 
 if (CELLFRAME_MODULES MATCHES "network")
-    set(DAPSDK_MODULES "${DAPSDK_MODULES} network-core network-client network-server")
+    set(DAPSDK_MODULES "${DAPSDK_MODULES} app-cli plugin network-core network-client network-server")
 endif()
 
 if (CELLFRAME_MODULES MATCHES "dap-sdk-net-client")

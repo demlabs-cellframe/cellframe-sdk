@@ -778,45 +778,45 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_net_t * l_net = NULL;
 
     const char * l_hash_out_type = NULL;
-    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
     //switch ledger params list | tx | info
     int l_cmd = CMD_NONE;
-    if (dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "list", NULL)){
+    if (dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "list", NULL)){
         l_cmd = CMD_LIST;
-    } else if (dap_chain_node_cli_find_option_val(a_argv, 1, 2, "tx", NULL)){
+    } else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "tx", NULL)){
         l_cmd = CMD_TX_HISTORY;
-    } else if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "info", NULL))
+    } else if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "info", NULL))
         l_cmd = CMD_TX_INFO;
 
-    bool l_is_all = dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-all", NULL);
+    bool l_is_all = dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-all", NULL);
 
     // command tx_history
     if(l_cmd == CMD_TX_HISTORY) {
-        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-addr", &l_addr_base58);
-        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-w", &l_wallet_name);
-        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
-        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-chain", &l_chain_str);
-        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx", &l_tx_hash_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-addr", &l_addr_base58);
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-w", &l_wallet_name);
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-chain", &l_chain_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx", &l_tx_hash_str);
         dap_chain_tx_hash_processed_ht_t *l_list_tx_hash_processd = NULL;
 
         if(!l_is_all && !l_addr_base58 && !l_wallet_name && !l_tx_hash_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter '-all' or '-addr' or '-w'");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-all' or '-addr' or '-w'");
             return -1;
         }
         // Select chain network
         if(!l_net_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter '-net'");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-net'");
             return -2;
         } else {
             if((l_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-                dap_chain_node_cli_set_reply_text(a_str_reply,
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "command requires parameter '-net' to be valid chain network name");
                 return -3;
             }
@@ -827,7 +827,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             //return -4;
         } else {
             if((l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str)) == NULL) { // Can't find such chain
-                dap_chain_node_cli_set_reply_text(a_str_reply,
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "command requires parameter '-chain' to be valid chain name in chain net %s",
                         l_net_str);
                 return -5;
@@ -839,7 +839,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         if(l_tx_hash_str) {
             if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
                 l_tx_hash_str = NULL;
-                dap_chain_node_cli_set_reply_text(a_str_reply, "tx hash not recognized");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "tx hash not recognized");
                 return -1;
             }
 //        char hash_str[99];
@@ -864,7 +864,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 l_addr = dap_chain_addr_from_str(l_addr_base58);
             }
             if(!l_addr && !l_tx_hash_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "wallet address not recognized");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet address not recognized");
                 return -1;
             }
         }
@@ -922,7 +922,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         // all chain
         if(!l_chain)
             dap_chain_enum_unlock();
-        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_ret->str);
         dap_string_free(l_str_ret, true);
         return 0;
     }
@@ -930,41 +930,41 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         enum {SUBCMD_NONE, SUBCMD_LIST_COIN, SUB_CMD_LIST_LEDGER_THRESHOLD, SUB_CMD_LIST_LEDGER_BALANCE, SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH};
         int l_sub_cmd = SUBCMD_NONE;
         dap_chain_hash_fast_t l_tx_threshold_hash;
-        if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "coins", NULL ))
+        if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "coins", NULL ))
             l_sub_cmd = SUBCMD_LIST_COIN;
-        if (dap_chain_node_cli_find_option_val(a_argv, 2, 3, "balance", NULL ))
+        if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "balance", NULL ))
             l_sub_cmd = SUB_CMD_LIST_LEDGER_BALANCE;
-        if (dap_chain_node_cli_find_option_val(a_argv, 2, a_argc, "threshold", NULL)){
+        if (dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "threshold", NULL)){
             l_sub_cmd = SUB_CMD_LIST_LEDGER_THRESHOLD;
             const char* l_tx_threshold_hash_str = NULL;
-            dap_chain_node_cli_find_option_val(a_argv, 3, a_argc, "-hash", &l_tx_threshold_hash_str);
+            dap_cli_server_cmd_find_option_val(a_argv, 3, a_argc, "-hash", &l_tx_threshold_hash_str);
             if (l_tx_threshold_hash_str){
                 l_sub_cmd = SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH;
                 if (dap_chain_hash_fast_from_str(l_tx_threshold_hash_str, &l_tx_threshold_hash)){
                     l_tx_hash_str = NULL;
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "tx threshold hash not recognized");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "tx threshold hash not recognized");
                     return -1;
                 }
             }
         }
         if (l_sub_cmd == SUBCMD_NONE) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'list' requires subcommands 'coins' or 'threshold'");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'list' requires subcommands 'coins' or 'threshold'");
             return -5;
         }
-        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
         if (l_net_str == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'list' requires key -net");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'list' requires key -net");
             return -1;
         }
         dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
         if (l_ledger == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get ledger for net %s", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get ledger for net %s", l_net_str);
             return -2;
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD){
             dap_string_t *l_str_ret = dap_chain_ledger_threshold_info(l_ledger);
             if (l_str_ret){
-                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_ret->str);
                 dap_string_free(l_str_ret, true);
             }
 
@@ -973,14 +973,14 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH){
             dap_string_t *l_str_ret = dap_chain_ledger_threshold_hash_info(l_ledger, &l_tx_threshold_hash);
             if (l_str_ret){
-                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_ret->str);
                 dap_string_free(l_str_ret, true);
             }
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_BALANCE){
             dap_string_t *l_str_ret = dap_chain_ledger_balance_info(l_ledger);
             if (l_str_ret){
-                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_ret->str);
                 dap_string_free(l_str_ret, true);
             }
 
@@ -993,49 +993,49 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             dap_string_append(l_str_ret, (char *)l_list->data);
         }
         dap_list_free_full(l_token_list, NULL);
-        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_ret->str);
         dap_string_free(l_str_ret, true);
         return 0;
     } else if (l_cmd == CMD_TX_INFO){
         //GET hash
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);
         //get net
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
         //get search type
         const char *l_unspent_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-unspent", &l_unspent_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", &l_unspent_str);
         //check input
         if (l_tx_hash_str == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand 'info' requires key -hash");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand 'info' requires key -hash");
             return -1;
         }
         if (l_net_str == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand 'info' requires key -net");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand 'info' requires key -net");
             return -2;
         }
         dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find net %s", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find net %s", l_net_str);
             return -2;
         }
         dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
         if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash)) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get hash_fast from %s", l_tx_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s", l_tx_hash_str);
             return -4;
         }
         dap_chain_datum_tx_t *l_datum_tx = dap_chain_net_get_tx_by_hash(l_net, l_tx_hash,
                                                                         l_unspent_str ? TX_SEARCH_TYPE_NET_UNSPENT : TX_SEARCH_TYPE_NET);
         if (l_datum_tx == NULL){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get datum from transaction hash %s", l_tx_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get datum from transaction hash %s", l_tx_hash_str);
             return -5;
         }
         dap_string_t *l_str = dap_string_new("");
         s_dap_chain_datum_tx_out_data(l_datum_tx, l_net->pub.ledger, l_str, l_hash_out_type, l_tx_hash);
-        dap_chain_node_cli_set_reply_text(a_str_reply, l_str->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_str->str);
         dap_string_free(l_str, true);
     }
     else{
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'ledger' requires parameter 'list' or 'tx' or 'info'");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'ledger' requires parameter 'list' or 'tx' or 'info'");
         return -6;
     }
     return 0;
@@ -1060,33 +1060,33 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_tx_hash_processed_ht_t *l_list_tx_hash_processd = NULL;
 
     const char * l_hash_out_type = NULL;
-    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "base58";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
-    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
     // Select chain network
     if(!l_net_str) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter '-net'");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-net'");
         return -2;
     } else {
         if((l_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
-            dap_chain_node_cli_set_reply_text(a_str_reply,
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
                     "command requires parameter '-net' to be valid chain network name");
             return -3;
         }
     }
 
     int l_cmd = CMD_NONE;
-    if (dap_chain_node_cli_find_option_val(a_argv, 1, 2, "list", NULL))
+    if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "list", NULL))
         l_cmd = CMD_LIST;
-    else if (dap_chain_node_cli_find_option_val(a_argv, 1, 2, "info", NULL))
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "info", NULL))
         l_cmd = CMD_INFO;
-    else if (dap_chain_node_cli_find_option_val(a_argv, 1, 2, "tx", NULL))
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "tx", NULL))
             l_cmd = CMD_TX;
     // token list
     if(l_cmd == CMD_LIST) {
@@ -1111,7 +1111,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_enum_unlock();
         //total
         dap_string_append_printf(l_str_out, "---------------\ntokens: %zu\n", l_token_num_total);
-        dap_chain_node_cli_set_reply_text(a_str_reply, l_str_out->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_out->str);
         dap_string_free(l_str_out, true);
         return 0;
 
@@ -1119,9 +1119,9 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
     // token info
     else if(l_cmd == CMD_INFO) {
         const char *l_token_name_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
         if(!l_token_name_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter '-name' <token name>");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-name' <token name>");
                 return -4;
             }
 
@@ -1147,7 +1147,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_enum_unlock();
             if(!l_token_num_total)
                 dap_string_append_printf(l_str_out, "token '%s' not found\n", l_token_name_str);
-            dap_chain_node_cli_set_reply_text(a_str_reply, l_str_out->str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_out->str);
             dap_string_free(l_str_out, true);
             return 0;
 
@@ -1160,23 +1160,23 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
         int l_subcmd = CMD_NONE;
         const char *l_addr_base58_str = NULL;
         const char *l_wallet_name = NULL;
-        if(dap_chain_node_cli_find_option_val(a_argv, 2, a_argc, "all", NULL))
+        if(dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "all", NULL))
             l_subcmd = SUBCMD_TX_ALL;
-        else if(dap_chain_node_cli_find_option_val(a_argv, 2, a_argc, "-addr", &l_addr_base58_str))
+        else if(dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-addr", &l_addr_base58_str))
             l_subcmd = SUBCMD_TX_ADDR;
-        else if(dap_chain_node_cli_find_option_val(a_argv, 2, a_argc, "-wallet", &l_wallet_name))
+        else if(dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-wallet", &l_wallet_name))
             l_subcmd = SUBCMD_TX_ADDR;
 
         const char *l_token_name_str = NULL;
         const char *l_page_start_str = NULL;
         const char *l_page_size_str = NULL;
         const char *l_page_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-page_start", &l_page_start_str);
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-page_size", &l_page_size_str);
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-page", &l_page_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-name", &l_token_name_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-page_start", &l_page_start_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-page_size", &l_page_size_str);
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-page", &l_page_str);
         if(!l_token_name_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter '-name' <token name>");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-name' <token name>");
             return -4;
         }
         long l_page_start = -1;// not used if =-1
@@ -1223,7 +1223,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             }
             dap_chain_enum_unlock();
             _dap_chain_tx_hash_processed_ht_free(l_list_tx_hash_processd);
-            dap_chain_node_cli_set_reply_text(a_str_reply, l_str_out->str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_out->str);
             dap_string_free(l_str_out, true);
             return 0;
         }
@@ -1248,12 +1248,12 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                     ffl_addr_base58 = 0;
                 }
                 else {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "wallet '%s' not found", l_wallet_name);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet '%s' not found", l_wallet_name);
                     return -2;
                 }
             }
             if(!l_addr_base58) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "address not recognized");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "address not recognized");
                 return -3;
             }
 
@@ -1278,20 +1278,20 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 l_chain_cur = dap_chain_enum(&l_chain_tmp);
             }
             dap_chain_enum_unlock();
-            dap_chain_node_cli_set_reply_text(a_str_reply, l_str_out->str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_out->str);
             dap_string_free(l_str_out, true);
             DAP_DELETE(l_addr_base58);
             return 0;
 
         }
         else{
-            dap_chain_node_cli_set_reply_text(a_str_reply, "not found parameter '-all', '-wallet' or '-addr'");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "not found parameter '-all', '-wallet' or '-addr'");
             return -1;
         }
         return 0;
     }
 
-    dap_chain_node_cli_set_reply_text(a_str_reply, "unknown command code %d", l_cmd);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "unknown command code %d", l_cmd);
     return -5;
 }
 

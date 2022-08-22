@@ -92,7 +92,7 @@ static dap_chain_net_srv_xchange_t* s_srv_xchange;
  */
 int dap_chain_net_srv_xchange_init()
 {
-    dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
         "srv_xchange order create -net <net_name> -token_sell <token ticker> -token_buy <token_ticker> -wallet <name> -coins <value> -rate <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
         "srv_xchange order remove -net <net_name> -order <order_hash> -wallet <wallet_name>\n"
@@ -620,16 +620,16 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
         CMD_NONE, CMD_CREATE, CMD_REMOVE, CMD_UPDATE, CMD_HISTORY
     };
     int l_cmd_num = CMD_NONE;
-    if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "create", NULL)) {
+    if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "create", NULL)) {
         l_cmd_num = CMD_CREATE;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "remove", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "remove", NULL)) {
         l_cmd_num = CMD_REMOVE;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "update", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "update", NULL)) {
         l_cmd_num = CMD_UPDATE;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "history", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "history", NULL)) {
         l_cmd_num = CMD_HISTORY;
     }
     int l_arg_index = a_arg_index + 1;
@@ -639,68 +639,68 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
     dap_chain_net_t* l_net = NULL;
     switch (l_cmd_num) {
     case CMD_CREATE: {
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order create' required parameter -net");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -net");
             return -2;
         }
         l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
             return -3;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token_sell", &l_token_sell_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_sell", &l_token_sell_str);
         if (!l_token_sell_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -token_sell");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -token_sell");
             return -5;
         }
         if (!dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_sell_str)) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_sell_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_sell_str);
             return -6;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token_buy", &l_token_buy_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_buy", &l_token_buy_str);
         if (!l_token_buy_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -token_buy");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -token_buy");
             return -5;
         }
         if (!dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_buy_str)) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
             return -6;
         }
         const char* l_val_sell_str = NULL, * l_val_rate_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
         if (!l_val_sell_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -coins");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -coins");
             return -8;
         }
         uint256_t l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
         if (IS_ZERO_256(l_datoshi_sell)) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
             return -9;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
         if (!l_val_rate_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -rate");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -rate");
             return -8;
         }
         uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
         if (!compare256(l_rate, uint256_0)) { // if (l_rate == 0)
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
             return -9;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
         if (!l_wallet_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -wallet");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -wallet");
             return -10;
         }
         dap_chain_wallet_t* l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
         if (!l_wallet) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Specified wallet not found");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
             return -11;
         }
         uint256_t l_value = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_sell_str);
         if (compare256(l_value, l_datoshi_sell) == -1) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Not enough cash in specified wallet");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Not enough cash in specified wallet");
             dap_chain_wallet_close(l_wallet);
             return -12;
         }
@@ -715,7 +715,7 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
         // Create conditional transaction
         dap_chain_datum_tx_t* l_tx = s_xchange_tx_create_request(l_price, l_wallet);
         if (!l_tx) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the conditional transaction");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the conditional transaction");
             DAP_DELETE(l_price->wallet_str);
             DAP_DELETE(l_price);
             dap_chain_wallet_close(l_wallet);
@@ -728,47 +728,47 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
         if (l_order_hash_str) {
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
             if (!s_xchange_tx_put(l_tx, l_net)) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't put transaction to mempool");
                 dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);
                 DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
                 return -15;
             }
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
             DAP_DELETE(l_order_hash_str);
         }
         else {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the order");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the order");
             DAP_DELETE(l_price->wallet_str);
             DAP_DELETE(l_price);
             return -18;
         }
     } break;
     case CMD_HISTORY: {
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order create' required parameter -net");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -net");
             return -2;
         }
         l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
             return -3;
         }
 
     } break;
 
         const char* l_order_hash_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
         if (!l_order_hash_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price %s' required parameter -order",
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' required parameter -order",
                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
             return -12;
         }
         dap_chain_net_srv_order_t* l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
         if (!l_order) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order not found");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
             return -13;
         }
 
@@ -777,7 +777,7 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
             int l_rc = s_tx_check_for_open_close(l_net, l_tx);
             char* l_tx_hash = dap_chain_hash_fast_to_str_new(&l_order->tx_cond_hash);
             if (l_rc == 0) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "WRONG TX %s", l_tx_hash);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "WRONG TX %s", l_tx_hash);
             }
             else if (l_rc == 1) {
                 dap_string_t* l_str_reply = dap_string_new("");
@@ -793,52 +793,52 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
                 *a_str_reply = dap_string_free(l_str_reply, false);
             }
             else {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Internal error!");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Internal error!");
             }
         }
         else {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "No history");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "No history");
         }
 
     case CMD_REMOVE:
     case CMD_UPDATE: {
         const char* l_order_hash_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price %s' required parameter -net",
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' required parameter -net",
                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
             return -2;
         }
         dap_chain_net_t* l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
             return -3;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
         if (!l_wallet_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price %s' required parameter -wallet",
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' required parameter -wallet",
                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
             return -10;
         }
         dap_chain_wallet_t* l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
         if (!l_wallet) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Specified wallet not found");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
             return -11;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
         if (!l_order_hash_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price %s' required parameter -order",
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' required parameter -order",
                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
             return -12;
         }
         dap_chain_net_srv_order_t* l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
         if (!l_order) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order not found");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
             return -13;
         }
         dap_chain_net_srv_xchange_price_t* l_price = s_xchange_price_from_order(l_net, l_order);
         if (!l_order) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Can't create price object from order");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create price object from order");
             return -13;
         }
 
@@ -867,36 +867,36 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
             uint256_t l_datoshi_sell = {};
             uint256_t l_rate = uint256_0;
             dap_chain_wallet_t* l_wallet = NULL;
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
             if (l_val_sell_str) {
                 l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
                 if (IS_ZERO_256(l_datoshi_sell)) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
                     return -9;
                 }
             }
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
             if (l_val_rate_str) {
                 l_rate = dap_chain_coins_to_balance(l_val_rate_str);
                 if (!compare256(l_rate, uint256_0)) { // if (l_rate == 0)
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate <long double> = sell / buy");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -rate <long double> = sell / buy");
                     return -9;
                 }
             }
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_new_wallet_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_new_wallet_str);
             l_wallet_str = l_new_wallet_str ? l_new_wallet_str : l_price->wallet_str;
             l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
             if (!l_wallet) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Specified wallet not found");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -11;
             }
             if (!l_val_sell_str && !l_val_rate_str && !l_wallet_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "At least one of updating parameters is mandatory");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "At least one of updating parameters is mandatory");
                 return -13;
             }
             uint256_t l_value = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_sell_str);
             if (!IS_ZERO_256(l_datoshi_sell) && compare256(l_value, l_datoshi_sell) == -1) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Not enough cash in specified wallet");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Not enough cash in specified wallet");
                 dap_chain_wallet_close(l_wallet);
                 return -12;
             }
@@ -915,14 +915,14 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
                 l_price->wallet_str = dap_strdup(l_new_wallet_str);
             }
             if (!l_tx) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the conditional transaction");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the conditional transaction");
                 return -14;
             }
             bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet); // may be changed to old price later
             dap_chain_wallet_close(l_wallet);
             if (!l_ret) {
                 char* l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_price->tx_hash);
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't invalidate transaction %s\n", l_tx_hash_str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s\n", l_tx_hash_str);
                 DAP_DELETE(l_tx_hash_str);
                 return -17;
             }
@@ -934,16 +934,16 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
             if (l_order_hash_str) {
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
                 if (!s_xchange_tx_put(l_tx, l_net)) {
-                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't put transaction to mempool");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't put transaction to mempool");
                     dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_str);
                     DAP_DELETE(l_order_hash_str);
                     return -15;
                 }
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);
             }
             else {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the order");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the order");
                 DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
                 return -18;
@@ -951,7 +951,7 @@ static int s_cli_srv_xchange_order(int a_argc, char** a_argv, int a_arg_index, c
         }
     } break;
     default: {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand %s not recognized", a_argv[a_arg_index]);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand %s not recognized", a_argv[a_arg_index]);
         return -4;
     }
     }
@@ -1171,25 +1171,25 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
     enum { CMD_NONE = 0, CMD_ORDER, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
     int l_arg_index = 1, l_cmd_num = CMD_NONE, l_rc;
 
-    if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "order", NULL)) {
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "order", NULL)) {
         l_cmd_num = CMD_ORDER;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "orders", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "orders", NULL)) {
         l_cmd_num = CMD_ORDERS;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "purchase", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "purchase", NULL)) {
         l_cmd_num = CMD_PURCHASE;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "enable", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "enable", NULL)) {
         l_cmd_num = CMD_ENABLE;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "disable", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "disable", NULL)) {
         l_cmd_num = CMD_DISABLE;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "tx_list", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "tx_list", NULL)) {
         l_cmd_num = CMD_TX_LIST;
     }
-    else if (dap_chain_node_cli_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "token_pair", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "token_pair", NULL)) {
         l_cmd_num = CMD_TOKEN_PAIR;
     }
 
@@ -1200,14 +1200,14 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
     case CMD_ORDERS: {
         const char* l_net_str = NULL;
         l_arg_index++;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'orders' required parameter -net");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'orders' required parameter -net");
             return -2;
         }
         dap_chain_net_t* l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
             return -3;
         }
 
@@ -1261,46 +1261,46 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
     case CMD_PURCHASE: {
         const char* l_net_str = NULL, * l_wallet_str = NULL, * l_order_hash_str = NULL, * l_val_buy_str = NULL;
         l_arg_index++;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'purchase' required parameter -net");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' required parameter -net");
             return -2;
         }
         dap_chain_net_t* l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
             return -3;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
         if (!l_wallet_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'purchase' required parameter -wallet");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' required parameter -wallet");
             return -10;
         }
         dap_chain_wallet_t* l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
         if (!l_wallet) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Specified wallet not found");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
             return -11;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
         if (!l_order_hash_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'purchase' required parameter -order");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' required parameter -order");
             return -12;
         }
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_buy_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_buy_str);
         if (!l_val_buy_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'purchase' required parameter -coins");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' required parameter -coins");
             return -8;
         }
         uint256_t l_datoshi_buy = dap_chain_balance_scan(l_val_buy_str);
         if (IS_ZERO_256(l_datoshi_buy)) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
             return -9;
         }
         dap_chain_net_srv_order_t* l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
         if (l_order) {
             dap_chain_net_srv_xchange_price_t* l_price = s_xchange_price_from_order(l_net, l_order);
             if (!l_price) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't create price from order");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create price from order");
                 return -13;
             }
             // Create conditional transaction
@@ -1311,11 +1311,11 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
             }
             DAP_DELETE(l_price);
             DAP_DELETE(l_order);
-            dap_chain_node_cli_set_reply_text(a_str_reply, l_tx ? "Exchange transaction has done" :
+            dap_cli_server_cmd_set_reply_text(a_str_reply, l_tx ? "Exchange transaction has done" :
                 "Exchange transaction error");
         }
         else {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order not found");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
             return -13;
         }
     } break;
@@ -1332,16 +1332,16 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
         dap_chain_addr_t* l_addr;
 
         l_arg_index++;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-time_from", &l_time_begin_str);
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-time_to", &l_time_end_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-time_from", &l_time_begin_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-time_to", &l_time_end_str);
 
         /*
          * @RRL:  #6294: [[-addr <addr> [-status closed | open]]
          * we should check for valid combination of the status and addr options
          */
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-status", &l_status_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-status", &l_status_str);
 
 
         /* Validate input arguments ... */
@@ -1357,19 +1357,19 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
             else if (dap_strcmp(l_status_str, "all") == 0)
                 l_opt_status = 0;
             else {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
                 return -3;
             }
         }
 
 
         if (!l_net_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'tx_list' required parameter -net");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'tx_list' required parameter -net");
             return -3;
         }
         dap_chain_net_t* l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
             return -4;
         }
 
@@ -1382,7 +1382,7 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
         if (l_addr_str)
         {
             if (!(l_addr = dap_chain_addr_from_str(l_addr_str)))
-                return  dap_chain_node_cli_set_reply_text(a_str_reply, "Cannot convert -addr '%s' to internal representative", l_addr_str), -EINVAL;
+                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Cannot convert -addr '%s' to internal representative", l_addr_str), -EINVAL;
 
             return  s_cli_srv_xchange_tx_list_addr(l_net, l_time[0], l_time[1], l_addr, l_opt_status, a_str_reply);
         }
@@ -1476,14 +1476,14 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
 
         // Find and check the network
         const char* l_net_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
         if (!l_net_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'token_pair' required parameter -net");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'token_pair' required parameter -net");
             return -3;
         }
         dap_chain_net_t* l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
             return -4;
         }
 
@@ -1492,46 +1492,46 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
 
         // check for price subcommand
         const char* l_price_subcommand = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "price", &l_price_subcommand);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "price", &l_price_subcommand);
 
         // check for get subcommand
         if (l_price_subcommand) {
             // Check for token1
             const char* l_token_from_str = NULL;
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token_from", &l_token_from_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_from", &l_token_from_str);
             if (!l_token_from_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "No argument '-token_from'");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No argument '-token_from'");
                 return -5;
             }
             dap_chain_datum_token_t* l_token_from_datum = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_from_str);
             if (!l_token_from_datum) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find \"%s\" token in network \"%s\" for argument '-token_from' ", l_token_from_str, l_net->pub.name);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" token in network \"%s\" for argument '-token_from' ", l_token_from_str, l_net->pub.name);
                 return -6;
             }
 
             // Check for token2
             const char* l_token_to_str = NULL;
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-token_to", &l_token_to_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_to", &l_token_to_str);
             if (!l_token_to_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "No argument '-token_to'");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No argument '-token_to'");
                 return -5;
             }
             dap_chain_datum_token_t* l_token_to_datum = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_to_str);
             if (!l_token_to_datum) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find \"%s\" token in network \"%s\" for argument '-token2' ", l_token_to_str, l_net->pub.name);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" token in network \"%s\" for argument '-token2' ", l_token_to_str, l_net->pub.name);
                 return -6;
             }
 
             // Read time_from
             dap_time_t l_time_from = 0;
             const char* l_time_from_str = NULL;
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-time_from", &l_time_from_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-time_from", &l_time_from_str);
             l_time_from = dap_time_from_str_rfc822(l_time_from_str);
 
             // Read time_to
             dap_time_t l_time_to = 0;
             const char* l_time_to_str = NULL;
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-time_to", &l_time_to_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-time_to", &l_time_to_str);
             l_time_to = dap_time_from_str_rfc822(l_time_to_str);
 
             // Check for price subcommand
@@ -1719,7 +1719,7 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
         }
 
         const char* l_list_subcommand = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "list", &l_list_subcommand);
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "list", &l_list_subcommand);
         if (l_list_subcommand) {
             if (strcmp(l_list_subcommand, "all") == 0) {
                 dap_string_t* l_reply_str = dap_string_new("");
@@ -1752,13 +1752,13 @@ static int s_cli_srv_xchange(int a_argc, char** a_argv, char** a_str_reply)
         }
 
         // No subcommand selected
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'token pair' required proper subcommand, please read its manual with command 'help srv_xchange'");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'token pair' required proper subcommand, please read its manual with command 'help srv_xchange'");
 
 
     } break;
 
     default: {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
         return -1;
     }
     }
