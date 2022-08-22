@@ -23,7 +23,7 @@
  */
 
 #include "dap_strfuncs.h"
-#ifdef DAP_OS_LINUX
+#if defined(DAP_OS_UNIX)
 #include <dlfcn.h>
 #endif
 
@@ -57,7 +57,7 @@ int dap_plugin_binary_init()
     dap_plugin_type_callbacks_t l_callbacks={};
     l_callbacks.load = s_type_callback_load;
     l_callbacks.unload = s_type_callback_unload;
-    dap_plugin_type_create("bin",&l_callbacks);
+    dap_plugin_type_create("binary",&l_callbacks);
     s_manifest = dap_plugin_manifest_add_builtin("binary", "binary", "Demlabs Inc", "1.0","Binary shared library loader",NULL,0,NULL,0);
     return 0;
 }
@@ -84,8 +84,13 @@ static int s_type_callback_load(dap_plugin_manifest_t * a_manifest, void ** a_pv
         return 0;
     struct binary_pvt_data * l_pvt_data= DAP_NEW_Z(struct binary_pvt_data);
     *a_pvt_data = l_pvt_data;
-    #if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
-    char * l_path = dap_strdup_printf("%s/%s.linux.common.%s.so",a_manifest->path,a_manifest->name,dap_get_arch());
+#if defined (DAP_OS_UNIX) && !defined (__ANDROID__)
+
+#if defined (DAP_OS_DARWIN)
+    char * l_path = dap_strdup_printf("%s/%s.darwin.%s.dylib",a_manifest->path,a_manifest->name,dap_get_arch());
+#elif defined (DAP_OS_LINUX)
+    char * l_path = dap_strdup_printf("%s/lib%s.linux.common.%s.so",a_manifest->path,a_manifest->name,dap_get_arch());
+#endif
     l_pvt_data->handle = dlopen(l_path, RTLD_NOW); // Try with specified architecture first
     if(l_pvt_data->handle){
         l_pvt_data->callback_init = dlsym(l_pvt_data->handle, "plugin_init");
@@ -95,7 +100,7 @@ static int s_type_callback_load(dap_plugin_manifest_t * a_manifest, void ** a_pv
         *a_error_str = dap_strdup_printf("Can't load %s module: %s (expected path %s)", a_manifest->name, l_path, dlerror());
         return -5;
     }
-    #endif
+#endif
     if( l_pvt_data->callback_init){
         return l_pvt_data->callback_init(a_manifest->config,a_error_str);
     }else{
@@ -121,7 +126,7 @@ static int s_type_callback_unload(dap_plugin_manifest_t * a_manifest, void * a_p
     assert(l_pvt_data);
     if(l_pvt_data->callback_deinit)
         l_pvt_data->callback_deinit();
-#if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
+#if defined (DAP_OS_UNIX) && !defined (__ANDROID__)
     dlclose(l_pvt_data->handle);
 #endif
     return 0;

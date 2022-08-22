@@ -127,7 +127,7 @@ dap_plugin_manifest_t* dap_plugin_manifest_add_from_file(const char *a_file_path
         return NULL;
     if (!json_object_object_get_ex(l_json_obj, "description", &l_json_description))
         return NULL;
-    json_object_object_get_ex(l_json_obj, "description", &l_json_params);
+    json_object_object_get_ex(l_json_obj, "params", &l_json_params);
     json_object_object_get_ex(l_json_obj, "path", &l_json_path);
 
     const char *l_name, *l_type, *l_version, *l_author, *l_description;
@@ -149,7 +149,7 @@ dap_plugin_manifest_t* dap_plugin_manifest_add_from_file(const char *a_file_path
     l_author = json_object_get_string(l_json_author);
     l_description = json_object_get_string(l_json_description);
     l_dependencies_count = (size_t)json_object_array_length(l_json_dependencies);
-    l_params_count = (size_t)json_object_array_length(l_json_params);
+    l_params_count = l_json_params ? (size_t)json_object_array_length(l_json_params) : 0;
 
     // Read dependencies;
     if(l_dependencies_count){

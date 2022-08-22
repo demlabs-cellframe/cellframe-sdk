@@ -117,11 +117,6 @@ if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
     add_subdirectory(service/stake_pos_delegate)
 endif()
 
-# Support for dynamic modules
-if (CELLFRAME_MODULES MATCHES "modules-dynamic")
-    add_subdirectory(modules_dynamic)
-endif()
-
 # Unit tests
 if( BUILD_TESTS)
     add_subdirectory(test)

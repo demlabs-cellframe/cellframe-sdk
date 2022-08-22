@@ -14,16 +14,12 @@ if(NOT DEFINED CELLFRAME_MODULES)
     set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake-pos-delegate srv-stake-lock srv-xchange")
 
     if(LINUX OR DARWIN)
-        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} modules-dynamic srv-vpn")
+        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
     endif()
 
 endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
-
-if (CELLFRAME_MODULES MATCHES "modules-dynamic")
-    add_definitions("-DDAP_MODULES_DYNAMIC")
-endif()
 
 if (CELLFRAME_MODULES MATCHES "srv-stake")
      add_definitions("-DDAP_SRV_STAKE_USED")
@@ -126,7 +122,7 @@ set(CELLFRAME_LIBS "")
 # Core libs from dap-sdk
 if (CELLFRAME_MODULES MATCHES "core")
     message("[+] Module 'core'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_crypto m pthread)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto m pthread)
 endif()
 
 # General chain libs
@@ -139,7 +135,7 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_stream_ch_chain_voting dap_chain_mempool magic)
+        dap_stream dap_stream_ch dap_client dap_cli_server dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_stream_ch_chain_voting dap_chain_mempool magic)
 endif()
 
 # Chain net services

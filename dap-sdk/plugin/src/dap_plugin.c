@@ -38,14 +38,14 @@ This file is part of DAP (Deus Applications Prototypes) the open source project
 static char *s_plugins_root_path = NULL;
 
 struct plugin_type{
-    char *name;
+    char name[64];
     dap_plugin_type_callbacks_t callbacks;
     UT_hash_handle hh;
 } * s_types;
 
 
 struct plugin_module{
-    char *name;
+    char name[64];
     struct plugin_type *type;
     dap_plugin_manifest_t *manifest;
 
@@ -75,14 +75,17 @@ int dap_plugin_init(const char * a_root_path)
         log_it(L_ERROR, "Can't find \"%s\" directory", s_plugins_root_path);
         return -1;
     }
+    dap_plugin_manifest_init();
+    dap_plugin_command_init();
+
+    dap_plugin_binary_init();
+
 
     //Get list files
     dap_list_name_directories_t *l_list_plugins_name = dap_get_subs(s_plugins_root_path);
     dap_list_name_directories_t *l_element;
     // Register manifests
     log_it(L_DEBUG, "Start registration of manifests");
-    dap_plugin_manifest_init();
-    dap_plugin_command_init();
 
     char *l_name_file = NULL;
     LL_FOREACH(l_list_plugins_name, l_element){
@@ -100,6 +103,7 @@ int dap_plugin_init(const char * a_root_path)
 void dap_plugin_deinit(){
     log_it(L_NOTICE, "Deinitialize plugins");
     dap_plugin_stop_all();
+    dap_plugin_binary_deinit();
     dap_plugin_manifest_deinit();
     dap_plugin_command_deinit();
 }
@@ -131,13 +135,15 @@ int dap_plugin_type_create(const char* a_name, dap_plugin_type_callbacks_t* a_ca
         log_it(L_CRITICAL, "Can't create plugin type without callbacks!");
         return -2;
     }
-    struct plugin_type * l_new = DAP_NEW_Z(struct plugin_type);
-    if(!l_new){
+    struct plugin_type * l_type = DAP_NEW_Z(struct plugin_type);
+    if(!l_type){
         log_it(L_CRITICAL, "OOM on new type create");
         return -3;
     }
-    l_new->name = dap_strdup(a_name);
-    memcpy(&l_new->callbacks,a_callbacks,sizeof(l_new->callbacks));
+    strncpy(l_type->name,a_name, sizeof(l_type->name)-1);
+    memcpy(&l_type->callbacks,a_callbacks,sizeof(l_type->callbacks));
+    HASH_ADD_STR(s_types,name,l_type);
+    log_it(L_NOTICE, "Plugin type \"%s\" added", a_name);
     return 0;
 }
 
@@ -231,7 +237,7 @@ static int s_start(dap_plugin_manifest_t * a_manifest)
     struct plugin_type * l_type = NULL;
     HASH_FIND_STR(s_types, a_manifest->type, l_type);
     if(! l_type){
-        log_it(L_ERROR, "Plugin type \"%s\" is not recognized", a_manifest->type);
+        log_it(L_ERROR, "Plugin \"%s\" with type \"%s\" is not recognized", a_manifest->name, a_manifest->type);
         return -1;
     }
     if (a_manifest->dependencies != NULL){
@@ -265,6 +271,7 @@ static int s_start(dap_plugin_manifest_t * a_manifest)
         l_module->type = l_type;
         l_module->manifest = a_manifest;
         HASH_ADD_STR(s_modules,name,l_module);
+        log_it(L_NOTICE, "Plugin \"%s\" is loaded", a_manifest->name);
     }
     return l_ret;
 }

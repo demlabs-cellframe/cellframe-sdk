@@ -517,43 +517,43 @@ static inline const char *dap_get_arch() { //Get current architecture, detectx n
         #elif defined(i386) || defined(__i386__) || defined(__i386) || defined(_M_IX86)
         return "x86_32";
         #elif defined(__ARM_ARCH_2__)
-        return "ARM2";
+        return "arm2";
         #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_3M__)
-        return "ARM3";
+        return "arm3";
         #elif defined(__ARM_ARCH_4T__) || defined(__TARGET_ARM_4T)
-        return "ARM4T";
+        return "arm4t";
         #elif defined(__ARM_ARCH_5_) || defined(__ARM_ARCH_5E_)
-        return "ARM5"
+        return "arm5"
         #elif defined(__ARM_ARCH_6T2_) || defined(__ARM_ARCH_6T2_)
-        return "ARM6T2";
+        return "arm6t2";
         #elif defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6ZK__)
-        return "ARM6";
+        return "arm6";
         #elif defined(__ARM_ARCH_7__) || defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
-        return "ARM7";
+        return "arm7";
         #elif defined(__ARM_ARCH_7A__) || defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
-        return "ARM7A";
+        return "arm7a";
         #elif defined(__ARM_ARCH_7R__) || defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7S__)
-        return "ARM7R";
+        return "arm7r";
         #elif defined(__ARM_ARCH_7M__)
-        return "ARM7M";
+        return "arm7m";
         #elif defined(__ARM_ARCH_7S__)
-        return "ARM7S";
+        return "arm7s";
         #elif defined(__aarch64__) || defined(_M_ARM64)
-        return "ARM64";
+        return "arm64";
         #elif defined(mips) || defined(__mips__) || defined(__mips)
-        return "MIPS";
+        return "mips";
         #elif defined(__sh__)
-        return "SUPERH";
+        return "superh";
         #elif defined(__powerpc) || defined(__powerpc__) || defined(__powerpc64__) || defined(__POWERPC__) || defined(__ppc__) || defined(__PPC__) || defined(_ARCH_PPC)
-        return "POWERPC";
+        return "powerpc";
         #elif defined(__PPC64__) || defined(__ppc64__) || defined(_ARCH_PPC64)
-        return "POWERPC64";
+        return "powerpc64";
         #elif defined(__sparc__) || defined(__sparc)
-        return "SPARC";
+        return "sparc";
         #elif defined(__m68k__)
-        return "M68K";
+        return "m68k";
         #else
-        return "UNKNOWN";
+        return "unknown";
         #endif
     }
 
