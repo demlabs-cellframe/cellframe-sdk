@@ -32,7 +32,7 @@
 #include "dap_hash.h"
 #include "dap_time.h"
 
-extern bool s_debug_more;
+static bool s_debug_more;
 
 enum error_code {
     STAKE_NO_ERROR 				= 0,
