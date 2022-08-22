@@ -254,9 +254,14 @@ static void wallet_info_notify();
 int dap_chain_ledger_init()
 {
     s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
-    pthread_rwlock_init(&s_verificators_rwlock, NULL);
-    pthread_rwlock_init(&s_emission_for_stake_lock_rwlock, NULL);
     return 0;
+}
+
+bool dap_chain_global_rwlock_init(void)
+{
+	pthread_rwlock_init(&s_verificators_rwlock, NULL);
+	pthread_rwlock_init(&s_emission_for_stake_lock_rwlock, NULL);
+	return true;
 }
 
 /**
