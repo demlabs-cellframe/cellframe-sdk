@@ -11,7 +11,7 @@
 
 #define LOG_TAG "dap_plugin_manifest"
 
-dap_plugin_manifest_t* s_manifests = NULL;
+static dap_plugin_manifest_t* s_manifests = NULL;
 
 static void s_manifest_delete(dap_plugin_manifest_t *a_manifest);
 
