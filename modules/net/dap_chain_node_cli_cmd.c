@@ -2496,7 +2496,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
     int ret = 0;
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
     if(l_datum_hash_str) {
-        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
         dap_string_t * l_str_tmp = dap_string_new(NULL);
         size_t l_datum_size=0;
         const char *l_datum_hash_out_str;
@@ -3307,7 +3307,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
                 l_datum_token->header_private_decl.tsd_total_size = l_tsd_total_size;
-				l_datum_token->header_native_decl.decimals = atoi(l_params->l_decimals_str);
+				l_datum_token->header_private_decl.decimals = atoi(l_params->l_decimals_str);
             } else { //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
                 log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
@@ -3360,7 +3360,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
-			l_datum_token->header_native_decl.decimals = atoi(l_params->l_decimals_str);
+			l_datum_token->header_simple.decimals = atoi(l_params->l_decimals_str);
         }break;
         default:
             dap_chain_node_cli_set_reply_text(a_str_reply,

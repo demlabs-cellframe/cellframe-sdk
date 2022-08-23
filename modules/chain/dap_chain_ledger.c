@@ -1171,7 +1171,9 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
        char *l_item_str = NULL;
 
         if ((l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
-		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)){
+		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)){
 				char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
 				char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
                 l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
@@ -1179,7 +1181,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                                                 "\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
                                                 "\tTotal emissions %u\n",
-                                                &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags),
+                                                &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags),
 											   	l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                                 HASH_COUNT(l_token_item->token_emissions));
@@ -1193,7 +1195,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 											   	"\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
                                                 "\tTotal emissions %u\n",
-                                                &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags),
+                                                &l_token_item->ticker, l_type_str, "SIMPLE token has no flags",
                                                 l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                                 HASH_COUNT(l_token_item->token_emissions));

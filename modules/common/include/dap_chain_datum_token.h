@@ -70,12 +70,13 @@ typedef struct dap_chain_datum_token{
     union {
         // Simple token declaration. Useful for 100% premined emission without any plays with token and owners after that
         struct {
-             // Nothing here
+			uint16_t decimals;
         } DAP_ALIGN_PACKED header_simple;
         // Private token declarations, with flags, manipulations and updates
         struct {
             uint16_t flags; // Token declaration flags
             uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+			uint16_t decimals;
         } DAP_ALIGN_PACKED header_private_decl;
         //native tokens
         struct {
