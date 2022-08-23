@@ -2667,7 +2667,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_datum_token_t * l_datum_token_update = NULL;
     size_t l_datum_data_offset = 0;
-    uint32_t l_sign_counter = 0;
+	uint16_t l_sign_counter = 0;
 
     switch(l_type){
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
@@ -2820,7 +2820,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token_update->header_private_update.tsd_total_size = l_tsd_total_size;
 
             // Sign header with all certificates in the list and add signs to the end of token update
-            uint16_t l_sign_counter = 0;
+			l_sign_counter = 0;
             l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_tsd_total_size,
                                                         &l_sign_counter);
             l_datum_token_update->signs_total = l_sign_counter;
