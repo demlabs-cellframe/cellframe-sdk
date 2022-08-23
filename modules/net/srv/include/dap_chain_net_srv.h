@@ -169,10 +169,10 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_test {
     dap_chain_net_id_t net_id;
     dap_chain_net_srv_uid_t srv_uid;
     int32_t  time_connect_ms;
-    struct timeval recv_time1;
-    struct timeval recv_time2;
-    struct timeval send_time1;
-    struct timeval send_time2;
+    struct timespec recv_time1;
+    struct timespec recv_time2;
+    struct timespec send_time1;
+    struct timespec send_time2;
     byte_t ip_send[16];
     byte_t ip_recv[16];
     int32_t err_code;

@@ -3903,7 +3903,7 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
         }break;
         case DAP_CHAIN_DATUM_CA:{
 
-            if ( dap_cert_chain_file_save(a_datum, a_chain->net_name) < 0 )
+            if (dap_cert_chain_file_save(a_datum, a_chain->net_name) < 0)
                 return -5;
         }break;
         case DAP_CHAIN_DATUM_SIGNER:

@@ -41,6 +41,7 @@
 #include "dap_cert.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_cs.h"
+#include "dap_cert_file.h"
 #include "dap_chain_vf.h"
 #include <uthash.h>
 #include <pthread.h>
@@ -720,4 +721,41 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
         } while(l_atom_treshold);
     }
     return l_res;
+}
+
+/**
+ * @brief dap_cert_chain_file_save
+ * @param datum
+ */
+int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
+{
+    const char *s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
+    if(dap_strlen(s_system_chain_ca_dir) == 0) {
+        log_it(L_ERROR, "Not found 'chain_ca_folder' in .cfg file");
+        return -1;
+    }
+    dap_cert_t *cert = dap_cert_mem_load(datum->data, datum->header.data_size);
+    if(!cert) {
+        log_it(L_ERROR, "Can't load cert, size: %d", datum->header.data_size);
+        return -1;
+    }
+    const char *cert_name = cert->name;
+    size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
+    char *cert_path = DAP_NEW_Z_SIZE(char, cert_path_length);
+    snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
+    // In cert_path resolve all `..` and `.`s
+    char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
+    DAP_DELETE(cert_path);
+    // Protect the ca folder from using "/.." in cert_name
+    if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
+        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
+        return -1;
+    }
+    int l_ret = dap_cert_file_save(cert, cert_path_c);
+    DAP_DELETE(cert_path_c);
+//  if ( access( l_cert_path, F_OK ) != -1 ) {
+//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
+//      return -1;
+//  } else
+    return l_ret;
 }
