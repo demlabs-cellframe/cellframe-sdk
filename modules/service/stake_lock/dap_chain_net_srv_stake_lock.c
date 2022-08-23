@@ -32,6 +32,8 @@
 #include "dap_hash.h"
 #include "dap_time.h"
 
+extern bool s_debug_more;
+
 enum error_code {
     STAKE_NO_ERROR 				= 0,
     NET_ARG_ERROR				= 1,
@@ -57,7 +59,7 @@ enum error_code {
 	HASH_IS_BLANK_ERROR			= 21,
 	NO_TX_ERROR					= 22,
 	CREATE_LOCK_TX_ERROR		= 23,
-	TX_TIKET_ERROR				= 24,
+	TX_TICKER_ERROR				= 24,
 	NO_DELEGATE_TOKEN_ERROR		= 25,
 	NO_VALID_SUBTYPE_ERROR		= 26,
 	IS_USED_OUT_ERROR			= 27,
@@ -87,6 +89,13 @@ typedef struct cond_params{
     dap_hash_fast_t	pkey_delegated; // Delegate public key
 } DAP_ALIGN_PACKED	cond_params_t;
 
+typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
+	dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
+	dap_chain_hash_fast_t	tx_used_out;
+//	const char 				datum_token_emission_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
+	UT_hash_handle hh;
+} dap_chain_ledger_token_emission_for_stake_lock_item_t;
+
 #define LOG_TAG		"dap_chain_net_stake_lock"
 #define MONTH_INDEX	8
 #define YEAR_INDEX	12
@@ -97,6 +106,7 @@ static bool	s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 static bool	s_callback_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
+dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 
 /**
  * @brief dap_chain_net_srv_external_stake_init
@@ -175,25 +185,30 @@ static dap_chain_datum_tx_receipt_t *s_receipt_create(dap_hash_fast_t *hash_burn
  */
 static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
-    const char *l_net_str, *l_token_str, *l_coins_str, *l_wallet_str, *l_cert_str, *l_chain_str, *l_chain_emission_str, *l_time_staking_str, *reinvest_str;
-    l_net_str = l_token_str = l_coins_str = l_wallet_str = l_cert_str = l_chain_str = l_chain_emission_str = l_time_staking_str = reinvest_str = NULL;
-	const char *l_wallets_path												= dap_chain_wallet_get_path(g_config);
-	char 					delegate_token_str[DAP_CHAIN_TICKER_SIZE_MAX] 	= {[0] = 'm'};
-	dap_chain_net_t			*l_net											= NULL;
-	dap_chain_t				*l_chain										= NULL;
-	dap_chain_t				*l_chain_emission								= NULL;
-    dap_chain_net_srv_uid_t	l_uid											= { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
-	dap_time_t              l_time_staking									= 0;
-	uint8_t					reinvest										= 0;
-	char					*l_hash_str;
-	dap_hash_fast_t			*l_tx_cond_hash;
-	dap_hash_fast_t 		*l_base_tx_hash;
-	dap_enc_key_t			*l_key_from;
-	dap_pkey_t				*l_key_cond;
-	uint256_t 				l_value;
-	dap_chain_wallet_t		*l_wallet;
-	dap_chain_addr_t		*l_addr_holder;
-	dap_cert_t				*l_cert;
+    const char *l_net_str, *l_ticker_str, *l_coins_str, *l_wallet_str, *l_cert_str, *l_chain_str, *l_chain_emission_str, *l_time_staking_str, *l_reinvest_percent_str;
+	l_net_str = l_ticker_str = l_coins_str = l_wallet_str = l_cert_str = l_chain_str = l_chain_emission_str = l_time_staking_str = l_reinvest_percent_str = NULL;
+	const char *l_wallets_path								=	dap_chain_wallet_get_path(g_config);
+	char 	delegate_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{[0] = 'm'};
+	dap_chain_net_t						*l_net				=	NULL;
+	dap_chain_t							*l_chain			=	NULL;
+	dap_chain_t							*l_chain_emission	=	NULL;
+    dap_chain_net_srv_uid_t				l_uid				=	{ .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+	dap_time_t              			l_time_staking		=	0;
+	uint8_t								l_reinvest_percent	=	0;
+	uint256_t							l_value_delegated	=	{};
+	uint256_t 							l_value;
+	dap_ledger_t						*l_ledger;
+	char								*l_hash_str;
+	dap_hash_fast_t						*l_tx_cond_hash;
+	dap_hash_fast_t 					*l_base_tx_hash;
+	dap_enc_key_t						*l_key_from;
+	dap_pkey_t							*l_key_cond;
+	dap_chain_wallet_t					*l_wallet;
+	dap_chain_addr_t					*l_addr_holder;
+	dap_cert_t							*l_cert;
+	dap_chain_datum_token_t 			*delegate_token;
+	dap_tsd_t							*l_tsd;
+	dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
 
 	dap_string_append_printf(output_line, "---> HOLD <---\n");
 
@@ -206,22 +221,31 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 		return NET_ERROR;
 	}
 
-	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_token_str)
-	||	NULL == l_token_str
-	||	dap_strlen(l_token_str) > 8) // for 'm' delegated
+	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-token", &l_ticker_str)
+	|| NULL == l_ticker_str
+	|| dap_strlen(l_ticker_str) > 8) // for 'm' delegated
 		return TOKEN_ARG_ERROR;
 
-	if (NULL == dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_str)) {
-		dap_string_append_printf(output_line, "'%s'", l_token_str);
+	l_ledger = l_net->pub.ledger;
+
+	if (NULL == dap_chain_ledger_token_ticker_check(l_ledger, l_ticker_str)) {
+		dap_string_append_printf(output_line, "'%s'", l_ticker_str);
 		return TOKEN_ERROR;
 	}
 
-	strcpy(delegate_token_str + 1, l_token_str);
+	strcpy(delegate_ticker_str + 1, l_ticker_str);
 
-	if (NULL == dap_chain_ledger_token_ticker_check(l_net->pub.ledger, delegate_token_str)) {
-		dap_string_append_printf(output_line, "'%s'", delegate_token_str);
-		return TOKEN_ERROR;
+	if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(l_ledger, delegate_ticker_str))
+	||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+	||	!delegate_token->header_native_decl.tsd_total_size
+	||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+		dap_string_append_printf(output_line, "'%s'", delegate_ticker_str);
+		return NO_DELEGATE_TOKEN_ERROR;
 	}
+
+	l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+	if (strcmp(l_ticker_str, l_tsd_section.ticker_token_from))
+		return TOKEN_ERROR;
 
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-coins", &l_coins_str)
 	||	NULL == l_coins_str)
@@ -229,6 +253,13 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
 	if (IS_ZERO_256( (l_value = dap_chain_balance_scan(l_coins_str)) ))
 		return COINS_FORMAT_ERROR;
+
+	if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
+		MULT_256_COIN(l_value, l_tsd_section.emission_rate, &l_value_delegated);
+		if (IS_ZERO_256(l_value_delegated))
+			return COINS_FORMAT_ERROR;
+	} else
+		l_value_delegated = l_value;
 
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-cert", &l_cert_str)
 	||	NULL == l_cert_str)
@@ -270,19 +301,21 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
 	l_time_staking -= dap_time_now();
 
-	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &reinvest_str)
-	&&	NULL != reinvest_str) {
-		if ((reinvest = atoi(reinvest_str)) > 100
-		||	reinvest <= 0)
+	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-l_reinvest_percent", &l_reinvest_percent_str)
+	&& NULL != l_reinvest_percent_str) {
+		if ((l_reinvest_percent = atoi(l_reinvest_percent_str)) > 100
+			|| l_reinvest_percent <= 0)
 			return REINVEST_ARG_ERROR;
 	}
+
+/*________________________________________________________________________________________________________________*/
 
 	if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
 		dap_string_append_printf(output_line, "'%s'", l_wallet_str);
 		return WALLET_OPEN_ERROR;
 	}
 
-	if (compare256(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_str), l_value) == -1) {
+	if (compare256(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_ticker_str), l_value) == -1) {
 		dap_chain_wallet_close(l_wallet);
 		return NO_MONEY_ERROR;
 	}
@@ -301,8 +334,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 		return CERT_KEY_ERROR;
 	}
 
-    l_tx_cond_hash = dap_chain_net_srv_stake_lock_mempool_create(l_net, l_key_from, l_key_cond, l_token_str,
-                                                                     l_value, l_uid, l_addr_holder, l_time_staking, reinvest);
+    l_tx_cond_hash = dap_chain_net_srv_stake_lock_mempool_create(l_net, l_key_from, l_key_cond, l_ticker_str,
+																 l_value, l_uid, l_addr_holder, l_time_staking, l_reinvest_percent);
 
 	dap_chain_wallet_close(l_wallet);
 	DAP_DEL_Z(l_key_cond);
@@ -319,8 +352,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 	DAP_DEL_Z(l_hash_str);
 
 	l_base_tx_hash = dap_chain_mempool_base_tx_create(l_chain_emission, l_tx_cond_hash, l_chain_emission->id,
-																  l_value, delegate_token_str, l_addr_holder,
-																  &l_cert, 1);
+													  l_value_delegated, delegate_ticker_str, l_addr_holder,
+													  &l_cert, 1);
 
 	l_hash_str = (l_base_tx_hash) ? dap_chain_hash_fast_to_str_new(l_base_tx_hash) : NULL;
 
@@ -342,17 +375,15 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
 static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
-	const char *l_net_str, *l_token_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_chain_str;
-	l_net_str = l_token_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = NULL;
+	const char *l_net_str, *l_ticker_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_chain_str;
+	l_net_str = l_ticker_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = NULL;
 	dap_chain_net_t						*l_net				=	NULL;
 	const char							*l_wallets_path		=	dap_chain_wallet_get_path(g_config);
-	dap_chain_net_srv_price_unit_uid_t	l_unit				=	{ .uint32 = SERV_UNIT_UNDEFINED};
-	dap_chain_net_srv_uid_t				l_uid				=	{ .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
-	char 	delegate_token_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{[0] = 'm'};
+	char 	delegate_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{[0] = 'm'};
 	int									l_prev_cond_idx		=	0;
+	uint256_t							l_value_delegated	= 	{};
 	cond_params_t						*l_params;
 	char 								*l_datum_hash_str;
-//	uint256_t 							l_value;
 	dap_ledger_t						*l_ledger;
 	dap_chain_wallet_t					*l_wallet;
 	dap_hash_fast_t						l_tx_hash;
@@ -367,6 +398,9 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	size_t								l_tx_size;
 	dap_chain_datum_t					*l_datum;
 	dap_chain_t							*l_chain;
+	dap_chain_datum_token_t				*delegate_token;
+	dap_tsd_t							*l_tsd;
+	dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
 
 	dap_string_append_printf(output_line, "---> TAKE <---\n");
 
@@ -396,15 +430,24 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	if (dap_hash_fast_is_blank(&l_tx_hash))
 		return HASH_IS_BLANK_ERROR;
 
-	l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
+	l_ledger = l_net->pub.ledger;
 
-	if (NULL == (l_token_str = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash)))
-		return TX_TIKET_ERROR;
+	if (NULL == (l_ticker_str = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash)))
+		return TX_TICKER_ERROR;
 
-	strcpy(delegate_token_str + 1, l_token_str);
+	strcpy(delegate_ticker_str + 1, l_ticker_str);
 
-	if (!dap_chain_ledger_token_ticker_check(l_ledger, delegate_token_str))
+	if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(l_ledger, delegate_ticker_str))
+		||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+		||	!delegate_token->header_native_decl.tsd_total_size
+		||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+		dap_string_append_printf(output_line, "'%s'", delegate_ticker_str);
 		return NO_DELEGATE_TOKEN_ERROR;
+	}
+
+	l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+	if (strcmp(l_ticker_str, l_tsd_section.ticker_token_from))
+		return TOKEN_ERROR;
 
 	l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
 
@@ -426,6 +469,13 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 		if (l_params->time_unlock > dap_time_now())
 			return NOT_ENOUGH_TIME;
 	}
+
+	if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
+		MULT_256_COIN(l_tx_out_cond->header.value, l_tsd_section.emission_rate, &l_value_delegated);
+		if (IS_ZERO_256(l_value_delegated))
+			return COINS_FORMAT_ERROR;
+	} else
+		l_value_delegated = l_tx_out_cond->header.value;
 
 	if (!dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
 	||	NULL == l_wallet_str)
@@ -460,7 +510,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
 	//add burning tx
 	if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, NULL,
-													delegate_token_str, l_tx_out_cond->header.value))) {//malloc
+																  delegate_ticker_str, l_value_delegated))) {//malloc
 		dap_chain_wallet_close(l_wallet);
 		DAP_DEL_Z(l_owner_addr);
 		dap_chain_datum_tx_delete(l_tx);
@@ -470,7 +520,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	//get tx hash
 	dap_hash_fast(l_datum_burning_tx->data, l_datum_burning_tx->header.data_size, &l_tx_burning_hash);
 
-    if (NULL == (l_receipt = s_receipt_create(&l_tx_burning_hash, delegate_token_str, l_tx_out_cond->header.value))) {
+    if (NULL == (l_receipt = s_receipt_create(&l_tx_burning_hash, delegate_ticker_str, l_value_delegated))) {
 		dap_chain_wallet_close(l_wallet);
 		DAP_DEL_Z(l_owner_addr);
 		dap_chain_datum_tx_delete(l_tx);
@@ -631,12 +681,12 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			dap_string_append_printf(output_line, "Not enough time has passed");
 			} break;
 
-		case TX_TIKET_ERROR: {
-			dap_string_append_printf(output_line, "ticket not found");
+		case TX_TICKER_ERROR: {
+			dap_string_append_printf(output_line, "ticker not found");
 			} break;
 
 		case NO_DELEGATE_TOKEN_ERROR: {
-			dap_string_append_printf(output_line, "delegated token not found");
+			dap_string_append_printf(output_line, " ^^^ delegated token not found");
 			} break;
 
 		case NO_VALID_SUBTYPE_ERROR: {
@@ -900,10 +950,23 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
 static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
+	dap_chain_datum_tx_t									*burning_tx					= NULL;
+	dap_chain_tx_out_t										*burning_transaction_out	= NULL;
+	uint256_t												l_value_delegated			= {};
+	dap_hash_fast_t											hash_burning_transaction;
+	dap_chain_datum_token_tsd_delegate_from_stake_lock_t	l_tsd_section;
+	dap_tsd_t												*l_tsd;
+	cond_params_t 											*l_params;
+	dap_chain_datum_tx_receipt_t							*l_receipt;
+	dap_chain_tx_out_t										*l_tx_out;
+	dap_chain_tx_in_cond_t									*l_tx_in_cond;
+	const char												*l_tx_ticker;
+	dap_chain_datum_token_t									*delegate_token;
+
     UNUSED(a_tx_out_hash);
 	/*if (!a_owner) TODO: ???
-		return false;*/
-    cond_params_t * l_params;
+	return false;*/
+
     if (a_cond->params_size != sizeof(*l_params) )// Wrong params size
         return false;
     l_params = (cond_params_t *) a_cond->params;
@@ -913,7 +976,7 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
             return false;
     }
 
-    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_RECEIPT, 0);
+	l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
 	if (!l_receipt)
 		return false;
 
@@ -925,26 +988,45 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
 		return false;
 #endif
 
-	dap_hash_fast_t hash_burning_transaction;
-	char ticker[DAP_CHAIN_TICKER_SIZE_MAX + 1];//not used TODO: check ticker?
-	if (l_receipt->exts_size) {
-		memcpy(&hash_burning_transaction, l_receipt->exts_n_signs, sizeof(dap_hash_fast_t));
-		strcpy(ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
-	}
+	char delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    if (l_receipt->exts_size) {
+        hash_burning_transaction = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
+        strcpy(delegated_ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
+	} else
+		return false;
 
 	if (dap_hash_fast_is_blank(&hash_burning_transaction))
 		return false;
 
-	dap_chain_datum_tx_t *burning_tx = NULL;
-	dap_chain_tx_out_t *burning_transaction_out = NULL;
-
-    dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT,0);
+	l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
 
 	if (!l_tx_out)
 		return false;
 
-//	dap_chain_net_t *l_net = dap_chain_net_by_id(l_tx_out->addr.net_id);
-//	dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
+	if (!EQUAL_256(a_cond->header.value, l_tx_out->header.value))
+		return false;
+
+	if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(a_ledger, delegated_ticker))
+		||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+		||	!delegate_token->header_native_decl.tsd_total_size
+		||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+		return false;
+	}
+
+	l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+
+	if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_IN_COND, 0)))
+		return false;
+	if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+		return false;
+	if (NULL == (l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash)))
+		return false;
+	if (strcmp(l_tx_ticker, l_tsd_section.ticker_token_from))
+		return false;
+	if (NULL == (l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &hash_burning_transaction)))
+		return false;
+	if (strcmp(l_tx_ticker, delegated_ticker))
+		return false;
 
 	burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
 	burning_transaction_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(burning_tx, 0, TX_ITEM_TYPE_OUT,0);
@@ -952,17 +1034,35 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
 	if (!burning_transaction_out)
 		return false;
 
-	const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction_out->addr.data.hash_fast);
-	log_it(L_INFO, "ADDR from burning TX: %s", addr_srt);
-	if (!dap_hash_fast_is_blank(&burning_transaction_out->addr.data.hash_fast))
+	if (!dap_hash_fast_is_blank(&burning_transaction_out->addr.data.hash_fast)) {
+		if (s_debug_more) {
+			const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction_out->addr.data.hash_fast);
+			log_it(L_ERROR, "ADDR from burning NOT BLANK: %s", addr_srt);
+			DAP_DEL_Z(addr_srt);
+		}
 		return false;
-	DAP_DEL_Z(addr_srt);
+	}
 
-	char *str1 = dap_chain_balance_print(burning_transaction_out->header.value);
-	char *str2 = dap_chain_balance_print(l_tx_out->header.value);
-	log_it(L_INFO, "burning: |%s| value: |%s|", str1, str2);
+	if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
+		MULT_256_COIN(l_tx_out->header.value, l_tsd_section.emission_rate, &l_value_delegated);
+		if (IS_ZERO_256(l_value_delegated))
+			return COINS_FORMAT_ERROR;
+	} else
+		l_value_delegated = l_tx_out->header.value;
 
-	if (!EQUAL_256(burning_transaction_out->header.value, l_tx_out->header.value))
+	if (s_debug_more) {
+		char *str1 = dap_chain_balance_print(burning_transaction_out->header.value);
+		char *str2 = dap_chain_balance_print(l_tx_out->header.value);
+		char *str3 = dap_chain_balance_print(l_value_delegated);
+		log_it(L_INFO, "burning_value: |%s|",	str1);
+		log_it(L_INFO, "hold/take_value: |%s|",	str2);
+		log_it(L_INFO, "delegated_value |%s|",	str3);
+		DAP_DEL_Z(str1);
+		DAP_DEL_Z(str2);
+		DAP_DEL_Z(str3);
+	}
+
+	if (!EQUAL_256(burning_transaction_out->header.value, l_value_delegated))//MULT
 		return false;
 
 	return true;
@@ -986,6 +1086,8 @@ static bool	s_callback_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum
 		DAP_DEL_Z(l_key_hash);
 		return false;
 	}
+
+	s_emission_for_stake_lock_item_add(a_ledger, l_key_hash);
 
 	DAP_DEL_Z(l_key_hash);
 

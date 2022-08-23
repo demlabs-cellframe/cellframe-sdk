@@ -636,7 +636,7 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
 {
     dap_chain_hash_fast_t l_tx_hash = {};
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
-    memcpy(&a_price->tx_hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
+    a_price->tx_hash = l_tx_hash;
     dap_srv_xchange_order_ext_t l_ext={0};
     l_ext.datoshi_sell = a_price->datoshi_sell;
     strncpy(l_ext.token_sell, a_price->token_sell, DAP_CHAIN_TICKER_SIZE_MAX);
@@ -669,7 +669,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     strcpy(l_price->token_buy, a_order->price_ticker);
     if( compare256(l_price->datoshi_sell, uint256_0) !=0 ){
         DIV_256_COIN(a_order->price, l_price->datoshi_sell, &l_price->rate);
-        memcpy(&l_price->tx_hash, &a_order->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
+        l_price->tx_hash = a_order->tx_cond_hash;
         return l_price;
     }else{
         DAP_DELETE(l_price);

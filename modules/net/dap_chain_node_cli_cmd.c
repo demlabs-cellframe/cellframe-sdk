@@ -463,7 +463,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
             l_node_info_read->hdr.links_number++;
             l_node_info_read_size = dap_chain_node_info_get_size(l_node_info_read);
             l_node_info_read = DAP_REALLOC(l_node_info_read, l_node_info_read_size);
-            memcpy(&(l_node_info_read->links[l_node_info_read->hdr.links_number-1]), link, sizeof(dap_chain_node_addr_t));
+            l_node_info_read->links[l_node_info_read->hdr.links_number-1] = *link;
             res_successful = true;
         }
     }
@@ -472,7 +472,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
         // move link list to one item prev
         if(index_link >= 0) {
             for(unsigned int j = (unsigned int) index_link; j < (l_node_info_read->hdr.links_number - 1); j++) {
-                memcpy(&(l_node_info_read->links[j]), &(l_node_info_read->links[j + 1]), sizeof(dap_chain_node_addr_t));
+                l_node_info_read->links[j] = l_node_info_read->links[j + 1];
             }
             l_node_info_read->hdr.links_number--;
             res_successful = true;
@@ -998,7 +998,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_digit_from_string(l_addr_str, l_node_addr.raw, sizeof(l_node_addr.raw));
         }
         if(l_node_info)
-            memcpy(&l_node_info->hdr.address, &l_node_addr, sizeof(dap_chain_node_addr_t));
+            l_node_info->hdr.address = l_node_addr;
     }
     if(l_port_str) {
         uint16_t l_node_port = 0;
@@ -1090,7 +1090,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
             if(address_tmp) {
-                memcpy(&l_node_addr, address_tmp, sizeof(*address_tmp));
+                l_node_addr = *address_tmp;
                 DAP_DELETE(address_tmp);
             }
             else {
@@ -1354,7 +1354,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
             if(address_tmp) {
-                memcpy(&l_node_addr, address_tmp, sizeof(*address_tmp));
+                l_node_addr = *address_tmp;
                 DAP_DELETE(address_tmp);
             }
             else {
@@ -3089,11 +3089,32 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
 
     //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL uses decimals parameter
     if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE || l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL){
+		if(!l_params->l_decimals_str) {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
+			return -3;
+		} else if (dap_strcmp(l_params->l_decimals_str, "18")) {
+			dap_chain_node_cli_set_reply_text(a_str_reply,
+											  "token_decl support '-decimals' to be 18 only");
+			return -4;
+		}
         if(IS_ZERO_256(l_params->l_total_supply)) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
             return -3;
         }
-    }
+    } else if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL){ //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
+		if(!l_params->l_decimals_str) {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
+			return -3;
+		} else if (dap_strcmp(l_params->l_decimals_str, "18")) {
+			dap_chain_node_cli_set_reply_text(a_str_reply,
+											  "token_decl support '-decimals' to be 18 only");
+			return -4;
+		}
+		if(IS_ZERO_256(l_params->l_total_supply)) {
+			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
+			return -3;
+		}
+	}
 
     if (!l_params->l_signs_emission){
         dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_emission'");
@@ -3110,17 +3131,6 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
         return -2;
     }
 
-    // check l_decimals in CF20 token
-    if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL){
-        if(!l_params->l_decimals_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
-            return -3;
-        } else if (dap_strcmp(l_params->l_decimals_str, "18")) {
-            dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "token_decl support '-decimals' to be 18 only");
-            return -4;
-        }
-    }
 
     // Check certs list
     if(!l_params->l_certs_str){
@@ -3297,10 +3307,12 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
                 l_datum_token->header_private_decl.tsd_total_size = l_tsd_total_size;
+				l_datum_token->header_native_decl.decimals = atoi(l_params->l_decimals_str);
             } else { //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
                 log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_native_decl.flags = l_flags;
+				l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
                 l_datum_token->header_native_decl.tsd_total_size = l_tsd_total_size;
                 l_datum_token->header_native_decl.decimals = atoi(l_params->l_decimals_str);
@@ -3348,6 +3360,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
+			l_datum_token->header_native_decl.decimals = atoi(l_params->l_decimals_str);
         }break;
         default:
             dap_chain_node_cli_set_reply_text(a_str_reply,
@@ -4841,10 +4854,14 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
                                                          "to be valid string containing hash in hex or base58 format");
             return -3;
         }
-        if (!l_emission_chain_name ||
-                (l_emission_chain = dap_chain_net_get_chain_by_name(l_net, l_emission_chain_name)) == NULL) {
+		if (l_emission_chain_name) {
+			l_emission_chain = dap_chain_net_get_chain_by_name(l_net, l_emission_chain_name);
+		} else {
+			l_emission_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION);
+		}
+        if (!l_emission_chain) {
             dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires parameter '-emission_chain' "
-                                                         "to be a valid chain name");
+                                                         "to be a valid chain name or set default datum type in chain configuration file");
             return -9;
         }
         if(!l_certs_str) {
