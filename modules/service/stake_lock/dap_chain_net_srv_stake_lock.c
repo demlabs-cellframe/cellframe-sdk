@@ -947,9 +947,10 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
+	UNUSED(a_tx_out_hash);
 	dap_chain_datum_tx_t									*burning_tx					= NULL;
 	dap_chain_tx_out_t										*burning_transaction_out	= NULL;
 	uint256_t												l_value_delegated			= {};
@@ -963,7 +964,6 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
 	const char												*l_tx_ticker;
 	dap_chain_datum_token_t									*delegate_token;
 
-    UNUSED(a_tx_out_hash);
 	/*if (!a_owner) TODO: ???
 	return false;*/
 
@@ -976,7 +976,7 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
             return false;
     }
 
-	l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
+	l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_RECEIPT, 0);
 	if (!l_receipt)
 		return false;
 
@@ -998,7 +998,7 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
 	if (dap_hash_fast_is_blank(&hash_burning_transaction))
 		return false;
 
-	l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT,0);
+	l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT, 0);
 
 	if (!l_tx_out)
 		return false;
@@ -1015,7 +1015,7 @@ static bool s_callback_verificator(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx
 
 	l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
 
-	if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_IN_COND, 0)))
+	if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0)))
 		return false;
 	if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
 		return false;
