@@ -32,7 +32,7 @@
 #include "dap_hash.h"
 #include "dap_time.h"
 
-static bool s_debug_more;
+static bool s_debug_more = false;
 
 enum error_code {
     STAKE_NO_ERROR 				= 0,
@@ -119,9 +119,11 @@ int dap_chain_net_srv_stake_lock_init()
 				"-chain <chain (not necessary)>\n"
 	);
 
-    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
-    dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
-    l_srv_callbacks.decree = s_callback_decree;
+	s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
+
+	dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
+	dap_chain_net_srv_callbacks_t l_srv_callbacks = {};
+	l_srv_callbacks.decree = s_callback_decree;
 
     dap_chain_net_srv_t *l_srv = dap_chain_net_srv_add(l_uid, "stake_lock", &l_srv_callbacks);
     return 0;
