@@ -204,6 +204,13 @@ static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
     a_ch->internal = NULL; // To prevent its cleaning in worker
 }
 
+void dap_stream_ch_chain_reset(dap_stream_ch_chain_t *a_ch_chain)
+{
+    if (!a_ch_chain)
+        return;
+    dap_worker_exec_callback_on(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch_chain);
+}
+
 /**
  * @brief s_stream_ch_chain_delete
  * @param a_ch_chain

@@ -490,11 +490,12 @@ static bool s_net_send_records_callback_get_raw (dap_global_db_context_t * a_glo
                     DAP_DELETE(l_link);
                     continue;
                 }
-                dap_stream_ch_chain_pkt_write_inter( a_global_db_context->queue_worker_ch_io_input[l_link->worker->worker->id],
+                if (!dap_stream_ch_chain_pkt_write_inter( a_global_db_context->queue_worker_ch_io_input[l_link->worker->worker->id],
                                                      l_link->ch_uuid,
                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                                      l_chain_id.uint64, l_cell_id.uint64, l_data_out,
-                                                     sizeof(dap_global_db_pkt_t) + l_data_out->data_size);
+                                                     sizeof(dap_global_db_pkt_t) + l_data_out->data_size))
+                    debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
             }
             DAP_DELETE(l_data_out);
             if (it)
@@ -608,9 +609,10 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
                     DAP_DELETE(l_link);
                     continue;
                 }
-                dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+                if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
                                                  l_net->pub.id.uint64, l_chain->id.uint64, l_cell_id,
-                                                 l_obj_cur->value, l_obj_cur->value_len);
+                                                 l_obj_cur->value, l_obj_cur->value_len))
+                    debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
             }
             s_atom_obj_free(l_obj_cur);
             if (it)
@@ -771,7 +773,8 @@ static bool dap_chain_net_link_is_present(dap_chain_net_t *a_net, dap_chain_node
         return false;
     dap_list_t *l_net_links = l_net_pvt->net_links;
     while(l_net_links) {
-        dap_chain_node_info_t *l_link_node_info = (dap_chain_node_info_t*) l_net_links->data;
+        struct net_link *l_net_link = (struct net_link*) l_net_links->data;
+        dap_chain_node_info_t *l_link_node_info = l_net_link->link_info;
         if(dap_chain_node_info_addr_match(l_link_node_info, a_link_node_info))
             return true;
         l_net_links = dap_list_next(l_net_links);
@@ -800,6 +803,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
              continue;
 
          if (l_link_addr->uint64 == l_own_addr) {
+             DAP_DELETE(l_link_addr);
              continue;   // Do not link with self
          }
          dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(a_net, l_link_addr);
@@ -814,6 +818,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
                     NODE_ADDR_FP_ARGS(l_link_addr));
              DAP_DELETE(l_link_node_info);
          }
+         DAP_DELETE(l_link_addr);
      }
 }
 
@@ -1059,18 +1064,20 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg)
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net->pub.name,
+    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net? l_net->pub.name : "(unknown)" ,
            NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-    struct json_object *l_json = net_states_json_collect(l_net);
-    char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    char l_err_str[128] = { };
-    dap_snprintf(l_err_str, sizeof(l_err_str)
-                 , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
-                 , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address), l_node_addr_str, a_error);
-    json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-    dap_notify_server_send_mt(json_object_get_string(l_json));
-    json_object_put(l_json);
+    if (l_net){
+        struct json_object *l_json = net_states_json_collect(l_net);
+        char l_node_addr_str[INET_ADDRSTRLEN] = {};
+        inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        char l_err_str[128] = { };
+        dap_snprintf(l_err_str, sizeof(l_err_str)
+                     , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
+                     , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address), l_node_addr_str, a_error);
+        json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+        dap_notify_server_send_mt(json_object_get_string(l_json));
+        json_object_put(l_json);
+    }
 }
 
 /**
@@ -1094,10 +1101,6 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
             l_net_pvt->links_connected_count--;
         else
             log_it(L_ERROR, "Links count is zero in delete callback");
-        // If the last link is lost, change the status to NET_STATE_OFFLINE
-        if(!l_net_pvt->links_connected_count) {
-            l_net_pvt->state = NET_STATE_OFFLINE;
-        }
     }
     dap_chain_net_sync_unlock(l_net, a_node_client);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
@@ -1191,6 +1194,8 @@ static void s_net_state_link_prepare_error(dap_worker_t * a_worker,dap_chain_nod
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
     if(l_net_pvt->links_dns_requests)
         l_net_pvt->links_dns_requests--;
+
+    log_it(L_DEBUG, "Still %u link dns requests in process",l_net_pvt->links_dns_requests);
 
     if(!l_net_pvt->links_dns_requests ){
         if( l_net_pvt->state_target != NET_STATE_OFFLINE){
@@ -1481,6 +1486,13 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+    bool l_not_found = dap_chain_net_sync_trylock_nolock(a_net, a_client);
+    pthread_rwlock_unlock(&l_net_pvt->rwlock);
+    return l_not_found;
+}
+
+bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client) {
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     bool l_found = false;
     if (l_net_pvt->active_link) {
         for (dap_list_t *l_links = l_net_pvt->net_links; l_links; l_links = dap_list_next(l_links)) {
@@ -1501,7 +1513,6 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
         dap_events_socket_uuid_t *l_uuid = DAP_DUP(&a_client->uuid);
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, l_uuid);
     }
-    pthread_rwlock_unlock(&l_net_pvt->rwlock);
     return !l_found;
 }
 
@@ -1511,15 +1522,14 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
         return false;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+    bool l_ret = false;
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
         dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
-        pthread_rwlock_unlock(&l_net_pvt->rwlock);
-        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
-        pthread_rwlock_wrlock(&l_net_pvt->rwlock);
+        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid, false);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
-            DAP_DELETE(l_uuid);
+            DAP_DELETE(l_net_pvt->links_queue->data);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
             l_net_pvt->links_queue = l_net_pvt->links_queue->next;
             DAP_DELETE(l_to_remove);
@@ -1527,8 +1537,9 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
             break;
         }
     }
+    l_ret = l_net_pvt->active_link;
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
-    return l_net_pvt->active_link;
+    return l_ret;
 }
 /**
  * @brief dap_chain_net_client_create_n_connect
@@ -1801,11 +1812,15 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
     char *l_cache_dir = dap_strdup_printf( "%s/%s", g_sys_dir_path, "cache");
     if (dap_mkdir_with_parents(l_cache_dir) != 0) {
         log_it(L_WARNING,"Error during disposable cache check file creation");
+        DAP_DELETE(l_cache_dir);
         return false;
     }
     // create file, if it not presented. If file exists, ledger cache operation is stopped
     char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "5B0FEEF6-B0D5-48A9-BFA2-32E8B294366D");
+    DAP_DELETE(l_cache_dir);
     if (dap_file_simple_test(l_cache_file)) {
+        log_it(L_WARNING, "Cache file '%s' already exists", l_cache_file);
+        DAP_DELETE(l_cache_file);
         return false;
     }
 
@@ -1825,6 +1840,7 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
     if (dap_file_simple_test(l_cache_file))
         s_chain_net_ledger_cache_reload(l_net);
     fclose(s_cache_file);
+    DAP_DELETE(l_cache_file);
     return true;
 }
 
@@ -2690,6 +2706,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                            l_net_pvt->node_info->hdr.links_number,
                            l_net_pvt->node_info->hdr.cell_id.uint64);
                 }
+                DAP_DELETE(l_addr_hash_str);
             }
             else{
                 log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
@@ -2868,6 +2885,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         // Start the proc thread
         log_it(L_INFO, "Chain network \"%s\" initialized",l_net_item->name);
 
+        DAP_DELETE(l_node_addr_str);
         dap_config_close(l_cfg);
     }
     return 0;
@@ -3745,43 +3763,6 @@ static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
 }
 
 /**
- * @brief dap_cert_chain_file_save
- * @param datum
- */
-int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
-{
-    const char *s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
-    if(dap_strlen(s_system_chain_ca_dir) == 0) {
-        log_it(L_ERROR, "Not found 'chain_ca_folder' in .cfg file");
-        return -1;
-    }
-    dap_cert_t *cert = dap_cert_mem_load(datum->data, datum->header.data_size);
-    if(!cert) {
-        log_it(L_ERROR, "Can't load cert, size: %d", datum->header.data_size);
-        return -1;
-    }
-    const char *cert_name = cert->name;
-    size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
-    char *cert_path = DAP_NEW_Z_SIZE(char, cert_path_length);
-    snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
-    // In cert_path resolve all `..` and `.`s
-    char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
-    DAP_DELETE(cert_path);
-    // Protect the ca folder from using "/.." in cert_name
-    if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
-        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
-        return -1;
-    }
-    int l_ret = dap_cert_file_save(cert, cert_path_c);
-    DAP_DELETE(cert_path_c);
-//  if ( access( l_cert_path, F_OK ) != -1 ) {
-//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
-//      return -1;
-//  } else
-    return l_ret;
-}
-
-/**
  * @brief dap_chain_datum_list
  * Get datum list by filter
  * @param a_net
@@ -3791,38 +3772,59 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
  */
 dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, datum_filter_func_t *a_filter_func, void *a_filter_func_param)
 {
-    dap_list_t *l_list = NULL;
+    dap_list_t *l_list = NULL;  
     if(!a_net)
-        return l_list;
+//        return l_list;
+//    void *l_chain_tmp = (void*) 0x1;
+//    dap_chain_t *l_chain_cur;
+        return NULL;
     void *l_chain_tmp = (void*) 0x1;
-    dap_chain_t *l_chain_cur;
-    if(a_chain)
-        l_chain_cur = a_chain;
-    else
-        l_chain_cur = dap_chain_enum(&l_chain_tmp);
+    dap_chain_t *l_chain_cur = a_chain ? a_chain : dap_chain_enum(&l_chain_tmp);
+    size_t l_sz;
+
     while(l_chain_cur) {
         // Use chain only for selected net and with callback_atom_get_datums
-        if(a_net->pub.id.uint64 == l_chain_cur->net_id.uint64 && l_chain_cur->callback_atom_get_datums) {
+        if(a_net->pub.id.uint64 == l_chain_cur->net_id.uint64 && l_chain_cur->callback_atom_get_datums)
+        {
             dap_chain_cell_t *l_cell = l_chain_cur->cells;
             size_t l_atom_size = 0;
             dap_chain_atom_iter_t *l_atom_iter = l_chain_cur->callback_atom_iter_create(l_chain_cur, l_cell->id, 0);
             dap_chain_atom_ptr_t l_atom = l_chain_cur->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
-            while(l_atom && l_atom_size) {
+            while(l_atom && l_atom_size)
+            {
                 size_t l_datums_count = 0;
                 dap_chain_datum_t **l_datums = l_chain_cur->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
+                dap_chain_datum_t *l_datum, *l_datum2;
                 for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
-                    dap_chain_datum_t *l_datum = l_datums[l_datum_n];
-                    if(l_datum) {
-                        // If there is a filter, then check the datum in it
-                        if(a_filter_func) {
-                            if(a_filter_func(l_datum, l_chain_cur, a_filter_func_param))
-                                l_list = dap_list_append(l_list, l_datum);
-                        }
-                        else
-                            l_list = dap_list_append(l_list, l_datum);
-                    }
+                    if ( ! (l_datum = l_datums[l_datum_n]) )
+                        continue;
+
+                    if ( a_filter_func)
+                        if ( !a_filter_func(l_datum, l_chain_cur, a_filter_func_param) )
+                            continue;
+//                    if(l_datum) {
+//                        // If there is a filter, then check the datum in it
+//                        if(a_filter_func) {
+//                            if(a_filter_func(l_datum, l_chain_cur, a_filter_func_param))
+//                                l_list = dap_list_append(l_list, l_datum);
+//                        }
+//                        else
+//                            l_list = dap_list_append(l_list, l_datum);
+//                    }
+                    /*
+                    * Make a copy of the datum, copy is placed into the list,
+                    * so don't forget to free whole list
+                    */
+                   l_sz = sizeof(dap_chain_datum_t) + l_datum->header.data_size + 16;
+                   l_datum2 = DAP_NEW_Z_SIZE(dap_chain_datum_t, l_sz);
+                   assert ( l_datum2 );
+                   memcpy(l_datum2, l_datum, l_sz);
+
+                   /* Add new entry into the list */
+                   l_list = dap_list_append(l_list, l_datum2);
+
                 }
-                DAP_DELETE(l_datums);
+                DAP_DEL_Z(l_datums);
                 // go to next transaction
                 l_atom = l_chain_cur->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
             }
@@ -3901,7 +3903,7 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
         }break;
         case DAP_CHAIN_DATUM_CA:{
 
-            if ( dap_cert_chain_file_save(a_datum, a_chain->net_name) < 0 )
+            if (dap_cert_chain_file_save(a_datum, a_chain->net_name) < 0)
                 return -5;
         }break;
         case DAP_CHAIN_DATUM_SIGNER:
