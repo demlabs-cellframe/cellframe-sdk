@@ -89,7 +89,7 @@ static int s_type_callback_load(dap_plugin_manifest_t * a_manifest, void ** a_pv
 #if defined (DAP_OS_DARWIN)
     char * l_path = dap_strdup_printf("%s/%s.darwin.%s.dylib",a_manifest->path,a_manifest->name,dap_get_arch());
 #elif defined (DAP_OS_LINUX)
-    char * l_path = dap_strdup_printf("%s/lib%s.linux.common.%s.so",a_manifest->path,a_manifest->name,dap_get_arch());
+    char * l_path = dap_strdup_printf("%s/%s.linux-common.%s.so",a_manifest->path,a_manifest->name,dap_get_arch());
 #endif
     l_pvt_data->handle = dlopen(l_path, RTLD_NOW); // Try with specified architecture first
     if(l_pvt_data->handle){
