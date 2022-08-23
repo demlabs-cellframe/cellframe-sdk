@@ -1,7 +1,6 @@
 # Core
 if (CELLFRAME_MODULES MATCHES "core")
     add_subdirectory(common)
-    add_subdirectory(app-cli)
 endif()
 
 # Chains
@@ -116,11 +115,6 @@ endif()
 # Service for PoS stake delegation
 if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
     add_subdirectory(service/stake_pos_delegate)
-endif()
-
-# Support for dynamic modules
-if (CELLFRAME_MODULES MATCHES "modules-dynamic")
-    add_subdirectory(modules_dynamic)
 endif()
 
 # Unit tests

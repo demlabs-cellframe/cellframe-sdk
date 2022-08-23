@@ -40,6 +40,7 @@ typedef struct dap_config{
 int dap_config_init(const char * a_configs_path);
 void dap_config_deinit();
 dap_config_t * dap_config_open(const char * a_name);
+dap_config_t * dap_config_load(const char * a_file_path);
 void dap_config_close(dap_config_t * a_config);
 
 const char * dap_config_path();

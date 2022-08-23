@@ -74,7 +74,7 @@ int dap_chain_cs_block_poa_init(void)
     // Add consensus constructor
     dap_chain_cs_add ("block_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
-    dap_chain_node_cli_cmd_item_create ("block_poa", s_cli_block_poa, "Blockchain PoA commands",
+    dap_cli_server_cmd_add ("block_poa", s_cli_block_poa, "Blockchain PoA commands",
         "block_poa -net <chain net name> -chain <chain name> block sign [-cert <cert name>] \n"
             "\tSign new block with certificate <cert name> or withs own PoA certificate\n\n");
 
@@ -107,11 +107,11 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
     dap_chain_t * l_chain = NULL;
 
     const char * l_hash_out_type = NULL;
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
@@ -124,9 +124,9 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
     const char * l_block_hash_str = NULL;
     const char * l_cert_str = NULL;
 
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "block", &l_block_new_cmd_str);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-block", &l_block_hash_str);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "block", &l_block_new_cmd_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-block", &l_block_hash_str);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
 
     dap_enc_key_t *l_sign_key;
     // Load cert to sign if its present
@@ -137,7 +137,7 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
         l_sign_key = l_poa_pvt->sign_key;
     }
     if (!l_sign_key || !l_sign_key->priv_key_data) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "No certificate to sign blocks\n");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "No certificate to sign blocks\n");
         return -2;
     }
 

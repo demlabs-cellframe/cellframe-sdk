@@ -1159,8 +1159,7 @@ int dap_context_poll_update(dap_events_socket_t * a_esocket)
     u_short l_flags =a_esocket->kqueue_base_flags;
     u_int l_fflags =a_esocket->kqueue_base_fflags;
 
-    int l_kqueue_fd = a_esocket->worker? a_esocket->worker->kqueue_fd :
-                      a_esocket->proc_thread ? a_esocket->proc_thread->kqueue_fd : -1;
+    int l_kqueue_fd = a_esocket->context->kqueue_fd;
     if ( l_kqueue_fd == -1 ){
         log_it(L_ERROR, "Esocket is not assigned with anything ,exit");
     }
@@ -1190,8 +1189,8 @@ int dap_context_poll_update(dap_events_socket_t * a_esocket)
         }
     }
     if (l_is_error && l_errno == EBADF){
-        log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_U":%" DAP_UINT64_FORMAT_U
-                     " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
+        log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %zd:%zd bytes",
+               a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
         a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
     }else if ( l_is_error && l_errno != EINPROGRESS && l_errno != ENOENT){

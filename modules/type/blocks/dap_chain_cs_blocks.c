@@ -150,7 +150,7 @@ int dap_chain_cs_blocks_init()
     dap_chain_cs_type_add("blocks", dap_chain_cs_blocks_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
-    dap_chain_node_cli_cmd_item_create ("block", s_cli_blocks, "Create and explore blockchains",
+    dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:"
             "block -net <net_name> -chain <chain name> new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
@@ -297,7 +297,7 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, cha
     assert(a_datum_hash);
 
     const char *l_datum_hash_str = NULL;
-    dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, a_param, &l_datum_hash_str);
+    dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, a_param, &l_datum_hash_str);
 
     return dap_chain_hash_fast_from_str(l_datum_hash_str, a_datum_hash);
 }
@@ -386,7 +386,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_chain_type = dap_chain_net_get_type(l_chain);
 
     if (!strstr(l_chain_type, "block_")){
-            dap_chain_node_cli_set_reply_text(a_str_reply,
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Type of chain %s is not block. This chain with type %s is not supported by this command",
                         l_chain->name, l_chain_type);
             return -42;
@@ -396,9 +396,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 
     // Parse commands
     for (size_t i=0; i<l_subcmd_str_count; i++){
-        int l_opt_idx = dap_chain_node_cli_check_option(a_argv, arg_index,a_argc, l_subcmd_strs[i]);
+        int l_opt_idx = dap_cli_server_cmd_check_option(a_argv, arg_index,a_argc, l_subcmd_strs[i]);
         if( l_opt_idx >= 0 ){
-            dap_chain_node_cli_find_option_val(a_argv, l_opt_idx, a_argc, l_subcmd_strs[i], &l_subcmd_str_args[i] );
+            dap_cli_server_cmd_find_option_val(a_argv, l_opt_idx, a_argc, l_subcmd_strs[i], &l_subcmd_str_args[i] );
             l_subcmd = i;
             l_subcmd_str = l_subcmd_strs[i];
             l_subcmd_str_arg = l_subcmd_str_args[i];
@@ -430,7 +430,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 s_cli_parse_cmd_hash(a_argv,arg_index,a_argc,a_str_reply,"-datum", &l_datum_hash );
                 l_blocks->block_new_size=dap_chain_block_datum_del_by_hash( &l_blocks->block_new, l_blocks->block_new_size, &l_datum_hash );
             }else {
-                dap_chain_node_cli_set_reply_text(a_str_reply,
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
                           "Error! Can't delete datum from hash because no forming new block! Check pls you role, it must be MASTER NODE or greater");
                 ret = -12;
             }
@@ -453,20 +453,20 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
 
                     if ( dap_global_db_del_sync( l_gdb_group_mempool, l_datums_datum_hash_str) == 0 ){
-                       dap_chain_node_cli_set_reply_text(a_str_reply,
+                       dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                          "Converted datum %s from mempool to event in the new forming round ",
                                                          l_datums_datum_hash_str);
                        DAP_DELETE(l_datums_datum_hash_str);
                        ret = 0;
                    }else {
-                       dap_chain_node_cli_set_reply_text(a_str_reply,
+                       dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                          "Warning! Can't delete datum %s from mempool after conversion to event in the new forming round ",
                                                          l_datums_datum_hash_str);
                        ret = 1;
                    }
                 }
             }else {
-                dap_chain_node_cli_set_reply_text(a_str_reply,
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Warning! Can't convert datum %s from mempool to the new forming block's section  ", l_subcmd_str_arg);
                 ret = -13;
             }
@@ -570,12 +570,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                                                 l_sign_size, l_pkey_hash_str, l_addr_str );
                         DAP_DELETE( l_pkey_hash_str );
                     }
-                    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
                     ret=0;
                 }
             }else {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find block %s ", l_subcmd_str_arg);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find block %s ", l_subcmd_str_arg);
                 ret=-10;
             }
         }break;
@@ -596,13 +596,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 }
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 
-                dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
                 dap_string_free(l_str_tmp,false);
 
         }break;
 
         case SUBCMD_UNDEFINED: {
-            dap_chain_node_cli_set_reply_text(a_str_reply,
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "Undefined block subcommand \"%s\" ",
                                               l_subcmd_str);
             ret=-11;

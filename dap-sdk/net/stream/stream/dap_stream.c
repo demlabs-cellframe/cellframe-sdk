@@ -809,7 +809,6 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream, dap_stream_pkt_t *a_pk
         a_stream->buf_fragments_size_total = 0;
         a_stream->buf_fragments_size_filled = 0;
     }
-    return true;
 }
 
 /**
