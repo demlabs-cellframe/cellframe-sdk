@@ -41,9 +41,9 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
 int dap_chain_net_srv_datum_init()
 {
     dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", 
-        "srv_datum -net <chain net name> -chain <chain name> datum save -datum <datum hash>\n"
+        "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum_hash>\n"
             "\tSaving datum from mempool to file.\n\n"
-        "srv_datum -net <chain net name> -chain <chain name> datum load -datum <datum hash>\n"
+        "srv_datum -net <net_name> -chain <chain_name> datum load -datum <datum_hash>\n"
             "\tLoad datum custum from file to mempool.\n\n");
     s_srv_datum = DAP_NEW_Z(dap_chain_net_srv_t);
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;

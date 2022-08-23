@@ -165,22 +165,16 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_error{
 
 // data packet for connectiont test
 typedef struct dap_stream_ch_chain_net_srv_pkt_test {
-    uint32_t usage_id;
-    dap_chain_net_id_t net_id;
+    uint32_t                usage_id;
+    dap_chain_net_id_t      net_id;
     dap_chain_net_srv_uid_t srv_uid;
-    int32_t  time_connect_ms;
-    struct timespec recv_time1;
-    struct timespec recv_time2;
-    struct timespec send_time1;
-    struct timespec send_time2;
-    byte_t ip_send[16];
-    byte_t ip_recv[16];
-    int32_t err_code;
-    uint64_t data_size_send;
-    uint64_t data_size_recv;
-    uint64_t data_size;
-    dap_chain_hash_fast_t data_hash;
-    uint8_t data[];
+    int32_t                 time_connect_ms;
+    struct timespec         recv_time1, recv_time2, send_time1, send_time2;
+    byte_t                  ip_send[INET_ADDRSTRLEN], ip_recv[INET_ADDRSTRLEN];
+    int32_t                 err_code;
+    uint64_t                data_size_send, data_size_recv, data_size;
+    dap_chain_hash_fast_t   data_hash;
+    uint8_t                 data[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_test_t;
 
 typedef struct dap_chain_net_srv dap_chain_net_srv_t;
