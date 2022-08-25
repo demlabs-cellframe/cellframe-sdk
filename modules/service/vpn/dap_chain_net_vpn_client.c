@@ -542,7 +542,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(l_ch) {
             typedef dap_stream_ch_chain_net_srv_pkt_test_t pkt_t;
-            pkt_t* l_request = DAP_NEW_S_SIZE(pkt_t, sizeof(pkt_t) + a_data_size_to_send);
+            pkt_t* l_request = DAP_NEW_STACK_SIZE(pkt_t, sizeof(pkt_t) + a_data_size_to_send);
             l_request->net_id.uint64 = a_net->pub.id.uint64;
             l_request->srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
             l_request->data_size_send = a_data_size_to_send;
