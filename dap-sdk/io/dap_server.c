@@ -288,7 +288,6 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
         l_callbacks.error_callback = a_callbacks->error_callback;
     }
 
-    // or not
     dap_worker_t *l_w = dap_events_worker_get_auto();
     assert(l_w);
     dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->socket_listener, &l_callbacks);
