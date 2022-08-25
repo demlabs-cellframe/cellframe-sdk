@@ -56,6 +56,10 @@ typedef struct dap_chain_tx
     size_t prev_count;
     dap_hash_fast_t * prev_hash;
 
+	struct dap_chain_tx ** next;
+	size_t next_count;
+	dap_hash_fast_t * next_hash;
+
     // Hash and UT hash handle
     dap_hash_fast_t hash;
     UT_hash_handle hh;
