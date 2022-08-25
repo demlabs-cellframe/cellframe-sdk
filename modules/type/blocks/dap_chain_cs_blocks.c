@@ -152,26 +152,26 @@ int dap_chain_cs_blocks_init()
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
         "New block create, fill and complete commands:"
-            "block -net <net_name> -chain <chain name> new\n"
+            "block -net <net_name> -chain <chain_name> new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
 
-            "block -net <net_name> -chain <chain name> new_datum_add <datum hash>\n"
+            "block -net <net_name> -chain <chain_name> new_datum_add <datum_hash>\n"
                 "\t\tAdd block section from datum <datum hash> taken from the mempool\n\n"
 
-            "block -net <net_name> -chain <chain name> new_datum_del <datum hash>\n"
+            "block -net <net_name> -chain <chain_name> new_datum_del <datum_hash>\n"
                 "\t\tDel block section with datum <datum hash>\n\n"
 
-            "block -net <net_name> -chain <chain name> new_datum_list\n"
+            "block -net <net_name> -chain <chain_name> new_datum_list\n"
                 "\t\tList block sections and show their datums hashes\n\n"
 
-            "block -net <net_name> -chain <chain name> new_datum\n\n"
+            "block -net <net_name> -chain <chain_name> new_datum\n\n"
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
 
         "Blockchain explorer:"
-            "block -net <net_name> -chain <chain name> dump <block hash>\n"
+            "block -net <net_name> -chain <chain_name> dump <block_hash>\n"
                 "\t\tDump block info\n\n"
 
-            "block -net <net_name> -chain <chain name> list [-from_hash <block hash>] [-to_hash <block hash>]"
+            "block -net <net_name> -chain <chain_name> list [-from_hash <block_hash>] [-to_hash <block_hash>]"
             "[-from_dt <datetime>] [-to_dt <datetime>]"
                 "\t\t List blocks"
 
