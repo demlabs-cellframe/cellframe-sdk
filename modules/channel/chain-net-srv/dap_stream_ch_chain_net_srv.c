@@ -23,6 +23,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #include <sys/time.h>
+#include <time.h>
+#include "dap_global_db.h"
 #include "dap_timerfd.h"
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
