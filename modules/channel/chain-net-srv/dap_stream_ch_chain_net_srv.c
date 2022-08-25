@@ -25,6 +25,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <sys/time.h>
 #include <time.h>
 #include "dap_global_db.h"
+#include "dap_time.h"
 #include "dap_timerfd.h"
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
@@ -396,9 +397,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
         l_request->err_code = 0;
         memcpy(l_request->ip_send, a_ch->stream->esocket->hostaddr, INET_ADDRSTRLEN);
-        struct timespec l_recvtime2;
-        clock_gettime(CLOCK_REALTIME, &l_recvtime2);
-        l_request->recv_time2 = l_recvtime2;
+        l_request->recv_time2 = dap_nanotime_now();
 
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request,
                                        l_request->data_size + sizeof(pkt_test_t));

@@ -27,6 +27,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_client.h"
 #include "dap_common.h"
+#include "dap_time.h"
 
 #define LOG_TAG "dap_chain_net_srv_client"
 
@@ -119,9 +120,7 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
                                               l_srv_client->callbacks_arg);
             break;
         }
-        struct timespec l_recv_time;
-        clock_gettime(CLOCK_REALTIME, &l_recv_time);
-        l_response->recv_time1 = l_recv_time;
+        l_response->recv_time1 = dap_nanotime_now();
         dap_chain_hash_fast_t l_data_hash;
         dap_hash_fast(l_response->data, l_response->data_size, &l_data_hash);
         if (!dap_hash_fast_compare(&l_data_hash, &l_response->data_hash)) {

@@ -41,6 +41,7 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
+#include "dap_time.h"
 #include "rand/dap_rand.h"
 
 #ifdef DAP_OS_LINUX
@@ -553,9 +554,8 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
             if(a_ipv4_str)
                 memcpy(l_request->ip_recv, a_ipv4_str, min(sizeof(l_request->ip_recv), strlen(a_ipv4_str)));
             l_request->time_connect_ms = l_dtime_connect_ms;
-            clock_gettime(CLOCK_REALTIME, &l_t);
-            l_request->send_time1 = l_t;
-            size_t l_request_size = l_request->data_size + sizeof(pkt_t);
+            l_request->send_time1 = dap_nanotime_now();
+            size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, l_request, l_request_size);
             dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
         }

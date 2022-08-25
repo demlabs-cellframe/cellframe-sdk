@@ -221,9 +221,9 @@ static void s_esocket_worker_write_callback(dap_worker_t *a_worker, void *a_arg)
 {
     UNUSED(a_worker);
     dap_http_simple_t *l_http_simple = (dap_http_simple_t*)a_arg;
-    dap_events_socket_t *l_es = dap_context_find(a_worker->context, l_http_simple->http_client_uuid);
+    dap_events_socket_t *l_es = dap_context_find(a_worker->context, l_http_simple->esocket_uuid);
     if (!l_es) {
-        debug_if(g_debug_reactor, L_INFO, "Esocket 0x%"DAP_UINT64_FORMAT_x" is already deleted", l_http_simple->http_client_uuid);
+        debug_if(g_debug_reactor, L_INFO, "Esocket 0x%"DAP_UINT64_FORMAT_x" is already deleted", l_http_simple->esocket_uuid);
         DAP_DEL_Z(l_http_simple->request);
         DAP_DEL_Z(l_http_simple->reply);
         DAP_DEL_Z(l_http_simple->http_client);
@@ -358,6 +358,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
     //  Sleep(300);
 
     l_http_simple->esocket = a_http_client->esocket;
+    l_http_simple->esocket_uuid = a_http_client->esocket->uuid;
     l_http_simple->http_client = a_http_client;
     l_http_simple->worker = a_http_client->esocket->context->worker;
     l_http_simple->reply_size_max = DAP_HTTP_SIMPLE_URL_PROC( a_http_client->proc )->reply_size_max;
