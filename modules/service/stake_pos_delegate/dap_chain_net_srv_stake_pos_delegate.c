@@ -145,9 +145,6 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     DAP_DELETE(l_net_list);
     s_srv_stake->initialized = true;
 
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_verificator_stake_callback, NULL);
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE, s_verificator_stake_updater_callback, NULL);
-
     return 0;
 }
 
