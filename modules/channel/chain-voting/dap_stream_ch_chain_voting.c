@@ -299,7 +299,7 @@ static bool s_pkt_broadcast(dap_proc_thread_t * a_thread, void * a_arg)
 
         }
 
-        s_callback_channel_pkt_free(0);
+        //s_callback_channel_pkt_free(0);
     return true;
 }
 
@@ -406,7 +406,7 @@ static void s_callback_pkt_items_send_all(dap_client_t *a_client, void *a_arg)
 		    	l_pkts_list = l_pkts_list_next;
 		    }
             pthread_rwlock_unlock(&s_pkt_items->rwlock_out);
-            s_callback_channel_pkt_free(l_node_client->remote_node_addr.uint64);
+           // s_callback_channel_pkt_free(l_node_client->remote_node_addr.uint64);
 	    }
 	}
 }

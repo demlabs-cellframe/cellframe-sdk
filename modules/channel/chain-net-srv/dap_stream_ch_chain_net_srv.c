@@ -23,6 +23,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #include <sys/time.h>
+#include <time.h>
+#include "dap_global_db.h"
 #include "dap_timerfd.h"
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
@@ -395,7 +397,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         l_request->err_code = 0;
         strncpy(l_request->ip_send, a_ch->stream->esocket->hostaddr, INET_ADDRSTRLEN);
         struct timespec l_recvtime2;
-        clck_gettime(CLOCK_REALTIME, &l_recvtime2);
+        clock_gettime(CLOCK_REALTIME, &l_recvtime2);
         l_request->recv_time2 = l_recvtime2;
 
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request,
@@ -534,7 +536,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
 
         char *l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
-        dap_chain_global_db_gr_set(l_receipt_hash_str, l_receipt, l_receipt_size, "local.receipts");
+        dap_global_db_set("local.receipts",l_receipt_hash_str,  l_receipt, l_receipt_size,false, NULL, NULL);
         DAP_DELETE(l_receipt_hash_str);
 
         size_t l_success_size;
