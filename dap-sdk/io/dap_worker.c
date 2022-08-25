@@ -305,7 +305,7 @@ static bool s_socket_all_check_activity( void * a_arg)
     //dap_ctime_r(&l_curtime, l_curtimebuf);
     //log_it(L_DEBUG,"Check sockets activity on worker #%u at %s", l_worker->id, l_curtimebuf);
     size_t l_esockets_counter = 0;
-    uint l_esockets_count = HASH_CNT(hh, l_worker->context->esockets);
+    u_int l_esockets_count = HASH_CNT(hh, l_worker->context->esockets);
     HASH_ITER(hh, l_worker->context->esockets, l_es, tmp ) {
         if (l_esockets_counter >= l_worker->context->event_sockets_count || l_esockets_counter >= l_esockets_count){
             log_it(L_ERROR, "Something wrong with context's esocket table: %u esockets in context, %u in table but we're on %zu iteration",

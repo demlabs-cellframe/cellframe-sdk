@@ -292,7 +292,7 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
     for(size_t l_worker_id = 0; l_worker_id < dap_events_worker_get_count() ; l_worker_id++){
         dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
         assert(l_w);
-        dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->events, a_server->socket_listener, &l_callbacks);
+        dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->socket_listener, &l_callbacks);
         a_server->es_listeners = dap_list_append(a_server->es_listeners, l_es);
 
         if (l_es) {

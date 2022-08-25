@@ -245,9 +245,9 @@ if (CELLFRAME_MODULES MATCHES "modules-dynamic")
 endif()
 
 if (WIN32)
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
-					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
-                                         Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
+					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
+                                         shlwapi bcrypt crypt32 secur32 userenv mqrt)
 endif()
 
 if (DARWIN)
