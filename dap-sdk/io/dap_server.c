@@ -288,6 +288,33 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
         l_callbacks.error_callback = a_callbacks->error_callback;
     }
 
+#ifdef DAP_EVENTS_CAPS_EPOLL
+    for(size_t l_worker_id = 0; l_worker_id < dap_events_thread_get_count() ; l_worker_id++){
+        dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
+        assert(l_w);
+        dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->socket_listener, &l_callbacks);
+        a_server->es_listeners = dap_list_append(a_server->es_listeners, l_es);
+
+        if (l_es) {
+            l_es->type = a_server->type == SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
+            // Prepare for multi thread listening
+            l_es->ev_base_flags = EPOLLIN;
+#ifdef EPOLLEXCLUSIVE
+            // if we have poll exclusive
+            l_es->ev_base_flags |= EPOLLET | EPOLLEXCLUSIVE;
+#endif
+            l_es->_inheritor = a_server;
+            pthread_mutex_lock(&a_server->started_mutex);
+            dap_worker_add_events_socket( l_es, l_w );
+            pthread_cond_wait(&a_server->started_cond, &a_server->started_mutex);
+            pthread_mutex_unlock(&a_server->started_mutex);
+        } else{
+            log_it(L_WARNING, "Can't wrap event socket for %s:%u server", a_server->address, a_server->port);
+            return -2;
+        }
+    }
+#else
+    // or not
     dap_worker_t *l_w = dap_events_worker_get_auto();
     assert(l_w);
     dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->socket_listener, &l_callbacks);
@@ -309,7 +336,7 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
         log_it(L_WARNING, "Can't wrap event socket server");
         return -3;
     }
-
+#endif
     return 0;
 }
 
