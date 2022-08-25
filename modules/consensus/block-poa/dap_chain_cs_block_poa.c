@@ -75,8 +75,8 @@ int dap_chain_cs_block_poa_init(void)
     dap_chain_cs_add ("block_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("block_poa", s_cli_block_poa, "Blockchain PoA commands",
-        "block_poa -net <chain net name> -chain <chain name> block sign [-cert <cert name>] \n"
-            "\tSign new block with certificate <cert name> or withs own PoA certificate\n\n");
+        "block_poa -net <net_name> -chain <chain_name> block sign [-cert <priv_cert_name>] \n"
+            "\tSign new block with certificate <chain_name> or withs own PoA certificate\n\n");
 
     return 0;
 }
