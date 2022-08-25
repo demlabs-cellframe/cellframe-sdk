@@ -29,6 +29,10 @@
 
 #define LOG_TAG "dap_net"
 
+#ifdef _WIN32
+  #define poll WSAPoll
+#endif
+
 /**
  * @brief dap_net_resolve_host
  * @param a_host hostname
