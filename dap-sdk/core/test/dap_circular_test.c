@@ -1,6 +1,6 @@
 #ifndef _WIN32
 #include "dap_circular_test.h"
-#include "dap_circular_buffer.h"
+#include <dap_cbuf.h>
 
 #include <string.h>
 #include <sys/socket.h>
@@ -13,17 +13,17 @@ static char *chars_string = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNO
 void dap_circular_test_simple()
 {
     const int buf_size = 8;
-    circular_buffer_t cb = circular_buffer_create(buf_size);
+    dap_cbuf_t cb = dap_cbuf_create(buf_size);
 
-    circular_buffer_push(cb, chars_string, buf_size);
+    dap_cbuf_push(cb, chars_string, buf_size);
 
     int fd[2];
     socketpair(PF_LOCAL, SOCK_STREAM, 0, fd);
 
-    int ret = circular_buffer_write_In_socket(cb, fd[0]);
+    int ret = dap_cbuf_write_in_socket(cb, fd[0]);
     dap_assert(ret == buf_size, "Check ret write in socket");
 
-    ret = circular_buffer_write_In_socket(cb, fd[0]);
+    ret = dap_cbuf_write_in_socket(cb, fd[0]);
     dap_assert(ret == 0, "Check ret write in socket");
     char result_buff[MAX_RESULT_BUF_LEN] = {0};
     ssize_t res = read(fd[1], result_buff, 44);
@@ -32,11 +32,11 @@ void dap_circular_test_simple()
 
     dap_assert(dap_strn_equals(result_buff, chars_string, buf_size),
                "Check result buf");
-    dap_assert(circular_buffer_get_data_size(cb) == 0, "Check data size");
+    dap_assert(dap_cbuf_get_size(cb) == 0, "Check data size");
 
     close(fd[0]);
     close(fd[1]);
-    circular_buffer_free(cb);
+    dap_cbuf_delete(cb);
     dap_pass_msg("Test simple");
 }
 
