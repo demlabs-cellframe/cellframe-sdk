@@ -289,10 +289,10 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
     }
 
 #ifdef DAP_EVENTS_CAPS_EPOLL
-    for(size_t l_worker_id = 0; l_worker_id < dap_events_worker_get_count() ; l_worker_id++){
+    for(size_t l_worker_id = 0; l_worker_id < dap_events_thread_get_count() ; l_worker_id++){
         dap_worker_t *l_w = dap_events_worker_get(l_worker_id);
         assert(l_w);
-        dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->events, a_server->socket_listener, &l_callbacks);
+        dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->socket_listener, &l_callbacks);
         a_server->es_listeners = dap_list_append(a_server->es_listeners, l_es);
 
         if (l_es) {
@@ -319,6 +319,12 @@ static int s_server_run(dap_server_t * a_server, dap_events_socket_callbacks_t *
     assert(l_w);
     dap_events_socket_t * l_es = dap_events_socket_wrap2( a_server, a_server->socket_listener, &l_callbacks);
     if (l_es) {
+        #ifdef DAP_EVENTS_CAPS_EPOLL
+            l_es->ev_base_flags = EPOLLIN;
+        #ifdef EPOLLEXCLUSIVE
+            l_es->ev_base_flags |= EPOLLET | EPOLLEXCLUSIVE;
+        #endif
+        #endif
         a_server->es_listeners = dap_list_append(a_server->es_listeners, l_es);
         l_es->type = a_server->type == SERVER_TCP ? DESCRIPTOR_TYPE_SOCKET_LISTENING : DESCRIPTOR_TYPE_SOCKET_UDP;
         l_es->_inheritor = a_server;

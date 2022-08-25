@@ -1816,7 +1816,6 @@ dap_events_socket_t * dap_context_create_event(dap_context_t * a_context, dap_ev
 dap_events_socket_t * dap_context_create_pipe(dap_context_t * a_context, dap_events_socket_callback_t a_callback, uint32_t a_flags)
 {
 #ifdef DAP_OS_WINDOWS
-    UNUSED(a_w);
     UNUSED(a_callback);
     UNUSED(a_flags);
     return NULL;
