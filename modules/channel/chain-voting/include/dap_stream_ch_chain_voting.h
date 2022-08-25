@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include <pthread.h>
@@ -56,8 +54,8 @@ typedef struct dap_stream_ch_chain_voting_pkt {
 
 typedef struct dap_stream_ch_chain_voting dap_stream_ch_chain_voting_t;
 typedef void (*dap_stream_ch_chain_voting_callback_packet_t)(dap_stream_ch_chain_voting_t*, uint8_t a_pkt_type,
-                                                      dap_stream_ch_chain_voting_pkt_t *a_pkt, size_t a_pkt_data_size,
-                                                      void * a_arg);
+                                                             dap_stream_ch_chain_voting_pkt_t *a_pkt, size_t a_pkt_data_size,
+                                                             void * a_arg);
 
 typedef struct dap_stream_ch_chain_voting {
     //void *_inheritor;
@@ -83,9 +81,9 @@ inline static uint8_t dap_stream_ch_chain_voting_get_id(void) { return (uint8_t)
 
 void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, voting_ch_callback_t packet_in_callback);
 
-void dap_stream_ch_chain_voting_message_write(dap_chain_net_t * a_net, dap_list_t *a_sendto_nodes, 
-                                                dap_chain_hash_fast_t * a_data_hash,
-                                                    const void * a_data, size_t a_data_size);
+void dap_stream_ch_chain_voting_message_write(dap_chain_net_t * a_net, dap_list_t *a_sendto_nodes,
+                                              dap_chain_hash_fast_t * a_data_hash,
+                                              const void * a_data, size_t a_data_size);
 void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net, dap_list_t *a_sendto_nodes);
 
 // size_t dap_stream_ch_chain_voting_pkt_write_mt(dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid,
@@ -93,7 +91,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t * a_net, dap_list_
 //                                         const void * a_data, size_t a_data_size);
 
 size_t dap_stream_ch_chain_voting_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
-                                                    const void * a_data, size_t a_data_size);
+                                                   const void * a_data, size_t a_data_size);
 
 int dap_stream_ch_chain_voting_init();
 void dap_stream_ch_chain_voting_deinit();

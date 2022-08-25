@@ -138,7 +138,7 @@ dap_config_t * dap_config_load(const char * a_file_path)
         log_it(L_DEBUG,"Opened config %s",a_file_path);
         l_ret = DAP_NEW_Z(dap_config_t);
         dap_config_internal_t * l_config_internal = DAP_NEW_Z(dap_config_internal_t);
-        l_config_internal->path = a_file_path;
+        l_config_internal->path = (char*)a_file_path;
         l_ret->_internal = l_config_internal;
         size_t l_global_offset=0;
         size_t l_buf_size=0;
