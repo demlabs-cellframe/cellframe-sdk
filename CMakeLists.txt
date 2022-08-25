@@ -261,3 +261,5 @@ target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 #    enable_testing()
     #add_subdirectory(test)
 #endif()
+
+add_subdirectory(test) # tests
