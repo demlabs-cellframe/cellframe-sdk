@@ -133,7 +133,7 @@ void dap_cbuf_push(dap_cbuf_t cBuf, const void *src, size_t length)
 #include <sys/types.h>
 #include <sys/socket.h>
 
-int dap_cbuf_write_In_socket(dap_cbuf_t cBuf, int sockfd)
+int dap_cbuf_write_in_socket(dap_cbuf_t cBuf, int sockfd)
 {
     if(cBuf->data_size == 0) {
         return 0;
