@@ -83,6 +83,7 @@ static void* s_thread_one_client_func(void *args);
 static void* s_thread_main_func(void *args);
 static inline void s_cmd_add_ex(const char * a_name, dap_cli_server_cmd_callback_ex_t a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex);
 
+
 #ifdef _WIN32
 
 /**
@@ -377,6 +378,7 @@ static void* thread_pipe_func( void *args )
     return NULL;
 }
 #endif
+
 
 /**
  * @brief dap_cli_server_init
@@ -845,9 +847,6 @@ char    *str_header;
 
     return NULL;
 }
-
-
-
 
 /**
  * @brief thread_main_func
