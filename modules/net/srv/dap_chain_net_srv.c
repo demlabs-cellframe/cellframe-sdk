@@ -89,12 +89,6 @@ static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all(void);
-static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-
-static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-
 /**
  * @brief dap_chain_net_srv_init
  * @return
@@ -613,7 +607,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
  * @param a_owner
  * @return
  */
-static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
+bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     return false;
@@ -628,7 +622,7 @@ static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t 
  * @param a_owner
  * @return
  */
-static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     UNUSED(a_ledger);

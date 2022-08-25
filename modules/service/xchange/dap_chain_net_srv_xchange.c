@@ -86,8 +86,6 @@ static dap_chain_net_srv_xchange_price_t *s_xchange_db_load(char *a_key, uint8_t
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static void s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx );
 
-static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_cond,
-                                           dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
 
@@ -173,7 +171,7 @@ void dap_chain_net_srv_xchange_deinit()
  * @param a_owner
  * @return
  */
-static bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
+bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     if (a_owner)

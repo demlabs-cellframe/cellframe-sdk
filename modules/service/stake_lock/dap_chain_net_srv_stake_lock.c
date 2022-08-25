@@ -944,7 +944,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-static bool s_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+bool s_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
 	UNUSED(a_tx_out_hash);
