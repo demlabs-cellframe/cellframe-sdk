@@ -455,7 +455,7 @@ char *dap_log_get_item(time_t a_start_time, int a_limit);
 
 
 DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
-#define log_it(_log_level, ...) _log_it(LOG_TAG, _log_level, ##__VA_ARGS__)
+#define log_it(_log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
 #define debug_if(flg, lvl, ...) _log_it(((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
 
 #ifdef DAP_SYS_DEBUG

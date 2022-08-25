@@ -13,8 +13,7 @@ HEADERS += $$PWD/dap_common.h \
     $$PWD/utlist.h \
     $$PWD/dap_math_ops.h \
     $$PWD/dap_file_utils.h \
-    $$PWD/circular_buffer.h \
-    $$PWD/dap_circular_buffer.h \
+    $$PWD/dap_cbuf.h \
     $$PWD/dap_list.h \
     $$PWD/dap_module.h \
     $$PWD/dap_strfuncs.h \
@@ -24,7 +23,7 @@ HEADERS += $$PWD/dap_common.h \
 SOURCES += $$PWD/dap_common.c \
     $$PWD/dap_config.c \
     $$PWD/dap_file_utils.c \
-    $$PWD/dap_circular_buffer.c \
+    $$PWD/dap_cbuf.c \
     $$PWD/dap_list.c \
     $$PWD/dap_module.c \
     $$PWD/dap_strfuncs.c \
