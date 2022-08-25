@@ -643,7 +643,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_tun_sockets_count = dap_get_cpu_count();
     memset(&s_raw_server->ifr, 0, sizeof(s_raw_server->ifr));
     s_raw_server->ifr.ifr_flags = IFF_TUN | IFF_MULTI_QUEUE| IFF_NO_PI;
-    s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", true);
+    s_raw_server->auto_cpu_reassignment = dap_config_get_item_bool_default(g_config, "srv_vpn", "auto_cpu_reassignment", false);
 #else
 #error "Undefined tun create for your platform"
 #endif
