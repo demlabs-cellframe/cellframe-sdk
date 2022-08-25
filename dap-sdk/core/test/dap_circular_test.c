@@ -66,10 +66,10 @@ void dap_circular_test_double_write()
 
     dap_assert(dap_str_equals(result_buff, expected_string),
                "Check result buf");
-    dap_assert(circular_buffer_get_data_size(cb) == 0, "Check data size");
+    dap_assert(dap_cbuf_get_size(cb) == 0, "Check data size");
     dap_pass_msg("Double write");
 
-    circular_buffer_free(cb);
+    dap_cbuf_delete(cb);
     close(fd[0]);
     close(fd[1]);
 }
@@ -110,8 +110,8 @@ void dap_circular_test_defrag_write()
                "Check result buf");
 
     dap_pass_msg("Double write");
-    dap_assert(circular_buffer_get_data_size(cb) == 0, "Check data size");
-    circular_buffer_free(cb);
+    dap_assert(dap_cbuf_get_size(cb) == 0, "Check data size");
+    dap_cbuf_delete(cb);
     close(fd[0]);
     close(fd[1]);
 }
@@ -144,11 +144,11 @@ void dap_circular_test_write_bad_socket()
 
     ret = dap_cbuf_write_in_socket(cb, fd2[0]);
     dap_assert(ret == 0, "Check zero write");
-    dap_assert(circular_buffer_get_data_size(cb) == 0, "Check data size");
+    dap_assert(dap_cbuf_get_size(cb) == 0, "Check data size");
     close(fd[1]);
     close(fd2[0]);
     close(fd2[1]);
-    circular_buffer_free(cb);
+    dap_cbuf_delete(cb);
     dap_pass_msg("Test simple");
 }
 
@@ -176,13 +176,13 @@ void dap_circular_load_test()
 
     char expectedBuffer[MAX_RESULT_BUF_LEN];
     memset(expectedBuffer, 0, MAX_RESULT_BUF_LEN);
-    circular_buffer_read(cb, count_writed_bytes, expectedBuffer);
+    dap_cbuf_read(cb, count_writed_bytes, expectedBuffer);
 
     int count_write_bytes = 4;
     do {
         int r = dap_cbuf_write_in_socket(cb, fd[0]);
         dap_assert_PIF(r == count_write_bytes, "Check write bytes");
-        dap_assert_PIF(circular_buffer_get_data_size(cb) == 0, "buf size must be 0!");
+        dap_assert_PIF(dap_cbuf_get_size(cb) == 0, "buf size must be 0!");
 
         count_write_bytes = rand() % strlen(digits);
         dap_cbuf_push(cb, (void*)digits, count_write_bytes);
@@ -197,7 +197,7 @@ void dap_circular_load_test()
 
     dap_assert(memcmp(expectedBuffer, result_buff, res) == 0, "Check expected and result buffer");
 
-    circular_buffer_free(cb);
+    dap_cbuf_delete(cb);
     close(fd[0]);
     close(fd[1]);
 }
