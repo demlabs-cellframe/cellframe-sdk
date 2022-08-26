@@ -1035,7 +1035,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
                 log_it(L_ERROR, "Can't process node info dns request");
                 DAP_DELETE(l_link_node_info);
             } else {
-                s_node_link_remove(l_net_pvt, a_node_client, true);
+                s_node_link_remove(l_net_pvt, a_node_client, false);
                 a_node_client->keep_connection = false;
             }
         }
