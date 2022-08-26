@@ -49,14 +49,14 @@ bool					s_callback_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_
 
 // Create cond out
 dap_chain_tx_out_cond_t	*dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                                    uint64_t a_time_staking, uint8_t reinvest);
+                                                                                    uint64_t a_time_staking, uint8_t a_reinvest_percent);
 
 // Create mempool
 dap_chain_hash_fast_t	*dap_chain_net_srv_stake_lock_mempool_create(dap_chain_net_t *a_net,
                                                                        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
                                                                        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                                                        uint256_t a_value, dap_chain_net_srv_uid_t a_srv_uid,
-                                                                       dap_chain_addr_t *a_addr_holder, uint64_t a_time_staking, uint8_t reinvest);
+                                                                       dap_chain_addr_t *a_addr_holder, uint64_t a_time_staking, uint8_t a_reinvest_percent);
 
 // Burning_tx_create
 dap_chain_datum_t		*dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
