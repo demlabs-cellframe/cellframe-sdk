@@ -244,4 +244,4 @@ typedef bool (datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_c
  */
 dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
-int dap_chain_datum_add(dap_chain_t* a_chain, dap_chain_datum_t* a_datum, size_t a_datum_size);
+int dap_chain_datum_add(dap_chain_t* a_chain, dap_chain_datum_t* a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash);

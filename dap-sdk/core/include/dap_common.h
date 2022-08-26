@@ -305,6 +305,7 @@ typedef struct dap_log_history_str_s {
 
 #define DAP_INTERVAL_TIMERS_MAX 15
 
+typedef void *dap_interval_timer_t;
 typedef void (*dap_timer_callback_t)(void *param);
 typedef struct dap_timer_interface {
     void *timer;

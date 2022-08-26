@@ -169,7 +169,7 @@ static void s_pkt_items_proc(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_r
         else
             s_callback_pkt_items_send_all(a_node_item->node_client->client, NULL);
     } else {
-        s_callback_send_all_loopback(a_remote_node_addr);
+        s_callback_send_all_loopback(a_remote_node_addr->uint64);
     }
 
 }

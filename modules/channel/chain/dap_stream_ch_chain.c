@@ -719,12 +719,11 @@ static void s_gdb_in_pkt_proc_callback_get_ts_callback(dap_global_db_context_t *
 
     dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
-    if (l_chain && l_chain->callback_add_datums_with_group) {
+    if (l_chain && l_chain->callback_add_datums) {
         log_it(L_WARNING, "New data goes to GDB chain");
             const void * restrict l_store_obj_value = l_obj->value;
-            l_chain->callback_add_datums_with_group(l_chain,
-                    (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
-                    l_obj->group);
+            l_chain->callback_add_datums(l_chain,
+                    (dap_chain_datum_t** restrict) &l_store_obj_value, 1);
     } else {
         // save data to global_db
         if( dap_global_db_set_raw(l_obj, 1,s_gdb_in_pkt_proc_set_raw_callback, l_sync_request) != 0) {

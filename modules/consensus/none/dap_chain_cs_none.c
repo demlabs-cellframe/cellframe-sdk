@@ -211,7 +211,6 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     a_chain->callback_atom_find_by_hash = s_chain_callback_atom_iter_find_by_hash;
     a_chain->callback_add_datums = s_chain_callback_datums_pool_proc;
-    a_chain->callback_add_datums_with_group = s_chain_callback_datums_pool_proc_with_group;
 
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_chain_callback_atom_iter_get_first; // Get the fisrt element from chain
@@ -345,23 +344,6 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         s_chain_callback_atom_add(a_chain, l_datum,dap_chain_datum_size(l_datum) );
     }
     return a_datums_count;
-}
-
-/**
- * @brief call s_chain_callback_atom_add for every dap_chain_datum_t objects in a_datums array only if chain contains specific group (chain-gdb.home21-network.chain-F)
- * 
- * @param a_chain dap_chain_t chain object (f.e. plasma)
- * @param a_datums dap_chain_datum array with dap_chain_datum objects
- * @param a_datums_count object counts in datums array
- * @param a_group group name
- * @return size_t 
- */
-static size_t s_chain_callback_datums_pool_proc_with_group(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
-        size_t a_datums_count, const char *a_group)
-{
-    if(dap_strcmp(dap_chain_gdb_get_group(a_chain), a_group))
-        return 0;
-    return s_chain_callback_datums_pool_proc(a_chain, a_datums, a_datums_count);
 }
 
 /**
