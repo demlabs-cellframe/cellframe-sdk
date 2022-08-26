@@ -5,7 +5,7 @@
 #include "dap_circular_test.h"
 #include "dap_process_mem_test.h"
 #include "dap_cpu_monitor_test.h"
-#ifndef DDAP_NETWORK_MONITOR_TEST_OFF
+#ifndef DAP_NETWORK_MONITOR_TEST_OFF
 #include "dap_network_monitor.h"
 #include "dap_network_monitor_test.h"
 #endif
