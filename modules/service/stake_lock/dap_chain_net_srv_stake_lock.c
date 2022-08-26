@@ -1096,21 +1096,28 @@ bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_c
  * @param a_tx_item_idx
  * @return
  */
-bool	s_callback_verificator_added(dap_ledger_t * a_ledger,dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t *a_tx_item)
+bool	s_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
-	dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
-	if (!l_key_hash)
+	dap_chain_hash_fast_t	l_key_hash;// = DAP_NEW_Z( dap_chain_hash_fast_t );
+	cond_params_t 			*l_params;
+//	if (!l_key_hash)
+//		return false;
+
+	if (a_tx_item->params_size != sizeof(*l_params) )// Wrong params size
 		return false;
-	size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-	dap_hash_fast( a_tx, l_tx_size, l_key_hash);
-	if (dap_hash_fast_is_blank(l_key_hash)) {
-		DAP_DEL_Z(l_key_hash);
+	l_params = (cond_params_t *)a_tx_item->params;
+
+	dap_hash_fast( a_tx, dap_chain_datum_tx_get_size(a_tx), &l_key_hash);
+	if (dap_hash_fast_is_blank(&l_key_hash)) {
+//		DAP_DEL_Z(l_key_hash);
 		return false;
 	}
 
-	s_emission_for_stake_lock_item_add(a_ledger, l_key_hash);
+	if (l_params->flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
+		s_emission_for_stake_lock_item_add(a_ledger, &l_key_hash);
+	}
 
-	DAP_DEL_Z(l_key_hash);
+//	DAP_DEL_Z(l_key_hash);
 
     return true;
 }
