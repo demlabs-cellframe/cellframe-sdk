@@ -223,7 +223,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
         l_usage->client->session_id = l_ch->stream->session->id;
         l_usage->client->ts_created = time(NULL);
         l_usage->tx_cond = l_tx;
-        memcpy(&l_usage->tx_cond_hash, &l_request->hdr.tx_cond,sizeof (l_usage->tx_cond_hash));
+        l_usage->tx_cond_hash = l_request->hdr.tx_cond;
         l_usage->ts_created = time(NULL);
     } else {
         l_usage = a_grace->usage;
@@ -322,7 +322,7 @@ free_exit:
                 pthread_mutex_unlock(&l_srv->banlist_mutex);
             else {
                 l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
-                memcpy(&l_item->client_pkey_hash, &a_grace->usage->client_pkey_hash, sizeof(dap_chain_hash_fast_t));
+                l_item->client_pkey_hash = a_grace->usage->client_pkey_hash;
                 l_item->ht_mutex = &l_srv->banlist_mutex;
                 l_item->ht_head = &l_srv->ban_list;
                 HASH_ADD(hh, l_srv->ban_list, client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
@@ -547,7 +547,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                                                   dap_chain_wallet_get_key(l_usage->price->wallet, 0),
                                                                   l_receipt);
             if (l_tx_in_hash) {
-                memcpy(&l_usage->tx_cond_hash, l_tx_in_hash, sizeof(dap_chain_hash_fast_t));
+                l_usage->tx_cond_hash = *l_tx_in_hash;
                 char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(l_tx_in_hash);
                 log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
                 DAP_DELETE(l_tx_in_hash_str);

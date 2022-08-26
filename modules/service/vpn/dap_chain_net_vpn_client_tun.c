@@ -710,24 +710,15 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
  */
 int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size)
 {
-    // we'd receive address assigment from server
-    struct in_addr l_addr = { 0 };
-    struct in_addr l_netmask = { 0 };
-    struct in_addr l_netaddr = { 0 };
-    struct in_addr l_gw = { 0 };
-
-    size_t l_route_net_count = 0;
-
-    if(a_pkt_data_size < (sizeof(l_addr) + sizeof(l_gw))) {
-        log_it(L_ERROR, "Too small ADDR_REPLY packet (%zu bytes, need at least %zu", a_pkt_data_size, sizeof(l_addr));
+    if(a_pkt_data_size < (2 * sizeof(struct in_addr))) {
+        log_it(L_ERROR, "Too small ADDR_REPLY packet (%zu bytes, need at least %zu", a_pkt_data_size, 2 * sizeof(struct in_addr));
         return -1;
     }
 
-    l_route_net_count = (a_pkt_data_size - 3 * sizeof(struct in_addr)) / (2 * sizeof(struct in_addr));
-    memcpy(&l_addr, a_pkt->data, sizeof(l_addr));
-    memcpy(&l_gw, a_pkt->data + sizeof(l_addr), sizeof(l_gw));
-    memcpy(&l_netmask, a_pkt->data + sizeof(l_addr) + sizeof(l_gw), sizeof(l_netmask));
-    l_netaddr.s_addr = l_addr.s_addr & l_netmask.s_addr;
+    struct in_addr  l_addr      = *(struct in_addr*)a_pkt->data,
+                    l_gw        = *(struct in_addr*)(a_pkt->data + sizeof(struct in_addr)),
+                    l_netmask   = *(struct in_addr*)(a_pkt->data + sizeof(struct in_addr) * 2),
+                    l_netaddr   = { .s_addr = l_addr.s_addr & l_netmask.s_addr };
 
     char l_addr_buf[INET_ADDRSTRLEN];
     char l_gw_buf[INET_ADDRSTRLEN];

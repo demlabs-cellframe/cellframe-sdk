@@ -143,8 +143,6 @@ int dap_chain_net_srv_xchange_init()
     s_srv_xchange->parent = l_srv;
     s_srv_xchange->enabled = false;
 
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, dap_chain_net_srv_xchange_verificator, NULL);
-
     return 0;
 }
 

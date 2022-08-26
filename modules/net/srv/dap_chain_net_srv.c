@@ -123,9 +123,6 @@ int dap_chain_net_srv_init()
 
     s_load_all();
 
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, dap_chain_net_srv_pay_verificator, NULL);
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, dap_chain_ledger_fee_verificator, NULL);
-
     return 0;
 }
 
@@ -308,7 +305,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     if(l_ext) {
                         l_order->ext_size = strlen(l_ext) + 1;
                         l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
-                        strncpy((char *)l_order->ext_n_sign, l_ext, l_order->ext_size);
+                        memcpy(l_order->ext_n_sign, l_ext, l_order->ext_size);
                     }
                     else
                         dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
@@ -727,10 +724,10 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
         if (a_callbacks)
-            memcpy(&l_srv->callbacks, a_callbacks, sizeof(*a_callbacks));
+            l_srv->callbacks = *a_callbacks;
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
-        memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
+        l_sdata->uid = l_uid;
         strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name));
         l_sdata->srv = l_srv;
         dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);

@@ -547,8 +547,7 @@ dap_global_db_pkt_t *dap_store_packet_multiple(dap_global_db_pkt_t *a_old_pkt, d
  */
 void dap_store_packet_change_id(dap_global_db_pkt_t *a_pkt, uint64_t a_id)
 {
-    uint16_t l_gr_len;
-    memcpy(&l_gr_len, a_pkt->data + sizeof(uint32_t), sizeof(uint16_t));
+    uint16_t l_gr_len = *(uint16_t*)(a_pkt->data + sizeof(uint32_t));
     size_t l_id_offset = sizeof(uint32_t) + sizeof(uint16_t) + l_gr_len;
     memcpy(a_pkt->data + l_id_offset, &a_id, sizeof(uint64_t));
 }
