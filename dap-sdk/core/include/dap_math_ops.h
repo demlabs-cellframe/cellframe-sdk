@@ -1022,21 +1022,20 @@ static inline int MULT_256_FRAC_FRAC(uint256_t a_val, uint256_t a_mult, uint256_
 static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* result) {
     uint256_t tmp;
     uint256_t rem;
-    uint256_t ten17 = GET_256_FROM_64(100000000000000000ULL);
+    uint256_t ten18 = GET_256_FROM_64(1000000000000000000ULL);
     uint256_t ten = GET_256_FROM_64(10ULL);
     uint256_t five = GET_256_FROM_64(500000000000000000);
     int overflow = MULT_256_256(a_val, b_val, &tmp);
-    divmod_impl_256(tmp, ten17, &tmp, &rem);
+    divmod_impl_256(tmp, ten18, &tmp, &rem);
     if (compare256(rem, five) >= 0) {
         SUM_256_256(tmp, ten, &tmp);
     }
-    if (compare256(ten, uint256_0) != 0)
-        DIV_256(tmp, ten, result);
+    *result = tmp;
     return overflow;
 }
 
 /**
- * Divides to fixed-point values, represented as 256-bit values
+ * Divides two fixed-point values, represented as 256-bit values
  * @param a_val
  * @param b_val
  * @param result is a fixed-point value, represented as 256-bit value
@@ -1044,16 +1043,26 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
  */
 static inline void DIV_256_COIN(uint256_t a, uint256_t b, uint256_t *res)
 {
-    // define 10^36
-#ifdef DAP_GLOBAL_IS_INT128
-    uint128_t quad = *(uint128_t *)"\x0\x0\x0\x0\x10\x9f\x4b\xb3\x15\x07\xc9\x7b\xce\x97\xc0\x0";
-#else
-    uint128_t quad = {.lo = 54210108624275221ULL, .hi = 12919594847110692864ULL};
-#endif
-    uint256_t quad256 = GET_256_FROM_128(quad);
-    uint256_t tmp = uint256_0;
-    DIV_256(quad256, b, &tmp);  // assertion with zero divisor inside
-    MULT_256_COIN(a, tmp, res);
+    if (compare256(a, uint256_0) == 0) {
+        *res = uint256_0;
+        return;
+    }
+    int counter = 0;
+    uint256_t a_copy = a;
+    uint256_t ten18 = GET_256_FROM_64(1000000000000000000ULL);
+    uint256_t ten = GET_256_FROM_64(10l);
+    while (compare256(a_copy, b) < 0) {
+        counter++;
+        MULT_256_256(a_copy, ten, &a_copy);
+    }
+    DIV_256(a_copy, b, &a_copy);
+    MULT_256_256(a_copy, ten18, &a_copy);
+    uint256_t loan = GET_256_FROM_64(1l);
+    while(counter--) {
+        MULT_256_256(loan, ten, &loan); //maybe we should use same table as in dap_chain_common.c instead of cycle ?
+    }
+    DIV_256(a_copy, loan, &a_copy);
+    *res = a_copy;
 }
 
 #ifdef __cplusplus

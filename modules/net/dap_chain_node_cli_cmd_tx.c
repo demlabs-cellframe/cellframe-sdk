@@ -331,10 +331,10 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                         dap_chain_tx_out_t *l_tx_prev_out =
                                 l_list_out_prev_item ? (dap_chain_tx_out_t*)l_list_out_prev_item->data : NULL;
                         // print value from prev out item
-                        char *l_balance = dap_chain_balance_print(l_tx_prev_out->header.value);
+                        char *l_balance = l_tx_prev_out ? dap_chain_balance_print(l_tx_prev_out->header.value) : NULL;
                         dap_string_append_printf(l_str_out, "  prev OUT 256bit item value=%s",
-                                l_tx_prev_out ? l_balance : "0");
-                        DAP_DELETE(l_balance);
+                                l_balance ? l_balance : "0");
+                        DAP_DEL_Z(l_balance);
                     } else {
                         dap_list_t *l_list_out_prev_items = dap_chain_datum_tx_items_get(l_tx_prev,
                                 TX_ITEM_TYPE_OUT_OLD, NULL);
