@@ -7,7 +7,11 @@ file(GLOB SRCS *.c)
 
 
 if(UNIX)
-    file(GLOB PLATROFM_DEP_SRC unix/*.c unix/*.h)
+if (OFF_CORE_CELLFRAME_SDK_TESTS_OFF MATCHES "network-monitor")
+    file(GLOB PLATROFM_DEP_SRC unix/dap_cpu*.c unix/dap_process*.c unix/dap_cpu*.h unix/dap_process*.h)  
+  else()
+    file(GLOB PLATROFM_DEP_SRC unix/*.c unix/*.h)  
+  endif()
 endif()
 
 add_executable(${PROJECT_NAME} ${SRCS} ${PLATROFM_DEP_SRC})  
