@@ -1136,7 +1136,7 @@ static dap_chain_datum_t* s_mempool_create(dap_chain_net_t *a_net,
 {
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     // check valid param
-    if (!a_net || !l_ledger || !a_key_from || !a_key_cond ||
+    if (!a_net || !l_ledger || !a_key_from ||
         !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value))
         return NULL;
 
