@@ -1781,9 +1781,10 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
             dap_chain_load_all(l_chain);
     }
     DL_FOREACH(l_net->pub.chains, l_chain) {
-    if (l_chain->callback_atom_add_from_treshold) {
-        while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
-            debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
+        if (l_chain->callback_atom_add_from_treshold) {
+            while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+                debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
+        }
     }
     /*bool l_processed;
     do {
@@ -1853,8 +1854,7 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
  * @param a_type - dap_chain_type_t a_type [CHAIN_TYPE_TOKEN, CHAIN_TYPE_EMISSION, CHAIN_TYPE_TX]
  * @return uint16_t
  */
-static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
-{
+static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type) {
 	switch (a_type) {
 		case CHAIN_TYPE_TOKEN:
 			return ("token");
