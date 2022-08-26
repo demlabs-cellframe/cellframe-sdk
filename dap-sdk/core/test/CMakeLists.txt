@@ -28,7 +28,7 @@ add_executable(rpmalloc_bench
   rpmalloc/test/timer.c
 )
 if(WIN32)
-	target_link_libraries(rpmalloc_bench dap_core m pthread ntdll psapi Shlwapi)
+	target_link_libraries(rpmalloc_bench dap_core m pthread ntdll psapi shlwapi)
 endif()
 if(UNIX)
 	target_link_libraries(rpmalloc_bench dap_core m pthread)
@@ -42,7 +42,7 @@ add_executable(crtmalloc_bench
   rpmalloc/test/timer.c
 )
 if(WIN32)
-	target_link_libraries(crtmalloc_bench dap_core m pthread ntdll psapi Shlwapi)
+	target_link_libraries(crtmalloc_bench dap_core m pthread ntdll psapi shlwapi)
 endif()
 if(UNIX)
 	target_link_libraries(crtmalloc_bench dap_core m pthread)
