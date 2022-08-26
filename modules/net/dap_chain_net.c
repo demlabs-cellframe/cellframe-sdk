@@ -955,11 +955,17 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 
 }
 
-static void s_node_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_node_client)
+static void s_node_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_node_client, bool a_rebase)
 {
     for (dap_list_t *it = a_net_pvt->net_links; it; it = it->next) {
         if (((struct net_link *)it->data)->link == a_node_client) {
-            DAP_DELETE(((struct net_link *)it->data)->link_info);
+            if (a_rebase) {
+                ((struct net_link *)it->data)->link = NULL;
+                a_net_pvt->net_links = dap_list_append(a_net_pvt->net_links, it->data);
+            } else {
+                DAP_DELETE(((struct net_link *)it->data)->link_info);
+                DAP_DELETE(it->data);
+            }
             a_net_pvt->net_links = dap_list_delete_link(a_net_pvt->net_links, it);
             break;
         }
@@ -991,7 +997,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         a_node_client->keep_connection = true;
         for (dap_list_t *it = l_net_pvt->net_links; it; it = it->next) {
             if (((struct net_link *)it->data)->link == NULL) {  // We have a free prepared link
-                s_node_link_remove(l_net_pvt, a_node_client);
+                s_node_link_remove(l_net_pvt, a_node_client, true);
                 a_node_client->keep_connection = false;
                 ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net,
                                                         ((struct net_link *)it->data)->link_info);
@@ -1029,7 +1035,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
                 log_it(L_ERROR, "Can't process node info dns request");
                 DAP_DELETE(l_link_node_info);
             } else {
-                s_node_link_remove(l_net_pvt, a_node_client);
+                s_node_link_remove(l_net_pvt, a_node_client, true);
                 a_node_client->keep_connection = false;
             }
         }

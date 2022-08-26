@@ -1571,7 +1571,7 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     l_ledger_priv->load_mode = true;
     l_ledger_priv->tps_timer = NULL;
     l_ledger_priv->tps_count = 0;
-    if (dap_config_get_item_bool_default(g_config, "ledger", "cached", true)) {
+    if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true)) {
         // load ledger cache from GDB
         dap_chain_ledger_load_cache(l_ledger);
     }
