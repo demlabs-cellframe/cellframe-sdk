@@ -2754,13 +2754,17 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         } break;
         case TX_ITEM_TYPE_OUT_COND: {
             dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)l_list_tmp->data;
-            if (l_multichannel) { // out_cond have no field .token
+            if (l_multichannel && l_tx_out->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) { // out_cond have no field .token
                 log_it(L_WARNING, "No conditional output support for multichannel transaction");
                 l_err_num = -18;
                 break;
-            }
-
-            l_value = l_tx_out->header.value;
+            } else if (l_multichannel) {
+				l_token = l_tx_out->subtype.srv_xchange.buy_token;
+				l_value = l_tx_out->subtype.srv_xchange.buy_value;
+//				l_tx_out_to = *((dap_chain_addr_t *)l_tx_out->params); TODO: wrong address
+			} else {
+				l_value = l_tx_out->header.value;
+			}
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
             l_list_tx_out_cond = dap_list_append(l_list_tx_out_cond, l_tx_out);
         } break;

@@ -174,6 +174,7 @@ void dap_chain_net_srv_xchange_deinit()
 bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
+	return true;//for tests
     if (a_owner)
         return true;
     if(!a_tx_out_hash || !a_tx_in || !a_tx_out_cond)
@@ -246,10 +247,9 @@ bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_ha
                 }
 
             }break;
-            default: continue;
+            default: break;
         }
-
-
+		l_item_idx_start++;
     }
 
     /* Check the condition for verification success
@@ -823,8 +823,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -3;
             }
 
-            } break;
-
             const char * l_order_hash_str = NULL;
             const char * l_addr_hash_str = NULL;
 
@@ -888,6 +886,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                     dap_chain_node_cli_set_reply_text(a_str_reply, "No history");
                 }
             }
+		} break;
 
         case CMD_REMOVE:
         case CMD_UPDATE: {
