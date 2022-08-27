@@ -435,7 +435,7 @@ int picnic_keys_gen(picnic_privatekey_t *sk, picnic_publickey_t *pk, picnic_para
              (uint32_t*)sk->data, &paramset);
 
     /* Make of copy of the public key in the private key */
-    memcpy(&(sk->pk), pk, sizeof(picnic_publickey_t));
+    sk->pk = *pk;
 
     return 0;
 }

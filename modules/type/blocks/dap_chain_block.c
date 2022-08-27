@@ -70,8 +70,7 @@ dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size
         l_block->hdr.version = 1;
         l_block->hdr.ts_created = time(NULL);
 
-        dap_chain_hash_fast_t l_hash_null={0};
-        memcpy(&l_block->hdr.merkle, &l_hash_null, sizeof(dap_chain_hash_fast_t));
+        l_block->hdr.merkle = (dap_chain_hash_fast_t){ 0 };
 
         size_t l_block_size = sizeof(l_block->hdr);
         if( a_prev_block ){
@@ -565,7 +564,7 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                     }
 
                     if (l_meta->hdr.data_size == sizeof (**a_block_links) ){
-                        memcpy(&a_block_links[*a_block_links_count], l_meta->data, l_meta->hdr.data_size);
+                        *a_block_links[*a_block_links_count] = *(dap_chain_hash_fast_t*)l_meta->data;
                         (*a_block_links_count)++;
                     }else
                         log_it(L_WARNING, "Link meta #%zu has wrong size %hu when expecting %zu", i, l_meta->hdr.data_size, sizeof (*a_block_prev_hash));
@@ -611,7 +610,7 @@ void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_met
                         log_it(L_WARNING, "Merkle root meta #%zu has wrong size %hu when expecting %zu", i, l_meta->hdr.data_size, sizeof (*a_nonce2));
                 }
             break;
-            default: { log_it(L_WARNING, "Unknown meta #%zu type 0x%02hx (size %hu), possible corrupted block or you need to upgrade your software",
+            default: { log_it(L_WARNING, "Unknown meta #%zu type 0x%02x (size %u), possible corrupted block or you need to upgrade your software",
                                  i, l_meta->hdr.type, l_meta->hdr.type); }
         }
     }

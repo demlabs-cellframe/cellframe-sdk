@@ -332,8 +332,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                     continue;
                 }
                 if ( memcmp(&l_out->addr, a_addr_from, sizeof (*a_addr_from))==0 ){
-                    list_used_item_t *l_item_back = DAP_NEW(list_used_item_t);
-                    memcpy(&l_item_back->tx_hash_fast, &l_tx_new_hash, sizeof(dap_chain_hash_fast_t));
+                    list_used_item_t *l_item_back = DAP_NEW_Z(list_used_item_t);
+                    l_item_back->tx_hash_fast = l_tx_new_hash;
                     l_item_back->num_idx_out = l_out_idx_tmp;
                     l_item_back->value = l_value_back;
                     l_list_used_out = dap_list_prepend(l_list_used_out, l_item_back);
@@ -785,17 +785,15 @@ dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser
     //uint8_t *a_datum_mempool_ser = DAP_NEW_Z_SIZE(uint8_t, datum_mempool_size / 2 + 1);
     //datum_mempool_size = hex2bin(a_datum_mempool_ser, datum_mempool_str_in, datum_mempool_size) / 2;
     dap_datum_mempool_t *datum_mempool = DAP_NEW_Z(dap_datum_mempool_t);
-    memcpy(&(datum_mempool->version), a_datum_mempool_ser + shift_size, sizeof(uint16_t));
+    datum_mempool->version = *(uint16_t*)(a_datum_mempool_ser + shift_size);
     shift_size += sizeof(uint16_t);
-    memcpy(&(datum_mempool->datum_count), a_datum_mempool_ser + shift_size, sizeof(uint16_t));
+    datum_mempool->datum_count = *(uint16_t*)(a_datum_mempool_ser + shift_size);
     shift_size += sizeof(uint16_t);
     datum_mempool->data = DAP_NEW_Z_SIZE(dap_chain_datum_t*, datum_mempool->datum_count * sizeof(dap_chain_datum_t*));
     for(int i = 0; i < datum_mempool->datum_count; i++) {
-        size_t size_one = 0;
-        memcpy(&size_one, a_datum_mempool_ser + shift_size, sizeof(uint16_t));
+        uint16_t size_one = *(uint16_t*)(a_datum_mempool_ser + shift_size);
         shift_size += sizeof(uint16_t);
-        datum_mempool->data[i] = (dap_chain_datum_t*) DAP_NEW_Z_SIZE(uint8_t, size_one);
-        memcpy(datum_mempool->data[i], a_datum_mempool_ser + shift_size, size_one);
+        datum_mempool->data[i] = DAP_DUP((dap_chain_datum_t*)(a_datum_mempool_ser + shift_size));
         shift_size += size_one;
     }
     assert(shift_size == a_datum_mempool_ser_size);

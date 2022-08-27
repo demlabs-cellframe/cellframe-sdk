@@ -379,8 +379,7 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
     // get new generated current node address
     case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE: {
         if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
-            dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *) a_pkt_net->data;
-            memcpy(&l_node_client->cur_node_addr, l_addr, sizeof(dap_chain_node_addr_t));
+            l_node_client->cur_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
         }
         l_node_client->state = NODE_CLIENT_STATE_NODE_ADDR_LEASED;
 #ifndef _WIN32
@@ -394,8 +393,7 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
     case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR: {
 
         if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
-            dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *) a_pkt_net->data;
-            memcpy(&l_node_client->remote_node_addr, l_addr, sizeof(dap_chain_node_addr_t));
+            l_node_client->remote_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
         }
         l_node_client->state = NODE_CLIENT_STATE_GET_NODE_ADDR;
 #ifndef _WIN32
@@ -757,7 +755,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
     l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
     l_node_client->callbacks_arg = a_callback_arg;
     if(a_callbacks)
-        memcpy(&l_node_client->callbacks,a_callbacks,sizeof (*a_callbacks));
+        l_node_client->callbacks = *a_callbacks;
     l_node_client->info = DAP_DUP(a_node_info);
     l_node_client->uuid = dap_uuid_generate_uint64();
     l_node_client->net = a_net;
@@ -1045,7 +1043,7 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                 l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
                 l_ch_chain->callback_notify_arg = l_node_client;
                 l_node_client->ch_chain = l_ch;
-                memcpy(&l_node_client->ch_chain_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));
+                l_node_client->ch_chain_uuid = l_ch->uuid;
             }
             // N
             if(a_ch_id == dap_stream_ch_chain_net_get_id()) {
@@ -1053,7 +1051,7 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                 l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;
                 l_node_client->ch_chain_net = l_ch;
-                memcpy(&l_node_client->ch_chain_net_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));
+                l_node_client->ch_chain_net_uuid = l_ch->uuid;
             }
             // R
             if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {
@@ -1067,7 +1065,7 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                     l_ch_chain->notify_callback_arg = l_node_client;
                 }
                 l_node_client->ch_chain_net_srv = l_ch;
-                memcpy(&l_node_client->ch_chain_net_srv_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));
+                l_node_client->ch_chain_net_srv_uuid = l_ch->uuid;
             }
             // V
             if ( a_ch_id == dap_stream_ch_chain_voting_get_id() ) {
@@ -1075,7 +1073,7 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
                 // l_ch_chain->callback_notify = s_ch_chain_callback_notify_voting_packet_in;
                 l_ch_chain->callback_notify_arg = l_node_client;
                 l_node_client->ch_chain_net = l_ch;
-                memcpy(&l_node_client->ch_chain_net_uuid, &l_ch->uuid, sizeof(dap_stream_ch_uuid_t));    
+                l_node_client->ch_chain_net_uuid = l_ch->uuid;
             }
             l_ret = 0;
         } else {

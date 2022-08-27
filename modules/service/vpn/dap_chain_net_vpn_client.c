@@ -637,7 +637,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
             l_request.hdr.srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
             dap_chain_hash_fast_t *l_tx_cond = dap_chain_net_vpn_client_tx_cond_hash(a_net, NULL, NULL, 0);
             if(l_tx_cond) {
-                memcpy(&l_request.hdr.tx_cond, l_tx_cond, sizeof(dap_chain_hash_fast_t));
+                l_request.hdr.tx_cond = *l_tx_cond;
                 DAP_DELETE(l_tx_cond);
             }
             // set srv id

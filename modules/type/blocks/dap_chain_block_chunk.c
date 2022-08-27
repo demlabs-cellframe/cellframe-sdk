@@ -57,19 +57,15 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
  */
 void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks)
 {
-    dap_chain_block_chunk_t * l_chunk = a_chunks->chunks_last;
-
-    while(l_chunk){
-        dap_chain_block_cache_hash_t* l_block_cache_hash = NULL, *l_tmp = NULL;
-        HASH_ITER(hh, l_chunk->block_cache_hash , l_block_cache_hash, l_tmp){
-            // Clang bug at this, l_block_cache_hash should change at every loop cycle
-            HASH_DEL(l_chunk->block_cache_hash, l_block_cache_hash);
+    dap_chain_block_cache_hash_t *l_block_cache_hash, *l_block_cache_hash_tmp;
+    for (dap_chain_block_chunk_t *l_chunk = a_chunks->chunks_last; l_chunk; l_chunk = l_chunk->prev) {
+        HASH_ITER(hh, l_chunk->block_cache_hash , l_block_cache_hash, l_block_cache_hash_tmp){
+        HASH_DEL(l_chunk->block_cache_hash, l_block_cache_hash);
             DAP_DELETE(l_block_cache_hash);
         }
     }
-    dap_chain_block_cache_t* l_block_cache = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, a_chunks->cache , l_block_cache, l_tmp){
-        // Clang bug at this, l_block_cache should change at every loop cycle
+    dap_chain_block_cache_t* l_block_cache, *l_block_cache_tmp = NULL;
+    HASH_ITER(hh, a_chunks->cache , l_block_cache, l_block_cache_tmp) {
         HASH_DEL(a_chunks->cache, l_block_cache);
         dap_chain_block_cache_delete(l_block_cache);
     }
@@ -110,7 +106,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
             l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
             l_chunk_cache_hash->block_cache=a_block_cache;
             l_chunk_cache_hash->ts_created = time(NULL);
-            memcpy(&l_chunk_cache_hash->block_hash, &a_block_cache->block_hash,sizeof (a_block_cache->block_hash));
+            l_chunk_cache_hash->block_hash = a_block_cache->block_hash;
             l_chunk_cache_hash->chunk = l_chunk;
 
             // Update first block cache from the head
@@ -132,7 +128,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
         l_chunk_cache_hash->block_cache=a_block_cache;
         l_chunk_cache_hash->ts_created = time(NULL);
-        memcpy(&l_chunk_cache_hash->block_hash, &a_block_cache->block_hash,sizeof (a_block_cache->block_hash));
+        l_chunk_cache_hash->block_hash = a_block_cache->block_hash;
         l_chunk_cache_hash->chunk = l_chunk;
 
         // Update first block cache from the head

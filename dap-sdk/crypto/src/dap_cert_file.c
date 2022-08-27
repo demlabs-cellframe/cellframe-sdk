@@ -368,10 +368,9 @@ lb_exit:
 dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
 {
     dap_cert_t * l_ret = NULL;
-    dap_cert_file_hdr_t l_hdr={0};
     const uint8_t * l_data = (const uint8_t *) a_data;
     uint32_t l_data_offset = 0;
-    memcpy(&l_hdr,l_data, sizeof(l_hdr));
+    dap_cert_file_hdr_t l_hdr = *(dap_cert_file_hdr_t*)l_data;
     l_data_offset += sizeof(l_hdr);
     if (l_hdr.sign != dap_cert_FILE_HDR_SIGN ){
         log_it(L_ERROR, "Wrong cert signature, corrupted header!");

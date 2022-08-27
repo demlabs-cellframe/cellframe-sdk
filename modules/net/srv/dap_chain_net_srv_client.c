@@ -42,7 +42,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
 {
     dap_chain_net_srv_client_t *l_ret = DAP_NEW_Z(dap_chain_net_srv_client_t);
     if (a_callbacks)
-        memcpy(&l_ret->callbacks, a_callbacks, sizeof(*a_callbacks));
+        l_ret->callbacks = *a_callbacks;
     l_ret->callbacks_arg = a_callbacks_arg;
     dap_chain_node_client_callbacks_t l_callbacks = {
         .connected = s_srv_client_callback_connected,
@@ -80,7 +80,7 @@ static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_clie
 {
     log_it(L_INFO, "Service client connected well");
     dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
-    memcpy(&l_srv_client->ch_uuid, &a_node_client->ch_chain_net_srv_uuid, sizeof(l_srv_client->ch_uuid));
+    l_srv_client->ch_uuid = a_node_client->ch_chain_net_srv_uuid;
     l_srv_client->net_client = a_node_client->client;
     if (l_srv_client->callbacks.connected)
         l_srv_client->callbacks.connected(l_srv_client, l_srv_client->callbacks_arg);
