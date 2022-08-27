@@ -656,7 +656,7 @@ int ping4_run(ping_handle_t *a_ping_handle, int argc, char **argv, struct addrin
                 ai = result;
             }
 
-            memcpy(&a_ping_handle->whereto, ai->ai_addr, sizeof (a_ping_handle->whereto));
+            a_ping_handle->whereto = *(struct sockaddr_in*)ai->ai_addr;
             memset(hnamebuf, 0, sizeof hnamebuf);
             if(ai->ai_canonname)
                 strncpy(hnamebuf, ai->ai_canonname, sizeof hnamebuf - 1);
@@ -1601,7 +1601,8 @@ pr_addr(ping_handle_t *a_ping_handle, void *sa, socklen_t salen)
     if(salen == last_salen && !memcmp(sa, &last_sa, salen))
         return buffer;
 
-    memcpy(&last_sa, sa, (last_salen = salen));
+    last_sa = *(struct sockaddr_storage*)sa;
+    last_salen = salen;
 
     a_ping_handle->ping_common.in_pr_addr = !setjmp(a_ping_handle->ping_common.pr_addr_jmp);
 

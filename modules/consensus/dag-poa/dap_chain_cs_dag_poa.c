@@ -482,7 +482,7 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
                     dap_chain_cs_dag_event_calc_hash((dap_chain_cs_dag_event_t *)l_round_item->event_n_signs,
                                                      l_round_item->event_size, &l_event_hash);
                     if (memcmp(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t)) < 0)
-                        memcpy(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t));
+                        l_winner_hash = l_event_hash;
                 }
                 break;
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_HASH:
