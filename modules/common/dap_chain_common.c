@@ -732,7 +732,7 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 {
     uint256_t l_ret = uint256_0, l_nul = uint256_0;
     int  l_strlen;
-    char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC];
+    char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC + 1];
 
     /* Compute & check length */
     if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)

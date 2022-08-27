@@ -20,6 +20,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dap_time.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -601,8 +602,8 @@ static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_reque
     int l_ret = 0;
     if(!a_request)
         return -1;
-    long l_t1_ms = a_request->send_time1.tv_sec * 1000 + a_request->send_time1.tv_nsec / 1e6;
-    long l_t2_ms = a_request->recv_time1.tv_sec * 1000 + a_request->recv_time1.tv_nsec / 1e6;
+    long l_t1_ms = a_request->send_time1 / 1e6;
+    long l_t2_ms = a_request->recv_time1 / 1e6;
     struct json_object *jobj = json_object_new_object();
     time_t l_cur_t = time(NULL);
     char buf[1024];
