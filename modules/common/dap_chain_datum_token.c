@@ -186,10 +186,13 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
         l_signs_offset = sizeof(dap_chain_datum_token_old_t);
         break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
+		l_signs_offset = sizeof(dap_chain_datum_token_t) + a_datum_token->header_native_decl.tsd_total_size;
+		break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-        l_signs_offset = sizeof(dap_chain_datum_token_t) + a_datum_token->header_native_decl.tsd_total_size;
+        l_signs_offset = sizeof(dap_chain_datum_token_t) + a_datum_token->header_private_decl.tsd_total_size;
         break;
     default:
+		l_signs_offset = sizeof(dap_chain_datum_token_t);
         break;
     }
 
