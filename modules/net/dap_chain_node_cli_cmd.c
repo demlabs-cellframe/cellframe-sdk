@@ -3200,7 +3200,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
     const char * l_hash_out_type = NULL;
-	int l_type_of_decl = DAP_CHAIN_DATUM_TOKEN_DECL;
+//	int l_type_of_decl = DAP_CHAIN_DATUM_TOKEN_DECL;
 
     dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
 
@@ -3232,10 +3232,10 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     l_ticker = l_params->l_ticker;
     l_hash_out_type = l_params->l_hash_out_type;
 
-	if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE
-	||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE){
-		l_type_of_decl = l_params->l_type;
-	}
+//	if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE
+//	||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE){
+//		l_type_of_decl = l_params->l_type;
+//	}
 
     switch(l_params->l_type)
     {
@@ -3411,7 +3411,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             return -9;
     }
 
-    dap_chain_datum_t * l_datum = dap_chain_datum_create(l_type_of_decl,
+    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
                                                          l_datum_token,
                                                          sizeof(*l_datum_token) + l_datum_data_offset);
     DAP_DELETE(l_datum_token);
