@@ -522,6 +522,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     	l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
     	dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker), "%s", a_token->ticker);
     	pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
+	} else {//update token
+		;
 	}
 
     dap_chain_datum_token_t *l_token = a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE ?
