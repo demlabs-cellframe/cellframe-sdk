@@ -523,7 +523,30 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     	dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker), "%s", a_token->ticker);
     	pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
 	} else {//update token
-		;
+		if (l_token_item->auth_signs_total != a_token->signs_total
+		||	l_token_item->auth_signs_valid != a_token->signs_valid) {
+			if(s_debug_more)
+				log_it(L_WARNING,"Can't update token with ticker '%s' because:"
+								 "l_token_item auth signs total/valid == %lu/%lu"
+								 "token_update auth signs total/valid == %hu %hu",
+								 a_token->ticker,
+								 l_token_item->auth_signs_total, l_token_item->auth_signs_valid,
+								 a_token->signs_total, a_token->signs_valid);
+			return -2;
+		}
+		dap_sign_t **l_signs_upd_token;
+		l_signs_upd_token = dap_chain_datum_token_signs_parse(a_token, a_token_size,
+															  &l_token_item->auth_signs_total,
+															  &l_token_item->auth_signs_valid);
+
+		if(l_token_item->auth_signs_total) {
+			for(uint16_t i=0; i<l_token_item->auth_signs_total;i++){
+				if (!dap_sign_match_pkey_signs(l_token_item->auth_signs[i], l_signs_upd_token[i])) {
+					log_it(L_WARNING, "signs not compare");
+					return -4;
+				}
+			}
+		}
 	}
 
     dap_chain_datum_token_t *l_token = a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE ?
