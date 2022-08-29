@@ -2556,6 +2556,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if (!l_ret) {
                     log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" already in list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
                 } else {
+                    /* Either not yet added or must be altered */
                     l_ret = dap_chain_node_info_save(l_net, &l_node_info);
                     if (!l_ret) {
                         if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i], &l_seed_node_addr))
