@@ -239,7 +239,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 		strcpy(delegate_ticker_str + 1, l_ticker_str);
 
 		if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(l_ledger, delegate_ticker_str))
-		||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+		||	(delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL && delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
 		||	!delegate_token->header_native_decl.tsd_total_size
 		||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
 			dap_string_append_printf(output_line, "'%s'", delegate_ticker_str);
@@ -473,7 +473,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 		strcpy(delegate_ticker_str + 1, l_ticker_str);
 
 		if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(l_ledger, delegate_ticker_str))
-			||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+			||	(delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL && delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
 			||	!delegate_token->header_native_decl.tsd_total_size
 			||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
 			dap_string_append_printf(output_line, "'%s'", delegate_ticker_str);
@@ -1027,7 +1027,7 @@ bool s_callback_verificator(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_c
 
 	if (l_params->flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
 		if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(a_ledger, delegated_ticker))
-			||	delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+			||	(delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL && delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
 			||	!delegate_token->header_native_decl.tsd_total_size
 			||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
 			return false;

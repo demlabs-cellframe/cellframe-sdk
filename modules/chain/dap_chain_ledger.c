@@ -2316,7 +2316,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 				dap_tsd_t *l_tsd;
 				dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
 				if (l_datum_token
-				&&	l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+				&&	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL || l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
 				&&	l_datum_token->header_native_decl.tsd_total_size
 				&&	NULL != (l_tsd = dap_tsd_find(l_datum_token->data_n_tsd, l_datum_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
 					dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
