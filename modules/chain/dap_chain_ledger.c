@@ -1419,7 +1419,7 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     l_ledger_priv->load_mode = true;
     l_ledger_priv->tps_timer = NULL;
     l_ledger_priv->tps_count = 0;
-    if (dap_config_get_item_bool_default(g_config, "ledger", "cached", true)) {
+    if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true)) {
         // load ledger cache from GDB
         dap_chain_ledger_load_cache(l_ledger);
     }
@@ -2146,18 +2146,18 @@ bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_cha
 /**
  * Checking a new transaction before adding to the cache
  *
- * return 1 OK, -1 error
+ * return 0 OK, < 0 error
  */
 
 static int s_check_out_cond_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_list_t *a_list_tx_out_cond)
 {
 	for (dap_list_t *list_tmp = a_list_tx_out_cond; list_tmp; list_tmp = dap_list_next(list_tmp)) {
 
-			dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *) a_list_tx_out_cond->data;
+			dap_chain_tx_out_cond_t *l_tx_out_cond = (dap_chain_tx_out_cond_t *)list_tmp->data;
 
 			// Check for add out callback
 			dap_chain_ledger_verificator_t *l_verificator;
-			int l_tmp = l_tx_out->header.subtype;
+			int l_tmp = l_tx_out_cond->header.subtype;
 
 			pthread_rwlock_rdlock(&s_verificators_rwlock);
 			HASH_FIND_INT(s_verificators, &l_tmp, l_verificator);
@@ -2168,7 +2168,7 @@ static int s_check_out_cond_verificator_added(dap_ledger_t *a_ledger, dap_chain_
 					log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_tmp);
 				return -13;
 			}
-			else if (l_verificator->callback_added && l_verificator->callback_added(a_ledger, a_tx, l_tx_out) == false)
+			else if (l_verificator->callback_added && l_verificator->callback_added(a_ledger, a_tx, l_tx_out_cond) == false)
 				return -14;
 
 /*
