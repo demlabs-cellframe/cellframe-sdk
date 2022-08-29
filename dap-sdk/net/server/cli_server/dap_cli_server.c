@@ -84,6 +84,301 @@ static void* s_thread_main_func(void *args);
 static inline void s_cmd_add_ex(const char * a_name, dap_cli_server_cmd_callback_ex_t a_func, void *a_arg_func, const char *a_doc, const char *a_doc_ex);
 
 
+#ifdef _WIN32
+
+/**
+ * @brief p_get_next_str
+ *
+ * @param hPipe
+ * @param dwLen
+ * @param stop_str
+ * @param del_stop_str
+ * @param timeout
+ * @return char*
+ */
+char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
+{
+    UNUSED(timeout);
+    bool bSuccess = false;
+    long nRecv = 0; // count of bytes received
+    size_t stop_str_len = (stop_str) ? strlen(stop_str) : 0;
+    // if there is nothing to look for
+
+    if(!stop_str_len)
+        return NULL;
+
+    size_t lpszBuffer_len = 256;
+    char *lpszBuffer = DAP_NEW_Z_SIZE(char, lpszBuffer_len);
+    // received string will not be larger than MAX_REPLY_LEN
+
+    while( 1 ) //nRecv < MAX_REPLY_LEN)
+    {
+      long ret = 0;
+        // read one byte
+//        long ret = s_recv( nSocket, (unsigned char *) (lpszBuffer + nRecv), 1, timeout);
+
+      bSuccess = ReadFile( hPipe, lpszBuffer + nRecv,
+         lpszBuffer_len - nRecv, (LPDWORD)&ret, NULL );
+
+        //int ret = recv(nSocket,lpszBuffer+nRecv,1, 0);
+        if ( ret <= 0 || !bSuccess )
+            break;
+
+        nRecv += ret;
+        //printf("**debug** socket=%d read  %d bytes '%0s'",nSocket, ret, (lpszBuffer + nRecv));
+
+        while((nRecv + 1) >= (long) lpszBuffer_len)
+        {
+            lpszBuffer_len *= 2;
+            lpszBuffer = (char*) realloc(lpszBuffer, lpszBuffer_len);
+        }
+
+        // search for the required string
+        if(nRecv >=  (long) stop_str_len) {
+            // found the required string
+            if(!strncasecmp(lpszBuffer + nRecv - stop_str_len, stop_str, stop_str_len)) {
+                bSuccess = true;
+                break;
+            }
+        }
+    };
+
+    // end reading
+
+    if(bSuccess) {
+        // delete the searched string
+        if(del_stop_str) {
+            lpszBuffer[nRecv -  (long) stop_str_len] = '\0';
+            if(dwLen)
+                *dwLen =(int) nRecv - (int) stop_str_len;
+        }
+        else {
+            lpszBuffer[nRecv] = '\0';
+            if(dwLen)
+                *dwLen = (int) nRecv;
+        }
+        lpszBuffer = DAP_REALLOC(lpszBuffer,(size_t) *dwLen + 1);
+        return lpszBuffer;
+    }
+
+    // in case of an error or missing string
+
+    if(dwLen)
+        *dwLen = 0;
+
+    free(lpszBuffer);
+
+    return NULL;
+}
+
+/**
+ * @brief thread_pipe_client_func
+ * threading function for processing a request from a client
+ * @param args
+ * @return void*
+ */
+static void *thread_pipe_client_func( void *args )
+{
+    HANDLE hPipe = (HANDLE)args;
+
+//    SOCKET newsockfd = (SOCKET) (intptr_t) args;
+    if(s_debug_cli)
+        log_it(L_INFO, "new connection pipe = %p", hPipe);
+
+    int str_len, marker = 0;
+    int timeout = 5000; // 5 sec
+    int argc = 0;
+
+    dap_list_t *cmd_param_list = NULL;
+
+    while( 1 )
+    {
+        // wait data from client
+//        int is_data = s_poll( newsockfd, timeout );
+        // timeout
+//        if(!is_data)
+//            continue;
+        // error (may be socket closed)
+//        if(is_data < 0)
+//            break;
+
+//        int is_valid = is_valid_socket(newsockfd);
+//        if(!is_valid)
+//        {
+//            break;
+//        }
+
+        // receiving http header
+        char *str_header = p_get_next_str( hPipe, &str_len, "\r\n", true, timeout );
+
+        // bad format
+        if(!str_header)
+            break;
+
+        if ( str_header && strlen(str_header) == 0) {
+            marker++;
+            if(marker == 1)
+                continue;
+        }
+
+        // filling parameters of command
+        if ( marker == 1 ) {
+            cmd_param_list = dap_list_append( cmd_param_list, str_header );
+            //printf("g_list_append argc=%d command=%s ", argc, str_header);
+            argc ++;
+        }
+        else
+            free( str_header );
+
+        if ( marker == 2 ) {
+
+            dap_list_t *list = cmd_param_list;
+            // form command
+
+            unsigned int argc = dap_list_length( list );
+            // command is found
+
+            if ( argc >= 1) {
+
+                int l_verbose = 0;
+                char *cmd_name = list->data;
+                list = dap_list_next( list );
+
+                // execute command
+                char *str_cmd = dap_strdup_printf( "%s", cmd_name );
+                dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find( cmd_name );
+                int res = -1;
+                char *str_reply = NULL;
+
+                if ( l_cmd ) {
+
+                    while( list ) {
+                        str_cmd = dap_strdup_printf( "%s;%s", str_cmd, list->data );
+                        list = dap_list_next(list);
+                    }
+
+                    log_it(L_INFO, "execute command = %s", str_cmd );
+                    // exec command
+
+                    char **l_argv = dap_strsplit( str_cmd, ";", -1 );
+                    // Call the command function
+
+                    if ( l_cmd &&  l_argv && l_cmd->func ) {
+                        if (l_cmd->arg_func) {
+                            res = l_cmd->func_ex(argc, l_argv, l_cmd->arg_func, &str_reply);
+                        } else {
+                            res = l_cmd->func(argc, l_argv, &str_reply);
+                        }
+                    }
+
+                    else if ( l_cmd ) {
+                        log_it(L_WARNING,"NULL arguments for input for command \"%s\"", str_cmd );
+                    }else {
+                        log_it(L_WARNING,"No function for command \"%s\" but it registred?!", str_cmd );
+                    }
+
+                    // find '-verbose' command
+                    l_verbose = dap_cli_server_cmd_find_option_val( l_argv, 1, argc, "-verbose", NULL );
+                    dap_strfreev( l_argv );
+
+                } else {
+                    str_reply = dap_strdup_printf("can't recognize command = %s", str_cmd );
+                    log_it( L_ERROR, str_reply );
+                }
+
+                char *reply_body;
+
+                if(l_verbose)
+                  reply_body = dap_strdup_printf("%d\r\nret_code: %d\r\n%s\r\n", res, res, (str_reply) ? str_reply : "");
+                else
+                  reply_body = dap_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
+
+                // return the result of the command function
+                char *reply_str = dap_strdup_printf( "HTTP/1.1 200 OK\r\n"
+                                                    "Content-Length: %d\r\n\r\n"
+                                                    "%s",
+                        strlen(reply_body), reply_body );
+
+                int ret;// = send( newsockfd, reply_str, strlen(reply_str) ,0 );
+
+                WriteFile( hPipe, reply_str, strlen(reply_str), (LPDWORD)&ret, NULL );
+
+                DAP_DELETE(str_reply);
+                DAP_DELETE(reply_str);
+                DAP_DELETE(reply_body);
+
+                DAP_DELETE(str_cmd);
+            }
+            dap_list_free_full(cmd_param_list, free);
+            break;
+        }
+    }
+
+    // close connection
+//    int cs = closesocket(newsockfd);
+
+    log_it( L_INFO, "close connection pipe = %p", hPipe );
+
+    FlushFileBuffers( hPipe );
+    DisconnectNamedPipe( hPipe );
+    CloseHandle( hPipe );
+
+    return NULL;
+}
+
+
+/**
+ * @brief thread_pipe_func
+ * main threading server function pipe win32
+ * @param args
+ * @return void*
+ */
+static void* thread_pipe_func( void *args )
+{
+   UNUSED(args);
+   BOOL   fConnected = FALSE;
+   pthread_t threadId;
+   HANDLE hPipe = INVALID_HANDLE_VALUE;
+   static const char *cPipeName = "\\\\.\\pipe\\node_cli.pipe";
+
+   for (;;)
+   {
+///      printf( "\nPipe Server: Main thread awaiting client connection on %s\n", lpszPipename );
+
+      hPipe = CreateNamedPipe(
+          cPipeName,                // pipe name
+          PIPE_ACCESS_DUPLEX,       // read/write access
+          PIPE_TYPE_MESSAGE |       // message type pipe
+          PIPE_READMODE_MESSAGE |   // message-read mode
+          PIPE_WAIT,                // blocking mode
+          PIPE_UNLIMITED_INSTANCES, // max. instances
+          4096,                     // output buffer size
+          4096,                     // input buffer size
+          0,                        // client time-out
+          NULL );                   // default security attribute
+
+      if ( hPipe == INVALID_HANDLE_VALUE ) {
+          log_it( L_ERROR, "CreateNamedPipe failed, GLE = %lu.\n", GetLastError() );
+          return NULL;
+      }
+
+      fConnected = ConnectNamedPipe( hPipe, NULL ) ? TRUE : ( GetLastError() == ERROR_PIPE_CONNECTED );
+
+      if ( fConnected )
+      {
+        log_it( L_INFO, "Client %p connected, creating a processing thread.\n", hPipe );
+
+        pthread_create( &threadId, NULL, thread_pipe_client_func, hPipe );
+        pthread_detach( threadId );
+      }
+      else
+         CloseHandle( hPipe );
+    }
+
+    return NULL;
+}
+#endif
+
 
 /**
  * @brief dap_cli_server_init
@@ -552,302 +847,6 @@ char    *str_header;
 
     return NULL;
 }
-
-#ifdef _WIN32
-
-/**
- * @brief p_get_next_str
- *
- * @param hPipe
- * @param dwLen
- * @param stop_str
- * @param del_stop_str
- * @param timeout
- * @return char*
- */
-char *p_get_next_str( HANDLE hPipe, int *dwLen, const char *stop_str, bool del_stop_str, int timeout )
-{
-    UNUSED(timeout);
-    bool bSuccess = false;
-    long nRecv = 0; // count of bytes received
-    size_t stop_str_len = (stop_str) ? strlen(stop_str) : 0;
-    // if there is nothing to look for
-
-    if(!stop_str_len)
-        return NULL;
-
-    size_t lpszBuffer_len = 256;
-    char *lpszBuffer = DAP_NEW_Z_SIZE(char, lpszBuffer_len);
-    // received string will not be larger than MAX_REPLY_LEN
-
-    while( 1 ) //nRecv < MAX_REPLY_LEN)
-    {
-      long ret = 0;
-        // read one byte
-//        long ret = s_recv( nSocket, (unsigned char *) (lpszBuffer + nRecv), 1, timeout);
-
-      bSuccess = ReadFile( hPipe, lpszBuffer + nRecv,
-         lpszBuffer_len - nRecv, (LPDWORD)&ret, NULL );
-
-        //int ret = recv(nSocket,lpszBuffer+nRecv,1, 0);
-        if ( ret <= 0 || !bSuccess )
-            break;
-
-        nRecv += ret;
-        //printf("**debug** socket=%d read  %d bytes '%0s'",nSocket, ret, (lpszBuffer + nRecv));
-
-        while((nRecv + 1) >= (long) lpszBuffer_len)
-        {
-            lpszBuffer_len *= 2;
-            lpszBuffer = (char*) realloc(lpszBuffer, lpszBuffer_len);
-        }
-
-        // search for the required string
-        if(nRecv >=  (long) stop_str_len) {
-            // found the required string
-            if(!strncasecmp(lpszBuffer + nRecv - stop_str_len, stop_str, stop_str_len)) {
-                bSuccess = true;
-                break;
-            }
-        }
-    };
-
-    // end reading
-
-    if(bSuccess) {
-        // delete the searched string
-        if(del_stop_str) {
-            lpszBuffer[nRecv -  (long) stop_str_len] = '\0';
-            if(dwLen)
-                *dwLen =(int) nRecv - (int) stop_str_len;
-        }
-        else {
-            lpszBuffer[nRecv] = '\0';
-            if(dwLen)
-                *dwLen = (int) nRecv;
-        }
-        lpszBuffer = DAP_REALLOC(lpszBuffer,(size_t) *dwLen + 1);
-        return lpszBuffer;
-    }
-
-    // in case of an error or missing string
-
-    if(dwLen)
-        *dwLen = 0;
-
-    free(lpszBuffer);
-
-    return NULL;
-}
-
-/**
- * @brief thread_pipe_client_func
- * threading function for processing a request from a client
- * @param args
- * @return void*
- */
-static void *thread_pipe_client_func( void *args )
-{
-    HANDLE hPipe = (HANDLE)args;
-
-//    SOCKET newsockfd = (SOCKET) (intptr_t) args;
-    if(s_debug_cli)
-        log_it(L_INFO, "new connection pipe = %p", hPipe);
-
-    int str_len, marker = 0;
-    int timeout = 5000; // 5 sec
-    int argc = 0;
-
-    dap_list_t *cmd_param_list = NULL;
-
-    while( 1 )
-    {
-        // wait data from client
-//        int is_data = s_poll( newsockfd, timeout );
-        // timeout
-//        if(!is_data)
-//            continue;
-        // error (may be socket closed)
-//        if(is_data < 0)
-//            break;
-
-//        int is_valid = is_valid_socket(newsockfd);
-//        if(!is_valid)
-//        {
-//            break;
-//        }
-
-        // receiving http header
-        char *str_header = p_get_next_str( hPipe, &str_len, "\r\n", true, timeout );
-
-        // bad format
-        if(!str_header)
-            break;
-
-        if ( str_header && strlen(str_header) == 0) {
-            marker++;
-            if(marker == 1)
-                continue;
-        }
-
-        // filling parameters of command
-        if ( marker == 1 ) {
-            cmd_param_list = dap_list_append( cmd_param_list, str_header );
-            //printf("g_list_append argc=%d command=%s ", argc, str_header);
-            argc ++;
-        }
-        else
-            free( str_header );
-
-        if ( marker == 2 ) {
-
-            dap_list_t *list = cmd_param_list;
-            // form command
-
-            unsigned int argc = dap_list_length( list );
-            // command is found
-
-            if ( argc >= 1) {
-
-                int l_verbose = 0;
-                char *cmd_name = list->data;
-                list = dap_list_next( list );
-
-                // execute command
-                char *str_cmd = dap_strdup_printf( "%s", cmd_name );
-                dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find( cmd_name );
-                int res = -1;
-                char *str_reply = NULL;
-
-                if ( l_cmd ) {
-
-                    while( list ) {
-                        str_cmd = dap_strdup_printf( "%s;%s", str_cmd, list->data );
-                        list = dap_list_next(list);
-                    }
-
-                    log_it(L_INFO, "execute command = %s", str_cmd );
-                    // exec command
-
-                    char **l_argv = dap_strsplit( str_cmd, ";", -1 );
-                    // Call the command function
-
-                    if ( l_cmd &&  l_argv && l_cmd->func ) {
-                        if (l_cmd->arg_func) {
-                            res = l_cmd->func_ex(argc, l_argv, l_cmd->arg_func, &str_reply);
-                        } else {
-                            res = l_cmd->func(argc, l_argv, &str_reply);
-                        }
-                    }
-
-                    else if ( l_cmd ) {
-                        log_it(L_WARNING,"NULL arguments for input for command \"%s\"", str_cmd );
-                    }else {
-                        log_it(L_WARNING,"No function for command \"%s\" but it registred?!", str_cmd );
-                    }
-
-                    // find '-verbose' command
-                    l_verbose = dap_cli_server_cmd_find_option_val( l_argv, 1, argc, "-verbose", NULL );
-                    dap_strfreev( l_argv );
-
-                } else {
-                    str_reply = dap_strdup_printf("can't recognize command = %s", str_cmd );
-                    log_it( L_ERROR, str_reply );
-                }
-
-                char *reply_body;
-
-                if(l_verbose)
-                  reply_body = dap_strdup_printf("%d\r\nret_code: %d\r\n%s\r\n", res, res, (str_reply) ? str_reply : "");
-                else
-                  reply_body = dap_strdup_printf("%d\r\n%s\r\n", res, (str_reply) ? str_reply : "");
-
-                // return the result of the command function
-                char *reply_str = dap_strdup_printf( "HTTP/1.1 200 OK\r\n"
-                                                    "Content-Length: %d\r\n\r\n"
-                                                    "%s",
-                        strlen(reply_body), reply_body );
-
-                int ret;// = send( newsockfd, reply_str, strlen(reply_str) ,0 );
-
-                WriteFile( hPipe, reply_str, strlen(reply_str), (LPDWORD)&ret, NULL );
-
-                DAP_DELETE(str_reply);
-                DAP_DELETE(reply_str);
-                DAP_DELETE(reply_body);
-
-                DAP_DELETE(str_cmd);
-            }
-            dap_list_free_full(cmd_param_list, free);
-            break;
-        }
-    }
-
-    // close connection
-//    int cs = closesocket(newsockfd);
-
-    log_it( L_INFO, "close connection pipe = %p", hPipe );
-
-    FlushFileBuffers( hPipe );
-    DisconnectNamedPipe( hPipe );
-    CloseHandle( hPipe );
-
-    return NULL;
-}
-
-
-/**
- * @brief thread_pipe_func
- * main threading server function pipe win32
- * @param args
- * @return void*
- */
-static void* thread_pipe_func( void *args )
-{
-   UNUSED(args);
-   BOOL   fConnected = FALSE;
-   pthread_t threadId;
-   HANDLE hPipe = INVALID_HANDLE_VALUE;
-   static const char *cPipeName = "\\\\.\\pipe\\node_cli.pipe";
-
-   for (;;)
-   {
-///      printf( "\nPipe Server: Main thread awaiting client connection on %s\n", lpszPipename );
-
-      hPipe = CreateNamedPipe(
-          cPipeName,                // pipe name
-          PIPE_ACCESS_DUPLEX,       // read/write access
-          PIPE_TYPE_MESSAGE |       // message type pipe
-          PIPE_READMODE_MESSAGE |   // message-read mode
-          PIPE_WAIT,                // blocking mode
-          PIPE_UNLIMITED_INSTANCES, // max. instances
-          4096,                     // output buffer size
-          4096,                     // input buffer size
-          0,                        // client time-out
-          NULL );                   // default security attribute
-
-      if ( hPipe == INVALID_HANDLE_VALUE ) {
-          log_it( L_ERROR, "CreateNamedPipe failed, GLE = %lu.\n", GetLastError() );
-          return NULL;
-      }
-
-      fConnected = ConnectNamedPipe( hPipe, NULL ) ? TRUE : ( GetLastError() == ERROR_PIPE_CONNECTED );
-
-      if ( fConnected )
-      {
-        log_it( L_INFO, "Client %p connected, creating a processing thread.\n", hPipe );
-
-        pthread_create( &threadId, NULL, thread_pipe_client_func, hPipe );
-        pthread_detach( threadId );
-      }
-      else
-         CloseHandle( hPipe );
-    }
-
-    return NULL;
-}
-#endif
-
 
 /**
  * @brief thread_main_func

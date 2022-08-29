@@ -205,7 +205,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( int a_sock, dap_events_socke
     l_ret->socket = a_sock;
     l_ret->uuid = dap_uuid_generate_uint64();
     if (a_callbacks)
-        memcpy(&l_ret->callbacks, a_callbacks, sizeof(l_ret->callbacks) );
+        l_ret->callbacks = *a_callbacks;
     l_ret->flags = DAP_SOCK_READY_TO_READ;
 
     l_ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
@@ -1227,7 +1227,8 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, int a_soc
     l_es->socket = a_sock;
     l_es->server = a_server;
     l_es->uuid = dap_uuid_generate_uint64();
-    memcpy(&l_es->callbacks,a_callbacks, sizeof ( l_es->callbacks) );
+    if (a_callbacks)
+        l_es->callbacks = *a_callbacks;
     l_es->buf_out_size_max = l_es->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
     l_es->buf_in = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max+1);
     l_es->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max+1);

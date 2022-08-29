@@ -955,11 +955,17 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 
 }
 
-static void s_node_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_node_client)
+static void s_node_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_node_client, bool a_rebase)
 {
     for (dap_list_t *it = a_net_pvt->net_links; it; it = it->next) {
         if (((struct net_link *)it->data)->link == a_node_client) {
-            DAP_DELETE(((struct net_link *)it->data)->link_info);
+            if (a_rebase) {
+                ((struct net_link *)it->data)->link = NULL;
+                a_net_pvt->net_links = dap_list_append(a_net_pvt->net_links, it->data);
+            } else {
+                DAP_DELETE(((struct net_link *)it->data)->link_info);
+                DAP_DELETE(it->data);
+            }
             a_net_pvt->net_links = dap_list_delete_link(a_net_pvt->net_links, it);
             break;
         }
@@ -991,7 +997,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         a_node_client->keep_connection = true;
         for (dap_list_t *it = l_net_pvt->net_links; it; it = it->next) {
             if (((struct net_link *)it->data)->link == NULL) {  // We have a free prepared link
-                s_node_link_remove(l_net_pvt, a_node_client);
+                s_node_link_remove(l_net_pvt, a_node_client, true);
                 a_node_client->keep_connection = false;
                 ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net,
                                                         ((struct net_link *)it->data)->link_info);
@@ -1029,7 +1035,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
                 log_it(L_ERROR, "Can't process node info dns request");
                 DAP_DELETE(l_link_node_info);
             } else {
-                s_node_link_remove(l_net_pvt, a_node_client);
+                s_node_link_remove(l_net_pvt, a_node_client, false);
                 a_node_client->keep_connection = false;
             }
         }
@@ -1772,28 +1778,32 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain)
-    {
+    DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
-
         if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none"))
             dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
         else
             dap_chain_load_all(l_chain);
+    }
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (l_chain->callback_atom_add_from_treshold) {
+            while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+                debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
-    bool l_processed;
-        do {
-            l_processed = false;
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-               if (l_chain->callback_atom_add_from_treshold) {
-                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                        log_it(L_DEBUG, "Added atom from treshold");
-                        l_processed = true;
-                    }
+    }
+    /*bool l_processed;
+    do {
+        l_processed = false;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+           if (l_chain->callback_atom_add_from_treshold) {
+                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                    log_it(L_DEBUG, "Added atom from treshold");
+                    l_processed = true;
                 }
             }
-        } while (l_processed);
+        }
+    } while (l_processed); */ //TODO: Commented out in branch master and flagged as obscure code.
 }
 
 /**
@@ -1850,8 +1860,7 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
  * @param a_type - dap_chain_type_t a_type [CHAIN_TYPE_TOKEN, CHAIN_TYPE_EMISSION, CHAIN_TYPE_TX]
  * @return uint16_t
  */
-static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
-{
+static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type) {
 	switch (a_type) {
 		case CHAIN_TYPE_TOKEN:
 			return ("token");
@@ -2679,7 +2688,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     l_net_pvt->node_info = dap_chain_node_info_read (l_net, l_node_addr);
                     if ( !l_net_pvt->node_info ) { // If not present - create it
                         l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                        memcpy(&l_net_pvt->node_info->hdr.address, l_node_addr,sizeof (*l_node_addr));
+                        l_net_pvt->node_info->hdr.address = *l_node_addr;
                         if (dap_config_get_item_bool_default(g_config,"server","enabled",false) ){
                             const char * l_ext_addr_v4 = dap_config_get_item_str_default(g_config,"server","ext_address",NULL);
                             const char * l_ext_addr_v6 = dap_config_get_item_str_default(g_config,"server","ext_address6",NULL);

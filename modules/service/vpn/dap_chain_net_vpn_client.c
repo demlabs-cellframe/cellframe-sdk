@@ -538,14 +538,12 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     long l_t2 = l_t.tv_sec * 1000 + l_t.tv_nsec / 1e6;
     int l_dtime_connect_ms = l_t2 - l_t1;
 
-    //l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
-
-    // send first packet to server
     {
         uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(l_ch) {
-            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + a_data_size_to_send);
+            typedef dap_stream_ch_chain_net_srv_pkt_test_t pkt_t;
+            pkt_t* l_request = DAP_NEW_STACK_SIZE(pkt_t, sizeof(pkt_t) + a_data_size_to_send);
             l_request->net_id.uint64 = a_net->pub.id.uint64;
             l_request->srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
             l_request->data_size_send = a_data_size_to_send;
@@ -560,7 +558,6 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, l_request, l_request_size);
             dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-            DAP_DELETE(l_request);
         }
     }
     // wait testing
@@ -640,7 +637,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
             l_request.hdr.srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
             dap_chain_hash_fast_t *l_tx_cond = dap_chain_net_vpn_client_tx_cond_hash(a_net, NULL, NULL, 0);
             if(l_tx_cond) {
-                memcpy(&l_request.hdr.tx_cond, l_tx_cond, sizeof(dap_chain_hash_fast_t));
+                l_request.hdr.tx_cond = *l_tx_cond;
                 DAP_DELETE(l_tx_cond);
             }
             // set srv id

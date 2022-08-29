@@ -12,7 +12,11 @@ add_library(${PROJECT_NAME} STATIC ${DAP_PLUGIN_SRCS} ${DAP_PLUGIN_HEADERS})
 
 target_link_libraries(${PROJECT_NAME})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_cli_server dl)
+target_link_libraries(${PROJECT_NAME} dap_core dap_cli_server )
+
+if(NOT WIN32)
+    target_link_libraries(${PROJECT_NAME} dl )
+endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
 

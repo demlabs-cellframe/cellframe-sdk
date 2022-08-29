@@ -79,14 +79,11 @@
 
 static void* node_ping_proc(void *a_arg)
 {
-    struct in_addr l_addr = {};
-    int l_port = 0;
-    int l_count;
     if(!a_arg)
-        return NULL ;
-    memcpy(&l_count, a_arg, sizeof(int));
-    memcpy(&l_port, (a_arg + sizeof(int)), sizeof(int));
-    memcpy(&l_addr, (a_arg + 2 * sizeof(int)), sizeof(struct in_addr));
+        return NULL;
+    int l_count = *(int*)a_arg,
+        l_port  = *(int*)(a_arg + sizeof(int));
+    struct in_addr l_addr  = *(struct in_addr*)(a_arg + sizeof(int) * 2);
     DAP_DELETE(a_arg);
 
     char *host4 = DAP_NEW_SIZE(char, INET_ADDRSTRLEN);

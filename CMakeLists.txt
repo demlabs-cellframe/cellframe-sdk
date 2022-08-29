@@ -226,16 +226,18 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange)
 endif()
 
-# Enable service of delegated stake
-if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
-    message("[+] Module 'srv-stake-pos-delegate'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate)
-endif()
-
 # Enable service of stake token
 if (CELLFRAME_MODULES MATCHES "srv-stake-lock")
     message("[+] Module 'srv-stake-lock'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_lock)
+endif()
+
+# Enable service of delegated stake
+if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
+    message("[+] Module 'srv-stake-pos-delegate'")
+    #add TARGET_FILE for proper symbols resolving
+    #pos_delegate depends on symbols from this libs
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate $<TARGET_FILE:dap_chain_cs_dag_poa> $<TARGET_FILE:dap_chain_cs_block_poa> $<TARGET_FILE:dap_chain_cs_dag> $<TARGET_FILE:dap_chain_cs_blocks>)
 endif()
 
 # Enable service for dynamic modules
@@ -245,9 +247,9 @@ if (CELLFRAME_MODULES MATCHES "modules-dynamic")
 endif()
 
 if (WIN32)
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
-					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
-                                         Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
+					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
+                                         shlwapi bcrypt crypt32 secur32 userenv mqrt)
 endif()
 
 if (DARWIN)

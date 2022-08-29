@@ -101,30 +101,27 @@ int dap_chain_net_srv_init()
         return -1;
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <chain net name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
-        "                                         [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
+        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
+        " [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
-        "net_srv -net <chain net name> order delete -hash <Order hash>\n"
+        "net_srv -net <net_name> order delete -hash <Order hash>\n"
         "\tOrder delete\n"
-        "net_srv -net <chain net name> order dump -hash <Order hash>\n"
+        "net_srv -net <net_name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
-        "net_srv -net <chain net name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
-        "        -price_unit <Price Unit> -price_token <Token ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
-        "        [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
-        "        [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
+        "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
+        " -price_unit <Price Unit> -price_token <token_ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
+        " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
+        " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
 #ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
-            "net_srv -net <chain net name> order static [save | delete]\n"
+            "net_srv -net <net_name> order static [save | delete]\n"
             "\tStatic nodelist create/delete\n"
-            "net_srv -net <chain net name> order recheck\n"
+            "net_srv -net <net_name> order recheck\n"
             "\tCheck the availability of orders\n"
 #endif
         );
 
     s_load_all();
-
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, dap_chain_net_srv_pay_verificator, NULL);
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, dap_chain_ledger_fee_verificator, NULL);
 
     return 0;
 }
@@ -308,7 +305,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     if(l_ext) {
                         l_order->ext_size = strlen(l_ext) + 1;
                         l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
-                        strncpy((char *)l_order->ext_n_sign, l_ext, l_order->ext_size);
+                        memcpy(l_order->ext_n_sign, l_ext, l_order->ext_size);
                     }
                     else
                         dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
@@ -727,10 +724,10 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         l_srv->uid.uint64 = a_uid.uint64;
         if (a_callbacks)
-            memcpy(&l_srv->callbacks, a_callbacks, sizeof(*a_callbacks));
+            l_srv->callbacks = *a_callbacks;
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
-        memcpy(&l_sdata->uid, &l_uid, sizeof(l_uid));
+        l_sdata->uid = l_uid;
         strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name));
         l_sdata->srv = l_srv;
         dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
