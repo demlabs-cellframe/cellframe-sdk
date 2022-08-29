@@ -2371,7 +2371,7 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
                 s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp, l_hash_out_type);
 
     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-    dap_string_free(l_str_tmp, false);
+    dap_string_free(l_str_tmp, true);
 
     return 0;
 }
@@ -3051,7 +3051,7 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
     if (l_total_supply_str){
         l_params->l_total_supply = dap_chain_balance_scan(l_total_supply_str);
         if (IS_ZERO_256(l_params->l_total_supply)){
-            dap_chain_node_cli_set_reply_text(a_str_reply, "'-total_supply' must be unsigned integer value that fits in 8 bytes");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "'-total_supply' must be unsigned integer value that fits in 32 bytes");
             return -4;
         }
     }
@@ -3092,7 +3092,9 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
     size_t l_datum_data_offset = 0;
 
     //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL uses decimals parameter
-    if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE || l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL){
+    if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE
+	||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
+	||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE){
 		if(!l_params->l_decimals_str) {
 			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
 			return -3;
@@ -3105,7 +3107,8 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
             dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
             return -3;
         }
-    } else if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL){ //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
+    } else if (	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+	||			l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE){
 		if(!l_params->l_decimals_str) {
 			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
 			return -3;
@@ -3114,10 +3117,10 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
 											  "token_decl support '-decimals' to be 18 only");
 			return -4;
 		}
-		if(IS_ZERO_256(l_params->l_total_supply)) {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
-			return -3;
-		}
+//		if(IS_ZERO_256(l_params->l_total_supply)) {
+//			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
+//			return -3;
+//		}
 	}
 
     if (!l_params->l_signs_emission){
@@ -3379,7 +3382,8 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
                 l_datum_data_offset += l_tsd_size;
             }
-            log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ?
+            log_it(L_DEBUG, "%s token declaration '%s' initialized", (	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
+																	||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)	?
                             "Private" : "CF20", l_datum_token->ticker);
         }break;//end
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256

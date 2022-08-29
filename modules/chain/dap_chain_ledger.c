@@ -537,8 +537,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 		if (l_token_item->auth_signs_total != a_token->signs_total
 		||	l_token_item->auth_signs_valid != a_token->signs_valid) {
 			if(s_debug_more)
-				log_it(L_WARNING,"Can't update token with ticker '%s' because:"
-								 "l_token_item auth signs total/valid == %lu/%lu"
+				log_it(L_WARNING,"Can't update token with ticker '%s' because: "
+								 "l_token_item auth signs total/valid == %lu/%lu | "
 								 "token_update auth signs total/valid == %hu/%hu",
 								 a_token->ticker,
 								 l_token_item->auth_signs_total, l_token_item->auth_signs_valid,
@@ -554,8 +554,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 		||	l_token_item->auth_signs_valid != auth_signs_valid) {
 			DAP_DEL_Z(l_signs_upd_token);
 			if(s_debug_more)
-				log_it(L_WARNING,"Can't update token with ticker '%s' because:"
-								 "l_token_item auth signs total/valid == %lu/%lu"
+				log_it(L_WARNING,"Can't update token with ticker '%s' because: "
+								 "l_token_item auth signs total/valid == %lu/%lu | "
 								 "token_update auth signs total/valid == %lu/%lu",
 								 a_token->ticker,
 								 l_token_item->auth_signs_total, l_token_item->auth_signs_valid,
@@ -1262,10 +1262,12 @@ dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger)
 
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 {
-    dap_list_t *l_ret_list = NULL;
+    dap_list_t		*l_ret_list = NULL;
+	dap_string_t	*l_str_tmp;
     dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+		l_str_tmp = dap_string_new(NULL);
         const char *l_type_str;
         const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);;
         switch (l_token_item->type) {
@@ -1294,34 +1296,47 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 		||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)){
 				char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
 				char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
-                l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
+				s_datum_token_dump_tsd(l_str_tmp, l_token_item->datum_token, l_token_item->datum_token_size, "hex");
+				size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token) - l_token_item->datum_token->header_native_decl.tsd_total_size;
+				dap_chain_datum_token_certs_dump(l_str_tmp, l_token_item->datum_token->data_n_tsd + l_token_item->datum_token->header_native_decl.tsd_total_size,
+											 l_certs_field_size, "hex");
+                l_item_str = dap_strdup_printf("-->Token name '%s', type %s, flags: %s\n"
 											   	"\tSupply (current/total) %s/%s\n"
                                                 "\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
-                                                "\tTotal emissions %u\n",
+												"TSD and Signs:\n"
+												"%s"
+                                                "\tTotal emissions %u\n___\n",
                                                 &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags),
 											   	l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
+												l_str_tmp->str,
                                                 HASH_COUNT(l_token_item->token_emissions));
 				DAP_DEL_Z(l_balance_cur);
 				DAP_DEL_Z(l_balance_total);
         } else {
                 char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
                 char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
-                l_item_str = dap_strdup_printf("Token name '%s', type %s, flags: %s\n"
+				size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token);
+				dap_chain_datum_token_certs_dump(l_str_tmp, l_token_item->datum_token->data_n_tsd,
+											 l_certs_field_size, "hex");
+                l_item_str = dap_strdup_printf("-->Token name '%s', type %s, flags: %s\n"
                                                 "\tSupply (current/total) %s/%s\n"
 											   	"\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
-                                                "\tTotal emissions %u\n",
+												"%s"
+                                                "\tTotal emissions %u\n___\n",
                                                 &l_token_item->ticker, l_type_str, "SIMPLE token has no flags",
                                                 l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
+											   	l_str_tmp->str,
                                                 HASH_COUNT(l_token_item->token_emissions));
                 DAP_DEL_Z(l_balance_cur);
                 DAP_DEL_Z(l_balance_total);
         }
 
         l_ret_list = dap_list_append(l_ret_list, l_item_str);
+		dap_string_free(l_str_tmp, true);
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     return l_ret_list;
