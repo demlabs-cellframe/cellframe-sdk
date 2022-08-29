@@ -2411,14 +2411,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 								l_err_num = -30;
 								break;
 							}
-                            stake_lock_emission->tx_used_out = cur_tx_hash;
 							//update current_supply in ledger cache and ledger memory object
 							s_update_token_cache(a_ledger, l_token_item);
-						} else {
-							log_it(L_DEBUG, "Total supply for token %s not found", l_token_item->ticker);
-							l_err_num = -32;
-							break;
 						}
+						stake_lock_emission->tx_used_out = cur_tx_hash;
 					}
 
 					debug_if(s_debug_more, L_NOTICE, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
