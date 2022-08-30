@@ -25,6 +25,7 @@ See more details here <http://www.gnu.org/licenses/>.
 
 #include <stddef.h>
 #include <stdint.h>
+#include "dap_events_socket.h"
 #include "dap_http.h"
 #include "dap_uuid.h"
 //#define DAP_HTTP_SIMPLE_REQUEST_MAX 100000
@@ -38,7 +39,7 @@ typedef struct dap_http_simple {
     dap_events_socket_t * esocket;
     dap_worker_t * worker;
     dap_http_client_t * http_client;
-    uint128_t http_client_uuid;
+    dap_events_socket_uuid_t esocket_uuid;
 
     union {
         void *request;

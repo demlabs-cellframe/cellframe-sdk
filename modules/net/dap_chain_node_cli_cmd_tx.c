@@ -175,12 +175,8 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                     l_tx_data = DAP_NEW_Z(dap_tx_data_t);
                     dap_chain_hash_fast_t l_tx_hash;
                     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
-                    memcpy(&l_tx_data->tx_hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
-                    if ( l_type_256 ) // 256
-                        memcpy(&l_tx_data->addr, &l_tx_out->addr, sizeof(dap_chain_addr_t));
-                    else
-                        memcpy(&l_tx_data->addr, &l_tx_out_256->addr, sizeof(dap_chain_addr_t));
-
+                    l_tx_data->tx_hash = l_tx_hash;
+                    l_tx_data->addr = l_type_256 ? l_tx_out_256->addr : l_tx_out->addr;
                     dap_chain_hash_fast_to_str(&l_tx_data->tx_hash, l_tx_data->tx_hash_str,
                             sizeof(l_tx_data->tx_hash_str));
                     //l_tx_data->pos_num = l_count;
@@ -331,10 +327,10 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                         dap_chain_tx_out_t *l_tx_prev_out =
                                 l_list_out_prev_item ? (dap_chain_tx_out_t*)l_list_out_prev_item->data : NULL;
                         // print value from prev out item
-                        char *l_balance = dap_chain_balance_print(l_tx_prev_out->header.value);
+                        char *l_balance = l_tx_prev_out ? dap_chain_balance_print(l_tx_prev_out->header.value) : NULL;
                         dap_string_append_printf(l_str_out, "  prev OUT 256bit item value=%s",
-                                l_tx_prev_out ? l_balance : "0");
-                        DAP_DELETE(l_balance);
+                                l_balance ? l_balance : "0");
+                        DAP_DEL_Z(l_balance);
                     } else {
                         dap_list_t *l_list_out_prev_items = dap_chain_datum_tx_items_get(l_tx_prev,
                                 TX_ITEM_TYPE_OUT_OLD, NULL);
@@ -707,7 +703,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                         break;
                     }
                     l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
-                    memcpy(&l_sht->hash, &l_tx_hash, sizeof(dap_chain_hash_fast_t));
+                    l_sht->hash = l_tx_hash;
                     HASH_ADD(hh, a_tx_hash_processed, hash, sizeof(dap_chain_hash_fast_t), l_sht);
                     l_tx_num++;
                 } break;

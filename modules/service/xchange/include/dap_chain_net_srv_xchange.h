@@ -31,15 +31,15 @@
 #define GROUP_LOCAL_XCHANGE "local.xchange"
 
 typedef struct dap_chain_net_srv_xchange_price {
-    char* wallet_str;
+    char *wallet_str;
     char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t datoshi_sell;
-    dap_chain_net_t* net;
+    dap_chain_net_t *net;
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t rate;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
-    dap_enc_key_t* wallet_key;
+    dap_enc_key_t *wallet_key;
 } dap_chain_net_srv_xchange_price_t;
 
 typedef struct dap_srv_xchange_order_ext {
@@ -49,7 +49,7 @@ typedef struct dap_srv_xchange_order_ext {
 } dap_srv_xchange_order_ext_t;
 
 typedef struct dap_chain_net_srv_xchange {
-    dap_chain_net_srv_t* parent;
+    dap_chain_net_srv_t *parent;
     bool enabled;
 } dap_chain_net_srv_xchange_t;
 
@@ -57,4 +57,4 @@ extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
-bool dap_chain_net_srv_xchange_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
+bool dap_chain_net_srv_xchange_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);

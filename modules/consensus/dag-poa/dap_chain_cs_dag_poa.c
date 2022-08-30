@@ -114,7 +114,7 @@ int dap_chain_cs_dag_poa_init(void)
     dap_chain_cs_add ("dag_poa", s_callback_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
-        "dag_poa event sign -net <chain net name> -chain <chain name> -event <event hash> [-H {hex | base58(default)}]\n"
+        "dag_poa event sign -net <net_name> -chain <chain_name> -event <event_hash> [-H {hex | base58(default)}]\n"
             "\tSign event <event hash> in the new round pool with its authorize certificate\n\n");
 
     return 0;
@@ -266,14 +266,12 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                     bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event, l_event_size_new,
                                                                         l_event_new_hash_hex_str);
 
-                    if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_new_hash_hex_str, l_event,
-                                                    l_event_size_new, l_round_item)) {
+                    if (dap_chain_cs_dag_event_gdb_set(l_dag, l_event_new_hash_hex_str, l_event, l_event_size_new, l_round_item)) {
                         if(!dap_strcmp(l_hash_out_type, "hex")) {
                             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                     "Added new sign with cert \"%s\", event %s placed back in round.new\n",
                                     l_poa_pvt->events_sign_cert->name, l_event_new_hash_hex_str);
-                        }
-                        else {
+                        } else {
                             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                     "Added new sign with cert \"%s\", event %s placed back in round.new\n",
                                     l_poa_pvt->events_sign_cert->name, l_event_new_hash_base58_str);
@@ -484,7 +482,7 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
                     dap_chain_cs_dag_event_calc_hash((dap_chain_cs_dag_event_t *)l_round_item->event_n_signs,
                                                      l_round_item->event_size, &l_event_hash);
                     if (memcmp(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t)) < 0)
-                        memcpy(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t));
+                        l_winner_hash = l_event_hash;
                 }
                 break;
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_HASH:

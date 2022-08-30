@@ -53,26 +53,26 @@ static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
-    "srv_stake order create -net <net name> -addr_hldr <addr> -token <ticker> -coins <value> -cert <name> -fee_percent <value>\n"
+    "srv_stake order create -net <net_name> -addr_hldr <addr> -token <token_ticker> -coins <value> -cert <priv_cert_name> -fee_percent <value>\n"
         "\tCreate a new order with specified amount of datoshi to delegate specified cert from the specified address.\n"
         "\tThe fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
-    "srv_stake order declare -net <net name> -wallet <name> -token <ticker> -coins <value> -fee_percent <value>"
+    "srv_stake order declare -net <net_name> -wallet <wallet_name> -token <token_ticker> -coins <value> -fee_percent <value>"
         "\tCreate a new order with specified amount of datoshi and fee which holder is ready to stake.\n"
-    "srv_stake order remove -net <net name> -order <order hash> [-H {hex | base58(default)}]\n"
+    "srv_stake order remove -net <net_name> -order <order_hash> [-H {hex | base58(default)}]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net name> -order <order hash> {-cert <name> | -wallet <name>} [-H {hex | base58(default)}]{[-addr_hldr <addr>] [-token <ticker>] [-coins <value>] [-fee_percent <value>] | [-token <ticker>] [-coins <value>] -fee_percent <value>]}\n"
+    "srv_stake order update -net <net_name> -order <order_hash> {-cert <priv_cert_name> | -wallet <wallet_name>} [-H {hex | base58(default)}] {[-addr_hldr <addr>] [-token <token_ticker>] [-coins <value>] [-fee_percent <value>] | [-token <token_ticker>] [-coins <value>] -fee_percent <value>]}\n"
          "\tUpdate order with specified hash\n"
-    "srv_stake order list -net <net name>\n"
+    "srv_stake order list -net <net_name>\n"
          "\tGet the stake orders list within specified net name\n"
-    "srv_stake delegate -order <order hash> -net <net name> -wallet <name> -fee_addr <addr>\n"
+    "srv_stake delegate -order <order_hash> -net <net_name> -wallet <wallet_name> -fee_addr <addr>\n"
          "\tDelegate tokens with specified order within specified net name. Specify fee address\n"
-    "srv_stake approve -net <net name> -tx <transaction hash> -cert <root cert name>\n"
+    "srv_stake approve -net <net_name> -tx <transaction_hash> -cert <priv_cert_name>\n"
          "\tApprove stake transaction by root node certificate within specified net name.\n"
-    "srv_stake transactions -net <net name> [-addr <addr from>]\n"
+    "srv_stake transactions -net <net_name> [-addr <addr_from>]\n"
          "\tShow the list of requested, active and canceled stake transactions (optional delegated from addr)\n"
-    "srv_stake invalidate -net <net name> -tx <transaction hash> -wallet <wallet name>\n"
+    "srv_stake invalidate -net <net_name> -tx <transaction_hash> -wallet <wallet_name>\n"
          "\tInvalidate requested stake transaction by hash within net name and return stake to specified wallet\n"
-    "srv_stake commit -net <net name> [-block <block hash> | [-tx <transaction hash>]\n"
+    "srv_stake commit -net <net_name> [-block <block_hash> | [-tx <transaction_hash>]\n"
          "\tSend a staker fee from the block or transaction to the holder\n"
     );
 
@@ -136,21 +136,18 @@ int dap_chain_net_srv_stake_pos_delegate_init()
                     break;
                 }
             }
-            memcpy(&l_stake->signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t));
-            memcpy(&l_stake->addr_hldr, &l_out_cond->subtype.srv_stake.hldr_addr, sizeof(dap_chain_addr_t));
-            memcpy(&l_stake->addr_fee, &l_out_cond->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t));
-            l_stake->fee_value = l_out_cond->subtype.srv_stake.fee_value;
-            memcpy(&l_stake->node_addr, &l_out_cond->subtype.srv_stake.signer_node_addr, sizeof(dap_chain_node_addr_t));
-            memcpy(&l_stake->tx_hash, &l_tx_cur_hash, sizeof(dap_chain_hash_fast_t));
+            l_stake->signing_addr   = l_out_cond->subtype.srv_stake.signing_addr;
+            l_stake->addr_hldr      = l_out_cond->subtype.srv_stake.hldr_addr;
+            l_stake->addr_fee       = l_out_cond->subtype.srv_stake.fee_addr;
+            l_stake->fee_value      = l_out_cond->subtype.srv_stake.fee_value;
+            l_stake->node_addr      = l_out_cond->subtype.srv_stake.signer_node_addr;
+            l_stake->tx_hash        = l_tx_cur_hash;
             if (l_is_new)
                 HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
         } while (l_tx_tmp);
     }
     DAP_DELETE(l_net_list);
     s_srv_stake->initialized = true;
-
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, dap_chain_net_srv_stake_pos_delegate_verificator, NULL);
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE, dap_chain_net_srv_stake_updater, NULL);
 
     return 0;
 }
@@ -189,7 +186,7 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
     // Update stake parameters
     if (!a_cond) {
         // New stake transaction
-        memcpy(&l_stake->signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t));
+        l_stake->signing_addr = l_out_cond->subtype.srv_stake.signing_addr;
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
     }
     else if (memcmp(&a_cond->subtype.srv_stake.signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t))) {
@@ -200,17 +197,17 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
             DAP_DELETE(l_stake);
             l_stake = l_stake_cur;
         }
-        memcpy(&l_stake->signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t));
+        l_stake->signing_addr = l_out_cond->subtype.srv_stake.signing_addr;
         if (l_stake_cur)
             HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
     }
     if (a_authorized) {
         l_stake->is_active = true;
     }
-    memcpy(&l_stake->addr_hldr, &l_out_cond->subtype.srv_stake.hldr_addr, sizeof(dap_chain_addr_t));
-    memcpy(&l_stake->addr_fee, &l_out_cond->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t));
-    l_stake->fee_value = l_out_cond->subtype.srv_stake.fee_value;
-    memcpy(&l_stake->node_addr, &l_out_cond->subtype.srv_stake.fee_addr, sizeof(dap_chain_node_addr_t));
+    l_stake->addr_hldr  = l_out_cond->subtype.srv_stake.hldr_addr;
+    l_stake->addr_fee   = l_out_cond->subtype.srv_stake.fee_addr;
+    l_stake->fee_value  = l_out_cond->subtype.srv_stake.fee_value;
+    l_stake->node_addr  = l_out_cond->subtype.srv_stake.signer_node_addr;
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_stake->tx_hash);
 }
 
@@ -577,12 +574,12 @@ char *s_stake_order_create(dap_chain_net_srv_stake_item_t *a_item, dap_enc_key_t
 {
     dap_chain_hash_fast_t l_tx_hash = {};
     dap_srv_stake_order_ext_t l_ext = {};
-    memcpy(&l_ext.addr_hldr, &a_item->addr_hldr, sizeof(dap_chain_addr_t));
+    l_ext.addr_hldr = a_item->addr_hldr;
     dap_chain_net_srv_order_direction_t l_dir = SERV_DIR_SELL;
     if (memcmp(&a_item->signing_addr, &l_ext.signing_addr, sizeof(dap_chain_addr_t))) {
         // Signing addr is not empty
         l_dir = SERV_DIR_BUY;
-        memcpy(&l_ext.signing_addr, &a_item->signing_addr, sizeof(dap_chain_addr_t));
+        l_ext.signing_addr = a_item->signing_addr;
     }
     l_ext.fee_value = a_item->fee_value;
     uint32_t l_ext_size = sizeof(dap_srv_stake_order_ext_t);
@@ -602,7 +599,7 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
         return NULL;
     }
     dap_srv_stake_order_ext_t *l_ext = (dap_srv_stake_order_ext_t *)a_order->ext_n_sign;
-    dap_sign_t *l_sign = (dap_sign_t *)(&a_order->ext_n_sign[a_order->ext_size]);
+    dap_sign_t *l_sign = (dap_sign_t *)(a_order->ext_n_sign + a_order->ext_size);
     if (!dap_sign_verify_size(l_sign, dap_chain_net_srv_order_get_size(a_order)) ||
             dap_sign_verify(l_sign, a_order, sizeof(dap_chain_net_srv_order_t) + a_order->ext_size) != 1) {
         log_it(L_WARNING, "Order sign is invalid");
@@ -622,13 +619,13 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
         DAP_DELETE(l_item);
         return NULL;
     }
-    memcpy(&l_item->addr_hldr, &l_ext->addr_hldr, sizeof(dap_chain_addr_t));
-    memcpy(&l_item->signing_addr, &l_ext->signing_addr, sizeof(dap_chain_addr_t));
+    l_item->addr_hldr = l_ext->addr_hldr;
+    l_item->signing_addr = l_ext->signing_addr;
     l_item->fee_value = l_ext->fee_value;
     l_item->net = a_net;
     l_item->value = a_order->price;
     strcpy(l_item->token, a_order->price_ticker);
-    memcpy(&l_item->node_addr, &a_order->node_addr, sizeof(dap_chain_node_addr_t));
+    l_item->node_addr = a_order->node_addr;
     return l_item;
 }
 
@@ -860,9 +857,9 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             l_stake->net = l_net;
             dap_stpcpy(l_stake->token, l_token_str);
             l_stake->value = l_value;
-            memcpy(&l_stake->addr_hldr, l_addr_hldr, sizeof(dap_chain_addr_t));
+            l_stake->addr_hldr = *l_addr_hldr;
             dap_chain_addr_t *l_signing_addr = dap_cert_to_addr(l_cert, l_net->pub.id);
-            memcpy(&l_stake->signing_addr, l_signing_addr, sizeof(dap_chain_addr_t));
+            l_stake->signing_addr = *l_signing_addr;
             DAP_DELETE(l_addr_hldr);
             DAP_DELETE(l_signing_addr);
             l_stake->fee_value = l_fee;
@@ -942,7 +939,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             dap_stpcpy(l_stake->token, l_token_str);
             l_stake->value = l_value;
             dap_chain_addr_t *l_addr_hldr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-            memcpy(&l_stake->addr_hldr, l_addr_hldr, sizeof(dap_chain_addr_t));
+            l_stake->addr_hldr = *l_addr_hldr;
             DAP_DELETE(l_addr_hldr);
             l_stake->fee_value = l_fee;
             // Create the order & put it to GDB
@@ -1091,7 +1088,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                         DAP_DELETE(l_stake);
                         return -14;
                     }
-                    memcpy(&l_stake->addr_hldr, l_addr_hldr, sizeof(dap_chain_addr_t));
+                    l_stake->addr_hldr = *l_addr_hldr;
                     DAP_DELETE(l_addr_hldr);
                 }
             } else {    // It's a selling order
@@ -1275,10 +1272,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order is invalid");
                     return -22;
                 }
-                memcpy(&l_stake->addr_fee, l_addr_fee, sizeof(dap_chain_addr_t));
+                l_stake->addr_fee = *l_addr_fee;
                 DAP_DELETE(l_addr_fee);
                 dap_chain_addr_t *l_hldr_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-                memcpy(&l_stake->addr_hldr, l_hldr_addr, sizeof(dap_chain_addr_t));
+                l_stake->addr_hldr = *l_hldr_addr;
                 DAP_DELETE(l_hldr_addr);
                 // Create conditional transaction
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_stake, l_wallet);

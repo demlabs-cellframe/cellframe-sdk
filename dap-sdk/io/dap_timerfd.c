@@ -283,7 +283,7 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
         s_timerfd_reset(l_timer_fd, a_event_sock);
     } else {  
 #ifdef _WIN32
-        DeleteTimerQueueTimer(hTimerQueue, l_timerfd->th, NULL);
+        DeleteTimerQueueTimer(hTimerQueue, l_timer_fd->th, NULL);
 #endif
         l_timer_fd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
@@ -347,7 +347,7 @@ void dap_timerfd_delete(dap_timerfd_t *a_timerfd)
     if (!a_timerfd)
         return; 
 #ifdef _WIN32
-    DeleteTimerQueueTimer(hTimerQueue, l_timerfd->th, NULL);
+    DeleteTimerQueueTimer(hTimerQueue, a_timerfd->th, NULL);
 #endif
     if (a_timerfd->events_socket->context->worker)
         dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->context->worker, a_timerfd->esocket_uuid);

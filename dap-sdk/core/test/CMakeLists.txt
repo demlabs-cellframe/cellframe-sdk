@@ -7,7 +7,11 @@ file(GLOB SRCS *.c)
 
 
 if(UNIX)
-    file(GLOB PLATROFM_DEP_SRC unix/*.c unix/*.h)
+if (OFF_CORE_CELLFRAME_SDK_TESTS_OFF MATCHES "network-monitor")
+    file(GLOB PLATROFM_DEP_SRC unix/dap_cpu*.c unix/dap_process*.c unix/dap_cpu*.h unix/dap_process*.h)  
+  else()
+    file(GLOB PLATROFM_DEP_SRC unix/*.c unix/*.h)  
+  endif()
 endif()
 
 add_executable(${PROJECT_NAME} ${SRCS} ${PLATROFM_DEP_SRC})  
@@ -28,7 +32,7 @@ add_executable(rpmalloc_bench
   rpmalloc/test/timer.c
 )
 if(WIN32)
-	target_link_libraries(rpmalloc_bench dap_core m pthread ntdll psapi Shlwapi)
+	target_link_libraries(rpmalloc_bench dap_core m pthread ntdll psapi shlwapi)
 endif()
 if(UNIX)
 	target_link_libraries(rpmalloc_bench dap_core m pthread)
@@ -42,7 +46,7 @@ add_executable(crtmalloc_bench
   rpmalloc/test/timer.c
 )
 if(WIN32)
-	target_link_libraries(crtmalloc_bench dap_core m pthread ntdll psapi Shlwapi)
+	target_link_libraries(crtmalloc_bench dap_core m pthread ntdll psapi shlwapi)
 endif()
 if(UNIX)
 	target_link_libraries(crtmalloc_bench dap_core m pthread)

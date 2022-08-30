@@ -20,23 +20,23 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..
 
 if(WIN32)
   target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_io dap_http_server json-c
-  KERNEL32
-  USER32
-  SHELL32
-  WINMM
-  GDI32
-  ADVAPI32
-  Ole32
-  Version
-  Imm32
-  OleAut32
+  kernel32
+  user32
+  shell32
+  winmm
+  gdi32
+  advapi32
+  ole32
+  version
+  imm32
+  oleaut32
   ws2_32
   ntdll
   psapi
-  Shlwapi
-  Bcrypt
-  Crypt32
-  Secur32
+  shlwapi
+  bcrypt
+  crypt32
+  secur32
 )
 endif()
 

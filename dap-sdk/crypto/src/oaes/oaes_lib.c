@@ -1330,7 +1330,7 @@ OAES_RET oaes_decrypt( OAES_CTX * ctx,
 	}
 	
 	// options
-	memcpy(&_options, c + 6, sizeof(_options));
+    _options = *(OAES_OPTION*)(c + 6);
 	// validate that all options are valid
 	if( _options & ~(
 			  OAES_OPTION_ECB
@@ -1348,7 +1348,7 @@ OAES_RET oaes_decrypt( OAES_CTX * ctx,
 		return OAES_RET_HEADER;
 	
 	// flags
-	memcpy(&_flags, c + 8, sizeof(_flags));
+    _flags = *(uint8_t*)(c + 8);
 	// validate that all flags are valid
 	if( _flags & ~(
 			  OAES_FLAG_PAD

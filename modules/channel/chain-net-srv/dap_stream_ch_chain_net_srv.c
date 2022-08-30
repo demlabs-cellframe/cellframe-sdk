@@ -25,6 +25,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include <sys/time.h>
 #include <time.h>
 #include "dap_global_db.h"
+#include "dap_time.h"
 #include "dap_timerfd.h"
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
@@ -222,7 +223,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
         l_usage->client->session_id = l_ch->stream->session->id;
         l_usage->client->ts_created = time(NULL);
         l_usage->tx_cond = l_tx;
-        memcpy(&l_usage->tx_cond_hash, &l_request->hdr.tx_cond,sizeof (l_usage->tx_cond_hash));
+        l_usage->tx_cond_hash = l_request->hdr.tx_cond;
         l_usage->ts_created = time(NULL);
     } else {
         l_usage = a_grace->usage;
@@ -321,7 +322,7 @@ free_exit:
                 pthread_mutex_unlock(&l_srv->banlist_mutex);
             else {
                 l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
-                memcpy(&l_item->client_pkey_hash, &a_grace->usage->client_pkey_hash, sizeof(dap_chain_hash_fast_t));
+                l_item->client_pkey_hash = a_grace->usage->client_pkey_hash;
                 l_item->ht_mutex = &l_srv->banlist_mutex;
                 l_item->ht_head = &l_srv->ban_list;
                 HASH_ADD(hh, l_srv->ban_list, client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
@@ -369,7 +370,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         pkt_test_t *l_request = (pkt_test_t*)l_ch_pkt->data;
         size_t l_request_size = l_request->data_size + sizeof(pkt_test_t);
         if (l_ch_pkt->hdr.size != l_request_size) {
-            log_it(L_WARNING, "Wrong request size %u, must be %zu [pkt seq %lu]", l_ch_pkt->hdr.size, l_request_size, l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Wrong request size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.size, l_request_size, l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             break;
@@ -377,13 +378,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_chain_hash_fast_t l_data_hash;
         dap_hash_fast(l_request->data, l_request->data_size, &l_data_hash);
         if (l_request->data_size > 0 && !dap_hash_fast_compare(&l_data_hash, &l_request->data_hash)) {
-            log_it(L_WARNING, "Wrong hash [pkt seq %lu]", l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Wrong hash [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             break;
         }
         if(l_request->data_size_recv > UINT_MAX) {
-            log_it(L_WARNING, "Too large payload %zu [pkt seq %lu]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
+            log_it(L_WARNING, "Too large payload %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_request->data_size_recv, l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             break;
@@ -396,9 +397,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
         l_request->err_code = 0;
         strncpy(l_request->ip_send, a_ch->stream->esocket->hostaddr, INET_ADDRSTRLEN);
-        struct timespec l_recvtime2;
-        clock_gettime(CLOCK_REALTIME, &l_recvtime2);
-        l_request->recv_time2 = l_recvtime2;
+        l_request->recv_time2 = dap_nanotime_now();
 
         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE, l_request,
                                        l_request->data_size + sizeof(pkt_test_t));
@@ -536,7 +535,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
 
         char *l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
-        dap_global_db_set("local.receipts",l_receipt_hash_str,  l_receipt, l_receipt_size,false, NULL, NULL);
+        dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
         DAP_DELETE(l_receipt_hash_str);
 
         size_t l_success_size;
@@ -548,7 +547,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                                                   dap_chain_wallet_get_key(l_usage->price->wallet, 0),
                                                                   l_receipt);
             if (l_tx_in_hash) {
-                memcpy(&l_usage->tx_cond_hash, l_tx_in_hash, sizeof(dap_chain_hash_fast_t));
+                l_usage->tx_cond_hash = *l_tx_in_hash;
                 char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(l_tx_in_hash);
                 log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
                 DAP_DELETE(l_tx_in_hash_str);

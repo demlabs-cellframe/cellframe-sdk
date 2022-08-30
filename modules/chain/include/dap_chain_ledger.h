@@ -72,6 +72,7 @@ typedef struct dap_chain_net dap_chain_net_t;
 
 int dap_chain_ledger_init();
 void dap_chain_ledger_deinit();
+bool dap_chain_global_rwlocks_and_verificators_init(void);
 
 dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name);
 
@@ -231,6 +232,9 @@ uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, d
 // Put this summary value to a_value_transfer
 dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                                        uint256_t a_value_need, uint256_t *a_value_transfer);
+// Get the list of 'out_cond' items with summary value >= than a_value_need
+dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
+        dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t a_value_need, uint256_t *a_value_transfer);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
 int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, 
                                      dap_chain_ledger_verificator_callback_out_t a_callback_added);

@@ -198,7 +198,6 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
                                                           size_t *a_dag_event_size)
 {
     dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POS(a_dag) && a_datum, NULL);
-    dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
     dap_chain_cs_dag_pos_t * l_pos = DAP_CHAIN_CS_DAG_POS(a_dag);
 
     if( PVT(l_pos)->events_sign_key == NULL) {

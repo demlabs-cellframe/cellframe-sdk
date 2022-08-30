@@ -142,14 +142,14 @@ int dap_chain_cs_dag_init(void)
     s_debug_more = dap_config_get_item_bool_default(g_config,"dag","debug_more",false);
 
     dap_cli_server_cmd_add ("dag", s_cli_dag, "DAG commands",
-        "dag event create -net <net_name> -chain <chain_name> -datum <datum hash> [-H {hex | base58(default)}]\n"
+        "dag event create -net <net_name> -chain <chain_name> -datum <datum_hash> [-H {hex | base58(default)}]\n"
             "\tCreate event from datum mempool element\n\n"
-        "dag event cancel -net <net_name> -chain <chain_name> -event <event hash>\n"
+        "dag event cancel -net <net_name> -chain <chain_name> -event <event_hash>\n"
             "\tRemove event from forming new round and put back its datum to mempool\n\n"
-        "dag event sign -net <net_name> -chain <chain_name> -event <event hash>\n"
+        "dag event sign -net <net_name> -chain <chain_name> -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag event dump -net <net_name> -chain <chain_name> -event <event hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
+        "dag event dump -net <net_name> -chain <chain_name> -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
         "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
             "\tShow event list \n\n"
@@ -371,10 +371,10 @@ static int s_dap_chain_add_atom_to_ledger(dap_chain_cs_dag_t * a_dag, dap_ledger
                                       l_hash_item_hashv, l_tx_event);
                 if (!l_tx_event) {
                     l_tx_event = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
-                    l_tx_event->ts_added = a_event_item->ts_added;
-                    l_tx_event->event = a_event_item->event;
-                    l_tx_event->event_size = a_event_item->event_size;
-                    memcpy(&l_tx_event->hash, &l_tx_hash, sizeof(l_tx_hash));
+                    l_tx_event->ts_added    = a_event_item->ts_added;
+                    l_tx_event->event       = a_event_item->event;
+                    l_tx_event->event_size  = a_event_item->event_size;
+                    l_tx_event->hash        = l_tx_hash;
                     HASH_ADD_BYHASHVALUE(hh, PVT(a_dag)->tx_events, hash, sizeof(l_tx_event->hash),
                                          l_hash_item_hashv, l_tx_event);
                 }
@@ -431,7 +431,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
     dap_chain_hash_fast_t l_event_hash;
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
-    memcpy(&l_event_item->hash, &l_event_hash, sizeof(dap_chain_hash_fast_t));
+    l_event_item->hash = l_event_hash;
 
     char * l_event_hash_str = NULL;
     if(s_debug_more) {
@@ -607,8 +607,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
                 }
             }
             if (!l_is_already_in_event && l_hashes_linked < l_hashes_size) {
-                memcpy(&l_hashes[l_hashes_linked], l_hash, sizeof(*l_hash));
-                l_hashes_linked++;
+                l_hashes[l_hashes_linked++] = *l_hash;
             }
 
             l_rnd_steps++;
@@ -651,7 +650,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
                 dap_chain_cs_dag_event_round_item_t *l_round_item =
                             DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_round_item_t,
                                             sizeof(dap_chain_cs_dag_event_round_item_t));
-                memcpy(&l_round_item->round_info.datum_hash, &l_datum_hash, sizeof(dap_chain_hash_fast_t));
+                l_round_item->round_info.datum_hash = l_datum_hash;
                 dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
                 char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
                 bool l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event, l_event_size, l_round_item);
