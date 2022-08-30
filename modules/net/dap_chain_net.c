@@ -124,6 +124,8 @@ static size_t s_max_links_count = 5;// by default 5
 static size_t s_required_links_count = 3;// by default 3
 static bool s_debug_more = false;
 
+extern uint32_t s_timer_update_states;
+
 struct link_dns_request {
     //uint32_t link_id; // not used
     dap_chain_net_t * net;
@@ -198,7 +200,7 @@ typedef struct dap_chain_net_pvt{
     uint16_t acl_idx;
 
     // Main loop timer
-    dap_timerfd_t * main_timer;
+    dap_interval_timer_t *main_timer;
 
     // General rwlock for structure
     pthread_rwlock_t rwlock;
@@ -951,10 +953,9 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
             log_it(L_ERROR, "Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
     }
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
-        a_node_client->keep_connection = true;
         for (dap_list_t *it = l_net_pvt->net_links; it; it = it->next) {
             if (((struct net_link *)it->data)->link == NULL) {  // We have a free prepared link
-                s_node_link_remove(l_net_pvt, a_node_client, true);
+                s_node_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
                 a_node_client->keep_connection = false;
                 ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net,
                                                         ((struct net_link *)it->data)->link_info);
@@ -963,6 +964,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
             }
         }
         if (l_net_pvt->only_static_links) {
+            a_node_client->keep_connection = true;
             pthread_rwlock_unlock(&l_net_pvt->rwlock);
             return;
         }
@@ -979,16 +981,6 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
 
         if (l_link_node_info) {
             if(!s_start_dns_request(l_net, l_link_node_info)) {
-            /*struct link_dns_request *l_dns_request = DAP_NEW_Z(struct link_dns_request);
-            l_dns_request->net = l_net;
-            if (dap_chain_node_info_dns_request(l_link_node_info->hdr.ext_addr_v4,
-                                                l_link_node_info->hdr.ext_port,
-                                                l_net->pub.name,
-                                                l_link_node_info,  // use it twice
-                                                s_net_state_link_prepare_success,//s_net_state_link_replace_success,
-                                                s_net_state_link_prepare_error,//s_net_state_link_replace_error,
-                                                l_dns_request)) {
-                                                */
                 log_it(L_ERROR, "Can't process node info dns request");
                 DAP_DELETE(l_link_node_info);
             } else {
@@ -2285,6 +2277,17 @@ static int callback_compare_prioritity_list(const void * a_item1, const void * a
     return -1;
 }
 
+void s_main_timer_callback(void *a_arg)
+{
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    if (l_net_pvt->state_target == NET_STATE_ONLINE &&
+            l_net_pvt->state >= NET_STATE_LINKS_ESTABLISHED &&
+            !l_net_pvt->links_connected_count) { // restart network
+        dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+    }
+}
+
 /**
  * @brief load network config settings from cellframe-node.cfg file
  *
@@ -2834,7 +2837,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         if (l_target_state != l_net_pvt->state_target)
             dap_chain_net_state_go_to(l_net, l_target_state);
 
-        // Start the proc thread
+        uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", s_timer_update_states);
+        PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
         log_it(L_INFO, "Chain network \"%s\" initialized",l_net_item->name);
 
         DAP_DELETE(l_node_addr_str);
@@ -2848,6 +2852,19 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
  */
 void dap_chain_net_deinit()
 {
+    pthread_rwlock_rdlock(&g_net_items_rwlock);
+    dap_chain_net_item_t *l_current_item, *l_tmp;
+    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
+        dap_chain_net_t *l_net = l_current_item->chain_net;
+        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+        dap_interval_timer_delete(l_net_pvt->main_timer);
+        DAP_DEL_Z(l_net_pvt);
+        DAP_DEL_Z(l_net);
+        HASH_DEL(s_net_items, l_current_item);
+        DAP_DEL_Z(l_current_item);
+    }
+    pthread_rwlock_unlock(&g_net_items_rwlock);
+    pthread_rwlock_destroy(&g_net_items_rwlock);
 }
 
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)

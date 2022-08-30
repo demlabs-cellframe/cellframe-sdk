@@ -1086,7 +1086,7 @@ static void s_posix_callback(union sigval a_arg)
  * \param a_callback Function to be called with timer period
  * \return pointer to timer object if success, otherwise return NULL
  */
-void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param)
+dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param)
 {
     if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
         return NULL;
@@ -1147,7 +1147,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
  * \param a_timer A timer object created previously with dap_interval_timer_create
  * \return 0 if success, -1 otherwise
  */
-int dap_interval_timer_delete(void *a_timer)
+int dap_interval_timer_delete(dap_interval_timer_t *a_timer)
 {
     if (!s_timers_count) {
         return -1;
