@@ -130,6 +130,8 @@ static size_t s_max_links_count = 5;// by default 5
 static size_t s_required_links_count = 3;// by default 3
 static bool s_debug_more = false;
 
+extern uint32_t s_timer_update_states;
+
 struct link_dns_request {
     //uint32_t link_id; // not used
     dap_chain_net_t * net;
@@ -204,7 +206,7 @@ typedef struct dap_chain_net_pvt{
     uint16_t acl_idx;
 
     // Main loop timer
-    dap_timerfd_t * main_timer;
+    dap_interval_timer_t *main_timer;
 
     // General rwlock for structure
     pthread_rwlock_t rwlock;
@@ -918,11 +920,17 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 
 }
 
-static void s_node_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_node_client)
+static void s_node_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_node_client, bool a_rebase)
 {
     for (dap_list_t *it = a_net_pvt->net_links; it; it = it->next) {
         if (((struct net_link *)it->data)->link == a_node_client) {
-            DAP_DELETE(((struct net_link *)it->data)->link_info);
+            if (a_rebase) {
+                ((struct net_link *)it->data)->link = NULL;
+                a_net_pvt->net_links = dap_list_append(a_net_pvt->net_links, it->data);
+            } else {
+                DAP_DELETE(((struct net_link *)it->data)->link_info);
+                DAP_DELETE(it->data);
+            }
             a_net_pvt->net_links = dap_list_delete_link(a_net_pvt->net_links, it);
             break;
         }
@@ -951,10 +959,9 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
             log_it(L_ERROR, "Links count is zero in disconnected callback, looks smbd decreased it twice or forget to increase on connect/reconnect");
     }
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
-        a_node_client->keep_connection = true;
         for (dap_list_t *it = l_net_pvt->net_links; it; it = it->next) {
             if (((struct net_link *)it->data)->link == NULL) {  // We have a free prepared link
-                s_node_link_remove(l_net_pvt, a_node_client);
+                s_node_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
                 a_node_client->keep_connection = false;
                 ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net,
                                                         ((struct net_link *)it->data)->link_info);
@@ -963,6 +970,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
             }
         }
         if (l_net_pvt->only_static_links) {
+            a_node_client->keep_connection = true;
             pthread_rwlock_unlock(&l_net_pvt->rwlock);
             return;
         }
@@ -979,20 +987,10 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
 
         if (l_link_node_info) {
             if(!s_start_dns_request(l_net, l_link_node_info)) {
-            /*struct link_dns_request *l_dns_request = DAP_NEW_Z(struct link_dns_request);
-            l_dns_request->net = l_net;
-            if (dap_chain_node_info_dns_request(l_link_node_info->hdr.ext_addr_v4,
-                                                l_link_node_info->hdr.ext_port,
-                                                l_net->pub.name,
-                                                l_link_node_info,  // use it twice
-                                                s_net_state_link_prepare_success,//s_net_state_link_replace_success,
-                                                s_net_state_link_prepare_error,//s_net_state_link_replace_error,
-                                                l_dns_request)) {
-                                                */
                 log_it(L_ERROR, "Can't process node info dns request");
                 DAP_DELETE(l_link_node_info);
             } else {
-                s_node_link_remove(l_net_pvt, a_node_client);
+                s_node_link_remove(l_net_pvt, a_node_client, false);
                 a_node_client->keep_connection = false;
             }
         }
@@ -2285,6 +2283,17 @@ static int callback_compare_prioritity_list(const void * a_item1, const void * a
     return -1;
 }
 
+void s_main_timer_callback(void *a_arg)
+{
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    if (l_net_pvt->state_target == NET_STATE_ONLINE &&
+            l_net_pvt->state >= NET_STATE_LINKS_ESTABLISHED &&
+            !l_net_pvt->links_connected_count) { // restart network
+        dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+    }
+}
+
 /**
  * @brief load network config settings from cellframe-node.cfg file
  *
@@ -2495,7 +2504,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             l_node_alias_str = dap_config_get_item_str(l_cfg, "general", "node-alias");
         }
 
-        log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
+        log_it(L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
                 l_net_pvt->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
         // save new nodes from cfg file to db
         for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
@@ -2504,87 +2513,75 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                                 ( l_seed_nodes_ipv4_len  && i < l_seed_nodes_ipv4_len  ) ||
                                 ( l_seed_nodes_ipv6_len  && i < l_seed_nodes_ipv6_len  ) ||
                                 ( l_seed_nodes_hostnames_len  && i < l_seed_nodes_hostnames_len  )
-                              )
-                                                                    ; i++ ){
-            dap_chain_node_addr_t *l_seed_node_addr;
-            dap_chain_node_info_t *l_node_info = NULL;
-            l_seed_node_addr = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
-            if (l_seed_node_addr) {
-                l_node_info = dap_chain_node_info_read(l_net, l_seed_node_addr);
-                DAP_DELETE(l_seed_node_addr);
+                            ); i++)
+        {
+            dap_chain_node_addr_t l_seed_node_addr  = { 0 }, *l_seed_node_addr_gdb  = NULL;
+            dap_chain_node_info_t l_node_info       = { 0 }, *l_node_info_gdb       = NULL;
+
+            log_it(L_NOTICE, "Check alias %s in db", l_net_pvt->seed_aliases[i]);
+            dap_snprintf(l_node_info.hdr.alias,sizeof (l_node_info.hdr.alias),"%s", PVT(l_net)->seed_aliases[i]);
+            if (dap_sscanf(l_seed_nodes_addrs[i], NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS_S(l_seed_node_addr)) != 4) {
+                log_it(L_ERROR,"Wrong address format, must be 0123::4567::890AB::CDEF");
+                continue;
             }
-            if (!l_seed_node_addr || !l_node_info) {
-                log_it(L_NOTICE, "Update alias %s in database, prefill it",l_net_pvt->seed_aliases[i]);
-                l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-                l_seed_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-                dap_snprintf( l_node_info->hdr.alias,sizeof ( l_node_info->hdr.alias),"%s",PVT(l_net)->seed_aliases[i]);
-                if (dap_sscanf(l_seed_nodes_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_seed_node_addr) ) != 4 ){
-                    log_it(L_ERROR,"Wrong address format,  should be like 0123::4567::890AB::CDEF");
-                    DAP_DELETE(l_seed_node_addr);
-                    DAP_DELETE(l_node_info);
-                    l_seed_node_addr = NULL;
-                    continue;
+
+            if (l_seed_nodes_ipv4_len)
+                inet_pton(AF_INET, l_seed_nodes_ipv4[i], &l_node_info.hdr.ext_addr_v4);
+            if (l_seed_nodes_ipv6_len)
+                inet_pton(AF_INET6, l_seed_nodes_ipv6[i], &l_node_info.hdr.ext_addr_v6);
+            l_node_info.hdr.ext_port = l_seed_nodes_port_len && l_seed_nodes_port_len >= i ?
+                strtoul(l_seed_nodes_port[i], NULL, 10) : 8079;
+        
+            if (l_seed_nodes_hostnames_len) {
+                struct addrinfo l_hints = { 0 };
+                l_hints.ai_family = AF_UNSPEC ;    /* Allow IPv4 or IPv6 */
+                //l_hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
+                log_it(L_DEBUG, "Resolve %s addr", l_seed_nodes_hostnames[i]);
+                struct hostent *l_he;
+                if ((l_he = gethostbyname (l_seed_nodes_hostnames[i])) != NULL) {
+                    struct in_addr **l_addr_list = (struct in_addr**)l_he->h_addr_list;
+                    for(int i = 0; l_addr_list[i] != NULL; i++) {
+                        log_it(L_NOTICE, "Resolved %s to %s (ipv4)", l_seed_nodes_hostnames[i], inet_ntoa(*l_addr_list[i]));
+                        l_node_info.hdr.ext_addr_v4.s_addr = l_addr_list[i]->s_addr;
+                    }
+                } else {
+                    herror("gethostname");
                 }
-                if( l_seed_node_addr ){
-                    if ( l_seed_nodes_ipv4_len )
-                        inet_pton( AF_INET, l_seed_nodes_ipv4[i],&l_node_info->hdr.ext_addr_v4);
-                    if ( l_seed_nodes_ipv6_len )
-                        inet_pton( AF_INET6, l_seed_nodes_ipv6[i],&l_node_info->hdr.ext_addr_v6);
-                    if(l_seed_nodes_port_len && l_seed_nodes_port_len >= i)
-                        l_node_info->hdr.ext_port = strtoul(l_seed_nodes_port[i], NULL, 10);
-                    else
-                        l_node_info->hdr.ext_port = 8079;
-
-                    if ( l_seed_nodes_hostnames_len ){
-                        struct addrinfo l_hints={0};
-
-                        l_hints.ai_family = AF_UNSPEC ;    /* Allow IPv4 or IPv6 */
-                        //l_hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
-
-                        log_it( L_DEBUG, "Resolve %s addr", l_seed_nodes_hostnames[i]);
-                        struct hostent *l_he;
-
-                        if ( (l_he = gethostbyname (l_seed_nodes_hostnames[i]) ) != NULL  ){
-                            struct in_addr **l_addr_list = (struct in_addr **) l_he->h_addr_list;
-                            for(int i = 0; l_addr_list[i] != NULL; i++ ) {
-                                log_it( L_NOTICE, "Resolved %s to %s (ipv4)", l_seed_nodes_hostnames[i] ,
-                                        inet_ntoa( *l_addr_list[i]  ) );
-                                l_node_info->hdr.ext_addr_v4.s_addr = l_addr_list[i]->s_addr;
-                            }
-                        } else {
-                            herror("gethostname");
-                        }
-                    }
-
-                    l_node_info->hdr.address.uint64 = l_seed_node_addr->uint64;
-                    if ( l_node_info->hdr.ext_addr_v4.s_addr ||
-                    #ifdef DAP_OS_BSD
-                    l_node_info->hdr.ext_addr_v6.__u6_addr.__u6_addr32[0]
-                    #else
-                        l_node_info->hdr.ext_addr_v6.s6_addr32[0]
-                    #endif
-                            ){
-                        int l_ret;
-                        if ( (l_ret = dap_chain_node_info_save(l_net, l_node_info)) ==0 ){
-                            if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i],l_seed_node_addr))
-                                log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list",NODE_ADDR_FP_ARGS(l_seed_node_addr) );
-                            else {
-                                log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR, l_net_pvt->seed_aliases[i], NODE_ADDR_FP_ARGS(l_seed_node_addr));
-                            }
-                        }else{
-                            log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d",
-                                   NODE_ADDR_FP_ARGS(l_seed_node_addr), l_ret);
-                        }
-                    }
-                    DAP_DELETE(l_seed_node_addr);
-                }else
-                    log_it(L_WARNING,"No address for seed node, can't populate global_db with it");
-                DAP_DELETE( l_node_info);
-            } else {
-                log_it(L_DEBUG,"Seed alias %s is present", PVT(l_net)->seed_aliases[i]);
-                DAP_DELETE(l_node_info);
             }
+            
+            l_seed_node_addr_gdb    = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
+            l_node_info_gdb         = l_seed_node_addr_gdb ? dap_chain_node_info_read(l_net, l_seed_node_addr_gdb) : NULL;
+
+            l_node_info.hdr.address = l_seed_node_addr;
+            if (l_node_info.hdr.ext_addr_v4.s_addr ||
+#ifdef DAP_OS_BSD
+                l_node_info.hdr.ext_addr_v6.__u6_addr.__u6_addr32[0]
+#else
+                l_node_info.hdr.ext_addr_v6.s6_addr32[0]
+#endif
+            ) {
+                /* Let's check if config was altered */
+                int l_ret = l_node_info_gdb ? memcmp(&l_node_info, l_node_info_gdb, sizeof(dap_chain_node_info_t)) : 1;
+                if (!l_ret) {
+                    log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" already in list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
+                } else {
+                    /* Either not yet added or must be altered */
+                    l_ret = dap_chain_node_info_save(l_net, &l_node_info);
+                    if (!l_ret) {
+                        if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i], &l_seed_node_addr))
+                            log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
+                        else
+                            log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR, l_net_pvt->seed_aliases[i], NODE_ADDR_FP_ARGS_S(l_seed_node_addr)); 
+                    } else {
+                        log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d", NODE_ADDR_FP_ARGS_S(l_seed_node_addr), l_ret);
+                    }
+                }
+            } else
+                log_it(L_WARNING,"No address for seed node, can't populate global_db with it");
+            DAP_DEL_Z(l_seed_node_addr_gdb);
+            DAP_DEL_Z(l_node_info_gdb);
         }
+
         PVT(l_net)->bootstrap_nodes_count = 0;
         PVT(l_net)->bootstrap_nodes_addrs = DAP_NEW_SIZE(struct in_addr, l_bootstrap_nodes_len * sizeof(struct in_addr));
         PVT(l_net)->bootstrap_nodes_ports = DAP_NEW_SIZE(uint16_t, l_bootstrap_nodes_len * sizeof(uint16_t));
@@ -2846,7 +2843,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         if (l_target_state != l_net_pvt->state_target)
             dap_chain_net_state_go_to(l_net, l_target_state);
 
-        // Start the proc thread
+        uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", s_timer_update_states);
+        PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
         log_it(L_INFO, "Chain network \"%s\" initialized",l_net_item->name);
 
         DAP_DELETE(l_node_addr_str);
@@ -2860,6 +2858,19 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
  */
 void dap_chain_net_deinit()
 {
+    pthread_rwlock_rdlock(&g_net_items_rwlock);
+    dap_chain_net_item_t *l_current_item, *l_tmp;
+    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
+        dap_chain_net_t *l_net = l_current_item->chain_net;
+        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+        dap_interval_timer_delete(l_net_pvt->main_timer);
+        DAP_DEL_Z(l_net_pvt);
+        DAP_DEL_Z(l_net);
+        HASH_DEL(s_net_items, l_current_item);
+        DAP_DEL_Z(l_current_item);
+    }
+    pthread_rwlock_unlock(&g_net_items_rwlock);
+    pthread_rwlock_destroy(&g_net_items_rwlock);
 }
 
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)

@@ -32,6 +32,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_stream_ch.h"
+#include "dap_time.h"
 
 //Service direction
 enum dap_chain_net_srv_order_direction{
@@ -169,7 +170,7 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_test{
     dap_chain_net_id_t      net_id;
     dap_chain_net_srv_uid_t srv_uid;
     int32_t                 time_connect_ms;
-    struct timespec recv_time1, recv_time2, send_time1, send_time2;
+    dap_gdb_time_t recv_time1, recv_time2, send_time1, send_time2;
     char ip_send[INET_ADDRSTRLEN], ip_recv[INET_ADDRSTRLEN];
     int32_t err_code;
     size_t data_size_send, data_size_recv, data_size;

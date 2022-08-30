@@ -20,6 +20,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dap_time.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -135,6 +136,31 @@ static void s_stage_status_callback(dap_client_t *a_client, void *a_arg)
     //printf("* stage_status_callback client=%x data=%x\n", a_client, a_arg);
 }
 
+static bool s_timer_node_reconnect(void *a_arg)
+{
+    dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;
+    assert(l_uuid);
+    dap_chain_node_client_handle_t *l_client_found = NULL;
+    HASH_FIND(hh, s_clients, l_uuid, sizeof(*l_uuid), l_client_found);
+    if(l_client_found) {
+        dap_chain_node_client_t *l_me = l_client_found->client;
+        if (l_me->keep_connection && l_me->state == NODE_CLIENT_STATE_DISCONNECTED) {
+            if (dap_client_pvt_find(l_me->client->pvt_uuid)) {
+                if (dap_client_get_stage(l_me->client) == STAGE_BEGIN) {
+                    log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
+                    l_me->state = NODE_CLIENT_STATE_CONNECTING ;
+                    dap_client_go_stage(l_me->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
+                } else {
+                    dap_chain_node_client_close(l_me);
+                }
+            } else
+                dap_chain_node_client_close(l_me);
+        }
+    }
+    DAP_DELETE(l_uuid);
+    return false;
+}
+
 /**
  * @brief s_stage_status_error_callback
  * @param a_client
@@ -166,20 +192,13 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
         }
         if (l_node_client->keep_connection) {
-            dap_events_socket_uuid_t *l_uuid = DAP_DUP(&l_node_client->uuid);
-            if(! l_node_client->stream_worker)
-                log_it(L_ERROR,"After NODE_CLIENT_STATE_DISCONNECTED: Node client has no worker, too dangerous to run update states in alien context");
-            else
-                l_node_client->sync_timer = dap_timerfd_start_on_worker( l_node_client->stream_worker->worker
-                                                                         ,
-                                                                    s_timer_update_states * 1000,
-                                                                    s_timer_update_states_callback,
-                                                                    l_uuid);
-        }
-        return;
-    }
-    // TODO make different error codes
-    if(l_node_client->callbacks.error)
+            if (dap_client_get_stage(l_node_client->client) != STAGE_BEGIN)
+                dap_client_go_stage(l_node_client->client, STAGE_BEGIN, NULL);
+            dap_timerfd_start(45 * 1000, s_timer_node_reconnect, DAP_DUP(&l_node_client->uuid));
+        } else
+            dap_chain_node_client_close(l_node_client);
+
+    } else if(l_node_client->callbacks.error) // TODO make different error codes
         l_node_client->callbacks.error(l_node_client, EINVAL, l_node_client->callbacks_arg);
 }
 
@@ -283,7 +302,7 @@ static bool s_timer_update_states_callback(void *a_arg)
                         dap_client_go_stage(l_me->client, STAGE_BEGIN, NULL);
                         return true;
                     }
-                    if (l_me->callbacks.disconnected) {
+                    if (l_me->is_connected && l_me->callbacks.disconnected) {
                         l_me->callbacks.disconnected(l_me, l_me->callbacks_arg);
                     }
                     if (l_me->keep_connection) {
@@ -601,8 +620,8 @@ static int save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_reque
     int l_ret = 0;
     if(!a_request)
         return -1;
-    long l_t1_ms = a_request->send_time1.tv_sec * 1000 + a_request->send_time1.tv_nsec / 1e6;
-    long l_t2_ms = a_request->recv_time1.tv_sec * 1000 + a_request->recv_time1.tv_nsec / 1e6;
+    long l_t1_ms = a_request->send_time1 / 1e6;
+    long l_t2_ms = a_request->recv_time1 / 1e6;
     struct json_object *jobj = json_object_new_object();
     time_t l_cur_t = time(NULL);
     char buf[1024];
