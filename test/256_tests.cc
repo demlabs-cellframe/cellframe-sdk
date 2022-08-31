@@ -43,7 +43,7 @@ class RandomComparisonTests: public RandomTests {
 
 };
 
-//TODO: we need some tests with math-writing, like xxx.yyyyyE+zz
+//TODO: we need some tests with math-writing, like xxx.yyyyyE+zz, xxx.yyyye+zzz
 TEST(InputTests, ZeroInputBase) {
     uint256_t zero = uint256_0;
 #if defined(DAP_GLOBAL_IS_INT128)
