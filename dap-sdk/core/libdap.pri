@@ -17,7 +17,7 @@ unix: !android : ! darwin {
     QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
     QMAKE_LFLAGS_DEBUG += -pg
     DEFINES += _GNU_SOURCE
-    LIBS += -lrt -ljson-c -lmagic
+    LIBS += -lrt /usr/lib/x86_64-linux-gnu/libjson-c.a -lmagic
 }
 
 contains(DAP_FEATURES, ssl){
