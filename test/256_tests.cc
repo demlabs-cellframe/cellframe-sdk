@@ -15,10 +15,8 @@ using namespace std;
 
 namespace mp = boost::multiprecision;
 
-
-class RandomInputTests : public ::testing::Test {
+class RandomTests : public ::testing::Test {
 protected:
-
     void SetUp() override {
         gen512.seed(clock());
         gen256.seed(clock());
@@ -33,11 +31,19 @@ protected:
     generator_type_128 gen128;
 };
 
-class RandomComparisonTests: public RandomInputTests {
+class RandomInputTests : public RandomTests {
 
 };
 
+class RandomOutputTests: public RandomTests {
 
+};
+
+class RandomComparisonTests: public RandomTests {
+
+};
+
+//TODO: we need some tests with math-writing, like xxx.yyyyyE+zz
 TEST(InputTests, ZeroInputBase) {
     uint256_t zero = uint256_0;
 #if defined(DAP_GLOBAL_IS_INT128)
@@ -177,9 +183,26 @@ TEST(OutputTests, Min128Output) {
     ASSERT_STREQ(dap_chain_balance_print(min), "18446744073709551616");
 }
 
-TEST(outputTests, Max128Output) {
+TEST(OutputTests, Max128Output) {
     uint256_t max = dap_chain_balance_scan("340282366920938463463374607431768211455");
     ASSERT_STREQ(dap_chain_balance_print(max), "340282366920938463463374607431768211455");
+}
+
+TEST(OutputTests, Min256Output) {
+    uint256_t min = dap_chain_balance_scan("340282366920938463463374607431768211456");
+    ASSERT_STREQ(dap_chain_balance_print(min), "340282366920938463463374607431768211456");
+}
+
+TEST(OutputTests, Max256Output) {
+    uint256_t max = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639935");
+    ASSERT_STREQ(dap_chain_balance_print(max), "115792089237316195423570985008687907853269984665640564039457584007913129639935");
+}
+
+TEST_F(RandomOutputTests, Output256){
+    mp::uint256_t boost_a(gen256());
+
+    uint256_t a = dap_chain_balance_scan(to_string(boost_a).c_str());
+    ASSERT_STREQ(dap_chain_balance_print(a), to_string(boost_a).c_str());
 }
 
 TEST(InputTests, Get256From128) {
