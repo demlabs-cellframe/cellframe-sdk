@@ -150,6 +150,38 @@ TEST(InputTests, Max256FromString) {
 #endif
 }
 
+TEST(InputTests, EmptyInput) {
+    uint256_t empty = dap_chain_balance_scan("");
+    ASSERT_EQ(empty.lo, 0);
+    ASSERT_EQ(empty.hi, 0);
+}
+
+TEST(InputTests, NullInput) {
+    uint256_t nullinput = dap_chain_balance_scan(NULL);
+    EXPECT_EQ(nullinput.lo, 0);
+    EXPECT_EQ(nullinput.hi, 0);
+}
+
+TEST(OutputTests, ZeroOutputBase) {
+    uint256_t zero = uint256_0;
+    ASSERT_STREQ(dap_chain_balance_print(zero), "0");
+}
+
+TEST(OutputTests, Max64Output) {
+    uint256_t max = GET_256_FROM_64(0xffffffffffffffff);
+    ASSERT_STREQ(dap_chain_balance_print(max), "18446744073709551615");
+}
+
+TEST(OutputTests, Min128Output) {
+    uint256_t min = dap_chain_balance_scan("18446744073709551616");
+    ASSERT_STREQ(dap_chain_balance_print(min), "18446744073709551616");
+}
+
+TEST(outputTests, Max128Output) {
+    uint256_t max = dap_chain_balance_scan("340282366920938463463374607431768211455");
+    ASSERT_STREQ(dap_chain_balance_print(max), "340282366920938463463374607431768211455");
+}
+
 TEST(InputTests, Get256From128) {
     uint128_t a = GET_128_FROM_64(123);
     uint256_t b = GET_256_FROM_128(a);
@@ -292,7 +324,7 @@ TEST_F(RandomComparisonTests, IsZeroTest) {
     }
 }
 
-TEST()
+//TEST()
 
 
 
