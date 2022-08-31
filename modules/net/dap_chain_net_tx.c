@@ -624,3 +624,10 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
     }
     return l_tx;
 }
+
+uint256_t dap_chain_net_calc_tx_fee(uint256_t a_value)
+{
+    // TODO calculate comission with current decree
+    UNUSED(a_value);
+    return dap_chain_coins_to_balance("0.1");
+}

@@ -789,8 +789,7 @@ struct  __record_suffix__   *l_suff;
 
 
 
-    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_store_obj->group)) ) {        /* Get a DB context for the group */
-        log_it(L_WARNING, "No DB context for the group '%s', create it ...", a_store_obj->group);
+    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_store_obj->group)) ) {       /* Get a DB context for the group */
                                                                             /* Group is not found ? Try to create table for new group */
         if ( !(l_db_ctx = s_cre_db_ctx_for_group(a_store_obj->group, MDBX_CREATE)) )
             return  log_it(L_WARNING, "Cannot create DB context for the group '%s'", a_store_obj->group), -EIO;
