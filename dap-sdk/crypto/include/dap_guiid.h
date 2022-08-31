@@ -20,11 +20,11 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #pragma once
-#include "dap_math_ops.h"
+#include "dap_uuid.h"
 
-uint128_t dap_uuid_generate_uint128(); // Produce uint128 global unique id
-uint64_t dap_uuid_generate_uint64(); // Produce uint64 global unique id
-// Produces unique nonce
-void dap_uuid_generate_nonce(void *a_nonce, size_t a_nonce_size);
+typedef uint128_t dap_guuid_t;
+static inline dap_guuid_t dap_guuid_new()
+{
+    return (dap_guuid_t) dap_uuid_generate_uint128();
+}
