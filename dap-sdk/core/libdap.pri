@@ -17,7 +17,7 @@ unix: !android : ! darwin {
     QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
     QMAKE_LFLAGS_DEBUG += -pg
     DEFINES += _GNU_SOURCE
-    LIBS += -lrt -ljson-c -lmagic
+    LIBS += -lrt /usr/lib/x86_64-linux-gnu/libjson-c.a -lmagic
 }
 
 contains(DAP_FEATURES, ssl){
@@ -69,8 +69,7 @@ HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_module.h \
     $$PWD/include/dap_strfuncs.h \
     $$PWD/include/dap_string.h \
-    $$PWD/include/dap_time.h \
-    $$PWD/include/dap_tsd.h
+    $$PWD/include/dap_time.h
 
 SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_binary_tree.c \
@@ -81,8 +80,7 @@ SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_module.c \
     $$PWD/src/dap_strfuncs.c \
     $$PWD/src/dap_string.c \
-    $$PWD/src/dap_time.c \
-    $$PWD/src/dap_tsd.c
+    $$PWD/src/dap_time.c
 
 INCLUDEPATH += $$PWD/include \
     $$PWD/../../3rdparty/uthash/src/

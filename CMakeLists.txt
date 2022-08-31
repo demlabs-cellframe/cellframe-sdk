@@ -60,6 +60,11 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
+if( LINUX)
+    add_library(json-c STATIC IMPORTED)
+    set_target_properties(json-c PROPERTIES IMPORTED_LOCATION /usr/lib/x86_64-linux-gnu/libjson-c.a)
+endif()
+
 if( DARWIN)
     add_subdirectory(3rdparty/json-c-darwin)
     add_subdirectory(3rdparty/libmagic-darwin)
