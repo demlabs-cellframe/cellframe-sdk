@@ -117,6 +117,38 @@ int dap_sign_init(uint8_t a_sign_hash_type_default);
 size_t dap_sign_get_size(dap_sign_t * a_chain_sign);
 
 int dap_sign_verify (dap_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size);
+bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_sign_size);
+
+/**
+ * @brief dap_sign_verify_data
+ * @param a_chain_sign
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+static inline bool dap_sign_verify_data (dap_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size){
+    return dap_sign_verify(a_chain_sign, a_data, a_data_size) == 1;
+}
+
+/**
+ * @brief dap_sign_verify_all
+ * @param a_sign
+ * @param a_sign_size_max
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+static inline int dap_sign_verify_all(dap_sign_t * a_sign, const size_t a_sign_size_max, const void * a_data, const size_t a_data_size)
+{
+    if( a_sign_size_max < sizeof(dap_sign_t)){
+        return -3;
+    }else if ( ! dap_sign_verify_size(a_sign,a_sign_size_max) ){
+        return -2;
+    }else if (! dap_sign_verify_data(a_sign,a_data, a_data_size) ){
+        return -1;
+    }
+    return 0;
+}
 
 dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size
                                          ,  size_t a_output_wish_size );
@@ -137,7 +169,6 @@ uint8_t* dap_sign_get_pkey(dap_sign_t *a_sign, size_t *a_pub_key_out);
 bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_hash);
 bool dap_sign_match_pkey_signs(dap_sign_t *l_sign1, dap_sign_t *l_sign2);
 
-bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_sign_size);
 dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign);
 const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type);
 dap_sign_type_t dap_sign_type_from_str(const char * a_type_str);
