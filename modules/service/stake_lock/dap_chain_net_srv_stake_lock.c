@@ -110,7 +110,7 @@ int dap_chain_net_srv_stake_lock_init()
 	   			"-net <net name> -wallet <wallet name> -time_staking <in YYMMDD>\n"
 	    		"-token <ticker> -coins <value>\n"
 				"Optional parameters:\n"
-				"-cert <name> -chain <chain> -chain_emission <chain> -reinvest <percentage from 1 to 100>\n"
+				"-cert <name> -chain <chain> -reinvest <percentage from 1 to 100>\n"
 				"-no_base_tx(flag to create a transaction without base transaction)\n"
 				"Command:"
     			"stake_lock take\n"
