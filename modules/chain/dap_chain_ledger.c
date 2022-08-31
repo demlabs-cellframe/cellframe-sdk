@@ -2333,10 +2333,15 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 						break;
 					}
 					dap_chain_datum_tx_t *l_tx_stake_lock = dap_chain_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
+					if (!l_tx_stake_lock) {
+						debug_if(s_debug_more, L_WARNING, "Not found stake_lock transaction");
+						l_err_num = -36;
+						break;
+					}
 					dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_stake_lock, 0, TX_ITEM_TYPE_OUT_COND, 0);//TODO: ADD CHECK COUNT TX
 					if (!l_tx_stake_lock_out_cond) {
 						debug_if(s_debug_more, L_WARNING, "No OUT_COND to for tx_token [%s]", l_tx_token->header.ticker);
-						l_err_num = -30;
+						l_err_num = -32;
 						break;
 					}
 					if (l_tx_stake_lock_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
