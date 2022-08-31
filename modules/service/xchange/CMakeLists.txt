@@ -9,4 +9,4 @@ add_library(${PROJECT_NAME} STATIC ${DAP_SRV_XCHANGE_SRCS} ${DAP_SRV_XCHANGE_HEA
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_net dap_chain_net_srv)

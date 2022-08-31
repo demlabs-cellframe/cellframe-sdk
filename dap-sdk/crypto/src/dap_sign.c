@@ -390,18 +390,21 @@ bool dap_sign_match_pkey_signs(dap_sign_t *l_sign1, dap_sign_t *l_sign2)
  * @brief verify, if a_sign->header.sign_pkey_size and a_sign->header.sign_size bigger, then a_max_key_size
  * 
  * @param a_sign signed data object 
- * @param a_max_key_size max size of key
+ * @param a_max_sign_size max size of signature
  * @return true 
  * @return false 
  */
-bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_key_size)
+bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_sign_size)
 {
-    if (a_sign->header.type.type == SIG_TYPE_NULL)
+    if (a_sign->header.sign_size == 0 || a_sign->header.sign_pkey_size == 0 || a_sign->header.type.type == SIG_TYPE_NULL )
         return false;
-    if (a_sign->header.sign_pkey_size > a_max_key_size)
+
+    if (a_sign->header.sign_pkey_size > a_max_sign_size || a_sign->header.sign_size > a_max_sign_size)
         return false;
-    if (a_sign->header.sign_size == 0 || a_sign->header.sign_size > a_max_key_size)
+
+    if (a_sign->header.sign_pkey_size + a_sign->header.sign_size + sizeof(*a_sign) > a_max_sign_size )
         return false;
+
     return true;
 }
 
