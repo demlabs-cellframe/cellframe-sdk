@@ -396,12 +396,10 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd + l_size_tsd_section, l_signs_size, &l_signs_unique);
     if (l_signs_unique >= a_token->signs_total){
         size_t l_signs_approve = 0;
-        for (size_t i=0; i < l_signs_unique; i++){
+        for (size_t i=0; i < l_signs_unique; i++) {
             dap_sign_t *l_sign = l_signs[i];
-            if (dap_sign_verify_size(l_sign, l_signs_size)) {
-                if (dap_sign_verify(l_sign, a_token, sizeof(dap_chain_datum_token_t) - sizeof(uint16_t)) == 1) {
-                    l_signs_approve++;
-                }
+            if (!dap_sign_verify_all(l_sign, l_signs_size, a_token, sizeof(dap_chain_datum_token_t) - sizeof(uint16_t))) {
+                l_signs_approve++;
             }
         }
         if (l_signs_approve >= a_token->signs_total){

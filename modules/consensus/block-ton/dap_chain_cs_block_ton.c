@@ -2099,10 +2099,10 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 	    // Parse the rest signs
 	    int l_ret = 0;
 	    uint16_t l_signs_verified_count = 0;
-	    size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, a_block_size)+sizeof(a_block->hdr);
+	    size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, a_block_size) + sizeof(a_block->hdr);
 	    for (size_t i=0; i<l_signs_count; i++) {
 	    	dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
-	        if (!dap_sign_verify_size(l_sign, a_block_size)) {
+	        if (!dap_sign_verify_size(l_sign, a_block_size - l_block_excl_sign_size + sizeof(a_block->hdr))) {
 	            log_it(L_ERROR, "Corrupted block: sign size is bigger than block size");
 	            l_ret = -3;
 	            break;

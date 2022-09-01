@@ -137,11 +137,11 @@ static inline bool dap_sign_verify_data (dap_sign_t * a_chain_sign, const void *
  */
 static inline int dap_sign_verify_all(dap_sign_t * a_sign, const size_t a_sign_size_max, const void * a_data, const size_t a_data_size)
 {
-    if( a_sign_size_max < sizeof(dap_sign_t)){
+    if( a_sign_size_max < sizeof(dap_sign_t)) {
         return -3;
-    }else if ( ! dap_sign_verify_size(a_sign,a_sign_size_max) ){
+    } else if ( ! dap_sign_verify_size(a_sign,a_sign_size_max) ) {
         return -2;
-    }else if (! dap_sign_verify_data(a_sign,a_data, a_data_size) ){
+    } else if (dap_sign_verify(a_sign,a_data, a_data_size) != 1) {
         return -1;
     }
     return 0;
