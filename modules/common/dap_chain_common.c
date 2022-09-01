@@ -734,6 +734,7 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
     int  l_strlen;
     char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC + 1];
 
+
     if (!a_256bit_num) {
         return log_it(L_ERROR, "NULL as an argument"), l_nul;
     }
