@@ -734,6 +734,10 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
     int  l_strlen;
     char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC + 1];
 
+    if (!a_256bit_num) {
+        return log_it(L_ERROR, "NULL as an argument"), l_nul;
+    }
+
     /* Compute & check length */
     if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
         return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;

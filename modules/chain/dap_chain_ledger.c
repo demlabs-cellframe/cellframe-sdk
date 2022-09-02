@@ -409,12 +409,10 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd + l_size_tsd_section, l_signs_size, &l_signs_unique);
     if (l_signs_unique >= a_token->signs_total){
         size_t l_signs_approve = 0;
-        for (size_t i=0; i < l_signs_unique; i++){
+        for (size_t i=0; i < l_signs_unique; i++) {
             dap_sign_t *l_sign = l_signs[i];
-            if (dap_sign_verify_size(l_sign, l_signs_size)) {
-                if (dap_sign_verify(l_sign, a_token, sizeof(dap_chain_datum_token_t) - sizeof(uint16_t)) == 1) {
-                    l_signs_approve++;
-                }
+            if (!dap_sign_verify_all(l_sign, l_signs_size, a_token, sizeof(dap_chain_datum_token_t) - sizeof(uint16_t))) {
+                l_signs_approve++;
             }
         }
         if (l_signs_approve >= a_token->signs_total){
@@ -2372,7 +2370,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 				dap_tsd_t *l_tsd;
 				dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
 				if (l_datum_token
-				&&	l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+				&&	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL || l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
 				&&	l_datum_token->header_native_decl.tsd_total_size
 				&&	NULL != (l_tsd = dap_tsd_find(l_datum_token->data_n_tsd, l_datum_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
 					dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
@@ -2389,10 +2387,15 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 						break;
 					}
 					dap_chain_datum_tx_t *l_tx_stake_lock = dap_chain_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
+					if (!l_tx_stake_lock) {
+						debug_if(s_debug_more, L_WARNING, "Not found stake_lock transaction");
+						l_err_num = -36;
+						break;
+					}
 					dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_stake_lock, 0, TX_ITEM_TYPE_OUT_COND, 0);//TODO: ADD CHECK COUNT TX
 					if (!l_tx_stake_lock_out_cond) {
 						debug_if(s_debug_more, L_WARNING, "No OUT_COND to for tx_token [%s]", l_tx_token->header.ticker);
-						l_err_num = -30;
+						l_err_num = -32;
 						break;
 					}
 					if (l_tx_stake_lock_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
@@ -2467,14 +2470,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 								l_err_num = -30;
 								break;
 							}
-                            stake_lock_emission->tx_used_out = cur_tx_hash;
                             if (PVT(a_ledger)->cached)
                                 s_update_token_cache(a_ledger, l_token_item);
-						} else {
-							log_it(L_DEBUG, "Total supply for token %s not found", l_token_item->ticker);
-							l_err_num = -32;
-							break;
 						}
+						stake_lock_emission->tx_used_out = cur_tx_hash;
 					}
 
 					debug_if(s_debug_more, L_NOTICE, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
