@@ -75,6 +75,7 @@ if (BUILD_CELLFRAME_SDK_TESTS)
         endif()
         set(BUILD_TESTS ON)
     endif()
+    add_subdirectory(test) # tests
 endif()
 
 if (CELLFRAME_MODULES MATCHES "test-framework")
@@ -263,5 +264,3 @@ target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 #    enable_testing()
     #add_subdirectory(test)
 #endif()
-
-add_subdirectory(test) # tests
