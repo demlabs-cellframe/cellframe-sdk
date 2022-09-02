@@ -233,6 +233,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         log_it(L_WARNING,"Incorrect size with event %p on chain %s", a_dag_event, a_dag->chain->name);
         return  -7;
     }
+    size_t l_offset_signs = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event, a_dag_event_size);
     if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
         uint16_t l_verified_num = 0;
 
@@ -243,7 +244,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 return -4;
             }
 
-            bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_dag_event_size);
+            bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_dag_event_size - l_offset_signs);
             if (!l_sign_size_correct) {
                 log_it(L_WARNING, "Event's sign size is incorrect");
                 return -41;
