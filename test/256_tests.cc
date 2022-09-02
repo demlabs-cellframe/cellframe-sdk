@@ -201,8 +201,8 @@ TEST(OutputTests, Max256Output) {
 TEST_F(RandomOutputTests, Output256){
     mp::uint256_t boost_a(gen256());
 
-    uint256_t a = dap_chain_balance_scan(to_string(boost_a).c_str());
-    ASSERT_STREQ(dap_chain_balance_print(a), to_string(boost_a).c_str());
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+    ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
 }
 
 TEST(InputTests, Get256From128) {
@@ -215,7 +215,7 @@ TEST(InputTests, Get256From128) {
 TEST_F(RandomInputTests, Input256) {
     mp::uint256_t boost_a(gen256());
 
-    uint256_t a = dap_chain_balance_scan(to_string(boost_a).c_str());
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
     ASSERT_EQ(a.hi, boost_a >> 128);
     ASSERT_EQ(a.lo, boost_a & mp::uint256_t("0xffffffffffffffffffffffffffffffff"));
 }
@@ -274,8 +274,8 @@ TEST(ComparisonTests, Equal256) {
 TEST_F(RandomComparisonTests, Equal256) {
     mp::uint256_t boost_a(gen128());
 
-    uint256_t a = dap_chain_balance_scan(to_string(boost_a).c_str());
-    uint256_t b = dap_chain_balance_scan(to_string(boost_a).c_str());
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+    uint256_t b = dap_chain_balance_scan(boost_a.str().c_str());
 
     ASSERT_TRUE(EQUAL_256(a, b));
 
@@ -337,7 +337,7 @@ TEST(ComparisonTests, IsZeroTest256) {
 TEST_F(RandomComparisonTests, IsZeroTest) {
     mp::uint256_t boost_a(gen128());
 
-    uint256_t a = dap_chain_balance_scan(to_string(boost_a).c_str());
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
 
     if (boost_a == 0) {
         ASSERT_TRUE(IS_ZERO_256(a));
@@ -361,6 +361,6 @@ TEST_F(RandomComparisonTests, IsZeroTest) {
 //    uint256_t cc = uint256_0;
 //    SUM_256_256(aa, bb, &cc);
 //
-//    ASSERT_EQ(to_string(c), dap_chain_balance_print(cc));
+//    ASSERT_EQ(c.str(), dap_chain_balance_print(cc));
 //
 //}
