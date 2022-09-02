@@ -585,11 +585,10 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     }
     dap_srv_stake_order_ext_t *l_ext = (dap_srv_stake_order_ext_t *)a_order->ext_n_sign;
     dap_sign_t *l_sign = (dap_sign_t *)(a_order->ext_n_sign + a_order->ext_size);
-    if (!dap_sign_verify_size(l_sign, dap_chain_net_srv_order_get_size(a_order)) ||
-            dap_sign_verify(l_sign, a_order, sizeof(dap_chain_net_srv_order_t) + a_order->ext_size) != 1) {
+    if (dap_sign_verify(l_sign, a_order, sizeof(dap_chain_net_srv_order_t) + a_order->ext_size) != 1) {
         log_it(L_WARNING, "Order sign is invalid");
         return NULL;
-    }
+    } /* no need to check size here */
     dap_hash_fast_t l_pkey_hash;
     dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
     dap_chain_addr_t l_cert_addr;
