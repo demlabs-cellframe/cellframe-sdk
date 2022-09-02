@@ -347,7 +347,9 @@ TEST_F(RandomComparisonTests, IsZeroTest) {
     }
 }
 
-//TEST()
+TEST(FailTests, Fail) {
+    ASSERT_TRUE(false);
+}
 
 
 
