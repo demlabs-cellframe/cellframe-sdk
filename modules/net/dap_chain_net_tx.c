@@ -201,9 +201,6 @@ void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_it
 void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_type_t a_search_type ,dap_chain_net_tx_hash_callback_t a_tx_callback, void * a_arg)
 {
     assert(a_tx_callback);
-    dap_ledger_t * l_ledger = a_net->pub.ledger;
-    dap_list_t * l_ret = NULL;
-
     switch (a_search_type) {
         case TX_SEARCH_TYPE_NET_UNSPENT:
         case TX_SEARCH_TYPE_CELL_UNSPENT:
@@ -243,7 +240,6 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
                         DAP_DEL_Z(l_datums);
                         // go to next atom
                         l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
-
                     }
                 }
             }
@@ -283,7 +279,7 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
         while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
             dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *) l_tx_item;
             if(dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_args->tx_last_hash) &&
-                    l_args->tx_last_cond_idx == l_in_cond->header.tx_out_prev_idx ){ // Found output
+                    (uint32_t)l_args->tx_last_cond_idx == l_in_cond->header.tx_out_prev_idx ){ // Found output
                 // We're the next tx in tx cond chain
                 l_args->ret = dap_list_append(l_args->ret, a_tx);
             }
@@ -318,8 +314,6 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
  */
 dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_net_srv_uid_t a_srv_uid)
 {
-    dap_ledger_t * l_ledger = a_net->pub.ledger;
-
     struct get_tx_cond_all_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_all_from_tx);
     l_args->tx_begin_hash = a_tx_hash;
     l_args->srv_uid = a_srv_uid;
@@ -335,9 +329,7 @@ dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_f
 struct get_tx_cond_all_for_addr
 {
     dap_list_t * ret;
-
     dap_chain_tx_t * tx_all_hh; // Transactions hash table for target address
-
     const dap_chain_addr_t * addr;
     dap_chain_net_srv_uid_t srv_uid;
 };
@@ -436,8 +428,6 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
  */
 dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap_chain_addr_t * a_addr, dap_chain_net_srv_uid_t a_srv_uid)
 {
-    dap_ledger_t * l_ledger = a_net->pub.ledger;
-
     struct get_tx_cond_all_for_addr * l_args = DAP_NEW_Z(struct get_tx_cond_all_for_addr);
     l_args->addr = a_addr;
     l_args->srv_uid = a_srv_uid;
