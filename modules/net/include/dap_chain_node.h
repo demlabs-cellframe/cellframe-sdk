@@ -161,7 +161,8 @@ inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *addre
     return a_key;
 }
 
-int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
+bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
+bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 bool dap_chain_node_mempool_autoproc_init();
 void dap_chain_node_mempool_autoproc_deinit();
 

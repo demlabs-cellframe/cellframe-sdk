@@ -284,7 +284,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain) {
                 }
             }
         }
-        dap_global_db_objs_delete(l_objs, l_objs_size);
+        dap_chain_global_db_objs_delete(l_objs, l_objs_size);
     }
     DAP_DELETE(l_gdb_group_mempool);
 }
