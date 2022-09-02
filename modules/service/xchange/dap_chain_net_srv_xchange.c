@@ -106,8 +106,10 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange order update -net <net_name> -order <order_hash> -wallet <wallet_name> [-token_sell <token_ticker>] "
                             "[-net_buy <net_name>] [-token_buy <token_ticker>] [-coins <value>] [-rate <value>]\n"
          "\tUpdate order with specified order hash in specified net name\n"
-    "srv_xchange order history -net <net_name> -order <order_hash> "
+    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}"
          "\tShows transaction history for the selected order\n"
+    "srv_xchange order status -net <net_name> -order <order_hash>"
+         "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
     "srv_xchange orders -net <net_name>\n"
          "\tGet the exchange orders list within specified net name\n"
 
@@ -468,6 +470,10 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     }
     int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
+    if (!l_tx_out_cond) {
+        log_it(L_WARNING, "Requested transaction has no conditional output");
+        return NULL;
+    }
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx)) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         return false;
@@ -689,18 +695,17 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     dap_chain_hash_fast_t l_tx_hash = {};
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
     a_price->tx_hash = l_tx_hash;
-    dap_srv_xchange_order_ext_t l_ext={0};
-    l_ext.datoshi_sell = a_price->datoshi_sell;
-    strncpy(l_ext.token_sell, a_price->token_sell, DAP_CHAIN_TICKER_SIZE_MAX);
-    uint32_t l_ext_size = sizeof(dap_srv_xchange_order_ext_t);
     dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_price->net);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     uint256_t l_datoshi_buy = uint256_0;
     MULT_256_COIN(a_price->datoshi_sell, a_price->rate, &l_datoshi_buy);
-
-    char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net, SERV_DIR_BUY, l_uid, *l_node_addr,
-                                                            l_tx_hash, &l_datoshi_buy, l_unit, a_price->token_buy, 0,
+    dap_srv_xchange_order_ext_t l_ext={0};
+    l_ext.datoshi_buy = l_datoshi_buy;
+    strncpy(l_ext.token_buy, a_price->token_buy, DAP_CHAIN_TICKER_SIZE_MAX);
+    uint32_t l_ext_size = sizeof(dap_srv_xchange_order_ext_t);
+    char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net, SERV_DIR_SELL, l_uid, *l_node_addr,
+                                                            l_tx_hash, &a_price->datoshi_sell, l_unit, a_price->token_sell, 0,
                                                             (uint8_t *)&l_ext, l_ext_size, NULL, 0, a_price->wallet_key);
     return l_order_hash_str;
 }
@@ -715,12 +720,13 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 {
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)a_order->ext_n_sign;
-    l_price->datoshi_sell = l_ext->datoshi_sell;
-    strcpy(l_price->token_sell, l_ext->token_sell);
+    strcpy(l_price->token_buy, l_ext->token_buy);
+    l_price->datoshi_buy = l_ext->datoshi_buy;
+    strcpy(l_price->token_sell, a_order->price_ticker);
+    l_price->datoshi_sell = a_order->price;
     l_price->net = a_net;
-    strcpy(l_price->token_buy, a_order->price_ticker);
-    if( compare256(l_price->datoshi_sell, uint256_0) !=0 ){
-        DIV_256_COIN(a_order->price, l_price->datoshi_sell, &l_price->rate);
+    if( compare256(l_price->datoshi_buy, uint256_0) !=0 ){
+        DIV_256_COIN(l_price->datoshi_buy, l_price->datoshi_sell, &l_price->rate);
         dap_hash_fast_t *l_final_hash = dap_chain_ledger_get_final_chain_tx_hash(
                     a_net->pub.ledger, &a_order->tx_cond_hash);
         if (l_final_hash) {
@@ -745,7 +751,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_CREATE, CMD_REMOVE, CMD_UPDATE, CMD_HISTORY
+        CMD_NONE, CMD_CREATE, CMD_REMOVE, CMD_UPDATE, CMD_HISTORY, CMD_STATUS
     };
     int l_cmd_num = CMD_NONE;
     if(dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "create", NULL)) {
@@ -759,6 +765,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
     }
     else if(dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "history", NULL)) {
         l_cmd_num = CMD_HISTORY;
+    }
+    else if(dap_chain_node_cli_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "status", NULL)) {
+        l_cmd_num = CMD_STATUS;
     }
     int l_arg_index = a_arg_index + 1;
     const char *l_net_str = NULL;
@@ -872,10 +881,11 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -18;
             }
         } break;
+
         case CMD_HISTORY:{
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order create' required parameter -net");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order history' required parameter -net");
                 return -2;
             }
             l_net = dap_chain_net_by_name(l_net_str);
@@ -1095,6 +1105,74 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 }
             }
         } break;
+
+        case CMD_STATUS: {
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+            if (!l_net_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order status' required parameter -net");
+                return -2;
+            }
+            l_net = dap_chain_net_by_name(l_net_str);
+            if (!l_net) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+                return -3;
+            }
+            const char * l_order_hash_str = NULL;
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
+            if (!l_order_hash_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'order history' required parameter -order or -addr" );
+                return -12;
+            }
+            dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
+            if (!l_order) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order not found");
+                return -13;
+            }
+            dap_hash_fast_t *l_final_hash = dap_chain_ledger_get_final_chain_tx_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
+            if (!l_final_hash) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order have no active tx (copmleted)");
+                DAP_DELETE(l_order);
+                return -18;
+            }
+            dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, l_final_hash);
+            if (!l_tx) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Internal error");
+                DAP_DELETE(l_order);
+                return -19;
+            }
+            int l_out_num = -1;
+            dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, &l_out_num);
+            if (!l_out_cond) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order have no active conditional tx (copmleted)");
+                DAP_DELETE(l_order);
+                return -20;
+            }
+            if (l_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order have no exchange conditional tx (invalid)");
+                DAP_DELETE(l_order);
+                return -21;
+            }
+            uint256_t l_filled, l_filled_percent, l_rate;
+            dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)l_order->ext_n_sign;
+            char *l_amount_str = dap_chain_balance_to_coins(l_order->price);
+            char *l_current_str = dap_chain_balance_to_coins(l_out_cond->header.value);
+            SUBTRACT_256_256(l_order->price, l_out_cond->header.value, &l_filled);
+            DIV_256_COIN(l_filled, l_out_cond->header.value, &l_filled_percent);
+            MULT_256_256(l_filled_percent, dap_chain_uint256_from(100), &l_filled_percent);
+            char *l_filled_str = dap_chain_balance_to_coins(l_filled_percent);
+            DIV_256_COIN(l_ext->datoshi_buy, l_order->price, &l_rate);
+            char *l_rate_str = dap_chain_balance_to_coins(l_rate);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "tokenSell: %s, tokenBuy: %s, amount: %s, current %s, filled: %s%% rate(buy/sell): %s\n",
+                                                            l_order->price_ticker, l_ext->token_buy,
+                                                            l_amount_str, l_current_str,
+                                                            l_filled_str, l_rate_str);
+            DAP_DEL_Z(l_amount_str);
+            DAP_DEL_Z(l_current_str);
+            DAP_DEL_Z(l_filled_str);
+            DAP_DEL_Z(l_rate_str);
+            DAP_DELETE(l_order);
+        } break;
+
         default: {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand %s not recognized", a_argv[a_arg_index]);
             return -4;
