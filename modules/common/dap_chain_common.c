@@ -44,6 +44,8 @@ const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
  */
 #define DAP_CHAIN$SZ_MAX128DEC DATOSHI_POW                                           /* "340282366920938463463374607431768211455" */
 #define DAP_CHAIN$SZ_MAX256DEC DATOSHI_POW256                                       /* 2 ^ "340282366920938463463374607431768211455" */
+#define SZ_MAX256SCINOT 82                  //1.15792089237316195423570985008687907853269984665640564039457584007913129639935e77
+
 
 char        *dap_cvt_uint256_to_str (uint256_t a_uint256);
 uint256_t   dap_cvt_str_to_uint256 (const char *a_256bit_num);
@@ -740,8 +742,8 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
     }
 
     /* Compute & check length */
-    if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
-        return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
+    if ( (l_strlen = strnlen(a_256bit_num, SZ_MAX256SCINOT + 1) ) > SZ_MAX256SCINOT)
+        return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, SZ_MAX256SCINOT), l_nul;
 
     /* Convert number from xxx.yyyyE+zz to xxxyyyy0000... */
     char *l_eptr = strchr(a_256bit_num, 'e');
@@ -774,6 +776,9 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         l_256bit_num[l_pos] = '\0';
         l_strlen = l_pos;
     } else {
+        //we ahve an decimal string, not sci notation
+        if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
+            return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
         memcpy(l_256bit_num, a_256bit_num, l_strlen);
         l_256bit_num[l_strlen] = '\0';
     }
