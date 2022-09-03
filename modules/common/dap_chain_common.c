@@ -735,6 +735,7 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
     uint256_t l_ret = uint256_0, l_nul = uint256_0;
     int  l_strlen;
     char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC + 1];
+    int overflow_flag = 0;
 
     if (!a_256bit_num) {
         return log_it(L_ERROR, "NULL as an argument"), l_nul;
@@ -772,11 +773,16 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         memcpy(l_256bit_num, a_256bit_num, l_dot_len);
         memcpy(l_256bit_num + l_dot_len, a_256bit_num + l_dot_len + 1, l_exp_len);
         int l_zero_cnt = l_exp - l_exp_len;
+        if (l_zero_cnt > DAP_CHAIN$SZ_MAX256DEC) {
+            //todo: need to handle leading zeroes, like 0.000...123e100
+            return log_it(L_ERROR, "Too long number for 256 bit: `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
+        }
         size_t l_pos = l_dot_len + l_exp_len;
         for (int i = l_zero_cnt; i && l_pos < DAP_CHAIN$SZ_MAX256DEC; i--)
             l_256bit_num[l_pos++] = '0';
         l_256bit_num[l_pos] = '\0';
         l_strlen = l_pos;
+
     } else {
         //we ahve an decimal string, not sci notation
         if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
@@ -798,14 +804,22 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         uint256_t l_tmp;
         l_tmp.hi = 0;
         l_tmp.lo = (uint128_t)c_pow10_double[i].u64[3] * (uint128_t) l_digit;
-        SUM_256_256(l_ret, l_tmp, &l_ret);
+        overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+        if (overflow_flag) {
+            //todo: change string to uint256_max after implementation
+            return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+        }
 //        if (l_ret.hi == 0 && l_ret.lo == 0) {
 //            return l_nul;
 //        }
         uint128_t l_mul = (uint128_t) c_pow10_double[i].u64[2] * (uint128_t) l_digit;
         l_tmp.lo = l_mul << 64;
         l_tmp.hi = l_mul >> 64;
-        SUM_256_256(l_ret, l_tmp, &l_ret);
+        overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+        if (overflow_flag) {
+            //todo: change string to uint256_max after implementation
+            return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+        }
 
         if (l_ret.hi == 0 && l_ret.lo == 0) {
             return l_nul;
@@ -813,7 +827,11 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 
         l_tmp.lo = 0;
         l_tmp.hi = (uint128_t) c_pow10_double[i].u64[1] * (uint128_t) l_digit;
-        SUM_256_256(l_ret, l_tmp, &l_ret);
+        overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+        if (overflow_flag) {
+            //todo: change string to uint256_max after implementation
+            return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+        }
         if (l_ret.hi == 0 && l_ret.lo == 0) {
             return l_nul;
         }
@@ -824,7 +842,11 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
             return l_nul;
         }
         l_tmp.hi = l_mul << 64;
-        SUM_256_256(l_ret, l_tmp, &l_ret);
+        overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+        if (overflow_flag) {
+            //todo: change string to uint256_max after implementation
+            return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+        }
         if (l_ret.hi == 0 && l_ret.lo == 0) {
             return l_nul;
         }
