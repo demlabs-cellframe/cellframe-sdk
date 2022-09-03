@@ -11,7 +11,7 @@ include_directories(../modules/common/include)
 include_directories(../dap-sdk/core/include)
 
 
-set(BOOST_REQUESTED_VERSION 1.40)
+set(BOOST_REQUESTED_VERSION 1.65)
 
 if (NOT Boost_INCLUDE_DIR)
         FIND_PACKAGE( Boost COMPONENTS system program_options REQUIRED )
