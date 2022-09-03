@@ -95,6 +95,9 @@ extern const uint128_t uint128_0;
 extern const uint128_t uint128_1;
 extern const uint256_t uint256_0;
 extern const uint256_t uint256_1;
+
+//todo: implement uintX_max
+//extern const uint256_t uint256_max;
 extern const uint512_t uint512_0;
 
 static inline uint128_t GET_128_FROM_64(uint64_t n) {
