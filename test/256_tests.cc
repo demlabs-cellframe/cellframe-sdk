@@ -43,6 +43,14 @@ class RandomComparisonTests: public RandomTests {
 
 };
 
+
+// TODO: we need some tests with math-writing, like xxx.yyyyyE+zz, xxx.yyyye+zzz
+// TODO: maybe we can use predicates for two-string-comparision? We CANT use compare256, as it can brake all tests, if it wron. Or can we?
+// TODO: need to do some tests for non-native 128-bit, like on armv7_32 (like one on raspberry)
+// TODO: need to check stderr (or stdout?) for logging.
+
+
+
 //TODO: we need some tests with math-writing, like xxx.yyyyyE+zz, xxx.yyyye+zzz
 TEST(InputTests, ZeroInputBase) {
     uint256_t zero = uint256_0;
@@ -167,6 +175,61 @@ TEST(InputTests, NullInput) {
     EXPECT_EQ(nullinput.lo, 0);
     EXPECT_EQ(nullinput.hi, 0);
 }
+
+TEST(InputTests, TooLongInput) {
+    //some decimal symbols more
+    uint256_t a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791312963993123465");
+    //todo: check that this is logging
+    //todo: maybe we can use predicate for only one check?
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    //one decimal symbol more
+    a = dap_chain_balance_scan("1157920892373161954235709850086879078532699846656405640394575840079131296399351");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+}
+
+TEST(InputTests, OverflowTest) {
+    //one bit more (like decimal 6 instead of decimal 5 on last symbol)
+    uint256_t a = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639936");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    //2 instead of 1 one most-significant digit
+    a = dap_chain_balance_scan("215792089237316195423570985008687907853269984665640564039457584007913129639936");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+}
+
+TEST(InputTests, NonDigitSymbolsInput) {
+    uint256_t a = dap_chain_balance_scan("123a23");
+    //todo: check that this is logging
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    a = dap_chain_balance_scan("hhh123");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791312963993q");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+}
+
+
+//TEST(InputTests, ScientificInput) {
+//    uint256_t
+//    EXPECT_STREQ(a.str().c_str(), "1e+10");
+//}
 
 TEST(OutputTests, ZeroOutputBase) {
     uint256_t zero = uint256_0;
