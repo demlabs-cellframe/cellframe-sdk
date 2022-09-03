@@ -759,10 +759,10 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         if (!l_dot_ptr || l_dot_ptr > l_eptr)
             return  log_it(L_ERROR, "Invalid number format with exponent %d", l_exp), uint256_0;
         int l_dot_len = l_dot_ptr - a_256bit_num;
-        if (l_dot_len >= DAP_CHAIN$SZ_MAX256DEC)
+        if (l_dot_len >= SZ_MAX256SCINOT)
             return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
         int l_exp_len = l_eptr - a_256bit_num - l_dot_len - 1;
-        if (l_exp_len + l_dot_len + 1 >= DAP_CHAIN$SZ_MAX256DEC)
+        if (l_exp_len + l_dot_len + 1 >= SZ_MAX256SCINOT)
             return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
         if (l_exp < l_exp_len)
             return  log_it(L_ERROR, "Invalid number format with exponent %d and nuber coun after dot %d", l_exp, l_exp_len), uint256_0;
