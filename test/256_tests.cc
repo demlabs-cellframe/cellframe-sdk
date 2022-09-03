@@ -231,17 +231,45 @@ TEST(InputTests, ScientificInput) {
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 10000000000);
 
-    a = dap_chain_balance_scan("1.0E+10");
+    a = dap_chain_balance_scan("1.0e10");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 10000000000);
+
+    a = dap_chain_balance_scan("1.0E+10");
+
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 10000000000);
+
+    //todo: turn this on, when we can handle this
+
+//    a = dap_chain_balance_scan("1.23456789000000e9");
+//
+//    EXPECT_EQ(a.hi, 0);
+//    EXPECT_EQ(a.lo, 1234567890);
+
+//    a = dap_chain_balance_scan("1.234000000000000000000000000000e+3");
+//
+//    EXPECT_EQ(a.hi, 0);
+//    EXPECT_EQ(a.lo, 1234);
 
     a = dap_chain_balance_scan("1.8446744073709551615e19");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0xffffffffffffffff);
 
+    a = dap_chain_balance_scan("1.8446744073709551615e+19");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0xffffffffffffffff);
+
     a = dap_chain_balance_scan("1.8446744073709551616e19");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, bmp::uint256_t("18446744073709551616"));
+
+    a = dap_chain_balance_scan("1.8446744073709551616e+19");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, bmp::uint256_t("18446744073709551616"));
@@ -261,6 +289,10 @@ TEST(InputTests, ScientificInput) {
     EXPECT_EQ(a.hi, bmp::uint256_t("340282366920938463463374607431768211455"));
     EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
 
+    a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
+
+    EXPECT_EQ(a.hi, bmp::uint256_t("340282366920938463463374607431768211455"));
+    EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
 
 
 }
