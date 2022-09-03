@@ -48,6 +48,7 @@ class RandomComparisonTests: public RandomTests {
 // TODO: maybe we can use predicates for two-string-comparision? We CANT use compare256, as it can brake all tests, if it wron. Or can we?
 // TODO: need to do some tests for non-native 128-bit, like on armv7_32 (like one on raspberry)
 // TODO: need to check stderr (or stdout?) for logging.
+// TODO: maybe we should split some tests
 
 
 
@@ -225,6 +226,23 @@ TEST(InputTests, NonDigitSymbolsInput) {
     EXPECT_EQ(a.lo, 0);
 }
 
+TEST(InputTests, LeadingZeroes) {
+    uint256_t a = dap_chain_balance_scan("01");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 1);
+
+    a = dap_chain_balance_scan("0000000001");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 1);
+
+    a = dap_chain_balance_scan("000000000000000000000000000000000000000000000000000000000000000000000000000001");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 1);
+}
+
 TEST(InputTests, ScientificInput) {
     uint256_t a = dap_chain_balance_scan("1.0e+10");
 
@@ -295,17 +313,88 @@ TEST(InputTests, ScientificInput) {
     EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
 
 
+    a = dap_chain_balance_scan("0.1e1");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 1);
+
+    a = dap_chain_balance_scan("123.123e3");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 123123);
+
+    a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791.3129639935e10");
+
+    EXPECT_EQ(a.hi, bmp::uint256_t("340282366920938463463374607431768211455"));
+    EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
+
+
 }
 
 TEST(InputTests, IncorrectScientificInput) {
+    uint256_t a = dap_chain_balance_scan("1.0E+++10");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    a = dap_chain_balance_scan("1.0EEE+10");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    a = dap_chain_balance_scan("1.1.1e3");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    // with fraction part
+    a = dap_chain_balance_scan("1.123e2");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
 
 }
 
 TEST(InputTests, TooLongScientificInput) {
+    //one symbol more
+    uint256_t a = dap_chain_balance_scan("1.157920892373161954235709850086879078532699846656405640394575840079131296399356e+78");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    //ten symbols more
+    a = dap_chain_balance_scan("1.157920892373161954235709850086879078532699846656405640394575840079131296399351234567890e+88");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+
 
 }
 
 TEST(InputTests, OverflowScientificInput) {
+     uint256_t a = dap_chain_balance_scan("1.0e100");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+
+    //last symb changed
+    a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639936e+77");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    a = dap_chain_balance_scan("1.25792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    a = dap_chain_balance_scan("2.15792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
 
 }
 
