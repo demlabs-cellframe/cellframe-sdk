@@ -225,11 +225,59 @@ TEST(InputTests, NonDigitSymbolsInput) {
     EXPECT_EQ(a.lo, 0);
 }
 
+TEST(InputTests, ScientificInput) {
+    uint256_t a = dap_chain_balance_scan("1.0e+10");
 
-//TEST(InputTests, ScientificInput) {
-//    uint256_t
-//    EXPECT_STREQ(a.str().c_str(), "1e+10");
-//}
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 10000000000);
+
+    a = dap_chain_balance_scan("1.0E+10");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 10000000000);
+
+    a = dap_chain_balance_scan("1.8446744073709551615e19");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0xffffffffffffffff);
+
+    a = dap_chain_balance_scan("1.8446744073709551616e19");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, bmp::uint256_t("18446744073709551616"));
+
+    a = dap_chain_balance_scan("3.40282366920938463463374607431768211455e38");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
+
+    a = dap_chain_balance_scan("3.40282366920938463463374607431768211456e38");
+
+    EXPECT_EQ(a.hi, 1);
+    EXPECT_EQ(a.lo, 0);
+
+    a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639935e77");
+
+    EXPECT_EQ(a.hi, bmp::uint256_t("340282366920938463463374607431768211455"));
+    EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
+
+
+
+}
+
+TEST(InputTests, IncorrectScientificInput) {
+
+}
+
+TEST(InputTests, TooLongScientificInput) {
+
+}
+
+TEST(InputTests, OverflowScientificInput) {
+
+}
+
+
 
 TEST(OutputTests, ZeroOutputBase) {
     uint256_t zero = uint256_0;
