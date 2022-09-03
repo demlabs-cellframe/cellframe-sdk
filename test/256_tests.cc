@@ -13,7 +13,7 @@ using namespace std;
 
 #include "gtest/gtest-spi.h"
 
-namespace mp = boost::multiprecision;
+namespace bmp = boost::multiprecision;
 
 class RandomTests : public ::testing::Test {
 protected:
@@ -22,9 +22,9 @@ protected:
         gen256.seed(clock());
         gen128.seed(clock());
     }
-    typedef boost::random::independent_bits_engine<boost::random::mt19937, 512, mp::cpp_int> generator_type_512;
-    typedef boost::random::independent_bits_engine<boost::random::mt19937, 256, mp::cpp_int> generator_type_256;
-    typedef boost::random::independent_bits_engine<boost::random::mt19937, 128, mp::cpp_int> generator_type_128;
+    typedef boost::random::independent_bits_engine<boost::random::mt19937, 512, bmp::cpp_int> generator_type_512;
+    typedef boost::random::independent_bits_engine<boost::random::mt19937, 256, bmp::cpp_int> generator_type_256;
+    typedef boost::random::independent_bits_engine<boost::random::mt19937, 128, bmp::cpp_int> generator_type_128;
 
     generator_type_512 gen512;
     generator_type_256 gen256;
@@ -114,7 +114,7 @@ TEST(InputTests, Min128FromString) {
     uint256_t min = dap_chain_balance_scan("18446744073709551616");
 #if defined(DAP_GLOBAL_IS_INT128)
     ASSERT_EQ(min.hi, 0);
-    ASSERT_EQ(min.lo, mp::uint128_t("18446744073709551616"));
+    ASSERT_EQ(min.lo, bmp::uint128_t("18446744073709551616"));
 
 #else
     //todo: сreate test for non-native 128 bit
@@ -126,7 +126,7 @@ TEST(InputTests, Max128FromString) {
     uint256_t max = dap_chain_balance_scan("340282366920938463463374607431768211455");
 #if defined(DAP_GLOBAL_IS_INT128)
     ASSERT_EQ(max.hi, 0);
-    ASSERT_EQ(max.lo, mp::uint128_t("340282366920938463463374607431768211455"));
+    ASSERT_EQ(max.lo, bmp::uint128_t("340282366920938463463374607431768211455"));
 #else
     //todo: сreate test for non-native 128 bit
     FAIL();
@@ -148,8 +148,8 @@ TEST(InputTests, Min256FromString) {
 TEST(InputTests, Max256FromString) {
     uint256_t max = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639935");
 #if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(max.hi, mp::uint128_t("340282366920938463463374607431768211455"));
-    ASSERT_EQ(max.lo, mp::uint128_t("340282366920938463463374607431768211455"));
+    ASSERT_EQ(max.hi, bmp::uint128_t("340282366920938463463374607431768211455"));
+    ASSERT_EQ(max.lo, bmp::uint128_t("340282366920938463463374607431768211455"));
 #else
     //todo: сreate test for non-native 128 bit
     FAIL();
@@ -199,7 +199,7 @@ TEST(OutputTests, Max256Output) {
 }
 
 TEST_F(RandomOutputTests, Output256){
-    mp::uint256_t boost_a(gen256());
+    bmp::uint256_t boost_a(gen256());
 
     uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
     ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
@@ -213,11 +213,11 @@ TEST(InputTests, Get256From128) {
 }
 
 TEST_F(RandomInputTests, Input256) {
-    mp::uint256_t boost_a(gen256());
+    bmp::uint256_t boost_a(gen256());
 
     uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
     ASSERT_EQ(a.hi, boost_a >> 128);
-    ASSERT_EQ(a.lo, boost_a & mp::uint256_t("0xffffffffffffffffffffffffffffffff"));
+    ASSERT_EQ(a.lo, boost_a & bmp::uint256_t("0xffffffffffffffffffffffffffffffff"));
 }
 
 TEST(ComparisonTests, Equal128) {
@@ -272,7 +272,7 @@ TEST(ComparisonTests, Equal256) {
 }
 
 TEST_F(RandomComparisonTests, Equal256) {
-    mp::uint256_t boost_a(gen128());
+    bmp::uint256_t boost_a(gen128());
 
     uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
     uint256_t b = dap_chain_balance_scan(boost_a.str().c_str());
@@ -335,7 +335,7 @@ TEST(ComparisonTests, IsZeroTest256) {
 }
 
 TEST_F(RandomComparisonTests, IsZeroTest) {
-    mp::uint256_t boost_a(gen128());
+    bmp::uint256_t boost_a(gen128());
 
     uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
 
@@ -354,9 +354,9 @@ TEST(FailTests, Fail) {
 
 
 //TEST(BoostTest, BasicSum) {
-//    mp::uint256_t a {123};
-//    mp::uint256_t b {321};
-//    mp::uint256_t c {123+321};
+//    bmp::uint256_t a {123};
+//    bmp::uint256_t b {321};
+//    bmp::uint256_t c {123+321};
 //
 //    uint256_t aa = GET_256_FROM_64(123);
 //    uint256_t bb = GET_256_FROM_64(321);
