@@ -11,10 +11,13 @@ include_directories(../modules/common/include)
 include_directories(../dap-sdk/core/include)
 
 
+set(BOOST_REQUESTED_VERSION 1.40)
 
-FIND_PACKAGE( Boost 1.40 COMPONENTS program_options REQUIRED )
+if (NOT Boost_INCLUDE_DIR)
+        FIND_PACKAGE( Boost COMPONENTS system program_options REQUIRED )
+endif()
+
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
-
 
 include(FetchContent)
 FetchContent_Declare(

@@ -55,4 +55,4 @@ macos-tests:
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - mkdir build
-      - cd build && $(${OSXCROSS_ROOT}/bin/osxcross-conf) && export OSXCROSS_NO_INCLUDE_PATH_WARNINGS=1 && export OSXCROSS_HOST=x86_64-apple-darwin20.4 && cmake -DCMAKE_TOOLCHAIN_FILE=${OSXCROSS_ROOT}/toolchain.cmake -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" .. && make -j$(nproc)
+      - cd build && $(${OSXCROSS_ROOT}/bin/osxcross-conf) && export OSXCROSS_NO_INCLUDE_PATH_WARNINGS=1 && export OSXCROSS_HOST=x86_64-apple-darwin20.4 && cmake -DCMAKE_TOOLCHAIN_FILE=${OSXCROSS_ROOT}/toolchain.cmake -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" -DBoost_INCLUDE_DIR=$BOOST_INCLUDE_DIR .. && make -j$(nproc)
