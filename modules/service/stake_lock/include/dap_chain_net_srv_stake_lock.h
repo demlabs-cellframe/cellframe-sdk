@@ -57,7 +57,8 @@ typedef struct		dap_chain_net_srv_stake_lock_cond_params{
 int 					dap_chain_net_srv_stake_lock_init(void);
 void					dap_chain_net_srv_stake_lock_deinit(void);
 
-bool					s_callback_verificator(dap_ledger_t *a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool					s_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+							dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 bool					s_callback_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
 
 // Create cond out

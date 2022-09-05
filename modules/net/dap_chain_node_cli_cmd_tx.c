@@ -36,6 +36,7 @@
 
 #include "dap_chain_cell.h"
 #include "dap_chain_datum.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_node_cli.h"
