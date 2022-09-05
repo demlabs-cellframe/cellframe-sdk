@@ -2390,7 +2390,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 					dap_chain_datum_tx_t *l_tx_stake_lock = dap_chain_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
 					if (!l_tx_stake_lock) {
 						debug_if(s_debug_more, L_WARNING, "Not found stake_lock transaction");
-						l_err_num = -36;
+						l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
 						break;
 					}
 					dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_stake_lock, 0, TX_ITEM_TYPE_OUT_COND, 0);//TODO: ADD CHECK COUNT TX
