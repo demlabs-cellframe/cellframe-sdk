@@ -489,7 +489,7 @@ void *dap_worker_thread(void *arg)
                         /* if we not reading data from socket, he triggered again */
 #ifdef DAP_OS_WINDOWS
                         l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
-#else
+#elif defined(DAP_OS_LINUX)
                         uint64_t val;
                         read( l_cur->fd, &val, 8);
 #endif

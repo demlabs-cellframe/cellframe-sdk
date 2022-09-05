@@ -135,7 +135,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         }
     } else if (l_decode_len != l_pkey_exchange_size) {
         /* No sign inside */
-        log_it(L_WARNING, "Wrong message size, without a valid sign must be = %d", l_pkey_exchange_size);
+        log_it(L_WARNING, "Wrong message size, without a valid sign must be = %zu", l_pkey_exchange_size);
         *return_code = Http_Status_BadRequest;
         return;
     }
