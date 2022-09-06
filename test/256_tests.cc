@@ -2,6 +2,7 @@
 
 #include <boost/program_options/options_description.hpp>
 #include <boost/program_options/option.hpp>
+#include <boost/multiprecision/cpp_bin_float.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/multiprecision/random.hpp>
 #include <boost/random.hpp>
@@ -395,9 +396,24 @@ TEST(InputTests, OverflowScientificInput) {
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
 
+    //todo: make some more tests for better coverage (see coverage on dap_chain_balance_scan)
 
 }
 
+TEST_F(RandomInputTests, CoinsBase) {
+    uint256_t a = dap_chain_coins_to_balance("0.0");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+
+    boost::random::uniform_real_distribution<boost::multiprecision::cpp_bin_float_100> ur(0, 1);
+    boost::random::independent_bits_engine<boost::mt19937, std::numeric_limits<boost::multiprecision::cpp_bin_float_100>::digits, boost::multiprecision::cpp_int> gen;
+
+    boost::multiprecision::cpp_bin_float_100 c(gen256().str() + ".0");
+    boost::multiprecision::cpp_bin_float_100 b = ur(gen) + c;
+
+    EXPECT_TRUE(false) << b;
+}
 
 
 TEST(OutputTests, ZeroOutputBase) {
