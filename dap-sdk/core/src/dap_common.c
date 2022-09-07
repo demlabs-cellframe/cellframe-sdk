@@ -1172,6 +1172,7 @@ void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_call
 
     dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
     dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
+    //todo: we should not use ^ like this, because this is clang-specific thing, but someone can use GCC on mac os
     dispatch_source_set_event_handler(l_timer, ^(void){s_bsd_callback(s_timers_count);});
     dispatch_time_t start = dispatch_time(DISPATCH_TIME_NOW, a_msec * 1000000);
     dispatch_source_set_timer(l_timer, start, a_msec * 1000000, 0);
