@@ -139,7 +139,7 @@ extern pthread_key_t g_dap_context_pth_key;
 int dap_context_init(); // Init
 void dap_context_deinit(); // Deinit
 
-// New context create and run.
+// New context create
 dap_context_t * dap_context_new(int a_type);
 
 // Run new context in dedicated thread.
