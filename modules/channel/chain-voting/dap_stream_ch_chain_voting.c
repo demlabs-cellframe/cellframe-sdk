@@ -22,21 +22,16 @@ typedef struct voting_pkt_in_callback{
 
 typedef struct voting_pkt_addr
 {
-	//dap_client_t *client;
 	dap_chain_node_addr_t node_addr;
-	//dap_chain_node_client_t *node_client;
 	dap_stream_ch_chain_voting_pkt_t *voting_pkt;
 } voting_pkt_addr_t;
 
 typedef struct voting_pkt_items
 {
-	//size_t count;
-	// dap_stream_ch_chain_voting_pkt_t * pkts_out[];
 	pthread_rwlock_t rwlock_out;
 	pthread_rwlock_t rwlock_in;
 	dap_list_t * pkts_out; // voting_pkt_addr_t
 	dap_list_t * pkts_in; // dap_stream_ch_chain_voting_pkt_t
-	// dap_timerfd_t * timer_in;
 } voting_pkt_items_t;
 
 typedef struct voting_node_client_list {
