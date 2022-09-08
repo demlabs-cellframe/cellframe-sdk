@@ -49,6 +49,12 @@
  */
 dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item);
 
+typedef struct dap_chain_datum_tx_item
+{
+    dap_chain_tx_item_type_t type;
+    byte_t data[];
+} DAP_ALIGN_PACKED dap_chain_datum_tx_item_t;
+
 /**
  * Get item name by item type
  *

@@ -260,7 +260,6 @@ typedef struct dap_chain_net_srv
 
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
-bool dap_chain_net_srv_pay_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
                                            const char *a_config_section,
                                            dap_chain_net_srv_callbacks_t *a_callbacks );
@@ -281,6 +280,11 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                                                                const void * a_ext, size_t a_ext_size);
 uint8_t dap_stream_ch_chain_net_srv_get_id();
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
+bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+									   dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+
+bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
+									   dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {

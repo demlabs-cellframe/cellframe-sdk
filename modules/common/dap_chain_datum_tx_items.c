@@ -425,12 +425,12 @@ dap_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
  * Get item from transaction
  *
  * a_tx [in] transaction
- * a_item_idx_start[in/out] start index / found index of item in transaction, if 0 then from beginning
+ * a_item_idx[in/out] start index / found index of item in transaction, if 0 then from beginning
  * a_type[in] type of item being find, if TX_ITEM_TYPE_ANY - any item
  * a_item_out_size size[out] size of returned item
  * return item data, NULL Error index or bad format transaction
  */
-uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
+uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx,
         dap_chain_tx_item_type_t a_type, int *a_item_out_size)
 {
     if(!a_tx)
@@ -443,7 +443,7 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
         if(!l_item_size)
             return NULL;
         // check index
-        if(!a_item_idx_start || l_item_idx >= *a_item_idx_start) {
+        if(!a_item_idx || l_item_idx >= *a_item_idx) {
             // check type
             dap_chain_tx_item_type_t l_type = dap_chain_datum_tx_item_get_type(l_item);
             if (a_type == TX_ITEM_TYPE_ANY || a_type == l_type ||
@@ -451,8 +451,8 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_OLD) ||
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_COND) ||
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_EXT)) {
-                if(a_item_idx_start)
-                    *a_item_idx_start = l_item_idx;
+                if(a_item_idx)
+                    *a_item_idx = l_item_idx;
                 if(a_item_out_size)
                     *a_item_out_size = l_item_size;
                 return l_item;
@@ -479,7 +479,7 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
 	int l_items_count = 0, l_item_idx_start = 0;
 	uint8_t *l_tx_item;
 
-    // Get sign item from transaction
+    // Get items from transaction
     while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL)) != NULL)
     {
         items_list = dap_list_append(items_list, l_tx_item);
