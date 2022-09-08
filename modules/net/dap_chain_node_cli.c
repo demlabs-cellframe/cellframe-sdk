@@ -265,7 +265,8 @@ char* s_get_next_str( SOCKET nSocket, int *dwLen, const char *stop_str, bool del
 static void* thread_one_client_func(void *args)
 {
 SOCKET  newsockfd = (SOCKET) (intptr_t) args;
-int     str_len, marker = 0, timeout = 5000, argc = 0, is_data;
+int     str_len, marker = 0, argc = 0, is_data;
+int timeout = 1000 * dap_config_get_item_int16_default(g_config, "conserver", "cmd_timeout", 5000);
 dap_list_t *cmd_param_list = NULL;
 char    *str_header;
 
