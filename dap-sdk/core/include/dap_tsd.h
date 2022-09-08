@@ -34,11 +34,14 @@ dap_tsd_t * dap_tsd_create(uint16_t a_type,  const void * a_data, size_t a_data_
 dap_tsd_t* dap_tsd_find(byte_t * a_data, size_t a_data_size,uint16_t a_type);
 
 #define dap_tsd_create_scalar(type,value) dap_tsd_create (type, &value, sizeof(value) )
-#define dap_tsd_get_scalar(a,typeconv)  *((typeconv*) a->data)
+#define dap_tsd_get_scalar(a,typeconv) ( a->size >= sizeof(typeconv) ? *((typeconv*) a->data) : (typeconv) {0})
 
+#define DAP_TSD_CORRUPTED_STRING "<CORRUPTED STRING>"
 // NULL-terminated string
 #define dap_tsd_create_string(type,str) dap_tsd_create (type,str, dap_strlen(str)+1)
-#define dap_tsd_get_string(a)  ( ((char*) a->data )[a->size-1] == '\0'? (char*) a->data  : "<CORRUPTED STRING>" )
-#define dap_tsd_get_string_const(a)  ( ((const char*) a->data )[a->size-1] == '\0'? (const char*) a->data : "<CORRUPTED STRING>" )
+#define dap_tsd_get_string(a)  ( ((char*) a->data )[a->size-1] == '\0'? (char*) a->data  : DAP_TSD_CORRUPTED_STRING )
+#define dap_tsd_get_string_const(a)  ( ((const char*) a->data )[a->size-1] == '\0'? (const char*) a->data : DAP_TSD_CORRUPTED_STRING )
 
 #define dap_tsd_size(a) (sizeof(*a)+(size_t)a->size)
+
+#define dap_tsd_size_check(a, offset, total_size) (total_size - offset >= (a)->size )

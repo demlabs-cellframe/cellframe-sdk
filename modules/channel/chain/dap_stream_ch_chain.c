@@ -646,7 +646,7 @@ dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, co
     }
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     if (!l_net)
-        return false;
+        return NULL;
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         char *l_chain_group_name = dap_chain_net_get_gdb_group_from_chain_new(l_chain);
