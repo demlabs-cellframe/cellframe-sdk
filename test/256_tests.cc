@@ -64,8 +64,9 @@ class RandomBitTests: public RandomTests {
 // TODO: maybe we can use predicates for two-string-comparision? We CANT use compare256, as it can brake all tests, if it wron. Or can we?
 // TODO: need to do some tests for non-native 128-bit, like on armv7_32 (like one on raspberry)
 // TODO: need to check stderr (or stdout?) for logging.
-// TODO: maybe we should split some tests
+// TODO: need to split tests
 // TODO: need to add some tests to bit-logic, like 0b0101 & 0b1010 and 0b0101 | 0b1010
+// TODO: do we need to run random tests more than one? I think yes, but not in cycle. I think Google Tests can do this, need to implement
 
 
 
@@ -980,6 +981,83 @@ TEST_F(RandomBitTests, CiclycOr) {
 }
 
 
+TEST(BitTests, Incr128) {
+    uint128_t a = uint128_0;
+
+    INCR_128(&a);
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a, 1);
+#else
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, 1);
+#endif
+
+    INCR_128(&a);
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a, 2);
+#else
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, 2);
+#endif
+
+#ifdef DAP_GLOBAL_IS_INT128
+    a = 0xffffffffffffffff;
+#else
+    a.lo = 0xffffffffffffffff;
+#endif
+
+    INCR_128(&a);
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a, bmp::uint128_t(MIN128STR));
+#else
+    ASSERT_EQ(a.hi, 1);
+    ASSERT_EQ(a.lo, 0);
+#endif
+
+//todo: implement 128MAX, overflowing
+}
+
+TEST(BitTests, Decr128) {
+    uint128_t a = uint128_0;
+
+    DECR_128(&a);
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a, bmp::uint128_t(MAX128STR));
+#else
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, 1);
+#endif
+
+    DECR_128(&a);
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a, bmp::uint128_t(MAX128STR)-1);
+#else
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, 2);
+#endif
+
+#ifdef DAP_GLOBAL_IS_INT128
+    a = 0xffffffffffffffff;
+#else
+    a.lo = 0xffffffffffffffff;
+#endif
+
+    DECR_128(&a);
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a, bmp::uint128_t(MAX64STR)-1);
+#else
+    ASSERT_EQ(a.hi, 1);
+    ASSERT_EQ(a.lo, 0);
+#endif
+
+//todo: implement 128MAX, overflowing
+}
 
 
 
