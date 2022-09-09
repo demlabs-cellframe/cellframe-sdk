@@ -14,6 +14,13 @@ using namespace std;
 
 #include "gtest/gtest-spi.h"
 
+
+#define MAX64STR "18446744073709551615"
+#define MIN128STR "18446744073709551616"
+#define MAX128STR "340282366920938463463374607431768211455"
+#define MIN256STR "340282366920938463463374607431768211456"
+#define MAX256STR "115792089237316195423570985008687907853269984665640564039457584007913129639935"
+
 namespace bmp = boost::multiprecision;
 
 class RandomTests : public ::testing::Test {
@@ -36,6 +43,10 @@ class RandomInputTests : public RandomTests {
 
 };
 
+class DISABLED_RandomInputTestsCoins: public RandomInputTests {
+
+};
+
 class RandomOutputTests: public RandomTests {
 
 };
@@ -44,12 +55,17 @@ class RandomComparisonTests: public RandomTests {
 
 };
 
+class RandomBitTests: public RandomTests {
 
-// TODO: we need some tests with math-writing, like xxx.yyyyyE+zz, xxx.yyyye+zzz
+};
+
+
+// TODO: we need some tests with math-writing, like xxx.yyyyyE+zz, xxx.yyyye+zzz done
 // TODO: maybe we can use predicates for two-string-comparision? We CANT use compare256, as it can brake all tests, if it wron. Or can we?
 // TODO: need to do some tests for non-native 128-bit, like on armv7_32 (like one on raspberry)
 // TODO: need to check stderr (or stdout?) for logging.
 // TODO: maybe we should split some tests
+// TODO: need to add some tests to bit-logic, like 0b0101 & 0b1010 and 0b0101 | 0b1010
 
 
 
@@ -109,7 +125,7 @@ TEST(InputTests, MaxInputFrom64) {
 
 
 TEST(InputTests, MaxInputFromString) {
-    uint256_t max = dap_chain_balance_scan("18446744073709551615");
+    uint256_t max = dap_chain_balance_scan(MAX64STR);
 #if defined(DAP_GLOBAL_IS_INT128)
     ASSERT_EQ(max.hi, 0);
     ASSERT_EQ(max.lo, 0xffffffffffffffff);
@@ -121,10 +137,10 @@ TEST(InputTests, MaxInputFromString) {
 }
 
 TEST(InputTests, Min128FromString) {
-    uint256_t min = dap_chain_balance_scan("18446744073709551616");
+    uint256_t min = dap_chain_balance_scan(MIN128STR);
 #if defined(DAP_GLOBAL_IS_INT128)
     ASSERT_EQ(min.hi, 0);
-    ASSERT_EQ(min.lo, bmp::uint128_t("18446744073709551616"));
+    ASSERT_EQ(min.lo, bmp::uint128_t(MIN128STR));
 
 #else
     //todo: сreate test for non-native 128 bit
@@ -133,10 +149,10 @@ TEST(InputTests, Min128FromString) {
 }
 
 TEST(InputTests, Max128FromString) {
-    uint256_t max = dap_chain_balance_scan("340282366920938463463374607431768211455");
+    uint256_t max = dap_chain_balance_scan(MAX128STR);
 #if defined(DAP_GLOBAL_IS_INT128)
     ASSERT_EQ(max.hi, 0);
-    ASSERT_EQ(max.lo, bmp::uint128_t("340282366920938463463374607431768211455"));
+    ASSERT_EQ(max.lo, bmp::uint128_t(MAX128STR));
 #else
     //todo: сreate test for non-native 128 bit
     FAIL();
@@ -144,7 +160,7 @@ TEST(InputTests, Max128FromString) {
 }
 
 TEST(InputTests, Min256FromString) {
-    uint256_t min = dap_chain_balance_scan("340282366920938463463374607431768211456");
+    uint256_t min = dap_chain_balance_scan(MIN256STR);
     #if defined(DAP_GLOBAL_IS_INT128)
     ASSERT_EQ(min.hi, 1);
     ASSERT_EQ(min.lo, 0);
@@ -156,10 +172,10 @@ TEST(InputTests, Min256FromString) {
 }
 
 TEST(InputTests, Max256FromString) {
-    uint256_t max = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639935");
+    uint256_t max = dap_chain_balance_scan(MAX256STR);
 #if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(max.hi, bmp::uint128_t("340282366920938463463374607431768211455"));
-    ASSERT_EQ(max.lo, bmp::uint128_t("340282366920938463463374607431768211455"));
+    ASSERT_EQ(max.hi, bmp::uint128_t(MAX128STR));
+    ASSERT_EQ(max.lo, bmp::uint128_t(MAX128STR));
 #else
     //todo: сreate test for non-native 128 bit
     FAIL();
@@ -286,17 +302,17 @@ TEST(InputTests, ScientificInput) {
     a = dap_chain_balance_scan("1.8446744073709551616e19");
 
     EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, bmp::uint256_t("18446744073709551616"));
+    EXPECT_EQ(a.lo, bmp::uint256_t(MIN128STR));
 
     a = dap_chain_balance_scan("1.8446744073709551616e+19");
 
     EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, bmp::uint256_t("18446744073709551616"));
+    EXPECT_EQ(a.lo, bmp::uint256_t(MIN128STR));
 
     a = dap_chain_balance_scan("3.40282366920938463463374607431768211455e38");
 
     EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
+    EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
 
     a = dap_chain_balance_scan("3.40282366920938463463374607431768211456e38");
 
@@ -305,13 +321,13 @@ TEST(InputTests, ScientificInput) {
 
     a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639935e77");
 
-    EXPECT_EQ(a.hi, bmp::uint256_t("340282366920938463463374607431768211455"));
-    EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
+    EXPECT_EQ(a.hi, bmp::uint256_t(MAX128STR));
+    EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
 
     a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
 
-    EXPECT_EQ(a.hi, bmp::uint256_t("340282366920938463463374607431768211455"));
-    EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
+    EXPECT_EQ(a.hi, bmp::uint256_t(MAX128STR));
+    EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
 
 
     a = dap_chain_balance_scan("0.1e1");
@@ -326,8 +342,8 @@ TEST(InputTests, ScientificInput) {
 
     a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791.3129639935e10");
 
-    EXPECT_EQ(a.hi, bmp::uint256_t("340282366920938463463374607431768211455"));
-    EXPECT_EQ(a.lo, bmp::uint256_t("340282366920938463463374607431768211455"));
+    EXPECT_EQ(a.hi, bmp::uint256_t(MAX128STR));
+    EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
 
 
 }
@@ -400,19 +416,41 @@ TEST(InputTests, OverflowScientificInput) {
 
 }
 
-TEST_F(RandomInputTests, CoinsBase) {
-    uint256_t a = dap_chain_coins_to_balance("0.0");
+TEST_F(DISABLED_RandomInputTestsCoins, CoinsBase) {
+    //todo: fraction part should be 18 or less symbols, not more. For now it can be more and i dont know what to do with it
 
-    EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, 0);
 
-    boost::random::uniform_real_distribution<boost::multiprecision::cpp_bin_float_100> ur(0, 1);
-    boost::random::independent_bits_engine<boost::mt19937, std::numeric_limits<boost::multiprecision::cpp_bin_float_100>::digits, boost::multiprecision::cpp_int> gen;
-
-    boost::multiprecision::cpp_bin_float_100 c(gen256().str() + ".0");
-    boost::multiprecision::cpp_bin_float_100 b = ur(gen) + c;
-
-    EXPECT_TRUE(false) << b;
+//    boost::random::uniform_real_distribution<
+//            boost::multiprecision::number<
+//                    boost::multiprecision::cpp_bin_float<
+//                            16, boost::multiprecision::backends::digit_base_10
+//                            >
+//                            >
+//                            > ur(0, 1);
+//    boost::random::independent_bits_engine<
+//            boost::mt19937,
+//            std::numeric_limits<
+////                    boost::multiprecision::cpp_bin_float_100
+//                    boost::multiprecision::number<
+//                            boost::multiprecision::cpp_bin_float<
+//                                    16
+//                                    >
+//                                    >
+//                    >::digits,
+//                    boost::multiprecision::cpp_int> gen;
+//
+//
+//    for (int i = 0; i<100; i++) {
+//        std::cout << ur(gen).str().c_str() << std::endl;
+//    }
+//
+////    EXPECT_FALSE(true);
+//    boost::multiprecision::cpp_bin_float_100 c(gen256().str() + ".0");
+//    boost::multiprecision::cpp_bin_float_100 b = ur(gen) + c;
+//
+//    uint256_t a = dap_chain_coins_to_balance(b.str().c_str());
+//
+//    EXPECT_STREQ(dap_chain_balance_to_coins(a), b.str().c_str());
 }
 
 
@@ -583,7 +621,7 @@ TEST(ComparisonTests, IsZeroTest256) {
 }
 
 TEST_F(RandomComparisonTests, IsZeroTest) {
-    bmp::uint256_t boost_a(gen128());
+    bmp::uint256_t boost_a(gen256());
 
     uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
 
@@ -593,7 +631,355 @@ TEST_F(RandomComparisonTests, IsZeroTest) {
     else {
         ASSERT_FALSE(IS_ZERO_256(a));
     }
+
 }
+
+TEST(BitTests, And128) {
+    uint128_t a = uint128_0;
+    uint128_t b = uint128_1;
+
+    ASSERT_EQ(AND_128(a, b), uint128_0);
+    ASSERT_EQ(AND_128(a, a), uint128_0);
+    ASSERT_EQ(AND_128(b, b), uint128_1);
+}
+
+TEST(BitTests, Or128) {
+    uint128_t a = uint128_0;
+    uint128_t b = uint128_1;
+
+    ASSERT_EQ(OR_128(a, b), uint128_1);
+    ASSERT_EQ(OR_128(a, a), uint128_0);
+    ASSERT_EQ(OR_128(b, b), uint128_1);
+}
+
+TEST(BitTests, And256) {
+    uint256_t a = uint256_0;
+    uint256_t b = uint256_1;
+    uint256_t c;
+
+
+    //todo: shuld we use ASSERT_EQ with lo and hi? It would be bad for 32-bit only systems
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(uint256_0));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(uint256_0));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, a)), dap_chain_balance_print(uint256_0));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, b)), dap_chain_balance_print(uint256_1));
+
+    a = dap_chain_balance_scan(MAX64STR);               //0b1111111111111111111111111111111111111111111111111111111111111111
+    b = dap_chain_balance_scan("12297829382473034410"); //0b1010101010101010101010101010101010101010101010101010101010101010
+    c = b; //0b1010101010101010101010101010101010101010101010101010101010101010
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("18446744069414584320");             //0b1111111111111111111111111111111100000000000000000000000000000000
+    c = b;             //0b1111111111111111111111111111111100000000000000000000000000000000
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+    a = dap_chain_balance_scan("18446744069414584320");             //0b1111111111111111111111111111111100000000000000000000000000000000
+    b = dap_chain_balance_scan("4294967295");                       //0b0000000000000000000000000000000011111111111111111111111111111111
+    c = uint256_0;
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+
+
+    a = dap_chain_balance_scan(MAX128STR);                                             //0b11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+    b = dap_chain_balance_scan("226854911280625642308916404954512140970");             //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
+    c = b;                                                                                      //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("340282366841710300967557013907638845440");             //0b11111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
+    c = b;                                                                                       //0b11111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("340282366920938463444927863358058659840");              //0b11111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000000
+    c = b;
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+    a = dap_chain_balance_scan(MAX256STR);                                             //0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+    b = dap_chain_balance_scan("77194726158210796949047323339125271902179989777093709359638389338608753093290");             //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
+    c = b;                                                                                      //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("115792089210356248762697446947946071893095522863849111501270640965525260206080");             //0b1111111111111111111111111111111100000000000000000000000000000000111111111111111111111111111111110000000000000000000000000000000011111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
+    c = b;                                                                                       //0b1111111111111111111111111111111100000000000000000000000000000000111111111111111111111111111111110000000000000000000000000000000011111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("115792089237316195417293883273301227089774477609353836086800156426807153786880");              //0b1111111111111111111111111111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000000
+    c = b;
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+
+}
+
+TEST(BitTests, Or256) {
+    uint256_t a = uint256_0;
+    uint256_t b = uint256_1;
+    uint256_t c;
+
+
+    //todo: shuld we use ASSERT_EQ with lo and hi? It would be bad for 32-bit only systems
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(uint256_1));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(uint256_1));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, a)), dap_chain_balance_print(uint256_0));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, b)), dap_chain_balance_print(uint256_1));
+
+    a = dap_chain_balance_scan(MAX64STR);               //0b1111111111111111111111111111111111111111111111111111111111111111
+    b = dap_chain_balance_scan("12297829382473034410"); //0b1010101010101010101010101010101010101010101010101010101010101010
+    c = a; //0b1111111111111111111111111111111111111111111111111111111111111111
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("18446744069414584320");             //0b1111111111111111111111111111111100000000000000000000000000000000
+    c = a;             //0b1111111111111111111111111111111111111111111111111111111111111111
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+    a = dap_chain_balance_scan("18446744069414584320");             //0b1111111111111111111111111111111100000000000000000000000000000000
+    b = dap_chain_balance_scan("4294967295");                       //0b0000000000000000000000000000000011111111111111111111111111111111
+    c = dap_chain_balance_scan(MAX64STR); //0b1111111111111111111111111111111111111111111111111111111111111111
+
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+
+    a = dap_chain_balance_scan(MAX128STR);                                             //0b11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+    b = dap_chain_balance_scan("226854911280625642308916404954512140970");             //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
+    c = a;                                                                                      //0b11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("340282366841710300967557013907638845440");             //0b11111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
+    c = a;                                                                                       //0b11111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+
+    b = dap_chain_balance_scan("340282366920938463444927863358058659840");              //0b11111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000000
+    c = a;
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+    a = dap_chain_balance_scan(MAX256STR);                                             //0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+    b = dap_chain_balance_scan("77194726158210796949047323339125271902179989777093709359638389338608753093290");             //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
+    c = a;                                                                                      //0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("115792089210356248762697446947946071893095522863849111501270640965525260206080");             //0b1111111111111111111111111111111100000000000000000000000000000000111111111111111111111111111111110000000000000000000000000000000011111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
+    c = a;                                                                                       //0b1111111111111111111111111111111100000000000000000000000000000000111111111111111111111111111111110000000000000000000000000000000011111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+    b = dap_chain_balance_scan("115792089237316195417293883273301227089774477609353836086800156426807153786880");              //0b1111111111111111111111111111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000000
+    c = a;
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(c));
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(c));
+
+
+
+}
+
+TEST(BitTests, CycleShifts) {
+    bmp::uint256_t boost_a(1);
+    uint256_t a = uint256_1;
+
+    for (int i = 0; i < 256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        LEFT_SHIFT_256(a, &a, 1);
+        boost_a <<= 1;
+    }
+
+    boost_a = 2;
+    a = dap_chain_balance_scan("2");
+
+    for (int i = 0; i < 256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        LEFT_SHIFT_256(a, &a, 1);
+        boost_a <<= 1;
+    }
+
+    boost_a = 3;
+    a = dap_chain_balance_scan("3");
+
+    for (int i = 0; i < 256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        LEFT_SHIFT_256(a, &a, 1);
+        boost_a <<= 1;
+    }
+
+    boost_a = 7;
+    a = dap_chain_balance_scan("7");
+
+    for (int i = 0; i < 256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        LEFT_SHIFT_256(a, &a, 1);
+        boost_a <<= 1;
+    }
+
+    boost_a = 9;
+    a = dap_chain_balance_scan("9");
+
+    for (int i = 0; i < 256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        LEFT_SHIFT_256(a, &a, 1);
+        boost_a <<= 1;
+    }
+
+    boost_a = bmp::uint256_t(MAX256STR);
+    a = dap_chain_balance_scan(MAX256STR);
+
+    for (int i = 0; i<256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        LEFT_SHIFT_256(a, &a, 1);
+        boost_a <<= 1;
+    }
+
+    boost_a = bmp::uint256_t(MAX256STR);
+    a = dap_chain_balance_scan(MAX256STR);
+
+    for (int i = 0; i<256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        RIGHT_SHIFT_256(a, &a, 1);
+        boost_a >>= 1;
+    }
+
+    boost_a = bmp::uint256_t("57896044618658097711785492504343953926634992332820282019728792003956564819968"); //0b10...0
+    a = dap_chain_balance_scan("57896044618658097711785492504343953926634992332820282019728792003956564819968");
+
+    for (int i = 0; i<256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        RIGHT_SHIFT_256(a, &a, 1);
+        boost_a >>= 1;
+    }
+
+    boost_a = bmp::uint256_t("86844066927987146567678238756515930889952488499230423029593188005934847229952"); //0b110...0
+    a = dap_chain_balance_scan("86844066927987146567678238756515930889952488499230423029593188005934847229952");
+
+    for (int i = 0; i<256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        RIGHT_SHIFT_256(a, &a, 1);
+        boost_a >>= 1;
+    }
+}
+
+TEST_F(RandomBitTests, RandomShift) {
+    bmp::uint256_t boost_a(gen256());
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+
+    for (int i = 0; i<256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        RIGHT_SHIFT_256(a, &a, 1);
+        boost_a >>= 1;
+    }
+
+    boost_a = bmp::uint256_t(gen128()); //only 128 bits
+    a = dap_chain_balance_scan(boost_a.str().c_str());
+
+    for (int i = 0; i<256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+        LEFT_SHIFT_256(a, &a, 1);
+        boost_a <<= 1;
+    }
+}
+
+TEST_F(RandomBitTests, RandomShiftNotOne) {
+    bmp::uint256_t boost_a(gen256());
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+
+    int sh = (int) gen128()%255;
+
+    LEFT_SHIFT_256(a, &a, sh);
+    boost_a <<= sh;
+
+    ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+
+    boost_a = bmp::uint256_t(gen256());
+    a = dap_chain_balance_scan(boost_a.str().c_str());
+
+    RIGHT_SHIFT_256(a, &a, sh);
+    boost_a >>= sh;
+
+    ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+}
+
+TEST_F(RandomBitTests, And) {
+    bmp::uint256_t boost_a(gen256());
+    bmp::uint256_t boost_b(gen256());
+
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+    uint256_t b = dap_chain_balance_scan(boost_b.str().c_str());
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), (boost_a & boost_b).str().c_str());
+}
+
+TEST_F(RandomBitTests, Or) {
+    bmp::uint256_t boost_a(gen256());
+    bmp::uint256_t boost_b(gen256());
+
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+    uint256_t b = dap_chain_balance_scan(boost_b.str().c_str());
+
+    ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), (boost_a | boost_b).str().c_str());
+}
+
+
+TEST_F(RandomBitTests, CiclycAnd) {
+    bmp::uint256_t boost_a(gen256());
+    bmp::uint256_t boost_b(gen256());
+
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+    uint256_t b = dap_chain_balance_scan(boost_b.str().c_str());
+
+    for (int i = 0; i<256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), (boost_a & boost_b).str().c_str());
+        RIGHT_SHIFT_256(a, &a, 1);
+        RIGHT_SHIFT_256(b, &b, 1);
+        boost_a >>= 1;
+        boost_b >>= 1;
+    }
+}
+
+TEST_F(RandomBitTests, CiclycOr) {
+    bmp::uint256_t boost_a(gen256());
+    bmp::uint256_t boost_b(gen256());
+
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+    uint256_t b = dap_chain_balance_scan(boost_b.str().c_str());
+
+    for (int i = 0; i<256; i++) {
+        ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), (boost_a | boost_b).str().c_str());
+        RIGHT_SHIFT_256(a, &a, 1);
+        RIGHT_SHIFT_256(b, &b, 1);
+        boost_a >>= 1;
+        boost_b >>= 1;
+    }
+}
+
+
 
 
 
