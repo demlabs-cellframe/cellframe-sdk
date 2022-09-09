@@ -1719,7 +1719,6 @@ int com_help(int argc, char ** argv, char **str_reply)
 /**
  * @brief com_tx_wallet
  * Wallet info
- * com_tx_create command
  * @param argc
  * @param argv
  * @param arg_func
@@ -4823,11 +4822,9 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         return -4;
     }
 
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-fee", &str_tmp)) {
+    // Validator's fee
+    if(dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-fee", &str_tmp))
         l_value_fee = dap_chain_balance_scan(str_tmp);
-    } else {
-        l_value_fee = dap_chain_net_calc_tx_fee(l_value);
-    }
 
     if(!l_from_wallet_name && !l_emission_hash_str) {
         dap_chain_node_cli_set_reply_text(str_reply, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");

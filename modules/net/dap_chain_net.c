@@ -2766,13 +2766,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     }
                 }
             } while (l_processed);
-
-            const char* l_default_chain_name = dap_config_get_item_str(l_cfg , "general" , "default_chain");
-            if(l_default_chain_name)
-                l_net->pub.default_chain = dap_chain_net_get_chain_by_name(l_net, l_default_chain_name);
-            else
-                l_net->pub.default_chain = NULL;
-
+            l_net->pub.native_ticker = dap_config_get_item_str(l_cfg , "general" , "native-ticker");
         } else {
             log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
             l_net_pvt->load_mode = false;
@@ -2806,7 +2800,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
                 for ( size_t i = 0; i< l_proc_chains_count ; i++){
                     dap_chain_id_t l_chain_id = {{0}};
-                    if(dap_sscanf( l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_X,  &l_chain_id.uint64) ==1 || dap_scanf("0x%16"DAP_UINT64_FORMAT_x,  &l_chain_id.uint64) == 1){
+                    if (dap_sscanf(l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_X,  &l_chain_id.uint64) == 1 ||
+                            dap_scanf("0x%16"DAP_UINT64_FORMAT_x,  &l_chain_id.uint64) == 1) {
                         dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
                         if ( l_chain ){
                             l_chain->is_datum_pool_proc = true;
@@ -2981,14 +2976,14 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
  * @param a_datum_type
  * @return
  */
-dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type)
+dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type)
 {
-    dap_chain_t * l_chain;
-
-    if(!l_net)
+    if (!a_net)
         return NULL;
-
-    DL_FOREACH(l_net->pub.chains, l_chain)
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, a_datum_type);
+    if (l_chain)
+        return l_chain;
+    DL_FOREACH(a_net->pub.chains, l_chain)
     {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
             if(l_chain->datum_types[i] == a_datum_type)
@@ -3025,19 +3020,12 @@ dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t * l_
  * @param a_datum_type
  * @return
  */
-char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type)
+char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type)
 {
-    dap_chain_t * l_chain;
-    if(!l_net)
+    if (!a_net)
         return NULL;
-    DL_FOREACH(l_net->pub.chains, l_chain)
-    {
-        for(int i = 0; i < l_chain->datum_types_count; i++) {
-            if(l_chain->datum_types[i] == a_datum_type)
-                return dap_chain_net_get_gdb_group_mempool(l_chain);
-        }
-    }
-    return NULL;
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, a_datum_type);
+    return l_chain ? dap_chain_net_get_gdb_group_mempool(l_chain) : NULL;
 }
 
 /**
@@ -3512,7 +3500,6 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
                        sizeof(l_decree->header));
                 break;
             }
-
 
             switch(l_decree->header.type){
                 case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{

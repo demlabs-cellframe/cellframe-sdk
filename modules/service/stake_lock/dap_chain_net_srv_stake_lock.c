@@ -447,7 +447,8 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
 	l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
 
-	if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx)))
+    if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,
+                                                                 &l_prev_cond_idx)))
 		return NO_TX_ERROR;
 
 	if (l_tx_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
