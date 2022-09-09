@@ -67,6 +67,7 @@ class RandomBitTests: public RandomTests {
 // TODO: need to split tests
 // TODO: need to add some tests to bit-logic, like 0b0101 & 0b1010 and 0b0101 | 0b1010
 // TODO: do we need to run random tests more than one? I think yes, but not in cycle. I think Google Tests can do this, need to implement
+// TODO: need to run tests without define DAP_GLOVAL_IS_INT128 (i.e on 32-bit system or with disabling this feature by hand
 
 
 
@@ -195,158 +196,201 @@ TEST(InputTests, NullInput) {
     EXPECT_EQ(nullinput.hi, 0);
 }
 
-TEST(InputTests, TooLongInput) {
+TEST(InputTests, TooLongInputSome) {
     //some decimal symbols more
     uint256_t a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791312963993123465");
-    //todo: check that this is logging
-    //todo: maybe we can use predicate for only one check?
+
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
 
+
+}
+
+TEST(InputTests, TooLongInputOne) {
     //one decimal symbol more
-    a = dap_chain_balance_scan("1157920892373161954235709850086879078532699846656405640394575840079131296399351");
+    uint256_t a = dap_chain_balance_scan("1157920892373161954235709850086879078532699846656405640394575840079131296399351");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
 }
 
-TEST(InputTests, OverflowTest) {
+TEST(InputTests, OverflowTestLeastBit) {
     //one bit more (like decimal 6 instead of decimal 5 on last symbol)
     uint256_t a = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639936");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
+}
 
+TEST(InputTests, OverflowTestsMostBit) {
     //2 instead of 1 one most-significant digit
-    a = dap_chain_balance_scan("215792089237316195423570985008687907853269984665640564039457584007913129639936");
+    uint256_t a = dap_chain_balance_scan("215792089237316195423570985008687907853269984665640564039457584007913129639936");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
-
 }
 
-TEST(InputTests, NonDigitSymbolsInput) {
+TEST(InputTests, NonDigitSymbolsInputHexadermical) {
     uint256_t a = dap_chain_balance_scan("123a23");
     //todo: check that this is logging
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
 
-    a = dap_chain_balance_scan("hhh123");
+}
 
-    EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, 0);
-
-    a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791312963993q");
+TEST(InputTests, NonDigitSymbolsInputNonHexadermicalLead) {
+    uint256_t a = dap_chain_balance_scan("hhh123");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
 }
 
-TEST(InputTests, LeadingZeroes) {
+TEST(InputTests, NonDigitSymbolsInputNonHexadermicalTail) {
+    uint256_t a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791312963993q");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+}
+
+
+TEST(InputTests, LeadingZeroesOne) {
     uint256_t a = dap_chain_balance_scan("01");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 1);
+}
 
-    a = dap_chain_balance_scan("0000000001");
-
-    EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, 1);
-
-    a = dap_chain_balance_scan("000000000000000000000000000000000000000000000000000000000000000000000000000001");
+TEST(InputTests, LeadingZeroesMany) {
+    uint256_t a = dap_chain_balance_scan("0000000001");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 1);
 }
 
-TEST(InputTests, ScientificInput) {
+TEST(InputTests, LeadingZeroesAlot) {
+    //exactly 78
+    uint256_t a = dap_chain_balance_scan("000000000000000000000000000000000000000000000000000000000000000000000000000001");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 1);
+}
+
+TEST(InputTests, ScientificInputSimplePlus) {
     uint256_t a = dap_chain_balance_scan("1.0e+10");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 10000000000);
+}
 
-    a = dap_chain_balance_scan("1.0e10");
-
-    EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, 10000000000);
-
-    a = dap_chain_balance_scan("1.0E+10");
-
+TEST(InputTests, ScientificInputSimple) {
+    uint256_t a = dap_chain_balance_scan("1.0e10");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 10000000000);
 
+}
+
+TEST(InputTests, ScientificInputSimpleCapital) {
+    uint256_t a = dap_chain_balance_scan("1.0E+10");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 10000000000);
+}
+
+TEST(DISABLED_InputTests, ScientificInputSimpleNotImportantZeroes) {
     //todo: turn this on, when we can handle this
 
-//    a = dap_chain_balance_scan("1.23456789000000e9");
-//
-//    EXPECT_EQ(a.hi, 0);
-//    EXPECT_EQ(a.lo, 1234567890);
+    uint256_t a = dap_chain_balance_scan("1.23456789000000e9");
 
-//    a = dap_chain_balance_scan("1.234000000000000000000000000000e+3");
-//
-//    EXPECT_EQ(a.hi, 0);
-//    EXPECT_EQ(a.lo, 1234);
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 1234567890);
+}
 
-    a = dap_chain_balance_scan("1.8446744073709551615e19");
+TEST(DISABLED_InputTests, ScientificInputSimpleNotImportantZeroesAtAll) {
+
+    uint256_t a = dap_chain_balance_scan("1.234000000000000000000000000000e+3");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 1234);
+}
+
+TEST(InputTests, ScientificInputSimpleMax64) {
+    uint256_t a = dap_chain_balance_scan("1.8446744073709551615e19");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0xffffffffffffffff);
+}
 
-    a = dap_chain_balance_scan("1.8446744073709551615e+19");
+TEST(InputTests, ScientificInputSimpleMax64Plus) {
+    uint256_t a = dap_chain_balance_scan("1.8446744073709551615e+19");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0xffffffffffffffff);
+}
 
-    a = dap_chain_balance_scan("1.8446744073709551616e19");
-
-    EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, bmp::uint256_t(MIN128STR));
-
-    a = dap_chain_balance_scan("1.8446744073709551616e+19");
+TEST(InputTests, ScientificInputSimpleMin128) {
+    uint256_t a = dap_chain_balance_scan("1.8446744073709551616e19");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, bmp::uint256_t(MIN128STR));
+}
 
-    a = dap_chain_balance_scan("3.40282366920938463463374607431768211455e38");
+TEST(InputTests, ScientificIncputSimpleMin128Plus) {
+    uint256_t a = dap_chain_balance_scan("1.8446744073709551616e+19");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, bmp::uint256_t(MIN128STR));
+}
+
+TEST(InputTests, ScientificInputSimple128Max) {
+    uint256_t a = dap_chain_balance_scan("3.40282366920938463463374607431768211455e38");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
+}
 
-    a = dap_chain_balance_scan("3.40282366920938463463374607431768211456e38");
+TEST(InputTests, ScientificInputSimple256Min) {
+    uint256_t a = dap_chain_balance_scan("3.40282366920938463463374607431768211456e38");
 
     EXPECT_EQ(a.hi, 1);
     EXPECT_EQ(a.lo, 0);
+}
 
-    a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639935e77");
-
-    EXPECT_EQ(a.hi, bmp::uint256_t(MAX128STR));
-    EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
-
-    a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
+TEST(InputTests, ScientificInputSimple256Max) {
+    uint256_t a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639935e77");
 
     EXPECT_EQ(a.hi, bmp::uint256_t(MAX128STR));
     EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
+}
 
+TEST(InputTests, ScientificInputSimple256MaxPlus) {
+    uint256_t a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
 
-    a = dap_chain_balance_scan("0.1e1");
+    EXPECT_EQ(a.hi, bmp::uint256_t(MAX128STR));
+    EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
+}
+
+TEST(InputTests, ScientificInputSimpleLessThanOne) {
+    uint256_t a = dap_chain_balance_scan("0.1e1");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 1);
+}
 
-    a = dap_chain_balance_scan("123.123e3");
+TEST(InputTests, ScientificInputSimpleMoreThanTwo) {
+    uint256_t a = dap_chain_balance_scan("123.123e3");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 123123);
+}
 
-    a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791.3129639935e10");
+TEST(InputTests, ScientificInputSimpleMaxAndMoreThanTwo) {
+    uint256_t a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791.3129639935e10");
 
     EXPECT_EQ(a.hi, bmp::uint256_t(MAX128STR));
     EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
-
-
 }
 
 TEST(InputTests, IncorrectScientificInput) {
@@ -1028,8 +1072,8 @@ TEST(BitTests, Decr128) {
 #ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(a, bmp::uint128_t(MAX128STR));
 #else
-    ASSERT_EQ(a.hi, 0);
-    ASSERT_EQ(a.lo, 1);
+    ASSERT_EQ(a.hi, 0xffffffffffffffff);
+    ASSERT_EQ(a.lo, 0xffffffffffffffff);
 #endif
 
     DECR_128(&a);
@@ -1037,13 +1081,14 @@ TEST(BitTests, Decr128) {
 #ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(a, bmp::uint128_t(MAX128STR)-1);
 #else
-    ASSERT_EQ(a.hi, 0);
-    ASSERT_EQ(a.lo, 2);
+    ASSERT_EQ(a.hi, 0xffffffffffffffff);
+    ASSERT_EQ(a.lo, 0xfffffffffffffffe);
 #endif
 
 #ifdef DAP_GLOBAL_IS_INT128
     a = 0xffffffffffffffff;
 #else
+    a.hi = 0;
     a.lo = 0xffffffffffffffff;
 #endif
 
@@ -1052,8 +1097,8 @@ TEST(BitTests, Decr128) {
 #ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(a, bmp::uint128_t(MAX64STR)-1);
 #else
-    ASSERT_EQ(a.hi, 1);
-    ASSERT_EQ(a.lo, 0);
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, 0xfffffffffffffffe);
 #endif
 
 //todo: implement 128MAX, overflowing
