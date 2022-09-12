@@ -924,7 +924,7 @@ static inline int fls128(uint128_t n) {
     }
     return 63 - nlz64(n.lo);
 }
-
+//todo: this should not be ander ifndef
 static inline void divmod_impl_128(uint128_t a_dividend, uint128_t a_divisor, uint128_t *a_quotient, uint128_t *a_remainder)
 {
     assert( compare128(a_divisor, uint128_0) ); // a_divisor != 0
