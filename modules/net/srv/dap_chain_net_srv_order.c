@@ -589,7 +589,6 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
 static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
                                    const char *a_key, const void *a_value, const size_t a_value_len)
 {
-    UNUSED(a_value_len);
     if (!a_arg || !a_key) {
         return;
     }
@@ -611,9 +610,10 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
                 dap_chain_global_db_gr_del( a_key, a_group);
             } else {
                 dap_sign_t *l_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
-                if (!dap_sign_verify_size(l_sign, a_value_len) ||
-                        dap_sign_verify(l_sign, l_order,
-                                        sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
+                size_t l_max_size = a_value_len - /* offsetof(dap_chain_net_srv_order_t, ext_n_sign) */ sizeof(dap_chain_net_srv_order_t) - l_order->ext_size;
+                int l_verify = dap_sign_verify_all(l_sign, l_max_size, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
+                if (l_verify) {
+                    log_it(L_ERROR, "Order unverified, err %d", l_verify);
                     dap_chain_global_db_gr_del( a_key, a_group);
                     DAP_DELETE(l_gdb_group_str);
                     return;

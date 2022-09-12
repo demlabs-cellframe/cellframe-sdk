@@ -99,7 +99,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
 static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
-static dap_timerfd_t *s_poa_round_timer = NULL; 
+static dap_interval_timer_t *s_poa_round_timer = NULL;
 
 /**
  * @brief
@@ -771,7 +771,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         uint16_t l_event_signs_count = a_event->header.signs_count;
         for (size_t i=0; i<l_signs_count; i++) {
             dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
-            if (!dap_sign_verify_size(l_sign, a_event_size)) {
+            if (!dap_sign_verify_size(l_sign, a_event_size - l_offset_from_beginning)) {
                 log_it(L_WARNING,"Incorrect size with event %p", a_event);
                 l_ret = -3;
                 break;

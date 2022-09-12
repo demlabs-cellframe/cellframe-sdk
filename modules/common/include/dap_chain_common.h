@@ -257,9 +257,7 @@ DAP_STATIC_INLINE uint64_t dap_chain_coins_to_datoshi(long double a_count)
 
 DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from)
 {
-    uint128_t l_ret = uint128_0;
-    ADD_64_INTO_128(a_from, &l_ret );
-    return l_ret;
+    return GET_128_FROM_64(a_from);
 }
 
 // 256
@@ -268,18 +266,12 @@ uint128_t dap_chain_uint128_from_uint256(uint256_t a_from);
 // 256
 DAP_STATIC_INLINE uint256_t dap_chain_uint256_from(uint64_t a_from)
 {
-    uint128_t l_temp_128 = uint128_0;
-    uint256_t l_ret_256 = uint256_0;
-    ADD_64_INTO_128(a_from, &l_temp_128);
-    ADD_128_INTO_256(l_temp_128, &l_ret_256);
-    return l_ret_256;
+    return GET_256_FROM_64(a_from);
 }
 
 DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
 {
-    uint256_t l_ret_256 = uint256_0;
-    ADD_128_INTO_256(a_from, &l_ret_256);
-    return l_ret_256;
+    return GET_256_FROM_128(a_from);
 }
 
 uint64_t dap_chain_uint128_to(uint128_t a_from);

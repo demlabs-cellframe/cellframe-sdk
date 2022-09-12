@@ -295,7 +295,7 @@ int dap_chain_global_db_init(dap_config_t * g_config)
     s_db_drvmode_async = dap_config_get_item_bool_default(g_config, "resources", "global_db_drvmode_async",false);
     log_it(L_NOTICE,"DB Driver Async mode: %s", s_db_drvmode_async ? "ON": "OFF");
 
-    s_dap_global_db_debug_more = dap_config_get_item_bool(g_config, "resources", "debug_more");
+    s_dap_global_db_debug_more = dap_config_get_item_bool_default(g_config, "resources", "debug_more", false);
 
 
     lock();

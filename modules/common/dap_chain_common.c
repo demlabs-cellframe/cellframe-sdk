@@ -734,6 +734,10 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
     int  l_strlen;
     char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC + 1];
 
+    if (!a_256bit_num) {
+        return log_it(L_ERROR, "NULL as an argument"), l_nul;
+    }
+
     /* Compute & check length */
     if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
         return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
@@ -824,7 +828,7 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 }
 
 
-uint256_t dap_chain_coins_to_balance(const char *a_coins)
+inline uint256_t dap_chain_coins_to_balance(const char *a_coins)
 {
     return  dap_chain_coins_to_balance256(a_coins);
     // return GET_256_FROM_128(dap_chain_coins_to_balance128(a_coins));
@@ -832,14 +836,14 @@ uint256_t dap_chain_coins_to_balance(const char *a_coins)
 
 
 
-char *dap_chain_balance_to_coins(uint256_t a_balance)
+inline char *dap_chain_balance_to_coins(uint256_t a_balance)
 {
     return dap_chain_balance_to_coins256(a_balance); /* @RRL */
     //return dap_chain_balance_to_coins128(a_balance.lo);
 }
 
 
-#define __NEW_STARLET__ "BMF"
+//#define __NEW_STARLET__ "BMF"
 #ifdef  __NEW_STARLET__
 
 

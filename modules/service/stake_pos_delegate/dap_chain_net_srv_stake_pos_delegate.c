@@ -41,6 +41,11 @@ static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_us
 static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 
+bool s_verificator_stake_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+                                                      dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+bool s_verificator_stake_updater_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+                                          dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+
 static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 
 /**
@@ -245,21 +250,6 @@ static bool s_stake_conditions_calc(dap_chain_tx_out_cond_t *a_cond, dap_chain_d
     return false;
 }
 
-bool dap_chain_net_srv_stake_pos_delegate_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
-{
-    if (!s_srv_stake) {
-        return false;
-    }
-    return s_stake_conditions_calc(a_cond, a_tx, a_owner, false);
-}
-
-bool dap_chain_net_srv_stake_updater(dap_ledger_t * a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
-{
-    if (!s_srv_stake) {
-        return false;
-    }
-    return s_stake_conditions_calc(a_cond, a_tx, a_owner, true);
-}
 
 bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr)
 {
@@ -585,11 +575,10 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     }
     dap_srv_stake_order_ext_t *l_ext = (dap_srv_stake_order_ext_t *)a_order->ext_n_sign;
     dap_sign_t *l_sign = (dap_sign_t *)(a_order->ext_n_sign + a_order->ext_size);
-    if (!dap_sign_verify_size(l_sign, dap_chain_net_srv_order_get_size(a_order)) ||
-            dap_sign_verify(l_sign, a_order, sizeof(dap_chain_net_srv_order_t) + a_order->ext_size) != 1) {
+    if (dap_sign_verify(l_sign, a_order, sizeof(dap_chain_net_srv_order_t) + a_order->ext_size) != 1) {
         log_it(L_WARNING, "Order sign is invalid");
         return NULL;
-    }
+    } /* no need to check size here */
     dap_hash_fast_t l_pkey_hash;
     dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
     dap_chain_addr_t l_cert_addr;
@@ -1287,4 +1276,33 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
         }
     }
     return 0;
+}
+
+bool s_verificator_stake_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+                                                      dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+{
+    UNUSED(a_tx_out_hash);
+    if (!s_srv_stake) {
+        return false;
+    }
+    return s_stake_conditions_calc(a_cond,a_tx_in, a_owner, false);
+}
+
+/**
+ * @brief s_verificator_stake_updater_callback
+ * @param a_ledger
+ * @param a_tx_out
+ * @param a_cond
+ * @param a_tx_in
+ * @param a_owner
+ * @return
+ */
+bool s_verificator_stake_updater_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+                                          dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+{
+    UNUSED(a_tx_out_hash);
+    if (!s_srv_stake) {
+        return false;
+    }
+    return s_stake_conditions_calc(a_cond, a_tx_in, a_owner, true);
 }

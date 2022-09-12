@@ -398,13 +398,13 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         case TX_ITEM_TYPE_OUT_COND: {
             char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value);
             char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value);
+            dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
             dap_string_append_printf(a_str_out, "\t OUT COND:\n"
                                                 "\t Header:\n"
                                                 "\t\t\t ts_expires: %s\t"
                                                 "\t\t\t value: %s (%s)\n"
-                                                "\t\t\t subtype: %s\n"
-                                                "\t\t SubType:\n",
-                                     dap_ctime_r((dap_time_t*)((dap_chain_tx_out_cond_t*)item)->header.ts_expires, l_tmp_buf),
+                                                "\t\t\t subtype: %s\n",
+                                     dap_ctime_r(&l_ts_exp, l_tmp_buf),
                                      l_coins_str,
                                      l_value_str,
                                      dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype));

@@ -310,8 +310,9 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_b
     }
     // Parse the rest signs
     size_t l_offset = (byte_t *)l_sign - a_block->meta_n_datum_n_sign;
+    size_t l_signs_section_size = a_block_size - dap_chain_block_get_sign_offset(a_block, a_block_size);
     while (l_offset < a_block_size - sizeof(a_block->hdr)) {
-        if (!dap_sign_verify_size(l_sign, a_block_size)) {
+        if (!dap_sign_verify_size(l_sign, l_signs_section_size)) {
             log_it(L_ERROR, "Corrupted block: sign size is bigger than block size");
             return -3;
         }

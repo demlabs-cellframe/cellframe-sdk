@@ -42,11 +42,23 @@
 // Create base tx for delegated token
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX			0x00000010
 
+/**
+ * @brief The cond_params struct thats placed in tx_cond->params[] section
+ */
+typedef struct		dap_chain_net_srv_stake_lock_cond_params{
+	dap_time_t		time_unlock;
+	uint32_t		flags;
+	uint8_t			reinvest_percent;
+	uint8_t			padding[7];
+	dap_hash_fast_t	token_delegated; // Delegate token
+	dap_hash_fast_t	pkey_delegated; // Delegate public key
+} DAP_ALIGN_PACKED	dap_chain_net_srv_stake_lock_cond_params_t;
 
 int 					dap_chain_net_srv_stake_lock_init(void);
 void					dap_chain_net_srv_stake_lock_deinit(void);
 
-bool					s_callback_verificator(dap_ledger_t *a_ledger,dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
+bool					s_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+							dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 bool					s_callback_verificator_added(dap_ledger_t *a_ledger,dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t *a_tx_item);
 
 // Create cond out
@@ -58,8 +70,9 @@ dap_chain_hash_fast_t	*dap_chain_net_srv_stake_lock_mempool_create(dap_chain_net
                                                                        dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
                                                                        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                                                        uint256_t a_value, dap_chain_net_srv_uid_t a_srv_uid,
-                                                                       dap_chain_addr_t *a_addr_holder, uint64_t a_time_staking,
-																	   uint8_t a_reinvest_percent, bool create_base_tx);
+                                                                       dap_chain_addr_t *a_addr_holder, dap_chain_t *a_chain,
+																	   uint64_t a_time_staking, uint8_t a_reinvest_percent,
+																	   bool create_base_tx);
 
 // Burning_tx_create
 dap_chain_datum_t		*dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
