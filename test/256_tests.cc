@@ -1120,6 +1120,162 @@ TEST(BitTests, Decr128) {
 //todo: implement 128MAX, overflowing
 }
 
+TEST(BitTests, Incr256One) {
+    uint256_t a = uint256_0;
+
+    INCR_256(&a);
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, 1);
+#else
+    //todo: i will not test it for now
+    ASSERT_EQ(a.c, 0);
+    ASSERT_EQ(a.d, 0);
+    ASSERT_EQ(a.a, 0);
+    ASSERT_EQ(a.b, 1);
+#endif
+
+
+}
+
+TEST(BitTest, Incr256Two) {
+    uint256_t a = uint256_1;
+
+    INCR_256(&a);
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, 2);
+#else
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, 2);
+#endif
+
+}
+
+TEST(BitTest, Incr256Max64) {
+    uint256_t a = dap_chain_balance_scan(MAX64STR);
+
+    INCR_256(&a);
+
+    ASSERT_EQ(a.hi, 0);
+    ASSERT_EQ(a.lo, bmp::uint128_t(MIN128STR));
+}
+
+
+TEST(BitTest, Incr256Min128) {
+    uint256_t a = dap_chain_balance_scan(MIN128STR);
+
+    INCR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MIN128STR)+1).str().c_str());
+}
+
+TEST(BitTest, Incr256Max128) {
+    uint256_t a = dap_chain_balance_scan(MAX128STR);
+
+    INCR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MAX128STR)+1).str().c_str());
+}
+
+TEST(BitTest, Incr256Min256) {
+    uint256_t a = dap_chain_balance_scan(MIN256STR);
+
+    INCR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MIN256STR)+1).str().c_str());
+}
+
+TEST(BitTest, Incr256Max256) {
+    uint256_t a = dap_chain_balance_scan(MAX256STR);
+
+    INCR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MAX256STR)+1).str().c_str());
+}
+
+TEST(BitTests, Decr256One) {
+    uint256_t a = uint256_0;
+
+    DECR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(0)-1).str().c_str());
+}
+
+TEST(BitTest, Decr256Two) {
+    uint256_t a = uint256_1;
+
+    DECR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(1)-1).str().c_str());
+
+}
+
+TEST(BitTest, Decr256Max64) {
+    uint256_t a = dap_chain_balance_scan(MAX64STR);
+
+    DECR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MAX64STR)-1).str().c_str());
+}
+
+
+TEST(BitTest, Decr256Min128) {
+    uint256_t a = dap_chain_balance_scan(MIN128STR);
+
+    DECR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MIN128STR)-1).str().c_str());
+}
+
+TEST(BitTest, Decr256Max128) {
+    uint256_t a = dap_chain_balance_scan(MAX128STR);
+
+    DECR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MAX128STR)-1).str().c_str());
+}
+
+TEST(BitTest, Decr256Min256) {
+    uint256_t a = dap_chain_balance_scan(MIN256STR);
+
+    DECR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MIN256STR)-1).str().c_str());
+}
+
+TEST(BitTest, Decr256Max256) {
+    uint256_t a = dap_chain_balance_scan(MAX256STR);
+
+    DECR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), (bmp::uint256_t(MAX256STR)-1).str().c_str());
+}
+
+TEST_F(RandomBitTests, Incr256) {
+    bmp::uint256_t boost_a(gen256());
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+
+    boost_a++;
+    INCR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+}
+
+TEST_F(RandomBitTests, Decr256) {
+    bmp::uint256_t boost_a(gen256());
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+
+    boost_a--;
+    DECR_256(&a);
+
+    ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
+}
+
+
+
 
 
 
