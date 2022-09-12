@@ -68,7 +68,7 @@ class RandomBitTests: public RandomTests {
 // TODO: need to add some tests to bit-logic, like 0b0101 & 0b1010 and 0b0101 | 0b1010
 // TODO: do we need to run random tests more than one? I think yes, but not in cycle. I think Google Tests can do this, need to implement
 // TODO: need to run tests without define DAP_GLOVAL_IS_INT128 (i.e on 32-bit system or with disabling this feature by hand
-
+// TODO: Add 64 and 128 tests for arithmetics
 
 
 //TODO: we need some tests with math-writing, like xxx.yyyyyE+zz, xxx.yyyye+zzz
@@ -1274,9 +1274,482 @@ TEST_F(RandomBitTests, Decr256) {
     ASSERT_STREQ(dap_chain_balance_print(a), boost_a.str().c_str());
 }
 
+//Straight to 256-bit, exclude 64 and 128 for now
+//we have some old tests, try to reimplement it here
+
+TEST(LegacyTests, Math) {
+    bmp::uint256_t i,j,k,l, msb_one=0x7fffffffffffffff, lsb_one=1, max_64=(std::numeric_limits<boost::uint64_t>::max)();
+    int density_constant=40000;
+    int density_index;
+
+    uint256_t dap_test_256_one=uint256_0, dap_test_256_two=uint256_0, dap_test_256_sum=uint256_0;
+
+    int overflow_flag;
+
+    bmp::uint128_t hi_64{"0xffffffffffffffff0000000000000000"};
+    bmp::uint128_t lo_64{"0x0000000000000000ffffffffffffffff"};
+    bmp::uint128_t max_128{"0xffffffffffffffffffffffffffffffff"};
+
+    bmp::uint128_t two_64{"0x000000000000000010000000000000000"};
 
 
 
+    bmp::uint256_t boost_two_64{"0x00000000000000000000000000000000010000000000000000"};
+    bmp::uint256_t boost_two_128{"0x0000000000000000100000000000000000000000000000000"};
+    bmp::uint256_t boost_two_192{"0x1000000000000000000000000000000000000000000000000"};
+
+
+
+    bmp::uint256_t boost_test_256_one;
+    bmp::uint256_t boost_test_256_two;
+    bmp::uint256_t boost_test_256_sum;
+
+    bmp::uint256_t boost_dap_256_comparison;
+
+    bmp::uint128_t boost_dap_64_128_comparison;
+
+    int error_counter_sum=0;
+    int error_counter_prod=0;
+    int verbose_output=0;
+
+    for (density_index = 0; density_index<density_constant; density_index+=1000){
+
+        i=density_index;
+        j=2*density_index;
+        k=3*density_index;
+        l=4*density_index;
+
+        //???
+//        dap_test_256_one = dap_chain_balance_scan((i + (j << 64) + (k << 128) + (l << 192)).str().c_str());
+
+
+
+        bmp::uint256_t boost_test_256_one_coeff_2_0=i;
+        bmp::uint256_t boost_test_256_one_coeff_2_64=j;
+        bmp::uint256_t boost_test_256_one_coeff_2_128=k;
+        bmp::uint256_t boost_test_256_one_coeff_2_192=l;
+
+
+
+        boost_test_256_one=boost_test_256_one_coeff_2_0 + boost_test_256_one_coeff_2_64*boost_two_64
+                           +boost_test_256_one_coeff_2_128*boost_two_128+boost_test_256_one_coeff_2_192*boost_two_192;
+
+        dap_test_256_one = dap_chain_balance_scan(boost_test_256_one.str().c_str());
+
+        i=max_64-(density_index+1);
+        j=max_64-2*(density_index+1);
+        k=max_64-3*(density_index+1);
+        l=max_64-4*(density_index+1);
+
+
+        bmp::uint256_t boost_test_256_two_coeff_2_0=i;
+        bmp::uint256_t boost_test_256_two_coeff_2_64=j;
+        bmp::uint256_t boost_test_256_two_coeff_2_128=k;
+        bmp::uint256_t boost_test_256_two_coeff_2_192=l;
+
+
+        boost_test_256_two=boost_test_256_two_coeff_2_0 + boost_test_256_two_coeff_2_64*boost_two_64
+                           +boost_test_256_two_coeff_2_128*boost_two_128+boost_test_256_two_coeff_2_192*boost_two_192;
+
+
+        dap_test_256_two = dap_chain_balance_scan(boost_test_256_two.str().c_str());
+
+
+//        add(boost_add_256, i, j);
+        overflow_flag=SUM_256_256(dap_test_256_one,dap_test_256_two,&dap_test_256_sum);
+//        boost_test_256_sum=add(boost_test_256_sum,boost_test_256_one,boost_test_256_two);
+        boost_test_256_sum = boost_test_256_one + boost_test_256_two;
+
+        ASSERT_STREQ(dap_chain_balance_print(dap_test_256_sum), boost_test_256_sum.str().c_str());
+
+
+        }
+
+
+
+
+}
+
+TEST(LegacyTests, Uint256) {
+    uint64_t i, j, k, l, msb_one = 0x7fffffffffffffff, lsb_one = 1, max_64 = (std::numeric_limits<boost::uint64_t>::max)();
+
+//    uint64_t  i, j;
+
+    int density_constant = 200;
+    int density_index = 0;
+    int division_enabled = 0;
+
+
+
+    uint128_t dap_test_128_shift = uint128_0;
+    uint128_t dap_test_128_one = uint128_0;
+    uint128_t dap_test_128_two = uint128_0;
+    uint128_t dap_test_128_sub = uint128_0;
+    uint256_t dap_test_256_one = uint256_0;
+    uint256_t dap_test_256_two = uint256_0;
+    uint256_t dap_test_256_sum = uint256_0;
+    uint256_t dap_test_256_sub = uint256_0;
+    uint256_t dap_test_256_prod = uint256_0;
+    uint256_t dap_test_256_shift = uint256_0;
+    uint512_t dap_test_512_prod = uint512_0;
+
+    int overflow_flag;
+    int overflow_flag_prod;
+    int borrow_flag_128;
+    int borrow_flag_256;
+    int testing_mode = 0;
+
+
+    boost::multiprecision::uint128_t hi_64{"0xffffffffffffffff0000000000000000"};
+    boost::multiprecision::uint128_t lo_64{"0x0000000000000000ffffffffffffffff"};
+    boost::multiprecision::uint128_t max_128{"0xffffffffffffffffffffffffffffffff"};
+    boost::multiprecision::uint128_t two_64{"0x000000000000000010000000000000000"};
+
+    boost::multiprecision::uint256_t boost_two_64{"0x00000000000000000000000000000000010000000000000000"};
+    boost::multiprecision::uint256_t boost_two_128{"0x0000000000000000100000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_two_192{"0x1000000000000000000000000000000000000000000000000"};
+
+    boost::multiprecision::uint512_t boost_two_64_for_512_calc{"0x00000000000000000000000000000000010000000000000000"};
+    boost::multiprecision::uint512_t boost_two_128_for_512_calc{"0x0000000000000000100000000000000000000000000000000"};
+    boost::multiprecision::uint512_t boost_two_192_for_512_calc{"0x1000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint512_t boost_two_256_for_512_calc{"0x000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000"};
+
+    boost::multiprecision::uint512_t boost_two_320_for_512_calc{"0x100000000000000000000000000000000000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint512_t boost_two_384_for_512_calc{"0x1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint512_t boost_two_448_for_512_calc{"0x10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"};
+
+    boost::multiprecision::uint128_t boost_two_64_for_128_calc{"0x000000000000000010000000000000000"};
+
+
+
+
+    boost::multiprecision::uint256_t boost_test_256_one{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_test_256_two{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_test_256_sum{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_test_256_sub{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_test_256_prod{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_test_512_prod_hi_prod{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_test_512_prod_lo_prod{"0x0000000000000000000000000000000000000000000000000"};
+
+
+    boost::multiprecision::uint512_t boost_test_2_256_quotient{"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint512_t boost_test_2_256_remainder{"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint512_t boost_test_512_prod{"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"};
+
+    boost::multiprecision::uint128_t boost_test_128_one{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_128_two{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_128_sub{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_256_one_lo{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_256_one_hi{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_256_two_lo{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_256_two_hi{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_dap_64_128_comparison{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_shift_left_128{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_shift_left_128_quotient_limb{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_shift_left_128_remainder_limb{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_dap_comparison_shift_left_128{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_test_64_128_prod{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_dap_128_prod_comparison{"0x000000000000000000000000000000000"};
+    boost::multiprecision::uint128_t boost_dap_128_comparison_sub{"0x000000000000000000000000000000000"};
+
+    boost::multiprecision::uint256_t boost_dap_256_comparison{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_dap_256_comparison_sub{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_dap_256_comparison_prod{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_test_shift_left_256{"0x0000000000000000000000000000000000000000000000000"};
+    boost::multiprecision::uint256_t boost_dap_comparison_shift_left_256{"0x0000000000000000000000000000000000000000000000000"};
+
+    boost::multiprecision::uint512_t boost_dap_512_comparison_prod{"0x0"};
+
+    int error_counter_sum=0;
+    int error_counter_prod=0;
+    int error_counter_sub_128=0;
+    int error_counter_sub_256=0;
+    int error_counter_prod_128_128=0;
+    int error_counter_prod_128_256=0;
+    int error_counter_prod_256_256=0;
+    int error_counter_prod_256_512=0;
+    int error_counter_shift_left_128=0;
+    int error_counter_shift_left_256=0;
+    int error_counter_quot_128=0;
+
+
+    for (density_index = 0; density_index < density_constant; density_index += 1) {
+        /////////////////////output of 256+256-->256//////////////////////
+
+        i=density_index;
+        j=2*density_index;
+        k=3*density_index;
+        l=4*density_index;
+
+
+
+
+        boost::multiprecision::uint256_t boost_test_256_one_coeff_2_0=i;
+        boost::multiprecision::uint256_t boost_test_256_one_coeff_2_64=j;
+        boost::multiprecision::uint256_t boost_test_256_one_coeff_2_128=k;
+        boost::multiprecision::uint256_t boost_test_256_one_coeff_2_192=l;
+
+
+
+        boost_test_256_one=boost_test_256_one_coeff_2_0 + boost_test_256_one_coeff_2_64*boost_two_64
+                           +boost_test_256_one_coeff_2_128*boost_two_128+boost_test_256_one_coeff_2_192*boost_two_192;
+
+        dap_test_256_one = dap_chain_balance_scan(boost_test_256_one.str().c_str());
+//        boost_test_256_one_hi=boost_test_256_one_coeff_2_128+boost_two_64*boost_test_256_one_coeff_2_192;
+//        boost_test_256_one_lo=boost_test_256_one_coeff_2_0+boost_test_256_one_coeff_2_64*boost_two_64;
+
+        i=max_64-(density_index+1);
+        j=max_64-2*(density_index+1);
+        k=max_64-3*(density_index+1);
+        l=max_64-4*(density_index+1);
+
+
+
+        boost::multiprecision::uint256_t boost_test_256_two_coeff_2_0=i;
+        boost::multiprecision::uint256_t boost_test_256_two_coeff_2_64=j;
+        boost::multiprecision::uint256_t boost_test_256_two_coeff_2_128=k;
+        boost::multiprecision::uint256_t boost_test_256_two_coeff_2_192=l;
+
+
+        boost_test_256_two=boost_test_256_two_coeff_2_0 + boost_test_256_two_coeff_2_64*boost_two_64
+                           +boost_test_256_two_coeff_2_128*boost_two_128+boost_test_256_two_coeff_2_192*boost_two_192;
+
+        dap_test_256_two = dap_chain_balance_scan(boost_test_256_two.str().c_str());
+        overflow_flag=SUM_256_256(dap_test_256_one,dap_test_256_two,&dap_test_256_sum);
+        boost_test_256_sum = boost_test_256_one + boost_test_256_two;
+
+        ASSERT_STREQ(dap_chain_balance_print(dap_test_256_sum), boost_test_256_sum.str().c_str()) << "incorrect output for density index=" << density_index;
+
+
+
+        ///256 bit subtraction
+
+        borrow_flag_256=SUBTRACT_256_256(dap_test_256_two,dap_test_256_one,&dap_test_256_sub);
+        boost_test_256_sub = boost_test_256_two - boost_test_256_one;
+
+        ASSERT_STREQ(dap_chain_balance_print(dap_test_256_sub), boost_test_256_sub.str().c_str()) << "incorrect output for density index=" << density_index;
+
+
+        /////////////////////output of 256*256-->256//////////////////////
+
+        overflow_flag_prod=MULT_256_256(dap_test_256_one,dap_test_256_two,&dap_test_256_prod);
+
+        boost_test_256_prod = (boost_test_256_one * boost_test_256_two);
+
+        ASSERT_STREQ(dap_chain_balance_print(dap_test_256_prod), boost_test_256_prod.str().c_str()) << "incorrect output for density index=" << density_index;
+
+
+//        multiply(boost_test_256_prod,boost_test_256_one,boost_test_256_two);
+//        multiply(boost_test_512_prod,boost_test_256_one,boost_test_256_two);
+////        multiply(boost_test_512_prod_hi_prod,boost_test_256_one_hi,boost_test_256_two_hi);
+////        multiply(boost_test_512_prod_lo_prod,boost_test_256_one_lo,boost_test_256_two_lo);
+//        divide_qr(boost_test_512_prod,boost_two_256_for_512_calc,boost_test_2_256_quotient,boost_test_2_256_remainder);
+//
+//        boost_dap_256_comparison_prod=dap_test_256_prod.lo.lo+dap_test_256_prod.lo.hi*boost_two_64+
+//                                      dap_test_256_prod.hi.lo*boost_two_128+dap_test_256_prod.hi.hi*boost_two_192;
+
+
+        /////////////////////output of 256*256-->512//////////////////////
+        dap_test_512_prod = uint512_0;
+
+        uint256_t intermed_lo_prod;
+        uint256_t intermed_hi_prod;
+
+        MULT_256_512(dap_test_256_one,dap_test_256_two,&dap_test_512_prod);
+
+
+        boost_dap_512_comparison_prod = boost_test_256_one * boost_test_256_two;
+
+        char buf[512] = {0};
+
+        //todo: Implement comparition for 512
+
+
+        /////////////////////output of shift left 128/////////////////////
+
+        if (density_index<=127){
+#ifdef DAP_GLOBAL_IS_INT128
+            dap_test_128_one=dap_test_256_one.lo;
+            LEFT_SHIFT_128(dap_test_128_one,&dap_test_128_shift,density_index);
+
+
+
+            boost_test_128_one=dap_test_128_one+dap_test_128_one*boost_two_64_for_128_calc;
+            boost_test_shift_left_128=boost_test_128_one<<density_index;
+            boost_dap_comparison_shift_left_128=dap_test_128_shift+dap_test_128_shift*boost_two_64_for_128_calc;
+
+            divide_qr(boost_test_shift_left_128,boost_two_64_for_128_calc,boost_test_shift_left_128_quotient_limb,boost_test_shift_left_128_remainder_limb);
+
+            ASSERT_EQ(boost_dap_comparison_shift_left_128, boost_test_shift_left_128) << "incorrect shift left 128 output for density index=" << density_index;
+
+#else
+            //todo: not implemented
+#endif
+        }
+        /////////////////////output of shift left 256/////////////////////
+
+        if (density_index<=255){
+#ifdef DAP_GLOBAL_IS_INT128
+            LEFT_SHIFT_256(dap_test_256_one,&dap_test_256_shift,density_index);
+
+            boost_test_256_one=boost_test_256_one_coeff_2_0 + boost_test_256_one_coeff_2_64*boost_two_64
+                               +boost_test_256_one_coeff_2_128*boost_two_128+boost_test_256_one_coeff_2_192*boost_two_192;
+            boost_test_shift_left_256=boost_test_256_one<<density_index;
+            boost_dap_comparison_shift_left_256=dap_test_256_shift.lo+
+                                                dap_test_256_shift.hi*boost_two_128;
+
+            ASSERT_EQ(boost_dap_comparison_shift_left_256, boost_test_shift_left_256) << "incorrect shift left 128 output for density index=" << density_index;
+
+
+
+
+#else
+            //todo: not implemented
+#endif
+        }
+
+        /////////////////////output of 64*64-->128////////////////////////
+
+
+        i=density_index;
+        j=max_64-(density_index+1);
+        uint128_t dap_test_64_128_prod;
+        dap_test_64_128_prod=0;
+
+
+
+        boost_test_64_128_prod = bmp::uint128_t(i) * bmp::uint128_t(j);
+
+
+        MULT_64_128(i,j,&dap_test_64_128_prod);
+        boost_dap_128_prod_comparison=dap_test_64_128_prod;
+
+        ASSERT_EQ(boost_dap_128_prod_comparison, boost_test_64_128_prod);
+
+
+        ///////////////////output of 128*128-->128////////////////////////
+
+        uint128_t dap_test_128_128_prod_one;
+        uint128_t dap_test_128_128_prod_two;
+        uint128_t dap_test_128_128_prod_prod;
+
+//        dap_test_128_128_prod_one = i + ((uint128_t) j << 64);
+//        dap_test_128_128_prod_two = max_64-(i+1) + (((uint128_t) max_64 - (i+1) +  max_64-2*(j+1)) << 64);
+//        dap_test_128_128_prod_prod = uint128_0;
+
+
+
+        boost::multiprecision::uint128_t boost_test_128_128_prod;
+        boost::multiprecision::uint128_t boost_test_128_128_one;
+        boost::multiprecision::uint128_t boost_test_128_128_two;
+        boost::multiprecision::uint128_t boost_dap_128_128_prod_comparison;
+
+        ////compute boost "factors"
+        boost_test_128_128_one=i+j*boost_two_64_for_128_calc;
+        boost_test_128_128_two=max_64-(i+1)+(max_64-2*(j+1))*boost_two_64_for_128_calc;
+
+        dap_test_128_128_prod_one = dap_chain_balance_scan(boost_test_128_128_one.str().c_str()).lo;
+        dap_test_128_128_prod_two = dap_chain_balance_scan(boost_test_128_128_two.str().c_str()).lo;
+
+
+        multiply(boost_test_128_128_prod, boost_test_128_128_one, boost_test_128_128_two);
+        MULT_128_128(dap_test_128_128_prod_one,dap_test_128_128_prod_two,&dap_test_128_128_prod_prod);
+        boost_dap_128_128_prod_comparison=dap_test_128_128_prod_prod;
+
+        ASSERT_EQ(bmp::uint128_t(dap_test_128_128_prod_prod), boost_test_128_128_prod) << boost_test_128_128_one << " * " << boost_test_128_128_two;
+
+
+        ///128 bit subtraction
+
+        dap_test_128_one = dap_chain_balance_scan(boost_test_128_one.str().c_str()).lo;
+        dap_test_128_two = dap_chain_balance_scan(boost_test_128_two.str().c_str()).lo;
+
+        borrow_flag_128=SUBTRACT_128_128(dap_test_128_one,dap_test_128_two,&dap_test_128_sub);
+        subtract(boost_test_128_sub,boost_test_128_one,boost_test_128_two);
+
+        boost_dap_128_comparison_sub=dap_test_128_sub;
+
+        ASSERT_EQ(bmp::uint128_t(dap_test_128_sub), boost_test_128_sub) <<
+        boost_test_128_one << " - " << boost_test_128_two << " VS "
+        << dap_chain_balance_print({0, dap_test_128_one}) << " - " << dap_chain_balance_print({0, dap_test_128_two});
+
+
+
+
+
+
+
+        /////////////////////output of 128*128-->256////////////////////////
+
+
+        uint128_t dap_test_128_256_prod_one;
+        uint128_t dap_test_128_256_prod_two;
+        uint256_t dap_test_128_256_prod_prod;
+//        dap_test_128_256_prod_one.lo=i;
+//        dap_test_128_256_prod_one.hi=j;
+//        dap_test_128_256_prod_two.lo=max_64-(i+1);
+//        dap_test_128_256_prod_two.hi=max_64-2*(j+1);
+//        dap_test_128_256_prod_prod.lo=zero_128;
+//        dap_test_128_256_prod_prod.hi=zero_128;
+
+        boost::multiprecision::uint256_t boost_test_128_256_prod;
+        boost::multiprecision::uint128_t boost_test_128_256_one;
+        boost::multiprecision::uint128_t boost_test_128_256_two;
+        boost::multiprecision::uint256_t boost_dap_128_256_prod_comparison;
+
+        ////compute boost "factors"
+        boost_test_128_256_one=i+j*boost_two_64_for_128_calc;
+        boost_test_128_256_two=(max_64-(i+1))+(max_64-2*(j+1))*boost_two_64_for_128_calc;
+
+        dap_test_128_256_prod_one = dap_chain_balance_scan(boost_test_128_256_one.str().c_str()).lo;
+        dap_test_128_256_prod_two = dap_chain_balance_scan(boost_test_128_256_two.str().c_str()).lo;
+
+        multiply(boost_test_128_256_prod, boost_test_128_256_one, boost_test_128_256_two);
+        MULT_128_256(dap_test_128_256_prod_one,dap_test_128_256_prod_two,&dap_test_128_256_prod_prod);
+
+        ASSERT_EQ(bmp::uint256_t(dap_chain_balance_print(dap_test_128_256_prod_prod)), boost_test_128_256_prod) << boost_test_128_256_one << " * " << boost_test_128_256_two;
+
+
+
+    // todo: uncomment this when divmod_impl_128 will be implemented without ifdef
+//        /////////////////////output of 128/128-->128////////////////////////
+//        if(division_enabled==1){
+//
+//            i=density_index+1;
+//            j=density_index+2;
+//            uint128_t dap_test_128_quot_one;
+//            uint128_t dap_test_128_quot_two;
+//            uint128_t dap_test_128_quot_quot;
+//            uint128_t dap_test_128_quot_rem;
+//
+//
+//            boost::multiprecision::uint128_t boost_test_128_quot_one;
+//            boost::multiprecision::uint128_t boost_test_128_quot_two;
+//            boost::multiprecision::uint128_t boost_test_128_quot_quot;
+//            boost::multiprecision::uint128_t boost_test_128_quot_rem;
+//            boost::multiprecision::uint128_t boost_dap_128_quot_comparison_quot;
+//            boost::multiprecision::uint128_t boost_dap_128_quot_comparison_rem;
+//
+//            ////compute boost "factors"
+//            boost_test_128_quot_one=i+j*boost_two_64_for_128_calc;
+//            boost_test_128_quot_two=(max_64-(i+1))+(max_64-2*(j+1))*boost_two_64_for_128_calc;
+//
+//            dap_test_128_quot_one = dap_chain_balance_scan(boost_test_128_quot_one.str().c_str()).lo;
+//            dap_test_128_quot_two = dap_chain_balance_scan(boost_test_128_quot_two.str().c_str()).lo;
+//
+//            divide_qr( boost_test_128_quot_two, boost_test_128_quot_one,boost_test_128_quot_quot,boost_test_128_quot_rem);
+//            divmod_impl_128(dap_test_128_quot_one,dap_test_128_quot_two,&dap_test_128_quot_quot, &dap_test_128_quot_rem);
+//
+//
+//            ASSERT_EQ(bmp::uint256_t(dap_test_128_quot_quot), boost_test_128_quot_quot) << boost_test_128_quot_two << " / " << boost_test_128_quot_one;
+//            ASSERT_EQ(bmp::uint256_t(dap_test_128_quot_rem), boost_test_128_quot_rem) << boost_test_128_quot_two << " % " << boost_test_128_quot_one;
+//
+//
+//        }
+
+
+    }
+}
 
 
 //TEST(BoostTest, BasicSum) {
