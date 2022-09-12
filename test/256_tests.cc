@@ -393,72 +393,81 @@ TEST(InputTests, ScientificInputSimpleMaxAndMoreThanTwo) {
     EXPECT_EQ(a.lo, bmp::uint256_t(MAX128STR));
 }
 
-TEST(InputTests, IncorrectScientificInput) {
+TEST(InputTests, IncorrectScientificInputMorePluses) {
     uint256_t a = dap_chain_balance_scan("1.0E+++10");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
+}
 
-    a = dap_chain_balance_scan("1.0EEE+10");
-
-    EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, 0);
-
-    a = dap_chain_balance_scan("1.1.1e3");
-
-    EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, 0);
-
-    // with fraction part
-    a = dap_chain_balance_scan("1.123e2");
+TEST(InputTests, IncorrectScientificInputMoreExps) {
+    uint256_t a = dap_chain_balance_scan("1.0EEE+10");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
 
 }
 
-TEST(InputTests, TooLongScientificInput) {
+TEST(InputTests, IncorrectScientificInputMoreDots) {
+    uint256_t a = dap_chain_balance_scan("1.1.1e3");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+}
+
+TEST(InputTests, IncorrectScientificInputFractionPart){
+    // with fraction part
+    uint256_t a = dap_chain_balance_scan("1.123e2");
+
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
+}
+
+TEST(InputTests, TooLongScientificInputOneSymb) {
     //one symbol more
     uint256_t a = dap_chain_balance_scan("1.157920892373161954235709850086879078532699846656405640394575840079131296399356e+78");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
+}
 
+TEST(InputTests, TooLongScientificInputTenSymbs) {
     //ten symbols more
-    a = dap_chain_balance_scan("1.157920892373161954235709850086879078532699846656405640394575840079131296399351234567890e+88");
+    uint256_t a = dap_chain_balance_scan("1.157920892373161954235709850086879078532699846656405640394575840079131296399351234567890e+88");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
-
-
-
 }
 
-TEST(InputTests, OverflowScientificInput) {
+
+//todo: make some more tests for better coverage (see coverage on dap_chain_balance_scan)
+TEST(InputTests, OverflowScientificInputBigExp) {
      uint256_t a = dap_chain_balance_scan("1.0e100");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
+}
 
-
+TEST(InputTests, OverflowScientificInputOneBit) {
     //last symb changed
-    a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639936e+77");
+    uint256_t a = dap_chain_balance_scan("1.15792089237316195423570985008687907853269984665640564039457584007913129639936e+77");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
+}
 
-    a = dap_chain_balance_scan("1.25792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
-
-    EXPECT_EQ(a.hi, 0);
-    EXPECT_EQ(a.lo, 0);
-
-    a = dap_chain_balance_scan("2.15792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
+TEST(InputTest, OverflowScientificInputHighBit) {
+    uint256_t a = dap_chain_balance_scan("1.25792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
 
     EXPECT_EQ(a.hi, 0);
     EXPECT_EQ(a.lo, 0);
+}
 
-    //todo: make some more tests for better coverage (see coverage on dap_chain_balance_scan)
+TEST(InputTests, OverflowScientificInputHighBit2) {
+    uint256_t a = dap_chain_balance_scan("2.15792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
 
+    EXPECT_EQ(a.hi, 0);
+    EXPECT_EQ(a.lo, 0);
 }
 
 TEST_F(DISABLED_RandomInputTestsCoins, CoinsBase) {
@@ -551,7 +560,7 @@ TEST_F(RandomInputTests, Input256) {
     ASSERT_EQ(a.lo, boost_a & bmp::uint256_t("0xffffffffffffffffffffffffffffffff"));
 }
 
-TEST(ComparisonTests, Equal128) {
+TEST(ComparisonTests, Equal128Eq) {
     uint128_t a, b;
 
     a = GET_128_FROM_64(0);
@@ -559,9 +568,16 @@ TEST(ComparisonTests, Equal128) {
 
     ASSERT_TRUE(EQUAL_128(a, b));
 
+}
+
+TEST(ComparisonTests, Equal128Neq) {
+    uint128_t a, b;
+
     a = GET_128_FROM_64(1);
+    b = GET_128_FROM_64(0);
 
     ASSERT_FALSE(EQUAL_128(a, b));
+
 }
 
 
