@@ -3570,7 +3570,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     if(l_chain_base_tx_str && no_base_tx < 0) {
         if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
+                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file\n"
+					"but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
 			DAP_DEL_Z(l_addr);
             return -47;
         }
@@ -3578,7 +3579,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     } else if (no_base_tx < 0) {
 		if((l_chain_base_tx = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)) == NULL) { // Can't find such chain
 			dap_chain_node_cli_set_reply_text(a_str_reply,
-						"token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
+						"token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file\n"
+						"but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
 			DAP_DEL_Z(l_addr);
 			return -47;
 		}
