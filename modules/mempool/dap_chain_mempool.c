@@ -125,7 +125,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     if (l_single_channel)
-        SUM_256_256(a_value, l_total_fee, &l_value_need);
+        SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else {
         l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, l_native_ticker,
                                                                     a_addr_from, l_total_fee, &l_fee_transfer);

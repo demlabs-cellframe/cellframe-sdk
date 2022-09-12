@@ -38,6 +38,7 @@ typedef struct dap_chain_net_srv_xchange_price {
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t datoshi_buy;
     uint256_t rate;
+    uint256_t fee;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
     dap_enc_key_t *wallet_key;

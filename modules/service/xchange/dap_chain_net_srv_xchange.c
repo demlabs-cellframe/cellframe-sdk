@@ -57,11 +57,10 @@ enum tsd_type{
     TSD_FEE_ADDR = 0x0003,
 };
 
-static struct net_fee
-{
+static struct net_fee {
     dap_chain_net_id_t net_id;
-
-    // Network fee
+    // Sevice fee
+    char fee_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t fee_percents;
     uint256_t fee_fixed;
     dap_chain_addr_t fee_addr; // Addr collector
@@ -99,7 +98,8 @@ int dap_chain_net_srv_xchange_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
 
-    "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -wallet <wallet_name> -coins <value> -rate <value>\n"
+    "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -wallet <wallet_name>"
+                                            " -coins <value> -rate <value> -fee <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
     "srv_xchange order remove -net <net_name> -order <order_hash> -wallet <wallet_name>\n"
          "\tRemove order with specified order hash in specified net name\n"
@@ -352,28 +352,44 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     if (!a_price || !a_price->net || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
         return NULL;
     }
-
-    // create empty transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
-
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_price->net->pub.name);
+    const char *l_native_ticker = a_price->net->pub.native_ticker;
+    bool l_single_channel = !dap_strcmp(a_price->token_sell, l_native_ticker);
+    // find the transactions from which to take away coins
+    uint256_t l_value_transfer = {}; // how many coins to transfer
+    uint256_t l_value_need = a_price->datoshi_sell, l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
+    dap_chain_addr_t l_addr_fee = {};
+    dap_list_t *l_list_fee_out = NULL;
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, &l_net_fee, &l_addr_fee);
+    SUM_256_256(l_net_fee, a_price->fee, &l_total_fee);
+    if (l_single_channel)
+        SUM_256_256(l_value_need, l_total_fee, &l_value_need);
+    else {
+        l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, l_native_ticker,
+                                                                    a_addr_from, l_total_fee, &l_fee_transfer);
+        if (!l_list_fee_out) {
+            log_it(L_WARNING, "Not enough funds to pay fee");
+            return NULL;
+        }
+    }
+    dap_ledger_t *l_ledger = a_price->net->pub.ledger;
     dap_chain_addr_t *l_seller_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_price->net->pub.id);
     dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
-    uint256_t l_value_sell = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
-                                                                             l_seller_addr, a_price->datoshi_sell, &l_value_sell);
+                                                                             l_seller_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
-        dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_seller_addr);
         log_it(L_WARNING, "Nothing to change (not enough funds)");
         return NULL;
     }
 
+    // create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, free);
-    if (compare256(l_value_to_items, l_value_sell) != 0) {
+    if (compare256(l_value_to_items, l_value_transfer) != 0) {
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_seller_addr);
         log_it(L_ERROR, "Can't compose the transaction input");
@@ -398,7 +414,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         DAP_DELETE(l_tx_out);
         // coin back
         uint256_t l_value_back = {};
-        SUBTRACT_256_256(l_value_sell, a_price->datoshi_sell, &l_value_back);
+        SUBTRACT_256_256(l_value_transfer, a_price->datoshi_sell, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if (dap_chain_datum_tx_add_out_item(&l_tx, l_seller_addr, l_value_back) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
@@ -815,7 +831,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             uint256_t l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
             if (IS_ZERO_256(l_datoshi_sell)) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned integer 256>");
                 return -9;
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
@@ -824,9 +840,20 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -8;
             }
             uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
-            if (!compare256(l_rate, uint256_0)) { // if (l_rate == 0)
+            if (!compare256(l_rate, uint256_0)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
                 return -9;
+            }
+            const char *l_fee_str = NULL;
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
+            if (!l_fee_str) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -fee");
+                return -20;
+            }
+            uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
+            if (!IS_ZERO_256(l_fee)) {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Format -fee <unsigned integer 256>");
+                return -21;
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
             if (!l_wallet_str) {
@@ -839,7 +866,22 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -11;
             }
             uint256_t l_value = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_sell_str);
-            if (compare256(l_value, l_datoshi_sell) == -1) {
+            uint256_t l_value_sell = l_datoshi_sell;
+            if (!dap_strcmp(l_net->pub.native_ticker, l_token_sell_str)) {
+                if (SUM_256_256(l_value_sell, l_fee, &l_value_sell)) {
+                    dap_chain_wallet_close(l_wallet);
+                    log_it(L_ERROR, "Integer overflow with sum of value and fee");
+                    return -22;
+                }
+            } else { // sell non-native ticker
+                uint256_t l_fee_value = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_net->pub.native_ticker);
+                if (compare256(l_fee_value, l_fee) == -1) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Not enough cash for fee in specified wallet");
+                    dap_chain_wallet_close(l_wallet);
+                    return -23;
+                }
+            }
+            if (compare256(l_value, l_value_sell) == -1) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Not enough cash in specified wallet");
                 dap_chain_wallet_close(l_wallet);
                 return -12;
@@ -852,6 +894,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             dap_stpcpy(l_price->token_buy, l_token_buy_str);
             l_price->datoshi_sell = l_datoshi_sell;
             l_price->rate = l_rate;
+            l_price->fee = l_fee;
             // Create conditional transaction
             dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, l_wallet);
             if (!l_tx) {
