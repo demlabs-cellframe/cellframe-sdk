@@ -1108,7 +1108,7 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     if (s_timers_count++ == 0) {
 		pthread_rwlock_init(&s_timers_rwlock, NULL);
     }
-	pthread_rwlock_rdlock(&s_timers_rwlock);
+	pthread_rwlock_wrlock(&s_timers_rwlock);
 
     dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
     dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
@@ -1120,7 +1120,7 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     if (s_timers_count++ == 0) {
         pthread_rwlock_init(&s_timers_rwlock, NULL);
     }
-	pthread_rwlock_rdlock(&s_timers_rwlock);
+	pthread_rwlock_wrlock(&s_timers_rwlock);
 
     timer_t l_timer;
     struct sigevent l_sig_event = { };
