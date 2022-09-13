@@ -3259,7 +3259,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
 				strcpy(l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
 //				l_tsd_section.token_from = dap_hash_fast();
-				l_tsd_section.emission_rate = dap_chain_coins_to_balance("1.0");//TODO: ???
+				l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.001");//	TODO: 'm' 1:1000 tokens
 				dap_tsd_t * l_tsd = dap_tsd_create_scalar(
 														DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
 				l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
@@ -3570,7 +3570,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     if(l_chain_base_tx_str && no_base_tx < 0) {
         if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
+                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file\n"
+					"but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
 			DAP_DEL_Z(l_addr);
             return -47;
         }
@@ -3578,7 +3579,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     } else if (no_base_tx < 0) {
 		if((l_chain_base_tx = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)) == NULL) { // Can't find such chain
 			dap_chain_node_cli_set_reply_text(a_str_reply,
-						"token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
+						"token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file\n"
+						"but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
 			DAP_DEL_Z(l_addr);
 			return -47;
 		}
