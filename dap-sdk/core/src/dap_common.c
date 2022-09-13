@@ -1037,12 +1037,12 @@ int exec_silent(const char * a_cmd) {
 #endif
 }
 
-static int s_timers_count = 0;
-static dap_timer_interface_t s_timers[DAP_INTERVAL_TIMERS_MAX];
+static atomic_int s_timers_count = 0;
+static dap_timer_interface_t s_timers[DAP_INTERVAL_TIMERS_MAX + 1];
 #ifdef _WIN32
-static CRITICAL_SECTION s_timers_lock;
+static CRITICAL_SECTION s_timers_rwlock;
 #else
-static pthread_mutex_t s_timers_lock;
+static pthread_rwlock_t s_timers_rwlock;
 #endif
 
 void dap_interval_timer_deinit()
@@ -1071,7 +1071,10 @@ static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
 #elif defined __MACH__
 static void s_bsd_callback(int a_arg)
 {
-    s_timers[a_arg].callback(s_timers[a_arg].param);
+	if (s_timers[a_arg].callback)
+    	s_timers[a_arg].callback(s_timers[a_arg].param);
+	else
+		log_it(L_WARNING, "timer under the index '%d' not initialized", a_arg);
 }
 #else
 static void s_posix_callback(union sigval a_arg)
@@ -1088,23 +1091,24 @@ static void s_posix_callback(union sigval a_arg)
  */
 dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param)
 {
-    if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
-        return NULL;
-    }
+	int temp = DAP_INTERVAL_TIMERS_MAX;
+	if (atomic_compare_exchange_weak(&s_timers_count, &temp, s_timers_count))//TODO: weak or strong (atomic_compare_exchange_strong()) ???
+		return NULL;
+
 #if (defined _WIN32)
-    if (s_timers_count == 0) {
-        InitializeCriticalSection(&s_timers_lock);
+    if (s_timers_count++ == 0) {
+        InitializeCriticalSection(&s_timers_rwlock);
     }
     HANDLE l_timer;
     if (!CreateTimerQueueTimer(&l_timer, NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(size_t)s_timers_count, a_msec, a_msec, 0)) {
         return NULL;
     }
-    EnterCriticalSection(&s_timers_lock);
+    EnterCriticalSection(&s_timers_rwlock);
 #elif (defined DAP_OS_DARWIN)
-    if (s_timers_count == 0) {
-        pthread_mutex_init(&s_timers_lock, NULL);
+    if (s_timers_count++ == 0) {
+		pthread_rwlock_init(&s_timers_rwlock, NULL);
     }
-    pthread_mutex_lock(&s_timers_lock);
+	pthread_rwlock_rdlock(&s_timers_rwlock);
 
     dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
     dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
@@ -1113,9 +1117,11 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     dispatch_source_set_timer(l_timer, start, a_msec * 1000000, 0);
     dispatch_resume(l_timer);
 #else
-    if (s_timers_count == 0) {
-        pthread_mutex_init(&s_timers_lock, NULL);
+    if (s_timers_count++ == 0) {
+        pthread_rwlock_init(&s_timers_rwlock, NULL);
     }
+	pthread_rwlock_rdlock(&s_timers_rwlock);
+
     timer_t l_timer;
     struct sigevent l_sig_event = { };
     l_sig_event.sigev_notify = SIGEV_THREAD;
@@ -1128,17 +1134,18 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     l_period.it_interval.tv_sec = l_period.it_value.tv_sec = a_msec / 1000;
     l_period.it_interval.tv_nsec = l_period.it_value.tv_nsec = (a_msec % 1000) * 1000000;
     timer_settime(l_timer, 0, &l_period, NULL);
-    pthread_mutex_lock(&s_timers_lock);
 #endif
-    s_timers[s_timers_count].timer = (void *)l_timer;
-    s_timers[s_timers_count].callback = a_callback;
-    s_timers[s_timers_count].param = a_param;
-    s_timers_count++;
-#ifdef WIN32
-    LeaveCriticalSection(&s_timers_lock);
+
+	s_timers[s_timers_count].callback = a_callback;
+	s_timers[s_timers_count].param = a_param;
+	s_timers[s_timers_count].timer = (void *)l_timer;
+
+#if (defined _WIN32)
+    LeaveCriticalSection(&s_timers_rwlock);
 #else
-    pthread_mutex_unlock(&s_timers_lock);
+	pthread_rwlock_unlock(&s_timers_rwlock);
 #endif
+
     return (void *)l_timer;
 }
 
@@ -1153,9 +1160,9 @@ int dap_interval_timer_delete(dap_interval_timer_t *a_timer)
         return -1;
     }
 #if (defined _WIN32)
-    EnterCriticalSection(&s_timers_lock);
+    EnterCriticalSection(&s_timers_rwlock);
 #elif (defined DAP_OS_UNIX)
-    pthread_mutex_lock(&s_timers_lock);
+	pthread_rwlock_rdlock(&s_timers_rwlock);
 #endif
     int l_timer_idx = s_timer_find(a_timer);
     if (l_timer_idx == -1) {
@@ -1166,15 +1173,15 @@ int dap_interval_timer_delete(dap_interval_timer_t *a_timer)
     }
     s_timers_count--;
 #ifdef _WIN32
-    LeaveCriticalSection(&s_timers_lock);
+    LeaveCriticalSection(&s_timers_rwlock);
     if (s_timers_count == 0) {
-        DeleteCriticalSection(&s_timers_lock);
+        DeleteCriticalSection(&s_timers_rwlock);
     }
     return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
 #else
-    pthread_mutex_unlock(&s_timers_lock);
+	pthread_rwlock_unlock(&s_timers_rwlock);
     if (s_timers_count == 0) {
-        pthread_mutex_destroy(&s_timers_lock);
+		pthread_rwlock_destroy(&s_timers_rwlock);
     }
 #ifdef DAP_OS_DARWIN
     dispatch_source_cancel(a_timer);
