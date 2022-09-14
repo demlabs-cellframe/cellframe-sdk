@@ -57,7 +57,7 @@
 #endif
 #include "portable_endian.h"
 typedef uint8_t byte_t;
-
+#include "uthash.h"
 #define BIT( x ) ( 1 << x )
 // Stuffs an integer into a pointer type
 #define DAP_INT_TO_POINTER(i) ((void*) (size_t) (i))
@@ -302,14 +302,13 @@ typedef struct dap_log_history_str_s {
 
 } dap_log_history_str_t;
 
-#define DAP_INTERVAL_TIMERS_MAX 15
-
 typedef void *dap_interval_timer_t;
 typedef void (*dap_timer_callback_t)(void *param);
 typedef struct dap_timer_interface {
     void *timer;
     dap_timer_callback_t callback;
     void *param;
+    UT_hash_handle hh;
 } dap_timer_interface_t;
 
 #ifdef __cplusplus
@@ -493,7 +492,9 @@ void dap_digit_from_string(const char *num_str, void *raw, size_t raw_len);
 void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len);
 
 dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
-int dap_interval_timer_delete(dap_interval_timer_t *a_timer);
+void dap_interval_timer_delete(dap_interval_timer_t *a_timer);
+int dap_interval_timer_disable(dap_interval_timer_t *a_timer);
+void dap_interval_timer_init();
 void dap_interval_timer_deinit();
 
 uint16_t dap_lendian_get16(const uint8_t *a_buf);

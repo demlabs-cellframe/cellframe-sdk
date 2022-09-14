@@ -122,7 +122,7 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
                                                 l_item_in->tx = l_tx_dup;
                                                 // Calc same offset from tx duplicate
                                                 l_item_in->in_cond = (dap_chain_tx_in_cond_t*) (l_tx_dup->tx_items + l_tx_items_pos);
-                                                HASH_ADD_KEYPTR(hh,l_ret->tx_ins, &l_item_in->tx_hash, sizeof(l_item_in->tx_hash), l_item_in);
+                                                HASH_ADD(hh,l_ret->tx_ins, tx_hash, sizeof(dap_chain_hash_fast_t), l_item_in);
 
                                                 // Link previous out with current in
                                                 l_tx_prev_out_item->tx_next = l_tx_dup;
@@ -139,7 +139,7 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
                                                 // Calc same offset from tx duplicate
                                                 l_item->out_cond = (dap_chain_tx_out_cond_t*) (l_tx_dup->tx_items + l_tx_items_pos);
 
-                                                HASH_ADD_KEYPTR(hh,l_ret->tx_outs, &l_item->tx_hash, sizeof(l_item->tx_hash), l_item);
+                                                HASH_ADD(hh,l_ret->tx_outs, tx_hash, sizeof(dap_chain_hash_fast_t), l_item);
                                                 break; // We're seaching only for one specified OUT_COND output per transaction
                                             }
                                         } break;
