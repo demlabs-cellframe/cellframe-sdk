@@ -59,6 +59,10 @@ class RandomBitTests: public RandomTests {
 
 };
 
+class RandomMathTests: public RandomTests {
+
+};
+
 
 // TODO: we need some tests with math-writing, like xxx.yyyyyE+zz, xxx.yyyye+zzz done
 // TODO: maybe we can use predicates for two-string-comparision? We CANT use compare256, as it can brake all tests, if it wron. Or can we?
@@ -1817,13 +1821,254 @@ TEST(LegacyTests, Uint256) {
 }
 
 
-TEST(MathTests, SUM256256Zeroes) {
+TEST(MathTests, Sum256Zeroes) {
     uint256_t a = uint256_0, b = uint256_0, c = uint256_0;
 
     SUM_256_256(a, b, &c);
 
     ASSERT_STREQ(dap_chain_balance_print(c), "0");
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), "0");
 }
+
+TEST(MathTests, Sum256OneZero) {
+    uint256_t a = uint256_1, b = uint256_0, c = uint256_0;
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), "1");
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), "1");
+}
+
+TEST(MathTests, Sum256OneOne) {
+    uint256_t a = uint256_1, b = uint256_1, c = uint256_0;
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), "2");
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), "2");
+}
+
+TEST(MathTests, Sum256Min128Zero) {
+    uint256_t a, b, c = uint256_0;
+
+    a = dap_chain_balance_scan(MIN128STR);
+    b = dap_chain_balance_scan("0");
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), MIN128STR);
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), MIN128STR);
+}
+
+TEST(MathTests, Sum256Min128One) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MIN128STR;
+    string rhs = "1";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Min128Two) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MIN128STR;
+    string rhs = "2";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Max128Zero) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MAX128STR;
+    string rhs = "0";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Max128One) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MAX128STR;
+    string rhs = "1";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Max128Two) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MAX128STR;
+    string rhs = "2";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Min256Zero) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MIN256STR;
+    string rhs = "0";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Min256One) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MIN256STR;
+    string rhs = "1";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Min256Two) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MIN256STR;
+    string rhs = "2";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Max256Zero) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MAX256STR;
+    string rhs = "0";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST(MathTests, Sum256Max256One) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = MAX256STR;
+    string rhs = "1";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) + bmp::uint256_t(rhs)).str().c_str());
+}
+
+TEST_F(RandomMathTests, Sum256) {
+    bmp::uint256_t boost_a(gen256()), boost_b(gen256());
+
+    uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
+    uint256_t b = dap_chain_balance_scan(boost_b.str().c_str());
+    uint256_t c = uint256_0;
+
+    SUM_256_256(a, b, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (boost_a+boost_b).str().c_str());
+
+    SUM_256_256(b, a, &c);
+
+    ASSERT_STREQ(dap_chain_balance_print(c), (boost_b+boost_a).str().c_str());
+}
+
+
 
 //TEST(BoostTest, BasicSum) {
 //    bmp::uint256_t a {123};
