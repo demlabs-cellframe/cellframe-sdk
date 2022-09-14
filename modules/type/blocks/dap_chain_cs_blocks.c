@@ -225,8 +225,6 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     a_chain->callback_count_atom = s_callback_count_atom;
     a_chain->callback_get_atoms = s_callback_get_atoms;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    l_cs_blocks->gdb_group_datums_queue = dap_strdup_printf("local.datums-queue.chain-%s.%s",
-                                                        l_net->pub.gdb_groups_prefix, a_chain->name);
 
     l_cs_blocks->callback_new_block_del = s_new_block_delete;
 
@@ -1200,87 +1198,31 @@ static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)
 static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_datums, size_t a_datums_count)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    char *l_gdb_group = l_blocks->gdb_group_datums_queue;
-
-    size_t l_datum_processed = 0;
-    for (size_t i = 0; i < a_datums_count; i++) {
-        size_t l_datum_size = dap_chain_datum_size(a_datums[i]);
-        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_datums[i];
-        if (!l_datum_size || !l_datum)
-            continue;
-
-        // Verify for correctness
-        /*dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-        int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum);
-        if (l_verify_datum != 0 &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
-                l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
-            log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
-                                     l_verify_datum);
-            continue;
-        } */
-
-        dap_chain_hash_fast_t l_key_hash;
-        dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
-        char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-
-        if (dap_chain_global_db_gr_set(l_key_str, l_datum, l_datum_size, l_gdb_group) ) {
-            l_datum_processed++;
-        }
-    }
-    return l_datum_processed;
-}
-
-void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain)
-{
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
-
+    size_t l_datum_processed = 0;
     pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
-    char *l_gdb_group = l_blocks->gdb_group_datums_queue;
-    size_t l_objs_size = 0;
-    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
-
-    if (l_objs_size) {
-        for (size_t i = 0; i < l_objs_size; i++) {
-            dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
-            size_t l_datum_size = dap_chain_datum_size(l_datum);
-            if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum)
-                break;
-            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group); // delete from datums queue
-            if (!l_objs[i].key || !l_objs[i].value || !l_objs[i].value_len) {
-                log_it(L_WARNING, "DB object field in block new queue comes NULL");
-                continue;
-            }
-            if (!l_datum_size) {
-                log_it(L_WARNING, "Datum size in block new queue comes NULL");
-                continue;
-            }
-            // Verify for correctness
-            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-            int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum);
-            if (l_verify_datum != 0 &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
-                    l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
-                log_it(L_WARNING, "Datum doesn't pass verifications (code %d)",
-                                         l_verify_datum);
-                continue;
-            }
-
-            if (!l_blocks->block_new) {
-                l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash, &l_blocks->block_new_size);
-                l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
-                l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
-            }
-
-            l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size,
-                                                                    l_datum, l_datum_size);
+    for (size_t i = 0; i < a_datums_count; ++i) {
+        dap_chain_datum_t *l_datum = a_datums[i];
+        size_t l_datum_size = dap_chain_datum_size(l_datum);
+        if (!l_datum_size) {
+            log_it(L_WARNING, "Empty datum"); /* How might it be? */
+            continue;
         }
+        if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum) {
+            log_it(L_DEBUG, "Maximum size exeeded, %ld > %ld", l_blocks->block_new_size + l_datum_size, l_blocks_pvt->block_size_maximum);
+            break;
+        }
+        if (!l_blocks->block_new) {
+            l_blocks->block_new = dap_chain_block_new(&l_blocks_pvt->block_cache_last->block_hash, &l_blocks->block_new_size);
+            l_blocks->block_new->hdr.cell_id.uint64 = a_chain->cells->id.uint64;
+            l_blocks->block_new->hdr.chain_id.uint64 = l_blocks->chain->id.uint64;
+        }
+
+        l_blocks->block_new_size = dap_chain_block_datum_add(&l_blocks->block_new, l_blocks->block_new_size, l_datum, l_datum_size);
+        l_datum_processed++;
     }
-    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
     pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+    return l_datum_processed;
 }
 
 static size_t s_callback_count_atom(dap_chain_t *a_chain){

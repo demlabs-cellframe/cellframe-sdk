@@ -711,7 +711,7 @@ static bool s_session_candidate_submit(dap_chain_cs_block_ton_items_t *a_session
 	dap_chain_t *l_chain = a_session->chain;
 	dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 	s_session_my_candidate_delete(a_session);
-	dap_chain_cs_new_block_add_datums(l_chain); // add new datums from queue
+    //dap_chain_cs_new_block_add_datums(l_chain); // add new datums from queue
 	if ( l_blocks->block_new_size && l_blocks->block_new) {
 		a_session->my_candidate = (dap_chain_block_t *)DAP_DUP_SIZE(l_blocks->block_new, l_blocks->block_new_size);
 		a_session->my_candidate_size = l_blocks->block_new_size;

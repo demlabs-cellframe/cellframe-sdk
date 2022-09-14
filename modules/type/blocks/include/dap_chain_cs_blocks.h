@@ -43,7 +43,6 @@ typedef struct dap_chain_cs_blocks
    // For new block creating
    dap_chain_block_t * block_new;
    size_t block_new_size;
-   char *gdb_group_datums_queue;
 
    dap_chain_cs_blocks_callback_t callback_delete;
    dap_chain_cs_blocks_callback_block_create_t callback_block_create;
@@ -63,6 +62,3 @@ void dap_chain_cs_blocks_deinit();
 
 int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
 void dap_chain_cs_blocks_delete(dap_chain_t * a_chain);
-
-void dap_chain_cs_new_block_add_datums(dap_chain_t *a_chain);
-
