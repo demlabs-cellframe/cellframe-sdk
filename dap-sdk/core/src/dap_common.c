@@ -1060,7 +1060,7 @@ void dap_interval_timer_deinit() {
 static void s_posix_callback(union sigval a_arg) {
     pthread_rwlock_rdlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, a_arg.sival_ptr, l_timer);
+    HASH_FIND_PTR(s_timers_map, &a_arg.sival_ptr, l_timer);
     pthread_rwlock_unlock(&s_timers_rwlock);
     if (l_timer && l_timer->callback) {
         l_timer->callback(l_timer->param);
@@ -1076,7 +1076,7 @@ static void s_bsd_callback(void *a_arg) {
 #endif
     pthread_rwlock_rdlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, a_arg, l_timer);
+    HASH_FIND_PTR(s_timers_map, &a_arg, l_timer);
     pthread_rwlock_unlock(&s_timers_rwlock);
     if (l_timer && l_timer->callback) {
         l_timer->callback(l_timer->param);
@@ -1103,7 +1103,7 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
 #elif (defined DAP_OS_DARWIN)
     dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
     l_timer_obj->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
-    dispatch_source_set_event_handler(l_timer_obj->timer), ^(void){ s_bsd_callback((void*)(l_timer_obj->timer)); });
+    dispatch_source_set_event_handler((l_timer_obj->timer), ^(void){ s_bsd_callback((void*)(l_timer_obj->timer)); });
     dispatch_time_t start = dispatch_time(DISPATCH_TIME_NOW, a_msec * 1000000);
     dispatch_source_set_timer(l_timer_obj->timer, start, a_msec * 1000000, 0);
     dispatch_resume(l_timer_obj->timer);
@@ -1142,7 +1142,7 @@ int dap_interval_timer_disable(dap_interval_timer_t a_timer) {
 void dap_interval_timer_delete(dap_interval_timer_t a_timer) {
     pthread_rwlock_wrlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, a_timer, l_timer);
+    HASH_FIND_PTR(s_timers_map, &a_timer, l_timer);
     if (l_timer) {
         HASH_DEL(s_timers_map, l_timer);
         dap_interval_timer_disable(l_timer->timer);
