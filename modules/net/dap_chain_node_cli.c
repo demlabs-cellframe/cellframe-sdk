@@ -1053,7 +1053,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit { sign | -token <mempool_token_ticker> -emission_value <value>\n"
+            "token_emit { sign -emission <emission hash> | -token <mempool_token_ticker> -emission_value <value>\n"
 			"-addr <addr> [-chain_emission <chain_name>]\n"
 			"[-chain_base_tx <chain_name> | use flag '-no_base_tx' if you need create emission has no base transaction] }\n"
 			"-net <net_name> -certs <cert list>\n");

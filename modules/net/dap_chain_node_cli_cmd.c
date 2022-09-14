@@ -3545,7 +3545,7 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
                 return -45;
             }
         }
-    } else {
+    } else {//only add sign
         if (l_emission_hash_str) {
             DL_FOREACH(l_net->pub.chains, l_chain_emission) {
                 l_emission = dap_chain_mempool_emission_get(l_chain_emission, l_emission_hash_str);
@@ -3567,32 +3567,33 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-chain_base_tx", &l_chain_base_tx_str);
 
-    if(l_chain_base_tx_str && no_base_tx < 0) {
-        if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
-            dap_chain_node_cli_set_reply_text(a_str_reply,
-                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file\n"
-					"but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
-			DAP_DEL_Z(l_addr);
-            return -47;
-        }
-		goto CheckTicker;	// --->>
-    } else if (no_base_tx < 0) {
-		if((l_chain_base_tx = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)) == NULL) { // Can't find such chain
-			dap_chain_node_cli_set_reply_text(a_str_reply,
-						"token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file\n"
-						"but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
-			DAP_DEL_Z(l_addr);
-			return -47;
-		}
-		CheckTicker:		// <<---
-		if(!l_ticker) {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
-			DAP_DEL_Z(l_addr);
-			return -3;
-		}
-	}
-
     if (!l_add_sign) {
+
+		if(l_chain_base_tx_str && no_base_tx < 0) {
+			if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
+				dap_chain_node_cli_set_reply_text(a_str_reply,
+												  "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file\n"
+												  "but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
+				DAP_DEL_Z(l_addr);
+				return -47;
+			}
+			goto CheckTicker;	// --->>
+		} else if (no_base_tx < 0) {
+			if((l_chain_base_tx = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)) == NULL) { // Can't find such chain
+				dap_chain_node_cli_set_reply_text(a_str_reply,
+												  "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file\n"
+												  "but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
+				DAP_DEL_Z(l_addr);
+				return -47;
+			}
+			CheckTicker:		// <<---
+			if(!l_ticker) {
+				dap_chain_node_cli_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
+				DAP_DEL_Z(l_addr);
+				return -3;
+			}
+		}
+
         if (!l_chain_emission) {
 			if ( (l_chain_emission = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION)) == NULL ) {
 				DAP_DEL_Z(l_addr);
