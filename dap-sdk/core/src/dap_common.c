@@ -1056,7 +1056,7 @@ void dap_interval_timer_deinit() {
     pthread_rwlock_destroy(&s_timers_rwlock);
 }
 
-#ifdef DAP_OS_UNIX
+#ifdef DAP_OS_LINUX
 static void s_posix_callback(union sigval a_arg) {
     pthread_rwlock_rdlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
@@ -1134,11 +1134,11 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
 int dap_interval_timer_disable(dap_interval_timer_t *a_timer) {
 #ifdef _WIN32
     return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
-#elif defined (DAP_OS_UNIX)
-    return timer_delete((timer_t)a_timer);
 #elif defined (DAP_OS_DARWIN)
     dispatch_source_cancel(a_timer);
     return 0;
+#else
+    return timer_delete((timer_t)a_timer);
 #endif
 }
 
