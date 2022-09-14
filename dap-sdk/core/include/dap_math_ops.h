@@ -350,7 +350,7 @@ static inline void DECR_256(uint256_t* a_256_bit) {
     }
     a_256_bit->lo--;
 #else
-    if(EQUAL_128(a_256_bit->lo, uin128_0)) {
+    if(EQUAL_128(a_256_bit->lo, uint128_0)) {
         DECR_128(&a_256_bit->hi);
     }
     DECR_128(&a_256_bit->lo);
