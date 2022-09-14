@@ -666,7 +666,7 @@ TEST(ComparisonTest, Equal256Max256Zero) {
     a = dap_chain_balance_scan(MAX256STR);
     b = dap_chain_balance_scan("0");
 
-    ASSERT_TRUE(EQUAL_256(a, b));
+    ASSERT_FALSE(EQUAL_256(a, b));
 }
 
 TEST_F(RandomComparisonTests, Equal256) {
