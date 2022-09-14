@@ -686,7 +686,6 @@ TEST(ComparisonTests, IsZeroTest128True) {
     uint128_t a = uint128_0;
 
     ASSERT_TRUE(IS_ZERO_128(a));
-
 }
 
 TEST(ComparisonTests, IsZeroTest128False) {
@@ -782,17 +781,40 @@ TEST(BitTests, Or128) {
     ASSERT_EQ(OR_128(b, b), uint128_1);
 }
 
-TEST(BitTests, And256) {
+TEST(BitTests, And256ZeroZero) {
     uint256_t a = uint256_0;
     uint256_t b = uint256_1;
     uint256_t c;
 
-
     //todo: shuld we use ASSERT_EQ with lo and hi? It would be bad for 32-bit only systems
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, a)), dap_chain_balance_print(uint256_0));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, a)), dap_chain_balance_print(uint256_0));
+}
+
+TEST(BitTests, And256ZeroOne) {
+    uint256_t a, b,c;
+    a = uint256_0;
+    b = uint256_1;
+    c = uint256_0;
+
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(uint256_0));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(uint256_0));
-    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, a)), dap_chain_balance_print(uint256_0));
-    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, b)), dap_chain_balance_print(uint256_1));
+
+}
+
+TEST(BitTests, And256OneOne) {
+    uint256_t a, b,c;
+    a = uint256_1;
+    b = uint256_1;
+    c = uint256_0;
+
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(uint256_1));
+    ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(uint256_1));
+}
+
+TEST(BitTests, And256Max64Zebra) {
+    uint256_t a, b,c;
+
 
     a = dap_chain_balance_scan(MAX64STR);               //0b1111111111111111111111111111111111111111111111111111111111111111
     b = dap_chain_balance_scan("12297829382473034410"); //0b1010101010101010101010101010101010101010101010101010101010101010
@@ -800,12 +822,22 @@ TEST(BitTests, And256) {
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+}
 
+TEST(BitTests, And256Max64Halves) {
+    uint256_t a, b,c;
+
+    a = dap_chain_balance_scan(MAX64STR);               //0b1111111111111111111111111111111111111111111111111111111111111111
     b = dap_chain_balance_scan("18446744069414584320");             //0b1111111111111111111111111111111100000000000000000000000000000000
     c = b;             //0b1111111111111111111111111111111100000000000000000000000000000000
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+}
+
+
+TEST(BitTests, And256Max64DiffHalves) {
+    uint256_t a, b,c;
 
     a = dap_chain_balance_scan("18446744069414584320");             //0b1111111111111111111111111111111100000000000000000000000000000000
     b = dap_chain_balance_scan("4294967295");                       //0b0000000000000000000000000000000011111111111111111111111111111111
@@ -813,8 +845,11 @@ TEST(BitTests, And256) {
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+}
 
 
+TEST(BitTests, And256Max128Zebra ) {
+    uint256_t a, b,c;
 
     a = dap_chain_balance_scan(MAX128STR);                                             //0b11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
     b = dap_chain_balance_scan("226854911280625642308916404954512140970");             //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
@@ -822,39 +857,64 @@ TEST(BitTests, And256) {
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+}
 
+TEST(BitTests, And256Max128Quarters) {
+    uint256_t a, b,c;
+
+    a = dap_chain_balance_scan(MAX128STR);                                             //0b11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
     b = dap_chain_balance_scan("340282366841710300967557013907638845440");             //0b11111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
     c = b;                                                                                       //0b11111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+}
 
+TEST(BitTests, And256Max128Halves) {
+    uint256_t a, b,c;
+    a = dap_chain_balance_scan(MAX128STR);                                             //0b11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
     b = dap_chain_balance_scan("340282366920938463444927863358058659840");              //0b11111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000000
     c = b;
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+}
 
+//TODO: add other tests, like diff halves
+
+TEST(BitTests, And256Max256Zebra) {
+    uint256_t a, b,c;
     a = dap_chain_balance_scan(MAX256STR);                                             //0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
     b = dap_chain_balance_scan("77194726158210796949047323339125271902179989777093709359638389338608753093290");             //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
     c = b;                                                                                      //0b10101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+}
 
+TEST(BitTests, And256Max256Octets) {
+    uint256_t a, b,c;
+
+    a = dap_chain_balance_scan(MAX256STR);                                             //0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
     b = dap_chain_balance_scan("115792089210356248762697446947946071893095522863849111501270640965525260206080");             //0b1111111111111111111111111111111100000000000000000000000000000000111111111111111111111111111111110000000000000000000000000000000011111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
     c = b;                                                                                       //0b1111111111111111111111111111111100000000000000000000000000000000111111111111111111111111111111110000000000000000000000000000000011111111111111111111111111111111000000000000000000000000000000001111111111111111111111111111111100000000000000000000000000000000
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
+}
 
+TEST(BitTests, And256Max256Quarters) {
+    uint256_t a, b,c;
+
+    a = dap_chain_balance_scan(MAX256STR);                                             //0b1111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111
     b = dap_chain_balance_scan("115792089237316195417293883273301227089774477609353836086800156426807153786880");              //0b1111111111111111111111111111111111111111111111111111111111111111000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111110000000000000000000000000000000000000000000000000000000000000000
     c = b;
 
     ASSERT_STREQ(dap_chain_balance_print(AND_256(a, b)), dap_chain_balance_print(c));
     ASSERT_STREQ(dap_chain_balance_print(AND_256(b, a)), dap_chain_balance_print(c));
-
 }
+
+//TODO: add other tests, like halves and diff halves
 
 TEST(BitTests, Or256) {
     uint256_t a = uint256_0;
@@ -862,7 +922,7 @@ TEST(BitTests, Or256) {
     uint256_t c;
 
 
-    //todo: shuld we use ASSERT_EQ with lo and hi? It would be bad for 32-bit only systems
+    //todo: should we use ASSERT_EQ with lo and hi? It would be bad for 32-bit only systems
     ASSERT_STREQ(dap_chain_balance_print(OR_256(a, b)), dap_chain_balance_print(uint256_1));
     ASSERT_STREQ(dap_chain_balance_print(OR_256(b, a)), dap_chain_balance_print(uint256_1));
     ASSERT_STREQ(dap_chain_balance_print(OR_256(a, a)), dap_chain_balance_print(uint256_0));
