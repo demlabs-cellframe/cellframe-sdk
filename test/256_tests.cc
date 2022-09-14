@@ -578,39 +578,93 @@ TEST(ComparisonTests, Equal128Neq) {
 }
 
 
-TEST(ComparisonTests, Equal256) {
+TEST(ComparisonTests, Equal256Zeroes) {
     uint256_t a, b;
 
     a = GET_256_FROM_64(0);
     b = GET_256_FROM_64(0);
 
     ASSERT_TRUE(EQUAL_256(a, b));
+}
+
+TEST(ComparisonTests, Equal256ZeroOne) {
+    uint256_t a, b;
 
     a = GET_256_FROM_64(1);
+    b = GET_256_FROM_64(0);
 
     ASSERT_FALSE(EQUAL_256(a, b));
+}
 
-    a = dap_chain_balance_scan("340282366920938463463374607431768211456");
+TEST(ComparisonTests, Equal256Min128Zero) {
+    uint256_t a, b;
+
+    a = dap_chain_balance_scan(MIN128STR);
+    b = GET_256_FROM_64(0);
 
     ASSERT_FALSE(EQUAL_256(a, b));
+}
 
-    b = dap_chain_balance_scan("340282366920938463463374607431768211455");
+TEST(ComparisonTests, Equal256Max64Min128) {
+    uint256_t a, b;
+
+    a = dap_chain_balance_scan(MIN128STR);
+    b = dap_chain_balance_scan(MAX64STR);
 
     ASSERT_FALSE(EQUAL_256(a, b));
+}
 
-    b = dap_chain_balance_scan("340282366920938463463374607431768211456");
+TEST(ComparisonTests, Equal256Min128Min128) {
+    uint256_t a, b;
+
+    a = dap_chain_balance_scan(MIN128STR);
+    b = dap_chain_balance_scan(MIN128STR);
 
     ASSERT_TRUE(EQUAL_256(a, b));
+}
 
-    a = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639935");
+TEST(ComparisonTest, Equal256Max128Min128){
+    uint256_t a, b;
+
+    a = dap_chain_balance_scan(MAX128STR);
+    b = dap_chain_balance_scan(MIN128STR);
+
+    ASSERT_FALSE(EQUAL_256(a, b));
+}
+
+TEST(ComparisonTest, Equal256Max128Min256) {
+    uint256_t a, b;
+
+    a = dap_chain_balance_scan(MAX128STR);
+    b = dap_chain_balance_scan(MIN256STR);
 
     ASSERT_FALSE(EQUAL_256(a, b));
 
-    b = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639934");
+}
+
+TEST(ComparisonTest, Equal256Max256Min256) {
+    uint256_t a, b;
+
+    a = dap_chain_balance_scan(MAX256STR);
+    b = dap_chain_balance_scan(MIN256STR);
 
     ASSERT_FALSE(EQUAL_256(a, b));
+}
 
-    b = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639935");
+TEST(ComparisonTest, Equal256Max256Max256) {
+    uint256_t a, b;
+
+    a = dap_chain_balance_scan(MAX256STR);
+    b = dap_chain_balance_scan(MAX256STR);
+
+    ASSERT_TRUE(EQUAL_256(a, b));
+}
+
+TEST(ComparisonTest, Equal256Max256Zero) {
+    uint256_t a, b;
+
+    a = dap_chain_balance_scan(MAX256STR);
+    b = dap_chain_balance_scan("0");
 
     ASSERT_TRUE(EQUAL_256(a, b));
 }
@@ -622,60 +676,74 @@ TEST_F(RandomComparisonTests, Equal256) {
     uint256_t b = dap_chain_balance_scan(boost_a.str().c_str());
 
     ASSERT_TRUE(EQUAL_256(a, b));
-
-    ASSERT_TRUE(EQUAL_128(a.lo, b.lo));
-    ASSERT_TRUE(EQUAL_128(a.hi, b.hi));
 }
 
-TEST(ComparisonTests, IsZeroTest128) {
+TEST(ComparisonTests, IsZeroTest128True) {
     uint128_t a = uint128_0;
 
     ASSERT_TRUE(IS_ZERO_128(a));
 
-    a = uint128_1;
-
-    ASSERT_FALSE(IS_ZERO_128(a));
-
 }
 
-TEST(ComparisonTests, IsZeroTest256) {
+TEST(ComparisonTests, IsZeroTest128False) {
+    uint128_t a = uint128_1;
+
+    ASSERT_FALSE(IS_ZERO_128(a));
+}
+
+TEST(ComparisonTests, IsZeroTest256True) {
     uint256_t a = uint256_0;
 
     ASSERT_TRUE(IS_ZERO_256(a));
+}
 
-    a = uint256_1;
-
-    ASSERT_FALSE(IS_ZERO_256(a));
+TEST(ComparisonTests, IsZeroTest256TrueChanged) {
+    uint256_t a = uint256_1;
 
     a.lo = 0;
     a.hi = 0;
 
     ASSERT_TRUE(IS_ZERO_256(a));
+}
+
+TEST(ComparisonTests, IsZeroTest256False) {
+    uint256_t a = uint256_1;
+
+    ASSERT_FALSE(IS_ZERO_256(a));
+}
+
+TEST(ComparisonTests, IsZeroTest256FalseChangedLo) {
+    uint256_t a = uint256_0;
 
     a.lo = 1;
 
     ASSERT_FALSE(IS_ZERO_256(a));
+}
+
+TEST(ComparisonTests, IsZeroTest256FalseChangedHi){
+    uint256_t a = uint256_0;
 
     a.hi = 1;
 
     ASSERT_FALSE(IS_ZERO_256(a));
+}
 
-    a.lo = 0;
-
-    ASSERT_FALSE(IS_ZERO_256(a));
-
-    a = dap_chain_balance_scan("0");
+TEST(ComparisonTests, IsZeroTest256TrueFromBalance) {
+    uint256_t a = dap_chain_balance_scan("0");
 
     ASSERT_TRUE(IS_ZERO_256(a));
+}
 
-    a = dap_chain_balance_scan("340282366920938463463374607431768211455");
-
-    ASSERT_FALSE(IS_ZERO_256(a));
-
-    a = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639935");
+TEST(ComparisonTests, IsZeroTest256FalseFromBalanceMax128) {
+    uint256_t a = dap_chain_balance_scan(MAX128STR);
 
     ASSERT_FALSE(IS_ZERO_256(a));
+}
 
+TEST(ComparisonTests, IsZeroTest256FalseFromBalanceMax256) {
+    uint256_t a = dap_chain_balance_scan(MAX256STR);
+
+    ASSERT_FALSE(IS_ZERO_256(a));
 }
 
 TEST_F(RandomComparisonTests, IsZeroTest) {
