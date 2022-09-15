@@ -1079,7 +1079,7 @@ static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true) {
 #elif defined (DAP_OS_DARWIN)
 static void s_bsd_callback(void *a_arg) {
 #endif
-    if (!a_arg.sival_ptr) {
+    if (!a_arg) {
         log_it(L_DEBUG, "Timer cb arg is NULL");
         return;
     }
