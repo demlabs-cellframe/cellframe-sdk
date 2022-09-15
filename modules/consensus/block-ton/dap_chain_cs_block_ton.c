@@ -373,8 +373,6 @@ static void s_session_round_start(dap_chain_cs_block_ton_items_t *a_session) {
 
 	a_session->ts_round_sync_start = dap_time_now();
 	a_session->cur_round.id.uint64++;
-
-    size_t l_objs_size = 0;
 }
 
 static bool s_session_send_startsync(dap_chain_cs_block_ton_items_t *a_session){
