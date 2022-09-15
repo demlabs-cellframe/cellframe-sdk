@@ -1064,7 +1064,7 @@ static void s_posix_callback(union sigval a_arg) {
     }
     pthread_rwlock_rdlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, &a_arg.sival_ptr, l_timer);
+    HASH_FIND_PTR(s_timers_map, a_arg.sival_ptr, l_timer);
     pthread_rwlock_unlock(&s_timers_rwlock);
     if (l_timer && l_timer->callback) {
         log_it(L_INFO, "Fire %p", a_arg.sival_ptr);
@@ -1119,7 +1119,7 @@ dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_ca
 #else
     struct sigevent l_sig_event = { };
     l_sig_event.sigev_notify = SIGEV_THREAD;
-    l_sig_event.sigev_value.sival_ptr = l_timer_obj->timer;
+    l_sig_event.sigev_value.sival_ptr = &l_timer_obj->timer;
     l_sig_event.sigev_notify_function = s_posix_callback;
     if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &(l_timer_obj->timer))) {
         return NULL;
@@ -1132,7 +1132,7 @@ dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_ca
     pthread_rwlock_wrlock(&s_timers_rwlock);
     HASH_ADD_PTR(s_timers_map, timer, l_timer_obj);
     pthread_rwlock_unlock(&s_timers_rwlock);
-    log_it(L_DEBUG, "Interval timer %p created", l_timer_obj->timer);
+    log_it(L_DEBUG, "Interval timer %p created", &l_timer_obj->timer);
     return (dap_interval_timer_t)l_timer_obj->timer;
 }
 
@@ -1150,7 +1150,7 @@ int dap_interval_timer_disable(dap_interval_timer_t a_timer) {
 void dap_interval_timer_delete(dap_interval_timer_t a_timer) {
     pthread_rwlock_wrlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, &a_timer, l_timer);
+    HASH_FIND_PTR(s_timers_map, a_timer, l_timer);
     if (l_timer) {
         HASH_DEL(s_timers_map, l_timer);
         dap_interval_timer_disable(l_timer->timer);
