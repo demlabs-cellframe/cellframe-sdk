@@ -206,7 +206,7 @@ typedef struct dap_chain_net_pvt{
     uint16_t acl_idx;
 
     // Main loop timer
-    dap_interval_timer_t *main_timer;
+    dap_interval_timer_t main_timer;
 
     // General rwlock for structure
     pthread_rwlock_t rwlock;

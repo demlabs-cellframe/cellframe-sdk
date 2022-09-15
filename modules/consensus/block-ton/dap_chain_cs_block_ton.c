@@ -51,7 +51,7 @@ static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_items_t *a_
 static bool s_hash_is_null(dap_chain_hash_fast_t *a_hash);
 
 static dap_chain_cs_block_ton_items_t * s_session_items;
-static dap_interval_timer_t *s_session_cs_timer = NULL;
+static dap_interval_timer_t s_session_cs_timer = NULL;
 
 typedef struct dap_chain_cs_block_ton_pvt
 {

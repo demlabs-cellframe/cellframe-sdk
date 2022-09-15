@@ -495,7 +495,7 @@ size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len);
 void dap_digit_from_string(const char *num_str, void *raw, size_t raw_len);
 void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len);
 
-dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
+dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
 void dap_interval_timer_delete(dap_interval_timer_t a_timer);
 int dap_interval_timer_disable(dap_interval_timer_t a_timer);
 void dap_interval_timer_init();

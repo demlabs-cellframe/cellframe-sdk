@@ -1067,6 +1067,7 @@ static void s_posix_callback(union sigval a_arg) {
     HASH_FIND_PTR(s_timers_map, &a_arg.sival_ptr, l_timer);
     pthread_rwlock_unlock(&s_timers_rwlock);
     if (l_timer && l_timer->callback) {
+        log_it(L_INFO, "Fire %p", a_arg.sival_ptr);
         l_timer->callback(l_timer->param);
     } else {
         log_it(L_WARNING, "Timer '%p' is not initialized", a_arg.sival_ptr);
@@ -1100,7 +1101,7 @@ static void s_bsd_callback(void *a_arg) {
  * \param a_callback Function to be called with timer period
  * \return pointer to timer object if success, otherwise return NULL
  */
-dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param) {
+dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param) {
     dap_timer_interface_t *l_timer_obj = DAP_NEW_Z(dap_timer_interface_t);
     l_timer_obj->callback   = a_callback;
     l_timer_obj->param      = a_param;
@@ -1116,7 +1117,6 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     dispatch_source_set_timer(l_timer_obj->timer, start, a_msec * 1000000, 0);
     dispatch_resume(l_timer_obj->timer);
 #else
-    timer_t l_timer = NULL;
     struct sigevent l_sig_event = { };
     l_sig_event.sigev_notify = SIGEV_THREAD;
     l_sig_event.sigev_value.sival_ptr = l_timer_obj->timer;
@@ -1133,7 +1133,7 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     HASH_ADD_PTR(s_timers_map, timer, l_timer_obj);
     pthread_rwlock_unlock(&s_timers_rwlock);
     log_it(L_DEBUG, "Interval timer %p created", l_timer_obj->timer);
-    return (dap_interval_timer_t*)l_timer_obj->timer;
+    return (dap_interval_timer_t)l_timer_obj->timer;
 }
 
 int dap_interval_timer_disable(dap_interval_timer_t a_timer) {
