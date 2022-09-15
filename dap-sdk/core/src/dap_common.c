@@ -1076,13 +1076,17 @@ static void s_posix_callback(union sigval a_arg) {
 #ifdef _WIN32
 static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true) {
     UNUSED(a_always_true);
-#elif defined (DAP_OS_DARWIN)
-static void s_bsd_callback(void *a_arg) {
-#endif
     if (!a_arg) {
         log_it(L_DEBUG, "Timer cb arg is NULL");
         return;
     }
+#elif defined (DAP_OS_DARWIN)
+static void s_bsd_callback(void *a_arg) {
+    if (!a_arg) {
+        log_it(L_DEBUG, "Timer cb arg is NULL");
+        return;
+    }
+#endif
     pthread_rwlock_rdlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
     HASH_FIND_PTR(s_timers_map, &a_arg, l_timer);
