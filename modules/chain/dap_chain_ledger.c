@@ -1367,11 +1367,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_chain_ledger_tx_spent_item_t *l_tx_spent_item = DAP_NEW_Z(dap_chain_ledger_tx_spent_item_t);
         dap_chain_hash_fast_from_str(l_objs[i].key, &l_tx_spent_item->tx_hash_fast);
-        if (l_objs[i].value_len == sizeof(dap_chain_ledger_tx_spent_item_t))
-            strncpy(l_tx_spent_item->cache_data.token_ticker, (char *)l_objs[i].value,
-                    min(l_objs[i].value_len, DAP_CHAIN_TICKER_SIZE_MAX - 1));
-        else
-            memcpy(l_tx_spent_item, l_objs[i].value, sizeof(dap_chain_ledger_tx_spent_item_t));
+        l_tx_spent_item->cache_data = *(typeof(((dap_chain_ledger_tx_spent_item_t*)0)->cache_data)*)l_objs[i].value;
         HASH_ADD(hh, l_ledger_pvt->spent_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_spent_item);
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
@@ -2984,7 +2980,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         HASH_FIND_BYHASHVALUE(hh, l_ledger_priv->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value, l_item_tmp);
         pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     }
-    char l_tx_hash_str[70];
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
     if (l_item_tmp) {     // transaction already present in the cache list
         if(s_debug_more)
@@ -3186,8 +3182,10 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         uint8_t *l_tx_cache = DAP_NEW_Z_SIZE(uint8_t, l_tx_cache_sz);
         memcpy(l_tx_cache, &l_prev_item_out->cache_data, sizeof(l_prev_item_out->cache_data));
         memcpy(l_tx_cache + sizeof(l_prev_item_out->cache_data), l_prev_item_out->tx, l_tx_size);
+        char l_tx_i_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_prev_item_out->tx_hash_fast, l_tx_i_hash, DAP_CHAIN_HASH_FAST_STR_SIZE);
         l_cache_used_outs[i] = (dap_store_obj_t) {
-                .key        = dap_chain_hash_fast_to_str_new(&l_prev_item_out->tx_hash_fast),
+                .key        = l_tx_i_hash,
                 .value      = l_tx_cache,
                 .value_len  = l_tx_cache_sz,
                 .group      = l_gdb_group
