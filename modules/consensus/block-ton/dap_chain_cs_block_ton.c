@@ -620,11 +620,12 @@ static void s_session_candidate_to_chain(
 							dap_chain_block_t *a_candidate, size_t a_candidate_size) {
 
 	dap_list_t *l_commitsign_list = NULL;
+    dap_chain_hash_fast_t *l_candidate_hash = NULL;
     dap_chain_cs_block_ton_message_item_t *l_message_item=NULL, *l_message_tmp=NULL;
     HASH_ITER(hh, a_session->old_round.messages_items, l_message_item, l_message_tmp) {
     	uint8_t l_message_type = l_message_item->message->hdr.type;
     	if ( l_message_type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN ) {
-    		dap_chain_hash_fast_t *l_candidate_hash = 
+            l_candidate_hash =
     				&((dap_chain_cs_block_ton_message_commitsign_t *)
     						(l_message_item->message->sign_n_message+l_message_item->message->hdr.sign_size))->candidate_hash;
     		if ( memcmp(l_candidate_hash, a_candidate_hash, sizeof(dap_chain_hash_fast_t)) == 0) {
@@ -818,7 +819,6 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
     if (l_objs_size) {
     	dap_chain_cs_block_ton_store_t *l_store_candidate_ready = NULL;
         for (size_t i = 0; i < l_objs_size; i++) {
-            dap_chain_global_db_gr_del(l_objs[i].key, a_session->gdb_group_store);
             if (!l_objs[i].value_len) {
                 continue;
             }
@@ -826,6 +826,8 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
             if (l_store->hdr.round_id.uint64 == a_session->cur_round.id.uint64) {
                 if (l_store->hdr.sign_collected) {
                     l_store_candidate_ready = l_store; /* Candidate will be remnoved when being added to chain */
+                } else {
+                    dap_chain_global_db_gr_del(l_objs[i].key, a_session->gdb_group_store);
                 }
                 if (a_session->cur_round.my_candidate_hash
                         && !memcmp(&l_store->hdr.candidate_hash, a_session->cur_round.my_candidate_hash, sizeof(dap_chain_hash_fast_t))
@@ -841,13 +843,14 @@ static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
                     }
                     s_session_my_candidate_delete(a_session);
                     DAP_DEL_Z(a_session->cur_round.my_candidate_hash);
+                } else if (l_store_candidate_ready) {
+                    s_session_candidate_to_chain(a_session, &l_store_candidate_ready->hdr.candidate_hash,
+                                                     (dap_chain_block_t*)l_store_candidate_ready->candidate_n_signs,
+                                                     l_store_candidate_ready->hdr.candidate_size);
                 }
+            } else {
+                dap_chain_global_db_gr_del(l_objs[i].key, a_session->gdb_group_store);
             }
-        }
-        if (l_store_candidate_ready) {
-            s_session_candidate_to_chain(a_session, &l_store_candidate_ready->hdr.candidate_hash,
-                                         (dap_chain_block_t*)l_store_candidate_ready->candidate_n_signs,
-                                         l_store_candidate_ready->hdr.candidate_size);
         }
         dap_chain_global_db_objs_delete(l_objs, l_objs_size);
     }
