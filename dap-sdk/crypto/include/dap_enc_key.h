@@ -123,6 +123,7 @@ typedef enum dap_enc_key_type{
 
                            DAP_ENC_KEY_TYPE_SIG_RINGCT20,//ring signature for confidentional transaction
 
+                           DAP_ENC_KEY_TYPE_KEM_KYBER512, // NIST Kyber KEM implementation
                            DAP_ENC_KEY_TYPE_LAST = DAP_ENC_KEY_TYPE_SIG_RINGCT20,
                            DAP_ENC_KEY_TYPE_NULL = 0 // avoid using it: 0 is a DAP_ENC_KEY_TYPE_NULL and DAP_ENC_KEY_TYPE_IAES at the same time
 
@@ -190,9 +191,15 @@ typedef size_t (*dap_enc_callback_calc_out_size)(const size_t);
 typedef size_t (*dap_enc_get_allpbk_list) (struct dap_enc_key *a_key, const void *allpbk_list, const int allpbk_num);
 
 typedef struct dap_enc_key {
-    size_t priv_key_data_size;
+    union{
+        size_t priv_key_data_size;
+        size_t shared_key_size;
+    };
     //unsigned char * priv_key_data; // can be shared key in assymetric alghoritms
-    void * priv_key_data; // can be shared key in assymetric alghoritms or secret key in signature alghoritms
+    union{
+        void * priv_key_data; // can be shared key in assymetric alghoritms or secret key in signature alghoritms
+        byte_t * shared_key;
+    };
 
     size_t pub_key_data_size;
     //unsigned char * pub_key_data; // can be null if enc symmetric
