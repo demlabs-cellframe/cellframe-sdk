@@ -327,7 +327,7 @@ static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_n
 
 
 
-static dap_chain_datum_tx_receipt_t *s_xchage_receipt_create(dap_chain_net_srv_xchange_price_t *a_price, uint256_t a_datoshi_buy)
+static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_xchange_price_t *a_price, uint256_t a_datoshi_buy)
 {
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
     uint8_t *l_ext = DAP_NEW_S_SIZE(uint8_t, l_ext_size);
@@ -504,7 +504,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     }
 
     // create and add reciept
-    dap_chain_datum_tx_receipt_t *l_receipt = s_xchage_receipt_create(a_price, a_datoshi_buy);
+    dap_chain_datum_tx_receipt_t *l_receipt = s_xchange_receipt_create(a_price, a_datoshi_buy);
     if( l_receipt == NULL){
         DAP_DELETE(l_buyer_addr);
         log_it(L_ERROR, "Can't compose the receipt");
@@ -643,7 +643,7 @@ static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
     return true;
 }
 
-static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
+static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
 {
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
@@ -653,7 +653,7 @@ static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, d
     dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
 
     // create and add reciept
-    dap_chain_datum_tx_receipt_t *l_receipt = s_xchage_receipt_create(a_price, uint256_0);
+    dap_chain_datum_tx_receipt_t *l_receipt = s_xchange_receipt_create(a_price, uint256_0);
     if (!l_receipt) {
         log_it(L_WARNING, "Can't create receipt");
         dap_chain_datum_tx_delete(l_tx);
@@ -1092,7 +1092,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
 
             if (l_cmd_num == CMD_REMOVE) {
                 dap_string_t *l_str_reply = dap_string_new("");
-                bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet);
+                bool l_ret = s_xchange_tx_invalidate(l_price, l_wallet);
                 dap_chain_wallet_close(l_wallet);
                 if (!l_ret) {
                     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_price->tx_hash);
@@ -1164,7 +1164,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't compose the conditional transaction");
                     return -14;
                 }
-                bool l_ret = s_xchage_tx_invalidate(l_price, l_wallet); // may be changed to old price later
+                bool l_ret = s_xchange_tx_invalidate(l_price, l_wallet); // may be changed to old price later
                 dap_chain_wallet_close(l_wallet);
                 if (!l_ret) {
                     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_price->tx_hash);
