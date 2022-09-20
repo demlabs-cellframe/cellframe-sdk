@@ -44,4 +44,4 @@ dap_tsd_t* dap_tsd_find(byte_t * a_data, size_t a_data_size,uint16_t a_type);
 
 #define dap_tsd_size(a) (sizeof(*a)+(size_t)a->size)
 
-#define dap_tsd_size_check(a, offset, total_size) (total_size - offset >= (a)->size )
+#define dap_tsd_size_check(a, offset, total_size) ( (total_size - offset) >= dap_tsd_size(a) )

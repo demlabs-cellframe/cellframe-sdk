@@ -14,6 +14,7 @@ include (src/sig_dilithium/sig_dilithium.pri)
 include (src/ringct20/ringct20.pri)
 include (src/seed/seed.pri)
 include (src/newhope/newhope.pri)
+include (src/Kyber/crypto_kem/kyber512/optimized/kyber512.pri)
 
 DEFINES += KeccakP1600timesN_excluded
 

@@ -317,11 +317,11 @@ static inline void DECR_128(uint128_t* a_128_bit){
     (*a_128_bit)--;
 
 #else
+    if (a_128_bit->lo == 0) {
+        a_128_bit->hi--;
+    }
     a_128_bit->lo--;
-   if(a_128_bit->hi == 0)
-   {
-       a_128_bit->hi--;
-   }
+
 #endif
 }
 
@@ -340,6 +340,20 @@ static inline void INCR_256(uint256_t* a_256_bit){
     {
         INCR_128(&a_256_bit->hi);
     }
+#endif
+}
+
+static inline void DECR_256(uint256_t* a_256_bit) {
+#ifdef DAP_GLOBAL_IS_INT128
+    if (a_256_bit->lo == 0) {
+        a_256_bit->hi--;
+    }
+    a_256_bit->lo--;
+#else
+    if(EQUAL_128(a_256_bit->lo, uint128_0)) {
+        DECR_128(&a_256_bit->hi);
+    }
+    DECR_128(&a_256_bit->lo);
 #endif
 }
 
@@ -910,7 +924,7 @@ static inline int fls128(uint128_t n) {
     }
     return 63 - nlz64(n.lo);
 }
-
+//todo: this should not be ander ifndef
 static inline void divmod_impl_128(uint128_t a_dividend, uint128_t a_divisor, uint128_t *a_quotient, uint128_t *a_remainder)
 {
     assert( compare128(a_divisor, uint128_0) ); // a_divisor != 0

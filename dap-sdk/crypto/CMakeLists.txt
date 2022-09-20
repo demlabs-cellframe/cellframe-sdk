@@ -54,6 +54,9 @@ file( GLOB XKCP_SRCS
   src/XKCP/lib/high/Keccak/FIPS202/SimpleFIPS202.c
 )
 
+add_subdirectory (src/Kyber/crypto_kem/kyber512/optimized/)
+
+
 if(WIN32)
   if(BUILD_64)
     #file( GLOB XKCP_SRCS2 src/XKCP/lib/low/KeccakP-1600/OptimizedAsmX86-64/KeccakP-1600-x86-64-gas.s ) - SIGSEGV on MinGW
@@ -281,11 +284,11 @@ if(UNIX)
 endif()
 
 if(WIN32)
-  target_link_libraries(dap_crypto dap_core)
+  target_link_libraries(dap_crypto dap_core dap_crypto_kyber512)
 endif()
 
 if(UNIX)
-  target_link_libraries(dap_crypto dap_core m)
+  target_link_libraries(dap_crypto dap_core dap_crypto_kyber512 m)
 endif()
 
 
