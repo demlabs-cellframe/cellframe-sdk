@@ -48,8 +48,6 @@ static int s_compare_validators_list_stake(const void * a_item1, const void * a_
 static int s_compare_validators_list_addr(const void * a_item1, const void * a_item2, void *a_unused);
 static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_items_t *a_session); //(dap_chain_t *a_chain);
 
-static bool s_hash_is_null(dap_chain_hash_fast_t *a_hash);
-
 static dap_chain_cs_block_ton_items_t * s_session_items;
 static dap_interval_timer_t s_session_cs_timer = NULL;
 
@@ -800,15 +798,6 @@ static void s_session_my_candidate_delete(dap_chain_cs_block_ton_items_t *a_sess
    	a_session->my_candidate_attempts_count = 0;
 }
 
-static bool s_hash_is_null(dap_chain_hash_fast_t *a_hash){
-	if (!a_hash)
-		return true;
-	dap_chain_hash_fast_t l_candidate_hash_null={0};
-    return (memcmp(&l_candidate_hash_null, a_hash,
-                            sizeof(dap_chain_hash_fast_t)) == 0)
-						? true : false;
-}
-
 static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session) {
 
 	a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE;
@@ -1311,7 +1300,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                        l_message_data_size - sizeof(*l_submit));
                 goto handler_finish;
             }
-			if (!l_candidate_size || s_hash_is_null(&l_submit->candidate_hash)) { // null candidate - save chain and exit
+            if (!l_candidate_size || dap_hash_fast_is_blank(&l_submit->candidate_hash)) { // null candidate - save chain and exit
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive SUBMIT: candidate: NULL",
 							l_session->chain->net_name, l_session->chain->name,
@@ -1423,7 +1412,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
 			dap_chain_hash_fast_t *l_candidate_hash = &l_reject->candidate_hash;
 
-			if ( s_hash_is_null(l_candidate_hash) ) {
+            if ( dap_hash_fast_is_blank(l_candidate_hash) ) {
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive REJECT: NULL",
 							l_session->chain->net_name, l_session->chain->name,
@@ -1477,7 +1466,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
 			dap_chain_hash_fast_t *l_candidate_hash = &l_approve->candidate_hash;
 			
-			if ( s_hash_is_null(l_candidate_hash) ) {
+            if ( dap_hash_fast_is_blank(l_candidate_hash) ) {
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive APPROVE: candidate: NULL",
 							l_session->chain->net_name, l_session->chain->name,
@@ -1682,7 +1671,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 				goto handler_finish;
 			}
 			
-			if ( s_hash_is_null(l_candidate_hash) ) {
+            if ( dap_hash_fast_is_blank(l_candidate_hash) ) {
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive VOTE: candidate: NULL",
 							l_session->chain->net_name, l_session->chain->name, 
@@ -1742,7 +1731,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 			if ( l_precommit->attempt_number != l_session->attempt_current_number) {
 				goto handler_finish;
 			}
-			if ( s_hash_is_null(l_candidate_hash) ) {
+            if ( dap_hash_fast_is_blank(l_candidate_hash) ) {
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive PRE_COMMIT: candidate: NULL",
 							l_session->chain->net_name, l_session->chain->name,
@@ -1835,7 +1824,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 						l_commitsign->round_id.uint64 == l_session->old_round.id.uint64 ?
 								&l_session->old_round : &l_session->cur_round;
 
-			if ( s_hash_is_null(l_candidate_hash) ) {
+            if ( dap_hash_fast_is_blank(l_candidate_hash) ) {
 				if (PVT(l_session->ton)->debug)
                     log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive COMMIT_SIGN: candidate: NULL",
 							l_session->chain->net_name, l_session->chain->name,
@@ -1872,14 +1861,14 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 										l_candidate_hash, NULL);
 						l_commitsign_count++;
                         if (l_commitsign_count * 3 >= l_round->validators_count * 2) {
-							// s_session_round_finish(l_session);
 							if (l_commitsign->round_id.uint64 == l_session->cur_round.id.uint64) {
 								l_finalize_consensus = true;
 							}
 							if (PVT(l_session->ton)->debug)
-                                log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Candidate:%s collected COMMIT_SIGN more than 2/3 of the validators, so to finished this round",
+                                log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Candidate:%s collected COMMIT_SIGN more than 2/3 of the validators, so finish this round",
 										l_session->chain->net_name, l_session->chain->name, l_round->id.uint64,
 											l_session->attempt_current_number, l_candidate_hash_str);
+                            //s_session_round_finish(l_session);
 						}
 					}
 				}
