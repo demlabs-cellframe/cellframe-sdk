@@ -29,6 +29,16 @@ if (CELLFRAME_MODULES MATCHES "core")
     SET(DAPSDK_MODULES "${DAPSDK_MODULES} core crypto io")
 endif()
 
+option(DAP_INT128_SUPPORT "Use 128-bit varaibles, if supported" ON) # Enabled by default
+
+if(NOT DAP_INT128_SUPPORT)
+    message("[!] INT128 DISABLED")
+    add_definitions(-DDAP_DISABLE_INT128=TRUE)
+else()
+    message("[!] INT128 ENABLED")
+    add_definitions(-DDAP_DISABLE_INT128=FALSE)
+endif(NOT DAP_INT128_SUPPORT)
+
 
 if (CELLFRAME_MODULES MATCHES "network")
     set(DAPSDK_MODULES "${DAPSDK_MODULES} app-cli plugin network-core network-client network-server")

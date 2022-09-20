@@ -13,7 +13,7 @@
 
 #if defined(__GNUC__) || defined (__clang__)
 
-#if __SIZEOF_INT128__ == 16
+#if ((__SIZEOF_INT128__ == 16) && !DAP_DISABLE_INT128)
 
 #define DAP_GLOBAL_IS_INT128
 typedef __int128 _dap_int128_t;
