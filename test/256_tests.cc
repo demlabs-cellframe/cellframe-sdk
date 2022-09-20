@@ -2145,7 +2145,7 @@ TEST(LegacyTests, Uint256) {
 #endif
 
         ASSERT_EQ(
-                boost_dap_128_128_prod_comparison, boost_test_128_128_two
+                boost_dap_128_128_prod_comparison, boost_test_128_128_prod
                 ) << boost_test_128_128_one << " * " << boost_test_128_128_two;
 
 
@@ -2168,7 +2168,7 @@ TEST(LegacyTests, Uint256) {
 #endif
 
         ASSERT_EQ(
-                boost_dap_128_comparison_sub, boost_test_128_two
+                boost_dap_128_comparison_sub, boost_test_128_sub
         ) << boost_test_128_one << " - " << boost_test_128_two;
 
 
