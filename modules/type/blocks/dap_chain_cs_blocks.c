@@ -131,7 +131,7 @@ static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** 
 
 static void s_callback_cs_blocks_purge(dap_chain_t *a_chain);
 
-static void s_new_block_delete(dap_chain_cs_blocks_t *a_blocks);
+static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
 
 //Work with atoms
 static size_t s_callback_count_atom(dap_chain_t *a_chain);
@@ -224,9 +224,8 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 
     a_chain->callback_count_atom = s_callback_count_atom;
     a_chain->callback_get_atoms = s_callback_get_atoms;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
 
-    l_cs_blocks->callback_new_block_del = s_new_block_delete;
+    l_cs_blocks->callback_new_block_move = s_new_block_move;
 
     dap_chain_cs_blocks_pvt_t *l_cs_blocks_pvt = DAP_NEW_Z(dap_chain_cs_blocks_pvt_t);
     l_cs_blocks->_pvt = l_cs_blocks_pvt;
@@ -1155,14 +1154,22 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
     DAP_DELETE(a_atom_iter);
 }
 
-static void s_new_block_delete(dap_chain_cs_blocks_t *a_blocks) {
+static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size)
+{
+    size_t l_ret_size = 0;
+    dap_chain_block_t *l_ret = NULL;
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(a_blocks);
     pthread_rwlock_wrlock(&l_blocks_pvt->datums_lock);
     if ( a_blocks->block_new ) {
-        DAP_DEL_Z(a_blocks->block_new);
+        l_ret = a_blocks->block_new;
+        l_ret_size = a_blocks->block_new_size;
+        a_blocks->block_new = NULL;
         a_blocks->block_new_size = 0;
     }
     pthread_rwlock_unlock(&l_blocks_pvt->datums_lock);
+    if (a_new_block_size)
+        *a_new_block_size = l_ret_size;
+    return l_ret;
 }
 
 static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)

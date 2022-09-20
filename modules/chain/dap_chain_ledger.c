@@ -592,7 +592,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
     size_t l_tsd_total_size = a_token->header_native_decl.tsd_total_size;
 
     for( size_t l_offset=0; l_offset < l_tsd_total_size;  l_offset += l_tsd_size ){
-        l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd ) +l_offset);
+        l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd) + l_tsd_size);
         l_tsd_size =  l_tsd? dap_tsd_size(l_tsd): 0;
         if( l_tsd_size==0 ){
             if(s_debug_more)
