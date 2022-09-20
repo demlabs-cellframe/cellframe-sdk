@@ -1048,7 +1048,9 @@ typedef struct dap_timer_interface {
 static dap_timer_interface_t *s_timers_map;
 static pthread_rwlock_t s_timers_rwlock;
 
-void dap_interval_timer_init() {
+void dap_interval_timer_init()
+{
+    s_timers_map = NULL;
     pthread_rwlock_init(&s_timers_rwlock, NULL);
 }
 
@@ -1064,24 +1066,8 @@ void dap_interval_timer_deinit() {
     pthread_rwlock_destroy(&s_timers_rwlock);
 }
 
-#ifdef DAP_OS_LINUX
-static void s_posix_callback(union sigval a_arg) {
-    pthread_rwlock_rdlock(&s_timers_rwlock);
-    dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, &a_arg.sival_ptr, l_timer);
-    pthread_rwlock_unlock(&s_timers_rwlock);
-    if (l_timer && l_timer->callback) {
-        l_timer->callback(l_timer->param);
-    } else {
-        log_it(L_WARNING, "Timer '%p' is not initialized", a_arg.sival_ptr);
-    }
-#else
-#ifdef _WIN32
-static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true) {
-    UNUSED(a_always_true);
-#elif defined (DAP_OS_DARWIN)
+#if defined (DAP_OS_DARWIN)
 static void s_bsd_callback(void *a_arg) {
-#endif
     pthread_rwlock_rdlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
     HASH_FIND_PTR(s_timers_map, &a_arg, l_timer);
@@ -1090,6 +1076,27 @@ static void s_bsd_callback(void *a_arg) {
         l_timer->callback(l_timer->param);
     } else {
         log_it(L_WARNING, "Timer '%p' is not initialized", a_arg);
+    }
+#else
+#if defined(DAP_OS_LINUX)
+static void s_posix_callback(union sigval a_arg)
+{
+    int l_arg = a_arg.sival_int;
+#elif defined(DAP_OS_WINDOWS)
+static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
+{
+    UNUSED(a_always_true);
+    int l_arg = a_arg;
+#endif
+    pthread_rwlock_rdlock(&s_timers_rwlock);
+    dap_timer_interface_t *l_timer = s_timers_map;
+    for (int i = 0; i < l_arg; i++)
+        l_timer = l_timer->hh.next;
+    pthread_rwlock_unlock(&s_timers_rwlock);
+    if (l_timer && l_timer->callback) {
+        l_timer->callback(l_timer->param);
+    } else {
+        log_it(L_WARNING, "Timer '%p' is not initialized", a_arg.sival_ptr);
     }
 #endif
 }
@@ -1104,8 +1111,9 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     dap_timer_interface_t *l_timer_obj = DAP_NEW_Z(dap_timer_interface_t);
     l_timer_obj->callback   = a_callback;
     l_timer_obj->param      = a_param;
-#if (defined _WIN32)
-    if (!CreateTimerQueueTimer(&(l_timer_obj->timer) , NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(l_timer_obj->timer), a_msec, a_msec, 0)) {
+    int l_timer_num = HASH_COUNT(s_timers_map);
+#if (defined DAP_OS_WINDOWS)
+    if (!CreateTimerQueueTimer(&(l_timer_obj->timer) , NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(l_timer_num), a_msec, a_msec, 0)) {
         return NULL;
     }
 #elif (defined DAP_OS_DARWIN)
@@ -1116,10 +1124,9 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     dispatch_source_set_timer(l_timer_obj->timer, start, a_msec * 1000000, 0);
     dispatch_resume(l_timer_obj->timer);
 #else
-    timer_t l_timer = NULL;
     struct sigevent l_sig_event = { };
     l_sig_event.sigev_notify = SIGEV_THREAD;
-    l_sig_event.sigev_value.sival_ptr = l_timer_obj->timer;
+    l_sig_event.sigev_value.sival_int = l_timer_num;
     l_sig_event.sigev_notify_function = s_posix_callback;
     if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &(l_timer_obj->timer))) {
         return NULL;
