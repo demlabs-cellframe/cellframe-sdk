@@ -830,13 +830,13 @@ TEST_F(RandomInputTests, Input256) {
 
     uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
 #ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.hi, boost_a & bmp::uint256_t("0xffffffffffffffffffffffffffffffff00000000000000000000000000000000"));
+    ASSERT_EQ(a.hi, (boost_a & bmp::uint256_t("0xffffffffffffffffffffffffffffffff00000000000000000000000000000000"))>>128);
     ASSERT_EQ(a.lo, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff"));
 #else
     ASSERT_EQ(a.lo.lo, boost_a & bmp::uint256_t("0x000000000000000000000000000000000000000000000000ffffffffffffffff"));
-    ASSERT_EQ(a.lo.hi, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffff0000000000000000"));
-    ASSERT_EQ(a.hi.lo, boost_a & bmp::uint256_t("0x0000000000000000ffffffffffffffff00000000000000000000000000000000"));
-    ASSERT_EQ(a.hi.hi, boost_a & bmp::uint256_t("0xffffffffffffffff000000000000000000000000000000000000000000000000"));
+    ASSERT_EQ(a.lo.hi, (boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffff0000000000000000")) >> 64);
+    ASSERT_EQ(a.hi.lo, (boost_a & bmp::uint256_t("0x0000000000000000ffffffffffffffff00000000000000000000000000000000")) >> 128);
+    ASSERT_EQ(a.hi.hi, (boost_a & bmp::uint256_t("0xffffffffffffffff000000000000000000000000000000000000000000000000")) >> 192);
 #endif
 }
 
@@ -1607,7 +1607,7 @@ TEST(BitTests, Incr256Two) {
 
 #ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(a.hi, 0);
-    ASSERT_EQ(a.lo, 1);
+    ASSERT_EQ(a.lo, 2);
 #else
     ASSERT_EQ(a.lo.lo, 2);
     ASSERT_EQ(a.hi.lo, 0);
