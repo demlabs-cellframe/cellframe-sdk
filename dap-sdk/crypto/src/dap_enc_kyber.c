@@ -51,12 +51,12 @@ void dap_enc_kyber512_key_generate( dap_enc_key_t * a_key, const void *kex_buf,
     (void)seed; (void)seed_size; (void)key_size;
 
     a_key->_inheritor_size = CRYPTO_SECRETKEYBYTES;
-    a_key->_inheritor = DAP_NEW_SIZE(byte_t,a_key->priv_key_data_size);
+    a_key->_inheritor = DAP_NEW_SIZE(byte_t,a_key->_inheritor_size);
 
     a_key->pub_key_data_size = CRYPTO_PUBLICKEYBYTES;
     a_key->pub_key_data = DAP_NEW_SIZE(byte_t,a_key->pub_key_data_size);
 
-    crypto_kem_keypair(a_key->pub_key_data, a_key->priv_key_data);
+    crypto_kem_keypair(a_key->pub_key_data, a_key->_inheritor);
 
 }
 
@@ -92,6 +92,7 @@ size_t dap_enc_kyber512_gen_bob_shared_key (dap_enc_key_t *a_key, const void *a_
 
     if (a_key->shared_key)
         DAP_DELETE(a_key->shared_key);
+    a_key->shared_key_size = CRYPTO_BYTES;
     a_key->shared_key = DAP_NEW_SIZE(byte_t, a_key->shared_key_size);
 
 
