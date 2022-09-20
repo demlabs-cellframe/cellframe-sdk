@@ -32,10 +32,8 @@
 #include <stdint.h>
 #include <stdatomic.h>
 #include <ctype.h>
-
-
 #include "utlist.h"
-//#include <errno.h>
+#include "uthash.h"
 
 #ifdef DAP_OS_ANDROID
   #include <android/log.h>
@@ -1037,6 +1035,16 @@ int exec_silent(const char * a_cmd) {
 #endif
 }
 
+typedef struct dap_timer_interface {
+#ifdef DAP_OS_DARWIN
+    dispatch_source_t timer;
+#else
+    void *timer;
+#endif
+    dap_timer_callback_t callback;
+    void *param;
+    UT_hash_handle hh;
+} dap_timer_interface_t;
 static dap_timer_interface_t *s_timers_map;
 static pthread_rwlock_t s_timers_rwlock;
 
