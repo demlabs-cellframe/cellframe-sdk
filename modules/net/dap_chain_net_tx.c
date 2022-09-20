@@ -22,13 +22,11 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_chain_net_tx.h"
 #include "dap_chain_cell.h"
-
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_tx.h"
-
-#include "dap_chain_net_tx.h"
 #include "dap_list.h"
 #include <string.h>
 

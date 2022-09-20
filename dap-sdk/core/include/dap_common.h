@@ -45,7 +45,6 @@
 #define atomic_uint _Atomic(uint)
 #endif
 
-
 #include <time.h>
 #ifdef DAP_OS_WINDOWS
 #include <fcntl.h>
@@ -56,8 +55,7 @@
 #include <dispatch/dispatch.h>
 #endif
 #include "portable_endian.h"
-typedef uint8_t byte_t;
-#include "uthash.h"
+
 #define BIT( x ) ( 1 << x )
 // Stuffs an integer into a pointer type
 #define DAP_INT_TO_POINTER(i) ((void*) (size_t) (i))
@@ -273,6 +271,7 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
   #define dap_vasprintf         vasprintf
 #endif
 
+typedef uint8_t byte_t;
 typedef int dap_spinlock_t;
 
 /**
@@ -304,16 +303,6 @@ typedef struct dap_log_history_str_s {
 
 typedef void *dap_interval_timer_t;
 typedef void (*dap_timer_callback_t)(void *param);
-typedef struct dap_timer_interface {
-#ifdef DAP_OS_DARWIN
-    dispatch_source_t timer;
-#else
-    void *timer;
-#endif
-    dap_timer_callback_t callback;
-    void *param;
-    UT_hash_handle hh;
-} dap_timer_interface_t;
 
 #ifdef __cplusplus
 extern "C" {
