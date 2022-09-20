@@ -71,7 +71,7 @@ class RandomMathTests: public RandomTests {
 // TODO: need to split tests
 // TODO: need to add some tests to bit-logic, like 0b0101 & 0b1010 and 0b0101 | 0b1010
 // TODO: do we need to run random tests more than one? I think yes, but not in cycle. I think Google Tests can do this, need to implement
-// TODO: need to run tests without define DAP_GLOVAL_IS_INT128 (i.e on 32-bit system or with disabling this feature by hand
+// TODO: need to run tests without define DAP_GLOBAL_IS_INT128 (i.e on 32-bit system or with disabling this feature by hand
 // TODO: Add 64 and 128 tests for arithmetics
 // TODO: Rework tests for using predicates, not ASSERT_EQ chains or ASSERT_STREQ
 
@@ -1071,7 +1071,7 @@ TEST(BitTests, And128) {
     uint128_t e = AND_128(a, a);
     uint128_t f = AND_128(b, b);
 
-#if DAP_GLOVAL_IS_INT128
+#ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(c, uint128_0);
     ASSERT_EQ(d, uint128_0);
     ASSERT_EQ(e, uint128_0);
@@ -1097,7 +1097,7 @@ TEST(BitTests, Or128) {
     uint128_t f = OR_128(b, b);
 
 
-#if DAP_GLOVAL_IS_INT128
+#ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(c, uint128_1);
     ASSERT_EQ(d, uint128_1);
     ASSERT_EQ(e, uint128_0);
