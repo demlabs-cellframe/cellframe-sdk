@@ -78,113 +78,141 @@ class RandomMathTests: public RandomTests {
 
 TEST(InputTests, ZeroInputBase) {
     uint256_t zero = uint256_0;
-#if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(zero.hi, 0);
-    ASSERT_EQ(zero.lo, 0);
-#else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
-#endif
 
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(zero.lo, 0);
+    ASSERT_EQ(zero.hi, 0);
+#else
+    ASSERT_EQ(zero.lo.lo, 0);
+    ASSERT_EQ(zero.lo.hi, 0);
+    ASSERT_EQ(zero.hi.lo, 0);
+    ASSERT_EQ(zero.hi.hi, 0);
+#endif
 }
 
 TEST(InputTests, ZeroInputFrom64) {
     uint256_t zero = dap_chain_uint256_from(0);
-#if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(zero.hi, 0);
+
+#ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(zero.lo, 0);
+    ASSERT_EQ(zero.hi, 0);
 #else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
+    ASSERT_EQ(zero.lo.lo, 0);
+    ASSERT_EQ(zero.lo.hi, 0);
+    ASSERT_EQ(zero.hi.lo, 0);
+    ASSERT_EQ(zero.hi.hi, 0);
 #endif
 }
 
 TEST(InputTests, ZeroInputFromString) {
     uint256_t zero = dap_chain_balance_scan("0");
-#if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(zero.hi, 0);
+
+#ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(zero.lo, 0);
+    ASSERT_EQ(zero.hi, 0);
 #else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
+    ASSERT_EQ(zero.lo.lo, 0);
+    ASSERT_EQ(zero.lo.hi, 0);
+    ASSERT_EQ(zero.hi.lo, 0);
+    ASSERT_EQ(zero.hi.hi, 0);
 #endif
 }
 
 TEST(InputTests, MaxInputFrom64) {
     uint256_t max = dap_chain_uint256_from(0xffffffffffffffff);
-#if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(max.hi, 0);
+
+#ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(max.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.hi, 0);
 #else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
+    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.lo.hi, 0);
+    ASSERT_EQ(max.hi.lo, 0);
+    ASSERT_EQ(max.hi.hi, 0);
 #endif
+
+
     max = GET_256_FROM_64(-1);
-#if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(max.hi, 0);
+
+
+#ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(max.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.hi, 0);
 #else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
+    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.lo.hi, 0);
+    ASSERT_EQ(max.hi.lo, 0);
+    ASSERT_EQ(max.hi.hi, 0);
 #endif
 }
 
-
 TEST(InputTests, MaxInputFromString) {
     uint256_t max = dap_chain_balance_scan(MAX64STR);
-#if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(max.hi, 0);
-    ASSERT_EQ(max.lo, 0xffffffffffffffff);
 
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(max.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.hi, 0);
 #else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
+    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.lo.hi, 0);
+    ASSERT_EQ(max.hi.lo, 0);
+    ASSERT_EQ(max.hi.hi, 0);
 #endif
 }
 
 TEST(InputTests, Min128FromString) {
     uint256_t min = dap_chain_balance_scan(MIN128STR);
-#if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(min.hi, 0);
-    ASSERT_EQ(min.lo, bmp::uint128_t(MIN128STR));
 
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(min.lo, bmp::uint128_t(MIN128STR));
+    ASSERT_EQ(min.hi, 0);
 #else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
+    ASSERT_EQ(min.lo.lo, 0);
+    ASSERT_EQ(min.lo.hi, 1);
+    ASSERT_EQ(min.hi.lo, 0);
+    ASSERT_EQ(min.hi.hi, 0);
 #endif
 }
 
 TEST(InputTests, Max128FromString) {
     uint256_t max = dap_chain_balance_scan(MAX128STR);
-#if defined(DAP_GLOBAL_IS_INT128)
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(max.lo, bmp::uin256_t(MIN128STR));
     ASSERT_EQ(max.hi, 0);
-    ASSERT_EQ(max.lo, bmp::uint128_t(MAX128STR));
 #else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
+    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.lo.hi, 0xffffffffffffffff);
+    ASSERT_EQ(max.hi.lo, 0);
+    ASSERT_EQ(max.hi.hi, 0);
 #endif
 }
 
 TEST(InputTests, Min256FromString) {
     uint256_t min = dap_chain_balance_scan(MIN256STR);
-    #if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(min.hi, 1);
-    ASSERT_EQ(min.lo, 0);
 
-    #else
-    //todo: сreate test for non-native 128 bit
-        FAIL();
-    #endif
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(min.lo, 0);
+    ASSERT_EQ(min.hi, 1);
+#else
+    ASSERT_EQ(min.lo.lo, 0);
+    ASSERT_EQ(min.lo.hi, 0);
+    ASSERT_EQ(min.hi.lo, 1);
+    ASSERT_EQ(min.hi.hi, 0);
+#endif
 }
 
 TEST(InputTests, Max256FromString) {
     uint256_t max = dap_chain_balance_scan(MAX256STR);
-#if defined(DAP_GLOBAL_IS_INT128)
-    ASSERT_EQ(max.hi, bmp::uint128_t(MAX128STR));
-    ASSERT_EQ(max.lo, bmp::uint128_t(MAX128STR));
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(max.lo, bmp::uin128_t(MAX128STR));
+    ASSERT_EQ(max.hi, bmp::uin128_t(MAX128STR));
 #else
-    //todo: сreate test for non-native 128 bit
-    FAIL();
+    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.lo.hi, 0xffffffffffffffff);
+    ASSERT_EQ(max.hi.lo, 0xffffffffffffffff);
+    ASSERT_EQ(max.hi.hi, 0xffffffffffffffff);
 #endif
 }
 
