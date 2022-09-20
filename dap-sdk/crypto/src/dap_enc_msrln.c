@@ -56,7 +56,6 @@ void dap_enc_msrln_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
     (void)seed; (void)seed_size; (void)key_size;
 
     /* alice_msg is alice's public key */
-    a_key->pub_key_data = NULL;
     a_key->pub_key_data = malloc(MSRLN_PKA_BYTES);
     a_key->pub_key_data_size = MSRLN_PKA_BYTES;
     if(a_key->pub_key_data == NULL) {

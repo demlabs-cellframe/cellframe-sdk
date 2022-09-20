@@ -396,6 +396,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
         }
         l_request->err_code = 0;
+
         strncpy(l_request->ip_send, a_ch->stream->esocket->hostaddr, INET_ADDRSTRLEN);
         l_request->recv_time2 = dap_nanotime_now();
 
@@ -559,9 +560,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
+
+        memset(&l_success->hdr, 0, sizeof(l_success->hdr));
+
         l_success->hdr.usage_id         = l_usage->id;
         l_success->hdr.net_id.uint64    = l_usage->net->pub.id.uint64;
         l_success->hdr.srv_uid.uint64   = l_usage->service->uid.uint64;
+
         if (l_tx_in_hash) {
             memcpy(l_success->custom_data, l_tx_in_hash, sizeof(dap_chain_hash_fast_t));
             DAP_DELETE(l_tx_in_hash);
