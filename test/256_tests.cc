@@ -178,7 +178,7 @@ TEST(InputTests, Max128FromString) {
     uint256_t max = dap_chain_balance_scan(MAX128STR);
 
 #ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(max.lo, bmp::uin256_t(MIN128STR));
+    ASSERT_EQ(max.lo, bmp::uint256_t(MAX128STR));
     ASSERT_EQ(max.hi, 0);
 #else
     ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
@@ -206,8 +206,8 @@ TEST(InputTests, Max256FromString) {
     uint256_t max = dap_chain_balance_scan(MAX256STR);
 
 #ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(max.lo, bmp::uin128_t(MAX128STR));
-    ASSERT_EQ(max.hi, bmp::uin128_t(MAX128STR));
+    ASSERT_EQ(max.lo, bmp::uint128_t(MAX128STR));
+    ASSERT_EQ(max.hi, bmp::uint128_t(MAX128STR));
 #else
     ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
     ASSERT_EQ(max.lo.hi, 0xffffffffffffffff);

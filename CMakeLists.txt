@@ -33,10 +33,10 @@ option(DAP_INT128_SUPPORT "Use 128-bit varaibles, if supported" ON) # Enabled by
 
 if(NOT DAP_INT128_SUPPORT)
     message("[!] INT128 DISABLED")
-    add_definitions(-DDAP_DISABLE_INT128=TRUE)
+    add_definitions(-DDAP_DISABLE_INT128)
 else()
     message("[!] INT128 ENABLED")
-    add_definitions(-DDAP_DISABLE_INT128=FALSE)
+#    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
 
 
