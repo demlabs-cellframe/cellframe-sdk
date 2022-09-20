@@ -24,6 +24,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdio.h>
+#include <pthread.h>
 #include "uthash.h"
 #include "dap_chain_common.h"
 
