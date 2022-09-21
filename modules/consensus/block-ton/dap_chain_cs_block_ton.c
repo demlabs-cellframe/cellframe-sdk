@@ -30,7 +30,6 @@ static void s_message_chain_add(dap_chain_cs_block_ton_items_t * a_session, dap_
 									dap_chain_cs_block_ton_message_t * a_message,
 									size_t a_message_size, dap_chain_hash_fast_t *a_message_hash);
 static void s_session_round_start(dap_chain_cs_block_ton_items_t *a_session);
-static void s_session_block_new_delete(dap_chain_cs_block_ton_items_t *a_session);
 static void s_session_my_candidate_delete(dap_chain_cs_block_ton_items_t *a_session);
 static bool s_session_round_finish(dap_chain_cs_block_ton_items_t *a_session);
 static dap_chain_node_addr_t *s_session_get_validator(
@@ -962,7 +961,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
 		if (!l_validator) {
 			if (PVT(l_session->ton)->debug)
-            	log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Message rejected: validator addr:"NODE_ADDR_FP_STR" not on the list.",
+                log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Message rejected: validator addr:"NODE_ADDR_FP_STR" not in the list.",
 					l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
 						l_session->attempt_current_number, NODE_ADDR_FP_ARGS(a_sender_node_addr));
 			goto handler_finish;
@@ -1018,7 +1017,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     }
 	if (!l_validator) {
 		if (PVT(l_session->ton)->debug) 
-            log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Message rejected: validator addr:"NODE_ADDR_FP_STR" not on the list.",
+            log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Message rejected: validator addr:"NODE_ADDR_FP_STR" not in the list.",
 					l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
 						l_session->attempt_current_number, NODE_ADDR_FP_ARGS(a_sender_node_addr));
 		goto handler_finish;
