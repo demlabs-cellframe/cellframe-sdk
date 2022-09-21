@@ -1216,7 +1216,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             continue;
         }
         if (l_blocks->block_new_size + l_datum_size > l_blocks_pvt->block_size_maximum) {
-            log_it(L_DEBUG, "Maximum size exeeded, %ld > %ld", l_blocks->block_new_size + l_datum_size, l_blocks_pvt->block_size_maximum);
+            log_it(L_DEBUG, "Maximum size exeeded, %zu > %zu", l_blocks->block_new_size + l_datum_size, l_blocks_pvt->block_size_maximum);
             break;
         }
         if (!l_blocks->block_new) {

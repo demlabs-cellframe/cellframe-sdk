@@ -22,7 +22,6 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-#include "dap_hash.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -50,6 +49,7 @@
 
 #include "uthash.h"
 #include "utlist.h"
+#include "dap_hash.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_list.h"
