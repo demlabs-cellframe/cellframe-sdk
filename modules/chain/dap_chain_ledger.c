@@ -3034,7 +3034,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, l_cache_size);
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
     char *l_main_token_ticker = NULL, *l_cur_token_ticker = NULL;
-    bool l_stake_updated = false;
+    bool l_stake_updated = false, l_ticker_in_heap = false;
     // Update balance: deducts
 
     for (int i = 1; l_list_tmp; i++) {
@@ -3194,6 +3194,10 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 
         // delete previous transactions from cache because all out is used
         if(l_prev_item_out->cache_data.n_outs_used == l_prev_item_out->cache_data.n_outs) {
+            if (l_main_token_ticker == l_prev_item_out->cache_data.token_ticker) {
+                l_main_token_ticker = dap_strdup(l_prev_item_out->cache_data.token_ticker);
+                l_ticker_in_heap = true;
+            }
             dap_chain_hash_fast_t l_tx_prev_hash_to_del = bound_item->tx_prev_hash;
             // remove from memory ledger
             int res = dap_chain_ledger_tx_remove(a_ledger, &l_tx_prev_hash_to_del, a_tx->header.ts_created);
@@ -3330,8 +3334,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     }
     if(l_tist_tmp)
         dap_list_free(l_tist_tmp);
-    if (l_main_token_ticker)
+    if (l_main_token_ticker) {
         dap_stpcpy(l_tx_item->cache_data.token_ticker, l_main_token_ticker);
+        if (l_ticker_in_heap)
+            DAP_DELETE(l_main_token_ticker);
+    }
     else
         debug_if(s_debug_more, L_ERROR, "No token ticker in previous txs");
     l_tx_item->cache_data.multichannel = l_multichannel;
