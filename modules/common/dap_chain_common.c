@@ -942,6 +942,14 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         uint256_t l_tmp;
         for (int j = 7; j>=0; j--) {
             l_tmp = GET_256_FROM_64((uint64_t) c_pow10_double[i].u32[j]);
+            if (IS_ZERO_256(l_tmp)) {
+                if (j < 6) { // in table, we have only 7 and 6 position with 0-es but 5..0 non-zeroes, so if we have zero on 5 or less, there is no significant position anymore
+                    break;
+                }
+                else {
+                    continue;
+                }
+            }
             LEFT_SHIFT_256(l_tmp, &l_tmp, 32 * (7-j));
             overflow_flag = MULT_256_256(l_tmp, GET_256_FROM_64(l_digit), &l_tmp);
             if (overflow_flag) {
