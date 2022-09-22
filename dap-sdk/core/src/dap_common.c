@@ -30,9 +30,9 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stdint.h>
-
+#include <ctype.h>
 #include "utlist.h"
-//#include <errno.h>
+#include "uthash.h"
 
 #ifdef DAP_OS_ANDROID
   #include <android/log.h>
@@ -82,7 +82,7 @@ const uint128_t uint128_1 = 1;
 
 const uint256_t uint256_0 = {};
 #ifndef DAP_GLOBAL_IS_INT128
-const uint256_t uint256_1 = {.hi = uint128_0, .lo = uint128_1};
+const uint256_t uint256_1 = {.hi = {}, .lo = {.hi = 0, .lo = 1}};
 #else // DAP_GLOBAL_IS_INT128
 const uint256_t uint256_1 = {.hi = 0, .lo = 1};
 #endif // DAP_GLOBAL_IS_INT128
@@ -149,54 +149,6 @@ static unsigned int s_ansi_seq_color_len[16] = {0};
         7
       };
 #endif
-
-/*	CRC32-C	*/
-const  unsigned int g_crc32c_table[] = {
-        0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
-        0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
-        0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
-        0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
-        0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec, 0x14015c4f, 0x63066cd9,
-        0xfa0f3d63, 0x8d080df5, 0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
-        0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b, 0x35b5a8fa, 0x42b2986c,
-        0xdbbbc9d6, 0xacbcf940, 0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
-        0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423,
-        0xcfba9599, 0xb8bda50f, 0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924,
-        0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d, 0x76dc4190, 0x01db7106,
-        0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
-        0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d,
-        0x91646c97, 0xe6635c01, 0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e,
-        0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457, 0x65b0d9c6, 0x12b7e950,
-        0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
-        0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2, 0x4adfa541, 0x3dd895d7,
-        0xa4d1c46d, 0xd3d6f4fb, 0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
-        0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9, 0x5005713c, 0x270241aa,
-        0xbe0b1010, 0xc90c2086, 0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
-        0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81,
-        0xb7bd5c3b, 0xc0ba6cad, 0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a,
-        0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683, 0xe3630b12, 0x94643b84,
-        0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
-        0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb,
-        0x196c3671, 0x6e6b06e7, 0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc,
-        0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5, 0xd6d6a3e8, 0xa1d1937e,
-        0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
-        0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60, 0xdf60efc3, 0xa867df55,
-        0x316e8eef, 0x4669be79, 0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
-        0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f, 0xc5ba3bbe, 0xb2bd0b28,
-        0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
-        0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f,
-        0x72076785, 0x05005713, 0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38,
-        0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21, 0x86d3d2d4, 0xf1d4e242,
-        0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
-        0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69,
-        0x616bffd3, 0x166ccf45, 0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2,
-        0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc,
-        0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
-        0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693,
-        0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
-        0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
-};
-
 
 static volatile bool s_log_term_signal = false;
 char* g_sys_dir_path = NULL;
@@ -395,6 +347,224 @@ static void *s_log_thread_proc(void *arg) {
     }
     return NULL;
 }
+
+/*	CRC32-C	*/
+const  unsigned int g_crc32c_table[] = {
+    0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
+    0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
+    0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
+    0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
+    0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec, 0x14015c4f, 0x63066cd9,
+    0xfa0f3d63, 0x8d080df5, 0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
+    0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b, 0x35b5a8fa, 0x42b2986c,
+    0xdbbbc9d6, 0xacbcf940, 0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
+    0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423,
+    0xcfba9599, 0xb8bda50f, 0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924,
+    0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d, 0x76dc4190, 0x01db7106,
+    0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
+    0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d,
+    0x91646c97, 0xe6635c01, 0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e,
+    0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457, 0x65b0d9c6, 0x12b7e950,
+    0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
+    0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2, 0x4adfa541, 0x3dd895d7,
+    0xa4d1c46d, 0xd3d6f4fb, 0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
+    0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9, 0x5005713c, 0x270241aa,
+    0xbe0b1010, 0xc90c2086, 0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
+    0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81,
+    0xb7bd5c3b, 0xc0ba6cad, 0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a,
+    0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683, 0xe3630b12, 0x94643b84,
+    0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
+    0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb,
+    0x196c3671, 0x6e6b06e7, 0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc,
+    0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5, 0xd6d6a3e8, 0xa1d1937e,
+    0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
+    0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60, 0xdf60efc3, 0xa867df55,
+    0x316e8eef, 0x4669be79, 0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
+    0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f, 0xc5ba3bbe, 0xb2bd0b28,
+    0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
+    0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f,
+    0x72076785, 0x05005713, 0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38,
+    0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21, 0x86d3d2d4, 0xf1d4e242,
+    0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
+    0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69,
+    0x616bffd3, 0x166ccf45, 0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2,
+    0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc,
+    0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
+    0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693,
+    0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
+    0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
+};
+
+
+#ifdef DAP_SYS_DEBUG
+const	char spaces[74] = {"                                                                          "};
+#define PID_FMT "%6d"
+
+void	_log_it_ext   (
+		const char *	a_rtn_name,
+            unsigned	a_line_no,
+    enum dap_log_level  a_ll,
+        const char *	a_fmt,
+			...
+			)
+{
+va_list arglist;
+const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
+char	out[1024] = {0};
+int     olen, len;
+struct tm _tm;
+struct timespec now;
+
+    if ( (a_ll == -1) )
+        return;
+
+    if ( a_ll < s_dap_log_level )
+        return;
+
+
+	clock_gettime(CLOCK_REALTIME, &now);
+
+#ifdef	WIN32
+	localtime_s(&_tm, (time_t *)&now);
+#else
+	localtime_r((time_t *)&now, &_tm);
+#endif
+
+	olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
+			_tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
+			(unsigned) gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
+
+
+	if ( 0 < (len = (74 - olen)) )
+		{
+		memcpy(out + olen, spaces, len);
+		olen += len;
+		}
+
+	/*
+	** Format variable part of string line
+	*/
+	va_start (arglist, a_fmt);
+	olen += vsnprintf(out + olen, sizeof(out) - olen, a_fmt, arglist);
+	va_end (arglist);
+
+	olen = MIN(olen, sizeof(out) - 1);
+
+	/* Add <LF> at end of record*/
+	out[olen++] = '\n';
+
+    if(s_log_file)
+    {
+        fwrite(out, olen, 1,  s_log_file);
+        fflush(s_log_file);
+    }
+
+    len = write(STDOUT_FILENO, out, olen);
+}
+
+
+
+void	_dump_it	(
+		const char      *a_rtn_name,
+    		unsigned	a_line_no,
+        const char      *a_var_name,
+		const void      *src,
+		unsigned short	srclen
+			)
+{
+#define HEXDUMP$SZ_WIDTH    80
+const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  [%s:%u]  HEX Dump of <%.*s>, %u octets:\n"};
+char	out[8192] = {0};
+unsigned char *srcp = (unsigned char *) src, low, high;
+unsigned olen = 0, i, j, len;
+struct tm _tm;
+struct timespec now;
+
+
+    clock_gettime(CLOCK_REALTIME, &now);
+
+    #ifdef	WIN32
+    localtime_s(&_tm, (time_t *)&now);
+    #else
+    localtime_r((time_t *)&now, &_tm);
+    #endif
+
+    olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
+            _tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
+            (unsigned) gettid(), a_rtn_name, a_line_no, 48, a_var_name, srclen);
+
+    if(s_log_file)
+    {
+        fwrite(out, olen, 1,  s_log_file);
+        fflush(s_log_file);
+    }
+
+    len = write(STDOUT_FILENO, out, olen);
+
+
+	/*
+	** Format variable part of string line
+	*/
+    memset(out, ' ', sizeof(out));
+
+	for (i = 0; i < ((srclen / 16));  i++)
+		{
+		olen = snprintf(out, HEXDUMP$SZ_WIDTH, "\t+%04x:  ", i * 16);
+		memset(out + olen, ' ', HEXDUMP$SZ_WIDTH - olen);
+
+		for (j = 0; j < 16; j++, srcp++)
+			{
+			high = (*srcp) >> 4;
+			low = (*srcp) & 0x0f;
+
+			out[olen + j * 3] = high + ((high < 10) ? '0' : 'a' - 10);
+			out[olen + j * 3 + 1] = low + ((low < 10) ? '0' : 'a' - 10);
+
+			out[olen + 16*3 + 2 + j] = isprint(*srcp) ? *srcp : '.';
+			}
+
+		/* Add <LF> at end of record*/
+		out[HEXDUMP$SZ_WIDTH - 1] = '\n';
+
+        if(s_log_file)
+        {
+            fwrite(out, HEXDUMP$SZ_WIDTH, 1,  s_log_file);
+            fflush(s_log_file);
+        }
+
+        len = write(STDOUT_FILENO, out, HEXDUMP$SZ_WIDTH);
+    }
+
+	if ( srclen % 16 )
+		{
+		olen = snprintf(out, HEXDUMP$SZ_WIDTH, "\t+%04x:  ", i * 16);
+		memset(out + olen, ' ', HEXDUMP$SZ_WIDTH - olen);
+
+		for (j = 0; j < srclen % 16; j++, srcp++)
+			{
+			high = (*srcp) >> 4;
+			low = (*srcp) & 0x0f;
+
+			out[olen + j * 3] = high + ((high < 10) ? '0' : 'a' - 10);
+			out[olen + j * 3 + 1] = low + ((low < 10) ? '0' : 'a' - 10);
+
+			out[olen + 16*3 + 2 + j] = isprint(*srcp) ? *srcp : '.';
+			}
+
+		/* Add <LF> at end of record*/
+		out[HEXDUMP$SZ_WIDTH - 1] = '\n';
+
+        if(s_log_file)
+        {
+            fwrite(out, HEXDUMP$SZ_WIDTH, 1,  s_log_file);
+            fflush(s_log_file);
+        }
+
+        len = write(STDOUT_FILENO, out, HEXDUMP$SZ_WIDTH);
+    }
+}
+
+#endif  /* DAP_SYS_DEBUG */
 
 /**
  * @brief _log_it
@@ -660,6 +830,7 @@ char * exec_with_ret(const char * a_cmd)
 FIN:
     return strdup(buf);
 }
+#endif
 
 /**
  * @brief exec_with_ret_multistring performs a command with a result return in the form of a multistring
@@ -686,7 +857,6 @@ char * exec_with_ret_multistring(const char * a_cmd)
 FIN:
     return strdup(retbuf);
 }
-#endif
 
 static const char l_possible_chars[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -912,48 +1082,64 @@ int exec_silent(const char * a_cmd) {
 #endif
 }
 
-static int s_timers_count = 0;
-static dap_timer_interface_t s_timers[DAP_INTERVAL_TIMERS_MAX];
-#ifdef _WIN32
-static CRITICAL_SECTION s_timers_lock;
+typedef struct dap_timer_interface {
+#ifdef DAP_OS_DARWIN
+    dispatch_source_t timer;
 #else
-static pthread_mutex_t s_timers_lock;
+    void *timer;
 #endif
+    dap_timer_callback_t callback;
+    void *param;
+    UT_hash_handle hh;
+} dap_timer_interface_t;
+static dap_timer_interface_t *s_timers_map;
+static pthread_rwlock_t s_timers_rwlock;
 
-void dap_interval_timer_deinit()
-{
-    for (int i = 0; i < s_timers_count; i++) {
-        dap_interval_timer_delete(s_timers[i].timer);
-    }
+void dap_interval_timer_init() {
+    pthread_rwlock_init(&s_timers_rwlock, NULL);
 }
 
-static int s_timer_find(void *a_timer)
-{
-    for (int i = 0; i < s_timers_count; i++) {
-        if (s_timers[i].timer == a_timer) {
-            return i;
-        }
+void dap_interval_timer_deinit() {
+    pthread_rwlock_wrlock(&s_timers_rwlock);
+    dap_timer_interface_t *l_cur_timer = NULL, *l_tmp;
+    HASH_ITER(hh, s_timers_map, l_cur_timer, l_tmp) {
+        HASH_DEL(s_timers_map, l_cur_timer);
+        dap_interval_timer_disable(l_cur_timer->timer);
+        DAP_FREE(l_cur_timer);
     }
-    return -1;
+    pthread_rwlock_unlock(&s_timers_rwlock);
+    pthread_rwlock_destroy(&s_timers_rwlock);
 }
 
+#ifdef DAP_OS_LINUX
+static void s_posix_callback(union sigval a_arg) {
+    pthread_rwlock_rdlock(&s_timers_rwlock);
+    dap_timer_interface_t *l_timer = NULL;
+    HASH_FIND_PTR(s_timers_map, &a_arg.sival_ptr, l_timer);
+    pthread_rwlock_unlock(&s_timers_rwlock);
+    if (l_timer && l_timer->callback) {
+        l_timer->callback(l_timer->param);
+    } else {
+        log_it(L_WARNING, "Timer '%p' is not initialized", a_arg.sival_ptr);
+    }
+#else
 #ifdef _WIN32
-static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
-{
+static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true) {
     UNUSED(a_always_true);
-    s_timers[(size_t)a_arg].callback(s_timers[(size_t)a_arg].param);
-}
-#elif defined __MACH__
-static void s_bsd_callback(int a_arg)
-{
-    s_timers[a_arg].callback(s_timers[a_arg].param);
-}
-#else
-static void s_posix_callback(union sigval a_arg)
-{
-    s_timers[a_arg.sival_int].callback(s_timers[a_arg.sival_int].param);
-}
+#elif defined (DAP_OS_DARWIN)
+static void s_bsd_callback(void *a_arg) {
 #endif
+    pthread_rwlock_rdlock(&s_timers_rwlock);
+    dap_timer_interface_t *l_timer = NULL;
+    HASH_FIND_PTR(s_timers_map, &a_arg, l_timer);
+    pthread_rwlock_unlock(&s_timers_rwlock);
+    if (l_timer && l_timer->callback) {
+        l_timer->callback(l_timer->param);
+    } else {
+        log_it(L_WARNING, "Timer '%p' is not initialized", a_arg);
+    }
+#endif
+}
 
 /*!
  * \brief dap_interval_timer_create Create new timer object and set callback function to it
@@ -961,105 +1147,63 @@ static void s_posix_callback(union sigval a_arg)
  * \param a_callback Function to be called with timer period
  * \return pointer to timer object if success, otherwise return NULL
  */
-void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param)
-{
-    if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
-        return NULL;
-    }
+dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param) {
+    dap_timer_interface_t *l_timer_obj = DAP_NEW_Z(dap_timer_interface_t);
+    l_timer_obj->callback   = a_callback;
+    l_timer_obj->param      = a_param;
 #if (defined _WIN32)
-    if (s_timers_count == 0) {
-        InitializeCriticalSection(&s_timers_lock);
-    }
-    HANDLE l_timer;
-    if (!CreateTimerQueueTimer(&l_timer, NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(size_t)s_timers_count, a_msec, a_msec, 0)) {
+    if (!CreateTimerQueueTimer(&(l_timer_obj->timer) , NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(l_timer_obj->timer), a_msec, a_msec, 0)) {
         return NULL;
     }
-    EnterCriticalSection(&s_timers_lock);
 #elif (defined DAP_OS_DARWIN)
-    if (s_timers_count == 0) {
-        pthread_mutex_init(&s_timers_lock, NULL);
-    }
-    pthread_mutex_lock(&s_timers_lock);
-
     dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
-    dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
-    dispatch_source_set_event_handler(l_timer, ^(void){s_bsd_callback(s_timers_count);});
+    l_timer_obj->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
+    dispatch_source_set_event_handler((l_timer_obj->timer), ^(void){ s_bsd_callback((void*)(l_timer_obj->timer)); });
     dispatch_time_t start = dispatch_time(DISPATCH_TIME_NOW, a_msec * 1000000);
-    dispatch_source_set_timer(l_timer, start, a_msec * 1000000, 0);
-    dispatch_resume(l_timer);
+    dispatch_source_set_timer(l_timer_obj->timer, start, a_msec * 1000000, 0);
+    dispatch_resume(l_timer_obj->timer);
 #else
-    if (s_timers_count == 0) {
-        pthread_mutex_init(&s_timers_lock, NULL);
-    }
-    timer_t l_timer;
+    timer_t l_timer = NULL;
     struct sigevent l_sig_event = { };
     l_sig_event.sigev_notify = SIGEV_THREAD;
-    l_sig_event.sigev_value.sival_int = s_timers_count;
+    l_sig_event.sigev_value.sival_ptr = l_timer_obj->timer;
     l_sig_event.sigev_notify_function = s_posix_callback;
-    if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &l_timer)) {
+    if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &(l_timer_obj->timer))) {
         return NULL;
     }
     struct itimerspec l_period = { };
     l_period.it_interval.tv_sec = l_period.it_value.tv_sec = a_msec / 1000;
     l_period.it_interval.tv_nsec = l_period.it_value.tv_nsec = (a_msec % 1000) * 1000000;
-    timer_settime(l_timer, 0, &l_period, NULL);
-    pthread_mutex_lock(&s_timers_lock);
+    timer_settime(l_timer_obj->timer, 0, &l_period, NULL);
 #endif
-    s_timers[s_timers_count].timer = (void *)l_timer;
-    s_timers[s_timers_count].callback = a_callback;
-    s_timers[s_timers_count].param = a_param;
-    s_timers_count++;
-#ifdef WIN32
-    LeaveCriticalSection(&s_timers_lock);
-#else
-    pthread_mutex_unlock(&s_timers_lock);
-#endif
-    return (void *)l_timer;
+    pthread_rwlock_wrlock(&s_timers_rwlock);
+    HASH_ADD_PTR(s_timers_map, timer, l_timer_obj);
+    pthread_rwlock_unlock(&s_timers_rwlock);
+    log_it(L_DEBUG, "Interval timer %p created", l_timer_obj->timer);
+    return (dap_interval_timer_t*)l_timer_obj->timer;
 }
 
-/*!
- * \brief dap_interval_timer_delete Delete existed timer object and stop callback function calls
- * \param a_timer A timer object created previously with dap_interval_timer_create
- * \return 0 if success, -1 otherwise
- */
-int dap_interval_timer_delete(void *a_timer)
-{
-    if (!s_timers_count) {
-        return -1;
-    }
-#if (defined _WIN32)
-    EnterCriticalSection(&s_timers_lock);
-#elif (defined DAP_OS_UNIX)
-    pthread_mutex_lock(&s_timers_lock);
-#endif
-    int l_timer_idx = s_timer_find(a_timer);
-    if (l_timer_idx == -1) {
-        return -1;
-    }
-    for (int i = l_timer_idx; i < s_timers_count - 1; i++) {
-        s_timers[i] = s_timers[i + 1];
-    }
-    s_timers_count--;
+int dap_interval_timer_disable(dap_interval_timer_t a_timer) {
 #ifdef _WIN32
-    LeaveCriticalSection(&s_timers_lock);
-    if (s_timers_count == 0) {
-        DeleteCriticalSection(&s_timers_lock);
-    }
     return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
-#else
-    pthread_mutex_unlock(&s_timers_lock);
-    if (s_timers_count == 0) {
-        pthread_mutex_destroy(&s_timers_lock);
-    }
-#ifdef DAP_OS_DARWIN
-    dispatch_source_cancel(a_timer);
+#elif defined (DAP_OS_DARWIN)
+    dispatch_source_cancel((dispatch_source_t)a_timer);
     return 0;
-#elif defined(DAP_OS_UNIX)
-    // POSIX timer delete
+#else
     return timer_delete((timer_t)a_timer);
-#endif  // DAP_OS_UNIX
+#endif
+}
 
-#endif  // _WIN32
+void dap_interval_timer_delete(dap_interval_timer_t a_timer) {
+    pthread_rwlock_wrlock(&s_timers_rwlock);
+    dap_timer_interface_t *l_timer = NULL;
+    HASH_FIND_PTR(s_timers_map, &a_timer, l_timer);
+    if (l_timer) {
+        HASH_DEL(s_timers_map, l_timer);
+        dap_interval_timer_disable(l_timer->timer);
+        DAP_FREE(l_timer);
+    }
+    pthread_rwlock_unlock(&s_timers_rwlock);
 }
 
 /**

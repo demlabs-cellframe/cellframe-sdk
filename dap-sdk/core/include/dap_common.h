@@ -45,7 +45,6 @@
 #define atomic_uint _Atomic(uint)
 #endif
 
-
 #include <time.h>
 #ifdef DAP_OS_WINDOWS
 #include <fcntl.h>
@@ -56,7 +55,6 @@
 #include <dispatch/dispatch.h>
 #endif
 #include "portable_endian.h"
-typedef uint8_t byte_t;
 
 #define BIT( x ) ( 1 << x )
 // Stuffs an integer into a pointer type
@@ -188,14 +186,14 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 #define DAP_CLIENT_PROTOCOL_VERSION   24
 
-#if __SIZEOF_LONG__==8
-#define DAP_UINT64_FORMAT_X  "lX"
-#define DAP_UINT64_FORMAT_x  "lx"
-#define DAP_UINT64_FORMAT_U  "lu"
-#elif __SIZEOF_LONG__==4
+#if (__SIZEOF_LONG__ == 4) || defined (DAP_OS_DARWIN)
 #define DAP_UINT64_FORMAT_X  "llX"
 #define DAP_UINT64_FORMAT_x  "llx"
 #define DAP_UINT64_FORMAT_U  "llu"
+#elif (__SIZEOF_LONG__ == 8)
+#define DAP_UINT64_FORMAT_X  "lX"
+#define DAP_UINT64_FORMAT_x  "lx"
+#define DAP_UINT64_FORMAT_U  "lu"
 #else
 #error "DAP_UINT64_FORMAT_* are undefined for your platform"
 #endif
@@ -273,6 +271,7 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
   #define dap_vasprintf         vasprintf
 #endif
 
+typedef uint8_t byte_t;
 typedef int dap_spinlock_t;
 
 /**
@@ -302,14 +301,8 @@ typedef struct dap_log_history_str_s {
 
 } dap_log_history_str_t;
 
-#define DAP_INTERVAL_TIMERS_MAX 15
-
+typedef void *dap_interval_timer_t;
 typedef void (*dap_timer_callback_t)(void *param);
-typedef struct dap_timer_interface {
-    void *timer;
-    dap_timer_callback_t callback;
-    void *param;
-} dap_timer_interface_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -452,9 +445,21 @@ char *dap_log_get_item(time_t a_start_time, int a_limit);
 
 
 DAP_PRINTF_ATTR(3, 4) void _log_it( const char * log_tag, enum dap_log_level, const char * format, ... );
-#define log_it( _log_level, ...) _log_it( LOG_TAG, _log_level, ##__VA_ARGS__)
-#define debug_if( flg, lvl, ...) _log_it( ((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
+#define log_it(_log_level, ...) _log_it(LOG_TAG, _log_level, ##__VA_ARGS__)
+#define debug_if(flg, lvl, ...) _log_it(((flg) ? LOG_TAG : NULL), (lvl), ##__VA_ARGS__)
 
+#ifdef DAP_SYS_DEBUG
+void    _log_it_ext( const char *, unsigned, enum dap_log_level, const char * format, ... );
+void    _dump_it (const char *, unsigned , const char *a_var_name, const void *src, unsigned short srclen);
+#undef  log_it
+#define log_it( _log_level, ...)        _log_it_ext( __func__, __LINE__, (_log_level), ##__VA_ARGS__)
+#undef  debug_if
+#define debug_if(flg, _log_level, ...)  _log_it_ext( __func__, __LINE__, (flg) ? (_log_level) : -1 , ##__VA_ARGS__)
+
+#define dump_it(v,s,l)                  _dump_it( __func__, __LINE__, (v), (s), (l))
+#else
+#define dump_it(v,s,l)
+#endif
 
 const char * log_error(void);
 void dap_log_level_set(enum dap_log_level ll);
@@ -469,6 +474,7 @@ char *dap_itoa(int i);
 int get_select_breaker(void);
 int send_select_break(void);
 int exec_with_ret(char**, const char*);
+char * exec_with_ret_multistring(const char * a_cmd);
 char * dap_random_string_create_alloc(size_t a_length);
 void dap_random_string_fill(char *str, size_t length);
 void dap_dump_hex(const void* data, size_t size);
@@ -478,8 +484,10 @@ size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len);
 void dap_digit_from_string(const char *num_str, void *raw, size_t raw_len);
 void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len);
 
-void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
-int dap_interval_timer_delete(void *a_timer);
+dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
+void dap_interval_timer_delete(dap_interval_timer_t a_timer);
+int dap_interval_timer_disable(dap_interval_timer_t a_timer);
+void dap_interval_timer_init();
 void dap_interval_timer_deinit();
 
 uint16_t dap_lendian_get16(const uint8_t *a_buf);
@@ -500,20 +508,24 @@ int dap_is_alpha(char e);
 int dap_is_digit(char e);
 char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit);
 
-#ifdef __MINGW32__
-int exec_silent(const char *a_cmd);
-#endif
-
 #define CRC32_POLY      (0xEDB88320)
 extern const unsigned int g_crc32c_table[];
 
-static inline unsigned int dap_crc32c (unsigned int crc, const void *buf, size_t buflen) {
-    const unsigned char  *p = (unsigned char *) buf;
+static inline unsigned int	dap_crc32c (unsigned int crc, const void *buf, size_t buflen)
+{
+const unsigned char  *p = (unsigned char *) buf;
+
     crc = crc ^ ~0U;
+
     while (buflen--)
         crc = g_crc32c_table[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
+
     return crc ^ ~0U;
 }
+
+#ifdef __MINGW32__
+int exec_silent(const char *a_cmd);
+#endif
 
 #ifdef __cplusplus
 }
