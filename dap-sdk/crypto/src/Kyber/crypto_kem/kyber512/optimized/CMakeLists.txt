@@ -15,7 +15,6 @@ file(GLOB DAP_CRYPTO_KYBER512_SOURCES
     poly.c
     polyvec.c
     reduce.c
-    rng.c
     sha256.c
     sha512.c
     symmetric-aes.c
@@ -35,7 +34,6 @@ file(GLOB DAP_CRYPTO_KYBER512_HEADERS
     poly.h
     polyvec.h
     reduce.h
-    rng.h
     sha2.h
     speed_print.h
     symmetric.h
