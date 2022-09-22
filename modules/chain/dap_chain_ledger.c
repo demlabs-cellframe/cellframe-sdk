@@ -4359,6 +4359,9 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
+    if (!l_ledger_priv->ledger_items) {
+        return NULL;
+    }
     dap_chain_ledger_tx_item_t *l_ptr = l_ledger_priv->ledger_items->hh.tbl->tail->prev;
     if (!l_ptr)
         l_ptr = l_ledger_priv->ledger_items;

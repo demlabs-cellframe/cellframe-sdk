@@ -1899,6 +1899,9 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
+    if (!l_dag_pvt->events){
+        return NULL;
+    }
     dap_chain_cs_dag_event_item_t *l_ptr = l_dag_pvt->events->hh.tbl->tail->prev;
     if (!l_ptr)
         l_ptr = l_dag_pvt->events;
