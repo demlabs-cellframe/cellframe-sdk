@@ -8,6 +8,7 @@
 #include "dap_enc_tesla_test.h"
 #include "dap_enc_dilithium_test.h"
 #include "dap_enc_ringct20_test.h"
+#include "dap_enc_kyber_test.h"
 #ifndef DAP_CRYPTO_MULTISIGN_TEST_OFF
 #include "dap_enc_sign_multi_test.h"
 #endif
@@ -52,6 +53,8 @@ int main(void) {
 
     dap_enc_defeo_tests_run();
     dap_enc_tesla_tests_run();
+
+    dap_enc_kyber_test_run();
 
 #ifndef DAP_CRYPTO_MULTISIGN_TEST_OFF
     dap_enc_multi_sign_tests_run();
