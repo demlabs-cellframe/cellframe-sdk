@@ -9,7 +9,6 @@ HEADERS += $$PWD/aes256ctr.h \
            $$PWD/poly.h \
            $$PWD/polyvec.h \
            $$PWD/reduce.h \
-           $$PWD/rng.h \
            $$PWD/sha2.h \
            $$PWD/speed_print.h \
            $$PWD/symmetric.h \
@@ -25,7 +24,6 @@ SOURCES += $$PWD/aes256ctr.c \
            $$PWD/poly.c \
            $$PWD/polyvec.c \
            $$PWD/reduce.c \
-           $$PWD/rng.c \
            $$PWD/sha256.c \
            $$PWD/sha512.c \
            $$PWD/symmetric-aes.c \
