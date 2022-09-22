@@ -291,7 +291,22 @@ TEST(InputTests, OverflowTestLeastBit) {
 
 TEST(InputTests, OverflowTestsMostBit) {
     //2 instead of 1 one most-significant digit
-    uint256_t a = dap_chain_balance_scan("215792089237316195423570985008687907853269984665640564039457584007913129639936");
+    uint256_t a = dap_chain_balance_scan("215792089237316195423570985008687907853269984665640564039457584007913129639935");
+
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a.lo, 0);
+    ASSERT_EQ(a.hi, 0);
+#else
+    ASSERT_EQ(a.lo.lo, 0);
+    ASSERT_EQ(a.lo.hi, 0);
+    ASSERT_EQ(a.hi.lo, 0);
+    ASSERT_EQ(a.hi.hi, 0);
+#endif
+}
+
+TEST(InputTests, OverflowTestsNotMostBit) {
+    //2 instead of 1 one most-significant digit
+    uint256_t a = dap_chain_balance_scan("125792089237316195423570985008687907853269984665640564039457584007913129639935");
 
 #ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(a.lo, 0);
@@ -1034,7 +1049,7 @@ TEST(ComparisonTests, IsZeroTest256FalseChangedLo) {
     a.lo = 1;
     a.hi = 0;
 #else
-    a.lo.lo = 0;
+    a.lo.lo = 1;
     a.lo.hi = 0;
     a.hi.lo = 0;
     a.hi.hi = 0;
@@ -1052,7 +1067,7 @@ TEST(ComparisonTests, IsZeroTest256FalseChangedHi){
 #else
     a.lo.lo = 0;
     a.lo.hi = 0;
-    a.hi.lo = 0;
+    a.hi.lo = 1;
     a.hi.hi = 0;
 #endif
 
@@ -1620,7 +1635,7 @@ TEST(BitTests, Incr256One) {
     ASSERT_EQ(a.lo, 1);
 #else
     ASSERT_EQ(a.lo.lo, 1);
-    ASSERT_EQ(a.hi.lo, 0);
+    ASSERT_EQ(a.lo.hi, 0);
     ASSERT_EQ(a.hi.lo, 0);
     ASSERT_EQ(a.hi.hi, 0);
 #endif
@@ -1638,7 +1653,7 @@ TEST(BitTests, Incr256Two) {
     ASSERT_EQ(a.lo, 2);
 #else
     ASSERT_EQ(a.lo.lo, 2);
-    ASSERT_EQ(a.hi.lo, 0);
+    ASSERT_EQ(a.lo.hi, 0);
     ASSERT_EQ(a.hi.lo, 0);
     ASSERT_EQ(a.hi.hi, 0);
 #endif
@@ -1651,13 +1666,12 @@ TEST(BitTests, Incr256Max64) {
     INCR_256(&a);
 
 
-
 #ifdef DAP_GLOBAL_IS_INT128
     ASSERT_EQ(a.hi, 0);
     ASSERT_EQ(a.lo, bmp::uint128_t(MIN128STR));
 #else
     ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.hi.lo, 1);
+    ASSERT_EQ(a.lo.hi, 1);
     ASSERT_EQ(a.hi.lo, 0);
     ASSERT_EQ(a.hi.hi, 0);
 #endif
