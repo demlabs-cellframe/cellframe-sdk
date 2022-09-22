@@ -8,15 +8,15 @@ add_definitions ("-D_GNU_SOURCE")
 file(GLOB DAP_CRYPTO_KYBER512_SOURCES
     aes256ctr.c
     cbd.c
-    fips202.c
+    fips202_kyber.c
     indcpa.c
     kem.c
-    ntt.c
-    poly.c
+    ntt_kyber.c
+    poly_kyber.c
     polyvec.c
-    reduce.c
-    sha256.c
-    sha512.c
+    reduce_kyber.c
+    sha256_kyber.c
+    sha512_kyber.c
     symmetric-aes.c
     symmetric-shake.c
     verify.c
@@ -25,15 +25,15 @@ file(GLOB DAP_CRYPTO_KYBER512_SOURCES
 file(GLOB DAP_CRYPTO_KYBER512_HEADERS
     aes256ctr.h
     cbd.h
-    fips202.h
+    fips202_kyber.h
     indcpa.h
     kem.h
     kyber512.h
-    ntt.h
+    ntt_kyber.h
     params.h
-    poly.h
+    poly_kyber.h
     polyvec.h
-    reduce.h
+    reduce_kyber.h
     sha2.h
     speed_print.h
     symmetric.h
