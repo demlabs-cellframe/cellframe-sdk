@@ -736,7 +736,7 @@ TEST(InputTests, OverflowScientificInputOneBit) {
 #endif
 }
 
-TEST(InputTest, OverflowScientificInputHighBit) {
+TEST(InputTests, OverflowScientificInputHighBit) {
     uint256_t a = dap_chain_balance_scan("1.25792089237316195423570985008687907853269984665640564039457584007913129639935e+77");
 
 #ifdef DAP_GLOBAL_IS_INT128
@@ -932,7 +932,7 @@ TEST(ComparisonTests, Equal256Min128Min128) {
     ASSERT_TRUE(EQUAL_256(a, b));
 }
 
-TEST(ComparisonTest, Equal256Max128Min128){
+TEST(ComparisonTests, Equal256Max128Min128){
     uint256_t a, b;
 
     a = dap_chain_balance_scan(MAX128STR);
@@ -941,7 +941,7 @@ TEST(ComparisonTest, Equal256Max128Min128){
     ASSERT_FALSE(EQUAL_256(a, b));
 }
 
-TEST(ComparisonTest, Equal256Max128Min256) {
+TEST(ComparisonTests, Equal256Max128Min256) {
     uint256_t a, b;
 
     a = dap_chain_balance_scan(MAX128STR);
@@ -951,7 +951,7 @@ TEST(ComparisonTest, Equal256Max128Min256) {
 
 }
 
-TEST(ComparisonTest, Equal256Max256Min256) {
+TEST(ComparisonTests, Equal256Max256Min256) {
     uint256_t a, b;
 
     a = dap_chain_balance_scan(MAX256STR);
@@ -960,7 +960,7 @@ TEST(ComparisonTest, Equal256Max256Min256) {
     ASSERT_FALSE(EQUAL_256(a, b));
 }
 
-TEST(ComparisonTest, Equal256Max256Max256) {
+TEST(ComparisonTests, Equal256Max256Max256) {
     uint256_t a, b;
 
     a = dap_chain_balance_scan(MAX256STR);
@@ -969,7 +969,7 @@ TEST(ComparisonTest, Equal256Max256Max256) {
     ASSERT_TRUE(EQUAL_256(a, b));
 }
 
-TEST(ComparisonTest, Equal256Max256Zero) {
+TEST(ComparisonTests, Equal256Max256Zero) {
     uint256_t a, b;
 
     a = dap_chain_balance_scan(MAX256STR);
