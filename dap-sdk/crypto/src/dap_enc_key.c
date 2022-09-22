@@ -37,7 +37,7 @@
 #include "dap_enc_tesla.h"
 #include "dap_enc_dilithium.h"
 #include "dap_enc_newhope.h"
-
+#include "dap_enc_kyber.h"
 #include "dap_enc_ringct20.h"
 
 
@@ -342,6 +342,23 @@ struct dap_enc_key_callbacks{
         .new_callback = dap_enc_sig_ringct20_key_new,
         .delete_callback = dap_enc_sig_ringct20_key_delete,
         .new_generate_callback = dap_enc_sig_ringct20_key_new_generate,
+        .enc_out_size = NULL,
+        .dec_out_size = NULL,
+        .sign_get = NULL,
+        .sign_verify = NULL
+    },
+    [DAP_ENC_KEY_TYPE_KEM_KYBER512] = {
+        .name = "KYBER512",
+        .enc = NULL,
+        .dec = NULL,
+        .new_callback = dap_enc_kyber512_key_new,
+        .delete_callback = dap_enc_kyber512_key_delete,
+        .new_generate_callback = dap_enc_kyber512_key_generate,
+        .gen_bob_shared_key = dap_enc_kyber512_gen_bob_shared_key,
+        .gen_alice_shared_key = dap_enc_kyber512_gen_alice_shared_key,
+        .gen_key_public = NULL,
+        .gen_key_public_size = NULL,
+        .new_from_data_public_callback = dap_enc_kyber512_key_new_from_data_public,
         .enc_out_size = NULL,
         .dec_out_size = NULL,
         .sign_get = NULL,
