@@ -208,7 +208,7 @@ static inline void LEFT_SHIFT_128(uint128_t a_128_bit,uint128_t* b_128_bit,int n
         a_128_bit.lo=0;
         LEFT_SHIFT_128(a_128_bit,b_128_bit,n-64);
     }
-    if (n == 0) {
+    else if (n == 0) {
        b_128_bit->hi=a_128_bit.hi;
        b_128_bit->lo=a_128_bit.lo;
     }
@@ -234,7 +234,7 @@ static inline void RIGHT_SHIFT_128(uint128_t a_128_bit,uint128_t* b_128_bit,int 
         a_128_bit.hi=0;
         RIGHT_SHIFT_128(a_128_bit,b_128_bit,n-64);
     }
-    if (n == 0)
+    else if (n == 0)
     {
        b_128_bit->hi=a_128_bit.hi;
        b_128_bit->lo=a_128_bit.lo;
@@ -486,7 +486,8 @@ static inline int SUM_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t*
     c_256_bit->hi = intermediate_value;
     overflow_flag=overflow_flag||overflow_flag_intermediate;
 #else
-    overflow_flag=SUM_128_128(a_256_bit.lo,b_256_bit.lo,&c_256_bit->lo);
+    uint256_t tmp = uint256_0;
+    overflow_flag=SUM_128_128(a_256_bit.lo,b_256_bit.lo,&tmp.lo);
     uint128_t carry_in_128;
     carry_in_128.hi=0;
     carry_in_128.lo=overflow_flag;
@@ -494,7 +495,9 @@ static inline int SUM_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t*
     overflow_flag=SUM_128_128(carry_in_128,a_256_bit.hi,&intermediate_value);
     //we store overflow_flag in case there is already overflow
     int overflow_flag_bis=0;
-    overflow_flag_bis=SUM_128_128(intermediate_value,b_256_bit.hi,&c_256_bit->hi);
+    overflow_flag_bis=SUM_128_128(intermediate_value,b_256_bit.hi,&tmp.hi);
+    c_256_bit->hi = tmp.hi;
+    c_256_bit->lo = tmp.lo;
     overflow_flag=overflow_flag||overflow_flag_bis;
 #endif
     return overflow_flag;
