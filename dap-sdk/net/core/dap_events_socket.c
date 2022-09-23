@@ -515,8 +515,6 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     }
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined (DAP_EVENTS_CAPS_QUEUE_PIPE)
-    int  l_errno;
-    char l_errbuf[128] = {0};
     l_es->fd = a_es->fd2;
 #elif defined DAP_EVENTS_CAPS_MSMQ
     l_es->mqh       = a_es->mqh;
@@ -611,6 +609,8 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     int l_pipe[2];
+    int  l_errno;
+    char l_errbuf[128] = {0};
     l_errbuf[0]=0;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     if( pipe2(l_pipe,O_DIRECT | O_NONBLOCK ) < 0 ){
