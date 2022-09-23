@@ -1033,8 +1033,6 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
         SUM_256_256(tmp, ten, &tmp);
     }
     *result = tmp;
-//    if( compare256(ten, uint256_0) != 0 )
-//        DIV_256(tmp, ten, result);
     return overflow;
 }
 
@@ -1068,8 +1066,6 @@ static inline void DIV_256_COIN(uint256_t a, uint256_t b, uint256_t *res)
     }
     DIV_256(a_copy, loan, &a_copy);
     *res = a_copy;
-
-
 }
 
 #ifdef __cplusplus
