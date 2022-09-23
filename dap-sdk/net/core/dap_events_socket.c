@@ -515,6 +515,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     }
 
 #elif defined (DAP_EVENTS_CAPS_QUEUE_PIPE2) || defined (DAP_EVENTS_CAPS_QUEUE_PIPE)
+    int  l_errno;
+    char l_errbuf[128] = {0};
     l_es->fd = a_es->fd2;
 #elif defined DAP_EVENTS_CAPS_MSMQ
     l_es->mqh       = a_es->mqh;
