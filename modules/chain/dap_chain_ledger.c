@@ -2143,7 +2143,6 @@ static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_i
  */
 bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_chain_datum_tx_t *a_tx)
 {
-    bool l_ret_value = false;
     if(!a_datum_emission || !a_tx) {
         return false;
     }
@@ -2247,9 +2246,23 @@ TODO: use this code when issuing for special emission-transactions is approved. 
 }
 
 // Checking a new transaction before adding to the cache
-int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
-        bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out)
+int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out)
 {
+    if (!PVT(a_ledger)->load_mode && !a_from_threshold) {
+        dap_chain_ledger_tx_item_t *l_ledger_item;
+        pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
+        HASH_FIND(hh, PVT(a_ledger)->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_ledger_item);
+        pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
+        if (l_ledger_item) {     // transaction already present in the cache list
+            if (s_debug_more) {
+                char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+                log_it(L_WARNING, "Transaction %s already present in the cache", l_tx_hash_str);
+            }
+            return -1;
+        }
+    }
     /*
      Steps of checking for current transaction tx2 and every previous transaction tx1:
      1. !is_used_out(tx1.dap_chain_datum_tx_out)
@@ -2909,18 +2922,19 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
 
+    dap_hash_fast_t l_tx_hash;
+    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
     int l_ret_check;
-    if( (l_ret_check = dap_chain_ledger_tx_cache_check(
-             a_ledger, a_tx, false, &l_list_bound_items, &l_list_tx_out)) < 0){
-        if(s_debug_more)
-            log_it (L_DEBUG, "dap_chain_ledger_tx_add_check() tx not passed the check: code %d ",l_ret_check);
+    if( (l_ret_check = dap_chain_ledger_tx_cache_check(a_ledger, a_tx, &l_tx_hash, false,
+                                                       &l_list_bound_items, &l_list_tx_out)) < 0) {
+        debug_if(s_debug_more, L_DEBUG, "dap_chain_ledger_tx_add_check() tx not passed the check: code %d ", l_ret_check);
         return l_ret_check;
     }
-    dap_chain_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-    char l_tx_hash_str[70];
-    dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
-    if(s_debug_more)
-        log_it ( L_INFO, "dap_chain_ledger_tx_add_check() check passed for tx %s",l_tx_hash_str);
+    if(s_debug_more) {
+        char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+        log_it ( L_INFO, "dap_chain_ledger_tx_add_check() check passed for tx %s", l_tx_hash_str);
+    }
     return 0;
 }
 
@@ -2965,7 +2979,6 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
     dap_chain_ledger_tx_item_t *l_item_tmp = NULL;
-    unsigned l_hash_value = 0;
 
     if (!l_ledger_priv->tps_timer) {
         clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_start_time);
@@ -2975,29 +2988,17 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         l_ledger_priv->tps_timer = dap_timerfd_start(500, s_ledger_tps_callback, l_ledger_priv);
     }
     bool l_from_threshold = a_from_threshold;
-    if (!l_ledger_priv->load_mode && !a_from_threshold) {
-        HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
-        pthread_rwlock_rdlock(&l_ledger_priv->ledger_rwlock);
-        HASH_FIND_BYHASHVALUE(hh, l_ledger_priv->ledger_items, a_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value, l_item_tmp);
-        pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
-    }
     char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(a_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-    if (l_item_tmp) {     // transaction already present in the cache list
-        if(s_debug_more)
-            log_it(L_WARNING, "Transaction %s already present in the cache", l_tx_hash_str);
-        return -1;
-    }
-
     int l_ret_check;
     l_item_tmp = NULL;
-    if( (l_ret_check = dap_chain_ledger_tx_cache_check(
-             a_ledger, a_tx, a_from_threshold, &l_list_bound_items, &l_list_tx_out)) < 0) {
+    if( (l_ret_check = dap_chain_ledger_tx_cache_check(a_ledger, a_tx, a_tx_hash, a_from_threshold,
+                                                       &l_list_bound_items, &l_list_tx_out)) < 0) {
         if (l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS ||
                 l_ret_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION) {
             if (!l_from_threshold) {
-                if (!l_hash_value)
-                    HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
+                unsigned l_hash_value = 0;
+                HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
                 pthread_rwlock_rdlock(&l_ledger_priv->threshold_txs_rwlock);
                 HASH_FIND_BYHASHVALUE(hh, l_ledger_priv->threshold_txs, a_tx_hash, sizeof(*a_tx_hash), l_hash_value, l_item_tmp);
                 unsigned long long l_threshold_txs_count = HASH_COUNT(l_ledger_priv->threshold_txs);
@@ -3342,11 +3343,9 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     else
         debug_if(s_debug_more, L_ERROR, "No token ticker in previous txs");
     l_tx_item->cache_data.multichannel = l_multichannel;
-    if (!l_hash_value)
-        HASH_VALUE(a_tx_hash, sizeof(*a_tx_hash), l_hash_value);
     pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
-    HASH_ADD_BYHASHVALUE_INORDER(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
-                                 l_hash_value, l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
+    HASH_ADD_INORDER(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
+                                 l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     // Count TPS
     clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_end_time);

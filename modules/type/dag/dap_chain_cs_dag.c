@@ -1704,8 +1704,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 DAP_DELETE(l_round_item);
             }break;
             case SUBCMD_EVENT_LIST:{
-                if( (l_from_events_str == NULL) ||
-                        (strcmp(l_from_events_str,"round.new") == 0) ){
+                if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
 
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                     dap_string_t * l_str_tmp = dap_string_new("");
@@ -1734,7 +1733,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     }
                     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
-                }else if (l_from_events_str && (strcmp(l_from_events_str,"events") == 0) ){
+                } else if (!l_from_events_str || (strcmp(l_from_events_str,"events") == 0)) {
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;

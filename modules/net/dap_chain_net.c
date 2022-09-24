@@ -2533,19 +2533,15 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 strtoul(l_seed_nodes_port[i], NULL, 10) : 8079;
         
             if (l_seed_nodes_hostnames_len) {
-                struct addrinfo l_hints = { 0 };
-                l_hints.ai_family = AF_UNSPEC ;    /* Allow IPv4 or IPv6 */
-                //l_hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
+                struct sockaddr l_sa = {};
                 log_it(L_DEBUG, "Resolve %s addr", l_seed_nodes_hostnames[i]);
-                struct hostent *l_he;
-                if ((l_he = gethostbyname (l_seed_nodes_hostnames[i])) != NULL) {
-                    struct in_addr **l_addr_list = (struct in_addr**)l_he->h_addr_list;
-                    for(int i = 0; l_addr_list[i] != NULL; i++) {
-                        log_it(L_NOTICE, "Resolved %s to %s (ipv4)", l_seed_nodes_hostnames[i], inet_ntoa(*l_addr_list[i]));
-                        l_node_info.hdr.ext_addr_v4.s_addr = l_addr_list[i]->s_addr;
-                    }
+                int l_ret_code = dap_net_resolve_host(l_seed_nodes_hostnames[i], AF_INET, &l_sa);
+                if (l_ret_code == 0) {
+                    struct in_addr *l_res = (struct in_addr *)&l_sa;
+                    log_it(L_NOTICE, "Resolved %s to %s (ipv4)", l_seed_nodes_hostnames[i], inet_ntoa(*l_res));
+                    l_node_info.hdr.ext_addr_v4.s_addr = l_res->s_addr;
                 } else {
-                    herror("gethostname");
+                    log_it(L_ERROR, "%s", gai_strerror(l_ret_code));
                 }
             }
             

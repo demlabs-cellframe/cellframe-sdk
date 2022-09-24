@@ -161,9 +161,8 @@ void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap
         char *** a_tickers, size_t * a_tickers_size);
 
 // Checking a new transaction before adding to the cache
-int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, bool a_from_threshold,
-        dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
-
+int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
 
 /**
  * Delete transaction from the cache
