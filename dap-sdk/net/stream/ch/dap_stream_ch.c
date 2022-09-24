@@ -157,11 +157,10 @@ dap_stream_ch_t *l_ch = NULL;
         return NULL;
     }
 
-    if ( !a_worker->channels)
-        return NULL;
 
     pthread_rwlock_rdlock(&a_worker->channels_rwlock);
-    HASH_FIND(hh_worker,a_worker->channels ,&a_ch_uuid, sizeof(a_ch_uuid), l_ch );
+    if ( a_worker->channels)
+        HASH_FIND(hh_worker,a_worker->channels ,&a_ch_uuid, sizeof(a_ch_uuid), l_ch );
     pthread_rwlock_unlock(&a_worker->channels_rwlock);
     return l_ch;
 
@@ -181,11 +180,9 @@ bool dap_stream_ch_check_uuid(dap_stream_worker_t * a_worker, dap_stream_ch_uuid
         return false;
     }
 
-    if ( !a_worker->channels)
-        return false;
-
     pthread_rwlock_rdlock(&a_worker->channels_rwlock);
-    HASH_FIND(hh_worker,a_worker->channels ,&a_ch_uuid, sizeof(a_ch_uuid), l_ch );
+    if ( a_worker->channels)
+        HASH_FIND(hh_worker,a_worker->channels ,&a_ch_uuid, sizeof(a_ch_uuid), l_ch );
     pthread_rwlock_unlock(&a_worker->channels_rwlock);
 
     return l_ch;
