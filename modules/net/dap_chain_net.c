@@ -447,6 +447,70 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
     return 0;
 }
 
+/**
+ * @brief The send_records_link_send_args struct
+ */
+struct send_records_link_send_args
+{
+    dap_store_obj_pkt_t *data_out;
+    struct downlink *link;
+
+    dap_stream_ch_uuid_t ch_uuid;
+    dap_chain_id_t chain_id;
+    dap_chain_cell_id_t cell_id;
+    dap_chain_net_t * net;
+};
+
+/**
+ * @brief s_net_send_records_link_remove_callback
+ * @param a_thread
+ * @param a_arg
+ * @return
+ */
+static bool s_net_send_records_link_remove_callback( dap_proc_thread_t *a_thread, void *a_arg )
+{
+    struct send_records_link_send_args * l_args = (struct send_records_link_send_args *) a_arg;
+    assert(l_args);
+    pthread_rwlock_wrlock( &PVT(l_args->net)->rwlock );
+    HASH_DEL(PVT(l_args->net)->downlinks, l_args->link);
+    pthread_rwlock_unlock( &PVT(l_args->net)->rwlock );
+    DAP_DELETE(l_args->data_out);
+    DAP_DELETE(l_args->link);
+    return true;
+
+}
+
+/**
+ * @brief s_net_send_records_link_send_callback
+ * @param a_worker
+ * @param a_arg
+ */
+static void s_net_send_records_link_send_callback(dap_worker_t * a_worker,void * a_arg)
+{
+    struct send_records_link_send_args * l_args = (struct send_records_link_send_args *) a_arg;
+    assert(l_args);
+    dap_stream_worker_t * l_stream_worker = DAP_STREAM_WORKER(a_worker);
+    assert(l_stream_worker);
+
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_stream_worker, l_args->ch_uuid);
+    if (!l_ch) { // Go out from worker because we need to lock rwlock
+        dap_proc_queue_add_callback(a_worker,s_net_send_records_link_remove_callback, l_args);
+        return;
+    }
+    dap_stream_ch_chain_pkt_write_unsafe( l_ch ,DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
+                                               l_args->net->pub.id.uint64,
+                                         l_args->chain_id.uint64,l_args->cell_id.uint64, l_args->data_out,
+                                         sizeof(dap_store_obj_pkt_t) + l_args->data_out->data_size);
+    DAP_DELETE(l_args->data_out);
+    DAP_DELETE(l_args);
+}
+
+/**
+ * @brief s_net_send_records
+ * @param a_thread
+ * @param a_arg
+ * @return
+ */
 static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
 {
     UNUSED(a_thread);
@@ -485,22 +549,18 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
                 l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
             dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
             dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-            dap_store_obj_pkt_t *l_data_out = dap_store_packet_single(l_obj_cur);
-            dap_store_obj_free_one(l_obj_cur);
             struct downlink *l_link, *l_tmp;
             HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-                dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_link->worker, l_link->uuid);
-                if (!l_ch) {
-                    HASH_DEL(PVT(l_net)->downlinks, l_link);
-                    DAP_DELETE(l_link);
-                    continue;
-                }
-                if (!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
-                                                     l_chain_id.uint64, l_cell_id.uint64, l_data_out,
-                                                     sizeof(dap_store_obj_pkt_t) + l_data_out->data_size))
-                    debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
+                struct send_records_link_send_args *l_args = DAP_NEW_Z(struct send_records_link_send_args);
+                l_args->data_out = dap_store_packet_single(l_obj_cur);
+                l_args->ch_uuid = l_link->uuid;
+                l_args->cell_id = l_cell_id;
+                l_args->chain_id = l_chain_id;
+                l_args->net = l_net;
+                l_args->link = l_link;
+                dap_proc_thread_worker_exec_callback(a_thread, l_link->worker->worker->id, s_net_send_records_link_send_callback, l_args);
             }
-            DAP_DELETE(l_data_out);
+            dap_store_obj_free_one(l_obj_cur);
             if (it)
                 PVT(l_net)->records_queue = dap_list_delete_link(PVT(l_net)->records_queue, it);
             it = PVT(l_net)->records_queue;
