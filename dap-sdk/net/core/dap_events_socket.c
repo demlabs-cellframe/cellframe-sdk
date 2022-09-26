@@ -1207,6 +1207,7 @@ static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 static atomic_uint_fast64_t l_thd_count;
 int     l_rc;
 pthread_t l_thread;
+const size_t l_basic_buf_size = DAP_QUEUE_MAX_MSGS * sizeof(void *);
 
     atomic_fetch_add(&l_thd_count, 1);                                      /* Count an every call of this routine */
 
@@ -1216,8 +1217,8 @@ pthread_t l_thread;
     }
     pthread_rwlock_wrlock(s_bufout_rwlock);
     if (!a_es->buf_out) {
-        a_es->buf_out = DAP_NEW_SIZE(byte_t, DAP_QUEUE_MAX_MSGS * sizeof(void *));
-        a_es->buf_out_size_max = DAP_QUEUE_MAX_MSGS * sizeof(void *);
+        a_es->buf_out = DAP_NEW_SIZE(byte_t, l_basic_buf_size);
+        a_es->buf_out_size_max = l_basic_buf_size;
     }
     if (!a_es->buf_out_size) {
         if ( (l_rc = pthread_create(&l_thread, &s_attr_detached /* @RRL: #6157 */, dap_events_socket_buf_thread, a_es)) )
@@ -1226,13 +1227,14 @@ pthread_t l_thread;
                      atomic_load(&l_thd_count), a_es, a_arg, l_rc);
             return;
         }
-
         debug_if(g_debug_reactor, L_DEBUG, "[#%"DAP_UINT64_FORMAT_U"] Created thread %"DAP_UINT64_FORMAT_x", a_es: %p, a_arg: %p",
                  atomic_load(&l_thd_count), l_thread, a_es, a_arg);
     }
     *((void **)a_es->buf_out + a_es->buf_out_size++) = a_arg;
-    if (a_es->buf_out_size == a_es->buf_out_size_max)
-        a_es->buf_out = DAP_REALLOC(a_es->buf_out, a_es->buf_out_size + DAP_QUEUE_MAX_MSGS * sizeof(void *));
+    if (a_es->buf_out_size == a_es->buf_out_size_max) {
+        a_es->buf_out = DAP_REALLOC(a_es->buf_out, a_es->buf_out_size + l_basic_buf_size);
+        a_es->buf_out_size_max += l_basic_buf_size;
+    }
     pthread_rwlock_unlock(s_bufout_rwlock);
 }
 
@@ -1318,9 +1320,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     case EINTR:
     case EWOULDBLOCK:
         log_it(L_ERROR, "Can't send ptr to queue (err %d), will be resent again in a while...", l_errno);
-        struct mq_attr l_attr = { 0 };
-        mq_getattr(a_es->mqd, &l_attr);
-        log_it(L_ERROR, "Number of pending messages: %ld", l_attr.mq_curmsgs);
+        log_it(L_ERROR, "Number of pending messages: %ld", a_es->buf_out_size);
         add_ptr_to_buf(a_es, a_arg);
         return l_errno;
     default: {
