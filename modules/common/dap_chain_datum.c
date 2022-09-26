@@ -30,7 +30,6 @@
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_hashtree_roots.h"
-#include "dap_chain_datum_token.h"
 #include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_chain_datum"
@@ -544,8 +543,18 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     DAP_DEL_Z(l_value_str);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
+					char *l_value_str = dap_chain_balance_print(l_token->total_supply);
                     dap_string_append(a_str_out,"type: PRIVATE_UPDATE\n");
+					dap_string_append(a_str_out, "decimals: 18\n");
+					dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
+					dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+					dap_string_append(a_str_out,"flags: ");
+					dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_update.flags);
                     s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+					size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
+					dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_update.tsd_total_size,
+													 l_certs_field_size, a_hash_out_type);
+					DAP_DEL_Z(l_value_str);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:{
 					char *l_value_str = dap_chain_balance_print(l_token->total_supply);
@@ -562,8 +571,18 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
 					DAP_DEL_Z(l_value_str);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:{
+					char *l_value_str = dap_chain_balance_print(l_token->total_supply);
                     dap_string_append_printf(a_str_out,"type: CF20_UPDATE\n");
+					dap_string_append(a_str_out, "decimals: 18\n");
+					dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
+					dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+					dap_string_append(a_str_out, "flags: ");
+					dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_update.flags);
                     s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+					size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_update.tsd_total_size;
+					dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_update.tsd_total_size,
+													 l_certs_field_size, a_hash_out_type);
+					DAP_DEL_Z(l_value_str);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:{
 					char *l_value_str = dap_chain_balance_print(l_token->total_supply);
