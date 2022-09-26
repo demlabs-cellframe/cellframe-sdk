@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Authors:
  * Roman Khlopkov <roman.khlopkov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
@@ -50,23 +50,7 @@
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
-//
-enum tsd_type{
-    TSD_FEE_PERCENT = 0x0001,
-    TSD_FEE_FIXED = 0x0002,
-    TSD_FEE_ADDR = 0x0003,
-};
-
-static struct net_fee {
-    dap_chain_net_id_t net_id;
-    // Sevice fee
-    char fee_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    uint256_t fee_percents;
-    uint256_t fee_fixed;
-    dap_chain_addr_t fee_addr; // Addr collector
-
-    UT_hash_handle hh;
-} *s_net_fees = NULL; // Governance statements for networks
+static dap_chain_net_srv_fee_item_t *s_net_fees = NULL; // Governance statements for networks
 static pthread_rwlock_t s_net_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
@@ -181,7 +165,7 @@ bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_ha
     bool l_ret = false;
 
     pthread_rwlock_rdlock(&s_net_fees_rwlock);
-    struct net_fee * l_fee = NULL;
+    dap_chain_net_srv_fee_item_t *l_fee = NULL;
     dap_chain_net_t * l_net = dap_chain_ledger_get_net(a_ledger);
     HASH_FIND(hh,s_net_fees, &l_net->pub.id, sizeof(l_net->pub.id),l_fee);
     if(l_fee == NULL)
@@ -283,7 +267,7 @@ lb_end:
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size)
 {
     pthread_rwlock_wrlock(&s_net_fees_rwlock);
-    struct net_fee * l_fee = NULL;
+    dap_chain_net_srv_fee_item_t *l_fee = NULL;
     switch(a_decree->header.action){
         case DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE:{
             HASH_FIND(hh,s_net_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
@@ -300,7 +284,7 @@ static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_n
                 pthread_rwlock_unlock(&s_net_fees_rwlock);
                 return;
             }
-            l_fee = DAP_NEW_Z(struct net_fee);
+            l_fee = DAP_NEW_Z(dap_chain_net_srv_fee_item_t);
             l_fee->net_id = a_net->pub.id;
             HASH_ADD(hh, s_net_fees, net_id, sizeof(l_fee->net_id), l_fee);
         } break;
@@ -309,23 +293,39 @@ static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_n
 
     while(l_tsd_offset < (a_decree_size - sizeof(a_decree->header)) ){
         dap_tsd_t *l_tsd = (dap_tsd_t*) (a_decree->tsd_sections + l_tsd_offset);
-        switch( (enum tsd_type) l_tsd->type){
-            case TSD_FEE_ADDR:{
-                l_fee->fee_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
-            } break;
-            case TSD_FEE_PERCENT:{
-                l_fee->fee_percents = dap_tsd_get_scalar(l_tsd, uint256_t);
-            } break;
-            case TSD_FEE_FIXED:{
-                l_fee->fee_fixed = dap_tsd_get_scalar(l_tsd, uint256_t);
-            } break;
+        switch((dap_chain_net_srv_fee_tsd_type_t)l_tsd->type) {
+        case TSD_FEE_TYPE:
+            l_fee->fee_type = dap_tsd_get_scalar(l_tsd, uint16_t);
+            break;
+        case TSD_FEE:
+            l_fee->fee = dap_tsd_get_scalar(l_tsd, uint256_t);
+            break;
+        case TSD_FEE_ADDR:
+            l_fee->fee_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+        default:
+            break;
         }
         l_tsd_offset += dap_tsd_size(l_tsd);
     }
     pthread_rwlock_unlock(&s_net_fees_rwlock);
 }
 
-
+static bool s_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type)
+{
+    pthread_rwlock_wrlock(&s_net_fees_rwlock);
+    dap_chain_net_srv_fee_item_t *l_fee = NULL;
+    HASH_FIND(hh,s_net_fees, &a_net_id, sizeof(a_net_id), l_fee);
+    pthread_rwlock_unlock(&s_net_fees_rwlock);
+    if (!l_fee)
+        return false;
+    if (a_type)
+        *a_type = l_fee->fee_type;
+    if (a_addr)
+        *a_addr = l_fee->fee_addr;
+    if (a_fee)
+        *a_fee = l_fee->fee;
+    return true;
+}
 
 static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_xchange_price_t *a_price, uint256_t a_datoshi_buy)
 {
@@ -336,7 +336,7 @@ static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     uint256_t l_datoshi_sell = {};
-    if (compare256(a_price->rate, uint256_0)!=0){
+    if (!IS_ZERO_256(a_price->rate)){
         DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
         dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, l_datoshi_sell,
                                                                                  l_ext, l_ext_size);
@@ -389,7 +389,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
-    if (compare256(l_value_to_items, l_value_transfer) != 0) {
+    if (!EQUAL_256(l_value_to_items, l_value_transfer) != 0) {
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_seller_addr);
         log_it(L_ERROR, "Can't compose the transaction input");
@@ -399,7 +399,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         // add 'in' items to fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
         dap_list_free_full(l_list_used_out, NULL);
-        if (compare256(l_value_fee_items, l_total_fee) != 0) {
+        if (!EQUAL_256(l_value_fee_items, l_fee_transfer) != 0) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_seller_addr);
             log_it(L_ERROR, "Can't compose the transaction input");
@@ -485,23 +485,44 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     if (!a_price || !a_price->net || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
         return NULL;
     }
+    const char *l_native_ticker = a_price->net->pub.native_ticker;
+    bool l_single_channel = !dap_strcmp(a_price->token_buy, l_native_ticker);
+    // find the transactions from which to take away coins
+    uint256_t l_value_transfer = {}; // how many coins to transfer
+    uint256_t l_value_need = a_price->datoshi_buy, l_net_fee = {}, l_service_fee = {},
+              l_total_fee = {}, l_fee_transfer = {};
+    dap_chain_addr_t l_net_fee_addr = {}, l_service_fee_addr = {};
+    dap_list_t *l_list_fee_out = NULL;
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, &l_net_fee, &l_net_fee_addr);
+    SUM_256_256(l_net_fee, a_price->fee, &l_total_fee);
 
-    // create empty transaction
-    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_price->net->pub.name);
+    dap_ledger_t *l_ledger = a_price->net->pub.ledger;
     dap_chain_addr_t *l_buyer_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_price->net->pub.id);
-    dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
-    uint256_t l_value_buy = {}; // how many coins to transfer
-
+    if (l_single_channel)
+        SUM_256_256(l_value_need, l_total_fee, &l_value_need);
+    else {
+        l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                    l_buyer_addr, l_total_fee, &l_fee_transfer);
+        if (!l_list_fee_out) {
+            log_it(L_WARNING, "Not enough funds to pay fee");
+            return NULL;
+        }
+    }
     // list of transaction with 'out' items to sell
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
-                                                                             l_buyer_addr, a_datoshi_buy, &l_value_buy);
+                                                                             l_buyer_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
-        dap_chain_datum_tx_delete(l_tx);
+        DAP_DELETE(l_buyer_addr);
         log_it(L_WARNING, "Nothing to change (not enough funds)");
         return NULL;
     }
+
+    dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
+    uint256_t l_value_buy = {}; // how many coins to transfer
+
+    // create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
     // create and add reciept
     dap_chain_datum_tx_receipt_t *l_receipt = s_xchange_receipt_create(a_price, a_datoshi_buy);
@@ -515,11 +536,22 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     // add 'in' items to sell
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
-    if (compare256(l_value_to_items, l_value_buy) != 0) {
+    if (!EQUAL_256(l_value_to_items, l_value_transfer)) {
         dap_chain_datum_tx_delete(l_tx);
         DAP_DELETE(l_buyer_addr);
         log_it(L_ERROR, "Can't compose the transaction input");
         return NULL;
+    }
+    if (!l_single_channel) {
+        // add 'in' items to fee
+        uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+        dap_list_free_full(l_list_used_out, NULL);
+        if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DELETE(l_buyer_addr);
+            log_it(L_ERROR, "Can't compose the transaction input");
+            return NULL;
+        }
     }
     // add 'in' item to buy from conditional transaction
     dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &a_price->tx_hash);
@@ -565,7 +597,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         debug_if(s_debug_more, L_NOTICE, "l_value_back = %s", dap_chain_balance_to_coins(l_value_back));
         // transfer selling coins
         uint256_t l_datoshi_sell = {};
-        if (compare256(a_price->rate, uint256_0)!=0){
+        if (!IS_ZERO_256(a_price->rate)) {
             DIV_256_COIN(a_datoshi_buy, a_price->rate, &l_datoshi_sell);
             if (compare256(l_tx_out_cond->header.value, l_datoshi_sell) < 0)
                 l_datoshi_sell = l_tx_out_cond->header.value;
@@ -705,7 +737,7 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
     // add 'in' items to net fee
     uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
     dap_list_free_full(l_list_used_out, NULL);
-    if (compare256(l_value_to_items, l_transfer_fee) != 0) {
+    if (!EQUAL_256(l_value_to_items, l_transfer_fee)) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_ERROR, "Can't compose the transaction input");
         return NULL;
@@ -813,7 +845,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     strcpy(l_price->token_sell, a_order->price_ticker);
     l_price->datoshi_sell = a_order->price;
     l_price->net = a_net;
-    if( compare256(l_price->datoshi_buy, uint256_0) !=0 ){
+    if (!IS_ZERO_256(l_price->datoshi_buy)) {
         DIV_256_COIN(l_price->datoshi_buy, l_price->datoshi_sell, &l_price->rate);
         dap_hash_fast_t *l_final_hash = dap_chain_ledger_get_final_chain_tx_hash(a_net->pub.ledger,
                                            DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &a_order->tx_cond_hash);
@@ -909,7 +941,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -8;
             }
             uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
-            if (!compare256(l_rate, uint256_0)) {
+            if (!IS_ZERO_256(l_rate)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
                 return -9;
             }
@@ -1150,7 +1182,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
                 if (l_val_rate_str) {
                     l_rate = dap_chain_coins_to_balance(l_val_rate_str);
-                    if (!compare256(l_rate, uint256_0)) { // if (l_rate == 0)
+                    if (IS_ZERO_256(l_rate)) {
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate <long double> = sell / buy");
                         return -9;
                     }
@@ -1921,7 +1953,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 uint256_t l_value_sell = l_out_cond_item->header.value;
                                 uint256_t l_value_buy = l_out_cond_item->subtype.srv_xchange.buy_value;
                                 if( l_direction == 1){
-                                    if(compare256(l_value_sell,uint256_0) !=0 ){
+                                    if (!IS_ZERO_256(l_value_sell)) {
                                         DIV_256_COIN(l_value_buy, l_value_sell, &l_rate);
                                         if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
                                             log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
@@ -1930,7 +1962,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                         log_it(L_ERROR, "Sell value is 0 in avarage price calculation (summing)");
                                     }
                                 }else if (l_direction == -1){
-                                    if(compare256(l_value_buy,uint256_0) !=0 ){
+                                    if (!IS_ZERO_256(l_value_buy)) {
                                         DIV_256_COIN(l_value_sell, l_value_buy, &l_rate);
                                         if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
                                             log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
@@ -1948,10 +1980,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     }
                     dap_list_free_full(l_tx_cond_list, NULL);
                     uint256_t l_rate_average = {0};
-                    if( compare256(l_total_rates_count, uint256_0) != 0 )
+                    if (!IS_ZERO_256(l_total_rates_count))
                         DIV_256(l_total_rates,l_total_rates_count,&l_rate_average);
 
-                    if( compare256(l_total_rates_count, uint256_0) != 0 )
+                    if (!IS_ZERO_256(l_total_rates_count))
                         DIV_256(l_total_rates,l_total_rates_count,&l_rate_average);
 
                     char *l_rate_average_str = dap_chain_balance_to_coins(l_rate_average);
