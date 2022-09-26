@@ -2661,7 +2661,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 break;
             }
             if (l_verificator->callback(a_ledger, &l_tx_prev_hash, l_tx_prev_out_cond, a_tx, l_owner) == false) {
-                l_err_num = -14;
+				if (l_sub_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+					l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
+				} else {
+					l_err_num = -14;
+				}
                 break;
             }
             // calculate sum of values from previous transactions
