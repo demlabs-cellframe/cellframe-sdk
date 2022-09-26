@@ -645,6 +645,7 @@ static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
 
 static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
 {
+    const char *l_native_ticker = a_price->net->pub.native_ticker;
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
@@ -669,6 +670,8 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
         dap_chain_datum_tx_delete(l_tx);
         return false;
     }
+    const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_price->tx_hash);
+    bool l_single_channel = !dap_strcmp(l_tx_ticker, l_native_ticker);
     int l_prev_cond_idx;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                              &l_prev_cond_idx);
@@ -679,19 +682,21 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
     }
     dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, l_prev_cond_idx, 0);
 
-    // add 'out' item
+    // check 'out_cond' item
     const dap_chain_addr_t *l_buyer_addr = (dap_chain_addr_t *)l_tx_out_cond->params;
     if (memcmp(l_seller_addr->data.hash, l_buyer_addr->data.hash, sizeof(dap_chain_hash_fast_t))) {
         log_it(L_WARNING, "Only owner can invalidate exchange transaction");
         dap_chain_datum_tx_delete(l_tx);
         return false;
     }
-    uint256_t l_fee = {}, l_transfer_fee;
+    uint256_t l_net_fee = {}, l_transfer_fee;
     dap_chain_addr_t l_addr_fee = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, &l_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, &l_net_fee, &l_addr_fee);
+    uint256_t l_total_fee = {};
+    SUM_256_256(a_price->fee, l_net_fee, &l_total_fee);
     // list of transaction with 'out' items to get net fee
-    dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
-                                                                             l_seller_addr, l_fee, &l_transfer_fee);
+    dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                             l_seller_addr, l_total_fee, &l_transfer_fee);
     if(!l_list_used_out) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_WARNING, "Nothing to pay for network fee (not enough funds)");
@@ -707,24 +712,45 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
     }
 
     // return coins to owner
-    if (dap_chain_datum_tx_add_out_item(&l_tx, l_seller_addr, l_tx_out_cond->header.value) == -1) {
-        dap_chain_datum_tx_delete(l_tx);
-        DAP_DELETE(l_seller_addr);
-        log_it(L_ERROR, "Cant add returning coins output");
-        return false;
+    if (l_single_channel) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, l_seller_addr, l_tx_out_cond->header.value) == -1) {
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DELETE(l_seller_addr);
+            log_it(L_ERROR, "Cant add returning coins output");
+            return false;
+        }
+    } else {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, l_tx_out_cond->header.value,
+                                                l_tx_ticker) == -1) {
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DELETE(l_seller_addr);
+            log_it(L_ERROR, "Cant add returning coins output");
+            return false;
+        }
     }
 
-    // put the net fee output
-    if (dap_chain_datum_tx_add_fee_item(&l_tx, l_fee) == -1) {
-        dap_chain_datum_tx_delete(l_tx);
-        DAP_DELETE(l_seller_addr);
-        log_it(L_ERROR, "Cant add net fee output");
-        return false;
+    // Network fee
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DELETE(l_seller_addr);
+            log_it(L_ERROR, "Cant add network fee output");
+            return NULL;
+        }
+    }
+    // Validator's fee
+    if (!IS_ZERO_256(a_price->fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_price->fee) == 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DELETE(l_seller_addr);
+            log_it(L_ERROR, "Cant add validator's fee output");
+            return NULL;
+        }
     }
 
     // put the net fee cashback
     uint256_t l_fee_back = {};
-    SUBTRACT_256_256(l_transfer_fee, l_fee, &l_fee_back);
+    SUBTRACT_256_256(l_transfer_fee, l_total_fee, &l_fee_back);
     if (!IS_ZERO_256(l_fee_back) &&
             dap_chain_datum_tx_add_out_item(&l_tx, l_seller_addr, l_tx_out_cond->header.value) == -1) {
         dap_chain_datum_tx_delete(l_tx);
