@@ -400,9 +400,19 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
 	||	a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
 		update_token = true;
 
-    if		(l_token_item != NULL && update_token == false) {
-        log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
-        return -3;
+    if	(l_token_item != NULL) {
+		if (update_token == false) {
+        	log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+        	return -3;
+		} else {
+			dap_hash_fast_t token1;
+			dap_hash_fast_t token2;
+			dap_hash_fast(a_token, a_token_size, &token1);
+			dap_hash_fast(l_token_item->datum_token, l_token_item->datum_token_size, &token2);
+			if (dap_hash_fast_compare(&token1, &token2))
+				log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+				return -3;
+		}
     }
 	else if	(l_token_item == NULL && update_token == true) {
 		log_it(L_WARNING,"Can't update token that doesn't exist for ticker '%s' ", a_token->ticker);
@@ -515,14 +525,22 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     HASH_FIND_STR(PVT(a_ledger)->tokens, a_token->ticker,l_token_item);
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
 
-	if		(l_token_item != NULL && update_token == false) {
-		if(s_debug_more)
+	if	(l_token_item != NULL) {
+		if (update_token == false) {
 			log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
-		return -3;
+			return -3;
+		} else {
+			dap_hash_fast_t token1;
+			dap_hash_fast_t token2;
+			dap_hash_fast(a_token, a_token_size, &token1);
+			dap_hash_fast(l_token_item->datum_token, l_token_item->datum_token_size, &token2);
+			if (dap_hash_fast_compare(&token1, &token2))
+				log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
+			return -3;
+		}
 	}
 	else if	(l_token_item == NULL && update_token == true) {
-		if(s_debug_more)
-			log_it(L_WARNING,"Can't update token that doesn't exist for ticker '%s' ", a_token->ticker);
+		log_it(L_WARNING,"Can't update token that doesn't exist for ticker '%s' ", a_token->ticker);
 		return -6;
 	}
 
