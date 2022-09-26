@@ -2725,7 +2725,7 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
     if (l_signs_emission_str){
         if((l_params->l_signs_emission = (uint16_t) strtol(l_signs_emission_str, &l_tmp, 10)) == 0){
             dap_chain_node_cli_set_reply_text(a_str_reply,
-                "token_decl requires parameter 'signs_emission' to be unsigned integer value that fits in 2 bytes");
+                "%s requires parameter 'signs_emission' to be unsigned integer value that fits in 2 bytes", a_update_token ? "token_update" : "token_decl");
             return -6;
         }
     }
@@ -2790,52 +2790,52 @@ int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, d
 	||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
 	||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE){
 		if(!l_params->l_decimals_str) {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
+			dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-decimals'", a_update_token ? "token_update" : "token_decl");
 			return -3;
 		} else if (dap_strcmp(l_params->l_decimals_str, "18")) {
 			dap_chain_node_cli_set_reply_text(a_str_reply,
-											  "token_decl support '-decimals' to be 18 only");
+											  "%s support '-decimals' to be 18 only", a_update_token ? "token_update" : "token_decl");
 			return -4;
 		}
         if(IS_ZERO_256(l_params->l_total_supply)) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-total_supply'", a_update_token ? "token_update" : "token_decl");
             return -3;
         }
     } else if (	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
 	||			l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE){
 		if(!l_params->l_decimals_str) {
-			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
+			dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-decimals'", a_update_token ? "token_update" : "token_decl");
 			return -3;
 		} else if (dap_strcmp(l_params->l_decimals_str, "18")) {
 			dap_chain_node_cli_set_reply_text(a_str_reply,
-											  "token_decl support '-decimals' to be 18 only");
+											  "%s support '-decimals' to be 18 only", a_update_token ? "token_update" : "token_decl");
 			return -4;
 		}
 //		if(IS_ZERO_256(l_params->l_total_supply)) {
-//			dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
+//			dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-total_supply'");
 //			return -3;
 //		}
 	}
 
     if (!l_params->l_signs_emission){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_emission'");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-signs_emission'", a_update_token ? "token_update" : "token_decl");
         return -5;
     }
 
     if (!l_params->l_signs_total){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter 'signs_total'");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-signs_total'", a_update_token ? "token_update" : "token_decl");
         return -7;
     }
 
     if(!l_params->l_ticker){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter '-token'");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-token'", a_update_token ? "token_update" : "token_decl");
         return -2;
     }
 
 
     // Check certs list
     if(!l_params->l_certs_str){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl requires parameter 'certs'");
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'certs'", a_update_token ? "token_update" : "token_decl");
         return -9;
     }
     return 0;
@@ -3390,7 +3390,8 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 			dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
 			l_datum_token->total_supply = l_total_supply;
 			l_datum_token->signs_valid = l_signs_emission;
-			l_datum_token->header_simple.decimals = atoi(l_params->l_decimals_str);
+			if (l_params->l_decimals_str)
+				l_datum_token->header_simple.decimals = atoi(l_params->l_decimals_str);
 		}break;
 		default:
 			dap_chain_node_cli_set_reply_text(a_str_reply,
