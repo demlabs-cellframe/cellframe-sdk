@@ -3414,8 +3414,6 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 		return -9;
 	}
 
-	l_datum_token->ts_created = dap_time_now();
-
 	dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
 														 l_datum_token,
 														 sizeof(*l_datum_token) + l_datum_data_offset);
