@@ -119,6 +119,7 @@ typedef struct dap_chain_ledger_token_item {
     pthread_rwlock_t token_emissions_rwlock;
     dap_chain_ledger_token_emission_item_t * token_emissions;
 
+	pthread_rwlock_t token_ts_updated_rwlock;
 	dap_chain_ledger_token_update_item_t * token_ts_updated;
 
     // for auth operations
@@ -574,6 +575,53 @@ void s_update_token_cache(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t 
 }
 
 /**
+ * @brief s_ledger_update_token_add_in_hash_table
+ * @param a_cur_token_item
+ * @param a_token_update
+ * @param a_token_update_size
+ * @return true or false
+ */
+static bool s_ledger_update_token_add_in_hash_table(dap_chain_ledger_token_item_t *a_cur_token_item, dap_chain_datum_token_t *a_token_update, size_t a_token_update_size)
+{
+	dap_chain_ledger_token_update_item_t	*l_token_update_item;
+	dap_hash_fast_t							l_hash_token_update;
+
+	dap_hash_fast(a_token_update, a_token_update_size, &l_hash_token_update);
+	pthread_rwlock_rdlock(&a_cur_token_item->token_ts_updated_rwlock);
+	HASH_FIND(hh, a_cur_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t),
+			  l_token_update_item);
+	pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
+	if (l_token_update_item) {
+		if (s_debug_more)
+			log_it(L_WARNING, "Error: item 'dap_chain_ledger_token_update_item_t' already exist in hash-table");
+		return false;
+	}
+	l_token_update_item = DAP_NEW(dap_chain_ledger_token_update_item_t);
+	if (!l_token_update_item) {
+		if (s_debug_more)
+			log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_update_item_t' to hash-table");
+		return false;
+	}
+	*l_token_update_item = (dap_chain_ledger_token_update_item_t) {
+		.update_token_hash			= l_hash_token_update,
+		.datum_token_update			= a_token_update,
+		.datum_token_update_size	= a_token_update_size,
+		.updated_time				= dap_time_now()
+	};
+	pthread_rwlock_wrlock(&a_cur_token_item->token_ts_updated_rwlock);
+	HASH_ADD(hh, a_cur_token_item->token_ts_updated, update_token_hash, sizeof(dap_chain_hash_fast_t), l_token_update_item);
+	pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
+
+	if (!l_token_update_item) {
+		if (s_debug_more)
+			log_it(L_ERROR, "Error: adding to hash-table. Be careful, there may be leaks");
+		return false;
+	}
+
+	return true;
+}
+
+/**
  * @brief dap_chain_ledger_token_add
  * @param a_token
  * @param a_token_size
@@ -601,15 +649,22 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 		if (update_token == false) {
 			log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
 			return -3;
-		} else {
-			dap_hash_fast_t token1;
-			dap_hash_fast_t token2;
-			dap_hash_fast(a_token, a_token_size, &token1);
-			dap_hash_fast(l_token_item->datum_token, l_token_item->datum_token_size, &token2);
-			if (dap_hash_fast_compare(&token1, &token2)) {
-				log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
-				return -3;
+		} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == true) {
+			if (s_ledger_update_token_add_in_hash_table(l_token_item, a_token, a_token_size) == false) {
+				if (s_debug_more)
+					log_it(L_ERROR, "Failed to add ticker '%s' to hash table", a_token->ticker);
+				return -5;
 			}
+			if (!IS_ZERO_256(a_token->total_supply)){
+				SUBTRACT_256_256(l_token_item->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
+				SUBTRACT_256_256(a_token->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
+			} else {
+				l_token_item->current_supply = a_token->total_supply;
+			}
+			l_token_item->total_supply = a_token->total_supply;
+			DAP_DEL_Z(l_token_item->datum_token);
+		} else {
+			return -2;
 		}
 	}
 	else if	(l_token_item == NULL && update_token == true) {
@@ -624,6 +679,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     	l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
     	dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker), "%s", a_token->ticker);
     	pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
+    	pthread_rwlock_init(&l_token_item->token_ts_updated_rwlock,NULL);
 
 		l_token_item->total_supply      = l_token->total_supply;
 		l_token_item->current_supply	= l_token_item->total_supply;
@@ -637,17 +693,6 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 				dap_sign_get_pkey_hash(l_token_item->auth_signs[k], &l_token_item->auth_signs_pkey_hash[k]);
 			}
 		}
-	} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == true) {
-		if (!IS_ZERO_256(l_token->total_supply)){
-			SUBTRACT_256_256(l_token_item->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
-			SUBTRACT_256_256(l_token->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
-		} else {
-			l_token_item->current_supply = l_token->total_supply;
-		}
-		l_token_item->total_supply = l_token->total_supply;
-		DAP_DEL_Z(l_token_item->datum_token);
-	} else {
-		return -2;
 	}
 
     l_token_item->datum_token_size  = a_token_size;
@@ -1977,6 +2022,10 @@ dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock
 		return l_new_stake_lock_emission;
 	}
 	l_new_stake_lock_emission = DAP_NEW(dap_chain_ledger_token_emission_for_stake_lock_item_t);
+	if (!l_new_stake_lock_emission
+		&&	s_debug_more) {
+		log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_emission_for_stake_lock_item_t' to hash-table");
+	}
     l_new_stake_lock_emission->datum_token_emission_for_stake_lock_hash = *a_token_emission_hash;
     l_new_stake_lock_emission->tx_used_out = (dap_chain_hash_fast_t){ 0 };
 	pthread_rwlock_wrlock(&s_emission_for_stake_lock_rwlock);
@@ -1985,7 +2034,7 @@ dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock
 
 	if (!l_new_stake_lock_emission
 	&&	s_debug_more) {
-		log_it(L_ERROR, "Error: memory allocation when adding item 'dap_chain_ledger_token_emission_for_stake_lock_item_t' to hash-table");
+		log_it(L_ERROR, "Error: adding to hash-table. Be careful, there may be leaks");
 	}
 
 	return l_new_stake_lock_emission;
