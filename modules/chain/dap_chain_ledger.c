@@ -99,6 +99,14 @@ typedef struct dap_chain_ledger_token_emission_item {
     UT_hash_handle hh;
 } dap_chain_ledger_token_emission_item_t;
 
+typedef struct dap_chain_ledger_token_update_item {
+	dap_hash_fast_t			update_token_hash;
+	dap_chain_datum_token_t	*datum_token_update;
+	size_t					datum_token_update_size;
+	time_t					updated_time;
+	UT_hash_handle hh;
+} dap_chain_ledger_token_update_item_t;
+
 typedef struct dap_chain_ledger_token_item {
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t type;
@@ -110,6 +118,8 @@ typedef struct dap_chain_ledger_token_item {
 
     pthread_rwlock_t token_emissions_rwlock;
     dap_chain_ledger_token_emission_item_t * token_emissions;
+
+	dap_chain_ledger_token_update_item_t * token_ts_updated;
 
     // for auth operations
     dap_sign_t ** auth_signs;
@@ -383,7 +393,7 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
  * @param a_token_update_size
  * @return true or false
  */
-static bool s_chain_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_token_item, dap_chain_datum_token_t *a_token_update, size_t a_token_update_size)
+static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_token_item, dap_chain_datum_token_t *a_token_update, size_t a_token_update_size)
 {
 	dap_sign_t	**l_signs_upd_token;
 	size_t		auth_signs_total = 0;
@@ -464,15 +474,16 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
 		if (update_token == false) {
         	log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
         	return -3;
-		} else {
-			dap_hash_fast_t token1;
+		} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == false) {
+			return -3;
+/*			dap_hash_fast_t token1;
 			dap_hash_fast_t token2;
 			dap_hash_fast(a_token, a_token_size, &token1);
 			dap_hash_fast(l_token_item->datum_token, l_token_item->datum_token_size, &token2);
 			if (dap_hash_fast_compare(&token1, &token2)) {
 				log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
 				return -3;
-			}
+			}*/
 		}
     }
 	else if	(l_token_item == NULL && update_token == true) {
@@ -626,52 +637,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 				dap_sign_get_pkey_hash(l_token_item->auth_signs[k], &l_token_item->auth_signs_pkey_hash[k]);
 			}
 		}
-	} else {//update token
-		if (l_token_item->auth_signs_total != a_token->signs_total
-		||	l_token_item->auth_signs_valid != a_token->signs_valid) {
-			if(s_debug_more)
-				log_it(L_WARNING,"Can't update token with ticker '%s' because: "
-								 "l_token_item auth signs total/valid == %lu/%lu | "
-								 "token_update auth signs total/valid == %hu/%hu",
-								 a_token->ticker,
-								 l_token_item->auth_signs_total, l_token_item->auth_signs_valid,
-								 a_token->signs_total, a_token->signs_valid);
-			return -2;
-		}
-		dap_sign_t	**l_signs_upd_token;
-		size_t		auth_signs_total = 0;
-		size_t		auth_signs_valid = 0;
-		l_signs_upd_token = dap_chain_datum_token_signs_parse(a_token, a_token_size,
-															  &auth_signs_total, &auth_signs_valid);
-		if (l_token_item->auth_signs_total != auth_signs_total
-		||	l_token_item->auth_signs_valid != auth_signs_valid) {
-			DAP_DEL_Z(l_signs_upd_token);
-			if(s_debug_more)
-				log_it(L_WARNING,"Can't update token with ticker '%s' because: "
-								 "l_token_item auth signs total/valid == %lu/%lu | "
-								 "token_update auth signs total/valid == %lu/%lu",
-								 a_token->ticker,
-								 l_token_item->auth_signs_total, l_token_item->auth_signs_valid,
-								 auth_signs_total, auth_signs_valid);
-			return -7;
-		}
-		if(auth_signs_total) {
-			for(uint16_t i = 0; i < auth_signs_total; i++){
-				if (!dap_sign_match_pkey_signs(l_token_item->auth_signs[i], l_signs_upd_token[i])) {
-					DAP_DEL_Z(l_signs_upd_token);
-					if(s_debug_more)
-						log_it(L_WARNING, "Can't update token with ticker '%s' because: Signs not compare", a_token->ticker);
-					return -4;
-				}
-			}
-		}
-		DAP_DEL_Z(l_signs_upd_token);
+	} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == true) {
 		if (!IS_ZERO_256(l_token->total_supply)){
-			if (compare256(l_token->total_supply, l_token_item->total_supply) < 0) {//compare old 'total_supply' to updated
-				if(s_debug_more)
-					log_it(L_WARNING, "Can't update token with ticker '%s' because: the new 'total_supply' cannot be smaller than the old one", a_token->ticker);
-				return -5;
-			}
 			SUBTRACT_256_256(l_token_item->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
 			SUBTRACT_256_256(l_token->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
 		} else {
@@ -679,6 +646,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 		}
 		l_token_item->total_supply = l_token->total_supply;
 		DAP_DEL_Z(l_token_item->datum_token);
+	} else {
+		return -2;
 	}
 
     l_token_item->datum_token_size  = a_token_size;
