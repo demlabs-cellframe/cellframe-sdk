@@ -407,7 +407,8 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 	HASH_FIND(hh, a_cur_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t),
 			  l_token_update_item);
 	pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
-	if (l_token_update_item) {
+	if (l_token_update_item
+	&&	l_token_update_item->updated_time == a_token_update->ts_created) {
 		if (s_debug_more)
 			log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token_update->ticker);
 		return false;
@@ -611,7 +612,7 @@ static bool s_ledger_update_token_add_in_hash_table(dap_chain_ledger_token_item_
 		.update_token_hash			= l_hash_token_update,
 		.datum_token_update			= a_token_update,
 		.datum_token_update_size	= a_token_update_size,
-		.updated_time				= dap_time_now()
+		.updated_time				= a_token_update->ts_created
 	};
 	pthread_rwlock_wrlock(&a_cur_token_item->token_ts_updated_rwlock);
 	HASH_ADD(hh, a_cur_token_item->token_ts_updated, update_token_hash, sizeof(dap_chain_hash_fast_t), l_token_update_item);
