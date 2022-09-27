@@ -220,7 +220,7 @@ bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_ha
                 }else if(strcmp(l_tx_out_ticker, l_out_token ) == 0){
                     // Check if its buy token or not
                     // If its returning back to owner
-                    if (memcmp(l_out_addr, &a_tx_out_cond->params, sizeof(*l_out_addr)) ) {
+                    if (memcmp(l_out_addr, &a_tx_out_cond->subtype.srv_xchange.seller_addr, sizeof(*l_out_addr)) ) {
                         SUM_256_256(l_back_val, l_tx_in_output->header.value, &l_back_val);
                     // if its fee output
                     }else if (memcmp(&l_out_addr, &l_fee->fee_addr, sizeof(l_fee->fee_addr)) == 0){
@@ -238,8 +238,8 @@ bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_ha
                 }else if( l_tx_in_output->header.subtype == a_tx_out_cond->header.subtype&&                             // Same subtype
                         l_tx_in_output->header.srv_uid.uint64 == a_tx_out_cond->header.srv_uid.uint64  &&         // Same service uid
                         l_tx_in_output->header.ts_expires == a_tx_out_cond->header.ts_expires &&                  // Same expires time
-                        l_tx_in_output->params_size == a_tx_out_cond->params_size &&                              // Same params size
-                        memcmp(l_tx_in_output->params, a_tx_out_cond->params,l_tx_in_output->params_size) == 0 && // Same params itself
+                        l_tx_in_output->tsd_size == a_tx_out_cond->tsd_size &&                              // Same params size
+                        memcmp(l_tx_in_output->tsd, a_tx_out_cond->tsd, l_tx_in_output->tsd_size) == 0 && // Same params itself
                         memcmp(&l_tx_in_output->subtype.srv_xchange, &a_tx_out_cond->subtype.srv_xchange,         // Same subtype header
                            sizeof(a_tx_out_cond->subtype.srv_xchange) ) == 0 ){
                     SUM_256_256(l_back_val, l_tx_in_output->header.value, &l_back_val); // Calc is at back to owner value
@@ -387,7 +387,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
         dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_uid, a_price->net->pub.id, a_price->datoshi_sell,
                                                                                                 a_price->net->pub.id, a_price->token_buy, l_datoshi_buy,
-                                                                                                (void *)l_seller_addr, sizeof(dap_chain_addr_t));
+                                                                                                l_seller_addr, NULL, 0);
         if (!l_tx_out) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_seller_addr);
@@ -482,7 +482,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     // add 'out' items
     {
         // transfer buying coins
-        const dap_chain_addr_t *l_seller_addr = (dap_chain_addr_t *)l_tx_out_cond->params;
+        const dap_chain_addr_t *l_seller_addr = &l_tx_out_cond->subtype.srv_xchange.seller_addr;
         if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_seller_addr, a_datoshi_buy, a_price->token_buy) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_buyer_addr);
@@ -533,7 +533,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
             dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_xchange(
                         c_dap_chain_net_srv_xchange_uid, a_price->net->pub.id, l_value_back,
                         a_price->net->pub.id, a_price->token_buy, l_datoshi_buy_again,
-                          (void *)l_seller_addr, sizeof(dap_chain_addr_t));
+                        l_seller_addr, NULL, 0);
             if (!l_tx_out) {
                 dap_chain_datum_tx_delete(l_tx);
                 DAP_DELETE(l_seller_addr);
@@ -619,8 +619,8 @@ static bool s_xchage_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, d
     dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_price->tx_hash, l_prev_cond_idx, 0);
 
     // add 'out' item
-    const dap_chain_addr_t *l_buyer_addr = (dap_chain_addr_t *)l_tx_out_cond->params;
-    if (memcmp(l_seller_addr->data.hash, l_buyer_addr->data.hash, sizeof(dap_chain_hash_fast_t))) {
+    const dap_chain_addr_t *l_cond_addr = &l_tx_out_cond->subtype.srv_xchange.seller_addr;
+    if (memcmp(l_seller_addr->data.hash, l_cond_addr->data.hash, sizeof(dap_chain_hash_fast_t))) {
         log_it(L_WARNING, "Only owner can invalidate exchange transaction");
         dap_chain_datum_tx_delete(l_tx);
         return false;

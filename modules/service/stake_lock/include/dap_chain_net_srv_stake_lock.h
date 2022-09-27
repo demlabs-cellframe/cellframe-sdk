@@ -45,15 +45,6 @@
 /**
  * @brief The cond_params struct thats placed in tx_cond->params[] section
  */
-typedef struct		dap_chain_net_srv_stake_lock_cond_params{
-	dap_time_t		time_unlock;
-	uint32_t		flags;
-	uint8_t			reinvest_percent;
-	uint8_t			padding[7];
-	dap_hash_fast_t	token_delegated; // Delegate token
-	dap_hash_fast_t	pkey_delegated; // Delegate public key
-} DAP_ALIGN_PACKED	dap_chain_net_srv_stake_lock_cond_params_t;
-
 int 					dap_chain_net_srv_stake_lock_init(void);
 void					dap_chain_net_srv_stake_lock_deinit(void);
 

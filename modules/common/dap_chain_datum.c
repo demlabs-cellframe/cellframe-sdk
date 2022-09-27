@@ -460,6 +460,20 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     DAP_DELETE(l_value_str);
                     DAP_DELETE(l_coins_str);
                 } break;
+                case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
+                    dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
+                    char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value);
+                    char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value);
+                    dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                                                        "\t\t\t value: %s (%s)\n"
+                                                        "\t\t\t time_unlock %s\n",
+                                             ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64,
+                                             l_coins_str,
+                                             l_value_str,
+                                             dap_ctime_r(&l_ts_exp, l_tmp_buf));
+                    DAP_DELETE(l_value_str);
+                    DAP_DELETE(l_coins_str);
+                } break;
                 default: break;
             }
         } break;
