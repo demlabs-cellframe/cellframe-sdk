@@ -2,7 +2,7 @@
 #QMAKE_CFLAGS_DEBUG = -std=gnu11 -DDAP_DEBUG
 #QMAKE_CFLAGS_RELEASE += -std=gnu1
 QMAKE_CFLAGS_DEBUG += -DDAP_DEBUG
-QMAKE_CXXFLAGS +=  -std=c++11
+QMAKE_CXXFLAGS +=  -std=c++1
 QMAKE_CFLAGS +=  -std=gnu11
 
 unix {
@@ -63,24 +63,34 @@ HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_config.h \
     $$PWD/include/dap_math_ops.h \
     $$PWD/include/dap_file_utils.h \
-    $$PWD/src/circular_buffer.h \
-    $$PWD/include/dap_circular_buffer.h \
+    $$PWD/include/dap_cbuf.h \
     $$PWD/include/dap_list.h \
     $$PWD/include/dap_module.h \
     $$PWD/include/dap_strfuncs.h \
     $$PWD/include/dap_string.h \
-    $$PWD/include/dap_time.h
+    $$PWD/include/dap_time.h \
+    $$PWD/include/dap_tsd.h \
+    $$PWD/dap_fnmatch.h \
+    $$PWD/dap_fnmatch_loop.h \
+    $$PWD/portable_endian.h
 
 SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_binary_tree.c \
     $$PWD/src/dap_config.c \
     $$PWD/src/dap_file_utils.c \
-    $$PWD/src/dap_circular_buffer.c \
+    $$PWD/src/dap_cbuf.c \
     $$PWD/src/dap_list.c \
     $$PWD/src/dap_module.c \
     $$PWD/src/dap_strfuncs.c \
     $$PWD/src/dap_string.c \
-    $$PWD/src/dap_time.c
+    $$PWD/src/dap_time.c \
+    $$PWD/src/dap_tsd.c \
+    $$PWD/src/dap_fnmatch.c \
+    $$PWD/src/dap_meta.c
+
+
+
+
 
 INCLUDEPATH += $$PWD/include \
     $$PWD/../../3rdparty/uthash/src/
