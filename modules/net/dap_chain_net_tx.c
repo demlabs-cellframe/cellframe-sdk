@@ -625,7 +625,7 @@ bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, d
 {
     struct net_fee *l_net_fee;
     HASH_FIND(hh, s_net_fees, &a_net_id, sizeof(a_net_id), l_net_fee);
-    if (!l_net_fee)
+    if (!l_net_fee || IS_ZERO_256(l_net_fee->value))
         return false;
     if (a_value)
         *a_value = l_net_fee->value;
