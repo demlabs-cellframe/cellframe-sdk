@@ -70,9 +70,9 @@ HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_string.h \
     $$PWD/include/dap_time.h \
     $$PWD/include/dap_tsd.h \
-    $$PWD/dap_fnmatch.h \
-    $$PWD/dap_fnmatch_loop.h \
-    $$PWD/portable_endian.h
+    $$PWD/include/dap_fnmatch.h \
+    $$PWD/include/dap_fnmatch_loop.h \
+    $$PWD/include/portable_endian.h
 
 SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_binary_tree.c \
@@ -85,8 +85,8 @@ SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_string.c \
     $$PWD/src/dap_time.c \
     $$PWD/src/dap_tsd.c \
-    $$PWD/src/dap_fnmatch.c \
-    $$PWD/src/dap_meta.c
+    $$PWD/src/dap_fnmatch.c 
+
 
 
 
