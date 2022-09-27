@@ -620,9 +620,6 @@ size_t  l_cnt = 0, l_count_out = 0;
             l_suff = (struct __record_suffix__ *) (l_data.iov_base + l_data.iov_len - sizeof(struct __record_suffix__));
             if ( l_suff->id < a_id )
                 continue;
-
-
-
             /*
              * Expand a memory for new <store object> structure
              */
@@ -649,7 +646,6 @@ size_t  l_cnt = 0, l_count_out = 0;
                 l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
                 memcpy(l_obj->value, l_data.iov_base, l_obj->value_len);
 
-
                 l_obj->id = l_suff->id;
                 l_obj->timestamp = l_suff->ts;
                 l_obj->flags = l_suff->flags;
@@ -657,10 +653,11 @@ size_t  l_cnt = 0, l_count_out = 0;
                 l_obj->group = dap_strdup(a_group);
                 l_obj->group_len = strlen(l_obj->group);
 
+                l_obj->cb = l_obj->cb_arg = NULL;
+
                 }
             else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
         }
-
 
         if ( (MDBX_SUCCESS != l_rc) && (l_rc != MDBX_NOTFOUND) ) {
           log_it (L_ERROR, "mdbx_cursor_get: (%d) %s", l_rc, mdbx_strerror(l_rc)), l_rc = MDBX_SUCCESS;
