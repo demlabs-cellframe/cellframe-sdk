@@ -35,6 +35,7 @@ dap_tsd_t* dap_tsd_find(byte_t * a_data, size_t a_data_size,uint16_t a_type);
 
 #define dap_tsd_create_scalar(type,value) dap_tsd_create (type, &value, sizeof(value) )
 #define dap_tsd_get_scalar(a,typeconv) ( a->size >= sizeof(typeconv) ? *((typeconv*) a->data) : (typeconv) {0})
+#define dap_tsd_get_object(a,typeconv) ( a->size >= sizeof(typeconv) ? ((typeconv*) a->data) : (typeconv *) {0})
 
 #define DAP_TSD_CORRUPTED_STRING "<CORRUPTED STRING>"
 // NULL-terminated string
