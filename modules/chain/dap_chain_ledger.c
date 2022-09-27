@@ -396,9 +396,22 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
  */
 static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_token_item, dap_chain_datum_token_t *a_token_update, size_t a_token_update_size)
 {
-	dap_sign_t	**l_signs_upd_token;
-	size_t		auth_signs_total = 0;
-	size_t		auth_signs_valid = 0;
+	dap_sign_t								**l_signs_upd_token;
+	size_t									auth_signs_total = 0;
+	size_t									auth_signs_valid = 0;
+	dap_chain_ledger_token_update_item_t	*l_token_update_item;
+	dap_hash_fast_t							l_hash_token_update;
+
+	dap_hash_fast(a_token_update, a_token_update_size, &l_hash_token_update);
+	pthread_rwlock_rdlock(&a_cur_token_item->token_ts_updated_rwlock);
+	HASH_FIND(hh, a_cur_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t),
+			  l_token_update_item);
+	pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
+	if (l_token_update_item) {
+		if (s_debug_more)
+			log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token_update->ticker);
+		return false;
+	}
 
 	if (a_cur_token_item->auth_signs_total != a_token_update->signs_total
 	||	a_cur_token_item->auth_signs_valid != a_token_update->signs_valid) {
@@ -476,15 +489,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
         	log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
         	return -3;
 		} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == false) {
-			return -3;
-/*			dap_hash_fast_t token1;
-			dap_hash_fast_t token2;
-			dap_hash_fast(a_token, a_token_size, &token1);
-			dap_hash_fast(l_token_item->datum_token, l_token_item->datum_token_size, &token2);
-			if (dap_hash_fast_compare(&token1, &token2)) {
-				log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
-				return -3;
-			}*/
+			return -2;
 		}
     }
 	else if	(l_token_item == NULL && update_token == true) {
@@ -652,7 +657,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 		} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == true) {
 			if (s_ledger_update_token_add_in_hash_table(l_token_item, a_token, a_token_size) == false) {
 				if (s_debug_more)
-					log_it(L_ERROR, "Failed to add ticker '%s' to hash table", a_token->ticker);
+					log_it(L_ERROR, "Failed to add ticker '%s' to hash-table", a_token->ticker);
 				return -5;
 			}
 			if (!IS_ZERO_256(a_token->total_supply)){
@@ -2023,7 +2028,7 @@ dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock
 	}
 	l_new_stake_lock_emission = DAP_NEW(dap_chain_ledger_token_emission_for_stake_lock_item_t);
 	if (!l_new_stake_lock_emission
-		&&	s_debug_more) {
+	&&	s_debug_more) {
 		log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_emission_for_stake_lock_item_t' to hash-table");
 	}
     l_new_stake_lock_emission->datum_token_emission_for_stake_lock_hash = *a_token_emission_hash;
