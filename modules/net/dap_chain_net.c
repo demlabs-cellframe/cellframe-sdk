@@ -206,7 +206,7 @@ typedef struct dap_chain_net_pvt{
     uint16_t acl_idx;
 
     // Main loop timer
-    dap_interval_timer_t *main_timer;
+    dap_interval_timer_t main_timer;
 
     // General rwlock for structure
     pthread_rwlock_t rwlock;
@@ -3496,21 +3496,20 @@ dap_chain_t *l_chain_cur;
  * @param a_datum_size
  * @return
  */
-int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size  )
+int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
     if ( a_datum_size < l_datum_data_size+ sizeof (a_datum->header) ){
         log_it(L_INFO,"Corrupted datum rejected: wrong size %zd not equel or less datum size %zd",a_datum->header.data_size+ sizeof (a_datum->header),
                a_datum_size );
-        return -1;
+        return -101;
     }
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t * l_decree = (dap_chain_datum_decree_t *) a_datum->data;
             if( sizeof(l_decree->header)> l_datum_data_size  ){
-                log_it(L_WARNING, "Corrupted decree, size %zd is smaller than ever decree header's size %zd", l_datum_data_size,
-                       sizeof(l_decree->header));
-                break;
+                log_it(L_WARNING, "Corrupted decree, size %zd is smaller than ever decree header's size %zd", l_datum_data_size, sizeof(l_decree->header));
+                return -102;
             }
 
 
@@ -3525,42 +3524,32 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
                          }
                     }else{
                         log_it(L_WARNING,"Decree for unknown srv uid 0x%016"DAP_UINT64_FORMAT_X , l_decree->header.srv_id.uint64);
+                        return -103;
                     }
-                }break;
-                default:;
+                } break;
+                default:
+                    break;
             }
         }break;
 
-        case DAP_CHAIN_DATUM_TOKEN_DECL:{
-            if (dap_chain_ledger_token_load(a_chain->ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size))
-                return -2;
-        }break;
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            if (dap_chain_ledger_token_emission_load(a_chain->ledger, a_datum->data, a_datum->header.data_size))
-                return -3;
-        }break;
+        case DAP_CHAIN_DATUM_TOKEN_DECL:
+            return dap_chain_ledger_token_load(a_chain->ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+            return dap_chain_ledger_token_emission_load(a_chain->ledger, a_datum->data, a_datum->header.data_size);
+
         case DAP_CHAIN_DATUM_TX:{
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) a_datum->data;
             // Check tx correcntess
-            size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-            if (l_tx_size > l_datum_data_size  ){
-                log_it(L_WARNING, "Corrupted transaction in datum, size %zd is greater than datum's size %zd", l_tx_size, l_datum_data_size);
-                return -1;
-            }
+            int res = dap_chain_ledger_tx_load(a_chain->ledger, l_tx, a_tx_hash);
+            return res == 1 ? 0 : res;
+        }
 
-            // TODO process with different codes from ledger to work with ledger thresholds
-            if (dap_chain_ledger_tx_load(a_chain->ledger, l_tx, NULL) != 1)
-                return -4;
-        }break;
-        case DAP_CHAIN_DATUM_CA:{
-
-            if ( dap_cert_chain_file_save(a_datum, a_chain->net_name) < 0 )
-                return -5;
-        }break;
+        case DAP_CHAIN_DATUM_CA:
+            return dap_cert_chain_file_save(a_datum, a_chain->net_name);
         case DAP_CHAIN_DATUM_SIGNER:
-        break;
+            break;
         case DAP_CHAIN_DATUM_CUSTOM:
-        break;
+            break;
         default:
             return -666;
     }

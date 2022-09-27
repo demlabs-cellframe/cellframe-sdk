@@ -1048,7 +1048,9 @@ typedef struct dap_timer_interface {
 static dap_timer_interface_t *s_timers_map;
 static pthread_rwlock_t s_timers_rwlock;
 
-void dap_interval_timer_init() {
+void dap_interval_timer_init()
+{
+    s_timers_map = NULL;
     pthread_rwlock_init(&s_timers_rwlock, NULL);
 }
 
@@ -1065,33 +1067,35 @@ void dap_interval_timer_deinit() {
 }
 
 #ifdef DAP_OS_LINUX
-static void s_posix_callback(union sigval a_arg) {
-    pthread_rwlock_rdlock(&s_timers_rwlock);
-    dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, &a_arg.sival_ptr, l_timer);
-    pthread_rwlock_unlock(&s_timers_rwlock);
-    if (l_timer && l_timer->callback) {
-        l_timer->callback(l_timer->param);
-    } else {
-        log_it(L_WARNING, "Timer '%p' is not initialized", a_arg.sival_ptr);
-    }
-#else
-#ifdef _WIN32
-static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true) {
+static void s_posix_callback(union sigval a_arg)
+{
+    void *l_timer_ptr = a_arg.sival_ptr;
+#elif defined (DAP_OS_WINDOWS)
+static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
+{
     UNUSED(a_always_true);
+    void *l_timer_ptr = a_arg;
 #elif defined (DAP_OS_DARWIN)
-static void s_bsd_callback(void *a_arg) {
+static void s_bsd_callback(void *a_arg)
+{
+    void *l_timer_ptr = &a_arg;
+#else
+#error "Timaer callback is undefined for your platform"
 #endif
+    if (!l_timer_ptr) {
+        log_it(L_ERROR, "Timer cb arg is NULL");
+        return;
+    }
     pthread_rwlock_rdlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, &a_arg, l_timer);
+    HASH_FIND_PTR(s_timers_map, l_timer_ptr, l_timer);
     pthread_rwlock_unlock(&s_timers_rwlock);
     if (l_timer && l_timer->callback) {
+        //log_it(L_INFO, "Fire %p", l_timer_ptr);
         l_timer->callback(l_timer->param);
     } else {
-        log_it(L_WARNING, "Timer '%p' is not initialized", a_arg);
+        log_it(L_WARNING, "Timer '%p' is not initialized", l_timer_ptr);
     }
-#endif
 }
 
 /*!
@@ -1100,12 +1104,12 @@ static void s_bsd_callback(void *a_arg) {
  * \param a_callback Function to be called with timer period
  * \return pointer to timer object if success, otherwise return NULL
  */
-dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param) {
+dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param) {
     dap_timer_interface_t *l_timer_obj = DAP_NEW_Z(dap_timer_interface_t);
     l_timer_obj->callback   = a_callback;
     l_timer_obj->param      = a_param;
 #if (defined _WIN32)
-    if (!CreateTimerQueueTimer(&(l_timer_obj->timer) , NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(l_timer_obj->timer), a_msec, a_msec, 0)) {
+    if (!CreateTimerQueueTimer(&l_timer_obj->timer , NULL, (WAITORTIMERCALLBACK)s_win_callback, &l_timer_obj->timer, a_msec, a_msec, 0)) {
         return NULL;
     }
 #elif (defined DAP_OS_DARWIN)
@@ -1116,10 +1120,9 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     dispatch_source_set_timer(l_timer_obj->timer, start, a_msec * 1000000, 0);
     dispatch_resume(l_timer_obj->timer);
 #else
-    timer_t l_timer = NULL;
     struct sigevent l_sig_event = { };
     l_sig_event.sigev_notify = SIGEV_THREAD;
-    l_sig_event.sigev_value.sival_ptr = l_timer_obj->timer;
+    l_sig_event.sigev_value.sival_ptr = &l_timer_obj->timer;
     l_sig_event.sigev_notify_function = s_posix_callback;
     if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &(l_timer_obj->timer))) {
         return NULL;
@@ -1132,8 +1135,8 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     pthread_rwlock_wrlock(&s_timers_rwlock);
     HASH_ADD_PTR(s_timers_map, timer, l_timer_obj);
     pthread_rwlock_unlock(&s_timers_rwlock);
-    log_it(L_DEBUG, "Interval timer %p created", l_timer_obj->timer);
-    return (dap_interval_timer_t*)l_timer_obj->timer;
+    log_it(L_DEBUG, "Interval timer %p created", &l_timer_obj->timer);
+    return (dap_interval_timer_t)l_timer_obj->timer;
 }
 
 int dap_interval_timer_disable(dap_interval_timer_t a_timer) {
