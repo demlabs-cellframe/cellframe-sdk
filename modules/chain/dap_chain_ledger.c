@@ -377,6 +377,66 @@ struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_
 }
 
 /**
+ * @brief s_chain_ledger_token_update_check
+ * @param a_cur_token_item
+ * @param a_token_update
+ * @param a_token_update_size
+ * @return true or false
+ */
+static bool s_chain_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_token_item, dap_chain_datum_token_t *a_token_update, size_t a_token_update_size)
+{
+	dap_sign_t	**l_signs_upd_token;
+	size_t		auth_signs_total = 0;
+	size_t		auth_signs_valid = 0;
+
+	if (a_cur_token_item->auth_signs_total != a_token_update->signs_total
+	||	a_cur_token_item->auth_signs_valid != a_token_update->signs_valid) {
+		if(s_debug_more)
+			log_it(L_WARNING,"Can't update token with ticker '%s' because: "
+							 "l_token_item auth signs total/valid == %lu/%lu | "
+							 "token_update auth signs total/valid == %hu/%hu",
+				   a_token_update->ticker,
+				   a_cur_token_item->auth_signs_total, a_cur_token_item->auth_signs_valid,
+				   a_token_update->signs_total, a_token_update->signs_valid);
+		return false;
+	}
+
+	l_signs_upd_token = dap_chain_datum_token_signs_parse(a_token_update, a_token_update_size,
+														  &auth_signs_total, &auth_signs_valid);
+	if (a_cur_token_item->auth_signs_total != auth_signs_total
+	||	a_cur_token_item->auth_signs_valid != auth_signs_valid) {
+		DAP_DEL_Z(l_signs_upd_token);
+		if(s_debug_more)
+			log_it(L_WARNING,"Can't update token with ticker '%s' because: "
+							 "l_token_item auth signs total/valid == %lu/%lu | "
+							 "token_update auth signs total/valid == %lu/%lu",
+				   a_token_update->ticker,
+				   a_cur_token_item->auth_signs_total, a_cur_token_item->auth_signs_valid,
+				   auth_signs_total, auth_signs_valid);
+		return false;
+	}
+	if(auth_signs_total) {
+		for(uint16_t i = 0; i < auth_signs_total; i++){
+			if (!dap_sign_match_pkey_signs(a_cur_token_item->auth_signs[i], l_signs_upd_token[i])) {
+				DAP_DEL_Z(l_signs_upd_token);
+				if(s_debug_more)
+					log_it(L_WARNING, "Can't update token with ticker '%s' because: Signs not compare", a_token_update->ticker);
+				return false;
+			}
+		}
+	}
+	DAP_DEL_Z(l_signs_upd_token);
+	if (!IS_ZERO_256(a_token_update->total_supply)){
+		if (compare256(a_token_update->total_supply, a_cur_token_item->total_supply) < 0) {//compare old 'total_supply' to updated
+			if(s_debug_more)
+				log_it(L_WARNING, "Can't update token with ticker '%s' because: the new 'total_supply' cannot be smaller than the old one", a_token_update->ticker);
+			return false;
+		}
+	}
+	return true;
+}
+
+/**
  * @brief dap_chain_ledger_token_check
  * @param a_ledger
  * @param a_token
