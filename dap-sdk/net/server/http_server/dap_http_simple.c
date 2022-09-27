@@ -233,10 +233,17 @@ static void s_esocket_worker_write_callback(dap_worker_t *a_worker, void *a_arg)
     dap_events_socket_t *l_es = dap_worker_esocket_find_uuid(a_worker, l_http_simple->http_client_uuid);
     if (!l_es) {
         debug_if(g_debug_reactor, L_INFO, "Esocket 0x%"DAP_UINT64_FORMAT_x" is already deleted", l_http_simple->http_client_uuid);
+        dap_http_client_t *l_http_client = l_http_simple->http_client;
+        if (l_http_client) {
+            while (l_http_client->in_headers)
+                dap_http_header_remove(&l_http_client->in_headers, l_http_client->in_headers);
+            while (l_http_client->out_headers)
+                dap_http_header_remove(&l_http_client->out_headers, l_http_client->out_headers);
+            DAP_DELETE(l_http_client);
+        }
         DAP_DEL_Z(l_http_simple->request);
         DAP_DEL_Z(l_http_simple->reply);
-        DAP_DEL_Z(l_http_simple->http_client);
-        DAP_DELETE(a_arg); // http_simple itself
+        DAP_DELETE(l_http_simple);
         return;
     }
     l_es->_inheritor = l_http_simple->http_client; // Back to the owner
@@ -327,7 +334,8 @@ static bool s_proc_queue_callback(dap_proc_thread_t *a_thread, void *a_arg) {
 static void s_http_client_delete( dap_http_client_t *a_http_client, void *arg )
 {
     dap_http_simple_t * l_http_simple = DAP_HTTP_SIMPLE(a_http_client);
-    if (l_http_simple){
+    if (l_http_simple) {
+        DAP_DEL_Z(l_http_simple->request);
         DAP_DEL_Z(l_http_simple->reply);
     }
 }
