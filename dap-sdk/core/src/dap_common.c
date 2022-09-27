@@ -1110,8 +1110,7 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     }
 #elif (defined DAP_OS_DARWIN)
     dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
-    l_timer_obj->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
-    dispatch_source_set_event_handler((l_timer_obj->timer), ^(void){ s_bsd_callback((void*)(l_timer_obj->timer)); });
+    //todo: we should not use ^ like this, because this is clang-specific thing, but someone can use GCC on mac os
     dispatch_time_t start = dispatch_time(DISPATCH_TIME_NOW, a_msec * 1000000);
     dispatch_source_set_timer(l_timer_obj->timer, start, a_msec * 1000000, 0);
     dispatch_resume(l_timer_obj->timer);

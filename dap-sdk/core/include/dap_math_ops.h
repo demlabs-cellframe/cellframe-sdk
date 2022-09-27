@@ -95,6 +95,9 @@ extern const uint128_t uint128_0;
 extern const uint128_t uint128_1;
 extern const uint256_t uint256_0;
 extern const uint256_t uint256_1;
+
+//todo: implement uintX_max
+//extern const uint256_t uint256_max;
 extern const uint512_t uint512_0;
 
 static inline uint128_t GET_128_FROM_64(uint64_t n) {
@@ -205,7 +208,7 @@ static inline void LEFT_SHIFT_128(uint128_t a_128_bit,uint128_t* b_128_bit,int n
         a_128_bit.lo=0;
         LEFT_SHIFT_128(a_128_bit,b_128_bit,n-64);
     }
-    if (n == 0) {
+    else if (n == 0) {
        b_128_bit->hi=a_128_bit.hi;
        b_128_bit->lo=a_128_bit.lo;
     }
@@ -231,7 +234,7 @@ static inline void RIGHT_SHIFT_128(uint128_t a_128_bit,uint128_t* b_128_bit,int 
         a_128_bit.hi=0;
         RIGHT_SHIFT_128(a_128_bit,b_128_bit,n-64);
     }
-    if (n == 0)
+    else if (n == 0)
     {
        b_128_bit->hi=a_128_bit.hi;
        b_128_bit->lo=a_128_bit.lo;
@@ -314,11 +317,11 @@ static inline void DECR_128(uint128_t* a_128_bit){
     (*a_128_bit)--;
 
 #else
+    if (a_128_bit->lo == 0) {
+        a_128_bit->hi--;
+    }
     a_128_bit->lo--;
-   if(a_128_bit->hi == 0)
-   {
-       a_128_bit->hi--;
-   }
+
 #endif
 }
 
@@ -337,6 +340,20 @@ static inline void INCR_256(uint256_t* a_256_bit){
     {
         INCR_128(&a_256_bit->hi);
     }
+#endif
+}
+
+static inline void DECR_256(uint256_t* a_256_bit) {
+#ifdef DAP_GLOBAL_IS_INT128
+    if (a_256_bit->lo == 0) {
+        a_256_bit->hi--;
+    }
+    a_256_bit->lo--;
+#else
+    if(EQUAL_128(a_256_bit->lo, uint128_0)) {
+        DECR_128(&a_256_bit->hi);
+    }
+    DECR_128(&a_256_bit->lo);
 #endif
 }
 
@@ -469,7 +486,8 @@ static inline int SUM_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t*
     c_256_bit->hi = intermediate_value;
     overflow_flag=overflow_flag||overflow_flag_intermediate;
 #else
-    overflow_flag=SUM_128_128(a_256_bit.lo,b_256_bit.lo,&c_256_bit->lo);
+    uint256_t tmp = uint256_0;
+    overflow_flag=SUM_128_128(a_256_bit.lo,b_256_bit.lo,&tmp.lo);
     uint128_t carry_in_128;
     carry_in_128.hi=0;
     carry_in_128.lo=overflow_flag;
@@ -477,7 +495,9 @@ static inline int SUM_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t*
     overflow_flag=SUM_128_128(carry_in_128,a_256_bit.hi,&intermediate_value);
     //we store overflow_flag in case there is already overflow
     int overflow_flag_bis=0;
-    overflow_flag_bis=SUM_128_128(intermediate_value,b_256_bit.hi,&c_256_bit->hi);
+    overflow_flag_bis=SUM_128_128(intermediate_value,b_256_bit.hi,&tmp.hi);
+    c_256_bit->hi = tmp.hi;
+    c_256_bit->lo = tmp.lo;
     overflow_flag=overflow_flag||overflow_flag_bis;
 #endif
     return overflow_flag;
@@ -598,8 +618,8 @@ static inline void MULT_128_256(uint128_t a_128_bit,uint128_t b_128_bit,uint256_
     //product of .lo terms - stored in .lo field of c_256_bit
     MULT_64_128(a_128_bit.lo,b_128_bit.lo, &c_256_bit->lo);
 
-    uint128_t cross_product_one={.hi=0, .lo=0};
-    uint128_t cross_product_two={.hi=0, .lo=0};
+    uint128_t cross_product_one= GET_128_FROM_64(0);
+    uint128_t cross_product_two=GET_128_FROM_64(0);
     MULT_64_128(a_128_bit.hi, b_128_bit.lo, &cross_product_one);
     c_256_bit->lo.hi += cross_product_one.lo;
     if(c_256_bit->lo.hi < cross_product_one.lo)  // if overflow
@@ -635,7 +655,7 @@ static inline int MULT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uint128
     overflow_flag=(a_128_bit>((uint128_t)-1)/b_128_bit);
 #else
     int equal_flag=0;
-    uint256_t full_product_256={.hi=uint128_0, .lo=uint128_0};
+    uint256_t full_product_256= GET_256_FROM_64(0);
     MULT_128_256(a_128_bit,b_128_bit,&full_product_256);
     *c_128_bit=full_product_256.lo;
     equal_flag=EQUAL_128(full_product_256.hi,uint128_0);
@@ -907,7 +927,7 @@ static inline int fls128(uint128_t n) {
     }
     return 63 - nlz64(n.lo);
 }
-
+//todo: this should not be ander ifndef
 static inline void divmod_impl_128(uint128_t a_dividend, uint128_t a_divisor, uint128_t *a_quotient, uint128_t *a_remainder)
 {
     assert( compare128(a_divisor, uint128_0) ); // a_divisor != 0
@@ -1033,8 +1053,6 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
         SUM_256_256(tmp, ten, &tmp);
     }
     *result = tmp;
-//    if( compare256(ten, uint256_0) != 0 )
-//        DIV_256(tmp, ten, result);
     return overflow;
 }
 
@@ -1068,8 +1086,6 @@ static inline void DIV_256_COIN(uint256_t a, uint256_t b, uint256_t *res)
     }
     DIV_256(a_copy, loan, &a_copy);
     *res = a_copy;
-
-
 }
 
 #ifdef __cplusplus
