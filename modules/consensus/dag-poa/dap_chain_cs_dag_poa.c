@@ -99,7 +99,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
 static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
-static dap_interval_timer_t *s_poa_round_timer = NULL;
+static dap_interval_timer_t s_poa_round_timer = NULL;
 
 /**
  * @brief

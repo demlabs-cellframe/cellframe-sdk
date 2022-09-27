@@ -785,12 +785,11 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
             dap_chain_t *l_chain = dap_chain_get_chain_from_group_name(l_sync_request->request_hdr.net_id, l_obj->group);
 
-            if (l_chain && l_chain->callback_add_datums_with_group) {
+            if (l_chain && l_chain->callback_add_datums) {
                 log_it(L_WARNING, "New data goes to GDB chain");
                     const void * restrict l_store_obj_value = l_store_obj[i].value;
-                    l_chain->callback_add_datums_with_group(l_chain,
-                            (dap_chain_datum_t** restrict) &l_store_obj_value, 1,
-                            l_store_obj[i].group);
+                    l_chain->callback_add_datums(l_chain,
+                            (dap_chain_datum_t** restrict) &l_store_obj_value, 1);
             } else {
                 // save data to global_db
                 if(!dap_chain_global_db_obj_save(l_obj, 1)) {

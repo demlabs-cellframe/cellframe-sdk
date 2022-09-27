@@ -5491,8 +5491,7 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
                        dap_sign_t **a_signed, dap_chain_hash_fast_t *a_hash);
 static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply);
 static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply);
-static uint8_t *s_byte_to_hex(const char *a_line, size_t *a_size);
-static uint8_t s_get_num(uint8_t a_byte, int a_pp);
+
 struct opts {
     char *name;
     uint32_t cmd;
@@ -5586,7 +5585,6 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
 
     dap_sign_t *l_sign = NULL;
     dap_chain_datum_t *l_datum = NULL;
-    dap_global_db_obj_t *l_objs = NULL;
     char *l_gdb_group = NULL;
 
     l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
@@ -5621,11 +5619,9 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
     }
 
 
-    dap_chain_cell_id_t l_cell_id = {0};
     dap_chain_atom_iter_t *l_iter = NULL;
     dap_chain_cell_t *l_cell_tmp = NULL;
     dap_chain_cell_t *l_cell = NULL;
-    dap_chain_datum_t *l_datum_tmp = NULL;
     size_t l_size = 0;
 
     HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
@@ -5746,7 +5742,6 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
     int l_ret = 0;
     dap_sign_t *l_sign = NULL;
     dap_chain_datum_t *l_datum = NULL;
-    dap_global_db_obj_t *l_objs = NULL;
 
     l_ret = s_get_key_from_file(l_opts_sign[OPT_FILE], l_opts_sign[OPT_MIME], l_opts_sign[OPT_CERT], &l_sign);
     if (!l_ret) {
@@ -5764,9 +5759,6 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
         goto end;
     }
 
-
-    dap_chain_cell_id_t l_cell_id = {0};
-    dap_chain_cell_create_fill(l_chain, l_cell_id);
     l_ret = l_chain->callback_add_datums(l_chain, &l_datum, 1);
 
     dap_hash_fast_t l_hash;

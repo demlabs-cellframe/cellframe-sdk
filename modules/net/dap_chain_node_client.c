@@ -828,6 +828,12 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
     }
 }
 
+dap_chain_node_client_t *dap_chain_node_client_find(dap_events_socket_uuid_t a_uuid)
+{
+    dap_chain_node_client_handle_t * l_client_found = NULL;
+    HASH_FIND(hh,s_clients, &a_uuid, sizeof(a_uuid), l_client_found);
+    return l_client_found ? l_client_found->client : NULL;
+}
 
 /**
  * @brief dap_chain_node_client_close

@@ -22,26 +22,22 @@ typedef struct voting_pkt_in_callback{
 
 typedef struct voting_pkt_addr
 {
-	//dap_client_t *client;
 	dap_chain_node_addr_t node_addr;
-	//dap_chain_node_client_t *node_client;
 	dap_stream_ch_chain_voting_pkt_t *voting_pkt;
 } voting_pkt_addr_t;
 
 typedef struct voting_pkt_items
 {
-	//size_t count;
-	// dap_stream_ch_chain_voting_pkt_t * pkts_out[];
 	pthread_rwlock_t rwlock_out;
 	pthread_rwlock_t rwlock_in;
 	dap_list_t * pkts_out; // voting_pkt_addr_t
 	dap_list_t * pkts_in; // dap_stream_ch_chain_voting_pkt_t
-	// dap_timerfd_t * timer_in;
 } voting_pkt_items_t;
 
 typedef struct voting_node_client_list {
     dap_chain_node_info_t *node_info;
     dap_chain_node_client_t *node_client;
+    dap_events_socket_uuid_t uuid;
     dap_chain_node_addr_t node_addr;
     UT_hash_handle hh;
 } voting_node_client_list_t;
@@ -147,16 +143,18 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
         voting_node_client_list_t *l_node_item = NULL;
         if ( l_remote_node_addr->uint64 != dap_chain_net_get_cur_addr_int(a_net) ) {
             HASH_FIND(hh, s_node_client_list, l_remote_node_addr, sizeof(dap_chain_node_addr_t), l_node_item);
-            if ( l_node_item
-                    && l_node_item->node_client
-                        && !dap_client_get_stream(l_node_item->node_client->client) ) {
-                dap_chain_node_client_close(l_node_item->node_client);
-                // DAP_DELETE(l_node_item->node_client);
-                char l_channels[] = {dap_stream_ch_chain_voting_get_id(),0};
-                l_node_item->node_client = dap_chain_node_client_connect_channels(a_net, l_node_item->node_info, l_channels);
-            }
-
-            if (!l_node_item) {
+            if (l_node_item) {
+                dap_chain_node_client_t *l_usable = dap_chain_node_client_find(l_node_item->uuid);
+                if (l_usable && !dap_client_get_stream(l_usable->client)) {
+                        dap_chain_node_client_close(l_usable);
+                        l_usable = NULL;
+                }
+                if (!l_usable) {
+                    char l_channels[] = {dap_stream_ch_chain_voting_get_id(),0};
+                    l_node_item->node_client = dap_chain_node_client_connect_channels(a_net, l_node_item->node_info, l_channels);
+                    l_node_item->uuid = l_node_item->node_client->uuid;
+                }
+            } else {
                 size_t node_info_size = 0;
                 char *l_key = dap_chain_node_addr_to_hash_str(l_remote_node_addr);
                 dap_chain_node_info_t *l_node_info =
@@ -175,6 +173,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
                 l_node_client_item->node_addr = *l_remote_node_addr;
                 l_node_client_item->node_info = l_node_info;
                 l_node_client_item->node_client = l_node_client;
+                l_node_client_item->uuid = l_node_client->uuid;
                 HASH_ADD(hh, s_node_client_list, node_addr, sizeof(dap_chain_node_addr_t), l_node_client_item);
                 l_node_item = l_node_client_item;
             }
