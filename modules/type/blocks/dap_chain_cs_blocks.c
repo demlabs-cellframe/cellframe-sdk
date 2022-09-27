@@ -119,6 +119,8 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size ); //    Get the fisrt block
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size );  //    Get the next block
+static dap_hash_fast_t * s_callback_atom_iter_get_hash( dap_chain_atom_iter_t * a_atom_iter );  //    Get the hash of iter block
+static const char * s_callback_atom_iter_get_hash_str( dap_chain_atom_iter_t * a_atom_iter );
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
                                                                   size_t ** a_links_size_ptr );  //    Get list of linked blocks
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
@@ -211,6 +213,9 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_callback_atom_iter_get_first; // Get the fisrt element from chain
     a_chain->callback_atom_iter_get_next = s_callback_atom_iter_get_next; // Get the next element from chain from the current one
+    a_chain->callback_atom_iter_get_hash = s_callback_atom_iter_get_hash;
+    a_chain->callback_atom_iter_get_hash_str = s_callback_atom_iter_get_hash_str;
+
     a_chain->callback_atom_get_datums = s_callback_atom_get_datums;
 
     a_chain->callback_atom_iter_get_links = s_callback_atom_iter_get_links; // Get the next element from chain from the current one
@@ -1055,6 +1060,34 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_
     if (a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
     return a_atom_iter->cur;
+}
+
+/**
+ * @brief Get the hash of iter block
+ * @param a_atom_iter
+ * @return
+ */
+static dap_hash_fast_t * s_callback_atom_iter_get_hash( dap_chain_atom_iter_t * a_atom_iter )
+{
+    assert(a_atom_iter);
+    // assert(a_atom_size);
+    assert(a_atom_iter->cur_item);
+    return &((dap_chain_block_cache_t *) a_atom_iter->cur_item)->block_hash;
+
+}
+
+/**
+ * @brief s_callback_atom_iter_get_hash_str
+ * @param a_atom_iter
+ * @return
+ */
+static const char * s_callback_atom_iter_get_hash_str( dap_chain_atom_iter_t * a_atom_iter )
+{
+    assert(a_atom_iter);
+    // assert(a_atom_size);
+    assert(a_atom_iter->cur_item);
+    return ((dap_chain_block_cache_t *) a_atom_iter->cur_item)->block_hash_str;
+
 }
 
 /**

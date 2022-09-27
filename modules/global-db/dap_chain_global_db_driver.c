@@ -187,6 +187,8 @@ dap_store_obj_t *l_store_obj, *l_store_obj_dst, *l_store_obj_src;
         l_store_obj_dst->value = DAP_DUP_SIZE(l_store_obj_src->value, l_store_obj_src->value_len);
         l_store_obj_dst->cb = l_store_obj_src->cb;
         l_store_obj_dst->cb_arg = l_store_obj_src->cb_arg;
+        if (l_store_obj->cb || l_store_obj->cb_arg)
+            debug_if(false, L_WARNING, "Unexpected callback set with async DB mode");
     }
 
     return l_store_obj;

@@ -251,7 +251,8 @@ void dap_client_delete_unsafe(dap_client_t * a_client)
 static void s_stage_done_delete(dap_client_t * a_client, void * a_arg)
 {
     (void) a_arg;
-    pthread_mutex_destroy(&a_client->mutex);
+    if (a_client)
+        pthread_mutex_destroy(&a_client->mutex);
 }
 
 
@@ -295,12 +296,12 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
             case STAGE_STATUS_DONE:
                 log_it(L_DEBUG, "Already have target state %s", dap_client_stage_str(l_stage_target));
                 if (l_stage_end_callback) {
-                    l_stage_end_callback(l_client_pvt->client, NULL);
+                    l_stage_end_callback(l_client, NULL);
                 }
             break;
             case STAGE_STATUS_ERROR:
                 log_it(L_DEBUG, "Already moving target state %s, but status is error (%s)", dap_client_stage_str(l_stage_target),
-                       dap_client_get_error_str( l_client_pvt->client) );
+                       dap_client_get_error_str(l_client));
             break;
             case STAGE_STATUS_IN_PROGRESS:
                 log_it(L_DEBUG, "Already moving target state %s", dap_client_stage_str(l_stage_target));
@@ -310,10 +311,11 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
                        dap_client_stage_status_str( l_cur_stage_status));
         }
         l_client_pvt->refs_count--;
-        dap_client_delete_unsafe(l_client_pvt->client);
+        dap_client_delete_unsafe(l_client);
         return;
     }
-    log_it(L_DEBUG, "Start transitions chain for client %p -> %p from %s to %s", l_client_pvt, l_client_pvt->client, dap_client_stage_str(l_cur_stage ) , dap_client_stage_str(l_stage_target));
+    log_it(L_DEBUG, "Start transitions chain for client %p -> %p from %s to %s", l_client_pvt, l_client,
+                        dap_client_stage_str(l_cur_stage), dap_client_stage_str(l_stage_target));
     l_client_pvt->stage_target = l_stage_target;
     l_client_pvt->stage_target_done_callback = l_stage_end_callback;
     if (l_stage_target < l_cur_stage) {

@@ -498,7 +498,10 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
                     continue;   // send to self
                 if (l_src_addr && !memcmp(l_src_addr, a_addr, sizeof(dap_chain_addr_t))) {
                     if (!l_header_printed) {
-                        dap_string_append_printf(l_str_out, "TX hash %s\n\t%s", l_tx_hash_str, l_time_str);
+                        if( a_chain->callback_atom_iter_get_hash_str )
+                            dap_string_append_printf(l_str_out, "TX hash %s (atom %s) \n\t%s", l_tx_hash_str, a_chain->callback_atom_iter_get_hash_str(l_atom_iter), l_time_str);
+                        else
+                            dap_string_append_printf(l_str_out, "TX hash %s\n\t%s", l_tx_hash_str, l_time_str);
                         l_header_printed = true;
                     }
                     char *l_dst_addr_str = dap_chain_addr_to_str(&l_tx_out->addr);
@@ -512,7 +515,10 @@ char* dap_db_history_addr(dap_chain_addr_t * a_addr, dap_chain_t * a_chain, cons
                 }
                 if (!memcmp(&l_tx_out->addr, a_addr, sizeof(dap_chain_addr_t))) {
                     if (!l_header_printed) {
-                        dap_string_append_printf(l_str_out, "TX hash %s\n\t%s", l_tx_hash_str, l_time_str);
+                        if( a_chain->callback_atom_iter_get_hash_str )
+                            dap_string_append_printf(l_str_out, "TX hash %s (atom %s) \n\t%s", l_tx_hash_str, a_chain->callback_atom_iter_get_hash_str(l_atom_iter), l_time_str);
+                        else
+                            dap_string_append_printf(l_str_out, "TX hash %s\n\t%s", l_tx_hash_str, l_time_str);
                         l_header_printed = true;
                     }
                     char *l_value_str = dap_chain_balance_print(l_tx_out->header.value);
