@@ -35,7 +35,7 @@ if(NOT DAP_INT128_SUPPORT)
     message("[!] INT128 DISABLED")
     add_definitions(-DDAP_DISABLE_INT128)
 else()
-    message("[!] INT128 ENABLED")
+#    message("[!] INT128 ENABLED")
 #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
 
