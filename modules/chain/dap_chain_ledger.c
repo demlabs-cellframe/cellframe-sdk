@@ -121,6 +121,7 @@ typedef struct dap_chain_ledger_token_item {
 
 	pthread_rwlock_t token_ts_updated_rwlock;
 	dap_chain_ledger_token_update_item_t * token_ts_updated;
+	time_t last_update_token_time;
 
     // for auth operations
     dap_sign_t ** auth_signs;
@@ -407,7 +408,8 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 	HASH_FIND(hh, a_cur_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t),
 			  l_token_update_item);
 	pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
-	if (l_token_update_item) {
+	if (l_token_update_item
+	&&	a_cur_token_item->last_update_token_time == l_token_update_item->updated_time) {
 		if (s_debug_more)
 			log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token_update->ticker);
 		return false;
@@ -590,38 +592,48 @@ static bool s_ledger_update_token_add_in_hash_table(dap_chain_ledger_token_item_
 {
 	dap_chain_ledger_token_update_item_t	*l_token_update_item;
 	dap_hash_fast_t							l_hash_token_update;
+	bool									new_item = false;
 
 	dap_hash_fast(a_token_update, a_token_update_size, &l_hash_token_update);
 	pthread_rwlock_rdlock(&a_cur_token_item->token_ts_updated_rwlock);
 	HASH_FIND(hh, a_cur_token_item->token_ts_updated, &l_hash_token_update, sizeof(dap_hash_fast_t),
 			  l_token_update_item);
 	pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
-	if (l_token_update_item) {
+	if (l_token_update_item
+	&&	a_cur_token_item->last_update_token_time == l_token_update_item->updated_time) {
 		if (s_debug_more)
 			log_it(L_WARNING, "Error: item 'dap_chain_ledger_token_update_item_t' already exist in hash-table");
 		return false;
+	} else if (!l_token_update_item){
+		new_item = true;
+		l_token_update_item = DAP_NEW(dap_chain_ledger_token_update_item_t);
+		if (!l_token_update_item) {
+			if (s_debug_more)
+				log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_update_item_t' to hash-table");
+			return false;
+		}
 	}
-	l_token_update_item = DAP_NEW(dap_chain_ledger_token_update_item_t);
-	if (!l_token_update_item) {
-		if (s_debug_more)
-			log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_update_item_t' to hash-table");
-		return false;
-	}
+
 	*l_token_update_item = (dap_chain_ledger_token_update_item_t) {
 		.update_token_hash			= l_hash_token_update,
 		.datum_token_update			= a_token_update,
 		.datum_token_update_size	= a_token_update_size,
 		.updated_time				= dap_time_now()
 	};
-	pthread_rwlock_wrlock(&a_cur_token_item->token_ts_updated_rwlock);
-	HASH_ADD(hh, a_cur_token_item->token_ts_updated, update_token_hash, sizeof(dap_chain_hash_fast_t), l_token_update_item);
-	pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
+
+	if (new_item) {
+		pthread_rwlock_wrlock(&a_cur_token_item->token_ts_updated_rwlock);
+		HASH_ADD(hh, a_cur_token_item->token_ts_updated, update_token_hash, sizeof(dap_chain_hash_fast_t), l_token_update_item);
+		pthread_rwlock_unlock(&a_cur_token_item->token_ts_updated_rwlock);
+	}
 
 	if (!l_token_update_item) {
 		if (s_debug_more)
 			log_it(L_ERROR, "Error: adding to hash-table. Be careful, there may be leaks");
 		return false;
 	}
+
+	a_cur_token_item->last_update_token_time = l_token_update_item->updated_time;
 
 	return true;
 }
