@@ -75,74 +75,62 @@ class RandomMathTests: public RandomTests {
 // TODO: Rework tests for using predicates, not ASSERT_EQ chains or ASSERT_STREQ
 
 
-TEST(InputTests, ZeroInputBase) {
-    uint256_t zero = uint256_0;
 
+
+// Comparison functions
+void check_equality256(uint256_t a, bmp::uint256_t boost_a) {
 #ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(zero.lo, 0);
-    ASSERT_EQ(zero.hi, 0);
+    ASSERT_EQ(a.lo, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff"));
+    ASSERT_EQ(a.hi, boost_a & bmp::uint128_t("0xffffffffffffffffffffffffffffffff00000000000000000000000000000000"));
 #else
-    ASSERT_EQ(zero.lo.lo, 0);
-    ASSERT_EQ(zero.lo.hi, 0);
-    ASSERT_EQ(zero.hi.lo, 0);
-    ASSERT_EQ(zero.hi.hi, 0);
+    ASSERT_EQ(a.lo.lo, boost_a & bmp::uint256_t("0x000000000000000000000000000000000000000000000000ffffffffffffffff"));
+    ASSERT_EQ(a.lo.hi, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffff0000000000000000"));
+    ASSERT_EQ(a.hi.lo, boost_a & bmp::uint256_t("0x0000000000000000ffffffffffffffff00000000000000000000000000000000"));
+    ASSERT_EQ(a.hi.hi, boost_a & bmp::uint256_t("0xffffffffffffffff000000000000000000000000000000000000000000000000"));
 #endif
+}
+
+void check_equality256(uint256_t a, uint64_t aa) {
+    bmp::uint256_t boost_a = bmp::uint256_t(aa);
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a.lo, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff")) << "boost_a is: " << boost_a;
+    ASSERT_EQ(a.hi, boost_a & bmp::uint128_t("0xffffffffffffffffffffffffffffffff00000000000000000000000000000000")) << "boost_a is: " << boost_a;
+#else
+    ASSERT_EQ(a.lo.lo, boost_a & bmp::uint256_t("0x000000000000000000000000000000000000000000000000ffffffffffffffff")) << "boost_a is: " << boost_a;
+    ASSERT_EQ(a.lo.hi, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffff0000000000000000")) << "boost_a is: " << boost_a;
+    ASSERT_EQ(a.hi.lo, boost_a & bmp::uint256_t("0x0000000000000000ffffffffffffffff00000000000000000000000000000000")) << "boost_a is: " << boost_a;
+    ASSERT_EQ(a.hi.hi, boost_a & bmp::uint256_t("0xffffffffffffffff000000000000000000000000000000000000000000000000")) << "boost_a is: " << boost_a;
+#endif
+}
+
+
+
+TEST(InputTests, ZeroInputBase) {
+    uint256_t a = uint256_0;
+
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, ZeroInputFrom64) {
-    uint256_t zero = dap_chain_uint256_from(0);
+    uint256_t a = dap_chain_uint256_from(0);
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(zero.lo, 0);
-    ASSERT_EQ(zero.hi, 0);
-#else
-    ASSERT_EQ(zero.lo.lo, 0);
-    ASSERT_EQ(zero.lo.hi, 0);
-    ASSERT_EQ(zero.hi.lo, 0);
-    ASSERT_EQ(zero.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, ZeroInputFromString) {
-    uint256_t zero = dap_chain_balance_scan("0");
+    uint256_t a = dap_chain_balance_scan("0");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(zero.lo, 0);
-    ASSERT_EQ(zero.hi, 0);
-#else
-    ASSERT_EQ(zero.lo.lo, 0);
-    ASSERT_EQ(zero.lo.hi, 0);
-    ASSERT_EQ(zero.hi.lo, 0);
-    ASSERT_EQ(zero.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, MaxInputFrom64) {
-    uint256_t max = dap_chain_uint256_from(0xffffffffffffffff);
+    uint256_t a = dap_chain_uint256_from(0xffffffffffffffff);
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(max.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.hi, 0);
-#else
-    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.lo.hi, 0);
-    ASSERT_EQ(max.hi.lo, 0);
-    ASSERT_EQ(max.hi.hi, 0);
-#endif
+    check_equality256(a, 0xffffffffffffffff);
 
+    a = GET_256_FROM_64(-1);
 
-    max = GET_256_FROM_64(-1);
-
-
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(max.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.hi, 0);
-#else
-    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.lo.hi, 0);
-    ASSERT_EQ(max.hi.lo, 0);
-    ASSERT_EQ(max.hi.hi, 0);
-#endif
+    check_equality256(a, -1);
 }
 
 TEST(InputTests, MaxInputFromString) {
@@ -3602,3 +3590,4 @@ TEST_F(RandomMathTests, Div256) {
 
     ASSERT_STREQ(dap_chain_balance_print(c), (boost_a/boost_b).str().c_str());
 }
+
