@@ -725,7 +725,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     strcpy(l_price->token_sell, a_order->price_ticker);
     l_price->datoshi_sell = a_order->price;
     l_price->net = a_net;
-    if( compare256(l_price->datoshi_buy, uint256_0) !=0 ){
+    if( compare256(l_price->datoshi_sell, uint256_0) !=0 ){
         DIV_256_COIN(l_price->datoshi_buy, l_price->datoshi_sell, &l_price->rate);
         dap_hash_fast_t *l_final_hash = dap_chain_ledger_get_final_chain_tx_hash(
                     a_net->pub.ledger, &a_order->tx_cond_hash);
