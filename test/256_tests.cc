@@ -490,30 +490,14 @@ TEST_F(RandomOutputTests, Output256){
 TEST(InputTests, Get256From128) {
     uint128_t a = GET_128_FROM_64(123);
     uint256_t b = GET_256_FROM_128(a);
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(b.lo, 123);
-    ASSERT_EQ(b.hi, 0);
-#else
-    ASSERT_EQ(b.lo.lo, 123);
-    ASSERT_EQ(b.lo.hi, 0);
-    ASSERT_EQ(b.hi.lo, 0);
-    ASSERT_EQ(b.hi.hi, 0);
-#endif
+    check_equality256(b, 123);
 }
 
 TEST_F(RandomInputTests, Input256) {
     bmp::uint256_t boost_a(gen256());
 
     uint256_t a = dap_chain_balance_scan(boost_a.str().c_str());
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.hi, (boost_a & bmp::uint256_t("0xffffffffffffffffffffffffffffffff00000000000000000000000000000000"))>>128);
-    ASSERT_EQ(a.lo, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff"));
-#else
-    ASSERT_EQ(a.lo.lo, boost_a & bmp::uint256_t("0x000000000000000000000000000000000000000000000000ffffffffffffffff"));
-    ASSERT_EQ(a.lo.hi, (boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffff0000000000000000")) >> 64);
-    ASSERT_EQ(a.hi.lo, (boost_a & bmp::uint256_t("0x0000000000000000ffffffffffffffff00000000000000000000000000000000")) >> 128);
-    ASSERT_EQ(a.hi.hi, (boost_a & bmp::uint256_t("0xffffffffffffffff000000000000000000000000000000000000000000000000")) >> 192);
-#endif
+    check_equality256(a, boost_a);
 }
 
 TEST(ComparisonTests, Equal128Eq) {
