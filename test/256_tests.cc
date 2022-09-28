@@ -103,6 +103,19 @@ void check_equality256(uint256_t a, uint64_t aa) {
 #endif
 }
 
+void check_equality256(uint256_t a, string aa) {
+    bmp::uint256_t boost_a = bmp::uint256_t(aa);
+#ifdef DAP_GLOBAL_IS_INT128
+    ASSERT_EQ(a.lo, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff")) << "boost_a is: " << boost_a;
+    ASSERT_EQ(a.hi, boost_a & bmp::uint128_t("0xffffffffffffffffffffffffffffffff00000000000000000000000000000000")) << "boost_a is: " << boost_a;
+#else
+    ASSERT_EQ(a.lo.lo, boost_a & bmp::uint256_t("0x000000000000000000000000000000000000000000000000ffffffffffffffff")) << "boost_a is: " << boost_a;
+    ASSERT_EQ(a.lo.hi, boost_a & bmp::uint256_t("0x00000000000000000000000000000000ffffffffffffffff0000000000000000")) << "boost_a is: " << boost_a;
+    ASSERT_EQ(a.hi.lo, boost_a & bmp::uint256_t("0x0000000000000000ffffffffffffffff00000000000000000000000000000000")) << "boost_a is: " << boost_a;
+    ASSERT_EQ(a.hi.hi, boost_a & bmp::uint256_t("0xffffffffffffffff000000000000000000000000000000000000000000000000")) << "boost_a is: " << boost_a;
+#endif
+}
+
 
 
 TEST(InputTests, ZeroInputBase) {
@@ -126,7 +139,7 @@ TEST(InputTests, ZeroInputFromString) {
 TEST(InputTests, MaxInputFrom64) {
     uint256_t a = dap_chain_uint256_from(0xffffffffffffffff);
 
-    check_equality256(a, 0xffffffffffffffff);
+    check_equality256(a, MAX64STR);
 
     a = GET_256_FROM_64(-1);
 
@@ -134,306 +147,137 @@ TEST(InputTests, MaxInputFrom64) {
 }
 
 TEST(InputTests, MaxInputFromString) {
-    uint256_t max = dap_chain_balance_scan(MAX64STR);
+    uint256_t a = dap_chain_balance_scan(MAX64STR);
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(max.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.hi, 0);
-#else
-    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.lo.hi, 0);
-    ASSERT_EQ(max.hi.lo, 0);
-    ASSERT_EQ(max.hi.hi, 0);
-#endif
+    check_equality256(a, MAX64STR);
 }
 
 TEST(InputTests, Min128FromString) {
-    uint256_t min = dap_chain_balance_scan(MIN128STR);
+    uint256_t a = dap_chain_balance_scan(MIN128STR);
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(min.lo, bmp::uint128_t(MIN128STR));
-    ASSERT_EQ(min.hi, 0);
-#else
-    ASSERT_EQ(min.lo.lo, 0);
-    ASSERT_EQ(min.lo.hi, 1);
-    ASSERT_EQ(min.hi.lo, 0);
-    ASSERT_EQ(min.hi.hi, 0);
-#endif
+    check_equality256(a, MIN128STR);
 }
 
 TEST(InputTests, Max128FromString) {
-    uint256_t max = dap_chain_balance_scan(MAX128STR);
+    uint256_t a = dap_chain_balance_scan(MAX128STR);
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(max.lo, bmp::uint256_t(MAX128STR));
-    ASSERT_EQ(max.hi, 0);
-#else
-    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.lo.hi, 0xffffffffffffffff);
-    ASSERT_EQ(max.hi.lo, 0);
-    ASSERT_EQ(max.hi.hi, 0);
-#endif
+    check_equality256(a, MAX128STR);
 }
 
 TEST(InputTests, Min256FromString) {
-    uint256_t min = dap_chain_balance_scan(MIN256STR);
+    uint256_t a = dap_chain_balance_scan(MIN256STR);
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(min.lo, 0);
-    ASSERT_EQ(min.hi, 1);
-#else
-    ASSERT_EQ(min.lo.lo, 0);
-    ASSERT_EQ(min.lo.hi, 0);
-    ASSERT_EQ(min.hi.lo, 1);
-    ASSERT_EQ(min.hi.hi, 0);
-#endif
+    check_equality256(a, MIN256STR);
 }
 
 TEST(InputTests, Max256FromString) {
-    uint256_t max = dap_chain_balance_scan(MAX256STR);
+    uint256_t a = dap_chain_balance_scan(MAX256STR);
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(max.lo, bmp::uint128_t(MAX128STR));
-    ASSERT_EQ(max.hi, bmp::uint128_t(MAX128STR));
-#else
-    ASSERT_EQ(max.lo.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.lo.hi, 0xffffffffffffffff);
-    ASSERT_EQ(max.hi.lo, 0xffffffffffffffff);
-    ASSERT_EQ(max.hi.hi, 0xffffffffffffffff);
-#endif
+    check_equality256(a, MIN256STR);
 }
 
 TEST(InputTests, EmptyInput) {
-    uint256_t empty = dap_chain_balance_scan("");
+    uint256_t a = dap_chain_balance_scan("");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(empty.lo, 0);
-    ASSERT_EQ(empty.hi, 0);
-#else
-    ASSERT_EQ(empty.lo.lo, 0);
-    ASSERT_EQ(empty.lo.hi, 0);
-    ASSERT_EQ(empty.hi.lo, 0);
-    ASSERT_EQ(empty.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, NullInput) {
-    uint256_t nullinput = dap_chain_balance_scan(NULL);
+    uint256_t a = dap_chain_balance_scan(NULL);
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(nullinput.lo, 0);
-    ASSERT_EQ(nullinput.hi, 0);
-#else
-    ASSERT_EQ(nullinput.lo.lo, 0);
-    ASSERT_EQ(nullinput.lo.hi, 0);
-    ASSERT_EQ(nullinput.hi.lo, 0);
-    ASSERT_EQ(nullinput.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, TooLongInputSome) {
     //some decimal symbols more
     uint256_t a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791312963993123465");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, TooLongInputOne) {
     //one decimal symbol more
     uint256_t a = dap_chain_balance_scan("1157920892373161954235709850086879078532699846656405640394575840079131296399351");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, OverflowTestLeastBit) {
     //one bit more (like decimal 6 instead of decimal 5 on last symbol)
     uint256_t a = dap_chain_balance_scan("115792089237316195423570985008687907853269984665640564039457584007913129639936");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, OverflowTestsMostBit) {
     //2 instead of 1 one most-significant digit
     uint256_t a = dap_chain_balance_scan("215792089237316195423570985008687907853269984665640564039457584007913129639935");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, OverflowTestsNotMostBit) {
     //2 instead of 1 one most-significant digit
     uint256_t a = dap_chain_balance_scan("125792089237316195423570985008687907853269984665640564039457584007913129639935");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, NonDigitSymbolsInputHexadermical) {
     uint256_t a = dap_chain_balance_scan("123a23");
     //todo: check that this is logging
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, NonDigitSymbolsInputNonHexadermicalLead) {
     uint256_t a = dap_chain_balance_scan("hhh123");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 TEST(InputTests, NonDigitSymbolsInputNonHexadermicalTail) {
     uint256_t a = dap_chain_balance_scan("11579208923731619542357098500868790785326998466564056403945758400791312963993q");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0);
 }
 
 
 TEST(InputTests, LeadingZeroesOne) {
     uint256_t a = dap_chain_balance_scan("01");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 1);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 1);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 1);
 }
 
 TEST(InputTests, LeadingZeroesMany) {
     uint256_t a = dap_chain_balance_scan("0000000001");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 1);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 1);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 1);
 }
 
 TEST(InputTests, LeadingZeroesAlot) {
     //exactly 78
     uint256_t a = dap_chain_balance_scan("000000000000000000000000000000000000000000000000000000000000000000000000000001");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 1);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 1);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 1);
 }
 
 TEST(InputTests, ScientificInputSimplePlus) {
     uint256_t a = dap_chain_balance_scan("1.0e+10");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 10000000000);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 10000000000);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
-
+    check_equality256(a, 10000000000);
 }
 
 TEST(InputTests, ScientificInputSimple) {
     uint256_t a = dap_chain_balance_scan("1.0e10");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 10000000000);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 10000000000);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 10000000000);
 }
 
 TEST(InputTests, ScientificInputSimpleCapital) {
     uint256_t a = dap_chain_balance_scan("1.0E+10");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 10000000000);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 10000000000);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 10000000000);
 }
 
 TEST(DISABLED_InputTests, ScientificInputSimpleNotImportantZeroes) {
@@ -441,99 +285,45 @@ TEST(DISABLED_InputTests, ScientificInputSimpleNotImportantZeroes) {
 
     uint256_t a = dap_chain_balance_scan("1.23456789000000e9");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 1234567890);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 1234567890);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+
+    check_equality256(a, 1234567890);
 }
 
 TEST(DISABLED_InputTests, ScientificInputSimpleNotImportantZeroesAtAll) {
 
     uint256_t a = dap_chain_balance_scan("1.234000000000000000000000000000e+3");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 1234);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 1234);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 1234);
 }
 
 TEST(InputTests, ScientificInputSimpleMax64) {
     uint256_t a = dap_chain_balance_scan("1.8446744073709551615e19");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0xffffffffffffffff);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0xffffffffffffffff);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0xffffffffffffffff);
 }
 
 TEST(InputTests, ScientificInputSimpleMax64Plus) {
     uint256_t a = dap_chain_balance_scan("1.8446744073709551615e+19");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, 0xffffffffffffffff);
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0xffffffffffffffff);
-    ASSERT_EQ(a.lo.hi, 0);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, 0xffffffffffffffff);
 }
 
 TEST(InputTests, ScientificInputSimpleMin128) {
     uint256_t a = dap_chain_balance_scan("1.8446744073709551616e19");
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, bmp::uint256_t(MIN128STR));
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 1);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+
+    check_equality256(a, MIN128STR);
 }
 
 TEST(InputTests, ScientificIncputSimpleMin128Plus) {
     uint256_t a = dap_chain_balance_scan("1.8446744073709551616e+19");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, bmp::uint256_t(MIN128STR));
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0);
-    ASSERT_EQ(a.lo.hi, 1);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, MIN128STR);
 }
 
 TEST(InputTests, ScientificInputSimple128Max) {
     uint256_t a = dap_chain_balance_scan("3.40282366920938463463374607431768211455e38");
 
-#ifdef DAP_GLOBAL_IS_INT128
-    ASSERT_EQ(a.lo, bmp::uint256_t(MAX128STR));
-    ASSERT_EQ(a.hi, 0);
-#else
-    ASSERT_EQ(a.lo.lo, 0xffffffffffffffff);
-    ASSERT_EQ(a.lo.hi, 0xffffffffffffffff);
-    ASSERT_EQ(a.hi.lo, 0);
-    ASSERT_EQ(a.hi.hi, 0);
-#endif
+    check_equality256(a, MAX128STR);
 }
 
 TEST(InputTests, ScientificInputSimple256Min) {
