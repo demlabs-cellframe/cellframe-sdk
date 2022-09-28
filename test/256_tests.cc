@@ -20,6 +20,40 @@ using namespace std;
 #define MIN256STR "340282366920938463463374607431768211456"
 #define MAX256STR "115792089237316195423570985008687907853269984665640564039457584007913129639935"
 
+
+uint64_t one_bits[] = {0, 0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80,
+                          0x100, 0x200, 0x400, 0x800, 0x1000, 0x2000,
+                          0x4000, 0x8000, 0x10000, 0x20000, 0x40000,
+                          0x80000, 0x100000, 0x200000, 0x400000,
+                          0x800000, 0x1000000, 0x2000000, 0x4000000,
+                          0x8000000, 0x10000000, 0x20000000, 0x40000000,
+                          0x80000000, 0x100000000, 0x200000000, 0x400000000,
+                          0x800000000, 0x1000000000, 0x2000000000,
+                          0x4000000000, 0x8000000000, 0x10000000000,
+                          0x20000000000, 0x40000000000, 0x80000000000,
+                          0x100000000000, 0x200000000000, 0x400000000000,
+                          0x800000000000, 0x1000000000000, 0x2000000000000,
+                          0x4000000000000, 0x8000000000000, 0x10000000000000,
+                          0x20000000000000, 0x40000000000000, 0x80000000000000,
+                          0x100000000000000, 0x200000000000000,
+                          0x400000000000000, 0x800000000000000,
+                          0x1000000000000000, 0x2000000000000000,
+                          0x4000000000000000, 0x8000000000000000};
+
+uint64_t all_bits[] = {0, 0x1, 0x3, 0x7, 0xf, 0x1f, 0x3f, 0x7f, 0xff,
+                       0x1ff, 0x3ff, 0x7ff, 0xfff, 0x1fff, 0x3fff, 0x7fff,
+                       0xffff, 0x1ffff, 0x3ffff, 0x7ffff, 0xfffff, 0x1fffff,
+                       0x3fffff, 0x7fffff, 0xffffff, 0x1ffffff, 0x3ffffff, 0x7ffffff,
+                       0xfffffff, 0x1fffffff, 0x3fffffff, 0x7fffffff, 0xffffffff,
+                       0x1ffffffff, 0x3ffffffff, 0x7ffffffff, 0xfffffffff, 0x1fffffffff,
+                       0x3fffffffff, 0x7fffffffff, 0xffffffffff, 0x1ffffffffff,
+                       0x3ffffffffff, 0x7ffffffffff, 0xfffffffffff, 0x1fffffffffff,
+                       0x3fffffffffff, 0x7fffffffffff, 0xffffffffffff, 0x1ffffffffffff,
+                       0x3ffffffffffff, 0x7ffffffffffff, 0xfffffffffffff, 0x1fffffffffffff,
+                       0x3fffffffffffff, 0x7fffffffffffff, 0xffffffffffffff, 0x1ffffffffffffff,
+                       0x3ffffffffffffff, 0x7ffffffffffffff, 0xfffffffffffffff, 0x1fffffffffffffff,
+                       0x3fffffffffffffff, 0x7fffffffffffffff, 0xffffffffffffffff};
+
 namespace bmp = boost::multiprecision;
 
 class RandomTests : public ::testing::Test {
@@ -59,6 +93,11 @@ class RandomBitTests: public RandomTests {
 };
 
 class RandomMathTests: public RandomTests {
+
+};
+
+class Parameterized64Input:
+public testing::TestWithParam<uint64_t> {
 
 };
 
@@ -108,26 +147,17 @@ TEST(InputTests, ZeroInputBase) {
     check_equality256(a, 0);
 }
 
-TEST(InputTests, ZeroInputFrom64) {
-    uint256_t a = dap_chain_uint256_from(0);
-
-    check_equality256(a, 0);
+TEST_P(Parameterized64Input, Input) {
+    uint64_t a = GetParam();
+    check_equality256(dap_chain_uint256_from(a), a);
 }
+INSTANTIATE_TEST_SUITE_P(OneBit, Parameterized64Input, testing::ValuesIn(one_bits));
+INSTANTIATE_TEST_SUITE_P(AllBit, Parameterized64Input, testing::ValuesIn(all_bits));
 
 TEST(InputTests, ZeroInputFromString) {
     uint256_t a = dap_chain_balance_scan("0");
 
     check_equality256(a, 0);
-}
-
-TEST(InputTests, MaxInputFrom64) {
-    uint256_t a = dap_chain_uint256_from(0xffffffffffffffff);
-
-    check_equality256(a, MAX64STR);
-
-    a = GET_256_FROM_64(-1);
-
-    check_equality256(a, -1);
 }
 
 TEST(InputTests, MaxInputFromString) {
