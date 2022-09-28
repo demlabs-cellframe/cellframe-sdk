@@ -612,14 +612,14 @@ static bool s_ledger_update_token_add_in_hash_table(dap_chain_ledger_token_item_
 				log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_update_item_t' to hash-table");
 			return false;
 		}
+		*l_token_update_item = (dap_chain_ledger_token_update_item_t) {
+				.update_token_hash			= l_hash_token_update,
+				.datum_token_update			= a_token_update,
+				.datum_token_update_size	= a_token_update_size
+		};
 	}
 
-	*l_token_update_item = (dap_chain_ledger_token_update_item_t) {
-		.update_token_hash			= l_hash_token_update,
-		.datum_token_update			= a_token_update,
-		.datum_token_update_size	= a_token_update_size,
-		.updated_time				= dap_time_now()
-	};
+	l_token_update_item->updated_time		= dap_time_now();
 
 	if (new_item) {
 		pthread_rwlock_wrlock(&a_cur_token_item->token_ts_updated_rwlock);
