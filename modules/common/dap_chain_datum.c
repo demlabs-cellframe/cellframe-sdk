@@ -605,13 +605,12 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
 					dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
                     dap_string_append(a_str_out, "flags: ");
-                    /*
+
                     dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
                     s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                     size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
                     dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size,
-                                                     l_certs_field_size, a_hash_out_type);
-                                                     */     // temporary blocked for dashboard compatibility saving
+                                                     l_certs_field_size, a_hash_out_type);    
 					DAP_DEL_Z(l_value_str);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{

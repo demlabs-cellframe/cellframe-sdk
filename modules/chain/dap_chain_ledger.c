@@ -1427,13 +1427,13 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 											   	"\tSupply (current/total) %s/%s\n"
                                                 "\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
-												"TSD and Signs:\n"
-												"%s"
+                                                //"TSD and Signs:\n"
+                                                //"%s"
                                                 "\tTotal emissions %u\n___\n",
                                                 &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags),
 											   	l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
-												l_str_tmp->str,
+                                                //l_str_tmp->str,   // temporary blocked for dashboard compatibility saving
                                                 HASH_COUNT(l_token_item->token_emissions));
 				DAP_DEL_Z(l_balance_cur);
 				DAP_DEL_Z(l_balance_total);
