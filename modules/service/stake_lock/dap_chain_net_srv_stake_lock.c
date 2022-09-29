@@ -303,11 +303,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if (0 == l_time_staking)
 		return TIME_ERROR;
     l_time_staking += 24 * 60 * 60; // cause it's only day with arg time
-    dap_time_t l_time_now = dap_time_now();
-    if ((int64_t)(l_time_staking - l_time_now) <= 0)  {
-        return TIME_ERROR;
-    }
-	l_time_staking -= dap_time_now();
+    l_time_staking -= MIN(l_time_staking, dap_time_now());
 
 	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
 	&& NULL != l_reinvest_percent_str) {
