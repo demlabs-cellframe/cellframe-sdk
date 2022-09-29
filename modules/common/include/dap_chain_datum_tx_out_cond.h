@@ -74,7 +74,7 @@ typedef struct dap_chain_tx_out_cond {
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
         byte_t padding[8];
 #endif
-    } DAP_ALIGN_PACKED header;
+    } /*DAP_ALIGN_PACKED */ header; // TODO add paddings for PACKED compatibility with old size
     union {
         /// Structure with specific for service pay condition subtype
         struct {
@@ -84,7 +84,7 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_net_srv_price_unit_uid_t unit;
             /// Maximum price per unit
             uint256_t unit_price_max_datoshi;
-        } DAP_ALIGN_PACKED srv_pay;
+        } srv_pay;
         struct {
             // Chain network to change from
             dap_chain_net_id_t sell_net_id;
@@ -96,7 +96,7 @@ typedef struct dap_chain_tx_out_cond {
             uint256_t buy_value;
             // Seller address
             dap_chain_addr_t seller_addr;
-        } DAP_ALIGN_PACKED srv_xchange;
+        } srv_xchange;
         struct {
             // Stake holder address
             dap_chain_addr_t hldr_addr;
@@ -108,16 +108,16 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_addr_t signing_addr;
             // Node address of signer with this stake
             dap_chain_node_addr_t signer_node_addr;
-        } DAP_ALIGN_PACKED srv_stake;
+        } srv_stake;
         struct {
             dap_time_t		time_unlock;
             dap_hash_fast_t	pkey_delegated;
             uint256_t		reinvest_percent;
             uint32_t		flags;
-        } DAP_ALIGN_PACKED srv_stake_lock;
+        } srv_stake_lock;
         struct {
             // Nothing here
-        } DAP_ALIGN_PACKED fee;
+        } fee;
         byte_t free_space[128]; // for future changes
     } subtype;
     uint32_t tsd_size; // Condition parameters size

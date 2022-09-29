@@ -299,10 +299,14 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     ||	NULL == l_time_staking_str)
 		return TIME_ERROR;
 
-	if (0 == (l_time_staking = dap_time_from_str_simplified(l_time_staking_str))
-	||	(time_t)(l_time_staking - dap_time_now()) <= 0)
+    l_time_staking = dap_time_from_str_simplified(l_time_staking_str);
+    if (0 == l_time_staking)
 		return TIME_ERROR;
-
+    l_time_staking += 24 * 60 * 60; // cause it's only day with arg time
+    dap_time_t l_time_now = dap_time_now();
+    if ((int64_t)(l_time_staking - l_time_now) <= 0)  {
+        return TIME_ERROR;
+    }
 	l_time_staking -= dap_time_now();
 
 	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
@@ -653,7 +657,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case TIME_ERROR: {
-			dap_string_append_printf(output_line, "stake_ext command requires parameter '-time_staking' in simplified format YYMMDD\n"
+            dap_string_append_printf(output_line, "stake_lock command requires parameter '-time_staking' in simplified format YYMMDD\n"
 												  				"Example: \"220610\" == \"10 june 2022 00:00\"");
 			} break;
 
