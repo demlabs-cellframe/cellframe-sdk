@@ -679,7 +679,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 				l_token_item->current_supply = a_token->total_supply;
 			}
 			l_token_item->total_supply = a_token->total_supply;
-			DAP_DEL_Z(l_token_item->datum_token);
+            DAP_DEL_Z(l_token_item->datum_token);
 		} else {
 			return -2;
 		}
@@ -713,7 +713,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     }
 
     l_token_item->datum_token_size  = a_token_size;
-    l_token_item->datum_token       = l_token;
+    l_token_item->datum_token       = DAP_DUP_SIZE(l_token, a_token_size);
+    l_token_item->datum_token->type = l_token->type;
 
 	if (update_token == false) {
 		pthread_rwlock_wrlock(&PVT(a_ledger)->tokens_rwlock);
