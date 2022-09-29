@@ -411,11 +411,11 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 	if (l_token_update_item
 	&&	a_cur_token_item->last_update_token_time == l_token_update_item->updated_time) {
 		if (s_debug_more)
-			log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token_update->ticker);
+            log_it(L_WARNING,"This upadate already applied for token with ticker '%s' ", a_token_update->ticker);
 		return false;
 	}
 
-	if (a_cur_token_item->auth_signs_total != a_token_update->signs_total
+    /*if (a_cur_token_item->auth_signs_total != a_token_update->signs_total
 	||	a_cur_token_item->auth_signs_valid != a_token_update->signs_valid) {
 		if(s_debug_more)
 			log_it(L_WARNING,"Can't update token with ticker '%s' because: "
@@ -425,7 +425,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 				   a_cur_token_item->auth_signs_total, a_cur_token_item->auth_signs_valid,
 				   a_token_update->signs_total, a_token_update->signs_valid);
 		return false;
-	}
+    }*/
 
 	l_signs_upd_token = dap_chain_datum_token_signs_parse(a_token_update, a_token_update_size,
 														  &auth_signs_total, &auth_signs_valid);
@@ -694,27 +694,26 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 
 	if (update_token == false) {//create new token
     	l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
-    	dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker), "%s", a_token->ticker);
+        dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker), "%s", l_token->ticker);
     	pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
     	pthread_rwlock_init(&l_token_item->token_ts_updated_rwlock,NULL);
-
-		l_token_item->total_supply      = l_token->total_supply;
-		l_token_item->current_supply	= l_token_item->total_supply;
-		l_token_item->auth_signs_total  = l_token->signs_total;
-		l_token_item->auth_signs_valid  = l_token->signs_valid;
-		l_token_item->auth_signs		= dap_chain_datum_token_signs_parse(a_token, a_token_size,
-																	 &l_token_item->auth_signs_total,&l_token_item->auth_signs_valid);
-		if(l_token_item->auth_signs_total) {
-			l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token_item->auth_signs_total);
-			for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
-				dap_sign_get_pkey_hash(l_token_item->auth_signs[k], &l_token_item->auth_signs_pkey_hash[k]);
-			}
-		}
-	}
+        l_token_item->type = l_token->type;
+        l_token_item->total_supply      = l_token->total_supply;
+        l_token_item->current_supply	= l_token_item->total_supply;
+        l_token_item->auth_signs_total  = l_token->signs_total;
+        l_token_item->auth_signs_valid  = l_token->signs_valid;
+        l_token_item->auth_signs		= dap_chain_datum_token_signs_parse(l_token, a_token_size,
+                                                                     &l_token_item->auth_signs_total,&l_token_item->auth_signs_valid);
+        if (l_token_item->auth_signs_total) {
+            l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token_item->auth_signs_total);
+            for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
+                dap_sign_get_pkey_hash(l_token_item->auth_signs[k], &l_token_item->auth_signs_pkey_hash[k]);
+            }
+        }
+    }
 
     l_token_item->datum_token_size  = a_token_size;
-    l_token_item->type              = a_token->type;
-    l_token_item->datum_token       = DAP_DUP_SIZE(a_token, a_token_size);
+    l_token_item->datum_token       = l_token;
 
 	if (update_token == false) {
 		pthread_rwlock_wrlock(&PVT(a_ledger)->tokens_rwlock);
@@ -785,8 +784,6 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     s_threshold_emissions_proc(a_ledger); //TODO process thresholds only for no-consensus chains
     if (PVT(a_ledger)->cached)
         s_update_token_cache(a_ledger, l_token_item);
-    if (a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE)
-        DAP_DEL_Z(l_token);
     return 0;
 }
 
@@ -1427,13 +1424,13 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 											   	"\tSupply (current/total) %s/%s\n"
                                                 "\tDecimals: 18\n"
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
-                                                //"TSD and Signs:\n"
-                                                //"%s"
+                                                "TSD and Signs:\n"
+                                                "%s"
                                                 "\tTotal emissions %u\n___\n",
                                                 &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags),
 											   	l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
-                                                //l_str_tmp->str,   // temporary blocked for dashboard compatibility saving
+                                                l_str_tmp->str,   // temporary blocked for dashboard compatibility saving
                                                 HASH_COUNT(l_token_item->token_emissions));
 				DAP_DEL_Z(l_balance_cur);
 				DAP_DEL_Z(l_balance_total);
