@@ -2581,7 +2581,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         bool l_is_blank = dap_hash_fast_is_blank(&l_tx_prev_hash);
         char l_tx_prev_hash_str[70]={[0]='\0'};
         if (l_is_blank){
-            if(s_debug_more)
+            if(s_debug_more & !a_from_threshold)
                 log_it(L_DEBUG, "Tx check: blank prev hash ");
             dap_snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
         }else{
@@ -2722,7 +2722,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 			}
 
 			if (!l_emission_item) {
-				debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
+                debug_if(s_debug_more & !a_from_threshold, L_WARNING, "Emission for tx_token [%s] wasn't found",
+                                                                      l_tx_token->header.ticker);
 				l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
 				break;
 			}
