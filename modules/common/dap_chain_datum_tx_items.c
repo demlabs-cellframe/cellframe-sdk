@@ -76,7 +76,7 @@ static size_t dap_chain_tx_out_ext_get_size(const dap_chain_tx_out_ext_t *a_item
 
 static size_t dap_chain_tx_out_cond_get_size(const dap_chain_tx_out_cond_t *a_item)
 {
-    return sizeof(dap_chain_tx_out_cond_t) + a_item->params_size;
+    return sizeof(dap_chain_tx_out_cond_t) + a_item->tsd_size;
 }
 
 static size_t dap_chain_tx_pkey_get_size(const dap_chain_tx_pkey_t *a_item)
@@ -336,8 +336,8 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
     l_item->subtype.srv_pay.unit_price_max_datoshi = a_value_max_per_unit;
     dap_hash_fast(a_key->pkey, a_key->header.size, &l_item->subtype.srv_pay.pkey_hash);
     if (a_params && a_params_size) {
-        l_item->params_size = (uint32_t)a_params_size;
-        memcpy(l_item->params, a_params, a_params_size);
+        l_item->tsd_size = (uint32_t)a_params_size;
+        memcpy(l_item->tsd, a_params, a_params_size);
     }
     return l_item;
 }
@@ -345,6 +345,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
                                                                              const char *a_token, uint256_t a_value_buy,
+                                                                             const dap_chain_addr_t *a_seller_addr,
                                                                              const void *a_params, uint32_t a_params_size)
 {
     if (!a_token)
@@ -360,9 +361,10 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
     l_item->subtype.srv_xchange.sell_net_id = a_sell_net_id;
     strncpy(l_item->subtype.srv_xchange.buy_token, a_token, DAP_CHAIN_TICKER_SIZE_MAX);
     l_item->subtype.srv_xchange.buy_value = a_value_buy;
-    l_item->params_size = a_params_size;
+    l_item->subtype.srv_xchange.seller_addr = *a_seller_addr;
+    l_item->tsd_size = a_params_size;
     if (a_params_size) {
-        memcpy(l_item->params, a_params, a_params_size);
+        memcpy(l_item->tsd, a_params, a_params_size);
     }
     return l_item;
 }
