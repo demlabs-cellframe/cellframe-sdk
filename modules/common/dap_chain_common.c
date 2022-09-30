@@ -115,6 +115,7 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     return NULL;
 }
 
+#if 0
 /**
  * @brief dap_chain_net_id_from_str
  * @param a_net_str
@@ -131,6 +132,7 @@ dap_chain_net_id_t dap_chain_net_id_from_str(const char * a_net_str)
     }
     return l_ret;
 }
+#endif
 
 /**
  * @brief dap_chain_net_srv_uid_from_str
