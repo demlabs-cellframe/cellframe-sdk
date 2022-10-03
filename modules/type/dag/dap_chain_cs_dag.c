@@ -475,6 +475,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
         switch (l_consensus_check) {
         case 0:
+        default:
             if(s_debug_more)
                 log_it(L_DEBUG, "... added");
             break;
@@ -492,13 +493,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             if(s_debug_more)
                 log_it(L_DEBUG, "... DATUM_CUSTOM");
             break;
-        default:
-            if (s_debug_more) {
-                log_it(L_WARNING, "... rejected with ledger code %d", l_consensus_check);
-                DAP_DELETE(l_event_hash_str);
-            }
-            DAP_DELETE(l_event_item);
-            return ATOM_REJECT;
         }
         pthread_rwlock_wrlock(l_events_rwlock);
         HASH_ADD(hh, PVT(l_dag)->events,hash, sizeof(l_event_item->hash), l_event_item);
@@ -1901,6 +1895,9 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
+    if (!l_dag_pvt->events){
+        return NULL;
+    }
     dap_chain_cs_dag_event_item_t *l_ptr = l_dag_pvt->events->hh.tbl->tail->prev;
     if (!l_ptr)
         l_ptr = l_dag_pvt->events;

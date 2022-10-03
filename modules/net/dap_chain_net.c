@@ -469,13 +469,17 @@ struct send_records_link_send_args
  */
 static bool s_net_send_records_link_remove_callback( dap_proc_thread_t *a_thread, void *a_arg )
 {
+    UNUSED(a_thread);
     struct send_records_link_send_args * l_args = (struct send_records_link_send_args *) a_arg;
     assert(l_args);
     pthread_rwlock_wrlock( &PVT(l_args->net)->rwlock );
-    HASH_DEL(PVT(l_args->net)->downlinks, l_args->link);
+    HASH_FIND(hh, PVT(l_args->net)->downlinks, &l_args->ch_uuid, sizeof(l_args->ch_uuid), l_args->link);
+    if (l_args->link)
+        HASH_DEL(PVT(l_args->net)->downlinks, l_args->link);
     pthread_rwlock_unlock( &PVT(l_args->net)->rwlock );
     DAP_DELETE(l_args->data_out);
     DAP_DELETE(l_args->link);
+    DAP_DELETE(l_args);
     return true;
 
 }
@@ -621,7 +625,7 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
     UNUSED(a_thread);
     dap_store_obj_t *l_arg = (dap_store_obj_t *)a_arg;
     dap_chain_net_t *l_net = (dap_chain_net_t *)l_arg->cb_arg;
-    pthread_rwlock_rdlock(&PVT(l_net)->rwlock);
+    pthread_rwlock_wrlock(&PVT(l_net)->rwlock);
     if (PVT(l_net)->state != NET_STATE_SYNC_CHAINS) {
         dap_list_t *it = NULL;
         do {
@@ -3428,6 +3432,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
             }
         }
     }
+    dap_config_close(l_cfg);
     return l_authorized;
 }
 
