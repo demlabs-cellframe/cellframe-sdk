@@ -478,7 +478,8 @@ static bool s_net_send_records_link_remove_callback( dap_proc_thread_t *a_thread
         HASH_DEL(PVT(l_args->net)->downlinks, l_args->link);
     pthread_rwlock_unlock( &PVT(l_args->net)->rwlock );
     DAP_DELETE(l_args->data_out);
-    DAP_DEL_Z(l_args->link);
+    DAP_DELETE(l_args->link);
+    DAP_DELETE(l_args);
     return true;
 
 }
