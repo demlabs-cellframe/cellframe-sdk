@@ -49,7 +49,7 @@ dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread)
         return NULL;
 
     for (int i = 0; i < DAP_QUE$K_PRIMAX; i++) {
-        assert ( !(pthread_mutex_init(&l_queue->list[i].lock, 0 )) );
+        pthread_mutex_init(&l_queue->list[i].lock, 0 );
     }
 
     l_queue->proc_thread = a_thread;

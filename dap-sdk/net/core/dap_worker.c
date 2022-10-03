@@ -352,6 +352,7 @@ void *dap_worker_thread(void *arg)
 #ifdef DAP_OS_WINDOWS
                     log_it(L_ERROR, "Wrong fd: %d", l_cur->fd);
 #else
+                    log_it(L_ERROR, "Wrong fd: %d", l_cur->fd);
                     assert(errno);
 #endif
                 }
@@ -749,7 +750,8 @@ void *dap_worker_thread(void *arg)
 #error "Not implemented dap_events_socket_queue_ptr_send() for this platform"
 #endif
                                 }else{
-                                     assert("Not implemented non-ptr queue send from outgoing buffer");
+                                     log_it (L_CRITICAL, "Not implemented non-ptr queue send from outgoing buffer");
+                                     abort();
                                      // TODO Implement non-ptr queue output
                                  }
                             break;

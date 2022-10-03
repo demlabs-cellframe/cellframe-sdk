@@ -50,7 +50,7 @@ size_t  dap_tsd_put(uint16_t a_type, const void * a_data, size_t a_data_size,
 dap_tsd_t   *l_tsd;
 
     assert ( a_data );
-    assert ( (l_tsd = (dap_tsd_t *) a_dst) );
+    l_tsd = (dap_tsd_t *) a_dst;
 
     if ( a_dst_sz < (a_data_size + sizeof(dap_tsd_t)) )                     /* Check a space for new TSD/TLV in the output buffer */
         return  log_it(L_ERROR, "No space for TSD, %zd < %zd", a_dst_sz, (a_data_size + sizeof(dap_tsd_t)) ), -ENOMEM;
@@ -92,7 +92,7 @@ dap_tsd_t   *l_tsd = a_src;
         return  0;                                                          /* Nothing to do */
 
     assert ( a_data );
-    assert ( (l_tsd = (dap_tsd_t *) a_src) );
+    l_tsd = (dap_tsd_t *) a_src;
 
     if ( l_tsd->size > (a_src_sz - sizeof(dap_tsd_t)) )
         return  log_it(L_ERROR, "TSD's data size is out of the source buffer, %u > %zu",

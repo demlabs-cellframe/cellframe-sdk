@@ -1,7 +1,6 @@
 #ifndef __RINGCT20_PARAMS__
 #define __RINGCT20_PARAMS__
 
-#include <assert.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>

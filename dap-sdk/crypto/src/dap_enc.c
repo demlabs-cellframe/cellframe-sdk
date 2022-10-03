@@ -26,7 +26,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
-#include <assert.h>
 #include "dap_enc.h"
 #include "dap_enc_base64.h"
 #include "dap_enc_key.h"
@@ -37,8 +36,8 @@
 
 /**
  * @brief dap_enc_init if you want to use crypto functions from dap-sdk call that function
- * 
- * @return int 
+ *
+ * @return int
  */
 
 static bool s_debug_more = false;

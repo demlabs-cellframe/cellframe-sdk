@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <inttypes.h>
 #include <string.h>
 
@@ -32,13 +31,13 @@ void dap_enc_sig_tesla_key_new(struct dap_enc_key *key) {
 // alice_msg_len --- Alice's private key length
 /**
  * @brief dap_enc_sig_tesla_key_new_generate
- * 
- * @param key 
- * @param kex_buf 
- * @param kex_size 
- * @param seed 
- * @param seed_size 
- * @param key_size 
+ *
+ * @param key
+ * @param kex_buf
+ * @param kex_size
+ * @param seed
+ * @param seed_size
+ * @param key_size
  */
 void dap_enc_sig_tesla_key_new_generate(struct dap_enc_key * key, const void *kex_buf,
         size_t kex_size, const void * seed, size_t seed_size,
