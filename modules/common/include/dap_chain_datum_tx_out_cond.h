@@ -124,6 +124,70 @@ typedef struct dap_chain_tx_out_cond {
     uint8_t tsd[]; // condition parameters, pkey, hash or smth like this
 } DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
 
+typedef struct dap_chain_tx_out_cond_new {
+    struct {
+        /// Transaction item type
+        dap_chain_tx_item_type_t item_type;
+        /// Condition subtype
+        dap_chain_tx_out_cond_subtype_t subtype;
+        /// Number of Datoshis ( DAP/10^18 ) to be reserved for service
+        uint256_t value;
+        /// When time expires this output could be used only by transaction owner
+        dap_time_t ts_expires;
+        /// Service uid that only could be used for this out
+        dap_chain_net_srv_uid_t srv_uid;
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+        byte_t padding[8];
+#endif
+    } DAP_ALIGN_PACKED header; // TODO add paddings for PACKED compatibility with old size
+    union {
+        /// Structure with specific for service pay condition subtype
+        struct {
+            /// Public key hash that could use this conditioned outout
+            dap_chain_hash_fast_t pkey_hash;
+            /// Price unit thats used to check price max
+            dap_chain_net_srv_price_unit_uid_t unit;
+            /// Maximum price per unit
+            uint256_t unit_price_max_datoshi;
+        } srv_pay;
+        struct {
+            // Chain network to change from
+            dap_chain_net_id_t sell_net_id;
+            // Token ticker to change to
+            char buy_token[DAP_CHAIN_TICKER_SIZE_MAX];
+            // Chain network to change to
+            dap_chain_net_id_t buy_net_id;
+            // Total amount of datoshi to change to
+            uint256_t buy_value;
+            // Seller address
+            dap_chain_addr_t seller_addr;
+        } srv_xchange;
+        struct {
+            // Stake holder address
+            dap_chain_addr_t hldr_addr;
+            // Fee address
+            dap_chain_addr_t fee_addr;
+            // Fee value in percent (fixed point)
+            uint256_t fee_value;
+            // Public key hash of signing certificate combined with net id
+            dap_chain_addr_t signing_addr;
+            // Node address of signer with this stake
+            dap_chain_node_addr_t signer_node_addr;
+        } srv_stake;
+        struct {
+            dap_time_t		time_unlock;
+            dap_hash_fast_t	pkey_delegated;
+            uint256_t		reinvest_percent;
+            uint32_t		flags;
+        } srv_stake_lock;
+        struct {
+            // Nothing here
+        } fee;
+        byte_t free_space[128]; // for future changes
+    } subtype;
+    uint32_t tsd_size; // Condition parameters size
+    uint8_t tsd[]; // condition parameters, pkey, hash or smth like this
+} DAP_ALIGN_PACKED dap_chain_tx_out_cond_new_t;
 
 /**
  * @struct dap_chain_tx_out
