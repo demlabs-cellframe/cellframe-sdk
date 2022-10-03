@@ -124,7 +124,7 @@ typedef struct dap_chain_tx_out_cond {
     uint8_t tsd[]; // condition parameters, pkey, hash or smth like this
 } DAP_ALIGN_PACKED dap_chain_tx_out_cond_t;
 
-typedef struct dap_chain_tx_out_cond_new {
+typedef struct dap_chain_tx_out_cond_pkd {
     struct {
         /// Transaction item type
         dap_chain_tx_item_type_t item_type;
@@ -132,6 +132,7 @@ typedef struct dap_chain_tx_out_cond_new {
         dap_chain_tx_out_cond_subtype_t subtype;
         /// Number of Datoshis ( DAP/10^18 ) to be reserved for service
         uint256_t value;
+        byte_t paddding_ext[6];
         /// When time expires this output could be used only by transaction owner
         dap_time_t ts_expires;
         /// Service uid that only could be used for this out
@@ -149,7 +150,7 @@ typedef struct dap_chain_tx_out_cond_new {
             dap_chain_net_srv_price_unit_uid_t unit;
             /// Maximum price per unit
             uint256_t unit_price_max_datoshi;
-        } srv_pay;
+        } DAP_ALIGN_PACKED srv_pay;
         struct {
             // Chain network to change from
             dap_chain_net_id_t sell_net_id;
@@ -161,7 +162,7 @@ typedef struct dap_chain_tx_out_cond_new {
             uint256_t buy_value;
             // Seller address
             dap_chain_addr_t seller_addr;
-        } srv_xchange;
+        } DAP_ALIGN_PACKED srv_xchange;
         struct {
             // Stake holder address
             dap_chain_addr_t hldr_addr;
@@ -173,21 +174,22 @@ typedef struct dap_chain_tx_out_cond_new {
             dap_chain_addr_t signing_addr;
             // Node address of signer with this stake
             dap_chain_node_addr_t signer_node_addr;
-        } srv_stake;
+        } DAP_ALIGN_PACKED srv_stake;
         struct {
             dap_time_t		time_unlock;
             dap_hash_fast_t	pkey_delegated;
             uint256_t		reinvest_percent;
             uint32_t		flags;
-        } srv_stake_lock;
+            byte_t          padding[4];
+        } DAP_ALIGN_PACKED srv_stake_lock;
         struct {
             // Nothing here
-        } fee;
-        byte_t free_space[128]; // for future changes
-    } subtype;
+        } DAP_ALIGN_PACKED fee;
+        byte_t free_space[272]; // TODO increase it to 512 with version update
+    } DAP_ALIGN_PACKED subtype;
     uint32_t tsd_size; // Condition parameters size
     uint8_t tsd[]; // condition parameters, pkey, hash or smth like this
-} DAP_ALIGN_PACKED dap_chain_tx_out_cond_new_t;
+} DAP_ALIGN_PACKED dap_chain_tx_out_cond_pkd_t;
 
 /**
  * @struct dap_chain_tx_out
