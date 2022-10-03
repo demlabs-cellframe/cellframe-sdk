@@ -549,10 +549,13 @@ const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_sec
  */
 const char * dap_config_get_item_path(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
 {
+	const char* path = dap_path_get_dirname(DAP_CONFIG_INTERNAL(a_config)->path);
     const char* raw_path = dap_config_get_item_str(a_config, a_section_path, a_item_name);
     if (!raw_path) return NULL;
-    char * res = dap_canonicalize_filename(raw_path, dap_path_get_dirname(DAP_CONFIG_INTERNAL(a_config)->path));
-    log_it(L_DEBUG, "Config-path item: '%s': composed from '%s' and '%s'", res, raw_path, dap_path_get_dirname(DAP_CONFIG_INTERNAL(a_config)->path));
+    if (!path) return NULL;
+    char * res = dap_canonicalize_filename(raw_path, path);
+    log_it(L_DEBUG, "Config-path item: '%s': composed from '%s' and '%s'", res, raw_path, path);
+	DAP_DEL_Z(path);
     return res;
 }
 

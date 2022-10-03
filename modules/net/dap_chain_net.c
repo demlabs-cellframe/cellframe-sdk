@@ -771,6 +771,7 @@ static dap_chain_node_info_t *s_get_dns_link_from_cfg(dap_chain_net_t *a_net)
         }else{
             log_it(L_WARNING,"Can't find alias info for seed alias %s",l_net_pvt->seed_aliases[i]);
         }
+		DAP_DEL_Z(l_remote_addr);
     } else if (l_net_pvt->bootstrap_nodes_count) {
         i = rand() % l_net_pvt->bootstrap_nodes_count;
         l_node_adrr = 0;
@@ -1268,6 +1269,7 @@ static dap_chain_node_info_list_t* s_get_links(dap_chain_net_t *a_net)
             continue;
         }
         l_node_list = dap_chain_node_info_list_add(l_node_list, l_link_node_info);
+		DAP_DEL_Z(l_link_node_info);
         l_cur_links_count++;
     }
     return l_node_list;
