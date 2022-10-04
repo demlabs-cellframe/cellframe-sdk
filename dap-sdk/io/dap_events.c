@@ -106,6 +106,15 @@ static uint32_t s_threads_count = 1;
 static dap_worker_t **s_workers = NULL;
 
 /**
+ * @brief
+ *
+ * @return bool
+ */
+bool dap_events_workers_init_status(){
+    return s_workers_init != 0 ? true : false;
+}
+
+/**
  * @brief dap_get_cpu_count
  *
  * @return uint32_t
