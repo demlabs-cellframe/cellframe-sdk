@@ -310,9 +310,15 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
 	&& NULL != l_reinvest_percent_str) {
         l_reinvest_percent = dap_chain_coins_to_balance(l_reinvest_percent_str);
-        if (IS_ZERO_256(l_reinvest_percent) ||
-                compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1)
+        if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1)
 			return REINVEST_ARG_ERROR;
+        if (IS_ZERO_256(l_reinvest_percent)) {
+            int l_reinvest_percent_int = atoi(l_reinvest_percent_str);
+            if (l_reinvest_percent_int <= 0 || l_reinvest_percent_int > 100)
+                return REINVEST_ARG_ERROR;
+            l_reinvest_percent = dap_chain_uint256_from(l_reinvest_percent_int);
+            MULT_256_256(l_reinvest_percent, GET_256_FROM_64(1000000000000000000ULL), &l_reinvest_percent);
+        }
 	}
 
 /*________________________________________________________________________________________________________________*/
