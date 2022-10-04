@@ -7,6 +7,10 @@ file(GLOB DAP_CHAIN_HEADERS include/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 
+if(BUILD_CELLFRAME_SDK_TESTS)
+    add_subdirectory(tests)
+endif()
+
 #find_package(PkgConfig REQUIRED)
 #pkg_search_module(GLIB REQUIRED glib-2.0)
 
