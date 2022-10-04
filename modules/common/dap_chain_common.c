@@ -115,6 +115,7 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     return NULL;
 }
 
+#if 0
 /**
  * @brief dap_chain_net_id_from_str
  * @param a_net_str
@@ -125,13 +126,13 @@ dap_chain_net_id_t dap_chain_net_id_from_str(const char * a_net_str)
     dap_chain_net_id_t l_ret={ 0 };
     log_it(L_DEBUG, "net id: %s", a_net_str);
 
-    a_net_str += 2;
     if (!(l_ret.uint64 = strtoll(a_net_str, NULL, 0))) {
         log_it(L_ERROR, "Wrong input string \"%s\" not recognized as network id", a_net_str);
         return l_ret;
     }
     return l_ret;
 }
+#endif
 
 /**
  * @brief dap_chain_net_srv_uid_from_str
