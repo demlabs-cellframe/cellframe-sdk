@@ -880,6 +880,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     }
     size_t l_meta_count = 0;
     dap_chain_block_meta_t ** l_meta=  dap_chain_block_get_meta(l_block, a_atom_size, & l_meta_count);
+	if (!l_meta)
+		return ATOM_REJECT;
     // Parse metadata
     bool l_is_genesis=false;
     dap_chain_hash_fast_t l_block_prev_hash = {0};
