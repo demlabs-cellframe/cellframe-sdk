@@ -10,7 +10,7 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 
-#define GDB_VERSION 1
+#define GDB_VERSION 2
 #define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 #define GROUP_LOCAL_NODE_ADDR "local.node-addr"

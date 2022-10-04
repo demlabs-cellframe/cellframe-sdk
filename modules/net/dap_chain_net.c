@@ -478,7 +478,8 @@ static bool s_net_send_records_link_remove_callback( dap_proc_thread_t *a_thread
         HASH_DEL(PVT(l_args->net)->downlinks, l_args->link);
     pthread_rwlock_unlock( &PVT(l_args->net)->rwlock );
     DAP_DELETE(l_args->data_out);
-    DAP_DEL_Z(l_args->link);
+    DAP_DELETE(l_args->link);
+    DAP_DELETE(l_args);
     return true;
 
 }
@@ -527,7 +528,8 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
         l_obj = dap_chain_global_db_obj_get(l_arg->key, l_arg->group);
 
     if (!l_obj) {
-        log_it(L_DEBUG, "Notified GDB event does not exist");
+        if(s_debug_more)
+            log_it(L_DEBUG, "Notified GDB event does not exist");
         return true;
     }
     if (!l_obj->group || !l_obj->key) {

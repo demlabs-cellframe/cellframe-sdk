@@ -1,3 +1,4 @@
+#include "dap_events_socket.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
@@ -26,6 +27,7 @@
 #include "dap_client_http.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_worker.h"
+#include "dap_uuid.h"
 
 #define LOG_TAG "dap_client"
 
@@ -258,7 +260,7 @@ static void s_stage_done_delete(dap_client_t * a_client, void * a_arg)
 
 struct go_stage_arg{
     bool flag_delete_after;// Delete after stage achievement
-    dap_client_pvt_t *client_pvt;
+    uint64_t client_pvt_uuid;
     dap_client_stage_t stage_target;
     dap_client_callback_t stage_end_callback;
 };
@@ -272,12 +274,28 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
 {
     (void) a_worker;
     assert(a_arg);
-    dap_client_stage_t l_stage_target = ((struct go_stage_arg*) a_arg)->stage_target;
-    dap_client_callback_t l_stage_end_callback= ((struct go_stage_arg*) a_arg)->stage_end_callback;
-    dap_client_pvt_t * l_client_pvt = ((struct go_stage_arg*) a_arg)->client_pvt;
+    struct go_stage_arg* l_args = (struct go_stage_arg*) a_arg;
+
+    dap_client_stage_t l_stage_target = l_args->stage_target;
+    dap_client_callback_t l_stage_end_callback= l_args->stage_end_callback;
+
+    dap_client_pvt_t * l_client_pvt = dap_client_pvt_find( l_args->client_pvt_uuid);
+    // Check if its not present now and exit if its already deleted
+    if ( !l_client_pvt){
+        log_it (L_NOTICE, "Client is not present in global table, exit s_go_stage_on_client_worker_unsafe()");
+        goto lb_exit;
+    }
+
+    // Wrong worker
+    if( l_client_pvt->worker != a_worker){
+        log_it (L_NOTICE, "Wrong worker for client thats differs from what is present in client_pvt, exit s_go_stage_on_client_worker_unsafe()");
+        goto lb_exit;
+    }
+
+
+
     dap_client_t *l_client = l_client_pvt->client;
-    bool l_flag_delete_after = ((struct go_stage_arg *) a_arg)->flag_delete_after ;// Delete after stage achievement
-    DAP_DELETE(a_arg);
+    bool l_flag_delete_after = l_args->flag_delete_after ;// Delete after stage achievement
 
     l_client_pvt->is_to_delete = l_flag_delete_after;
     if (!l_client || l_client->_internal != l_client_pvt) {
@@ -286,7 +304,7 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
             dap_client_pvt_delete_unsafe(l_client_pvt);
         } else
             l_client_pvt->is_to_delete = true;
-        return;
+        goto lb_exit;
     }
 
     dap_client_stage_t l_cur_stage = l_client_pvt->stage;
@@ -312,7 +330,7 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
         }
         l_client_pvt->refs_count--;
         dap_client_delete_unsafe(l_client);
-        return;
+        goto lb_exit;
     }
     log_it(L_DEBUG, "Start transitions chain for client %p -> %p from %s to %s", l_client_pvt, l_client,
                         dap_client_stage_str(l_cur_stage), dap_client_stage_str(l_stage_target));
@@ -345,7 +363,8 @@ static void s_go_stage_on_client_worker_unsafe(dap_worker_t * a_worker,void * a_
     l_client_pvt->refs_count--;
     if ( l_client_pvt->is_to_delete )
         dap_client_delete_unsafe(l_client);
-
+lb_exit:
+    DAP_DELETE(l_args);
 }
 /**
  * @brief dap_client_go_stage
@@ -369,7 +388,7 @@ void dap_client_go_stage(dap_client_t * a_client, dap_client_stage_t a_stage_tar
     struct go_stage_arg *l_stage_arg = DAP_NEW_Z(struct go_stage_arg); if (! l_stage_arg) return;
     l_stage_arg->stage_end_callback = a_stage_end_callback;
     l_stage_arg->stage_target = a_stage_target;
-    l_stage_arg->client_pvt = l_client_pvt;
+    l_stage_arg->client_pvt_uuid = a_client->pvt_uuid;
     dap_worker_exec_callback_on(l_client_pvt->worker, s_go_stage_on_client_worker_unsafe, l_stage_arg);
 }
 
@@ -386,7 +405,7 @@ void dap_client_delete_mt(dap_client_t * a_client)
     struct go_stage_arg *l_stage_arg = DAP_NEW(struct go_stage_arg); if (! l_stage_arg) return;
     l_stage_arg->stage_end_callback  = s_stage_done_delete ;
     l_stage_arg->stage_target = STAGE_BEGIN ;
-    l_stage_arg->client_pvt = l_client_pvt;
+    l_stage_arg->client_pvt_uuid = a_client->pvt_uuid;
     l_stage_arg->flag_delete_after = true;
     dap_worker_exec_callback_on(l_client_pvt->worker, s_go_stage_on_client_worker_unsafe, l_stage_arg);
 }
