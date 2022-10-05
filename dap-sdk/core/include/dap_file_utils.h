@@ -90,6 +90,9 @@ bool dap_file_simple_test(const char * a_file_path);
  */
 bool dap_file_test(const char * a_file_path);
 
+// Move file
+int dap_file_mv(const char* a_path_old, const char * a_path_new);
+
 /**
  * Check the directory for exists
  *

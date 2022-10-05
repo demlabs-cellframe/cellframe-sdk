@@ -23,6 +23,7 @@
 
 #pragma once
 #include "dap_math_ops.h"
+#include <stdint.h>
 
 uint128_t dap_uuid_generate_uint128(); // Produce uint128 global unique id
 uint64_t dap_uuid_generate_uint64(); // Produce uint64 global unique id

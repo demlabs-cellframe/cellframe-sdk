@@ -64,7 +64,7 @@ long dap_gdb_time_to_sec(dap_nanotime_t a_time)
 dap_time_t dap_time_now(void)
 {
     time_t l_time = time(NULL);
-    return l_time;
+    return (dap_nanotime_t)l_time;
 }
 
 /**
@@ -201,8 +201,8 @@ static void tmp_strptime(const char *buff, struct tm *tm)
 
     day = atoi(&tbuff[4]);
     tbuff[4] = '\0';
-    if (day == 0)
-        day = 1;
+    if (day > 0)
+        day--;
 
     mon = atoi(&tbuff[2]);
     if (mon > 0)
@@ -210,9 +210,7 @@ static void tmp_strptime(const char *buff, struct tm *tm)
     tbuff[2] = '\0';
 
     year = atoi(tbuff);
-    if (year == 0)
-        year = 100;
-    else if (year < 69)
+    if (year < 69)
         year += 100;
 
     tm->tm_year = year;
@@ -243,7 +241,7 @@ dap_time_t dap_time_from_str_simplified(const char *a_time_str)
 #else
     tmp_strptime(a_time_str, &l_tm);
 #endif
-
+    l_tm.tm_sec++;
     time_t tmp = mktime(&l_tm);
     l_time = (tmp <= 0) ? 0 : tmp;
     return l_time;

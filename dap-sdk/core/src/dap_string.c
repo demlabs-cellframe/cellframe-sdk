@@ -156,13 +156,13 @@ char* dap_string_free(dap_string_t *a_string, bool a_free_segment)
 
     if(a_free_segment)
     {
-        DAP_DELETE(a_string->str);
+        DAP_DEL_Z(a_string->str);
         l_segment = NULL;
     }
     else
         l_segment = a_string->str;
 
-    DAP_DELETE(a_string);
+    DAP_DEL_Z(a_string);
 
     return l_segment;
 }
