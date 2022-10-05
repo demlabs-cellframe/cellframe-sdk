@@ -2606,9 +2606,13 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 			if (!l_emission_item && stake_lock_emission) {//check emission for STAKE_LOCK
 				dap_hash_fast_t cur_tx_hash;
 				dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &cur_tx_hash);
-				if (!dap_hash_fast_is_blank(&stake_lock_emission->tx_used_out)
-				&& 	!dap_hash_fast_compare(&cur_tx_hash, &stake_lock_emission->tx_used_out)) {
-					debug_if(s_debug_more, L_WARNING, "stake_lock_emission is used out for tx_token [%s]", l_token);
+				if (!dap_hash_fast_is_blank(&stake_lock_emission->tx_used_out)) {
+					if (!dap_hash_fast_compare(&cur_tx_hash, &stake_lock_emission->tx_used_out)) {
+						debug_if(s_debug_more, L_WARNING, "stake_lock_emission already present in cache for tx_token [%s]", l_token);
+					}
+					else {
+						debug_if(s_debug_more, L_WARNING, "stake_lock_emission is used out for tx_token [%s]", l_token);
+					}
 					l_err_num = -22;
 					break;
 				}

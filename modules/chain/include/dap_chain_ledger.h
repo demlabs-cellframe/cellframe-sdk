@@ -66,6 +66,7 @@ typedef struct dap_chain_net dap_chain_net_t;
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
+#define DAP_CHAIN_LEDGER_STAKE_LOCK_STR          "stake_lock"
 #define DAP_CHAIN_LEDGER_TXS_STR                 "txs"
 #define DAP_CHAIN_LEDGER_SPENT_TXS_STR           "spent_txs"
 #define DAP_CHAIN_LEDGER_BALANCES_STR            "balances"
