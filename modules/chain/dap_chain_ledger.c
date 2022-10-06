@@ -1578,6 +1578,51 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
     DAP_DELETE(l_gdb_group);
 
+	l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_STAKE_LOCK_STR);
+	l_objs_count = 0;
+	l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
+	for (size_t i = 0; i < l_objs_count; i++) {
+		if (l_objs[i].value_len <= sizeof(dap_hash_fast_t))
+			continue;
+		const char *l_hash_str = dap_hash_fast_to_str_new((dap_hash_fast_t *)l_objs->value);
+		if (!dap_hash_fast_compare((dap_hash_fast_t *)l_objs->value,
+			&((dap_chain_ledger_token_emission_for_stake_lock_item_t *)(l_objs[i].value + sizeof(dap_hash_fast_t)))->datum_token_emission_for_stake_lock_hash)
+		||	(strcmp(l_hash_str, l_objs[i].key))){
+			DAP_DEL_Z(l_hash_str);
+			log_it(L_WARNING, "Corrupted stake_lock emission [%s], need to 'ledger reload' to update cache", l_objs[i].key);
+			continue;
+		}
+		DAP_DEL_Z(l_hash_str);
+
+		dap_chain_ledger_token_emission_for_stake_lock_item_t *l_new_stake_lock_emission;
+		pthread_rwlock_rdlock(&s_emission_for_stake_lock_rwlock);
+		HASH_FIND(hh, s_emission_for_stake_lock, (dap_hash_fast_t *)l_objs->value, sizeof(dap_hash_fast_t), l_new_stake_lock_emission);
+		pthread_rwlock_unlock(&s_emission_for_stake_lock_rwlock);
+		if (l_new_stake_lock_emission) {
+			log_it(L_WARNING, "Stake_lock emission update cache: [%s], already present", l_objs[i].key);
+			continue;
+		}
+		l_new_stake_lock_emission = DAP_NEW(dap_chain_ledger_token_emission_for_stake_lock_item_t);
+		if (!l_new_stake_lock_emission) {
+			if (s_debug_more) {
+					log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_emission_for_stake_lock_item_t' to hash-table. Need to 'ledger reload' to update cache");
+			}
+			continue;
+		}
+		l_new_stake_lock_emission->datum_token_emission_for_stake_lock_hash = ((dap_chain_ledger_token_emission_for_stake_lock_item_t *)(l_objs[i].value + sizeof(dap_hash_fast_t)))->datum_token_emission_for_stake_lock_hash;
+		l_new_stake_lock_emission->tx_used_out = ((dap_chain_ledger_token_emission_for_stake_lock_item_t *)(l_objs[i].value + sizeof(dap_hash_fast_t)))->tx_used_out;
+		pthread_rwlock_wrlock(&s_emission_for_stake_lock_rwlock);
+		HASH_ADD(hh, s_emission_for_stake_lock, datum_token_emission_for_stake_lock_hash, sizeof(dap_chain_hash_fast_t), l_new_stake_lock_emission);
+		pthread_rwlock_unlock(&s_emission_for_stake_lock_rwlock);
+
+		if (!l_new_stake_lock_emission) {
+			if (s_debug_more)
+				log_it(L_ERROR, "Error: adding to hash-table. Be careful, there may be leaks. Need to 'ledger reload' to update cache");
+		}
+	}
+	dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+	DAP_DELETE(l_gdb_group);
+
     l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
     l_objs_count = 0;
     l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_count);
@@ -2037,9 +2082,11 @@ dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock
 		return l_new_stake_lock_emission;
 	}
 	l_new_stake_lock_emission = DAP_NEW(dap_chain_ledger_token_emission_for_stake_lock_item_t);
-	if (!l_new_stake_lock_emission
-	&&	s_debug_more) {
-		log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_emission_for_stake_lock_item_t' to hash-table");
+	if (!l_new_stake_lock_emission) {
+		if (s_debug_more) {
+			log_it(L_ERROR, "Error: memory allocation when try adding item 'dap_chain_ledger_token_emission_for_stake_lock_item_t' to hash-table");
+		}
+		return NULL;
 	}
     l_new_stake_lock_emission->datum_token_emission_for_stake_lock_hash = *a_token_emission_hash;
     l_new_stake_lock_emission->tx_used_out = (dap_chain_hash_fast_t){ 0 };
@@ -2047,9 +2094,23 @@ dap_chain_ledger_token_emission_for_stake_lock_item_t *s_emission_for_stake_lock
 	HASH_ADD(hh, s_emission_for_stake_lock, datum_token_emission_for_stake_lock_hash, sizeof(dap_chain_hash_fast_t), l_new_stake_lock_emission);
 	pthread_rwlock_unlock(&s_emission_for_stake_lock_rwlock);
 
-	if (!l_new_stake_lock_emission
-	&&	s_debug_more) {
-		log_it(L_ERROR, "Error: adding to hash-table. Be careful, there may be leaks");
+	if (!l_new_stake_lock_emission) {
+		if (s_debug_more)
+			log_it(L_ERROR, "Error: adding to hash-table. Be careful, there may be leaks");
+	} else if (PVT(a_ledger)->cached) {
+		char *l_hash_str = dap_chain_hash_fast_to_str_new((dap_hash_fast_t *)a_token_emission_hash);
+		size_t l_stake_lock_emission_size = sizeof(dap_chain_ledger_token_emission_for_stake_lock_item_t);
+		char *l_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_STAKE_LOCK_STR);
+		size_t l_cache_size = l_stake_lock_emission_size + sizeof(dap_hash_fast_t);
+		uint8_t *l_cache = DAP_NEW_Z_SIZE(uint8_t, l_cache_size);
+		memcpy(l_cache, a_token_emission_hash, sizeof(dap_hash_fast_t));
+		memcpy(l_cache + sizeof(dap_hash_fast_t), l_new_stake_lock_emission, l_stake_lock_emission_size);
+		if (!dap_chain_global_db_gr_set(l_hash_str, l_cache, l_cache_size, l_group)) {
+			log_it(L_WARNING, "Ledger cache mismatch");
+		}
+		DAP_DEL_Z(l_hash_str);
+		DAP_DEL_Z(l_cache);
+		DAP_DEL_Z(l_group);
 	}
 
 	return l_new_stake_lock_emission;
