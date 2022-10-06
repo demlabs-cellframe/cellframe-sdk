@@ -44,6 +44,7 @@ endif()
 
 if (BUILD_CELLFRAME_SDK_TESTS)
     enable_testing()
+    add_definitions("-DDAP_CHAIN_LEDGER_TEST")
     set(CELLFRAME_MODULES ${CELLFRAME_MODULES} "test-framework")
     if (NOT OFF_CORE_CELLFRAME_SDK_TESTS_OFF MATCHES "all")
         set(BUILD_DAP_TESTS ON)

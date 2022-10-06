@@ -49,6 +49,8 @@ uint32_t dap_events_thread_get_index_min( );
 uint32_t dap_events_thread_get_count();
 dap_worker_t *dap_events_worker_get_auto( );
 
+bool dap_events_workers_init_status();
+
 dap_worker_t * dap_events_worker_get(uint8_t a_index);
 uint32_t dap_get_cpu_count();
 void dap_cpu_assign_thread_on(uint32_t a_cpu_id);
