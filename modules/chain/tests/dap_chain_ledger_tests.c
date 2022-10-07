@@ -358,7 +358,8 @@ void dap_chain_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a
 }
 
 void dap_chain_ledger_test_run(void){
-    dap_chain_net_id_t l_iddn = dap_chain_net_id_from_str("0x0xFA0");
+    dap_chain_net_id_t l_iddn = {0};
+    dap_sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
     dap_print_module_name("dap_chain_ledger");
     uint16_t l_flags = 0;
     l_flags |= DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
