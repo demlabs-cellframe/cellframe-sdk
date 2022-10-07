@@ -5736,6 +5736,43 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
     return 0;
 }
 
+
+int cmd_remove(int argc, char ** argv, char ** a_str_reply)
+{
+	uint8_t		error		= 0;
+	const char	*message	= NULL;
+	enum {
+		GDB_REMOVE_FAIL		= 0x00000001,
+		CHAINS_REMOVE_FAIL	= 0x00000002
+	};
+
+	if (dap_chain_node_cli_check_option(argv, 1, argc, "-gdb") >= 0) {
+		if (remove(dap_config_get_item_str(g_config, "resources", "dap_global_db_path")))
+			error |= GDB_REMOVE_FAIL;
+	}
+	if (dap_chain_node_cli_check_option(argv, 1, argc, "-chains") >= 0) {
+		if (remove(dap_config_get_item_str(g_config, "resources", "dap_chains_path")))
+			error |= CHAINS_REMOVE_FAIL;
+	}
+
+	if (error & GDB_REMOVE_FAIL
+	&&	error & CHAINS_REMOVE_FAIL) {
+		message = "databases and chains";
+	} else if (error & GDB_REMOVE_FAIL) {
+		message = "databases";
+	} else {//CHAINS_REMOVE_FAIL
+		message = "chains";
+	}
+
+	if (error) {
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Error when deleting %s.", message);
+	}
+	else {
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Successful removal.");
+	}
+	return error;
+}
+
 /*
  * block code signer
  */
