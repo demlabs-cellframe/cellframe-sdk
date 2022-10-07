@@ -5743,16 +5743,24 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 	const char	*message	= NULL;
 	enum {
 		GDB_REMOVE_FAIL		= 0x00000001,
-		CHAINS_REMOVE_FAIL	= 0x00000002
+		CHAINS_REMOVE_FAIL	= 0x00000002,
+		SUCCESSFUL_GDB		= 0x00000004,
+		SUCCESSFUL_CHAINS	= 0x00000008
 	};
 
 	if (dap_chain_node_cli_check_option(argv, 1, argc, "-gdb") >= 0) {
 		if (remove(dap_config_get_item_str(g_config, "resources", "dap_global_db_path")))
 			error |= GDB_REMOVE_FAIL;
+		else
+			error |= SUCCESSFUL_GDB;
 	}
 	if (dap_chain_node_cli_check_option(argv, 1, argc, "-chains") >= 0) {
-		if (remove(dap_config_get_item_str(g_config, "resources", "dap_chains_path")))
+		if (remove(dap_config_get_item_str(g_config, "resources", "dap_chains_path"))) {
 			error |= CHAINS_REMOVE_FAIL;
+		}
+		else {
+			error |= SUCCESSFUL_CHAINS;
+		}
 	}
 
 	if (error & GDB_REMOVE_FAIL
@@ -5764,11 +5772,13 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 		message = "chains";
 	}
 
-	if (error) {
+	if (message) {
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Error when deleting %s.", message);
 	}
-	else {
+	else if (error) {
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Successful removal.");
+	} else {
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct");
 	}
 	return error;
 }

@@ -1178,7 +1178,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_chain_node_cli_cmd_item_create("remove", cmd_remove, "Delete chain files or global database",
                                        "remove -gdb\n"
-                                                "remove -chains\n");
+                                                "remove -chains");
 
 
     // create thread for waiting of clients
