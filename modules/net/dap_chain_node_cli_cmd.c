@@ -5783,7 +5783,7 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 	else if (error) {
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Successful removal: %s %s", error & SUCCESSFUL_GDB ? "gdb" : "-", error & SUCCESSFUL_CHAINS ? "chains" : "-");
 	} else {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct");
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains");
 	}
 
 	return error;
