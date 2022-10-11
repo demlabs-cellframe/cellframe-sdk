@@ -68,7 +68,7 @@ elseif(ANDROID)
     add_subdirectory(3rdparty/libmagic)
     add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
-else()
+elseif(LINUX)
     add_subdirectory(3rdparty/json-c)
     
 endif()
