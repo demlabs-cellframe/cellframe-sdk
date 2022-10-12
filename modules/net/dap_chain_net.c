@@ -1796,7 +1796,7 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain)
  * @return true
  * @return false
  */
-void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
+static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
     dap_chain_t *l_chain = NULL;
@@ -1815,19 +1815,6 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
                 debug_if(s_debug_more, L_DEBUG, "Added atom from treshold");
         }
     }
-
-    /*bool l_processed;
-    do {
-        l_processed = false;
-        DL_FOREACH(l_net->pub.chains, l_chain) {
-            if (l_chain->callback_atom_add_from_treshold) {
-                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                    log_it(L_DEBUG, "Added atom from treshold");
-                    l_processed = true;
-                }
-            }
-        }
-    } while (l_processed); */ /* WTF is this? */
 }
 
 /**
@@ -1838,7 +1825,7 @@ void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
  * @return true
  * @return false
  */
-bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
+static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
 {
     if (!l_net)
         return false;
@@ -1850,15 +1837,13 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         return false;
     }
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "1358e8a8-2443-4e95-86b3-4b38d1f8d797");
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "d946e250-3875-4521-be49-5b0b309209a6");
     DAP_DELETE(l_cache_dir);
     if (dap_file_simple_test(l_cache_file)) {
         log_it(L_WARNING, "Cache file '%s' already exists", l_cache_file);
         DAP_DELETE(l_cache_file);
         return false;
     }
-
-    log_it(L_WARNING,"Start one time ledger cache reloading");
     static FILE *s_cache_file = NULL;
     s_cache_file = fopen(l_cache_file, "a");
     if(!s_cache_file) {
@@ -1870,9 +1855,6 @@ bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
             return -1;
         }
     }
-    // reload ledger cache (same as net -net <network_name>> ledger reload command)
-    if (dap_file_simple_test(l_cache_file))
-        s_chain_net_ledger_cache_reload(l_net);
     fclose(s_cache_file);
     DAP_DELETE(l_cache_file);
     return true;
@@ -2289,18 +2271,15 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 ret = -5;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload"))
-        {
            s_chain_net_ledger_cache_reload(l_net);
-        }
-        else
-        {
+        else {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                                               "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
             ret = -1;
         }
 
     }
-    return  ret;
+    return ret;
 }
 
 /**
@@ -2769,6 +2748,12 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             }
             closedir(l_chains_dir);
 
+            // reload ledger cache at once
+            if (s_chain_net_reload_ledger_cache_once(l_net)) {
+                log_it(L_WARNING,"Start one time ledger cache reloading");
+                dap_chain_ledger_purge(l_net->pub.ledger, false);
+            }
+
             // sort list with chains names by priority
             l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);
             // load chains by priority
@@ -2896,9 +2881,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
         l_net_pvt->load_mode = false;
         dap_chain_ledger_load_end(l_net->pub.ledger);
-
-        // reload ledger cache at once
-        s_chain_net_reload_ledger_cache_once(l_net);
 
         dap_chain_net_add_gdb_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast, l_net);
         if (l_target_state != l_net_pvt->state_target)
