@@ -620,44 +620,42 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
  */
 static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger, const char *a_filter_token_name, const char *a_filtr_addr_base58, const char *a_hash_out_type, long a_datum_start, long a_datum_end, long *a_total_datums, dap_chain_tx_hash_processed_ht_t *a_tx_hash_processed)
 {
+    if (!a_chain->callback_atom_get_datums) {
+        log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
+        return NULL;
+    }
     dap_string_t *l_str_out = dap_string_new(NULL);
     // list all transactions
     dap_tx_data_t *l_tx_data_hash = NULL;
     dap_chain_cell_t *l_cell = a_chain->cells;
+
     do {
         // load transactions
         size_t l_atom_size = 0;
         dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, l_cell->id, 0);
-        dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
         size_t l_datum_num = 0, l_token_num = 0, l_emission_num = 0, l_tx_num = 0;
         size_t l_datum_num_global = a_total_datums ? *a_total_datums : 0;
-        while(l_atom && l_atom_size) {
+        for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size); l_atom && l_atom_size;
+                l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size)) {
             size_t l_datums_count = 0;
-            dap_chain_datum_t **l_datums =
-                    (a_chain->callback_atom_get_datums && l_atom && l_atom_size) ?
-                            a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count) : NULL;
-            if(!l_datums) {
-                log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
-                return NULL ;
-            }
+            dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
+            if (!l_datums || !l_datums_count)
+                continue;
             for(size_t l_datum_n = 0; l_datum_n < l_datums_count; l_datum_n++) {
                 dap_chain_datum_t *l_datum = l_datums[l_datum_n];
-                if(!l_datum) { // || l_datum->header.type_id != DAP_CHAIN_DATUM_TX) {
+                if(!l_datum)
                     continue;
-            }
-            char l_time_str[70];
-            // get time of create datum
-            if(dap_time_to_str_rfc822(l_time_str, 71, l_datum->header.ts_create) < 1)
-                l_time_str[0] = '\0';
-            switch (l_datum->header.type_id) {
+                char l_time_str[70];
+                // get time of create datum
+                if(dap_time_to_str_rfc822(l_time_str, 71, l_datum->header.ts_create) < 1)
+                    l_time_str[0] = '\0';
+                switch (l_datum->header.type_id) {
 
                 // token
                 case DAP_CHAIN_DATUM_TOKEN_DECL: {
                     // no token necessary for addr
-                    if(a_filtr_addr_base58) {
-                            break;
-                    }
-
+                    if (a_filtr_addr_base58)
+                        break;
                     dap_chain_datum_token_t *l_token = (dap_chain_datum_token_t*) l_datum->data;
                     //if(a_datum_start < 0 || (l_datum_num >= a_datum_start && l_datum_num < a_datum_end))
                     // datum out of page
@@ -722,10 +720,6 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                 }
                 l_datum_num++;
             }
-            // go to next transaction
-            l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
-            //l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter);
-            //l_atom_size = a_chain->callback_atom_get_size(l_atom);
         }
         a_chain->callback_atom_iter_delete(l_atom_iter);
         //total
