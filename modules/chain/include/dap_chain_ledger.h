@@ -150,6 +150,9 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
 // Check if it addable
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 
+/* Add stake-lock item */
+int dap_chain_ledger_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);
+
 dap_chain_datum_token_emission_t *dap_chain_ledger_token_emission_find(dap_ledger_t *a_ledger,
         const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash);
 
