@@ -28,6 +28,7 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_ledger.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_time.h"
@@ -89,7 +90,6 @@ typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
 #define YEAR_INDEX	12
 
 static int												s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
-dap_chain_ledger_token_emission_for_stake_lock_item_t	*s_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 static dap_chain_hash_fast_t							*dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
 																			  dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
 																			  dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_from);
@@ -1098,7 +1098,7 @@ bool s_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_ha
  * @param a_tx_item_idx
  * @return
  */
-bool	s_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item)
+bool s_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
     dap_chain_hash_fast_t l_key_hash;
 	dap_hash_fast( a_tx, dap_chain_datum_tx_get_size(a_tx), &l_key_hash);
@@ -1106,7 +1106,7 @@ bool	s_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
 		return false;
 
     if (a_tx_item->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX)
-		s_emission_for_stake_lock_item_add(a_ledger, &l_key_hash);
+        dap_chain_ledger_emission_for_stake_lock_item_add(a_ledger, &l_key_hash);
 
     return true;
 }
