@@ -5834,6 +5834,8 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
 	}
 	else if (successful) {
+		//TODO: ?need to use?: s_chain_net_ledger_cache_reload(); first ?
+
 		//TODO: Here need to return in online ONLY NETWORKS whose TARGET was ONLINE
 		if (successful & REMOVED_GDB
 		||	(successful & REMOVED_CHAINS && all >= 0)) {
