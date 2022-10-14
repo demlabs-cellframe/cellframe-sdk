@@ -25,7 +25,7 @@ typedef struct __dap_slist_elm__ {
 } dap_slist_elm_t;
 
 typedef struct __dap_slist__ {
-            dap_slist_elm_t   *head,                                         /* An address of first element */
+            dap_slist_elm_t   *head,                                        /* An address of first element */
                             *tail;                                          /* An address of last element */
                     int     nr;                                             /* A number of elements in list  */
 } dap_slist_t;
@@ -36,7 +36,7 @@ static inline int    s_dap_insqtail    ( dap_slist_t *q, void *data, int datasz)
 {
 dap_slist_elm_t *elm;
 
-    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )                       /* Allocate memory for new element */
+    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )   /* Allocate memory for new element */
         return  -ENOMEM;
 
     elm->flink = NULL;                                                      /* This element is terminal */
