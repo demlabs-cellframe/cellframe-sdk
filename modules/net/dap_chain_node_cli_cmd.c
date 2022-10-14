@@ -5753,16 +5753,16 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 
 	//enum for errors
 	enum {
-		GDB_FAIL_PATH				= 0x00000001,
-		CHAINS_FAIL_PATH			= 0x00000002,
-		COMMAND_NOT_CORRECT			= 0x00000004,
-		NET_NOT_VALID				= 0x00000008
+		GDB_FAIL_PATH				=	0x00000001,
+		CHAINS_FAIL_PATH			=	0x00000002,
+		COMMAND_NOT_CORRECT			=	0x00000004,
+		NET_NOT_VALID				=	0x00000008
 	};
 
 	//enum for successful
 	enum {
-		SUCCESSFUL_GDB		= 0x00000001,
-		SUCCESSFUL_CHAINS	= 0x00000002
+		REMOVED_GDB					=	0x00000001,
+		REMOVED_CHAINS				=	0x00000002
 	};
 
 	//check path's from config file
@@ -5777,10 +5777,10 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 
 	//perform deletion according to the specified parameters, if the path is specified
 	if (l_gdb_path) {
-		//TODO: need to add going to offline for all networks
+		//TODO: need to add:: going to offline for ALL networks
 		dap_rm_rf(l_gdb_path);
 		if (!error)
-			successful |= SUCCESSFUL_GDB;
+			successful |= REMOVED_GDB;
 	}
 
 	if (l_chains_path) {
@@ -5789,26 +5789,29 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 
 		if	(NULL == l_net_str && all >= 0) {
 			if (NULL == l_gdb_path) {
-				;//TODO: need to add going to offline for all networks IF l_gdb_path == NULL, because if l_gdb_path != NULL, networks should already be offline
+				;//TODO: need to add:: going to offline for ALL networks IF (l_gdb_path == NULL), because if (l_gdb_path != NULL), all networks should already be offline
 			}
 			dap_rm_rf(l_chains_path);
+
 			if (!error)
-				successful |= SUCCESSFUL_CHAINS;
+				successful |= REMOVED_CHAINS;
 
 		} else if	(NULL != l_net_str && all < 0) {
 			if (NULL != (l_net = dap_chain_net_by_name(l_net_str))) {
-				;
+				if (NULL == l_gdb_path) {
+					;//TODO: need to add:: going to offline ONLY for 'l_net' network IF (l_gdb_path == NULL), because if (l_gdb_path != NULL), all networks should already be offline
+				}
 			} else {
-				error |= ;
+				error |= NET_NOT_VALID;
 			}
-			if (!error)
-				successful |= SUCCESSFUL_CHAINS;
-		} else {
 
+			if (!error)
+				successful |= REMOVED_CHAINS;
+
+		} else {
+			error |= COMMAND_NOT_CORRECT;
 		}
 	}
-
-	//s_chain_net_ledger_cache_reload   dap_cli_list_net   dap_chain_net_load_all
 
 	//handling errors
 	if (error & GDB_FAIL_PATH
@@ -5831,14 +5834,16 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
 	}
 	else if (successful) {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "Successful removal: %s %s", error & SUCCESSFUL_GDB ? "gdb" : "-", error & SUCCESSFUL_CHAINS ? "chains" : "-");
-		//TODO:
-		if (error & SUCCESSFUL_GDB
-		||	(error & SUCCESSFUL_CHAINS && all >= 0))
+		//TODO: Here need to return in online ONLY NETWORKS whose TARGET was ONLINE
+		if (successful & REMOVED_GDB
+		||	(successful & REMOVED_CHAINS && all >= 0)) {
 			;
-		else {//
-
+		} else {//SUCCESSFUL_CHAINS not for all networks
+			;
 		}
+		//TODO: need to use: s_chain_net_ledger_cache_reload(); and may by dap_chain_net_load_all();
+
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Successful removal: %s %s", successful & REMOVED_GDB ? "gdb" : "-", successful & REMOVED_CHAINS ? "chains" : "-");
 	} else {
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
 													   "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
