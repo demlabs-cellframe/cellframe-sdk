@@ -5739,51 +5739,109 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
 
 int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 {
-	uint8_t		error		= 0;
-	const char	*message	= NULL;
-	const char	*path		= NULL;
+	//default init
+	const char		*return_message	=	NULL;
+	const char		*l_gdb_path		=	NULL;
+	const char		*l_chains_path	=	NULL;
+	const char		*l_net_str		=	NULL;
+	dap_chain_net_t	*l_net			=	NULL;
+	int 			all				=	0;
+
+	//for enum
+	uint8_t			error			=	0;
+	uint8_t			successful		=	0;
+
+	//enum for errors
 	enum {
-		GDB_REMOVE_FAIL		= 0x00000001,
-		CHAINS_REMOVE_FAIL	= 0x00000002,
-		SUCCESSFUL_GDB		= 0x00000004,
-		SUCCESSFUL_CHAINS	= 0x00000008
+		GDB_FAIL_PATH				= 0x00000001,
+		CHAINS_FAIL_PATH			= 0x00000002,
+		COMMAND_NOT_CORRECT			= 0x00000004,
+		NET_NOT_VALID				= 0x00000008
 	};
 
-	if (dap_chain_node_cli_check_option(argv, 1, argc, "-gdb") >= 0) {
-		if (NULL == (path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path"))) {
-			error |= GDB_REMOVE_FAIL;
-		}
-		else {
-			dap_rm_rf(path);
-			error |= SUCCESSFUL_GDB;
-		}
+	//enum for successful
+	enum {
+		SUCCESSFUL_GDB		= 0x00000001,
+		SUCCESSFUL_CHAINS	= 0x00000002
+	};
+
+	//check path's from config file
+	if (dap_chain_node_cli_check_option(argv, 1, argc, "-gdb") >= 0
+	&&	(NULL == (l_gdb_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path")))){
+		error |= GDB_FAIL_PATH;
 	}
-	if (dap_chain_node_cli_check_option(argv, 1, argc, "-chains") >= 0) {
-		if (NULL == (path = dap_config_get_item_str(g_config, "resources", "dap_chains_path"))) {
-			error |= CHAINS_REMOVE_FAIL;
-		}
-		else {
-			dap_rm_rf(path);
-			error |= SUCCESSFUL_CHAINS;
+	if (dap_chain_node_cli_check_option(argv, 1, argc, "-chains") >= 0
+	&&	(NULL == (l_chains_path = dap_config_get_item_str(g_config, "resources", "dap_chains_path")))) {
+		error |= CHAINS_FAIL_PATH;
+	}
+
+	//perform deletion according to the specified parameters, if the path is specified
+	if (l_gdb_path) {
+		//TODO: need to add going to offline for all networks
+		dap_rm_rf(l_gdb_path);
+		if (!error)
+			successful |= SUCCESSFUL_GDB;
+	}
+
+	if (l_chains_path) {
+		dap_chain_node_cli_find_option_val(argv, 1, argc, "-net", &l_net_str);
+		all = dap_chain_node_cli_check_option(argv, 1, argc, "-all");
+
+		if	(NULL == l_net_str && all >= 0) {
+			if (NULL == l_gdb_path) {
+				;//TODO: need to add going to offline for all networks IF l_gdb_path == NULL, because if l_gdb_path != NULL, networks should already be offline
+			}
+			dap_rm_rf(l_chains_path);
+			if (!error)
+				successful |= SUCCESSFUL_CHAINS;
+
+		} else if	(NULL != l_net_str && all < 0) {
+			if (NULL != (l_net = dap_chain_net_by_name(l_net_str))) {
+				;
+			} else {
+				error |= ;
+			}
+			if (!error)
+				successful |= SUCCESSFUL_CHAINS;
+		} else {
+
 		}
 	}
 
-	if (error & GDB_REMOVE_FAIL
-	&&	error & CHAINS_REMOVE_FAIL) {
-		message = "databases and chains";
-	} else if (error & GDB_REMOVE_FAIL) {
-		message = "databases";
-	} else if (error & CHAINS_REMOVE_FAIL) {
-		message = "chains";
+	//s_chain_net_ledger_cache_reload   dap_cli_list_net   dap_chain_net_load_all
+
+	//handling errors
+	if (error & GDB_FAIL_PATH
+	||	error & CHAINS_FAIL_PATH) {
+		return_message = "The node configuration file does not specify the path to the database and/or chains.\n"
+						 "Please check the cellframe-node.cfg file in the [resources] item for subitems:\n"
+						 "dap_global_db_path=<PATH>\n"
+						 "dap_chains_path=<PATH>";
+	} else if (error & COMMAND_NOT_CORRECT) {
+		return_message = "You need to make a decision whether to remove all chains or a chain from a specific network.\n"
+						 "You cannot use two keys '-net' and '-all' at the same time.\n"
+						 "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!";
+	} else if (error & NET_NOT_VALID) {
+		return_message = "The specified network was not found.\n"
+						 "The list of available networks can be viewed using the command:"
+						 "'net list'";
 	}
 
-	if (message) {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "Error when deleting %s.", message);
+	if (error) {
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
 	}
-	else if (error) {
+	else if (successful) {
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Successful removal: %s %s", error & SUCCESSFUL_GDB ? "gdb" : "-", error & SUCCESSFUL_CHAINS ? "chains" : "-");
+		//TODO:
+		if (error & SUCCESSFUL_GDB
+		||	(error & SUCCESSFUL_CHAINS && all >= 0))
+			;
+		else {//
+
+		}
 	} else {
-		dap_chain_node_cli_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains");
+		dap_chain_node_cli_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
+													   "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
 	}
 
 	return error;
