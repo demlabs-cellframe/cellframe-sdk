@@ -5843,7 +5843,6 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 		} else {//SUCCESSFUL_CHAINS not for all networks
 			;
 		}
-		//TODO: need to use: s_chain_net_ledger_cache_reload(); and may by dap_chain_net_load_all();
 
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Successful removal: %s %s", successful & REMOVED_GDB ? "gdb" : "-", successful & REMOVED_CHAINS ? "chains" : "-");
 	} else {

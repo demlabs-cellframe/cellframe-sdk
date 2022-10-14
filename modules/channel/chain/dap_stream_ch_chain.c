@@ -922,8 +922,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
     s_chain_timer_reset(l_ch_chain);
 
-    size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size-sizeof (l_chain_pkt->hdr) ;
+    size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size-sizeof (l_chain_pkt->hdr);
     uint16_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_chain_pkt->hdr.net_id );
+	//TODO: target OFFLINE <--- a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE; return + log
     if (l_acl_idx == (uint16_t)-1) {
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR) {
             if(l_ch_chain->callback_notify_packet_in) {

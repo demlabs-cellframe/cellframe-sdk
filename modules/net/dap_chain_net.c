@@ -388,7 +388,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
 {
     if (PVT(a_net)->state != NET_STATE_OFFLINE){
         PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
-        s_net_states_proc(NULL, a_net);
+        s_net_states_proc(NULL, a_net);//TODO: <---
     }
 
     PVT(a_net)->state_target = a_new_state;
@@ -1333,7 +1333,7 @@ static void s_net_states_notify(dap_chain_net_t * l_net) {
  * @brief s_net_states_proc
  * @param l_net
  */
-static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
+static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {//TODO: <---
     UNUSED(a_thread);
     bool l_repeat_after_exit = false; // If true - repeat on next iteration of proc thread loop
     dap_chain_net_t *l_net = (dap_chain_net_t *) a_arg;
@@ -1362,6 +1362,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
                 DAP_DEL_Z(((struct net_link *)l_tmp->data)->link_info);
                 l_tmp = l_next;
             }
+			//TODO: while to close downlinks
             dap_list_free_full(l_net_pvt->net_links, free);
             l_net_pvt->net_links = NULL;
             if ( l_net_pvt->state_target != NET_STATE_OFFLINE ){
