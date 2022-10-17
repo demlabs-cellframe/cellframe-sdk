@@ -404,7 +404,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t\t ts_expires: %s\t"
                                                 "\t\t\t value: %s (%s)\n"
                                                 "\t\t\t subtype: %s\n",
-                                     dap_ctime_r(&l_ts_exp, l_tmp_buf),
+                                     l_ts_exp ? dap_ctime_r(&l_ts_exp, l_tmp_buf) : "never",
                                      l_coins_str,
                                      l_value_str,
                                      dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype));
