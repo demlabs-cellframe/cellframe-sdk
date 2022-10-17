@@ -347,7 +347,7 @@ char    *str_header;
                     dap_strfreev(l_argv);
                 } else {
                     str_reply = dap_strdup_printf("can't recognize command=%s", str_cmd);
-                    log_it(L_ERROR, str_reply);
+                    log_it(L_ERROR, "%s", str_reply);
                 }
                 char *reply_body;
                 if(l_verbose)
