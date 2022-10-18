@@ -545,8 +545,7 @@ dap_chain_wallet_t *l_wallet;
 int l_fd = -1, l_rc, l_certs_count, l_len;
 dap_chain_wallet_file_hdr_t l_file_hdr = {0};
 dap_chain_wallet_cert_hdr_t l_cert_hdr = {0};
-char l_buf[32*1024], *l_cert_raw, l_buf2[32*1024],
-        l_wallet_name [DAP_WALLET$SZ_NAME] = {0};
+char l_buf[32*1024], *l_cert_raw, l_buf2[32*1024], *l_bufp, l_wallet_name [DAP_WALLET$SZ_NAME] = {0};
 dap_enc_key_t *l_enc_key = NULL;
 uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
@@ -628,12 +627,17 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
             break;
         }
 
+
+        l_bufp = l_buf;
+
         if ( l_enc_key )
+        {
             l_len = l_enc_key->dec_na(l_enc_key, l_buf, l_rc, l_buf2, sizeof(l_buf2) );
+            l_bufp = l_buf2;
+            l_csum = s_crc32c (l_csum, l_bufp, l_len);                          /* CRC for every certificate */
+        }
 
-        l_csum = s_crc32c (l_csum, l_buf2, l_len);                          /* CRC for every certificate */
-
-        l_wallet_internal->certs[ i ] = dap_cert_mem_load(l_buf, l_cert_hdr.cert_raw_size);
+        l_wallet_internal->certs[ i ] = dap_cert_mem_load(l_bufp, l_cert_hdr.cert_raw_size);
     }
 
 
