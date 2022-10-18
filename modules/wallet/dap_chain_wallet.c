@@ -422,7 +422,7 @@ struct iovec l_iov [ WALLET$SZ_IOV_NR ];
         if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, a_pass, strlen(a_pass), 0)) )
             return  log_it(L_ERROR, "Error create key context"), -EINVAL;
 
-    if ( 0 > (l_fd = open(l_wallet_internal->file_name , O_CREAT | O_WRONLY)) )
+    if ( 0 > (l_fd = open(l_wallet_internal->file_name , O_CREAT | O_WRONLY, s_fileprot)) )
         return  log_it(L_ERROR,"Cant open file %s for writting, errno=%d", l_wallet_internal->file_name, errno), -errno;
 
     l_file_hdr.signature = DAP_CHAIN_WALLETS_FILE_SIGNATURE;                /* Fill and write Wallet's file header */
