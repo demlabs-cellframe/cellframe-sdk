@@ -1032,21 +1032,13 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     if (setsockopt(l_es->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket, err: %d", WSAGetLastError());
 
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = 0; //l_es->socket + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
-
+    struct sockaddr_in l_addr = { .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}, .sin_port = 0, .sin_family = AF_INET};
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
         int dummy = 100;
         getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
         l_es->port = l_addr.sin_port;
-        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     // nothing to do
