@@ -76,18 +76,9 @@ dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a
 }
 
 #ifdef DAP_OS_WINDOWS
-void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high value.
-    UNREFERENCED_PARAMETER(low)
-    UNREFERENCED_PARAMETER(high)
-    dap_timerfd_t *l_timerfd = (dap_timerfd_t *)arg;
-    if (dap_sendto(l_timerfd->tfd, l_timerfd->port, NULL, 0) == SOCKET_ERROR) {
-        log_it(L_CRITICAL, "Error occured on writing into socket from APC, errno: %d", WSAGetLastError());
-    }
-}
-
 void __stdcall TimerRoutine(void* arg, BOOLEAN flag) {
     UNREFERENCED_PARAMETER(flag)
-    dap_timerfd_t *l_timerfd = (dap_timerfd_t *)arg;
+    dap_timerfd_t *l_timerfd = (dap_timerfd_t*)arg;
     if (dap_sendto(l_timerfd->tfd, l_timerfd->port, NULL, 0) == SOCKET_ERROR) {
         log_it(L_CRITICAL, "Error occured on writing into socket from timer routine, errno: %d", WSAGetLastError());
      }

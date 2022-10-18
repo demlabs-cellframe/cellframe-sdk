@@ -389,16 +389,16 @@ DAP_STATIC_INLINE size_t dap_events_socket_get_free_buf_size(dap_events_socket_t
 DAP_STATIC_INLINE int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
     struct sockaddr_in l_dummy;
     socklen_t l_size = sizeof(l_dummy);
-    char l_tempbuf[sizeof(void*)];
-    return recvfrom(s, buf_in && buf_size ? (char*)buf_in : l_tempbuf,
-                    buf_in && buf_size ? (long)buf_size : sizeof(l_tempbuf),
+    char l_signal;
+    return recvfrom(s, buf_in && buf_size ? (char*)buf_in : &l_signal,
+                    buf_in && buf_size ? (long)buf_size : sizeof(char),
                     0, (struct sockaddr*)&l_dummy, &l_size);
 }
 
 DAP_STATIC_INLINE int dap_sendto(SOCKET s, u_short port, void* buf_out, size_t buf_out_size) {
     struct sockaddr_in l_addr = { .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}, .sin_port = port, .sin_family = AF_INET };
-    return sendto(s, buf_out && buf_out_size ? (char*)buf_out : (char[sizeof(void*)]){ 0 },
-                  buf_out && buf_out_size ? (long)buf_out_size : sizeof(void*),
+    return sendto(s, buf_out && buf_out_size ? (char*)buf_out : '\0',
+                  buf_out && buf_out_size ? (long)buf_out_size : sizeof(char),
                   MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, sizeof(struct sockaddr_in));
 }
 #endif

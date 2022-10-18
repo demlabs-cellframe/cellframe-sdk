@@ -922,7 +922,8 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             }
             */
             if(l_read > 0) {
-                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from socket", l_read);
+                //debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from socket", l_read);
+                log_it(L_NOTICE, "Got %ld bytes from socket", l_read);
                 for (long shift = 0; shift < l_read; shift += sizeof(void*)) {
                     l_queue_ptr = *(void **)(a_esocket->buf_in + shift);
                     a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
@@ -1108,14 +1109,13 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
 #elif defined DAP_OS_WINDOWS
         u_short l_value;
         int l_ret;
-        switch (l_ret = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size)) {
+        switch (l_ret = dap_recvfrom(a_esocket->socket, &l_value, sizeof(char))) {
         case SOCKET_ERROR:
             log_it(L_CRITICAL, "Can't read from event socket, error: %d", WSAGetLastError());
             break;
         case 0:
             return;
         default:
-            l_value = a_esocket->buf_out[0];
             a_esocket->callbacks.event_callback(a_esocket, l_value);
             return;
         }
@@ -1442,12 +1442,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     else
         return 1;
 #elif defined (DAP_OS_WINDOWS)
-    a_es->buf_out[0] = (u_short)a_value;
-    if(dap_sendto(a_es->socket, a_es->port, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
-        return WSAGetLastError();
-    } else {
-        return 0;
-    }
+    return dap_sendto(a_es->socket, a_es->port, NULL, 0) == SOCKET_ERROR ? WSAGetLastError() : NO_ERROR;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent l_event={0};
     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
