@@ -546,7 +546,7 @@ int l_fd = -1, l_rc, l_certs_count, l_len;
 dap_chain_wallet_file_hdr_t l_file_hdr = {0};
 dap_chain_wallet_cert_hdr_t l_cert_hdr = {0};
 char l_buf[32*1024], *l_cert_raw, l_buf2[32*1024];
-dap_enc_key_t *l_enc_key;
+dap_enc_key_t *l_enc_key = NULL;
 uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
     if ( 0 > (l_fd = open(a_file_name , O_RDONLY)) )                        /* Open file for ReadOnly !!! */

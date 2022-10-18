@@ -1732,8 +1732,10 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     enum {
         CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO
     };
+
     int arg_index = 1;
     int cmd_num = CMD_NONE;
+
     // find  add parameter ('alias' or 'handshake')
     if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "new", NULL)) {
         cmd_num = CMD_WALLET_NEW;
@@ -1760,7 +1762,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-password", &l_pass_str);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-password", &l_pass_str);    /* #6131 */
 
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
@@ -1885,7 +1887,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
         dap_chain_addr_t *l_addr = NULL;
 
         if(l_wallet_name) {
-            l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+            l_wallet = dap_chain_wallet_open_ext(l_wallet_name, c_wallets_path, l_pass_str);
             if ( l_net )
                 l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
         }
@@ -3649,6 +3651,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
 {
     (void) a_argc;
     int arg_index = 1;
+
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     const char * l_token_ticker = NULL;
     const char * l_wallet_str = NULL;
@@ -3657,6 +3660,8 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     const char * l_net_name = NULL;
     const char * l_unit_str = NULL;
     const char * l_srv_uid_str = NULL;
+    const char  *l_pass_str = NULL;
+
     uint256_t l_value_datoshi = {};
     const char * l_hash_out_type = NULL;
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -3681,6 +3686,8 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-unit", &l_unit_str);
     // service
     dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-srv_uid", &l_srv_uid_str);
+
+    dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-password", &l_pass_str);
 
     if(!l_token_ticker) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "tx_cond_create requires parameter '-token'");
@@ -3738,7 +3745,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find net '%s'", l_net_name);
         return -11;
     }
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_ext(l_wallet_str, c_wallets_path, l_pass_str);
     if(!l_wallet) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't open wallet '%s'", l_wallet);
         return -12;
