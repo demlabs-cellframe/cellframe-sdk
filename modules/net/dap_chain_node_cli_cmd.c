@@ -1753,11 +1753,15 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
 
     dap_chain_node_addr_t address;
     memset(&address, 0, sizeof(dap_chain_node_addr_t));
-    const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL;
+    const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL,
+            *l_pass_str = NULL;
+
     // find wallet addr
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-password", &l_pass_str);
+
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
 
@@ -1767,6 +1771,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
     case CMD_WALLET_NEW: {
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-sign", &l_sign_type_str);
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-restore", &l_restore_str);
+
         // rewrite existing wallet
         int l_is_force = dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-force", NULL);
 
@@ -1830,7 +1835,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
         }
         // Creates new wallet
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
-                l_seed, l_seed_size);
+                l_seed, l_seed_size, l_pass_str);
         dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
         if(!l_wallet) {
             dap_chain_node_cli_set_reply_text(str_reply, "Wallet is not created besause of internal error");
@@ -1855,7 +1860,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
                 size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
                 if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0)) {
                     char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
-                    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
+                    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp, l_pass_str);
                     if(l_wallet) {
                         dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                         char *l_addr_str = dap_chain_addr_to_str(l_addr);
