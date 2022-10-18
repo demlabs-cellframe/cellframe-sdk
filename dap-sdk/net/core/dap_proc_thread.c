@@ -760,6 +760,8 @@ static void * s_proc_thread_function(void * a_arg)
                                 l_bytes_sent = write(l_cur->socket, l_cur->buf_out, /*l_cur->buf_out_size */ sizeof (void*));
                                 debug_if(g_debug_reactor, L_NOTICE, "send %ld bytes to pipe", l_bytes_sent);
 #elif defined DAP_EVENTS_CAPS_MSMQ
+                                /* TODO: Windows-way message waiting and handling
+                                 *
                                 DWORD l_mp_id = 0;
                                 MQMSGPROPS    l_mps;
                                 MQPROPVARIANT l_mpvar[1];
@@ -784,10 +786,13 @@ static void * s_proc_thread_function(void * a_arg)
                                     if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
                                         log_it(L_ERROR, "Write to sock error: %d", WSAGetLastError());
                                     }
-                                    /*l_cur->buf_out_size = 0;
-                                    dap_events_socket_set_writable_unsafe(l_cur,false);*/
-
                                     l_bytes_sent = l_cur->buf_out_size;
+                                }
+
+                                */
+                                l_bytes_sent = dap_sendto(l_cur->socket, l_cur->port, l_cur->buf_out, l_cur->buf_out_size);
+                                if (l_bytes_sent == SOCKET_ERROR) {
+                                    log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                 }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                 debug_if(g_debug_reactor, L_NOTICE, "Sending data to queue thru input buffer...");
