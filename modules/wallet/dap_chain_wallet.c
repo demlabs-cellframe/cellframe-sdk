@@ -616,7 +616,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     lseek(l_fd,  sizeof(l_file_hdr) + l_file_hdr.wallet_len, SEEK_SET);     /* Set file pointer to first record after cert file header */
 
 
-    for ( size_t i = 0; sizeof(l_cert_hdr) == read (l_fd, &l_cert_hdr, sizeof(l_cert_hdr)); i++ )   /* Read Cert/Record header */
+    for ( size_t i = 0; sizeof(l_cert_hdr) == (l_rc = read (l_fd, &l_cert_hdr, sizeof(l_cert_hdr))); i++ )           /* Read Cert/Record header */
     {
         if ( l_cert_hdr.cert_raw_size != (l_rc = read(l_fd, l_buf, l_cert_hdr.cert_raw_size)) ) {
             log_it(L_ERROR, "Error read certificate's body (%d != %d), errno=%d", l_cert_hdr.cert_raw_size, l_rc, errno);
@@ -633,7 +633,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
         l_csum = s_crc32c (l_csum, l_buf2, l_len);                          /* CRC for every certificate */
 
-        l_wallet_internal->certs[ l_wallet_internal->certs_count++ ] = dap_cert_mem_load(l_buf, l_cert_hdr.cert_raw_size);
+        l_wallet_internal->certs[ i ] = dap_cert_mem_load(l_buf, l_cert_hdr.cert_raw_size);
     }
 
 
@@ -644,7 +644,11 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     if ( l_enc_key )
     {
         if ( l_csum != l_csum2 )
+        {
             log_it(L_ERROR, "Wallet checksum mismatch, %#x <> %#x", l_csum, l_csum2);
+            dap_chain_wallet_close( l_wallet);
+            l_wallet = NULL;
+        }
 
         dap_enc_key_delete(l_enc_key);
     }
