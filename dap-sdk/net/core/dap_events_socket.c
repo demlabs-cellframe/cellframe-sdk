@@ -922,8 +922,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             }
             */
             if(l_read > 0) {
-                //debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from socket", l_read);
-                log_it(L_NOTICE, "Got %ld bytes from socket", l_read);
+                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from socket", l_read);
                 for (long shift = 0; shift < l_read; shift += sizeof(void*)) {
                     l_queue_ptr = *(void **)(a_esocket->buf_in + shift);
                     a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
