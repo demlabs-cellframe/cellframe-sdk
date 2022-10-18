@@ -545,7 +545,8 @@ dap_chain_wallet_t *l_wallet;
 int l_fd = -1, l_rc, l_certs_count, l_len;
 dap_chain_wallet_file_hdr_t l_file_hdr = {0};
 dap_chain_wallet_cert_hdr_t l_cert_hdr = {0};
-char l_buf[32*1024], *l_cert_raw, l_buf2[32*1024];
+char l_buf[32*1024], *l_cert_raw, l_buf2[32*1024],
+        l_wallet_name [DAP_WALLET$SZ_NAME] = {0};
 dap_enc_key_t *l_enc_key = NULL;
 uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
@@ -566,15 +567,15 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         return  log_it(L_ERROR, "Invalid Wallet name length ( >%d)", DAP_WALLET$SZ_NAME),
                     close(l_fd), NULL;
 
-    if ( l_file_hdr.wallet_len != read(l_fd, l_buf, l_file_hdr.wallet_len) ) /* Read wallet's name */
+    if ( l_file_hdr.wallet_len != read(l_fd, l_wallet_name, l_file_hdr.wallet_len) ) /* Read wallet's name */
         return  log_it(L_ERROR, "Error Wallet's name, errno=%d", errno), close(l_fd), NULL;
 
 
     l_csum = s_crc32c (l_csum, &l_file_hdr, sizeof(l_file_hdr) );           /* Compute check sum of the Wallet file header */
-    l_csum = s_crc32c (l_csum, l_buf,  l_file_hdr.wallet_len);
+    l_csum = s_crc32c (l_csum, l_wallet_name,  l_file_hdr.wallet_len);
 
     log_it(L_DEBUG, "Wallet file: %s, Wallet[Version: %d, type: %d, name: '%.*s']",
-           a_file_name, l_file_hdr.version, l_file_hdr.type, l_file_hdr.wallet_len, l_buf);
+           a_file_name, l_file_hdr.version, l_file_hdr.type, l_file_hdr.wallet_len, l_wallet_name);
 
     /* First run - count certs in file */
     for ( l_certs_count = 0; sizeof(l_cert_hdr) == (l_rc = read (l_fd, &l_cert_hdr, sizeof(l_cert_hdr))); l_certs_count++ ) {
@@ -604,6 +605,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
 
+    dap_asprintf(&l_wallet->name, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
     l_wallet_internal->file_name = dap_strdup(a_file_name);
     l_wallet_internal->certs_count = l_certs_count;
 
