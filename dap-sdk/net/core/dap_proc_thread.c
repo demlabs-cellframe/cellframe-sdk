@@ -750,10 +750,13 @@ static void * s_proc_thread_function(void * a_arg)
                     ssize_t l_bytes_sent = -1;
                     switch (l_cur->type) {
                         case DESCRIPTOR_TYPE_QUEUE:
-                            if (l_cur->flags & DAP_SOCK_QUEUE_PTR){
-                                #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-                                    l_bytes_sent = write(l_cur->socket, l_cur->buf_out, sizeof (void *) ); // We send pointer by pointer
-                                #elif defined DAP_EVENTS_CAPS_MSMQ
+                            if (l_cur->flags & DAP_SOCK_QUEUE_PTR) {
+#if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+                                l_bytes_sent = write(l_cur->socket, l_cur->buf_out, /*l_cur->buf_out_size */ sizeof (void*));
+                                debug_if(g_debug_reactor, L_NOTICE, "send %ld bytes to pipe", l_bytes_sent);
+#elif defined DAP_EVENTS_CAPS_MSMQ
+                                /* TODO: Windows-way message waiting and handling
+                                 *
                                 DWORD l_mp_id = 0;
                                 MQMSGPROPS    l_mps;
                                 MQPROPVARIANT l_mpvar[1];
@@ -779,23 +782,23 @@ static void * s_proc_thread_function(void * a_arg)
                                     if(dap_sendto(l_cur->socket, l_cur->port, NULL, 0) == SOCKET_ERROR) {
                                         log_it(L_ERROR, "Write to sock error: %d", WSAGetLastError());
                                     }
-                                    l_cur->buf_out_size = 0;
-                                    dap_events_socket_set_writable_unsafe(l_cur,false);
-
-                                    break;
+                                    l_bytes_sent = l_cur->buf_out_size;
                                 }
-                                #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-                                    char * l_ptr = (char *) l_cur->buf_out;
-                                    l_bytes_sent = mq_send(l_cur->mqd, l_ptr, sizeof (l_ptr),0);
-                                    if (l_bytes_sent==0){
-//                                        log_it(L_DEBUG,"mq_send %p success", l_ptr_in);
-                                        l_bytes_sent = sizeof (void *);
-                                    }else if (l_bytes_sent == -1 && errno == EINVAL){ // To make compatible with other
-                                        l_errno = EAGAIN;                        // non-blocking sockets
-//                                        log_it(L_DEBUG,"mq_send %p EAGAIN", l_ptr_in);
-                                    }else{
-                                        l_errno = errno;
-                                        log_it(L_WARNING,"mq_send %p errno: %d", l_ptr, l_errno);
+
+                                */
+                                l_bytes_sent = dap_sendto(l_cur->socket, l_cur->port, l_cur->buf_out, l_cur->buf_out_size);
+                                if (l_bytes_sent == SOCKET_ERROR) {
+                                    log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
+                                }
+#elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
+                                debug_if(g_debug_reactor, L_NOTICE, "Sending data to queue thru input buffer...");
+                                    l_bytes_sent = !mq_send(l_cur->mqd, (char*)l_cur->buf_out, l_cur->buf_out_size, 0) ? l_cur->buf_out_size : 0;
+                                    l_errno = l_bytes_sent ? 0 : errno == EINVAL ? EAGAIN : errno;
+                                    debug_if(l_errno, L_ERROR, "mq_send [%lu bytes] failed, errno %d", l_cur->buf_out_size, l_errno);
+                                    if (l_errno == EMSGSIZE) {
+                                        struct mq_attr l_attr = { 0 };
+                                        mq_getattr(l_cur->mqd, &l_attr);
+                                        log_it(L_ERROR, "Msg size %lu > permitted size %lu", l_cur->buf_out_size, l_attr.mq_msgsize);
                                     }
                                 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
 

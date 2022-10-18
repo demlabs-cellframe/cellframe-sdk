@@ -276,14 +276,25 @@ struct  timespec tmo = {0, 500 * 1024 /* ~0.5 sec */}, delta;
         if ( SQLITE_LOCKED != (l_rc = sqlite3_exec(l_db, l_query, NULL, 0, &l_errmsg))
              && (l_rc != SQLITE_BUSY) )
             break;
+<<<<<<< HEAD
 
         log_it (L_WARNING, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_db, l_query);
 
+=======
+        debug_if(s_dap_global_db_debug_more, L_WARNING, "SQL error: \"%s\"%d, dap_db_driver_sqlite_exec(%p, %s), retry ...", sqlite3_errmsg(l_db),l_rc, l_db, l_query);
+>>>>>>> d5bf60bd (Message queuing temporarily altered)
         for ( delta = tmo; nanosleep(&delta, &delta); );                        /* Wait some time ... */
     }
 
 
     if ( l_rc != SQLITE_OK)
+<<<<<<< HEAD
+=======
+    {
+        if ( l_rc != SQLITE_CONSTRAINT )
+            debug_if(s_dap_global_db_debug_more, L_ERROR, "SQL error: \"%s\"%d, dap_db_driver_sqlite_exec(%p, %s), retry ...", sqlite3_errmsg(l_db),l_rc, l_db, l_query);
+
+>>>>>>> d5bf60bd (Message queuing temporarily altered)
         if(l_error_message && l_errmsg)
             *l_error_message = sqlite3_mprintf("SQL error %d: %s", l_rc, l_errmsg);
 
@@ -316,7 +327,12 @@ char    *l_error_message, l_query[512];
                     a_table_name);
 
     if ( (l_rc = s_dap_db_driver_sqlite_exec(l_conn->conn, (const char*) l_query, &l_error_message)) != SQLITE_OK) {
+<<<<<<< HEAD
         log_it (L_ERROR, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_conn->conn, l_query);
+=======
+        debug_if(s_dap_global_db_debug_more, L_ERROR, "SQL error: \"%s\"%d, dap_db_driver_sqlite_exec(%p, %s), retry ...", sqlite3_errmsg(l_conn->conn),l_rc, l_conn->conn, l_query);
+
+>>>>>>> d5bf60bd (Message queuing temporarily altered)
         s_dap_db_driver_sqlite_free(l_error_message);
         s_sqlite_free_connection(l_conn);
         return -1;
@@ -328,7 +344,11 @@ char    *l_error_message, l_query[512];
                 a_table_name);
 
     if ( (l_rc = s_dap_db_driver_sqlite_exec(l_conn->conn, (const char*) l_query, &l_error_message)) != SQLITE_OK) {
+<<<<<<< HEAD
         log_it (L_ERROR, "SQL error: %d, dap_db_driver_sqlite_exec(%p, %s), retry ...", l_rc, l_conn->conn, l_query);
+=======
+        debug_if(s_dap_global_db_debug_more, L_ERROR, "SQL error: \"%s\"%d, dap_db_driver_sqlite_exec(%p, %s), retry ...", sqlite3_errmsg(l_conn->conn),l_rc, l_conn->conn, l_query);
+>>>>>>> d5bf60bd (Message queuing temporarily altered)
         s_dap_db_driver_sqlite_free(l_error_message);
         s_sqlite_free_connection(l_conn);
         return -1;
@@ -643,6 +663,7 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         s_dap_db_driver_sqlite_free(l_error_message);
         l_error_message = NULL;
         //delete exist record
+<<<<<<< HEAD
         char *l_query_del = sqlite3_mprintf("delete from '%s' where key = '%s'", l_table_name, a_store_obj->key);
         l_ret = s_dap_db_driver_sqlite_exec(l_conn->conn, l_query_del, &l_error_message);
         s_dap_db_driver_sqlite_free(l_query_del);
@@ -653,6 +674,15 @@ int dap_db_driver_sqlite_apply_store_obj(dap_store_obj_t *a_store_obj)
         }
         // repeat request
         l_ret = s_dap_db_driver_sqlite_exec(l_conn->conn, l_query, &l_error_message);
+=======
+        char *l_blob_value = s_dap_db_driver_get_string_from_blob(a_store_obj->value, (int)a_store_obj->value_len);
+        //add one record
+        char *l_query_replace = sqlite3_mprintf("REPLACE INTO '%s' values(NULL, '%s', x'', '%lld', x'%s')",
+                                   l_table_name, a_store_obj->key, a_store_obj->timestamp, l_blob_value);
+        s_dap_db_driver_sqlite_free(l_blob_value);
+        l_ret = s_dap_db_driver_sqlite_exec(l_conn->conn, l_query_replace, &l_error_message);
+        s_dap_db_driver_sqlite_free(l_query_replace);
+>>>>>>> d5bf60bd (Message queuing temporarily altered)
     }
     // missing database
     if(l_ret != SQLITE_OK) {
