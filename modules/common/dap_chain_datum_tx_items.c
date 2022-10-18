@@ -149,8 +149,6 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
     else if(!dap_strcmp(a_subtype_str, "srv_stake_lock"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
-    else if(!dap_strcmp(a_subtype_str, "srv_stake_update"))
-        return DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE_UPDATE;
     else if(!dap_strcmp(a_subtype_str, "fee"))
         return DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE;
     return DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
