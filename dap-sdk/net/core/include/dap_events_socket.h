@@ -396,7 +396,7 @@ DAP_STATIC_INLINE int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
 }
 
 DAP_STATIC_INLINE int dap_sendto(SOCKET s, u_short port, void* buf_out, size_t buf_out_size) {
-    struct sockaddr_in l_addr = { .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}, .sin_port = port, .sin_family = AF_INET };
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = port, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };
     return sendto(s, buf_out && buf_out_size ? (char*)buf_out : "\0",
                   buf_out && buf_out_size ? buf_out_size : sizeof(char),
                   MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, sizeof(struct sockaddr_in));
