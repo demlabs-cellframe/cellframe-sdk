@@ -203,7 +203,7 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
     unsigned long l_mode = 1;
     ioctlsocket(l_tfd, FIONBIO, &l_mode);
 
-    struct sockaddr_in l_addr = { .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}, .sin_port = 0, .sin_family = AF_INET};
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };;
     if (bind(l_tfd, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
