@@ -2466,7 +2466,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
      &&
      2. valid(tx2.dap_chain_datum_tx_sig.pkey)
      &&
-     3. hash(tx1) == tx2.dap_chain_datump_tx_in.tx_prev_hash
+     3. tx1.output != tx2.bound_items.outputs.used
      &&
      4. tx1.dap_chain_datum_tx_out.addr.data.key == tx2.dap_chain_datum_tx_sig.pkey for unconditional output
      \\
@@ -2754,17 +2754,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             break;
         }
 
-        // 3. Compare hash in previous transaction with hash inside 'in' item
-        // calculate hash of previous transaction anew
-        dap_chain_hash_fast_t *l_hash_prev = dap_chain_node_datum_tx_calc_hash(l_tx_prev);
-        int l_res_hash = dap_hash_fast_compare(l_hash_prev, &l_tx_prev_hash);
-
-        DAP_DELETE(l_hash_prev);
-        if (l_res_hash != 1) {
-            l_err_num = -7;
-            break;
-        }
-
         uint256_t l_value;
         // Get list of all 'out' items from previous transaction
         dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, NULL);
@@ -2775,6 +2764,18 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_err_num = -8;
             break;
         }
+        // 3. Compare out in previous transaction with currently used out
+        for (dap_list_t *it = l_list_bound_items; it; it = it->next) {
+            dap_chain_ledger_tx_bound_t *l_bound_tmp = it->data;
+            if (l_tx_prev_out == l_bound_tmp->out.tx_prev_out) {
+                debug_if(s_debug_more, L_ERROR, "Previous transaction output already used in current tx");
+                l_err_num = -7;
+                break;
+            }
+        }
+        if (l_err_num)
+            break;
+
         if (l_cond_type == TX_ITEM_TYPE_IN) {
             dap_chain_tx_item_type_t l_type = *(uint8_t *)l_tx_prev_out;
             uint8_t *l_prev_out_addr_key = NULL;
