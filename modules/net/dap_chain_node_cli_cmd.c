@@ -2313,7 +2313,7 @@ void s_com_mempool_list_print_for_chain (
         dap_hash_fast_t l_data_hash;
         char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {'\0'};
         dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
-        dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
+        dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
         const char *l_type = NULL;
         DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
         const char *l_token_ticker = NULL;
