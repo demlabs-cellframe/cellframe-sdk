@@ -1728,51 +1728,74 @@ int com_help(int argc, char ** argv, char **str_reply)
  */
 int com_tx_wallet(int argc, char ** argv, char **str_reply)
 {
-    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-    // Get address of wallet
-    enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO };
-    int arg_index = 1;
-    int cmd_num = CMD_NONE;
+const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE };
+int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
     // find  add parameter ('alias' or 'handshake')
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "new", NULL)) {
+    if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "new", NULL))
         cmd_num = CMD_WALLET_NEW;
-    }
-    else if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "list", NULL)) {
+    else if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "list", NULL))
         cmd_num = CMD_WALLET_LIST;
-    }
-    else if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "info", NULL)) {
+    else if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "info", NULL))
         cmd_num = CMD_WALLET_INFO;
-    }
-    arg_index++;
+    else if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "activate", NULL))
+        cmd_num = CMD_WALLET_ACTIVATE;
+    else if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "deactivate", NULL))
+        cmd_num = CMD_WALLET_DEACTIVATE;
+
+    l_arg_index++;
+
     if(cmd_num == CMD_NONE) {
         dap_chain_node_cli_set_reply_text(str_reply,
                 "Format of command: wallet {new -w <wallet_name> | list | info [-addr <addr>]|[-w <wallet_name> -net <net_name>]}");
         return -1;
     }
 
-    dap_chain_node_addr_t address;
-    memset(&address, 0, sizeof(dap_chain_node_addr_t));
     const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL,
-            l_pass_str;
+            *l_pass_str = NULL;
 
     // find wallet addr
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-password", &l_pass_str);
+    dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-addr", &l_addr_str);
+    dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-w", &l_wallet_name);
+    dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-net", &l_net_name);
+    dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-password", &l_pass_str);
 
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
 
     dap_string_t *l_string_ret = dap_string_new(NULL);
-    switch (cmd_num) {
+
+
+    switch (cmd_num)
+    {
+    case CMD_WALLET_ACTIVATE:
+    case CMD_WALLET_DEACTIVATE:
+        if( !l_wallet_name )
+            return  dap_chain_node_cli_set_reply_text(str_reply, "Wallet name option <-w>  not defined"), -EINVAL;
+
+        if( !l_pass_str )
+            return  dap_chain_node_cli_set_reply_text(str_reply, "Wallet password option <-password>  not defined"), -EINVAL;
+
+        if ( cmd_num == CMD_WALLET_ACTIVATE )
+                l_rc = dap_chain_wallet_activate   (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str) );
+        else    l_rc = dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str) );
+
+        if ( !l_rc )
+                dap_string_append_printf(l_string_ret, "wallet: <%s> is %sactivated\n",
+                    l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de");
+        else    dap_string_append_printf(l_string_ret, "wallet: <%s>  %sactivation error, errno=%d\n",
+                    l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc);
+
+        break;
+
+
     // new wallet
     case CMD_WALLET_NEW: {
-        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-sign", &l_sign_type_str);
-        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-restore", &l_restore_str);
+        dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-sign", &l_sign_type_str);
+        dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-restore", &l_restore_str);
         // rewrite existing wallet
-        int l_is_force = dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-force", NULL);
+        int l_is_force = dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-force", NULL);
 
         if(!l_wallet_name) {
             dap_chain_node_cli_set_reply_text(str_reply, "Wallet name option <-w>  not defined");
@@ -1857,19 +1880,23 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
             while((l_dir_entry = readdir(l_dir)) != NULL) {
                 const char *l_file_name = l_dir_entry->d_name;
                 size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
-                if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0)) {
+                if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0))
+                {
                     char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
                     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp, l_pass_str);
                     if(l_wallet) {
                         dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-                        dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
+                        dap_string_append_printf(l_string_ret, "wallet: <%s>\n", l_wallet->name);
                         if (l_addr_str){
                             dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
                             DAP_DELETE(l_addr_str);
                         }
                         dap_chain_wallet_close(l_wallet);
+                    } else {
+                        dap_string_append_printf(l_string_ret, "file: %s - invalid wallet's format or password protected\n", l_file_path_tmp);
                     }
+
                     DAP_DELETE(l_file_path_tmp);
                 }
             }

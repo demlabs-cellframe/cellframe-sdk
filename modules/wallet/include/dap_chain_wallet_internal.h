@@ -50,7 +50,7 @@ enum    {
 
 
 typedef struct dap_chain_wallet_n_pass {
-    uint16_t    name_len;                                                 /* Length of the follows wallet's name string */
+    uint16_t    name_len;                                                   /* Length of the follows wallet's name string */
     char        name[DAP_WALLET$SZ_NAME + 1];
     uint16_t    pass_len;                                                   /* Length of the follows wallet's password string */
     char        pass[DAP_WALLET$SZ_PASS + 1];

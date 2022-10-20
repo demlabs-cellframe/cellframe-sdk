@@ -188,7 +188,6 @@ dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec;
     }
     else {
         memcpy(l_prec->pass, a_pass, l_prec->pass_len = a_pass_len);    /* Update password with new one */
-        *l_prec = l_rec;
     }
 
     if ( (l_rc = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )        /* Release lock */
@@ -280,7 +279,7 @@ int     dap_chain_wallet_deactivate   (
                         ssize_t      a_pass_len
                                     )
 {
-int     l_rc;
+int     l_rc, l_rc2;
 dap_chain_wallet_n_pass_t   *l_prec;
 
     if ( a_name_len > DAP_WALLET$SZ_NAME )
@@ -302,8 +301,8 @@ dap_chain_wallet_n_pass_t   *l_prec;
         else    l_rc = 0, memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
     }
 
-    if ( (l_rc = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )        /* Release lock */
-        log_it(L_ERROR, "Error unlocking Wallet table, errno=%d", l_rc);
+    if ( (l_rc2 = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )       /* Release lock */
+        log_it(L_ERROR, "Error unlocking Wallet table, errno=%d", l_rc2);
 
     return  l_rc;
 }
@@ -489,8 +488,9 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
         if(l_wallet_internal->file_name)
             DAP_DELETE(l_wallet_internal->file_name);
 
-        for(size_t i = 0; i < l_wallet_internal->certs_count; i++)
-            dap_cert_delete( l_wallet_internal->certs[i]);
+        if ( l_wallet_internal->certs )
+            for(size_t i = 0; i < l_wallet_internal->certs_count; i++)
+                dap_cert_delete( l_wallet_internal->certs[i]);
 
         DAP_DELETE(l_wallet_internal->certs);
 
@@ -864,14 +864,22 @@ dap_chain_wallet_t *dap_chain_wallet_open (
                         const char *a_wallets_path
                                     )
 {
-char l_file_name [MAX_PATH];
+    char l_file_name [MAX_PATH] = {0}, l_pass [ DAP_WALLET$SZ_PASS + 3] = {0};
+ssize_t     l_rc, l_pass_len;
 
+    /* Sanity checks */
     if(!a_wallet_name || !a_wallets_path)
         return NULL;
 
     dap_snprintf(l_file_name, sizeof(l_file_name) - 1, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
 
-    return  dap_chain_wallet_open_file(l_file_name, NULL);
+    l_pass_len = DAP_WALLET$SZ_PASS;                                    /* Size of the buffer for password */
+                                                                        /* Lookup password in the internal hash-table */
+    if ( (l_rc = s_dap_chain_wallet_pass (a_wallet_name, strlen(a_wallet_name), l_pass, &l_pass_len)) )
+        l_pass_len = 0;
+
+
+    return  dap_chain_wallet_open_file(l_file_name, l_pass_len ? l_pass : NULL);
 }
 
 
