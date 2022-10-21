@@ -2428,6 +2428,25 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
     }
 }
 
+/**
+ * @brief s_com_mempool_check_datum_in_chain
+ * @param a_chain
+ * @param a_datum_hash_str
+ * @return boolean
+ */
+bool s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str){
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
+    uint8_t *l_data_tmp = dap_chain_global_db_gr_get(a_datum_hash_str, NULL, l_gdb_group_mempool);
+    DAP_DELETE(l_gdb_group_mempool);
+    if (l_data_tmp){
+        DAP_DELETE(l_data_tmp);
+        return true;
+    } else {
+        DAP_DELETE(l_data_tmp);
+        return false;
+    }
+//    return l_data_tmp ? true : false;
+}
 
 /**
  * @brief com_mempool_check
@@ -2454,19 +2473,27 @@ int com_mempool_check(int argc, char ** argv, char ** a_str_reply)
             // datum hash may be in hex or base58 format
             if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
                 l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
-            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-            uint8_t *l_data_tmp = dap_chain_global_db_gr_get(l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str,
-                                                             NULL, l_gdb_group_mempool);
-            if (l_data_tmp) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s is present in mempool", l_datum_hash_str);
-                return 0;
+            if(l_chain) {
+                if (s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str)) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s is present in mempool", l_datum_hash_str);
+                    DAP_DEL_Z(l_datum_hash_hex_str);
+                    return 0;
+                } else {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find datum %s in %s.%s", l_datum_hash_str, l_net->pub.name, l_chain->name);
+                    DAP_DEL_Z(l_datum_hash_hex_str);
+                    return -4;
+                }
             } else {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find datum %s", l_datum_hash_str);
+                DL_FOREACH(l_net->pub.chains, l_chain)
+                    if (s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str)) {
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s is present in mempool", l_datum_hash_str);
+                        DAP_DEL_Z(l_datum_hash_hex_str);
+                        return 0;
+                    }
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find datum %s in net %s", l_datum_hash_str, l_net->pub.name);
+                DAP_DEL_Z(l_datum_hash_hex_str);
                 return -4;
             }
-            DAP_DELETE(l_gdb_group_mempool);
-            DAP_DELETE(l_data_tmp);
-            DAP_DEL_Z(l_datum_hash_hex_str);
         } else {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", argv[0]);
             return -3;
