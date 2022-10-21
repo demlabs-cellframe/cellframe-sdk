@@ -2445,7 +2445,6 @@ bool s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datu
         DAP_DELETE(l_data_tmp);
         return false;
     }
-//    return l_data_tmp ? true : false;
 }
 
 /**
@@ -2462,10 +2461,21 @@ int com_mempool_check(int argc, char ** argv, char ** a_str_reply)
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net))
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, NULL, &l_net))
         return -1;
 
-    if (l_chain && l_net) {
+    const char *l_chain_str = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-chain", &l_chain_str);
+    if (l_chain_str) {
+        l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+        if (!l_chain) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid",
+                                              argv[0], l_net->pub.name, l_chain_str);
+            return -4;
+        }
+    }
+
+    if (l_net) {
         const char * l_datum_hash_str = NULL;
         dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
         if(l_datum_hash_str) {
