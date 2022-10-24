@@ -35,11 +35,14 @@
 #define DAP_WALLET$SZ_NAME  64                                              /* Maximum length of the wallet's name */
 #define DAP_WALLET$SZ_PASS  64                                              /* Maximum length of the wallet's password */
 
+#define DAP_WALLET$M_FL_PROTECTED        (1 << 0)                           /* Wallet is password protected */
+#define DAP_WALLET$M_FL_ACTIVE           (1 << 1)                           /* Has been activated (has been open with password) */
 
 typedef struct dap_chain_wallet{
-    char * name;
-    void * _internal;
-    void * _inheritor;
+    char        name[ DAP_WALLET$SZ_NAME + 1 ];                             /* Human readable name of BMF Wallet */
+    uint64_t    flags;                                                      /* See DAP_WALLET$M_FL_* constants */
+    void        *_internal;
+    void        *_inheritor;
 } dap_chain_wallet_t;
 
 

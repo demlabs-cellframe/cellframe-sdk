@@ -421,7 +421,7 @@ dap_chain_wallet_internal_t *l_wallet_internal;
     l_wallet->_internal = l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t);
     assert(l_wallet->_internal);
 
-    l_wallet->name = strdup(a_wallet_name);
+    strcpy(l_wallet->name, a_wallet_name);
     l_wallet_internal->certs_count = 1;
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet->_internal);
@@ -475,9 +475,6 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
         return;
 
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
-
-    if(a_wallet->name)
-        DAP_DELETE (a_wallet->name);
 
     // TODO Make clean struct dap_chain_wallet_internal_t (certs, addr)
     if(l_wallet_internal)
@@ -793,7 +790,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
 
-    dap_asprintf(&l_wallet->name, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
+    dap_snprintf(l_wallet->name, DAP_WALLET$SZ_NAME, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
     l_wallet_internal->file_name = dap_strdup(a_file_name);
     l_wallet_internal->certs_count = l_certs_count;
 
@@ -836,6 +833,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 
     if ( l_enc_key )
     {
+        l_wallet->flags |= (DAP_WALLET$M_FL_PROTECTED | DAP_WALLET$M_FL_ACTIVE);
         if ( l_csum != l_csum2 )
         {
             log_it(L_ERROR, "Wallet checksum mismatch, %#x <> %#x", l_csum, l_csum2);
@@ -864,25 +862,31 @@ dap_chain_wallet_t *dap_chain_wallet_open (
                         const char *a_wallets_path
                                     )
 {
-    char l_file_name [MAX_PATH] = {0}, l_pass [ DAP_WALLET$SZ_PASS + 3] = {0};
+char l_file_name [MAX_PATH] = {0}, l_pass [ DAP_WALLET$SZ_PASS + 3] = {0},
+        *l_cp, l_wallet_name[DAP_WALLET$SZ_PASS + 3] = {0};
 ssize_t     l_rc, l_pass_len;
 
     /* Sanity checks */
     if(!a_wallet_name || !a_wallets_path)
         return NULL;
 
-    dap_snprintf(l_file_name, sizeof(l_file_name) - 1, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
+    if ( (l_cp = strstr(a_wallet_name, s_wallet_ext)) )
+        strncpy(l_wallet_name, a_wallet_name, l_cp - a_wallet_name);
+    else strcpy(l_wallet_name, a_wallet_name);
+
+    dap_snprintf(l_file_name, sizeof(l_file_name) - 1, "%s/%s%s", a_wallets_path, l_wallet_name, s_wallet_ext);
+
 
     l_pass_len = DAP_WALLET$SZ_PASS;                                    /* Size of the buffer for password */
                                                                         /* Lookup password in the internal hash-table */
-    if ( (l_rc = s_dap_chain_wallet_pass (a_wallet_name, strlen(a_wallet_name), l_pass, &l_pass_len)) )
+    if ( (l_rc = s_dap_chain_wallet_pass (l_wallet_name, strlen(l_wallet_name), l_pass, &l_pass_len)) )
         l_pass_len = 0;
 
 
     return  dap_chain_wallet_open_file(l_file_name, l_pass_len ? l_pass : NULL);
 }
 
-
+#if 0   /* @RRL: #6131, to be removed in near future ! */
 dap_chain_wallet_t *dap_chain_wallet_open_ext (
                     const char *a_wallet_name,
                     const char *a_wallets_path,
@@ -898,7 +902,7 @@ dap_chain_wallet_t *dap_chain_wallet_open_ext (
 
     return  dap_chain_wallet_open_file(l_file_name, pass);
 }
-
+#endif
 
 
 /**
@@ -940,7 +944,7 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_seed_ext (
 {
     dap_chain_wallet_t * l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
-    l_wallet->name = strdup(a_wallet_name);
+    strcpy(l_wallet->name, a_wallet_name);
     l_wallet_internal->certs_count = 1;
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_wallet_internal->certs_count * sizeof(dap_cert_t *));
 
