@@ -512,10 +512,10 @@ char *dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                         break;
                     }
                 }
+                if (!l_src_token)
+                    l_src_token = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, l_tx_prev_hash);
                 if (l_src_addr && memcmp(l_src_addr, a_addr, sizeof(dap_chain_addr_t)))
                     break;  //it's not our addr
-                else if (!l_src_token)
-                    l_src_token = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, l_tx_prev_hash);
             }
             dap_list_free(l_list_in_items);
             // find OUT items
@@ -574,7 +574,7 @@ char *dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                     dap_string_append_printf(l_str_out, "\trecv %s %s from %s\n",
                                              l_value_str,
                                              l_dst_token ? l_dst_token :
-                                                           l_src_token ? l_src_token : "UNKNOWN",
+                                                           (l_src_token ? l_src_token : "UNKNOWN"),
                                              l_src_addr_str);
                     if (l_src_addr)
                         DAP_DELETE(l_src_addr_str);
