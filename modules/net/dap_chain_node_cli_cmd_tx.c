@@ -908,15 +908,14 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         }
         dap_string_t *l_str_ret = dap_string_new(NULL); //char *l_str_ret = NULL;
         dap_chain_t *l_chain_cur;
-        void *l_chain_tmp = (void*)0x1;
         int l_num = 0;
         // only one chain
-        if(l_chain)
+        if (l_chain)
             l_chain_cur = l_chain;
         // all chain
         else
-            l_chain_cur = dap_chain_enum(&l_chain_tmp);
-        while(l_chain_cur) {
+            l_chain_cur = l_net->pub.chains;
+        while (l_chain_cur) {
             // only selected net
             if(l_net->pub.id.uint64 == l_chain_cur->net_id.uint64) {
                 // separator between chains
@@ -952,8 +951,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             // only one chain use
             if(l_chain)
                 break;
-            dap_chain_enum_unlock();
-            l_chain_cur = dap_chain_enum(&l_chain_tmp);
+            l_chain_cur = l_chain_cur->next;
         }
         DAP_DELETE(l_addr);
         s_dap_chain_tx_hash_processed_ht_free(l_list_tx_hash_processd);
