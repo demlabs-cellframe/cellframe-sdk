@@ -1753,7 +1753,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
     }
 
     const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL,
-            *l_pass_str = NULL;
+            *l_pass_str = NULL, *l_ttl_str = NULL;
 
     // find wallet addr
     dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-addr", &l_addr_str);
@@ -1772,6 +1772,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
     case CMD_WALLET_ACTIVATE:
     case CMD_WALLET_DEACTIVATE:
         dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-password", &l_pass_str);
+        dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-ttl", &l_ttl_str);
+
 
         if( !l_wallet_name )
             return  dap_chain_node_cli_set_reply_text(str_reply, "Wallet name option <-w>  not defined"), -EINVAL;
@@ -1779,8 +1781,13 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         if( !l_pass_str )
             return  dap_chain_node_cli_set_reply_text(str_reply, "Wallet password option <-password>  not defined"), -EINVAL;
 
+        if ( l_ttl_str )
+            l_rc = strtoul(l_ttl_str, NULL, 10);
+        else    l_rc = 60;
+            l_rc = l_rc ? l_rc : 60;
+
         if ( cmd_num == CMD_WALLET_ACTIVATE )
-                l_rc = dap_chain_wallet_activate   (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str) );
+                l_rc = dap_chain_wallet_activate   (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), l_rc );
         else    l_rc = dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str) );
 
         if ( !l_rc )

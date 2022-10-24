@@ -144,6 +144,7 @@ const unsigned char  *p = (unsigned char *) buf;
  *      a_name_len: A length of the wallet's name
  *      a_pass:     A password string
  *      a_pass_len: A length of the password string
+ *      a_ttl:      A time  to live of the wallet's context, minutes
  *
  *  IMPLICITE OUTPUTS:
  *      s_wallet_n_pass
@@ -157,7 +158,8 @@ int     dap_chain_wallet_activate   (
                     const   char    *a_name,
                         ssize_t      a_name_len,
                     const   char    *a_pass,
-                        ssize_t      a_pass_len
+                        ssize_t      a_pass_len,
+                        unsigned     a_ttl
                                     )
 {
 int     l_rc;
@@ -189,6 +191,11 @@ dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec;
     else {
         memcpy(l_prec->pass, a_pass, l_prec->pass_len = a_pass_len);    /* Update password with new one */
     }
+
+
+    clock_gettime(CLOCK_REALTIME, &l_prec->exptm);
+    l_prec->exptm.tv_sec += (a_ttl * 60);                               /* Compute context expiration time */
+
 
     if ( (l_rc = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )        /* Release lock */
         log_it(L_ERROR, "Error locking Wallet table, errno=%d", l_rc);
@@ -227,6 +234,7 @@ int     s_dap_chain_wallet_pass   (
 {
 int     l_rc;
 dap_chain_wallet_n_pass_t   *l_prec;
+struct timespec l_now;
 
     /* Sanity checks ... */
     if ( a_name_len > DAP_WALLET$SZ_NAME )
@@ -235,6 +243,7 @@ dap_chain_wallet_n_pass_t   *l_prec;
     if ( *a_pass_len < DAP_WALLET$SZ_NAME )
         return  log_it(L_ERROR, "Wallet's buffer for password is too small (%d < %d)",  *a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
 
+    clock_gettime(CLOCK_REALTIME, &l_now);
 
 
     if ( (l_rc = pthread_rwlock_rdlock(&s_wallet_n_pass_lock)) )        /* Lock for RD access */
@@ -242,8 +251,15 @@ dap_chain_wallet_n_pass_t   *l_prec;
 
     HASH_FIND_STR(s_wallet_n_pass, a_name, l_prec);                     /* Check for existen record */
 
-    if ( l_prec && !l_prec->pass_len )                                  /* Is record has been deactivated ? */
-        l_prec = NULL;
+
+    if (l_prec && (l_now.tv_sec > l_prec->exptm.tv_sec) )               /* Record is expired ? */
+    {
+                                                                        /* Reset password field */
+        memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
+        l_prec = NULL; //log_it(L_ERROR, "Wallet's credential has been expired, need re-Activation ");
+    }
+    else if ( l_prec && !l_prec->pass_len )                             /* Is record has been deactivated ? */
+        l_prec = NULL; // log_it(L_ERROR, "Wallet's credential has been zeroed, need re-Activation ");
     else if ( l_prec )                                                  /* Store password to given buffer */
         memcpy(a_pass, l_prec->pass, *a_pass_len = l_prec->pass_len);
 
