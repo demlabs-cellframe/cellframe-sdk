@@ -952,7 +952,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force] [-password <password>]"
             "wallet list\n"
             "wallet info -addr <addr> | -w <wallet_name> -net <net_name>\n"
-            "wallet [de]activate -w <wallet_name> -password <password>\n");
+            "wallet [de]activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>\n");
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, "Token update",

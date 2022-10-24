@@ -55,6 +55,9 @@ typedef struct dap_chain_wallet_n_pass {
     uint16_t    pass_len;                                                   /* Length of the follows wallet's password string */
     char        pass[DAP_WALLET$SZ_PASS + 1];
 
+    struct timespec exptm;                                                  /* A time of expiration of the record
+                                                                              need RE-Activation steps */
+
     UT_hash_handle hh;                                                      /* Context for hash-table */
 } dap_chain_wallet_n_pass_t;
 
