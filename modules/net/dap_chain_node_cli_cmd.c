@@ -2310,12 +2310,26 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_hash_fast_t l_data_hash;
             char l_data_hash_str[70] = {[0]='\0'};
             dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
-            dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,sizeof (l_data_hash_str)-1);
+            dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
             const char *l_type = NULL;
             DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
-            dap_string_append_printf(a_str_tmp, "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
-                    l_objs[i].key, l_type,
-                    l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
+            const char *l_token_ticker = NULL;
+            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+                dap_chain_tx_in_t *obj_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN, NULL);
+                l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &obj_in->header.tx_prev_hash);
+            }
+            if (l_token_ticker) {
+                dap_string_append_printf(a_str_tmp,
+                                         "hash %s : type_id=%s  data_size=%u data_hash=%s ticker=%s ts_create=%s", // \n included in timestamp
+                                         l_objs[i].key, l_type,
+                                         l_datum->header.data_size, l_data_hash_str,
+                                         l_token_ticker, dap_ctime_r(&l_ts_create, buf));
+            } else {
+                dap_string_append_printf(a_str_tmp,
+                                         "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
+                                         l_objs[i].key, l_type,
+                                         l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
+            }
             dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
         }
         dap_global_db_objs_delete(l_objs, l_objs_size);
