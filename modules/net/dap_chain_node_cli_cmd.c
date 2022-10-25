@@ -5406,7 +5406,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
 		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
 	}
 	else {
-		l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
+        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
 	}
 
 	if(!l_chain) {
