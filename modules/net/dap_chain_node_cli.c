@@ -347,7 +347,7 @@ char    *str_header;
                     dap_strfreev(l_argv);
                 } else {
                     str_reply = dap_strdup_printf("can't recognize command=%s", str_cmd);
-                    log_it(L_ERROR, str_reply);
+                    log_it(L_ERROR, "%s", str_reply);
                 }
                 char *reply_body;
                 if(l_verbose)
@@ -1106,6 +1106,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network",
             "mempool_list -net <net_name>\n");
 
+    dap_chain_node_cli_cmd_item_create ("mempool_check", com_mempool_check, "Check mempool entrie for presence in selected chain network",
+            "mempool_check -net <net_name> -datum <datum hash>\n");
+
     dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
             "mempool_proc -net <net_name> -datum <datum hash>\n");
 
@@ -1259,8 +1262,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
         server_addr.sin_family = AF_INET;
 #ifdef _WIN32
-        struct in_addr _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-        server_addr.sin_addr = _in_addr;
+        server_addr.sin_addr = (struct in_addr){{ .S_addr = htonl(INADDR_LOOPBACK) }};
         server_addr.sin_port = l_listen_port;
 #else
         inet_pton( AF_INET, l_listen_addr_str, &server_addr.sin_addr );

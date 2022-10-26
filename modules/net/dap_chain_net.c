@@ -90,6 +90,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_tx.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
@@ -291,7 +292,7 @@ static int s_cli_net(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
 
-static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
+static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 
 static bool s_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info);
 
@@ -337,9 +338,7 @@ int dap_chain_net_init()
     s_required_links_count = dap_config_get_item_int32_default(g_config, "general", "require_links", s_required_links_count);
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
 
-    dap_chain_net_load_all();
-
-    dap_enc_http_set_acl_callback(dap_chain_net_set_acl);
+    dap_enc_http_set_acl_callback(s_net_set_acl);
     log_it(L_NOTICE,"Chain networks initialized");
     return 0;
 }
@@ -1838,7 +1837,7 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         return false;
     }
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "d946e250-3875-4521-be49-5b0b309209a6");
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "e0fee993-54b7-4cbb-be94-f633cc17853f");
     DAP_DELETE(l_cache_dir);
     if (dap_file_simple_test(l_cache_file)) {
         log_it(L_WARNING, "Cache file '%s' already exists", l_cache_file);
@@ -3426,7 +3425,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
  * @param a_pkey_hash dap_chain_hash_fast_t hash object
  * @return uint8_t*
  */
-static uint8_t *dap_chain_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
+static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
 {
     uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
