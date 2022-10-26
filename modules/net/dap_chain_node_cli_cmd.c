@@ -5853,7 +5853,7 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
                 char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path,
                                                            l_net_list[i]->pub.gdb_groups_prefix);
                 dap_rm_rf(l_chains_rm_path);
-                DAP_DELETE(l_chains_path);
+                DAP_DELETE(l_chains_rm_path);
             }
             if (!error)
 				successful |= REMOVED_CHAINS;
@@ -5868,7 +5868,7 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
             sleep(1);
             char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path, l_net->pub.gdb_groups_prefix);
             dap_rm_rf(l_chains_rm_path);
-            DAP_DELETE(l_chains_path);
+            DAP_DELETE(l_chains_rm_path);
 			if (!error)
 				successful |= REMOVED_CHAINS;
 
