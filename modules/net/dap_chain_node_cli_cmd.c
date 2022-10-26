@@ -72,7 +72,6 @@
 #include "dap_chain_node.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_node_client.h"
-#include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_node_ping.h"
@@ -1167,7 +1166,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                     l_node_addr.uint64 = l_remote_node_addr->uint64;
 
                     // clean client struct
-                    dap_chain_node_client_close(l_node_client);
+                    dap_chain_node_client_close(l_node_client->uuid);
                     DAP_DELETE(l_remote_node_info);
                     //return -1;
                     continue;
@@ -1189,7 +1188,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "no response from remote node(s)");
             log_it(L_WARNING, "No response from remote node(s): err code %d", res);
             // clean client struct
-            dap_chain_node_client_close(l_node_client);
+            dap_chain_node_client_close(l_node_client->uuid);
             //DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1218,7 +1217,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             NULL, 0);
             if(res == 0) {
                 log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
-                dap_chain_node_client_close(l_node_client);
+                dap_chain_node_client_close(l_node_client->uuid);
                 DAP_DELETE(l_remote_node_info);
                 return -1;
             }
@@ -1284,7 +1283,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 sizeof(l_sync_request))) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
             // clean client struct
-            dap_chain_node_client_close(l_node_client);
+            dap_chain_node_client_close(l_node_client->uuid);
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1296,7 +1295,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(res < 0) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
                                             NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-            dap_chain_node_client_close(l_node_client);
+            dap_chain_node_client_close(l_node_client->uuid);
             DAP_DELETE(l_remote_node_info);
             log_it(L_WARNING, "Gdb synced err -2");
             return -2;
@@ -1324,7 +1323,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                     sizeof(l_sync_request))) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
                 // clean client struct
-                dap_chain_node_client_close(l_node_client);
+                dap_chain_node_client_close(l_node_client->uuid);
                 DAP_DELETE(l_remote_node_info);
                 log_it(L_INFO, "Chain '%s' synced error: Can't send sync chains request", l_chain->name);
                 return -3;
@@ -1344,7 +1343,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_remote_node_info);
         //dap_client_disconnect(l_node_client->client);
         //l_node_client->client = NULL;
-        dap_chain_node_client_close(l_node_client);
+        dap_chain_node_client_close(l_node_client->uuid);
         dap_chain_node_cli_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
 
@@ -1384,22 +1383,22 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if (res) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "No response from node");
             // clean client struct
-            dap_chain_node_client_close(client);
+            dap_chain_node_client_close(client->uuid);
             DAP_DELETE(node_info);
             return -8;
         }
         DAP_DELETE(node_info);
 
-        //Add new established connection in the list
-        int ret = dap_chain_node_client_list_add(&l_node_addr, client);
+        int ret = 0;
+        //TODO Add new established connection to the list
         switch (ret)
         {
         case -1:
-            dap_chain_node_client_close(client);
+            dap_chain_node_client_close(client->uuid);
             dap_chain_node_cli_set_reply_text(a_str_reply, "Connection established, but not saved");
             return -9;
         case -2:
-            dap_chain_node_client_close(client);
+            dap_chain_node_client_close(client->uuid);
             dap_chain_node_cli_set_reply_text(a_str_reply, "Connection already present");
             return -10;
         }
@@ -5778,6 +5777,18 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
     return 0;
 }
 
+dap_list_t *s_go_all_nets_offline()
+{
+    dap_list_t *l_net_returns = NULL;
+    uint16_t l_net_count;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (uint16_t i = 0; i < l_net_count; i++) {    // Shutdown all networks
+        if (dap_chain_net_stop(l_net_list[i]))
+            l_net_returns = dap_list_append(l_net_returns, l_net_list[i]);
+    }
+    sleep(2);   // waiting for networks to go offline
+    return l_net_returns;
+}
 
 int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 {
@@ -5817,10 +5828,14 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 		error |= CHAINS_FAIL_PATH;
 	}
 
+    dap_list_t *l_net_returns = NULL;
 	//perform deletion according to the specified parameters, if the path is specified
 	if (l_gdb_path) {
-		//TODO: need to add:: going to offline for ALL networks
-		dap_rm_rf(l_gdb_path);
+        l_net_returns = s_go_all_nets_offline();
+        char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path,
+                                                dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "mdbx"));
+        dap_rm_rf(l_gdb_rm_path);
+        DAP_DELETE(l_gdb_rm_path);
 		if (!error)
 			successful |= REMOVED_GDB;
 	}
@@ -5830,23 +5845,30 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 		all = dap_chain_node_cli_check_option(argv, 1, argc, "-all");
 
 		if	(NULL == l_net_str && all >= 0) {
-			if (NULL == l_gdb_path) {
-				;//TODO: need to add:: going to offline for ALL networks IF (l_gdb_path == NULL), because if (l_gdb_path != NULL), all networks should already be offline
-			}
-			dap_rm_rf(l_chains_path);
-
-			if (!error)
+            if (NULL == l_gdb_path)
+                l_net_returns = s_go_all_nets_offline();
+            uint16_t l_net_count;
+            dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+            for (uint16_t i = 0; i < l_net_count; i++) {
+                char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path,
+                                                           l_net_list[i]->pub.gdb_groups_prefix);
+                dap_rm_rf(l_chains_rm_path);
+                DAP_DELETE(l_chains_path);
+            }
+            if (!error)
 				successful |= REMOVED_CHAINS;
 
 		} else if	(NULL != l_net_str && all < 0) {
 			if (NULL != (l_net = dap_chain_net_by_name(l_net_str))) {
-				if (NULL == l_gdb_path) {
-					;//TODO: need to add:: going to offline ONLY for 'l_net' network IF (l_gdb_path == NULL), because if (l_gdb_path != NULL), all networks should already be offline
-				}
+                if (NULL == l_gdb_path && dap_chain_net_stop(l_net))
+                    l_net_returns = dap_list_append(l_net_returns, l_net);
 			} else {
 				error |= NET_NOT_VALID;
 			}
-
+            sleep(1);
+            char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path, l_net->pub.gdb_groups_prefix);
+            dap_rm_rf(l_chains_rm_path);
+            DAP_DELETE(l_chains_path);
 			if (!error)
 				successful |= REMOVED_CHAINS;
 
@@ -5876,21 +5898,15 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
 	}
 	else if (successful) {
-		//TODO: ?need to use?: s_chain_net_ledger_cache_reload(); first ?
-
-		//TODO: Here need to return in online ONLY NETWORKS whose TARGET was ONLINE
-		if (successful & REMOVED_GDB
-		||	(successful & REMOVED_CHAINS && all >= 0)) {
-			;
-		} else {//SUCCESSFUL_CHAINS not for all networks
-			;
-		}
-
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Successful removal: %s %s", successful & REMOVED_GDB ? "gdb" : "-", successful & REMOVED_CHAINS ? "chains" : "-");
 	} else {
 		dap_chain_node_cli_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
 													   "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
 	}
+
+    for (dap_list_t *it = l_net_returns; it; it = it->next)
+        dap_chain_net_start((dap_chain_net_t *)it->data);
+    dap_list_free(l_net_returns);
 
 	return error;
 }
