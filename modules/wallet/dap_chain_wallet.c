@@ -164,6 +164,8 @@ int     dap_chain_wallet_activate   (
 {
 int     l_rc;
 dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec;
+dap_chain_wallet_t  *l_wallet;
+char *c_wallets_path;
 
     /* Sanity checks ... */
     if ( a_name_len > DAP_WALLET$SZ_NAME )
@@ -171,7 +173,6 @@ dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec;
 
     if ( a_pass_len > DAP_WALLET$SZ_PASS )
         return  log_it(L_ERROR, "Wallet's password is too long (%d > %d)",  a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
-
 
 
     memcpy(l_rec.name, a_name, l_rec.name_len = a_name_len);            /* Prefill local record fields */
@@ -200,6 +201,17 @@ dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec;
     if ( (l_rc = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )        /* Release lock */
         log_it(L_ERROR, "Error locking Wallet table, errno=%d", l_rc);
 
+
+    /*
+     * Check password by open/close BMF Wallet file
+    */
+    if ( !(c_wallets_path = (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
+        return  log_it(L_ERROR, "Wallet's path has been not configured"), -EINVAL;
+
+    if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path)) )
+        return  log_it(L_ERROR, "Wallet's password is invalid"), -EINVAL;
+
+    dap_chain_wallet_close( l_wallet);
 
     return  0;
 }
