@@ -465,10 +465,10 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
 
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN;
-    l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max );
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
-    l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max );
+    l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN * 0xFFF;
+    l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max);
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN  * 0xFFF;
+    l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
     l_es->events = a_es->events;
     l_es->uuid = dap_uuid_generate_uint64();
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -522,7 +522,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->socket        = a_es->socket;
     l_es->port          = a_es->port;
     l_es->mq_num        = a_es->mq_num;
-
+    /*
     WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN] = { 0 };
     int pos = 0;
 #ifdef DAP_BRAND
@@ -551,6 +551,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
         log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
         return NULL;
     }
+    */
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     // We don't create descriptor for kqueue at all
 #else
@@ -587,7 +588,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
 
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN * 0xFFF;
     l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
     l_es->buf_out = NULL;
 
@@ -702,23 +703,16 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     unsigned long l_mode = 1;
     ioctlsocket(l_es->socket, FIONBIO, &l_mode);
 
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = 0; //l_es->socket  + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
-
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
         int dummy = 100;
         getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
         l_es->port = l_addr.sin_port;
-        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 
+    /*
     MQQUEUEPROPS   l_qps;
     MQPROPVARIANT  l_qp_var[1];
     QUEUEPROPID    l_qp_id[1];
@@ -783,6 +777,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     if (hr != MQ_OK) {
         log_it(L_DEBUG, "Message queue %u NOT purged, possible data corruption, err %ld", l_es->mq_num, hr);
     }
+    */
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     // We don't create descriptor for kqueue at all
 #else
@@ -838,9 +833,10 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_
 int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 {
 #ifdef DAP_OS_WINDOWS
-    int l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max);
+    ssize_t l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max);
+    int l_errno = WSAGetLastError();
     if (l_read == SOCKET_ERROR) {
-        log_it(L_ERROR, "Queue socket %zu received invalid data, error %d", a_esocket->socket, WSAGetLastError());
+        log_it(L_ERROR, "Queue socket %zu received invalid data, error %d", a_esocket->socket, l_errno);
         return -1;
     }
 #endif
@@ -886,6 +882,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                 }
             }
 #elif defined DAP_EVENTS_CAPS_MSMQ
+            /*
             DWORD l_mp_id = 0;
             MQMSGPROPS    l_mps;
             MQPROPVARIANT l_mpvar[2];
@@ -923,6 +920,16 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                     }
                 }
             }
+            */
+            if(l_read > 0) {
+                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from socket", l_read);
+                for (long shift = 0; shift < l_read; shift += sizeof(void*)) {
+                    l_queue_ptr = *(void **)(a_esocket->buf_in + shift);
+                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                }
+            }
+            else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK))  // we use blocked socket for now but who knows...
+                log_it(L_ERROR, "Can't read message from socket");
 #elif defined DAP_EVENTS_CAPS_KQUEUE
         l_queue_ptr = (void*) a_esocket->kqueue_event_catched_data.data;
         if(g_debug_reactor)
@@ -1025,21 +1032,13 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     if (setsockopt(l_es->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket, err: %d", WSAGetLastError());
 
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = 0; //l_es->socket + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
-
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
         int dummy = 100;
         getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
         l_es->port = l_addr.sin_port;
-        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     // nothing to do
@@ -1101,14 +1100,13 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
 #elif defined DAP_OS_WINDOWS
         u_short l_value;
         int l_ret;
-        switch (l_ret = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size)) {
+        switch (l_ret = dap_recvfrom(a_esocket->socket, &l_value, sizeof(char))) {
         case SOCKET_ERROR:
             log_it(L_CRITICAL, "Can't read from event socket, error: %d", WSAGetLastError());
             break;
         case 0:
             return;
         default:
-            l_value = a_esocket->buf_out[0];
             a_esocket->callbacks.event_callback(a_esocket, l_value);
             return;
         }
@@ -1122,13 +1120,7 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
         log_it(L_ERROR, "Event socket %"DAP_FORMAT_SOCKET" accepted data but callback is NULL ", a_esocket->socket);
 }
 
-
-typedef struct dap_events_socket_buf_item
-{
-    dap_events_socket_t * es;
-    void *arg;
-} dap_events_socket_buf_item_t;
-
+static pthread_rwlock_t *s_bufout_rwlock = NULL;
 /**
  *  Waits on the socket
  *  return 0: timeout, 1: may send data, -1 error
@@ -1175,29 +1167,35 @@ static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
  */
 static void *dap_events_socket_buf_thread(void *arg)
 {
-    dap_events_socket_buf_item_t *l_item = (dap_events_socket_buf_item_t *)arg;
-    if (!l_item)
+    dap_events_socket_t *l_es = (dap_events_socket_t *)arg;
+    if (!l_es)
         pthread_exit(0);
     int l_res = 0;
     int l_count = 0;
     SOCKET l_sock = INVALID_SOCKET;
-    while (l_res < 1 && l_count++ < 3) {
+    bool l_lifecycle = true;
+    while (l_lifecycle) {
+        while (l_res < 1 && l_count++ < 3) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-        l_sock = l_item->es->fd2;
+            l_sock = l_item->es->fd2;
 #elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-        l_sock = l_item->es->mqd;
+            l_sock = l_es->mqd;
 #endif
-        // wait max 5 min
-        l_res = wait_send_socket(l_sock, 300000);
-        if (l_res == 0) {
-            dap_events_socket_queue_ptr_send(l_item->es, l_item->arg);
-            break;
+            // wait max 5 min
+            l_res = wait_send_socket(l_sock, 300000);
+            if (l_res == 0) {
+                pthread_rwlock_wrlock(s_bufout_rwlock);
+                void *l_ptr = *((void **)l_es->buf_out + --l_es->buf_out_size);
+                if (!l_es->buf_out_size)
+                    l_lifecycle = false;
+                pthread_rwlock_unlock(s_bufout_rwlock);
+                dap_events_socket_queue_ptr_send(l_es, l_ptr);
+                break;
+            }
         }
+        if (l_res != 0)
+            log_it(L_WARNING, "Lost data bulk in events socket buf thread");
     }
-    if (l_res != 0)
-        log_it(L_WARNING, "Lost data bulk in events socket buf thread");
-
-    DAP_DELETE(l_item);
     pthread_exit(0);
     return NULL;
 }
@@ -1207,29 +1205,35 @@ static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 static atomic_uint_fast64_t l_thd_count;
 int     l_rc;
 pthread_t l_thread;
-dap_events_socket_buf_item_t *l_item;
+const size_t l_basic_buf_size = DAP_QUEUE_MAX_MSGS * sizeof(void *);
 
     atomic_fetch_add(&l_thd_count, 1);                                      /* Count an every call of this routine */
 
-    if ( !(l_item = DAP_NEW(dap_events_socket_buf_item_t)) )                /* Allocate new item - argument for new thread */
-    {
-        log_it (L_ERROR, "[#%"DAP_UINT64_FORMAT_U"] No memory for new item, errno=%d,  drop: a_es: %p, a_arg: %p",
-                atomic_load(&l_thd_count), errno, a_es, a_arg);
-        return;
+    if (!s_bufout_rwlock) {
+        s_bufout_rwlock = DAP_NEW(pthread_rwlock_t);
+        pthread_rwlock_init(s_bufout_rwlock, NULL);
     }
-
-    l_item->es = a_es;
-    l_item->arg = a_arg;
-
-    if ( (l_rc = pthread_create(&l_thread, &s_attr_detached /* @RRL: #6157 */, dap_events_socket_buf_thread, l_item)) )
-    {
-        log_it(L_ERROR, "[#%"DAP_UINT64_FORMAT_U"] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d",
-                 atomic_load(&l_thd_count), a_es, a_arg, l_rc);
-        return;
+    pthread_rwlock_wrlock(s_bufout_rwlock);
+    if (!a_es->buf_out) {
+        a_es->buf_out = DAP_NEW_SIZE(byte_t, l_basic_buf_size);
+        a_es->buf_out_size_max = l_basic_buf_size;
     }
-
-    debug_if(g_debug_reactor, L_DEBUG, "[#%"DAP_UINT64_FORMAT_U"] Created thread %"DAP_UINT64_FORMAT_x", a_es: %p, a_arg: %p",
-             atomic_load(&l_thd_count), l_thread, a_es, a_arg);
+    if (!a_es->buf_out_size) {
+        if ( (l_rc = pthread_create(&l_thread, &s_attr_detached /* @RRL: #6157 */, dap_events_socket_buf_thread, a_es)) )
+        {
+            log_it(L_ERROR, "[#%"DAP_UINT64_FORMAT_U"] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d",
+                     atomic_load(&l_thd_count), a_es, a_arg, l_rc);
+            return;
+        }
+        debug_if(g_debug_reactor, L_DEBUG, "[#%"DAP_UINT64_FORMAT_U"] Created thread %"DAP_UINT64_FORMAT_x", a_es: %p, a_arg: %p",
+                 atomic_load(&l_thd_count), l_thread, a_es, a_arg);
+    }
+    *((void **)a_es->buf_out + a_es->buf_out_size++) = a_arg;
+    if (a_es->buf_out_size == a_es->buf_out_size_max) {
+        a_es->buf_out = DAP_REALLOC(a_es->buf_out, a_es->buf_out_size + l_basic_buf_size);
+        a_es->buf_out_size_max += l_basic_buf_size;
+    }
+    pthread_rwlock_unlock(s_bufout_rwlock);
 }
 
 /**
@@ -1314,9 +1318,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     case EINTR:
     case EWOULDBLOCK:
         log_it(L_ERROR, "Can't send ptr to queue (err %d), will be resent again in a while...", l_errno);
-        struct mq_attr l_attr = { 0 };
-        mq_getattr(a_es->mqd, &l_attr);
-        log_it(L_ERROR, "Number of pending messages: %ld", l_attr.mq_curmsgs);
+        log_it(L_ERROR, "Number of pending messages: %ld", a_es->buf_out_size);
         add_ptr_to_buf(a_es, a_arg);
         return l_errno;
     default: {
@@ -1336,9 +1338,8 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     else
         return l_errno;
 #elif defined DAP_EVENTS_CAPS_MSMQ
-
-    char *pbuf = (char *)&a_arg;
-
+    /* TODO: Windows-way message waiting and handling
+     *
     DWORD l_mp_id = 0;
     MQMSGPROPS    l_mps;
     MQPROPVARIANT l_mpvar[1];
@@ -1347,7 +1348,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 
     l_p_id[l_mp_id] = PROPID_M_BODY;
     l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
-    l_mpvar[l_mp_id].caub.pElems = (unsigned char*)(pbuf);
+    l_mpvar[l_mp_id].caub.pElems = (unsigned char*)(&a_arg);
     l_mpvar[l_mp_id].caub.cElems = sizeof(void*);
     l_mp_id++;
 
@@ -1362,11 +1363,8 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         return hr;
     }
 
-    if(dap_sendto(a_es->socket, a_es->port, NULL, 0) == SOCKET_ERROR) {
-        return WSAGetLastError();
-    } else {
-        return 0;
-    }
+    */
+    return dap_sendto(a_es->socket, a_es->port, &a_arg, sizeof(void*)) == SOCKET_ERROR ? WSAGetLastError() : NO_ERROR;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent l_event={0};
     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
@@ -1435,12 +1433,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
     else
         return 1;
 #elif defined (DAP_OS_WINDOWS)
-    a_es->buf_out[0] = (u_short)a_value;
-    if(dap_sendto(a_es->socket, a_es->port, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
-        return WSAGetLastError();
-    } else {
-        return 0;
-    }
+    return dap_sendto(a_es->socket, a_es->port, NULL, 0) == SOCKET_ERROR ? WSAGetLastError() : NO_ERROR;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent l_event={0};
     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);

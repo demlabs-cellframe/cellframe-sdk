@@ -66,13 +66,13 @@ typedef struct dap_chain_net dap_chain_net_t;
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
+#define DAP_CHAIN_LEDGER_STAKE_LOCK_STR          "stake_lock"
 #define DAP_CHAIN_LEDGER_TXS_STR                 "txs"
 #define DAP_CHAIN_LEDGER_SPENT_TXS_STR           "spent_txs"
 #define DAP_CHAIN_LEDGER_BALANCES_STR            "balances"
 
 int dap_chain_ledger_init();
 void dap_chain_ledger_deinit();
-bool dap_chain_global_rwlocks_and_verificators_init(void);
 
 dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name);
 
@@ -149,6 +149,9 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
 // Check if it addable
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 
+/* Add stake-lock item */
+int dap_chain_ledger_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);
+
 dap_chain_datum_token_emission_t *dap_chain_ledger_token_emission_find(dap_ledger_t *a_ledger,
         const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash);
 
@@ -161,9 +164,8 @@ void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap
         char *** a_tickers, size_t * a_tickers_size);
 
 // Checking a new transaction before adding to the cache
-int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, bool a_from_threshold,
-        dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
-
+int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
 
 /**
  * Delete transaction from the cache

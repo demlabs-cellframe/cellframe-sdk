@@ -94,6 +94,7 @@ void dap_http_client_new( dap_events_socket_t *a_esocket, void *a_arg )
     l_http_client->http = DAP_HTTP( a_esocket->server );
     l_http_client->state_read = DAP_HTTP_CLIENT_STATE_START;
     l_http_client->state_write = DAP_HTTP_CLIENT_STATE_NONE;
+    l_http_client->socket_num = a_esocket->socket;
 
     return;
 }
@@ -121,7 +122,7 @@ void dap_http_client_delete( dap_events_socket_t * a_esocket, void *a_arg )
           l_http_client->proc->delete_callback( l_http_client, NULL );
         }
     }
-    DAP_DEL_Z(l_http_client->_inheritor)
+    DAP_DEL_Z(l_http_client->_inheritor);
 }
 
 
@@ -627,7 +628,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
     char buf[1024];
 
     if ( a_http_client->reply_status_code == 200 ) {
-        debug_if(s_debug_http, L_DEBUG, "Out headers generate for sock %"DAP_FORMAT_SOCKET, a_http_client->esocket->socket);
+        debug_if(s_debug_http, L_DEBUG, "Out headers generate for sock %"DAP_FORMAT_SOCKET, a_http_client->socket_num);
         if ( a_http_client->out_last_modified ) {
             dap_time_to_str_rfc822( buf, sizeof(buf), a_http_client->out_last_modified );
             dap_http_header_add( &a_http_client->out_headers, "Last-Modified", buf );
@@ -642,7 +643,7 @@ void dap_http_client_out_header_generate(dap_http_client_t *a_http_client)
             log_it(L_DEBUG,"output: Content-Length = %zu",a_http_client->out_content_length);
         }
     }else
-        debug_if(s_debug_http, L_WARNING, "Out headers: nothing generate for sock %"DAP_FORMAT_SOCKET", http code %d", a_http_client->esocket->socket,
+        debug_if(s_debug_http, L_WARNING, "Out headers: nothing generate for sock %"DAP_FORMAT_SOCKET", http code %d", a_http_client->socket_num,
                    a_http_client->reply_status_code);
 
     if ( a_http_client->out_connection_close || !a_http_client->keep_alive )

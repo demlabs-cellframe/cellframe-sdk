@@ -36,6 +36,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..
 
 #This paths will be used by project-dependent project libraries
 target_include_directories(${PROJECT_NAME} INTERFACE include/ src/rpmalloc/)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/uthash/src)
 
 if(WIN32)
   include_directories(include/)

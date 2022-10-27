@@ -97,15 +97,24 @@ void dap_chain_net_load_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
+void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
+dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
-inline static int dap_chain_net_stop(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_OFFLINE); }
+inline static int dap_chain_net_stop(dap_chain_net_t *a_net)
+{
+    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+        return true;
+    }
+    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE)
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+    return false;
+}
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
-void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
-dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 /**
  * @brief dap_chain_net_state_to_str
@@ -130,7 +139,7 @@ bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_cl
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
-uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id);
+uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 dap_string_t* dap_cli_list_net();
@@ -181,7 +190,6 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
 bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
-void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
 int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid);
 void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg);
 void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_group,
@@ -201,4 +209,4 @@ struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( d
  */
 dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
-int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size  );
+int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash);

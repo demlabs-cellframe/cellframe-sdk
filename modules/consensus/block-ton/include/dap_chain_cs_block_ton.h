@@ -22,11 +22,6 @@
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
 
-enum    {
-    DAP_TON$ROUND_CUR  = 'c',
-    DAP_TON$ROUND_OLD  = 'o',
-};
-
 typedef struct dap_chain_cs_block_ton_message dap_chain_cs_block_ton_message_t;
 typedef struct dap_chain_cs_block_ton_message_item dap_chain_cs_block_ton_message_item_t;
 
@@ -41,6 +36,11 @@ typedef union dap_chain_cs_block_ton_round_id {
     uint8_t raw[DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE];
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_round_id_t;
+
+typedef union dap_chain_cs_block_ton_msg_id {
+    uint8_t raw[DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE];
+    uint64_t uint64;
+} DAP_ALIGN_PACKED dap_chain_cs_block_ton_msg_id_t;
 
 typedef struct dap_chain_cs_block_ton_round {
 	dap_chain_cs_block_ton_round_id_t id;
@@ -68,7 +68,6 @@ typedef struct dap_chain_cs_block_ton_items {
 
 	uint8_t state; // session state
 	dap_chain_cs_block_ton_round_t cur_round;
-	dap_chain_cs_block_ton_round_t old_round; 
 	
 	dap_chain_node_addr_t *attempt_coordinator; // validator-coordinator in current attempt
 	uint16_t attempt_current_number;
@@ -95,22 +94,14 @@ typedef struct dap_chain_cs_block_ton_items {
 
 typedef struct dap_chain_cs_block_ton_message_hdr {
 	uint8_t type;
-
-	union {
-		uint8_t raw[DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE];
-    	uint64_t uint64;
-	} DAP_ALIGN_PACKED id;
-
-	size_t sign_size;
-	size_t message_size;
-
+    dap_chain_cs_block_ton_msg_id_t id;
+    uint64_t sign_size;
+    uint64_t message_size;
 	dap_time_t ts_created;
 	//dap_chain_cs_block_ton_round_id_t round_id;
-
 	dap_chain_node_addr_t sender_node_addr;
-
-	bool is_genesis;
-	bool is_verified;
+    uint16_t is_genesis;
+    uint16_t is_verified;
 	dap_chain_hash_fast_t prev_message_hash; 
     dap_chain_id_t chain_id;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_hdr_t;
@@ -194,7 +185,7 @@ typedef struct dap_chain_cs_block_ton_message_commitsign {
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_commitsign_t;
 
 typedef struct dap_chain_cs_block_ton_store_hdr {
-	bool sign_collected; // cellect 2/3 min 
+    bool sign_collected; // collect 2/3 min
 	bool approve_collected;
 	// bool reject_done;
 	bool vote_collected;

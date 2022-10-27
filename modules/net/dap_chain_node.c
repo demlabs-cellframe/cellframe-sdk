@@ -289,25 +289,6 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain) {
     DAP_DELETE(l_gdb_group_mempool);
 }
 
-static void s_chain_node_mempool_autoproc_notify(void *a_arg, const char a_op_code, const char *a_group,
-                                             const char *a_key, const void *a_value, const size_t a_value_len)
-{
-    UNUSED(a_value_len);
-    if (!a_arg || !a_value || a_op_code != 'a') {
-        return;
-    }
-    dap_chain_t *l_chain =(dap_chain_t *)a_arg;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain->net_id);
-    if (!l_net->pub.mempool_autoproc)
-        return;
-    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_value;
-    if (dap_chain_node_mempool_need_process(l_chain, l_datum)) {
-        if (dap_chain_node_mempool_process(l_chain, l_datum)) {
-            dap_chain_global_db_gr_del(a_key, a_group);
-        }
-    }
-}
-
 /**
  * @brief
  * get automatic mempool processing, when network config contains mempool_auto_types for specific datums
@@ -335,10 +316,8 @@ bool dap_chain_node_mempool_autoproc_init()
         }
         dap_chain_t *l_chain;
         DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-            if (l_chain) {
+            if (l_chain)
                 dap_chain_node_mempool_process_all(l_chain);
-                dap_chain_add_mempool_notify_callback(l_chain, s_chain_node_mempool_autoproc_notify, l_chain);
-            }
         }
     }
     DAP_DELETE(l_net_list);

@@ -78,6 +78,7 @@ typedef struct dap_client{
     void * _internal;
     void * _inheritor;
     uint64_t pvt_uuid;
+    dap_events_socket_uuid_t es_uuid;
 } dap_client_t;
 
 typedef void (*dap_client_callback_t) (dap_client_t *, void*);
