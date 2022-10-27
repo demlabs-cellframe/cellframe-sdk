@@ -167,9 +167,9 @@ dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_net_t * a_net, 
  */
 void dap_chain_node_client_reset(dap_chain_node_client_t *a_client);
 /**
- * Close connection to server, delete chain_node_client_t *client
+ * Close connection to server, delete chain_node_client_t with specified UUID
  */
-void dap_chain_node_client_close(dap_chain_node_client_t *client);
+void dap_chain_node_client_close(dap_events_socket_uuid_t a_uuid);
 
 /**
  * Send stream request to server
