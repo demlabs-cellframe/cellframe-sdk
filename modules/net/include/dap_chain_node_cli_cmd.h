@@ -149,3 +149,6 @@ int com_mempool_add_ca( int a_argc,  char ** a_argv, char ** a_str_reply);
 int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply);
 int com_chain_ca_copy( int a_argc,  char ** a_argv, char ** a_str_reply);
 int com_signer(int a_argc, char **a_argv, char **a_str_reply);
+
+//remove func
+int cmd_remove(int argc, char ** argv, char ** a_str_reply);
