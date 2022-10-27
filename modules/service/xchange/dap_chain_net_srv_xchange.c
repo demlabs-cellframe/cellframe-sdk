@@ -50,8 +50,8 @@
 
 #define LOG_TAG "dap_chain_net_srv_xchange"
 
-static dap_chain_net_srv_fee_item_t *s_net_fees = NULL; // Governance statements for networks
-static pthread_rwlock_t s_net_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+static dap_chain_net_srv_fee_item_t *s_service_fees = NULL; // Governance statements for networks
+static pthread_rwlock_t s_service_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
 
@@ -164,12 +164,12 @@ bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_ha
         return false;
     bool l_ret = false;
 
-    pthread_rwlock_rdlock(&s_net_fees_rwlock);
+    pthread_rwlock_rdlock(&s_service_fees_rwlock);
     dap_chain_net_srv_fee_item_t *l_fee = NULL;
     dap_chain_net_t * l_net = dap_chain_ledger_get_net(a_ledger);
-    HASH_FIND(hh,s_net_fees, &l_net->pub.id, sizeof(l_net->pub.id),l_fee);
+    HASH_FIND(hh,s_service_fees, &l_net->pub.id, sizeof(l_net->pub.id),l_fee);
     if(l_fee == NULL)
-        pthread_rwlock_unlock(&s_net_fees_rwlock);
+        pthread_rwlock_unlock(&s_service_fees_rwlock);
 
     const char * l_tx_out_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,a_tx_out_hash);
     if(!l_tx_out_ticker ){
@@ -252,7 +252,7 @@ bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_ha
 
 lb_end:
     if(l_fee)
-        pthread_rwlock_unlock(&s_net_fees_rwlock);
+        pthread_rwlock_unlock(&s_service_fees_rwlock);
     return l_ret;
 }
 
@@ -266,27 +266,27 @@ lb_end:
  */
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size)
 {
-    pthread_rwlock_wrlock(&s_net_fees_rwlock);
+    pthread_rwlock_wrlock(&s_service_fees_rwlock);
     dap_chain_net_srv_fee_item_t *l_fee = NULL;
     switch(a_decree->header.action){
         case DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE:{
-            HASH_FIND(hh,s_net_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
+            HASH_FIND(hh,s_service_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
             if(l_fee == NULL){
                 log_it(L_WARNING,"Decree update for net id 0x%016" DAP_UINT64_FORMAT_X" when such id can't find in hash table", a_net->pub.id.uint64);
-                pthread_rwlock_unlock(&s_net_fees_rwlock);
+                pthread_rwlock_unlock(&s_service_fees_rwlock);
                 return;
             }
         }break;
         case DAP_CHAIN_DATUM_DECREE_ACTION_CREATE:{
-            HASH_FIND(hh,s_net_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
+            HASH_FIND(hh,s_service_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
             if (l_fee) {
                 log_it(L_WARNING, "Decree create for net id 0x%016" DAP_UINT64_FORMAT_X" when such id already in hash table", a_net->pub.id.uint64);
-                pthread_rwlock_unlock(&s_net_fees_rwlock);
+                pthread_rwlock_unlock(&s_service_fees_rwlock);
                 return;
             }
             l_fee = DAP_NEW_Z(dap_chain_net_srv_fee_item_t);
             l_fee->net_id = a_net->pub.id;
-            HASH_ADD(hh, s_net_fees, net_id, sizeof(l_fee->net_id), l_fee);
+            HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);
         } break;
     }
     size_t l_tsd_offset = 0;
@@ -307,15 +307,15 @@ static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_n
         }
         l_tsd_offset += dap_tsd_size(l_tsd);
     }
-    pthread_rwlock_unlock(&s_net_fees_rwlock);
+    pthread_rwlock_unlock(&s_service_fees_rwlock);
 }
 
 static bool s_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type)
 {
-    pthread_rwlock_wrlock(&s_net_fees_rwlock);
+    pthread_rwlock_wrlock(&s_service_fees_rwlock);
     dap_chain_net_srv_fee_item_t *l_fee = NULL;
-    HASH_FIND(hh,s_net_fees, &a_net_id, sizeof(a_net_id), l_fee);
-    pthread_rwlock_unlock(&s_net_fees_rwlock);
+    HASH_FIND(hh,s_service_fees, &a_net_id, sizeof(a_net_id), l_fee);
+    pthread_rwlock_unlock(&s_service_fees_rwlock);
     if (!l_fee || IS_ZERO_256(l_fee->fee))
         return false;
     if (a_type)
@@ -341,10 +341,8 @@ static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_
         dap_chain_datum_tx_receipt_t *l_receipt =  dap_chain_datum_tx_receipt_create(l_uid, l_unit, 0, l_datoshi_sell,
                                                                                  l_ext, l_ext_size);
         return l_receipt;
-    }else{
-        DAP_DELETE(l_ext);
-        return NULL;
     }
+    return NULL;
 }
 
 static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
