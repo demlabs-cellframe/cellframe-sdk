@@ -1793,8 +1793,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         if ( !l_rc )
                 dap_string_append_printf(l_string_ret, "Wallet: %s is %sactivated\n",
                     l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de");
-        else    dap_string_append_printf(l_string_ret, "Wallet: %s  %sactivation error, errno=%d\n",
-                    l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc);
+        else    dap_string_append_printf(l_string_ret, "Wallet: %s  %sactivation error, errno=%d (%s)\n",
+                    l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc, strerror(-l_rc) );
 
         break;
 
@@ -1861,7 +1861,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     DAP_DELETE(l_seed);
                     l_seed = NULL;
                     l_seed_size = 0;
-                    dap_chain_node_cli_set_reply_text(str_reply, "Resrote hash is invalid, wallet is not created");
+                    dap_chain_node_cli_set_reply_text(str_reply, "Restored hash is invalid, wallet is not created");
                     return -1;
                 }
             }

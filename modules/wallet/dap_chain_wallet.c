@@ -199,7 +199,7 @@ char *c_wallets_path;
 
 
     if ( (l_rc = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )        /* Release lock */
-        log_it(L_ERROR, "Error locking Wallet table, errno=%d", l_rc);
+        log_it(L_ERROR, "Error unlocking Wallet table, errno=%d", l_rc);
 
 
     /*
@@ -449,12 +449,12 @@ dap_chain_wallet_internal_t *l_wallet_internal;
     l_wallet->_internal = l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t);
     assert(l_wallet->_internal);
 
-    strcpy(l_wallet->name, a_wallet_name);
+    strncpy(l_wallet->name, a_wallet_name, DAP_WALLET$SZ_NAME);
     l_wallet_internal->certs_count = 1;
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
-    assert(l_wallet->_internal);
+    assert(l_wallet_internal->certs);
 
-    size_t l_file_name_size = strlen(a_wallet_name)+strlen(a_wallets_path)+13;
+    size_t l_file_name_size = strlen(a_wallet_name) + strlen(a_wallets_path) + 13;
     l_wallet_internal->file_name = DAP_NEW_Z_SIZE (char, l_file_name_size);
 
     dap_snprintf(l_wallet_internal->file_name, l_file_name_size, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
@@ -463,8 +463,7 @@ dap_chain_wallet_internal_t *l_wallet_internal;
 
     if ( !dap_chain_wallet_save(l_wallet, a_pass)  )
     {
-        log_it(L_INFO, "%sWallet <%s> has been created (%s)", a_pass ? "Password protected" : "",
-               a_pass, l_wallet_internal->file_name);
+        log_it(L_INFO, "Wallet %s has been created (%s)", a_wallet_name, l_wallet_internal->file_name);
         return l_wallet;
     }
 
@@ -499,13 +498,13 @@ dap_chain_wallet_t * dap_chain_wallet_create(
  */
 void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
 {
+dap_chain_wallet_internal_t * l_wallet_internal;
+
     if(!a_wallet)
         return;
 
-    DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
-
     // TODO Make clean struct dap_chain_wallet_internal_t (certs, addr)
-    if(l_wallet_internal)
+    if ( l_wallet_internal = a_wallet->_internal )
     {
         if(l_wallet_internal->addr)
             DAP_DELETE(l_wallet_internal->addr);
@@ -619,12 +618,12 @@ dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t 
 int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass)
 {
 DAP_CHAIN_WALLET_INTERNAL_LOCAL (a_wallet);                                 /* Declare l_wallet_internal */
-int l_fd = -1, l_rc;
+int l_fd = -1, l_rc = 0;
 uint32_t l_len = 0;
 dap_chain_wallet_file_hdr_t l_file_hdr = {0};
 dap_chain_wallet_cert_hdr_t l_wallet_cert_hdr = {0};
 char *l_cp, *l_cert_raw, l_buf[32*1024];
-dap_enc_key_t *l_enc_key;
+dap_enc_key_t *l_enc_key = NULL;
 uint32_t    csum = CRC32C_INIT;
 enum    { WALLET$K_IOV_HEADER = 0, WALLET$K_IOV_BODY, WALLET$SZ_IOV_NR};
 struct iovec l_iov [ WALLET$SZ_IOV_NR ];
@@ -644,7 +643,7 @@ struct iovec l_iov [ WALLET$SZ_IOV_NR ];
     l_file_hdr.version = a_pass ? DAP_WALLET$K_VER_2 : DAP_WALLET$K_VER_1;
 
     l_cp  = a_wallet->name ? a_wallet->name : "Bad-MotherFuqqer-Wallet";    /* What ?! */
-    l_file_hdr.wallet_len = strlen(l_cp);
+    l_file_hdr.wallet_len = strnlen(l_cp, DAP_WALLET$SZ_NAME);
     l_file_hdr.wallet_len += 1;                                             /* Special ASCIZ for advanced programmers */
 
     l_iov[WALLET$K_IOV_HEADER].iov_base = &l_file_hdr;
@@ -816,14 +815,16 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     /* Create local instance of wallet,
      * allocate memory for array to keep loaded certs */
     l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
+    assert(l_wallet);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
+    assert(l_wallet_internal);
 
     dap_snprintf(l_wallet->name, DAP_WALLET$SZ_NAME, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
     l_wallet_internal->file_name = dap_strdup(a_file_name);
     l_wallet_internal->certs_count = l_certs_count;
-
+    assert(l_wallet_internal->certs_count);
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_wallet_internal->certs_count * sizeof(dap_cert_t *));
-    l_rc = errno;
+    assert(l_wallet_internal->certs);
 
 
     lseek(l_fd,  sizeof(l_file_hdr) + l_file_hdr.wallet_len, SEEK_SET);     /* Set file pointer to first record after cert file header */
