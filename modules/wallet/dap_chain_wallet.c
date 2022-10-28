@@ -328,8 +328,10 @@ dap_chain_wallet_n_pass_t   *l_prec;
 
     if ( l_prec )
     {
+        if ( !l_prec->pass_len )                                        /* Password is zero - has been reset */
+            log_it(L_ERROR, "The Wallet %.*s is not active", a_name_len, a_name);
                                                                         /* Check that passwords is equivalent */
-        if ( (l_prec->pass_len != a_pass_len)
+        else if ( (l_prec->pass_len != a_pass_len)
              || memcmp(l_prec->pass, a_pass, l_prec->pass_len) )
             l_rc = -EINVAL, l_prec = NULL;
         else    l_rc = 0, memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
