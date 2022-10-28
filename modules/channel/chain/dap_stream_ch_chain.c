@@ -317,12 +317,11 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
             (void ) l_chain->callback_atom_find_by_hash(l_sync_request->chain.request_atom_iter,
                                                           &l_hash_from, &l_first_size);
         }
-
-
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id, s_sync_out_chains_first_worker_callback, l_sync_request );
     } else {
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
+        l_sync_request->chain.request_atom_iter = NULL;
         dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,s_sync_out_chains_last_worker_callback, l_sync_request );
     }
     return true;
@@ -1499,8 +1498,8 @@ static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain)
     memset(&a_ch_chain->request_hdr, 0, sizeof(a_ch_chain->request_hdr));
     if (a_ch_chain->request_atom_iter && a_ch_chain->request_atom_iter->chain &&
             a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete) {
-                a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(a_ch_chain->request_atom_iter);
-                a_ch_chain->request_atom_iter = NULL;
+        a_ch_chain->request_atom_iter->chain->callback_atom_iter_delete(a_ch_chain->request_atom_iter);
+        a_ch_chain->request_atom_iter = NULL;
     }
 
     dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
@@ -1556,7 +1555,8 @@ static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int 
         return;
     if (a_arg) {
         struct chain_io_complete *l_arg = (struct chain_io_complete *)a_arg;
-        DAP_STREAM_CH_CHAIN(l_ch)->state = l_arg->state;
+        if (DAP_STREAM_CH_CHAIN(l_ch)->state == CHAIN_STATE_WAITING)
+            DAP_STREAM_CH_CHAIN(l_ch)->state = l_arg->state;
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, l_arg->type, l_arg->net_id, l_arg->chain_id,
                                              l_arg->cell_id, l_arg->data, l_arg->data_size);
         a_es->callbacks.arg = NULL;

@@ -1083,6 +1083,8 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t
         a_atom_iter->cur = NULL;
         a_atom_iter->cur_size = 0;
         a_atom_iter->cur_hash = NULL;
+        if(a_atom_size)
+            *a_atom_size = 0;
         return NULL;
     }
 }
