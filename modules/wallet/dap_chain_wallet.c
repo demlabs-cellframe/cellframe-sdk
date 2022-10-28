@@ -291,7 +291,7 @@ struct timespec l_now;
 
 /*
  *  DESCRIPTION: Deactivate a data for the wallet's name & password pair. For existen record just clearing password field.
- *      Use given password to additional verification.
+ *      Use given password to additional verification. We don't remove record from the hash table - only reset to zero the password field !
  *
  *  INPUTS:
  *      a_name:     A name of the wallet
