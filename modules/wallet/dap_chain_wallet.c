@@ -333,7 +333,7 @@ dap_chain_wallet_n_pass_t   *l_prec;
                                                                         /* Check that passwords is equivalent */
         else if ( (l_prec->pass_len != a_pass_len)
              || memcmp(l_prec->pass, a_pass, l_prec->pass_len) )
-            l_rc = -EINVAL;
+            l_rc = -EINVAL, log_it(L_ERROR, "Wallet's password does not match");
         else    l_rc = 0, memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
     }
 
