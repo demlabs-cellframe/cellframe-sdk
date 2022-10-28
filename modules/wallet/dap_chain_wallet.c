@@ -206,10 +206,16 @@ char *c_wallets_path;
      * Check password by open/close BMF Wallet file
     */
     if ( !(c_wallets_path = (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
+    {
+        memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;
         return  log_it(L_ERROR, "Wallet's path has been not configured"), -EINVAL;
+    }
 
     if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path)) )
+    {
+        memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;
         return  log_it(L_ERROR, "Wallet's password is invalid"), -EINVAL;
+    }
 
     dap_chain_wallet_close( l_wallet);
 
