@@ -67,7 +67,7 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t 
 
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static void s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx );
-
+static bool s_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
 static bool s_debug_more = true;
@@ -163,98 +163,88 @@ static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast
         return true;
     if(!a_tx_out_hash || !a_tx_in || !a_tx_out_cond)
         return false;
-    bool l_ret = false;
 
-    pthread_rwlock_rdlock(&s_service_fees_rwlock);
-    dap_chain_net_srv_fee_item_t *l_fee = NULL;
-    dap_chain_net_t * l_net = dap_chain_ledger_get_net(a_ledger);
-    HASH_FIND(hh,s_service_fees, &l_net->pub.id, sizeof(l_net->pub.id),l_fee);
-    if(l_fee == NULL)
-        pthread_rwlock_unlock(&s_service_fees_rwlock);
+    const char *l_sell_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,a_tx_out_hash);
+    if (!l_sell_ticker)
+        return false;
+    const char *l_buy_ticker = a_tx_out_cond->subtype.srv_xchange.buy_token;
 
-    const char * l_tx_out_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,a_tx_out_hash);
-    if(!l_tx_out_ticker ){
-        l_ret = false;
-        goto lb_end;
-    }
-
-    uint256_t l_buy_val = {}, l_back_val = {}, l_fee_val = {};
-    const char *l_ticker_ctrl = NULL;
+    uint256_t l_buy_val = {}, l_fee_val = {},
+              l_sell_again_val = {}, l_service_fee_val = {};
     int l_item_idx_start = 0;
     byte_t * l_tx_item;
 
+    dap_chain_addr_t l_service_fee_addr, *l_seller_addr = &a_tx_out_cond->subtype.srv_xchange.seller_addr;
+    uint16_t l_service_fee_type;
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_ledger->net_name);
+    bool l_service_fee_used = s_srv_xchange_get_fee(l_net->pub.id, &l_service_fee_val, &l_service_fee_addr, &l_service_fee_type);
+    const char *l_native_ticker = l_net->pub.native_ticker;
+    const char *l_service_ticker = (l_service_fee_type == SERVICE_FEE_OWN_FIXED || l_service_fee_type == SERVICE_FEE_OWN_PERCENT) ?
+                l_buy_ticker : l_native_ticker;
     while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx_in, &l_item_idx_start, TX_ITEM_TYPE_OUT_ALL, NULL)) != NULL)
     {
         dap_chain_tx_item_type_t l_tx_out_type = dap_chain_datum_tx_item_get_type(l_tx_item);
         switch(l_tx_out_type){
-            case TX_ITEM_TYPE_OUT_EXT:{
+            case TX_ITEM_TYPE_OUT_EXT: {
                 dap_chain_tx_out_ext_t *l_tx_in_output = (dap_chain_tx_out_ext_t *)l_tx_item;
                 const char * l_out_token = l_tx_in_output->token;
                 const uint256_t *l_out_value = &l_tx_in_output->header.value;
                 dap_chain_addr_t * l_out_addr = &l_tx_in_output->addr;
                 // Out is with token to buy
-                if (strcmp(l_out_token, a_tx_out_cond->subtype.srv_xchange.buy_token) == 0) {
-                    // If we alredy have buy token out
-                    if (l_ticker_ctrl) {
-                        // too many tokens
-                        goto lb_end;
-                    }
+                if (!strcmp(l_out_token, l_buy_ticker) &&
+                        !memcmp(l_out_addr, l_seller_addr, sizeof(*l_out_addr)))
                     SUM_256_256(l_buy_val, *l_out_value, &l_buy_val);
-                    l_ticker_ctrl = l_out_token;
-                // Out is with token to sell
-                }else if(strcmp(l_tx_out_ticker, l_out_token ) == 0){
-                    // Check if its buy token or not
-                    // If its returning back to owner
-                    if (memcmp(l_out_addr, &a_tx_out_cond->subtype.srv_xchange.seller_addr, sizeof(*l_out_addr)) ) {
-                        SUM_256_256(l_back_val, l_tx_in_output->header.value, &l_back_val);
-                    // if its fee output
-                    }else if (memcmp(&l_out_addr, &l_fee->fee_addr, sizeof(l_fee->fee_addr)) == 0){
-                        if (strcmp(l_out_token, l_tx_out_ticker) == 0) { // Collecting fee in tokens thats going on exchange
-                            SUM_256_256(l_fee_val, l_tx_in_output->header.value, &l_fee_val);
-                        }
-                    }else{ // If any else address
-                    }
-                }
-            }break;
-            case TX_ITEM_TYPE_OUT_COND:{
+                // Out is with token to fee
+                if (l_service_fee_used && !strcmp(l_out_token, l_service_ticker) &&
+                        !memcmp(l_out_addr, &l_service_fee_addr, sizeof(*l_out_addr)))
+                    SUM_256_256(l_fee_val, *l_out_value, &l_fee_val);
+            } break;
+            case TX_ITEM_TYPE_OUT_COND: {
                 dap_chain_tx_out_cond_t *l_tx_in_output = (dap_chain_tx_out_cond_t *)l_tx_item;
-                if( l_tx_in_output->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE){ // Transaction's fee, same with decree fee should be summed
-                    SUM_256_256(l_fee_val, l_tx_in_output->header.value, &l_fee_val);
-                }else if( l_tx_in_output->header.subtype == a_tx_out_cond->header.subtype&&                             // Same subtype
-                        l_tx_in_output->header.srv_uid.uint64 == a_tx_out_cond->header.srv_uid.uint64  &&         // Same service uid
+                if (l_tx_in_output->header.subtype == a_tx_out_cond->header.subtype &&                             // Same subtype
+                        l_tx_in_output->header.srv_uid.uint64 == a_tx_out_cond->header.srv_uid.uint64 &&          // Same service uid
                         l_tx_in_output->header.ts_expires == a_tx_out_cond->header.ts_expires &&                  // Same expires time
                         l_tx_in_output->tsd_size == a_tx_out_cond->tsd_size &&                              // Same params size
                         memcmp(l_tx_in_output->tsd, a_tx_out_cond->tsd, l_tx_in_output->tsd_size) == 0 && // Same params itself
                         memcmp(&l_tx_in_output->subtype.srv_xchange, &a_tx_out_cond->subtype.srv_xchange,         // Same subtype header
-                           sizeof(a_tx_out_cond->subtype.srv_xchange) ) == 0 ){
-                    SUM_256_256(l_back_val, l_tx_in_output->header.value, &l_back_val); // Calc is at back to owner value
+                           sizeof(a_tx_out_cond->subtype.srv_xchange)) == 0) {
+                    l_sell_again_val = l_tx_in_output->header.value;                                    // It is back to cond owner value
                 }
-
             }break;
             default: break;
         }
 		l_item_idx_start++;
     }
 
-    /* Check the condition for verification success
+    /* Check the condition for rate verification success
+     * seller rate >= buyer_rate
+     * OR
      * a_cond.srv_xchange.rate (a_cond->header.value / a_cond->subtype.srv_xchange.buy_value) >=
-     * a_tx.out.rate ((a_cond->header.value - l_back_val) / l_out_val)
+     * a_tx.out.rate ((a_cond->header.value - new_cond->header.value) / out_ext.seller_addr(buy_ticker).value)
+     * OR
+     * a_cond->header.value * out_ext.seller_addr(buy_ticker).value >=
+     * a_cond->subtype.srv_xchange.buy_value * (a_cond->header.value - new_cond->header.value)
      */
 
-    uint256_t l_buyer_val = {}, l_buyer_mul = {}, l_seller_mul = {};
-    SUBTRACT_256_256(a_tx_out_cond->header.value, l_back_val, &l_buyer_val); // Substact back value
-    SUBTRACT_256_256(l_buyer_val, l_fee_val, &l_buyer_val);                  // Substract fee
+    uint256_t l_sell_val, l_buyer_mul, l_seller_mul;
+    if (compare256(l_sell_again_val, a_tx_out_cond->header.value) >= 0)
+        return false;
+    SUBTRACT_256_256(a_tx_out_cond->header.value, l_sell_again_val, &l_sell_val);
+    MULT_256_256(a_tx_out_cond->header.value, l_buy_val, &l_seller_mul);
+    MULT_256_256(a_tx_out_cond->subtype.srv_xchange.buy_value, l_sell_val, &l_buyer_mul);
+    if (compare256(l_seller_mul, l_buyer_mul) < 0)
+        return false;
 
-    MULT_256_256(l_buyer_val, a_tx_out_cond->subtype.srv_xchange.buy_value, &l_buyer_mul);
-    MULT_256_256(l_buy_val, a_tx_out_cond->header.value, &l_seller_mul);
-    if (compare256(l_seller_mul, l_buyer_mul) >=0) {
-        l_ret = true;
+    /* Check the condition for fee verification success
+     * out_ext.fee_addr(fee_ticker).value >= fee_value
+     */
+    if (l_service_fee_used) {
+        if (l_service_fee_type == SERIVCE_FEE_NATIVE_PERCENT || l_service_fee_type == SERVICE_FEE_OWN_PERCENT)
+            MULT_256_COIN(l_service_fee_val, l_sell_val, &l_service_fee_val);
+        if (compare256(l_fee_val, l_service_fee_val) < 0)
+            return false;
     }
-
-lb_end:
-    if(l_fee)
-        pthread_rwlock_unlock(&s_service_fees_rwlock);
-    return l_ret;
+    return true;
 }
 
 /**

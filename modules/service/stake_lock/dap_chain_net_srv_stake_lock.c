@@ -1107,7 +1107,7 @@ static bool s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_
     if (a_tx_item)  // this is IN_COND tx
         return true;
     int l_out_num = 0;
-    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, &l_out_num);
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_num);
     if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
         dap_chain_hash_fast_t l_key_hash;
         dap_hash_fast( a_tx, dap_chain_datum_tx_get_size(a_tx), &l_key_hash);
