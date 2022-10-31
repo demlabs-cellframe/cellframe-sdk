@@ -32,8 +32,8 @@
 #include <stdint.h>
 #include <stdatomic.h>
 #include <ctype.h>
-
 #include "utlist.h"
+#include "uthash.h"
 //#include <errno.h>
 
 
@@ -1101,48 +1101,68 @@ int exec_silent(const char * a_cmd) {
 #endif
 }
 
-static int s_timers_count = 0;
-static dap_timer_interface_t s_timers[DAP_INTERVAL_TIMERS_MAX];
-#ifdef _WIN32
-static CRITICAL_SECTION s_timers_lock;
+typedef struct dap_timer_interface {
+#ifdef DAP_OS_DARWIN
+    dispatch_source_t timer;
 #else
-static pthread_mutex_t s_timers_lock;
+    void *timer;
 #endif
+    dap_timer_callback_t callback;
+    void *param;
+    UT_hash_handle hh;
+} dap_timer_interface_t;
+static dap_timer_interface_t *s_timers_map;
+static pthread_rwlock_t s_timers_rwlock;
 
-void dap_interval_timer_deinit()
+void dap_interval_timer_init()
 {
-    for (int i = 0; i < s_timers_count; i++) {
-        dap_interval_timer_delete(s_timers[i].timer);
-    }
+    s_timers_map = NULL;
+    pthread_rwlock_init(&s_timers_rwlock, NULL);
 }
 
-static int s_timer_find(void *a_timer)
-{
-    for (int i = 0; i < s_timers_count; i++) {
-        if (s_timers[i].timer == a_timer) {
-            return i;
-        }
+void dap_interval_timer_deinit() {
+    pthread_rwlock_wrlock(&s_timers_rwlock);
+    dap_timer_interface_t *l_cur_timer = NULL, *l_tmp;
+    HASH_ITER(hh, s_timers_map, l_cur_timer, l_tmp) {
+        HASH_DEL(s_timers_map, l_cur_timer);
+        dap_interval_timer_disable(l_cur_timer->timer);
+        DAP_FREE(l_cur_timer);
     }
-    return -1;
+    pthread_rwlock_unlock(&s_timers_rwlock);
+    pthread_rwlock_destroy(&s_timers_rwlock);
 }
 
-#ifdef _WIN32
+#ifdef DAP_OS_LINUX
+static void s_posix_callback(union sigval a_arg)
+{
+    void *l_timer_ptr = a_arg.sival_ptr;
+#elif defined (DAP_OS_WINDOWS)
 static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
 {
     UNUSED(a_always_true);
-    s_timers[(size_t)a_arg].callback(s_timers[(size_t)a_arg].param);
-}
-#elif defined __MACH__
-static void s_bsd_callback(int a_arg)
+    void *l_timer_ptr = a_arg;
+#elif defined (DAP_OS_DARWIN)
+static void s_bsd_callback(void *a_arg)
 {
-    s_timers[a_arg].callback(s_timers[a_arg].param);
-}
+     void *l_timer_ptr = &a_arg;
 #else
-static void s_posix_callback(union sigval a_arg)
-{
-    s_timers[a_arg.sival_int].callback(s_timers[a_arg.sival_int].param);
-}
+#error "Timaer callback is undefined for your platform"
 #endif
+    if (!l_timer_ptr) {
+        log_it(L_ERROR, "Timer cb arg is NULL");
+        return;
+    }
+    pthread_rwlock_rdlock(&s_timers_rwlock);
+    dap_timer_interface_t *l_timer = NULL;
+    HASH_FIND_PTR(s_timers_map, l_timer_ptr, l_timer);
+    pthread_rwlock_unlock(&s_timers_rwlock);
+    if (l_timer && l_timer->callback) {
+        //log_it(L_INFO, "Fire %p", l_timer_ptr);
+        l_timer->callback(l_timer->param);
+    } else {
+        log_it(L_WARNING, "Timer '%p' is not initialized", l_timer_ptr);
+    }
+}
 
 /*!
  * \brief dap_interval_timer_create Create new timer object and set callback function to it
@@ -1150,106 +1170,63 @@ static void s_posix_callback(union sigval a_arg)
  * \param a_callback Function to be called with timer period
  * \return pointer to timer object if success, otherwise return NULL
  */
-void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param)
-{
-    if (s_timers_count == DAP_INTERVAL_TIMERS_MAX) {
-        return NULL;
-    }
+dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param) {
+    dap_timer_interface_t *l_timer_obj = DAP_NEW_Z(dap_timer_interface_t);
+    l_timer_obj->callback   = a_callback;
+    l_timer_obj->param      = a_param;
 #if (defined _WIN32)
-    if (s_timers_count == 0) {
-        InitializeCriticalSection(&s_timers_lock);
-    }
-    HANDLE l_timer;
-    if (!CreateTimerQueueTimer(&l_timer, NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(size_t)s_timers_count, a_msec, a_msec, 0)) {
+    if (!CreateTimerQueueTimer(&l_timer_obj->timer , NULL, (WAITORTIMERCALLBACK)s_win_callback, &l_timer_obj->timer, a_msec, a_msec, 0)) {
         return NULL;
     }
-    EnterCriticalSection(&s_timers_lock);
 #elif (defined DAP_OS_DARWIN)
-    if (s_timers_count == 0) {
-        pthread_mutex_init(&s_timers_lock, NULL);
-    }
-    pthread_mutex_lock(&s_timers_lock);
-
     dispatch_queue_t l_queue = dispatch_queue_create("tqueue", 0);
-    dispatch_source_t l_timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
     //todo: we should not use ^ like this, because this is clang-specific thing, but someone can use GCC on mac os
-    dispatch_source_set_event_handler(l_timer, ^(void){s_bsd_callback(s_timers_count);});
+    l_timer_obj->timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, l_queue);
+    dispatch_source_set_event_handler((l_timer_obj->timer), ^(void){ s_bsd_callback((void*)(l_timer_obj->timer)); });
     dispatch_time_t start = dispatch_time(DISPATCH_TIME_NOW, a_msec * 1000000);
-    dispatch_source_set_timer(l_timer, start, a_msec * 1000000, 0);
-    dispatch_resume(l_timer);
+    dispatch_source_set_timer(l_timer_obj->timer, start, a_msec * 1000000, 0);
+    dispatch_resume(l_timer_obj->timer);
 #else
-    if (s_timers_count == 0) {
-        pthread_mutex_init(&s_timers_lock, NULL);
-    }
-    timer_t l_timer;
     struct sigevent l_sig_event = { };
     l_sig_event.sigev_notify = SIGEV_THREAD;
-    l_sig_event.sigev_value.sival_int = s_timers_count;
+    l_sig_event.sigev_value.sival_ptr = &l_timer_obj->timer;
     l_sig_event.sigev_notify_function = s_posix_callback;
-    if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &l_timer)) {
+    if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &(l_timer_obj->timer))) {
         return NULL;
     }
     struct itimerspec l_period = { };
     l_period.it_interval.tv_sec = l_period.it_value.tv_sec = a_msec / 1000;
     l_period.it_interval.tv_nsec = l_period.it_value.tv_nsec = (a_msec % 1000) * 1000000;
-    timer_settime(l_timer, 0, &l_period, NULL);
-    pthread_mutex_lock(&s_timers_lock);
+    timer_settime(l_timer_obj->timer, 0, &l_period, NULL);
 #endif
-    s_timers[s_timers_count].timer = (void *)l_timer;
-    s_timers[s_timers_count].callback = a_callback;
-    s_timers[s_timers_count].param = a_param;
-    s_timers_count++;
-#ifdef WIN32
-    LeaveCriticalSection(&s_timers_lock);
-#else
-    pthread_mutex_unlock(&s_timers_lock);
-#endif
-    return (void *)l_timer;
+    pthread_rwlock_wrlock(&s_timers_rwlock);
+    HASH_ADD_PTR(s_timers_map, timer, l_timer_obj);
+    pthread_rwlock_unlock(&s_timers_rwlock);
+    log_it(L_DEBUG, "Interval timer %p created", &l_timer_obj->timer);
+    return (dap_interval_timer_t)l_timer_obj->timer;
 }
 
-/*!
- * \brief dap_interval_timer_delete Delete existed timer object and stop callback function calls
- * \param a_timer A timer object created previously with dap_interval_timer_create
- * \return 0 if success, -1 otherwise
- */
-int dap_interval_timer_delete(void *a_timer)
-{
-    if (!s_timers_count) {
-        return -1;
-    }
-#if (defined _WIN32)
-    EnterCriticalSection(&s_timers_lock);
-#elif (defined DAP_OS_UNIX)
-    pthread_mutex_lock(&s_timers_lock);
-#endif
-    int l_timer_idx = s_timer_find(a_timer);
-    if (l_timer_idx == -1) {
-        return -1;
-    }
-    for (int i = l_timer_idx; i < s_timers_count - 1; i++) {
-        s_timers[i] = s_timers[i + 1];
-    }
-    s_timers_count--;
+int dap_interval_timer_disable(dap_interval_timer_t a_timer) {
 #ifdef _WIN32
-    LeaveCriticalSection(&s_timers_lock);
-    if (s_timers_count == 0) {
-        DeleteCriticalSection(&s_timers_lock);
-    }
     return !DeleteTimerQueueTimer(NULL, (HANDLE)a_timer, NULL);
-#else
-    pthread_mutex_unlock(&s_timers_lock);
-    if (s_timers_count == 0) {
-        pthread_mutex_destroy(&s_timers_lock);
-    }
-#ifdef DAP_OS_DARWIN
-    dispatch_source_cancel(a_timer);
+#elif defined (DAP_OS_DARWIN)
+    dispatch_source_cancel((dispatch_source_t)a_timer);
     return 0;
-#elif defined(DAP_OS_UNIX)
-    // POSIX timer delete
+#else
     return timer_delete((timer_t)a_timer);
-#endif  // DAP_OS_UNIX
+#endif
+}
 
-#endif  // _WIN32
+void dap_interval_timer_delete(dap_interval_timer_t a_timer) {
+    pthread_rwlock_wrlock(&s_timers_rwlock);
+    dap_timer_interface_t *l_timer = NULL;
+    HASH_FIND_PTR(s_timers_map, &a_timer, l_timer);
+    if (l_timer) {
+        HASH_DEL(s_timers_map, l_timer);
+        dap_interval_timer_disable(l_timer->timer);
+        DAP_FREE(l_timer);
+    }
+    pthread_rwlock_unlock(&s_timers_rwlock);
 }
 
 char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit)

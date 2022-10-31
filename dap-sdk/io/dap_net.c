@@ -46,12 +46,13 @@ int dap_net_resolve_host(const char *a_host, int ai_family, struct sockaddr *a_a
     void *l_cur_addr = NULL;
 
     memset(&l_hints, 0, sizeof(l_hints));
-    l_hints.ai_family = PF_UNSPEC;
+    l_hints.ai_family = ai_family == AF_INET ? PF_INET : PF_INET6;
     l_hints.ai_socktype = SOCK_STREAM;
-    l_hints.ai_flags |= AI_CANONNAME;
+    l_hints.ai_flags = AI_CANONNAME;
 
-    if ( getaddrinfo(a_host, NULL, &l_hints, &l_res) )
-        return -2;
+    int l_res_code = getaddrinfo(a_host, NULL, &l_hints, &l_res);
+    if (l_res_code)
+        return l_res_code;
 
     while(l_res)
     {

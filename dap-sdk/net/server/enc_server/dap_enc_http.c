@@ -107,25 +107,20 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
                dap_enc_get_type_name(l_pkey_exchange_type));
         uint8_t alice_msg[cl_st->request_size];
         size_t l_decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
-        dap_chain_hash_fast_t l_sign_hash = {};
-        if (l_decode_len < l_pkey_exchange_size) {
-            log_it(L_WARNING, "Wrong http_enc request. Key not equal pkey exchange size %zd", l_pkey_exchange_size);
-            *return_code = Http_Status_BadRequest;
-            return;
-        } else if (l_decode_len > l_pkey_exchange_size+ sizeof (dap_sign_hdr_t)) {
+        dap_chain_hash_fast_t l_sign_hash = { };
+        if (l_decode_len > l_pkey_exchange_size + sizeof(dap_sign_hdr_t)) {
+            /* Message contains pubkey and serialized sign */
             dap_sign_t *l_sign = (dap_sign_t *)&alice_msg[l_pkey_exchange_size];
-            if(!dap_sign_verify_size(l_sign, l_decode_len - l_pkey_exchange_size)) {
-                log_it(L_WARNING,"Wrong signature size %u (decoded length %zu)",l_sign->header.sign_size, l_decode_len);
-                *return_code = Http_Status_BadRequest;
-                return;
-            }
-            if (dap_sign_verify(l_sign, alice_msg, l_pkey_exchange_size) != 1) {
+            size_t l_sign_size = l_decode_len - l_pkey_exchange_size;
+            int l_verify_ret = dap_sign_verify_all(l_sign, l_sign_size, alice_msg, l_pkey_exchange_size);
+            if (l_verify_ret) {
+                log_it(L_ERROR, "Can't authorize, sign verification didn't pass (err %d)", l_verify_ret);
                 *return_code = Http_Status_Unauthorized;
                 return;
             }
-            dap_sign_get_pkey_hash(l_sign, &l_sign_hash);
-        }else if( l_decode_len != l_pkey_exchange_size){
-            log_it(L_WARNING, "Wrong http_enc request. Data after pkey exchange is lesser or equal then signature's header");
+        } else if (l_decode_len != l_pkey_exchange_size) {
+            /* No sign inside */
+            log_it(L_WARNING, "Wrong message size, without a valid sign must be = %zu", l_pkey_exchange_size);
             *return_code = Http_Status_BadRequest;
             return;
         }
@@ -172,6 +167,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
     } else{
         log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module",cl_st->http_client->url_path);
         *return_code = Http_Status_NotFound;
+        return;
     }
 }
 

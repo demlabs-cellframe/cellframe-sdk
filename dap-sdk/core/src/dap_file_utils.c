@@ -73,6 +73,17 @@ bool dap_valid_ascii_symbols(const char *a_string)
 }
 
 /**
+ * @brief dap_file_mv
+ * @param a_path_old
+ * @param a_path_new
+ * @return
+ */
+int dap_file_mv(const char* a_path_old, const char * a_path_new)
+{
+    return -1;
+}
+
+/**
  * Check the file for exists
  *
  * @a_file_path filename pathname
