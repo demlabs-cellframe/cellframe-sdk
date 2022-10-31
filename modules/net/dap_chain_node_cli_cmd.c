@@ -5193,7 +5193,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
     if (IS_ZERO_256(l_value_fee)) {
         dap_chain_node_cli_set_reply_text(str_reply,
-                "tx_create requires parameter '-value_fee' to be valid uint256");
+                "tx_create requires parameter '-fee' to be valid uint256");
         return -5;
     }
 
