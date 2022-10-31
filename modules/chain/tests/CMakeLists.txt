@@ -7,7 +7,11 @@ file(GLOB DAP_CHAIN_TESTS_SRC *.c)
 
 add_executable(${PROJECT_NAME} ${DAP_CHAIN_TESTS_SRC} ${DAP_CHAIN_TESTS_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_chain)
+target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_chain bz2)
+
+if (DARWIN)
+    target_link_libraries(${PROJECT_NAME} bz2)
+endif()
 
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
