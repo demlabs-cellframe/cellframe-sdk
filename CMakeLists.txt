@@ -250,7 +250,7 @@ endif()
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
 					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
-                                         shlwapi bcrypt crypt32 secur32 userenv mqrt)
+                                         shlwapi bcrypt crypt32 secur32 userenv) #mqrt)
 endif()
 
 if (DARWIN)
