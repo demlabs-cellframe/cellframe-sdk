@@ -45,7 +45,6 @@
 #define atomic_uint _Atomic(uint)
 #endif
 
-
 #include <time.h>
 #ifdef DAP_OS_WINDOWS
 #include <fcntl.h>
@@ -56,7 +55,6 @@
 #include <dispatch/dispatch.h>
 #endif
 #include "portable_endian.h"
-typedef uint8_t byte_t;
 
 #define BIT( x ) ( 1 << x )
 // Stuffs an integer into a pointer type
@@ -274,6 +272,7 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
   #define dap_vasprintf         vasprintf
 #endif
 
+typedef uint8_t byte_t;
 typedef int dap_spinlock_t;
 
 /**
@@ -303,14 +302,8 @@ typedef struct dap_log_history_str_s {
 
 } dap_log_history_str_t;
 
-#define DAP_INTERVAL_TIMERS_MAX 15
-
+typedef void *dap_interval_timer_t;
 typedef void (*dap_timer_callback_t)(void *param);
-typedef struct dap_timer_interface {
-    void *timer;
-    dap_timer_callback_t callback;
-    void *param;
-} dap_timer_interface_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -495,8 +488,10 @@ size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len);
 void dap_digit_from_string(const char *num_str, void *raw, size_t raw_len);
 void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len);
 
-void *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
-int dap_interval_timer_delete(void *a_timer);
+dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
+void dap_interval_timer_delete(dap_interval_timer_t a_timer);
+int dap_interval_timer_disable(dap_interval_timer_t a_timer);
+void dap_interval_timer_init();
 void dap_interval_timer_deinit();
 
 static inline void * dap_mempcpy(void * a_dest,const void * a_src,size_t n)

@@ -124,7 +124,7 @@ void dap_http_client_delete( dap_events_socket_t * a_esocket, void *a_arg )
           l_http_client->proc->delete_callback( l_http_client, NULL );
         }
     }
-    DAP_DEL_Z(l_http_client->_inheritor)
+    DAP_DEL_Z(l_http_client->_inheritor);
 }
 
 
