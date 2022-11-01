@@ -88,8 +88,7 @@ typedef struct dap_chain_wallet_file                                        /* O
 
 typedef struct dap_chain_wallet_internal
 {
-    dap_chain_addr_t    *addr;
-                char    *file_name;
+                char    file_name[MAX_PATH];
                 size_t  certs_count;
             dap_cert_t  **certs;
 } dap_chain_wallet_internal_t;

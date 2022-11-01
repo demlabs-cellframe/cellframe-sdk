@@ -1846,14 +1846,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             //
 
             if (l_sign_type.type == SIG_TYPE_TESLA)
-            {
-                    dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is no longer supported, please, use another variant");
-                    return -1;
-            }
+                return  dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is no longer supported, please, use another variant"), -1;
 
             uint8_t *l_seed = NULL;
-            size_t l_seed_size = 0;
-            size_t l_restore_str_size = dap_strlen(l_restore_str);
+            size_t l_seed_size = 0, l_restore_str_size = dap_strlen(l_restore_str);
+
             if(l_restore_str && l_restore_str_size > 2 && !dap_strncmp(l_restore_str, "0x", 2)) {
                 l_seed_size = (l_restore_str_size - 2) / 2;
                 l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
@@ -1868,11 +1865,12 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             // Creates new wallet
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
                     l_seed, l_seed_size, l_pass_str);
+
+            if (!l_wallet)
+                return  dap_chain_node_cli_set_reply_text(str_reply, "Wallet is not created because of internal error"), -1;
+
             dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
-            if(!l_wallet) {
-                dap_chain_node_cli_set_reply_text(str_reply, "Wallet is not created besause of internal error");
-                return -1;
-            }
+
             char *l_addr_str = l_addr? dap_chain_addr_to_str(l_addr) : NULL;
             dap_string_append_printf(l_string_ret, "Wallet: %s (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
             if ( l_addr_str ) {
