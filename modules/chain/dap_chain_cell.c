@@ -30,6 +30,7 @@
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"
+#include "dap_file_utils.h"
 
 #define LOG_TAG "dap_chain_cell"
 
@@ -185,6 +186,11 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
     }
     if (l_hdr.signature != DAP_CHAIN_CELL_FILE_SIGNATURE) {
         log_it(L_ERROR, "Wrong signature in chain \"%s\", possible file corrupt", l_file_path);
+        fclose(l_f);
+        return -3;
+    }
+    if (l_hdr.version < DAP_CHAIN_CELL_FILE_VERSION ){
+        log_it(L_ERROR, "Too low chain version, backup files");
         fclose(l_f);
         return -3;
     }
