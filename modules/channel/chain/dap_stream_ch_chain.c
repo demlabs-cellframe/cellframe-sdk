@@ -941,13 +941,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         return;
     }
-    if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+    /*if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
         s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                                             "ERROR_NET_IS_OFFLINE");
         a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
         return;
-    }
+    }*/
     uint16_t l_acl_idx = dap_chain_net_get_acl_idx(l_net);
     uint8_t l_acl = a_ch->stream->session->acl ? a_ch->stream->session->acl[l_acl_idx] : 1;
     if (!l_acl) {
