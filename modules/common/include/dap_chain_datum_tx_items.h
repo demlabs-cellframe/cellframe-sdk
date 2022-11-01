@@ -49,6 +49,12 @@
  */
 dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item);
 
+typedef struct dap_chain_datum_tx_item
+{
+    dap_chain_tx_item_type_t type;
+    byte_t data[];
+} DAP_ALIGN_PACKED dap_chain_datum_tx_item_t;
+
 /**
  * Get item name by item type
  *
@@ -156,7 +162,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
-                                                                             const char *a_token, uint256_t a_value_buy,
+                                                                             const char *a_token, uint256_t a_value_buy, const dap_chain_addr_t *a_seller_addr,
                                                                              const void *a_params, uint32_t a_params_size);
 /**
  * Create item dap_chain_tx_out_cond_t for stake service
@@ -191,8 +197,9 @@ dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
  */
 uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
         dap_chain_tx_item_type_t a_type, int *a_item_out_size);
-
+// Get Nth item of pointed type
+uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx);
 // Get all item from transaction by type
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);
 // Get conditional out item with it's idx
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, int *a_out_num);
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_cond_type, int *a_out_num);

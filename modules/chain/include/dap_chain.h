@@ -83,12 +83,10 @@ typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_
 typedef dap_chain_datum_tx_t* (*dap_chain_callback_tx_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *);
 
 typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t* ,size_t**);
+typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_next_t)(dap_chain_atom_iter_t *  ,size_t*);
 typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  );
-
-typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
-typedef size_t (*dap_chain_callback_add_datums_with_group_t)(dap_chain_t * , dap_chain_datum_t **, size_t, const char *);
 
 typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size); //change in chain happened
 
@@ -111,7 +109,7 @@ typedef struct dap_chain {
 
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
-	uint16_t load_priority;
+    uint16_t load_priority;
     char * name;
     char * net_name;
     dap_ledger_t * ledger; // If present - pointer to associated ledger
@@ -122,12 +120,12 @@ typedef struct dap_chain {
 
     uint16_t datum_types_count;
     dap_chain_type_t *datum_types;
-	uint16_t default_datum_types_count;
-	dap_chain_type_t *default_datum_types;
+    uint16_t default_datum_types_count;
+    dap_chain_type_t *default_datum_types;
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
 
-	uint256_t minimum_commission;
+    uint256_t minimum_commission;
 
     // To hold it in double-linked lists
     struct dap_chain * next;

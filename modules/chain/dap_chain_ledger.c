@@ -2952,11 +2952,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         }
 
         uint256_t l_value;
-        // Get list of all 'out' items from previous transaction
-        dap_list_t *l_list_prev_out = dap_chain_datum_tx_items_get(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, NULL);
         // Get one 'out' item in previous transaction bound with current 'in' item
-        void *l_tx_prev_out = dap_list_nth_data(l_list_prev_out, l_idx);
-        dap_list_free(l_list_prev_out);
+        void *l_tx_prev_out = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_idx);
         if(!l_tx_prev_out) {
             l_err_num = -8;
             break;
