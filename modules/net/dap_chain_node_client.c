@@ -882,12 +882,11 @@ void dap_chain_node_client_close(dap_events_socket_uuid_t a_uuid)
 #ifndef _WIN32
         pthread_cond_destroy(&l_client->wait_cond);
 #else
-        CloseHandle( a_client->wait_cond );
+        CloseHandle(l_client->wait_cond);
 #endif
         pthread_mutex_destroy(&l_client->wait_mutex);
         l_client->client = NULL;
-        if (l_client->info)
-            DAP_DELETE(l_client->info);
+        DAP_DEL_Z(l_client->info);
         DAP_DELETE(l_client);
     } else {
         log_it(L_WARNING, "Chain node client was removed from hash table before for some reasons");
