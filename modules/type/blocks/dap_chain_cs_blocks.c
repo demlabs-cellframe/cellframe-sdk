@@ -846,7 +846,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         // !TODO make chunks add to blocks
     }else if(ret == ATOM_MOVE_TO_THRESHOLD){
         dap_chain_block_chunks_add( PVT(l_blocks)->chunks,l_block_cache);
-        dap_chain_block_chunks_sort(PVT(l_blocks)->chunks);
+        //dap_chain_block_chunks_sort(PVT(l_blocks)->chunks);
     }else if (ret == ATOM_REJECT ){
         DAP_DELETE(l_block_cache);
     }
