@@ -190,7 +190,10 @@ char *c_wallets_path;
         HASH_ADD_STR(s_wallet_n_pass, name, l_prec);                    /* Add into the hash-table */
     }
     else {
-        memcpy(l_prec->pass, a_pass, l_prec->pass_len = a_pass_len);    /* Update password with new one */
+        if ( !l_prec->pass_len )                                        /* Password field is empty ? */
+            memcpy(l_prec->pass, a_pass, l_prec->pass_len = a_pass_len);/* Update password with new one */
+
+        else log_it(L_ERROR, "Wallet has been activated, do deactivation fisrt");
     }
 
 
