@@ -142,6 +142,7 @@ struct link_dns_request {
 struct net_link {
     dap_chain_node_info_t *link_info;
     dap_chain_node_client_t *link;
+    dap_events_socket_uuid_t client_uuid;
 };
 
 struct downlink {
@@ -1027,8 +1028,10 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
             if (((struct net_link *)it->data)->link == NULL) {  // We have a free prepared link
                 s_node_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
                 a_node_client->keep_connection = false;
-                ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net,
-                                                        ((struct net_link *)it->data)->link_info);
+                dap_chain_node_client_t *l_client_new = dap_chain_net_client_create_n_connect(l_net,
+                                                                                             ((struct net_link *)it->data)->link_info);
+                ((struct net_link *)it->data)->link = l_client_new;
+                ((struct net_link *)it->data)->client_uuid = l_client_new->uuid;
                 pthread_rwlock_unlock(&l_net_pvt->rwlock);
                 return;
             }
@@ -1133,7 +1136,9 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
     for ( dap_list_t * it = l_net_pvt->net_links; it; it=it->next ){
         if (((struct net_link *)it->data)->link == a_node_client) {
             log_it(L_DEBUG,"Replace node client with new one");
-            ((struct net_link *)it->data)->link = dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
+            dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
+            ((struct net_link *)it->data)->link = l_client;
+            ((struct net_link *)it->data)->client_uuid = l_client->uuid;
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->rwlock);
@@ -1332,7 +1337,7 @@ static void s_net_states_notify(dap_chain_net_t * l_net) {
  * @brief s_net_states_proc
  * @param l_net
  */
-static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
+static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {//TODO: <---
     UNUSED(a_thread);
     bool l_repeat_after_exit = false; // If true - repeat on next iteration of proc thread loop
     dap_chain_net_t *l_net = (dap_chain_net_t *) a_arg;
@@ -1352,14 +1357,17 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
             // delete all links
             dap_list_t *l_tmp = l_net_pvt->net_links;
             while (l_tmp) {
-                dap_list_t *l_next =l_tmp->next;
-                dap_chain_node_client_t *l_link = ((struct net_link *)l_tmp->data)->link;
-                if (l_link) {
-                    l_link->keep_connection = false;
-                    dap_chain_node_client_close(l_link);
-                }
+                dap_list_t *l_next = l_tmp->next;
+                dap_chain_node_client_close(((struct net_link *)l_tmp->data)->client_uuid);
                 DAP_DEL_Z(((struct net_link *)l_tmp->data)->link_info);
                 l_tmp = l_next;
+            }
+            struct downlink *l_downlink, *l_dltmp;
+            HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_dltmp) {
+                HASH_DEL(l_net_pvt->downlinks, l_downlink);
+                dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_downlink->worker, l_downlink->uuid);
+                if (l_ch)
+                    l_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
             }
             dap_list_free_full(l_net_pvt->net_links, free);
             l_net_pvt->net_links = NULL;
@@ -1473,6 +1481,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg) {
                 dap_chain_node_info_t *l_link_info = ((struct net_link *)l_tmp->data)->link_info;
                 dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, l_link_info);
                 ((struct net_link *)l_tmp->data)->link = l_client;
+                ((struct net_link *)l_tmp->data)->client_uuid = l_client->uuid;
                 if (++l_used_links == s_required_links_count)
                     break;
             }
@@ -1836,7 +1845,7 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         return false;
     }
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "d946e250-3875-4521-be49-5b0b309209a6");
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "e0fee993-54b7-4cbb-be94-f633cc17853f");
     DAP_DELETE(l_cache_dir);
     if (dap_file_simple_test(l_cache_file)) {
         log_it(L_WARNING, "Cache file '%s' already exists", l_cache_file);
@@ -2065,18 +2074,18 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
                                                   l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                   c_net_states[NET_STATE_ONLINE]);
-                dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                dap_chain_net_start(l_net);
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
                                                   l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                   c_net_states[NET_STATE_OFFLINE]);
-                dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
+                dap_chain_net_stop(l_net);
 
             } else if (strcmp(l_go_str, "sync") == 0) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Network \"%s\" resynchronizing",
                                                   l_net->pub.name);
                 if (PVT(l_net)->state_target == NET_STATE_ONLINE)
-                    dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                    dap_chain_net_start(l_net);
                 else
                     dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
             } else {
@@ -2269,9 +2278,13 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                                                   "Subcommand 'ca' requires one of parameter: add, list, del\n");
                 ret = -5;
             }
-        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload"))
-           s_chain_net_ledger_cache_reload(l_net);
-        else {
+        } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
+            int l_return_state = dap_chain_net_stop(l_net);
+            sleep(1);   // wait to net going offline
+            s_chain_net_ledger_cache_reload(l_net);
+            if (l_return_state)
+                dap_chain_net_start(l_net);
+        } else {
             dap_chain_node_cli_set_reply_text(a_str_reply,
                                               "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
             ret = -1;
@@ -2332,9 +2345,8 @@ void s_main_timer_callback(void *a_arg)
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     if (l_net_pvt->state_target == NET_STATE_ONLINE &&
             l_net_pvt->state >= NET_STATE_LINKS_ESTABLISHED &&
-            !l_net_pvt->links_connected_count) { // restart network
-        dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
-    }
+            !l_net_pvt->links_connected_count) // restart network
+        dap_chain_net_start(l_net);
 }
 
 /**
@@ -2982,10 +2994,9 @@ dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
  * @param a_id
  * @return
  */
-uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id)
+uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_id);
-    return l_net ? PVT(l_net)->acl_idx : (uint16_t)-1;
+    return a_net ? PVT(a_net)->acl_idx : (uint16_t)-1;
 }
 
 /**

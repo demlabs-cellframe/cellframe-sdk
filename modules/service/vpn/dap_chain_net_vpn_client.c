@@ -527,7 +527,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(l_res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
@@ -574,7 +574,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
         log_it(L_NOTICE, "Got response from VPN server=%s:%d", a_ipv4_str, a_port);
     }
     // clean client struct
-    dap_chain_node_client_close(s_vpn_client);
+    dap_chain_node_client_close(s_vpn_client->uuid);
     DAP_DELETE(s_node_info);
     s_node_info = NULL;
     if(l_res)
@@ -607,7 +607,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -2;
@@ -618,7 +618,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
@@ -657,7 +657,7 @@ int dap_chain_net_vpn_client_stop(void)
 {
     // delete connection with VPN server
     if(s_vpn_client) {
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         s_vpn_client = NULL;
     }
     DAP_DELETE(s_node_info);

@@ -703,7 +703,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     unsigned long l_mode = 1;
     ioctlsocket(l_es->socket, FIONBIO, &l_mode);
 
-    struct sockaddr_in l_addr = { .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}, .sin_port = 0, .sin_family = AF_INET};
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
@@ -1032,7 +1032,7 @@ dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_
     if (setsockopt(l_es->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket, err: %d", WSAGetLastError());
 
-    struct sockaddr_in l_addr = { .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}, .sin_port = 0, .sin_family = AF_INET};
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
