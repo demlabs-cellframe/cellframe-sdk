@@ -137,7 +137,7 @@ const unsigned char  *p = (unsigned char *) buf;
 
 /*
  *  DESCRIPTION: Add/update a record for wallet into the internaly used table of name/password pair.
- *      This records is supposed to be used for operations with the password-protected wallets.
+ *      Thhose records are supposed to be used for operations with the password-protected wallets.
  *
  *  INPUTS:
  *      a_name:     A name of the wallet
@@ -673,7 +673,7 @@ struct iovec l_iov [ WALLET$SZ_IOV_NR ];
     if ( l_len != l_rc )
     {
         close(l_fd);
-        return  log_it(L_ERROR, "Error write wallet header to file '%s', errno=%d", l_wallet_internal->file_name, errno), -EIO;
+        return  log_it(L_ERROR, "Error write Wallet header to file '%s', errno=%d", l_wallet_internal->file_name, errno), -EIO;
     }
 
                                                                             /* CRC for file header part */
@@ -752,17 +752,17 @@ struct iovec l_iov [ WALLET$SZ_IOV_NR ];
 
 
 
-#ifdef  DAP_SYS_DEBUG                                                       /* For debug purpose only */
+#ifdef  DAP_SYS_DEBUG                                                       /* @RRL: For debug purpose only!!! */
     {
     dap_chain_wallet_t  *l_wallet;
-    l_wallet = dap_chain_wallet_open_file (l_wallet_internal->file_name, a_pass);
-    dap_chain_wallet_close(l_wallet);
+
+    if ( l_wallet = dap_chain_wallet_open_file (l_wallet_internal->file_name, a_pass) )
+        dap_chain_wallet_close(l_wallet);
+
     }
 #endif      /* DAP_SYS_DEBUG */
 
     return  log_it(L_NOTICE, "Wallet '%s' has been saved into the '%s'", a_wallet->name, l_wallet_internal->file_name), 0;
-
-
 }
 
 
@@ -796,7 +796,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
                     close(l_fd), NULL;
 
     if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (!l_pass) )
-        return  log_it(L_ERROR, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name), close(l_fd), NULL;
+        return  log_it(L_DEBUG, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name), close(l_fd), NULL;
 
     if ( l_file_hdr.wallet_len > DAP_WALLET$SZ_NAME )
         return  log_it(L_ERROR, "Invalid Wallet name (%s) length ( >%d)", a_file_name, DAP_WALLET$SZ_NAME),
