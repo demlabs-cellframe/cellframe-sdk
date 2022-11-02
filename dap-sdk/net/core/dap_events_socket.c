@@ -1809,6 +1809,8 @@ void dap_events_socket_remove_and_delete_unsafe_delayed( dap_events_socket_t *a_
 void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool preserve_inheritor )
 {
     assert(a_es);
+    if(g_debug_reactor)
+        log_it(L_DEBUG,"Remove and delete event socket %p (socket %"DAP_FORMAT_SOCKET" type %d)", a_es, a_es->socket, a_es->type);
 
 #ifdef DAP_EVENTS_CAPS_POLL
     if(a_es->worker){

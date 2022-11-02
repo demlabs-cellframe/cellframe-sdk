@@ -1184,7 +1184,7 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
 int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker )
 {
     if(g_debug_reactor){
-        log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET")", a_esocket, a_esocket->socket);
+        log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET" type %d)", a_esocket, a_esocket->socket, a_esocket->type);
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
         // Init events for EPOLL
