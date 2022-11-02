@@ -44,7 +44,7 @@ const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
  */
 #define DAP_CHAIN$SZ_MAX128DEC DATOSHI_POW                                           /* "340282366920938463463374607431768211455" */
 #define DAP_CHAIN$SZ_MAX256DEC DATOSHI_POW256                                       /* 2 ^ 256 = 1.15792089237316195423570985008687907853269984665640564039457584007913129639935e77*/
-
+#define DAP_SZ_MAX256SCINOT (DATOSHI_POW256 + 5)
 
 char        *dap_cvt_uint256_to_str (uint256_t a_uint256);
 uint256_t   dap_cvt_str_to_uint256 (const char *a_256bit_num);
@@ -822,22 +822,21 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 {
     uint256_t l_ret = uint256_0, l_nul = uint256_0;
     int  l_strlen;
-    char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC + 2];
+    char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC + 1];
     int overflow_flag = 0;
 
     if (!a_256bit_num) {
         return log_it(L_ERROR, "NULL as an argument"), l_nul;
     }
 
-    /* Compute & check length */
-    if ( (l_strlen = strnlen(a_256bit_num, DATOSHI_POW + 2) ) > DATOSHI_POW + 1)
-        return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DATOSHI_POW + 1), l_nul;
-
     /* Convert number from xxx.yyyyE+zz to xxxyyyy0000... */
     char *l_eptr = strchr(a_256bit_num, 'e');
     if (!l_eptr)
         l_eptr = strchr(a_256bit_num, 'E');
     if (l_eptr) {
+        /* Compute & check length */
+        if ( (l_strlen = strnlen(a_256bit_num, DAP_SZ_MAX256SCINOT + 1) ) > DAP_SZ_MAX256SCINOT)
+            return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_SZ_MAX256SCINOT), l_nul;
         char *l_exp_ptr = l_eptr + 1;
         if (*l_exp_ptr == '+')
             l_exp_ptr++;
@@ -848,31 +847,34 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         if (!l_dot_ptr || l_dot_ptr > l_eptr)
             return  log_it(L_ERROR, "Invalid number format with exponent %d", l_exp), uint256_0;
         int l_dot_len = l_dot_ptr - a_256bit_num;
-        if (l_dot_len > DATOSHI_POW - DATOSHI_DEGREE)
+        if (l_dot_len >= DATOSHI_POW256)
             return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
         int l_exp_len = l_eptr - a_256bit_num - l_dot_len - 1;
-        if (l_exp_len + l_dot_len + 1 > DATOSHI_POW + 1)
+        if (l_exp_len + l_dot_len > DATOSHI_POW256)
             return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
         if (l_exp < l_exp_len) {
             //todo: we need to handle numbers like 1.23456789000000e9
-            return log_it(L_ERROR, "Invalid number format with exponent %d and nuber coun after dot %d", l_exp,
+            return log_it(L_ERROR, "Invalid number format with exponent %d and number count after dot %d", l_exp,
                           l_exp_len), uint256_0;
         }
         memcpy(l_256bit_num, a_256bit_num, l_dot_len);
         memcpy(l_256bit_num + l_dot_len, a_256bit_num + l_dot_len + 1, l_exp_len);
         int l_zero_cnt = l_exp - l_exp_len;
-        if (l_zero_cnt > DAP_CHAIN$SZ_MAX256DEC) {
+        if (l_zero_cnt > DATOSHI_POW256) {
             //todo: need to handle leading zeroes, like 0.000...123e100
             return log_it(L_ERROR, "Too long number for 256 bit: `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
         }
         size_t l_pos = l_dot_len + l_exp_len;
-        for (int i = l_zero_cnt; i && l_pos < DAP_CHAIN$SZ_MAX256DEC; i--)
+        for (int i = l_zero_cnt; i && l_pos < DATOSHI_POW256; i--)
             l_256bit_num[l_pos++] = '0';
         l_256bit_num[l_pos] = '\0';
         l_strlen = l_pos;
 
     } else {
-        //we ahve a decimal string, not sci notation
+        //we have a decimal string, not sci notation
+        /* Compute & check length */
+        if ( (l_strlen = strnlen(a_256bit_num, DATOSHI_POW256 + 1) ) > DATOSHI_POW256)
+            return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DATOSHI_POW256), l_nul;
         memcpy(l_256bit_num, a_256bit_num, l_strlen);
         l_256bit_num[l_strlen] = '\0';
     }
