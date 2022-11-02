@@ -227,7 +227,7 @@ MDBX_val    l_key_iov, l_data_iov;
 
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
-    if ( (l_rc = strlen(a_group)) > DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX )                /* Check length of the group name */
+    if ( (l_rc = strlen(a_group)) >(int) DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX )                /* Check length of the group name */
         return  log_it(L_ERROR, "Group name '%s' is too long (%d>%lu)", a_group, l_rc, DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX), NULL;
 
     if ( !(l_db_ctx = DAP_NEW_Z(dap_db_ctx_t)) )                            /* Allocate zeroed memory for new DB context */
@@ -1174,7 +1174,8 @@ struct  __record_suffix__   *l_suff;
 
 static dap_store_obj_t *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
-int l_rc, l_rc2, l_count_out;
+int l_rc, l_rc2;
+uint64_t l_count_out;
 dap_db_ctx_t *l_db_ctx;
 dap_store_obj_t *l_obj, *l_obj_arr;
 MDBX_val    l_key, l_data;
@@ -1249,7 +1250,7 @@ struct  __record_suffix__   *l_suff;
         else if ( !l_stat.ms_entries )                                      /* Nothing to retrieve , table contains no record */
             break;
 
-        if ( !(l_count_out = min(l_stat.ms_entries, l_count_out)) ) {
+        if ( !(  l_count_out = min(l_stat.ms_entries, l_count_out)) ) {
             debug_if(g_dap_global_db_debug_more, L_WARNING, "No object (-s) to be retrieved from the group '%s'", a_group);
             break;
         }

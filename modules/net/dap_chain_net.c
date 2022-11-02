@@ -3577,7 +3577,7 @@ uint256_t dap_chain_net_get_tx_total_value(dap_chain_net_t * a_net, dap_chain_da
                 int l_tx_prev_out_index = l_in_item->header.tx_out_prev_idx;
                 dap_chain_tx_out_t *  l_tx_prev_out =(dap_chain_tx_out_t *)
                         dap_chain_datum_tx_item_get(l_tx_prev,&l_tx_prev_out_index, TX_ITEM_TYPE_OUT,NULL);
-                if( l_tx_prev_out_index == l_in_item->header.tx_out_prev_idx && l_tx_prev_out){
+                if( l_tx_prev_out_index == (int) l_in_item->header.tx_out_prev_idx && l_tx_prev_out){
                     uint256_t l_in_value = l_tx_prev_out->header.value;
                     if(SUM_256_256(l_in_value,l_ret, &l_ret )!= 0)
                         log_it(L_ERROR, "Overflow on inputs values calculation (summing)");
