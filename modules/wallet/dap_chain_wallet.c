@@ -789,21 +789,21 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         return  log_it(L_ERROR,"Cant open file %s for read, errno=%d", a_file_name, errno), NULL;
 
     if ( sizeof(l_file_hdr) != read(l_fd, &l_file_hdr, sizeof(l_file_hdr)) )/* Get the file header record */
-        return  log_it(L_ERROR, "Error read Wallet file header, errno=%d", errno), close(l_fd), NULL;
+        return  log_it(L_ERROR, "Error read Wallet file (%s) header, errno=%d", a_file_name, errno), close(l_fd), NULL;
 
     if ( l_file_hdr.signature != DAP_CHAIN_WALLETS_FILE_SIGNATURE )         /* Check signature of the file */
-        return  log_it(L_ERROR, "Wallet signature mismatch (%#lx != %#lx", l_file_hdr.signature, DAP_CHAIN_WALLETS_FILE_SIGNATURE),
+        return  log_it(L_ERROR, "Wallet (%s) signature mismatch (%#lx != %#lx", a_file_name, l_file_hdr.signature, DAP_CHAIN_WALLETS_FILE_SIGNATURE),
                     close(l_fd), NULL;
 
     if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (!l_pass) )
-        return  log_it(L_ERROR, "Wallet version 2 cannot be processed w/o password"), close(l_fd), NULL;
+        return  log_it(L_ERROR, "Wallet (%s) version 2 cannot be processed w/o password", a_file_name), close(l_fd), NULL;
 
     if ( l_file_hdr.wallet_len > DAP_WALLET$SZ_NAME )
-        return  log_it(L_ERROR, "Invalid Wallet name length ( >%d)", DAP_WALLET$SZ_NAME),
+        return  log_it(L_ERROR, "Invalid Wallet name (%s) length ( >%d)", a_file_name, DAP_WALLET$SZ_NAME),
                     close(l_fd), NULL;
 
     if ( l_file_hdr.wallet_len != read(l_fd, l_wallet_name, l_file_hdr.wallet_len) ) /* Read wallet's name */
-        return  log_it(L_ERROR, "Error Wallet's name, errno=%d", errno), close(l_fd), NULL;
+        return  log_it(L_ERROR, "Error Wallet's name (%s), errno=%d", a_file_name, errno), close(l_fd), NULL;
 
 
     l_csum = s_crc32c (l_csum, &l_file_hdr, sizeof(l_file_hdr) );           /* Compute check sum of the Wallet file header */
@@ -824,10 +824,10 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     }
 
     if ( l_rc < 0 )
-        return  log_it(L_ERROR, "Wallet file I/O error, errno=%d", errno), close(l_fd), NULL;
+        return  log_it(L_ERROR, "Wallet file (%s) I/O error, errno=%d", a_file_name, errno), close(l_fd), NULL;
 
     if ( !l_certs_count )
-        return  log_it(L_ERROR, "No certificate (-s) in the wallet file"), close(l_fd), NULL;
+        return  log_it(L_ERROR, "No certificate (-s) in the wallet file (%s)", a_file_name), close(l_fd), NULL;
 
 
     if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && l_pass )             /* Generate encryptor context  */
