@@ -1730,6 +1730,8 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
 enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
+char    l_buf[1024];
+
 
     // find  add parameter ('alias' or 'handshake')
     if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "new", NULL))
@@ -1792,8 +1794,27 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         if ( !l_rc )
                 dap_string_append_printf(l_string_ret, "Wallet: %s is %sactivated\n",
                     l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de");
-        else    dap_string_append_printf(l_string_ret, "Wallet: %s  %sactivation error, errno=%d (%s)\n",
-                    l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc, strerror(-l_rc) );
+        else
+        {
+            switch ( l_rc )
+            {
+                case    -EBUSY:
+                    strcpy(l_buf, "already activated");
+                    break;
+
+                case    -EINVAL:
+                    strcpy(l_buf, "wrong password");
+                    break;
+
+
+                default:
+                    strerror_r(l_rc, l_buf, sizeof(l_buf) - 1 );
+                    break;
+            }
+
+            dap_string_append_printf(l_string_ret, "Wallet: %s  %sactivation error, errno=%d (%s)\n",
+                    l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc, l_buf );
+        }
 
         break;
 
