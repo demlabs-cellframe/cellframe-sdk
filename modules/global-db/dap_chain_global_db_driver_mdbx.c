@@ -177,7 +177,7 @@ MDBX_val    l_key_iov, l_data_iov;
 
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
-    if ( (l_rc = strlen(a_group)) > DAP_DB$SZ_MAXGROUPNAME )                /* Check length of the group name */
+    if ( (l_rc = strlen(a_group)) > (int) DAP_DB$SZ_MAXGROUPNAME )                /* Check length of the group name */
         return  log_it(L_ERROR, "Group name '%s' is too long (%d>%lu)", a_group, l_rc, DAP_DB$SZ_MAXGROUPNAME), NULL;
 
     if ( !(l_db_ctx = DAP_NEW_Z(dap_db_ctx_t)) )                            /* Allocate zeroed memory for new DB context */
@@ -943,7 +943,8 @@ struct  __record_suffix__   *l_suff;
  */
 static dap_store_obj_t *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
-int l_rc, l_rc2, l_count_out;
+int l_rc, l_rc2;
+uint64_t l_count_out;
 dap_db_ctx_t *l_db_ctx;
 dap_store_obj_t *l_obj, *l_obj_arr;
 MDBX_val    l_key, l_data;
