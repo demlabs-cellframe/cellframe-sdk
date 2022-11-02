@@ -162,7 +162,7 @@ int     dap_chain_wallet_activate   (
                         unsigned     a_ttl
                                     )
 {
-int     l_rc;
+int     l_rc, l_rc2;
 dap_chain_wallet_n_pass_t   l_rec = {0}, *l_prec;
 dap_chain_wallet_t  *l_wallet;
 char *c_wallets_path;
@@ -178,10 +178,13 @@ char *c_wallets_path;
     memcpy(l_rec.name, a_name, l_rec.name_len = a_name_len);            /* Prefill local record fields */
     memcpy(l_rec.pass, a_pass, l_rec.pass_len = a_pass_len);
 
-    if ( (l_rc = pthread_rwlock_wrlock(&s_wallet_n_pass_lock)) )        /* Lock for WR access */
-        return  log_it(L_ERROR, "Error locking Wallet table, errno=%d", l_rc), -l_rc;
+    if ( (l_rc2 = pthread_rwlock_wrlock(&s_wallet_n_pass_lock)) )        /* Lock for WR access */
+        return  log_it(L_ERROR, "Error locking Wallet table, errno=%d", l_rc2), -l_rc2;
 
     HASH_FIND_STR(s_wallet_n_pass, a_name,  l_prec);                    /* Check for existen record */
+
+
+    l_rc = 0;
 
     if ( !l_prec )
     {
@@ -193,7 +196,7 @@ char *c_wallets_path;
         if ( !l_prec->pass_len )                                        /* Password field is empty ? */
             memcpy(l_prec->pass, a_pass, l_prec->pass_len = a_pass_len);/* Update password with new one */
 
-        else log_it(L_ERROR, "Wallet has been activated, do deactivation fisrt");
+        else l_rc = -EBUSY, log_it(L_ERROR, "Wallet has been activated, do deactivation first");
     }
 
 
@@ -201,8 +204,8 @@ char *c_wallets_path;
     l_prec->exptm.tv_sec += (a_ttl * 60);                               /* Compute context expiration time */
 
 
-    if ( (l_rc = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )        /* Release lock */
-        log_it(L_ERROR, "Error unlocking Wallet table, errno=%d", l_rc);
+    if ( (l_rc2 = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )        /* Release lock */
+        log_it(L_ERROR, "Error unlocking Wallet table, errno=%d", l_rc2);
 
 
     /*
@@ -222,7 +225,7 @@ char *c_wallets_path;
 
     dap_chain_wallet_close( l_wallet);
 
-    return  0;
+    return  l_rc;
 }
 
 /*
