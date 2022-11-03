@@ -146,7 +146,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
             if (l_node_item) {
                 dap_chain_node_client_t *l_usable = dap_chain_node_client_find(l_node_item->uuid);
                 if (l_usable && !dap_client_get_stream(l_usable->client)) {
-                        dap_chain_node_client_close(l_usable);
+                        dap_chain_node_client_close(l_node_item->uuid);
                         l_usable = NULL;
                 }
                 if (!l_usable) {
