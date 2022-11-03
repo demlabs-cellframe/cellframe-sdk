@@ -358,11 +358,11 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
     }
     dap_list_free(l_list_out_items);
     uint256_t l_fee = uint256_0; // TODO replace with fractional mult MULT_256_FRAC_FRAC(l_outs_sum, l_stake->fee_value / 100.0); +++
-	DIV_256(l_stake->fee_value, dap_chain_coins_to_balance("100.0"), &l_fee);
-	if (MULT_256_COIN(l_outs_sum, l_fee, &l_fee)) {
-		log_it(L_WARNING, "DANGER: MULT_256_COIN overflow! in dap_chain_net_srv_stake_validator()");
-		l_fee = uint256_0;
-	}
+    DIV_256(l_stake->fee_value, dap_chain_coins_to_balance("100.0"), &l_fee);
+    if (MULT_256_COIN(l_outs_sum, l_fee, &l_fee)) {
+        log_it(L_WARNING, "DANGER: MULT_256_COIN overflow! in dap_chain_net_srv_stake_validator()");
+        l_fee = uint256_0;
+    }
     if (compare256(l_fee_sum, l_fee) == -1) {
         return false;
     }
@@ -540,7 +540,7 @@ static bool s_stake_tx_invalidate(dap_chain_net_srv_stake_item_t *a_stake, dap_c
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return false;
-    }   
+    }
     int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, &l_prev_cond_idx);
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_stake->tx_hash, l_prev_cond_idx)) {
@@ -627,15 +627,6 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
     strcpy(l_item->token, a_order->price_ticker);
     l_item->node_addr = a_order->node_addr;
     return l_item;
-}
-
-// Ledger verificator for DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE
-bool dap_chain_net_srv_fee_stake_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner)
-{
-    if (!s_srv_stake) {
-        return false;
-    }
-    return false;
 }
 
 static bool s_stake_block_commit(dap_chain_net_t *a_net, dap_list_t *a_tx_hash_list)
@@ -1281,7 +1272,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_stake, l_wallet);
                 dap_chain_wallet_close(l_wallet);
                 if (l_tx && s_stake_tx_put(l_tx, l_net)) {
-                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);         
+                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_stake->tx_hash);
                     // TODO send a notification to order owner to delete it
                     dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_str);
                 }

@@ -28,7 +28,7 @@
 #include "dap_context.h"
 #include "dap_proc_queue.h"
 
-#define DAP_GLOBAL_DB_VERSION                 1
+#define DAP_GLOBAL_DB_VERSION               2
 #define DAP_GLOBAL_DB_LOCAL_GENERAL         "local.general"
 
 // GlobalDB own context custom extension

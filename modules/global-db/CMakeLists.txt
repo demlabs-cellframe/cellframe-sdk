@@ -21,7 +21,7 @@ file(GLOB DAP_CHAIN_GLOBAL_DB_HDR
     include/dap_chain_global_db_driver_sqlite.h
 )
 
-set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_crypto dap_chain sqlite3 dap_cuttdb json-c)
+set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_server_core dap_crypto dap_chain dap_chain_net sqlite3 dap_cuttdb json-c)
 
 if(BUILD_WITH_GDB_DRIVER_MDBX)
     file(GLOB DAP_CHAIN_GLOBAL_DB_SRC ${DAP_CHAIN_GLOBAL_DB_SRC} dap_chain_global_db_driver_mdbx.c)

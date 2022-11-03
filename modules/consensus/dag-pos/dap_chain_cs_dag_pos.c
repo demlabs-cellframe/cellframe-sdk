@@ -184,14 +184,14 @@ static void s_callback_delete(dap_chain_cs_dag_t * a_dag)
 }
 
 /**
- * @brief 
+ * @brief
  * create event
- * @param a_dag 
- * @param a_datum 
- * @param a_hashes 
- * @param a_hashes_count 
- * @param a_dag_event_size 
- * @return dap_chain_cs_dag_event_t* 
+ * @param a_dag
+ * @param a_datum
+ * @param a_hashes
+ * @param a_hashes_count
+ * @param a_dag_event_size
+ * @return dap_chain_cs_dag_event_t*
  */
 static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a_dag, dap_chain_datum_t * a_datum,
                                                           dap_chain_hash_fast_t * a_hashes, size_t a_hashes_count,
@@ -213,12 +213,12 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 }
 
 /**
- * @brief 
+ * @brief
  * function makes event singing verification
  * @param a_dag dag object
  * @param a_dag_event dap_chain_cs_dag_event_t
  * @param a_dag_event_size size_t size of event object
- * @return int 
+ * @return int
  */
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size)
 {
@@ -233,6 +233,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         log_it(L_WARNING,"Incorrect size with event %p on chain %s", a_dag_event, a_dag->chain->name);
         return  -7;
     }
+    size_t l_offset_signs = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event, a_dag_event_size);
     if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
         uint16_t l_verified_num = 0;
 
@@ -243,7 +244,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 return -4;
             }
 
-            bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_dag_event_size);
+            bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_dag_event_size - l_offset_signs);
             if (!l_sign_size_correct) {
                 log_it(L_WARNING, "Event's sign size is incorrect");
                 return -41;

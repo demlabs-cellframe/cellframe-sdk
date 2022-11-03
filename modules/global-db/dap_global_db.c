@@ -208,7 +208,7 @@ int dap_global_db_init(const char * a_storage_path, const char * a_driver_name)
         s_driver_name = dap_strdup(a_driver_name);
 
     // Debug config
-    g_dap_global_db_debug_more = dap_config_get_item_bool(g_config, "global_db", "debug_more");
+    g_dap_global_db_debug_more = dap_config_get_item_bool_default(g_config, "resources", "debug_more", false);
 
 
     // Driver initalization
