@@ -4139,17 +4139,21 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
 
     uint256_t l_value_per_unit_max = {};
     uint256_t l_value_fee = {};
+    dap_hash_fast_t l_datum_tx_cond_hash = {};
     dap_chain_hash_fast_t *l_tx_cond_hash = dap_chain_mempool_tx_create_cond(l_net, l_key_from, l_key_cond, l_token_ticker,
-                                        l_value_datoshi, l_value_per_unit_max, l_price_unit, l_srv_uid, l_value_fee, NULL, 0);
+                                        l_value_datoshi, l_value_per_unit_max, l_price_unit, l_srv_uid, l_value_fee, NULL, 0, &l_datum_tx_cond_hash);
     dap_chain_wallet_close(l_wallet);
     DAP_DELETE(l_key_cond);
 
-    char *l_hash_str;
+    char *l_tx_hash_str;
+    char *l_datum_hash_str;
     if(!dap_strcmp(l_hash_out_type, "hex")) {
-        l_hash_str = l_tx_cond_hash ? dap_chain_hash_fast_to_str_new(l_tx_cond_hash) : NULL;
+        l_tx_hash_str = l_tx_cond_hash ? dap_chain_hash_fast_to_str_new(l_tx_cond_hash) : NULL;
+        l_datum_hash_str = l_tx_cond_hash ? dap_chain_hash_fast_to_str_new(&l_datum_tx_cond_hash) : NULL;
     }
     else {
-        l_hash_str = l_tx_cond_hash ? dap_enc_base58_encode_hash_to_str(l_tx_cond_hash) : NULL;
+        l_tx_hash_str = l_tx_cond_hash ? dap_enc_base58_encode_hash_to_str(l_tx_cond_hash) : NULL;
+        l_datum_hash_str = l_tx_cond_hash ? dap_enc_base58_encode_hash_to_str(&l_datum_tx_cond_hash) : NULL;
     }
 
     /*dap_chain_node_cli_set_reply_text(str_reply, "cond create=%s\n",
@@ -4158,8 +4162,8 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
 
     int l_ret;
     // example: cond create succefully hash=0x4AA303EB7C10430C0AAC42F399D265BC7DD09E3983E088E02B8CED38DA22EDA9
-    if(l_hash_str){
-        dap_chain_node_cli_set_reply_text(a_str_reply, "cond create succefully hash=%s\n", l_hash_str);
+    if(l_tx_hash_str){
+        dap_chain_node_cli_set_reply_text(a_str_reply, "cond create succefully tx_hash=%s datum_hash=%s\n", l_tx_hash_str, l_datum_hash_str);
         l_ret = 0;
     }
     else{
@@ -4167,7 +4171,8 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
         l_ret = -1;
     }
 
-    DAP_DELETE(l_hash_str);
+    DAP_DELETE(l_tx_hash_str);
+    DAP_DELETE(l_datum_hash_str);
     return  l_ret;
 }
 

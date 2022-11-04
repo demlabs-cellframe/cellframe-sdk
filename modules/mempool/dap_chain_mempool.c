@@ -568,7 +568,8 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
         dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_per_unit_max, dap_chain_net_srv_price_unit_uid_t a_unit,
-        dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size)
+        dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value_fee, const void *a_cond, size_t a_cond_size,
+        dap_hash_fast_t *a_out_datum_hash)
 {
     // Make transfer transaction
     dap_chain_datum_t *l_datum = dap_chain_tx_create_cond(a_net, a_key_from, a_key_cond,
@@ -584,6 +585,9 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
     dap_chain_hash_fast_t *l_key_hash = DAP_NEW_Z( dap_chain_hash_fast_t );
     dap_hash_fast( l_tx, l_tx_size, l_key_hash );
     //DAP_DELETE( l_tx );
+    if (a_out_datum_hash){
+        dap_hash_fast(l_datum, dap_chain_datum_size(l_datum), a_out_datum_hash);
+    }
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
