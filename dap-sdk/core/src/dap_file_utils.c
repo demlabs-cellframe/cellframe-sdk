@@ -158,7 +158,7 @@ bool dap_dir_test(const char * a_dir_path)
 
 /**
  * @brief dap_mkdir_with_parents Create a new directory with intermediate sub-directories
- * 
+ *
  * @param a_dir_path new directory pathname
  * @return int 0, if the directory was created or already exist, else -1
  */
@@ -643,7 +643,7 @@ static bool dap_get_contents_regfile(const char *filename, struct stat *stat_buf
 
     bytes_read = 0;
     while(bytes_read < size) {
-        size_t rc;
+        ssize_t rc;
 
         rc = read(fd, buf + bytes_read, size - bytes_read);
 
