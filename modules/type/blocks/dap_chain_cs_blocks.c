@@ -843,14 +843,15 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
              log_it(L_DEBUG, "... error adding (code %d)", l_consensus_check);
              ret = ATOM_REJECT;
         }
+        // !TODO make chunks add to blocks
     }else if(ret == ATOM_MOVE_TO_THRESHOLD){
         dap_chain_block_chunks_add( PVT(l_blocks)->chunks,l_block_cache);
-        dap_chain_block_chunks_sort(PVT(l_blocks)->chunks);
+        //dap_chain_block_chunks_sort(PVT(l_blocks)->chunks);
     }else if (ret == ATOM_REJECT ){
         DAP_DELETE(l_block_cache);
     }
 
-    s_bft_consensus_setup(l_blocks);
+    //s_bft_consensus_setup(l_blocks);      TODO move it to validators agreement
     return ret;
 }
 
@@ -1083,6 +1084,8 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t
         a_atom_iter->cur = NULL;
         a_atom_iter->cur_size = 0;
         a_atom_iter->cur_hash = NULL;
+        if(a_atom_size)
+            *a_atom_size = 0;
         return NULL;
     }
 }

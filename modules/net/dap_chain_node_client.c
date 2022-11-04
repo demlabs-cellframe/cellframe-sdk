@@ -551,7 +551,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         else if (!l_have_waiting)
         {
             // l_node_client object is not presented after dap_chain_net_state_go_to with NET_STATE_OFFLINE
-            dap_chain_net_stop(l_net);
+            dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
         }
     }
 }
@@ -596,7 +596,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
                     dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
                 else
-                    dap_chain_net_stop(l_net);
+                    dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
             }
         } break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
