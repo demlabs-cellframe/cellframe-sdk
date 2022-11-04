@@ -5310,12 +5310,16 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
         dap_string_append_printf(string_ret, "transfer=%s\n",
                 (res == 0) ? "Ok" : (res == -2) ? "False, not enough funds for transfer" : "False");
     }else{
+        dap_hash_fast_t l_datum_hash = {};
         dap_hash_fast_t * l_tx_hash = dap_chain_mempool_tx_create(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, l_addr_to,
-                                                                  l_token_ticker, l_value, l_value_fee);
+                                                                  l_token_ticker, l_value, l_value_fee, &l_datum_hash);
         if (l_tx_hash){
             char l_tx_hash_str[80]={[0]='\0'};
+            char l_datum_hash_str[80]={[0]='\0'};
+            dap_chain_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, sizeof (l_tx_hash_str)-1);
             dap_chain_hash_fast_to_str(l_tx_hash,l_tx_hash_str,sizeof (l_tx_hash_str)-1);
-            dap_string_append_printf(string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
+            dap_string_append_printf(string_ret, "transfer=Ok\ntx_hash=%s\ndatum_hash=%s\n",
+                                     l_tx_hash_str, l_datum_hash_str);
             DAP_DELETE(l_tx_hash);
         }else{
             dap_string_append_printf(string_ret, "transfer=False\n");

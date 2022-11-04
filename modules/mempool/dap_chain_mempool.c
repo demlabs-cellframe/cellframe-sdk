@@ -107,7 +107,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
         const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t a_value, uint256_t a_value_fee)
+        uint256_t a_value, uint256_t a_value_fee, dap_hash_fast_t *a_out_datum_hash)
 {
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
@@ -166,6 +166,9 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
     dap_hash_fast(l_tx, l_tx_size, l_ret);
     DAP_DELETE(l_tx);
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum, a_chain);
+    if (a_out_datum_hash) {
+        dap_hash_fast(l_datum, dap_chain_datum_size(l_datum), a_out_datum_hash);
+    }
 
     DAP_DELETE( l_datum );
 
