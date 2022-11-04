@@ -209,10 +209,11 @@ enum dap_chain_tx_item_type {
 
     TX_ITEM_TYPE_RECEIPT = 0x70,
 
+    TX_ITEM_TYPE_IN_ALL = 0xfd,
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
-    TX_ITEM_TYPE_ANY = 0xff,
-    TX_ITEM_TYPE_UNKNOWN = 0xff
+    TX_ITEM_TYPE_ANY = 0xff
 };
+#define TX_ITEM_TYPE_UNKNOWN TX_ITEM_TYPE_ANY
 typedef byte_t dap_chain_tx_item_type_t;
 
 typedef struct dap_chain_receipt_info {
@@ -237,7 +238,9 @@ size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 
+#if 0
 dap_chain_net_id_t dap_chain_net_id_from_str(const char* a_str);
+#endif
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);

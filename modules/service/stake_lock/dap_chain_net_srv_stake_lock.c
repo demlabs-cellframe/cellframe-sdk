@@ -28,6 +28,7 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_ledger.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_time.h"
@@ -89,20 +90,22 @@ typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
 #define YEAR_INDEX	12
 
 static int												s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
-dap_chain_ledger_token_emission_for_stake_lock_item_t	*s_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash);
 static dap_chain_hash_fast_t							*dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
 																			  dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
 																			  dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_from);
 // Callbacks
 static void												s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain,
 																			  dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
-
+static bool s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item);
+static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+                                   dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 /**
  * @brief dap_chain_net_srv_external_stake_init
  * @return
  */
 int dap_chain_net_srv_stake_lock_init()
 {
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, s_stake_lock_callback_verificator_added);
     dap_chain_node_cli_cmd_item_create("stake_lock", s_cli_stake_lock, "Stake lock service commands",
        "Command:"
 	   			"stake_lock hold\n"
@@ -310,9 +313,15 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
 	&& NULL != l_reinvest_percent_str) {
         l_reinvest_percent = dap_chain_coins_to_balance(l_reinvest_percent_str);
-        if (IS_ZERO_256(l_reinvest_percent) ||
-                compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1)
+        if (compare256(l_reinvest_percent, dap_chain_coins_to_balance("100.0")) == 1)
 			return REINVEST_ARG_ERROR;
+        if (IS_ZERO_256(l_reinvest_percent)) {
+            int l_reinvest_percent_int = atoi(l_reinvest_percent_str);
+            if (l_reinvest_percent_int <= 0 || l_reinvest_percent_int > 100)
+                return REINVEST_ARG_ERROR;
+            l_reinvest_percent = dap_chain_uint256_from(l_reinvest_percent_int);
+            MULT_256_256(l_reinvest_percent, GET_256_FROM_64(1000000000000000000ULL), &l_reinvest_percent);
+        }
 	}
 
 /*________________________________________________________________________________________________________________*/
@@ -965,7 +974,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
  * @param a_owner
  * @return
  */
-bool s_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
 	UNUSED(a_tx_out_hash);
@@ -1092,16 +1101,19 @@ bool s_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_ha
  * @param a_tx_item_idx
  * @return
  */
-bool	s_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item)
+static bool s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
-    dap_chain_hash_fast_t l_key_hash;
-	dap_hash_fast( a_tx, dap_chain_datum_tx_get_size(a_tx), &l_key_hash);
-    if (dap_hash_fast_is_blank(&l_key_hash))
-		return false;
-
-    if (a_tx_item->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX)
-		s_emission_for_stake_lock_item_add(a_ledger, &l_key_hash);
-
+    if (a_tx_item)  // this is IN_COND tx
+        return true;
+    int l_out_num = 0;
+    dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, &l_out_num);
+    if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
+        dap_chain_hash_fast_t l_key_hash;
+        dap_hash_fast( a_tx, dap_chain_datum_tx_get_size(a_tx), &l_key_hash);
+        if (dap_hash_fast_is_blank(&l_key_hash))
+            return false;
+        dap_chain_ledger_emission_for_stake_lock_item_add(a_ledger, &l_key_hash);
+    }
     return true;
 }
 

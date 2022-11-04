@@ -739,7 +739,7 @@ bool dap_chain_global_db_set(const char *a_key, const void *a_value, size_t a_va
 bool dap_chain_global_db_gr_del(const char *a_key, const char *a_group)
 {
     dap_store_obj_t store_data = {0};
-    log_it(L_NOTICE, "Let's remove key %s", a_key);
+    /* log_it(L_NOTICE, "Let's remove key %s", a_key); */
     store_data.key = a_key;
     store_data.group = (char*)a_group;
 
