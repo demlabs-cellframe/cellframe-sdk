@@ -887,6 +887,8 @@ static int s_thread_loop(dap_context_t * a_context)
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
                                     l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
 #elif defined DAP_EVENTS_CAPS_MSMQ
+                                    /* TODO: Windows-way message waiting and handling
+                                     *
                                     DWORD l_mp_id = 0;
                                     MQMSGPROPS    l_mps;
                                     MQPROPVARIANT l_mpvar[1];
@@ -915,6 +917,11 @@ static int s_thread_loop(dap_context_t * a_context)
                                             log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                         }
                                         l_bytes_sent = sizeof(void*);
+                                    }
+                                    */
+                                    l_bytes_sent = dap_sendto(l_cur->socket, l_cur->port, l_cur->buf_out, l_cur->buf_out_size);
+                                    if (l_bytes_sent == SOCKET_ERROR) {
+                                        log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                     l_bytes_sent = mq_send(l_cur->mqd , (const char *)l_cur->buf_out,sizeof (void*),0);
