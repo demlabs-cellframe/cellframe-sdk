@@ -25,8 +25,10 @@ set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILER_LANGUAGE C)
 
 if(CMAKE_C_FLAGS)
-    string(REPLACE " " ";" REPLACED_FLAGS ${CMAKE_C_FLAGS})
-    string(REPLACE "-Werror=sign-compare;" "" NEW_FLAGS ${REPLACED_FLAGS})
+    string(REPLACE "-Werror=sign-compare " "" REPLACED_FLAGS ${CMAKE_C_FLAGS})
+    message("Replaced flags = ${REPLACED_FLAGS}")
+    string(REPLACE " " ";" NEW_FLAGS ${REPLACED_FLAGS})
+    message("New flags = ${NEW_FLAGS}")
     target_compile_options(${PROJECT_NAME} PRIVATE ${NEW_FLAGS})
 endif()
 
