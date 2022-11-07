@@ -24,7 +24,11 @@ add_library(${PROJECT_NAME} STATIC ${cuttdb_src})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILER_LANGUAGE C)
 
-set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
+if(CMAKE_C_FLAGS)
+    string(REPLACE " " ";" REPLACED_FLAGS ${CMAKE_C_FLAGS})
+    string(REPLACE "-Werror=sign-compare;" "" NEW_FLAGS ${REPLACED_FLAGS})
+    target_compile_options(${PROJECT_NAME} PRIVATE ${NEW_FLAGS})
+endif()
 
 target_link_libraries(${PROJECT_NAME})
 
