@@ -88,7 +88,7 @@ static int              s_db_mdbx_deinit();
 static int              s_db_mdbx_flush(void);
 static int              s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj);
 static dap_store_obj_t  *s_db_mdbx_read_last_store_obj(const char* a_group);
-static int              s_db_mdbx_is_obj(const char *a_group, const char *a_key);
+static bool s_db_mdbx_is_obj(const char *a_group, const char *a_key);
 static dap_store_obj_t  *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
 static size_t           s_db_mdbx_read_count_store(const char *a_group, uint64_t a_id);
@@ -227,7 +227,7 @@ MDBX_val    l_key_iov, l_data_iov;
 
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
-    if ( (l_rc = strlen(a_group)) > DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX )                /* Check length of the group name */
+    if ( (l_rc = strlen(a_group)) >(int) DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX )                /* Check length of the group name */
         return  log_it(L_ERROR, "Group name '%s' is too long (%d>%lu)", a_group, l_rc, DAP_GLOBAL_DB_GROUP_NAME_SIZE_MAX), NULL;
 
     if ( !(l_db_ctx = DAP_NEW_Z(dap_db_ctx_t)) )                            /* Allocate zeroed memory for new DB context */
@@ -459,7 +459,7 @@ size_t     l_upper_limit_of_db_size = 16;
     a_drv_dpt->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
     a_drv_dpt->read_count_store    = s_db_mdbx_read_count_store;
     a_drv_dpt->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
-    a_drv_dpt->is_obj              = (dap_db_driver_is_obj_callback_t)  s_db_mdbx_is_obj;
+    a_drv_dpt->is_obj              = s_db_mdbx_is_obj;
     a_drv_dpt->deinit              = s_db_mdbx_deinit;
     a_drv_dpt->flush               = s_db_mdbx_flush;
 
@@ -651,7 +651,7 @@ dap_store_obj_t *l_obj;
  *      1   -   SUCCESS, record is exist
  *      0   - Record-No-Found
  */
-int     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
+bool     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
 {
 int l_rc, l_rc2;
 dap_db_ctx_t *l_db_ctx;
@@ -1173,7 +1173,8 @@ struct  __record_suffix__   *l_suff;
 
 static dap_store_obj_t *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
-int l_rc, l_rc2, l_count_out;
+int l_rc, l_rc2;
+uint64_t l_count_out;
 dap_db_ctx_t *l_db_ctx;
 dap_store_obj_t *l_obj, *l_obj_arr;
 MDBX_val    l_key, l_data;
@@ -1248,7 +1249,7 @@ struct  __record_suffix__   *l_suff;
         else if ( !l_stat.ms_entries )                                      /* Nothing to retrieve , table contains no record */
             break;
 
-        if ( !(l_count_out = min(l_stat.ms_entries, l_count_out)) ) {
+        if ( !(  l_count_out = min(l_stat.ms_entries, l_count_out)) ) {
             debug_if(g_dap_global_db_debug_more, L_WARNING, "No object (-s) to be retrieved from the group '%s'", a_group);
             break;
         }
@@ -1258,7 +1259,7 @@ struct  __record_suffix__   *l_suff;
         */
         l_rc2 = l_count_out * sizeof(dap_store_obj_t);
         if ( !(l_obj_arr = (dap_store_obj_t *) DAP_NEW_Z_SIZE(char, l_rc2)) ) {
-            log_it(L_ERROR, "Cannot allocate %zu octets for %d store objects", l_count_out * sizeof(dap_store_obj_t), l_count_out);
+            log_it(L_ERROR, "Cannot allocate %zu octets for %"DAP_UINT64_FORMAT_U" store objects", l_count_out * sizeof(dap_store_obj_t), l_count_out);
             break;
         }
 

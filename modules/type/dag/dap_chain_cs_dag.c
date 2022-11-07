@@ -268,7 +268,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->datum_add_hashes_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag","datum_add_hashes_count",1);
     char * l_round_new_str = dap_strdup( dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new", "new"));
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    
+
     l_dag->broadcast_disable = true;
     char *l_gdb_group;
     if (!l_dag->is_celled)
@@ -650,6 +650,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
                 dap_chain_cs_dag_event_round_item_t *l_round_item =
                             DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_round_item_t,
                                             sizeof(dap_chain_cs_dag_event_round_item_t));
+                dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_datum_hash);
                 l_round_item->round_info.datum_hash = l_datum_hash;
                 dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
                 char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
@@ -1045,13 +1046,13 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
         }
     }
     if (!found && a_atom_iter->with_treshold) {
-	    HASH_ITER(hh, l_dag_pvt->events_treshold, l_item_cur, l_item_tmp) {
-		    if (l_item_cur->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
-			    a_atom_iter->cur_item = l_item_cur;
+        HASH_ITER(hh, l_dag_pvt->events_treshold, l_item_cur, l_item_tmp) {
+            if (l_item_cur->event->header.cell_id.uint64 == a_atom_iter->cell_id.uint64) {
+                a_atom_iter->cur_item = l_item_cur;
                 a_atom_iter->found_in_treshold = 1;
-			    break;
-		    }
-	    }
+                break;
+            }
+        }
     }
 
     if ( a_atom_iter->cur_item ){
@@ -1094,7 +1095,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
             l_ret[i] = l_event_item->event;
             (*a_lasts_size_array)[i] = l_event_item->event_size;
             i++;
-        }    
+        }
     }
     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
     return l_ret;

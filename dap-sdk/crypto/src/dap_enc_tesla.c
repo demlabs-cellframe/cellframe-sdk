@@ -32,13 +32,13 @@ void dap_enc_sig_tesla_key_new(struct dap_enc_key *key) {
 // alice_msg_len --- Alice's private key length
 /**
  * @brief dap_enc_sig_tesla_key_new_generate
- * 
- * @param key 
- * @param kex_buf 
- * @param kex_size 
- * @param seed 
- * @param seed_size 
- * @param key_size 
+ *
+ * @param key
+ * @param kex_buf
+ * @param kex_size
+ * @param seed
+ * @param seed_size
+ * @param key_size
  */
 void dap_enc_sig_tesla_key_new_generate(struct dap_enc_key * key, const void *kex_buf,
         size_t kex_size, const void * seed, size_t seed_size,
@@ -66,7 +66,7 @@ void dap_enc_sig_tesla_key_new_generate(struct dap_enc_key * key, const void *ke
     key->pub_key_data = malloc(key->pub_key_data_size);
 
     retcode = tesla_crypto_sign_keypair((tesla_public_key_t *) key->pub_key_data,
-            (tesla_private_key_t *) key->priv_key_data, _tesla_type, seed, seed_size);
+            (tesla_private_key_t *) key->priv_key_data, (tesla_kind_t)_tesla_type, seed, seed_size);
     if(retcode != 0) {
         tesla_private_and_public_keys_delete((tesla_private_key_t *) key->pub_key_data,
                 (tesla_public_key_t *) key->pub_key_data);

@@ -69,7 +69,7 @@
 
 #define DAP_CHAIN_DATUM_CUSTOM               0xffff
 
-#define DAP_DATUM_TYPE_STR(t, s)                \
+#define DAP_DATUM_TYPE_STR(t, s)            \
     switch (t) {                            \
         case DAP_CHAIN_DATUM_TX:            \
             s = "DATUM_TX"; break;          \
@@ -85,7 +85,7 @@
             s = "DATUM_EVM_DATA"; break;    \
         case DAP_CHAIN_DATUM_CA:            \
             s = "DATUM_CA"; break;          \
-    case DAP_CHAIN_DATUM_SIGNER:        \
+        case DAP_CHAIN_DATUM_SIGNER:        \
             s = "DATUM_SIGNER"; break;      \
         case DAP_CHAIN_DATUM_CUSTOM:        \
             s = "DATUM_CUSTOM"; break;      \

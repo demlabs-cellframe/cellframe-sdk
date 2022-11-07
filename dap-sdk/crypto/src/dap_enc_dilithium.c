@@ -54,7 +54,7 @@ void dap_enc_sig_dilithium_key_new_generate(struct dap_enc_key * key, const void
     key->pub_key_data = malloc(key->pub_key_data_size);
 
     retcode = dilithium_crypto_sign_keypair((dilithium_public_key_t *) key->pub_key_data,
-            (dilithium_private_key_t *) key->priv_key_data, _dilithium_type, seed, seed_size);
+            (dilithium_private_key_t *) key->priv_key_data, (dilithium_kind_t)_dilithium_type, seed, seed_size);
     if(retcode != 0) {
         dilithium_private_and_public_keys_delete((dilithium_private_key_t *) key->pub_key_data,
                 (dilithium_public_key_t *) key->pub_key_data);
@@ -454,7 +454,7 @@ dilithium_public_key_t* dap_enc_dilithium_read_public_key(const uint8_t *a_buf, 
     } else {
         memcpy(&kind, a_buf + sizeof(uint64_t), sizeof(uint32_t));
     }
-    dilithium_param_t p;  
+    dilithium_param_t p;
     if(!dilithium_params_init(&p, kind)){
         log_it(L_ERROR,"::read_public_key() Can't find params for signature kind %d", kind);
         return NULL;

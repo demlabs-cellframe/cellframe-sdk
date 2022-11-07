@@ -581,7 +581,7 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
     // Form objs from store_objs
     if(l_store_objs){
         l_objs = DAP_NEW_Z_SIZE(dap_global_db_obj_t,sizeof(dap_global_db_obj_t)*l_values_count);
-        for(int i = 0; i < l_values_count; i++){
+        for(size_t i = 0; i < l_values_count; i++){
             l_objs[i].id = l_store_objs[i].id;
             l_objs[i].is_pinned = l_store_objs[i].flags & RECORD_PINNED;
             l_objs[i].key = dap_strdup(l_store_objs[i].key);
