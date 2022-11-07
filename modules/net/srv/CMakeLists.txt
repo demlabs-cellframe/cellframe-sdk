@@ -5,7 +5,7 @@ file(GLOB DAP_CHAIN_NET_SRV_SRCS *.c)
 file(GLOB DAP_CHAIN_NET_SRV_HEADERS *.h)
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_SRCS} ${DAP_CHAIN_NET_SRV_HEADERS})
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../3rdparty/libmaxminddb ${CMAKE_CURRENT_SOURCE_DIR}/../../../3rdparty/libmaxminddb)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../3rdparty/libmaxminddb ${CMAKE_CURRENT_BINARY_DIR}/../../../3rdparty/libmaxminddb)
 
 set(NET_SRV_LIBS maxminddb dap_core dap_crypto dap_chain dap_chain_net dap_chain_wallet)
 if (CELLFRAME_MODULES MATCHES "modules-dynamic")
