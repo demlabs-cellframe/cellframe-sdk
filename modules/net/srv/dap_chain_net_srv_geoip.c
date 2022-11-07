@@ -32,7 +32,7 @@
 #include "dap_enc_key.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_geoip.h"
-#include "libmaxminddb/maxminddb.h"
+#include "maxminddb.h"
 
 #define LOG_TAG "chain_net_srv_geoip"
 #define LOCALE_DEFAULT  "en"
