@@ -23,15 +23,5 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${cuttdb_src})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILER_LANGUAGE C)
-
-if(CMAKE_C_FLAGS)
-    string(REPLACE "-Werror=sign-compare " "" REPLACED_FLAGS ${CMAKE_C_FLAGS})
-    message("Replaced flags = ${REPLACED_FLAGS}")
-    string(REPLACE " " ";" NEW_FLAGS ${REPLACED_FLAGS})
-    message("New flags = ${NEW_FLAGS}")
-    target_compile_options(${PROJECT_NAME} PRIVATE ${NEW_FLAGS})
-endif()
-
-target_link_libraries(${PROJECT_NAME})
-
 target_include_directories(${PROJECT_NAME} INTERFACE src)
+target_compile_options(${PROJECT_NAME} PRIVATE -Wno-sign-compare)
