@@ -387,33 +387,19 @@ size_t  dap_events_socket_insert_buf_out(dap_events_socket_t * a_es, void *a_dat
 DAP_STATIC_INLINE int dap_recvfrom(SOCKET s, void* buf_in, size_t buf_size) {
     struct sockaddr_in l_dummy;
     socklen_t l_size = sizeof(l_dummy);
-    int ret;
-    if (buf_in) {
-        memset(buf_in, 0, buf_size);
-        ret = recvfrom(s, (char*)buf_in, (long)buf_size, 0, (struct sockaddr *)&l_dummy, &l_size);
-    } else {
-        char l_tempbuf[sizeof(void*)];
-        ret = recvfrom(s, l_tempbuf, sizeof(l_tempbuf), 0, (struct sockaddr *)&l_dummy, &l_size);
-    }
-    return ret;
+    char l_signal;
+    return recvfrom(s, buf_in && buf_size ? (char*)buf_in : &l_signal,
+                    buf_in && buf_size ? buf_size : sizeof(char),
+                    0, (struct sockaddr*)&l_dummy, &l_size);
+
 }
 
 DAP_STATIC_INLINE int dap_sendto(SOCKET s, u_short port, void* buf_out, size_t buf_out_size) {
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = port;
-    l_addr_len = sizeof(struct sockaddr_in);
-    int ret;
-    if (buf_out) {
-        ret = sendto(s, (char*)buf_out, (long)buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
-    } else {
-        char l_bytes[sizeof(void*)] = { 0 };
-        ret = sendto(s, l_bytes, sizeof(l_bytes), MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, l_addr_len);
-    }
-    return ret;
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = port, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };
+    return sendto(s, buf_out && buf_out_size ? (char*)buf_out : "\0",
+                  buf_out && buf_out_size ? buf_out_size : sizeof(char),
+                  MSG_DONTWAIT | MSG_NOSIGNAL, (struct sockaddr *)&l_addr, sizeof(struct sockaddr_in));
+
 }
 #endif
 

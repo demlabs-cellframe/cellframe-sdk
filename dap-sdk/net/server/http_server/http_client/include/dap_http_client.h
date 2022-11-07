@@ -69,6 +69,7 @@ typedef struct dap_http_client
     size_t out_cache_position;
 
     dap_events_socket_t *esocket;
+    SOCKET socket_num;
     struct dap_http * http;
 
     uint16_t reply_status_code;

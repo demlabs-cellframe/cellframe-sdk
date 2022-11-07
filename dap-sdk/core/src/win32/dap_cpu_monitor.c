@@ -18,14 +18,13 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <windows.h>
-//#include <winnt.h>
-#include <winternl.h>
-
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <windows.h>
+//#include <winnt.h>
+#include <winternl.h>
 
 #include "dap_cpu_monitor.h"
 #include "dap_common.h"

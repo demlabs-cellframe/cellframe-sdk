@@ -110,13 +110,6 @@ int dap_chain_datum_tx_add_out_item(dap_chain_datum_tx_t **a_tx, const dap_chain
 int dap_chain_datum_tx_add_fee_item(dap_chain_datum_tx_t **a_tx, uint256_t a_value);
 
 /**
- * Create 'out_cond' item with fee stake value and insert to transaction
- *
- * return 1 Ok, -1 Error
- */
-int dap_chain_datum_tx_add_fee_stake_item(dap_chain_datum_tx_t **a_tx, uint256_t a_value);
-
-/**
  * Create 'out'_ext item and insert to transaction
  *
  * return 1 Ok, -1 Error

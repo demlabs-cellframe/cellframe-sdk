@@ -221,7 +221,6 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
  */
 int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
 {
-
     g_debug_reactor = g_config ? dap_config_get_item_bool_default(g_config, "general", "debug_reactor", false) : false;
 
     uint32_t l_cpu_count = dap_get_cpu_count();
@@ -237,7 +236,6 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
     if(dap_context_init() != 0){
         log_it( L_CRITICAL, "Can't init client submodule dap_context( )" );
         goto err;
-
     }
 
     dap_worker_init(a_conn_timeout);

@@ -591,7 +591,7 @@ unsigned char *pdata;
     *( (uint64_t *) pdata) = a_store_obj->value_len;            pdata += sizeof(uint64_t);
     memcpy(pdata, a_store_obj->value, a_store_obj->value_len);  pdata += a_store_obj->value_len;
 
-    assert( (pdata - l_pkt->data) == l_data_size_out);
+    assert( (uint32_t)(pdata - l_pkt->data) == l_data_size_out);
     return l_pkt;
 }
 

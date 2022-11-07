@@ -38,12 +38,6 @@ const char *c_dap_chain_datum_token_emission_type_str[]={
     [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO] = "ALGO",
     [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER] = "OWNER",
     [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT] = "SMART_CONTRACT"
-// 256 types
-    // [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_UNDEFINED] = "UNDEFINED",
-    // [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_AUTH] = "AUTH",
-    // [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ALGO] = "ALGO",
-    // [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_ATOM_OWNER] = "OWNER",
-    // [DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_256_SMART_CONTRACT] = "SMART_CONTRACT"
 };
 
 const char *c_dap_chain_datum_token_flag_str[] = {
@@ -182,18 +176,27 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
     size_t l_offset = 0;
     size_t l_signs_offset = 0;
     switch (a_datum_token->type) {
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
-            l_signs_offset = sizeof(dap_chain_datum_token_old_t);
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
-            l_signs_offset = sizeof(dap_chain_datum_token_t);
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-            l_signs_offset = sizeof(dap_chain_datum_token_t) + a_datum_token->header_native_decl.tsd_total_size;
-            break;
-        default:
-            break;
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
+        l_signs_offset = sizeof(dap_chain_datum_token_old_t);
+        break;
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
+        l_signs_offset = sizeof(dap_chain_datum_token_t);
+        break;
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
+        l_signs_offset = sizeof(dap_chain_datum_token_t) + a_datum_token->header_native_decl.tsd_total_size;
+        break;
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+        l_signs_offset = sizeof(dap_chain_datum_token_t) + a_datum_token->header_private_decl.tsd_total_size;
+        break;
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:
+        l_signs_offset = sizeof(dap_chain_datum_token_t) + a_datum_token->header_native_update.tsd_total_size;
+        break;
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+        l_signs_offset = sizeof(dap_chain_datum_token_t) + a_datum_token->header_private_update.tsd_total_size;
+        break;
+    default:
+        l_signs_offset = sizeof(dap_chain_datum_token_t);
+        break;
     }
     dap_sign_t **l_ret = DAP_NEW_Z_SIZE(dap_sign_t*, sizeof(dap_sign_t*) * a_datum_token->signs_total);
     if (!l_ret) {

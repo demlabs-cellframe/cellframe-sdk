@@ -1,6 +1,6 @@
 
-//#include <stdint.h>
-//#include <sys/types.h>
+#include <stdint.h>
+#include <sys/types.h>
 
 
 typedef struct dap_process_memory {

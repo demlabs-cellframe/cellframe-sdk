@@ -23,9 +23,5 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${cuttdb_src})
 set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
 set_target_properties(${PROJECT_NAME} PROPERTIES COMPILER_LANGUAGE C)
-
-set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE C)
-
-target_link_libraries(${PROJECT_NAME})
-
 target_include_directories(${PROJECT_NAME} INTERFACE src)
+target_compile_options(${PROJECT_NAME} PRIVATE -Wno-sign-compare)

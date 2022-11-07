@@ -468,7 +468,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     l_es->socket        = a_es->socket;
     l_es->port          = a_es->port;
     l_es->mq_num        = a_es->mq_num;
-
+    /*
     WCHAR l_direct_name[MQ_MAX_Q_NAME_LEN] = { 0 };
     int pos = 0;
 #ifdef DAP_BRAND
@@ -497,6 +497,7 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
         log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
         return NULL;
     }
+    */
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     // We don't create descriptor for kqueue at all
 #else
@@ -532,9 +533,10 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_mt(dap_worker_t * 
 int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 {
 #ifdef DAP_OS_WINDOWS
-    int l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max);
+    ssize_t l_read = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size_max);
+    int l_errno = WSAGetLastError();
     if (l_read == SOCKET_ERROR) {
-        log_it(L_ERROR, "Queue socket %zu received invalid data, error %d", a_esocket->socket, WSAGetLastError());
+        log_it(L_ERROR, "Queue socket %zu received invalid data, error %d", a_esocket->socket, l_errno);
         return -1;
     }
 #endif
@@ -638,6 +640,7 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
             #endif
             a_esocket->callbacks.queue_ptr_callback (a_esocket, l_queue_ptr);
 #elif defined DAP_EVENTS_CAPS_MSMQ
+            /*
             DWORD l_mp_id = 0;
             MQMSGPROPS    l_mps;
             MQPROPVARIANT l_mpvar[2];
@@ -675,6 +678,16 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
                     }
                 }
             }
+            */
+            if(l_read > 0) {
+                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from socket", l_read);
+                for (long shift = 0; shift < l_read; shift += sizeof(void*)) {
+                    l_queue_ptr = *(void **)(a_esocket->buf_in + shift);
+                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                }
+            }
+            else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK))  // we use blocked socket for now but who knows...
+                log_it(L_ERROR, "Can't read message from socket");
 #elif defined DAP_EVENTS_CAPS_KQUEUE
         l_queue_ptr = (void*) a_esocket->kqueue_event_catched_data.data;
         if(g_debug_reactor)
@@ -757,14 +770,13 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
 #elif defined DAP_OS_WINDOWS
         u_short l_value;
         int l_ret;
-        switch (l_ret = dap_recvfrom(a_esocket->socket, a_esocket->buf_in, a_esocket->buf_in_size)) {
+        switch (l_ret = dap_recvfrom(a_esocket->socket, &l_value, sizeof(char))) {
         case SOCKET_ERROR:
             log_it(L_CRITICAL, "Can't read from event socket, error: %d", WSAGetLastError());
             break;
         case 0:
             return;
         default:
-            l_value = a_esocket->buf_out[0];
             a_esocket->callbacks.event_callback(a_esocket, l_value);
             return;
         }
@@ -1041,8 +1053,8 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         return l_errno;
 #elif defined DAP_EVENTS_CAPS_MSMQ
 
-    char *pbuf = (char *)&a_arg;
-
+    /* TODO: Windows-way message waiting and handling
+     *
     DWORD l_mp_id = 0;
     MQMSGPROPS    l_mps;
     MQPROPVARIANT l_mpvar[1];
@@ -1051,7 +1063,7 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 
     l_p_id[l_mp_id] = PROPID_M_BODY;
     l_mpvar[l_mp_id].vt = VT_VECTOR | VT_UI1;
-    l_mpvar[l_mp_id].caub.pElems = (unsigned char*)(pbuf);
+    l_mpvar[l_mp_id].caub.pElems = (unsigned char*)(&a_arg);
     l_mpvar[l_mp_id].caub.cElems = sizeof(void*);
     l_mp_id++;
 
@@ -1065,12 +1077,8 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
         log_it(L_ERROR, "An error occured on sending message to queue, errno: %ld", hr);
         return hr;
     }
-
-    if(dap_sendto(a_es->socket, a_es->port, NULL, 0) == SOCKET_ERROR) {
-        return WSAGetLastError();
-    } else {
-        return 0;
-    }
+    */
+    return dap_sendto(a_es->socket, a_es->port, &a_arg, sizeof(void*)) == SOCKET_ERROR ? WSAGetLastError() : NO_ERROR;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent l_event={0};
     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
@@ -1159,12 +1167,7 @@ int dap_events_socket_event_signal( dap_events_socket_t * a_es, uint64_t a_value
         else
             return 1;
 #elif defined (DAP_OS_WINDOWS)
-    a_es->buf_out[0] = (u_short)a_value;
-    if(dap_sendto(a_es->socket, a_es->port, a_es->buf_out, sizeof(uint64_t)) == SOCKET_ERROR) {
-        return WSAGetLastError();
-    } else {
-        return 0;
-    }
+    return dap_sendto(a_es->socket, a_es->port, NULL, 0) == SOCKET_ERROR ? WSAGetLastError() : NO_ERROR;
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     struct kevent l_event={0};
     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);

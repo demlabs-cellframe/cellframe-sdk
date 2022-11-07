@@ -159,22 +159,6 @@ int dap_chain_datum_tx_add_fee_item(dap_chain_datum_tx_t **a_tx, uint256_t a_val
 }
 
 /**
- * Create 'out_cond' item with fee stake value and insert to transaction
- *
- * return 1 Ok, -1 Error
- */
-int dap_chain_datum_tx_add_fee_stake_item(dap_chain_datum_tx_t **a_tx, uint256_t a_value)
-{
-    dap_chain_tx_out_cond_t *l_tx_out_fee_stake = dap_chain_datum_tx_item_out_cond_create_fee_stake(a_value);
-    if(l_tx_out_fee_stake) {
-        dap_chain_datum_tx_add_item(a_tx, (const uint8_t*) l_tx_out_fee_stake);
-        DAP_DELETE(l_tx_out_fee_stake);
-        return 1;
-    }
-    return -1;
-}
-
-/**
  * Create 'out' item and insert to transaction
  *
  * return 1 Ok, -1 Error
@@ -270,7 +254,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
                 log_it(L_WARNING,"Incorrect signature's header, possible corrupted data");
                 return -4;
             }
-            if (!dap_sign_verify_size(l_sign, tx_items_size) || dap_sign_verify(l_sign, tx->tx_items, tx_items_pos) != 1) {
+            if (dap_sign_verify_all(l_sign, tx_items_size, tx->tx_items, tx_items_pos)) {
                 // invalid signature
                 ret = 0;
                 tx_items_pos += l_item_tx_size;

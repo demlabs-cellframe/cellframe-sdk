@@ -24,9 +24,9 @@
 
 #include <pthread.h>
 #include <uthash.h>
-#include "dap_common.h"
 #include "dap_events_socket.h"
 #include "dap_proc_queue.h"
+#include "dap_common.h"
 
 typedef struct dap_worker dap_worker_t;
 typedef struct dap_proc_thread dap_proc_thread_t;

@@ -257,9 +257,32 @@ typedef struct dap_chain_net_srv
     void *_internal;
 } dap_chain_net_srv_t;
 
+// Fees section
+typedef enum dap_chain_net_srv_fee_tsd_type {
+    TSD_FEE = 0x0001,
+    TSD_FEE_TYPE,
+    TSD_FEE_ADDR
+} dap_chain_net_srv_fee_tsd_type_t;
+
+typedef enum dap_chain_net_srv_fee_type {
+    SERVICE_FEE_OWN_FIXED = 0x1,
+    SERVICE_FEE_OWN_PERCENT,
+    SERVICE_FEE_NATIVE_FIXED,
+    SERIVCE_FEE_NATIVE_PERCENT
+} dap_chain_net_srv_fee_type_t;
+
+typedef struct dap_chain_net_srv_fee_item {
+    dap_chain_net_id_t net_id;
+    // Sevice fee
+    uint16_t fee_type;
+    uint256_t fee;
+    dap_chain_addr_t fee_addr; // Addr collector
+
+    UT_hash_handle hh;
+} dap_chain_net_srv_fee_item_t;
+
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
-bool dap_chain_net_srv_pay_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
                                            const char *a_config_section,
                                            dap_chain_net_srv_callbacks_t* a_callbacks);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #define MAX_CPU_COUNT 64
 
 typedef struct dap_cpu {
