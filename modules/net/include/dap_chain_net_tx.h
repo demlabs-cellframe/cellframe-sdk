@@ -87,4 +87,4 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
 void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_items);
 void dap_chain_datum_tx_spends_items_free(dap_chain_datum_tx_spends_items_t * a_items);
 
-uint256_t dap_chain_net_calc_tx_fee(uint256_t a_value);
+bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr);
