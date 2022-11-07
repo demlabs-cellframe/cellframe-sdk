@@ -42,12 +42,19 @@
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_tx_receipt.h"
 
+
 /**
  * Get item type
  *
  * return type, or TX_ITEM_TYPE_ANY if error
  */
-dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item);
+static inline dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item)
+{
+    dap_chain_tx_item_type_t type = a_item ? *(dap_chain_tx_item_type_t *) a_item : TX_ITEM_TYPE_ANY;
+    return type;
+}
+
+
 
 typedef struct dap_chain_datum_tx_item
 {

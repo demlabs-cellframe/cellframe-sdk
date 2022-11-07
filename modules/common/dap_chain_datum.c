@@ -31,6 +31,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_hashtree_roots.h"
 #include "dap_enc_base58.h"
+#include "dap_chain_datum_tx_items.h"
 
 #define LOG_TAG "dap_chain_datum"
 
@@ -610,7 +611,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                     size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
                     dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size,
-                                                     l_certs_field_size, a_hash_out_type);    
+                                                     l_certs_field_size, a_hash_out_type);
 					DAP_DEL_Z(l_value_str);
                 }break;
                 case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{

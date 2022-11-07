@@ -180,9 +180,9 @@ dap_proc_queue_t    *l_queue;
     clock_gettime(CLOCK_REALTIME, &l_time_start);
     do {
         l_is_processed = 0;
-        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_iter_cnt++ )                          /* Run from higest to lowest ... */
+        for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_iter_cnt++ )      /* Run from higest to lowest ... */
         {
-            if ( !l_queue->list[l_cur_pri].items.nr) {                       /* A lockless quick check */
+            if ( !l_queue->list[l_cur_pri].items.nr) {                          /* A lockless quick check */
                 l_cur_pri--;
                 continue;
             }
@@ -209,7 +209,7 @@ dap_proc_queue_t    *l_queue;
             debug_if (g_debug_reactor, L_INFO, "Proc event callback: %p/%p, prio=%d, iteration=%d - is %sfinished",
                                l_item->callback, l_item->callback_arg, l_cur_pri, l_iter_cnt, l_is_finished ? "" : "not ");
 
-            if ( !(l_is_finished) ) {                                       /* Put entry back to queue to repeat of execution */
+            if ( !(l_is_finished) ) {                                           /* Put entry back to queue to repeat of execution */
                 pthread_mutex_lock(&l_queue->list[l_cur_pri].lock);
                 l_rc = s_dap_insqtail (&l_queue->list[l_cur_pri].items, l_item, l_size);
                 pthread_mutex_unlock(&l_queue->list[l_cur_pri].lock);
@@ -224,7 +224,7 @@ dap_proc_queue_t    *l_queue;
     for (l_cur_pri = (DAP_QUE$K_PRIMAX - 1); l_cur_pri; l_cur_pri--)
         l_is_anybody_in_queue += l_queue->list[l_cur_pri].items.nr;
 
-    if ( l_is_anybody_in_queue )                                          /* Arm event if we have something to proc again */
+    if ( l_is_anybody_in_queue )                                                /* Arm event if we have something to proc again */
         dap_events_socket_event_signal(a_esocket, 1);
 
     debug_if(g_debug_reactor, L_DEBUG, "<-- Proc event callback end, items rest: %d, iterations: %d", l_is_anybody_in_queue, l_iter_cnt);

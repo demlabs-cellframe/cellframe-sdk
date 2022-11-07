@@ -310,19 +310,20 @@ void *dap_worker_thread(void *arg)
                 continue;
             }
 
-            if(g_debug_reactor) {
-                log_it(L_DEBUG, "--Worker #%u esocket %p uuid 0x%016"DAP_UINT64_FORMAT_x" type %d fd=%"DAP_FORMAT_SOCKET" flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
-                       l_worker->id, l_cur, l_cur->uuid, l_cur->type, l_cur->socket,
+
+                debug_if(g_debug_reactor, L_DEBUG, "--Worker #%u esocket %p uuid 0x%016"DAP_UINT64_FORMAT_x" type %d fd=%"DAP_FORMAT_SOCKET" flags=0x%0X (%s:%s:%s:%s:%s:%s:%s:%s)--",
+                    l_worker->id, l_cur, l_cur->uuid, l_cur->type, l_cur->socket,
                     l_cur_flags, l_flag_read?"read":"", l_flag_write?"write":"", l_flag_error?"error":"",
                     l_flag_hup?"hup":"", l_flag_rdhup?"rdhup":"", l_flag_msg?"msg":"", l_flag_nval?"nval":"",
-                       l_flag_pri?"pri":"");
-            }
+                    l_flag_pri?"pri":"");
 
             int l_sock_err = 0, l_sock_err_size = sizeof(l_sock_err);
             //connection already closed (EPOLLHUP - shutdown has been made in both directions)
 
-            if( l_flag_hup ) {
-                switch (l_cur->type ){
+            if( l_flag_hup )
+            {
+                switch (l_cur->type )
+                {
                 case DESCRIPTOR_TYPE_SOCKET_UDP:
                 case DESCRIPTOR_TYPE_SOCKET_CLIENT: {
                     getsockopt(l_cur->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
@@ -345,9 +346,9 @@ void *dap_worker_thread(void *arg)
 #endif
                     break;
                 }
+
                 default:
-                    if(g_debug_reactor)
-                        log_it(L_WARNING, "HUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
+                    debug_if(g_debug_reactor, L_WARNING, "HUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_cur, l_cur->socket, l_cur->type );
                 }
             }
 

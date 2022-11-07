@@ -27,7 +27,7 @@
 #define LOG_TAG "dap_proc_queue"
 
 
-typedef struct dap_proc_queue_msg{
+typedef struct dap_proc_queue_msg {
     dap_proc_queue_callback_t callback;
     void * callback_arg;
     int signal_kill,
@@ -48,12 +48,12 @@ dap_proc_queue_t * dap_proc_queue_create(dap_proc_thread_t * a_thread)
     if (!l_queue)
         return NULL;
 
-    for (int i = 0; i < DAP_QUE$K_PRIMAX; i++) {
-        assert ( !(pthread_mutex_init(&l_queue->list[i].lock, 0 )) );
-    }
+    for (int i = 0; i < DAP_QUE$K_PRIMAX; i++)
+        pthread_mutex_init(&l_queue->list[i].lock, 0 );
+
 
     l_queue->proc_thread = a_thread;
-    l_queue->esocket = dap_events_socket_create_type_queue_ptr_unsafe(NULL,s_queue_esocket_callback);
+    l_queue->esocket = dap_events_socket_create_type_queue_ptr_unsafe(NULL, s_queue_esocket_callback);
     l_queue->esocket->proc_thread = a_thread;
     l_queue->esocket->_inheritor = l_queue;
 
