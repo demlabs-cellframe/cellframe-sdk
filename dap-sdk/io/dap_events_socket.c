@@ -496,8 +496,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     if (hr != MQ_OK) {
         log_it(L_ERROR, "Can't open message queue for queue type, error: %ld", hr);
         return NULL;
-    */
     }
+    */
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     // We don't create descriptor for kqueue at all
 #else
