@@ -25,11 +25,10 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <pthread.h>
-
-#include "dap_chain.h"
 #include "utlist.h"
 
 #include "dap_chain_net.h"
+#include "dap_chain.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_config.h"
