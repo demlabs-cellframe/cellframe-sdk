@@ -36,7 +36,9 @@ typedef struct dap_chain_net_srv_xchange_price {
     uint256_t datoshi_sell;
     dap_chain_net_t *net;
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint256_t datoshi_buy;
     uint256_t rate;
+    uint256_t fee;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
     dap_enc_key_t *wallet_key;
@@ -44,9 +46,9 @@ typedef struct dap_chain_net_srv_xchange_price {
 
 typedef struct dap_srv_xchange_order_ext {
     uint64_t padding;
-    uint256_t datoshi_sell;
-    char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
-} dap_srv_xchange_order_ext_t;
+    uint256_t datoshi_buy;
+    char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
+} DAP_ALIGN_PACKED dap_srv_xchange_order_ext_t;
 
 typedef struct dap_chain_net_srv_xchange {
     dap_chain_net_srv_t *parent;
@@ -57,4 +59,3 @@ extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
-bool dap_chain_net_srv_xchange_verificator(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
