@@ -887,6 +887,8 @@ static int s_thread_loop(dap_context_t * a_context)
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
                                     l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
 #elif defined DAP_EVENTS_CAPS_MSMQ
+                                    /* TODO: Windows-way message waiting and handling
+                                     *
                                     DWORD l_mp_id = 0;
                                     MQMSGPROPS    l_mps;
                                     MQPROPVARIANT l_mpvar[1];
@@ -915,6 +917,11 @@ static int s_thread_loop(dap_context_t * a_context)
                                             log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                         }
                                         l_bytes_sent = sizeof(void*);
+                                    }
+                                    */
+                                    l_bytes_sent = dap_sendto(l_cur->socket, l_cur->port, l_cur->buf_out, l_cur->buf_out_size);
+                                    if (l_bytes_sent == SOCKET_ERROR) {
+                                        log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                     }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
                                     l_bytes_sent = mq_send(l_cur->mqd , (const char *)l_cur->buf_out,sizeof (void*),0);
@@ -1610,13 +1617,7 @@ dap_events_socket_t *dap_context_find(dap_context_t * a_context, dap_events_sock
     unsigned long l_mode = 1;
     ioctlsocket(l_es->socket, FIONBIO, &l_mode);
 
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = 0; //l_es->socket  + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };
 
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
@@ -1624,9 +1625,8 @@ dap_events_socket_t *dap_context_find(dap_context_t * a_context, dap_events_sock
         int dummy = 100;
         getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
         l_es->port = l_addr.sin_port;
-        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
-
+    /*
     MQQUEUEPROPS   l_qps;
     MQPROPVARIANT  l_qp_var[1];
     QUEUEPROPID    l_qp_id[1];
@@ -1691,6 +1691,7 @@ dap_events_socket_t *dap_context_find(dap_context_t * a_context, dap_events_sock
     if (hr != MQ_OK) {
         log_it(L_DEBUG, "Message queue %u NOT purged, possible data corruption, err %ld", l_es->mq_num, hr);
     }
+    */
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
     // We don't create descriptor for kqueue at all
 #else
@@ -1779,13 +1780,7 @@ dap_events_socket_t * dap_context_create_event(dap_context_t * a_context, dap_ev
     if (setsockopt(l_es->socket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse)) < 0)
         log_it(L_WARNING, "Can't set up REUSEADDR flag to the socket, err: %d", WSAGetLastError());
 
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = 0; //l_es->socket + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };
 
     if (bind(l_es->socket, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
@@ -1793,7 +1788,6 @@ dap_events_socket_t * dap_context_create_event(dap_context_t * a_context, dap_ev
         int dummy = 100;
         getsockname(l_es->socket, (struct sockaddr*)&l_addr, &dummy);
         l_es->port = l_addr.sin_port;
-        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
     // nothing to do

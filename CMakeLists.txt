@@ -105,10 +105,6 @@ endif()
 
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
-add_subdirectory(3rdparty/cuttdb)
-if (BUILD_WITH_GDB_DRIVER_MDBX)
-add_subdirectory(3rdparty/libmdbx)
-endif()
 if(DAPSDK_MODULES MATCHES "ssl-support")
     add_subdirectory(3rdparty/wolfssl)
 endif()
@@ -250,7 +246,7 @@ endif()
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
 					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
-                                         shlwapi bcrypt crypt32 secur32 userenv mqrt)
+                                         shlwapi bcrypt crypt32 secur32 userenv) #mqrt)
 endif()
 
 if (DARWIN)

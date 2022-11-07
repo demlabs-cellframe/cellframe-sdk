@@ -70,12 +70,13 @@ typedef struct dap_chain_datum_token{
     union {
         // Simple token declaration. Useful for 100% premined emission without any plays with token and owners after that
         struct {
-             // Nothing here
+             uint16_t decimals;
         } DAP_ALIGN_PACKED header_simple;
         // Private token declarations, with flags, manipulations and updates
         struct {
             uint16_t flags; // Token declaration flags
             uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t decimals;
         } DAP_ALIGN_PACKED header_private_decl;
         //native tokens
         struct {
@@ -85,11 +86,15 @@ typedef struct dap_chain_datum_token{
         } DAP_ALIGN_PACKED header_native_decl;
         // Private token update
         struct {
-            uint64_t tsd_total_size; // Data size section with extended values in key-length-value list.
+            uint16_t flags; // Token declaration flags
+            uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t decimals;
         } DAP_ALIGN_PACKED header_private_update;
         // native token update
         struct {
-            uint64_t tsd_total_size; // Data size section with extended values in key-length-value list.
+            uint16_t flags; // Token declaration flags
+            uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t decimals;
         } DAP_ALIGN_PACKED header_native_update;
         // Public token declaration
         struct {
@@ -269,25 +274,25 @@ typedef struct { char *key; uint64_t val; } t_datum_token_flag_struct;
 
 // new__
 static t_datum_token_flag_struct s_flags_table[] = {
-    { "NO_FLAGS", DAP_CHAIN_DATUM_TOKEN_FLAG_NONE}, 
-    { "ALL_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED}, 
-    { "ALL_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN }, 
+    { "NO_FLAGS", DAP_CHAIN_DATUM_TOKEN_FLAG_NONE},
+    { "ALL_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED},
+    { "ALL_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN },
     { "ALL_ALLOWED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED},
-    { "ALL_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN }, 
+    { "ALL_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN | DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN },
     { "STATIC_ALL", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL},
-    { "STATIC_FLAGS", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS }, 
-    { "STATIC_PERMISSIONS_ALL", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL }, 
-    { "STATIC_PERMISSIONS_DATUM_TYPE", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE }, 
+    { "STATIC_FLAGS", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS },
+    { "STATIC_PERMISSIONS_ALL", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL },
+    { "STATIC_PERMISSIONS_DATUM_TYPE", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE },
     { "STATIC_PERMISSIONS_TX_SENDER", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER },
     { "STATIC_PERMISSIONS_TX_RECEIVER", DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER },
-    { "ALL_SENDER_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED}, 
-    { "ALL_SENDER_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN}, 
+    { "ALL_SENDER_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED},
+    { "ALL_SENDER_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_FROZEN},
     { "ALL_SENDER_ALLOWED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED},
-    { "ALL_SENDER_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN}, 
-    { "ALL_RECEIVER_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED}, 
-    { "ALL_RECEIVER_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN }, 
+    { "ALL_SENDER_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_UNFROZEN},
+    { "ALL_RECEIVER_BLOCKED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED},
+    { "ALL_RECEIVER_FROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN },
     { "ALL_RECEIVER_ALLOWED", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED},
-    { "ALL_RECEIVER_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN }, 
+    { "ALL_RECEIVER_UNFROZEN", DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN },
 };
 
 
@@ -329,7 +334,7 @@ static inline char* s_flag_str_from_code(uint64_t code)
                 s_multiple_flag = dap_strjoin(";", s_multiple_flag, s_flags_table[i].key, (char*)NULL);
             else
                 s_multiple_flag = dap_strjoin(NULL, s_multiple_flag, s_flags_table[i].key, (char*)NULL);
-        }         
+        }
     }
 
     char* s_no_flags = "NO FLAGS";
@@ -346,7 +351,7 @@ static inline char* s_flag_str_from_code(uint64_t code)
  * @return
  */
 static inline char* dap_chain_datum_str_token_flag_from_code(uint64_t code)
-{   
+{
     return s_flag_str_from_code(code);
 }
 
@@ -359,7 +364,7 @@ static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 {
     if (a_str == NULL)
         return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
-    
+
     return s_flag_code_from_str(a_str);
 }
 
@@ -382,7 +387,7 @@ typedef struct dap_chain_datum_token_emission{
             uint64_t value;
             uint256_t value_256;
         };
-        uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];       
+        uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
     } DAP_ALIGN_PACKED hdr;
     union {
         struct {

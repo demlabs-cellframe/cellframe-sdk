@@ -55,7 +55,7 @@
 #define LOG_TAG "dap_chain_cs_dag_poa"
 
 typedef struct dap_chain_cs_dag_poa_presign_callback{
-    dap_chain_cs_dag_poa_callback_t callback; 
+    dap_chain_cs_dag_poa_callback_t callback;
     void *arg;
 } dap_chain_cs_dag_poa_presign_callback_t;
 
@@ -100,7 +100,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
 static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
 
 static bool s_seed_mode = false;
-static dap_timerfd_t *s_poa_round_timer = NULL; 
+static dap_interval_timer_t s_poa_round_timer = NULL;
 
 /**
  * @brief
@@ -130,7 +130,7 @@ void dap_chain_cs_dag_poa_deinit(void)
 
 /*
 // example
-static int s_callback_presign_test(dap_chain_t *a_chain, 
+static int s_callback_presign_test(dap_chain_t *a_chain,
                     dap_chain_cs_dag_event_t* a_event, size_t a_event_size, void *a_arg) {
     dap_chain_hash_fast_t l_event_hash;
     dap_chain_cs_dag_event_calc_hash(a_event, a_event_size, &l_event_hash);
@@ -372,9 +372,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
         if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
             if (!s_poa_round_timer) {
-                s_poa_round_timer = dap_interval_timer_create(10 * 1000,
-                                                              s_poa_round_clean,
-                                                              a_chain);
+                s_poa_round_timer = dap_interval_timer_create(10 * 1000, s_poa_round_clean, a_chain);
                 log_it(L_MSG, "DAG-PoA: Round timer is started");
             }
         }
@@ -791,7 +789,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
  */
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event, size_t a_event_size)
 {
-    
+
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( a_dag ) );
     size_t l_offset_from_beginning = dap_chain_cs_dag_event_calc_size_excl_signs(a_event, a_event_size);
     if( l_offset_from_beginning >= a_event_size){
@@ -822,7 +820,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         uint16_t l_event_signs_count = a_event->header.signs_count;
         for (size_t i=0; i<l_signs_count; i++) {
             dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
-            if (!dap_sign_verify_size(l_sign, a_event_size)) {
+            if (!dap_sign_verify_size(l_sign, a_event_size - l_offset_from_beginning)) {
                 log_it(L_WARNING,"Incorrect size with event %p", a_event);
                 l_ret = -3;
                 break;

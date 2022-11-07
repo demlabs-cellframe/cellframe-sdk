@@ -28,6 +28,16 @@
 #ifndef __STDC_WANT_LIB_EXT1__
 #define __STDC_WANT_LIB_EXT1__ 1
 #endif
+
+#ifdef DAP_OS_WINDOWS
+#ifndef _INC_WINDOWS
+#include <winsock2.h>
+#endif
+#include <fcntl.h>
+#define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
+#define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
+#endif
+
 #include <string.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -45,12 +55,6 @@
 #define atomic_uint _Atomic(uint)
 #endif
 
-#include <time.h>
-#ifdef DAP_OS_WINDOWS
-#include <fcntl.h>
-#define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
-#define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
-#endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
 #endif

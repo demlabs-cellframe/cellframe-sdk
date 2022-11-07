@@ -23,10 +23,10 @@
 #include <errno.h>
 #include <stdatomic.h>
 
+#include "dap_events_socket.h"
 #include "dap_config.h"
 #include "dap_list.h"
 #include "dap_events.h"
-#include "dap_events_socket.h"
 #include "dap_proc_thread.h"
 #include "dap_server.h"
 

@@ -21,7 +21,12 @@ file(GLOB DAP_CHAIN_GLOBAL_DB_HDR
     include/dap_chain_global_db_driver_sqlite.h
 )
 
-set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_crypto dap_chain sqlite3 dap_cuttdb json-c)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/cuttdb ${CMAKE_CURRENT_BINARY_DIR}/../../3rdparty/cuttdb)
+if (BUILD_WITH_GDB_DRIVER_MDBX)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/libmdbx ${CMAKE_CURRENT_BINARY_DIR}/../../3rdparty/libmdbx)
+endif()
+
+set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_io dap_crypto dap_chain dap_chain_net sqlite3 dap_cuttdb json-c)
 
 if(BUILD_WITH_GDB_DRIVER_MDBX)
     file(GLOB DAP_CHAIN_GLOBAL_DB_SRC ${DAP_CHAIN_GLOBAL_DB_SRC} dap_chain_global_db_driver_mdbx.c)
@@ -38,7 +43,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_GLOBAL_DB_SRC} ${DAP_CHAIN_GLOBAL_DB_HDR})
 
-target_link_libraries(${PROJECT_NAME}  ${DAP_CHAIN_GLOBAL_DB_LIBS})
+target_link_libraries(${PROJECT_NAME} ${DAP_CHAIN_GLOBAL_DB_LIBS})
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)

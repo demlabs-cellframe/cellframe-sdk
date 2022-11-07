@@ -821,12 +821,13 @@ size_t  l_cnt = 0, l_count_out = 0;
 
             l_obj_arr = l_obj;
             l_obj = l_obj_arr + (l_cnt - 1);                                /* Point <l_obj> to last array's element */
+            memset(l_obj, 0, sizeof(dap_store_obj_t));
 
             if ( !(l_obj->key = DAP_CALLOC(1, l_key.iov_len + 1)) )
                 l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
 
             else if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
-                {
+            {
                 /* Fill the <store obj> by data from the retreived record */
                 l_obj->key_len = l_key.iov_len;
                 memcpy((char *) l_obj->key, l_key.iov_base, l_obj->key_len);
@@ -834,14 +835,13 @@ size_t  l_cnt = 0, l_count_out = 0;
                 l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
                 memcpy(l_obj->value, l_data.iov_base, l_obj->value_len);
 
-
                 l_obj->id = l_suff->id;
                 l_obj->timestamp = l_suff->ts;
                 l_obj->flags = l_suff->flags;
 
                 dap_assert ( (l_obj->group = dap_strdup(a_group)) );
                 l_obj->group_len = strlen(l_obj->group);
-                }
+            }
             else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
         }
 
@@ -1005,8 +1005,7 @@ struct  __record_suffix__   *l_suff;
 
 
 
-    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_store_obj->group)) ) {        /* Get a DB context for the group */
-        log_it(L_WARNING, "No DB context for the group '%s', create it ...", a_store_obj->group);
+    if ( !(l_db_ctx = s_get_db_ctx_for_group(a_store_obj->group)) ) {       /* Get a DB context for the group */
                                                                             /* Group is not found ? Try to create table for new group */
         if ( !(l_db_ctx = s_cre_db_ctx_for_group(a_store_obj->group, MDBX_CREATE)) )
             return  log_it(L_WARNING, "Cannot create DB context for the group '%s'", a_store_obj->group), -EIO;

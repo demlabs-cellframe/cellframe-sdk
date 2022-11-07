@@ -76,15 +76,6 @@ dap_timerfd_t* dap_timerfd_start(uint64_t a_timeout_ms, dap_timerfd_callback_t a
 }
 
 #ifdef DAP_OS_WINDOWS
-void __stdcall TimerAPCb(void* arg, DWORD low, DWORD high) {  // Timer high value.
-    UNREFERENCED_PARAMETER(low)
-    UNREFERENCED_PARAMETER(high)
-    dap_timerfd_t *l_timerfd = (dap_timerfd_t *)arg;
-    if (dap_sendto(l_timerfd->tfd, l_timerfd->port, NULL, 0) == SOCKET_ERROR) {
-        log_it(L_CRITICAL, "Error occured on writing into socket from APC, errno: %d", WSAGetLastError());
-    }
-}
-
 void __stdcall TimerRoutine(void* arg, BOOLEAN flag) {
     UNREFERENCED_PARAMETER(flag)
     dap_timerfd_t *l_timerfd = (dap_timerfd_t *)arg;
@@ -199,27 +190,26 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
 #elif defined (DAP_OS_WINDOWS)
     l_timerfd->th = NULL;
     SOCKET l_tfd = socket(AF_INET, SOCK_DGRAM, 0);
-    int buffsize = 1024;
 
+    if (l_tfd == INVALID_SOCKET) {
+        log_it(L_ERROR, "Error creating socket for type 'timer': %d", WSAGetLastError());
+        DAP_DELETE(l_timerfd);
+        DAP_DELETE(l_events_socket);
+        return NULL;
+    }
+    int buffsize = 4096;
     setsockopt(l_tfd, SOL_SOCKET, SO_RCVBUF, (char *)&buffsize, sizeof(int));
 
     unsigned long l_mode = 1;
     ioctlsocket(l_tfd, FIONBIO, &l_mode);
 
-    int l_addr_len;
-    struct sockaddr_in l_addr;
-    l_addr.sin_family = AF_INET;
-    IN_ADDR _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-    l_addr.sin_addr = _in_addr;
-    l_addr.sin_port = l_tfd + 32768;
-    l_addr_len = sizeof(struct sockaddr_in);
+    struct sockaddr_in l_addr = { .sin_family = AF_INET, .sin_port = l_tfd + 32768, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }} };;
     if (bind(l_tfd, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
         log_it(L_ERROR, "Bind error: %d", WSAGetLastError());
     } else {
         int dummy = 100;
         getsockname(l_tfd, (struct sockaddr*)&l_addr, &dummy);
         l_timerfd->port = l_addr.sin_port;
-        //log_it(L_DEBUG, "Bound to port %d", l_addr.sin_port);
     }
 
     if (!CreateTimerQueueTimer(&l_timerfd->th, hTimerQueue,

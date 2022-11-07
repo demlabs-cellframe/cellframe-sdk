@@ -494,32 +494,20 @@ dap_list_t *dap_list_copy(dap_list_t *list)
  */
 dap_list_t *dap_list_copy_deep(dap_list_t *list, dap_callback_copy_t func, void* user_data)
 {
-    dap_list_t *new_list = NULL;
+    dap_list_t *last, *new_list = NULL;
 
-    if(list)
-    {
-        dap_list_t *last;
-
-        new_list = dap_list_alloc();
-        if(func)
-            new_list->data = func(list->data, user_data);
-        else
-            new_list->data = list->data;
-        new_list->prev = NULL;
-        last = new_list;
-        list = list->next;
-        while(list)
-        {
+    while (list) {
+        if (new_list) {
             last->next = dap_list_alloc();
             last->next->prev = last;
             last = last->next;
-            if(func)
-                last->data = func(list->data, user_data);
-            else
-                last->data = list->data;
-            list = list->next;
-        }
-        last->next = NULL;
+        } else
+            new_list = last = dap_list_alloc();
+        if (func)
+            last->data = func(list->data, user_data);
+        else
+            last->data = list->data;
+        list = list->next;
     }
 
     return new_list;

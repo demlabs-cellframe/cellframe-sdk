@@ -52,13 +52,10 @@
 #include <signal.h>
 #endif
 #include <pthread.h>
-
-#include "iputils/iputils.h"
+#include <iputils/iputils.h>
 
 #include "uthash.h"
 #include "utlist.h"
-
-
 #include "dap_string.h"
 #include "dap_hash.h"
 #include "dap_chain_common.h"
@@ -73,11 +70,11 @@
 #include "dap_chain_node.h"
 #include "dap_global_db.h"
 #include "dap_chain_node_client.h"
-#include "dap_chain_node_remote.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_node_ping.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_tx.h"
 
 #ifndef _WIN32
 #include "dap_chain_net_news.h"
@@ -1170,7 +1167,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                     l_node_addr.uint64 = l_remote_node_addr->uint64;
 
                     // clean client struct
-                    dap_chain_node_client_close(l_node_client);
+                    dap_chain_node_client_close(l_node_client->uuid);
                     DAP_DELETE(l_remote_node_info);
                     //return -1;
                     continue;
@@ -1192,7 +1189,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "no response from remote node(s)");
             log_it(L_WARNING, "No response from remote node(s): err code %d", res);
             // clean client struct
-            dap_chain_node_client_close(l_node_client);
+            dap_chain_node_client_close(l_node_client->uuid);
             //DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1221,7 +1218,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             NULL, 0);
             if(res == 0) {
                 log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
-                dap_chain_node_client_close(l_node_client);
+                dap_chain_node_client_close(l_node_client->uuid);
                 DAP_DELETE(l_remote_node_info);
                 return -1;
             }
@@ -1250,22 +1247,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 DAP_DELETE(l_remote_node_info);
                 return -1;*/
             }
-            /*                if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
-             l_net->pub.id, l_chain_id_null, l_chain_cell_id_null, &l_sync_request,
-             sizeof(l_sync_request))) {
-             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Cant send sync chains request");
-             // clean client struct
-             dap_chain_node_client_close(l_node_client);
-             DAP_DELETE(l_remote_node_info);
-             return -1;
-             }
-            dap_stream_ch_set_ready_to_write(l_ch_chain, true);
-            // wait for finishing of request
-            timeout_ms = 120000; // 20 min = 1200 sec = 1 200 000 ms
-            // TODO add progress info to console
-            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_SYNCED, timeout_ms);
-            */
-
         }
         log_it(L_NOTICE, "Now lets sync all");
 
@@ -1287,7 +1268,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 sizeof(l_sync_request))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
             // clean client struct
-            dap_chain_node_client_close(l_node_client);
+            dap_chain_node_client_close(l_node_client->uuid);
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1299,7 +1280,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(res < 0) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
                                             NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-            dap_chain_node_client_close(l_node_client);
+            dap_chain_node_client_close(l_node_client->uuid);
             DAP_DELETE(l_remote_node_info);
             log_it(L_WARNING, "Gdb synced err -2");
             return -2;
@@ -1327,7 +1308,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                     sizeof(l_sync_request))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
                 // clean client struct
-                dap_chain_node_client_close(l_node_client);
+                dap_chain_node_client_close(l_node_client->uuid);
                 DAP_DELETE(l_remote_node_info);
                 log_it(L_INFO, "Chain '%s' synced error: Can't send sync chains request", l_chain->name);
                 return -3;
@@ -1347,7 +1328,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_remote_node_info);
         //dap_client_disconnect(l_node_client->client);
         //l_node_client->client = NULL;
-        dap_chain_node_client_close(l_node_client);
+        dap_chain_node_client_close(l_node_client->uuid);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
 
@@ -1387,25 +1368,11 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if (res) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
             // clean client struct
-            dap_chain_node_client_close(client);
+            dap_chain_node_client_close(client->uuid);
             DAP_DELETE(node_info);
             return -8;
         }
         DAP_DELETE(node_info);
-
-        //Add new established connection in the list
-        int ret = dap_chain_node_client_list_add(&l_node_addr, client);
-        switch (ret)
-        {
-        case -1:
-            dap_chain_node_client_close(client);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established, but not saved");
-            return -9;
-        case -2:
-            dap_chain_node_client_close(client);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection already present");
-            return -10;
-        }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     }
         break;
@@ -2308,7 +2275,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             }
             char buf[50] = {[0]='\0'};
             dap_hash_fast_t l_data_hash;
-            char l_data_hash_str[70] = {[0]='\0'};
+            char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {[0]='\0'};
             dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
             dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
             const char *l_type = NULL;
@@ -2333,9 +2300,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
         }
         dap_global_db_objs_delete(l_objs, l_objs_size);
+        DAP_DELETE(l_gdb_group_mempool);
     }
-
-    DAP_DELETE(l_gdb_group_mempool);
 }
 
 /**
@@ -2364,24 +2330,12 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
         }
     }
 
-    if(l_net) {
-        dap_string_t * l_str_tmp = dap_string_new(NULL);
-
-        if(l_chain)
-            s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp, l_hash_out_type);
-        else
-            DL_FOREACH(l_net->pub.chains, l_chain)
-                    s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp, l_hash_out_type);
-
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
-        dap_string_free(l_str_tmp, false);
-
-        return 0;
-    } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Error! Need both -net <network name> and -chain <chain name> params\n");
-        return -2;
-    }
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    DL_FOREACH(l_net->pub.chains, l_chain)
+        s_com_mempool_list_print_for_chain(l_net, l_chain, l_str_tmp, l_hash_out_type);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
+    dap_string_free(l_str_tmp, true);
+    return 0;
 }
 
 /**
@@ -2398,62 +2352,76 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
 
-    const char * l_hash_out_type = NULL;
-    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
-    if(!l_hash_out_type)
-        l_hash_out_type = "hex";
-    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
-    }
-
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net) != 0) {
-        //dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Need both -net <network name> and -chain <chain name> params\n");
         return -1;
     }
+    const char * l_datum_hash_str = NULL;
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
+    if (l_datum_hash_str) {
+        char *l_datum_hash_hex_str = NULL;
+        // datum hash may be in hex or base58 format
+        if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
+                        l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
 
-    if(l_chain && l_net) {  // UNUSED(l_net)
-        const char * l_datum_hash_str = NULL;
-        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
-        if(l_datum_hash_str) {
-            char *l_datum_hash_hex_str;
-            char *l_datum_hash_base58_str;
-            // datum hash may be in hex or base58 format
-            if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
-                l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
-                l_datum_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_datum_hash_str);
-            }
-            else {
-                l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
-                l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
-            }
-            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-            uint8_t *l_data_tmp = l_datum_hash_hex_str ? dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str, NULL, NULL, NULL ) : NULL;
-            if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str) == 0) {
-                if(!dap_strcmp(l_hash_out_type,"hex"))
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_hex_str);
-                else
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_base58_str);
-                return 0;
-            } else {
-                if(!dap_strcmp(l_hash_out_type,"hex"))
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_hex_str);
-                else
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_base58_str);
-                return -4;
-            }
-            DAP_DELETE(l_gdb_group_mempool);
-            DAP_DELETE(l_data_tmp);
-            DAP_DELETE(l_datum_hash_hex_str);
-            DAP_DELETE(l_datum_hash_base58_str);
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str,
+                                                     NULL, NULL, NULL);
+        if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str) == 0) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_str);
+            return 0;
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", argv[0]);
-            return -3;
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
+            return -4;
         }
+        DAP_DELETE(l_gdb_group_mempool);
+        DAP_DELETE(l_data_tmp);
+        DAP_DEL_Z(l_datum_hash_hex_str);
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Error! Need both -net <network name> and -chain <chain name> params\n");
-        return -2;
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", argv[0]);
+        return -3;
+    }
+}
+
+/**
+ * @brief com_mempool_check
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param a_str_reply
+ * @return
+ */
+int com_mempool_check(int argc, char ** argv, char ** a_str_reply)
+{
+    int arg_index = 1;
+    dap_chain_t * l_chain = NULL;
+    dap_chain_net_t * l_net = NULL;
+
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net))
+        return -1;
+
+    const char * l_datum_hash_str = NULL;
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
+    if(l_datum_hash_str) {
+        char *l_datum_hash_hex_str = NULL;
+        // datum hash may be in hex or base58 format
+        if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
+            l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str,
+                                                     NULL, NULL, NULL);
+        if (l_data_tmp) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is present in mempool", l_datum_hash_str);
+            return 0;
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find datum %s", l_datum_hash_str);
+            return -4;
+        }
+        DAP_DELETE(l_gdb_group_mempool);
+        DAP_DELETE(l_data_tmp);
+        DAP_DEL_Z(l_datum_hash_hex_str);
+    } else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", argv[0]);
+        return -3;
     }
 }
 
@@ -2580,328 +2548,6 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
     return  ret;
 }
 
-
-/**
- * @brief com_token_decl_update
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return
- * @details token_update -net <net_name> -chain <chain_name> -token <token_ticker> [-type private] -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
- *  \t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>"
- *  \t   and custom parameters list <Param 1>, <Param 2>...<Param N>."
- *  \n"
- *  ==Flags=="
- *  \t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
- *  \t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
- *  \t ALL_FROZEN:\t All permissions are temprorary frozen\n"
- *  \t ALL_UNFROZEN:\t Unfrozen permissions\n"
- *  \t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
- *  \t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
- *  \t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
- *  \t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
- *  \t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
- *  \t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
-    "\n"
-    "==Params==\n"
-    "General:\n"
-    "\t -flags_set <value>:\t Set list of flags from <value> to token declaration\n"
-    "\t -flags_unset <value>:\t Unset list of flags from <value> from token declaration\n"
-    "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
-    "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
-    "\t -total_signs_add <value>:\t Add signature's pkey fingerprint to the list of owners\n"
-    "\t -total_signs_remove <value>:\t Remove signature's pkey fingerprint from the owners\n"
-    "\nDatum type allowed/blocked updates:\n"
-    "\t -datum_type_allowed_add <value>:\t Add allowed datum type(s)\n"
-    "\t -datum_type_allowed_remove <value>:\t Remove datum type(s) from allowed\n"
-    "\t -datum_type_blocked_add <value>:\t Add blocked datum type(s)\n"
-    "\t -datum_type_blocked_remove <value>:\t Remove datum type(s) from blocked\n"
-    "\nTx receiver addresses allowed/blocked updates:\n"
-    "\t -tx_receiver_allowed_add <value>:\t Add allowed tx receiver(s)\n"
-    "\t -tx_receiver_allowed_remove <value>:\t Remove tx receiver(s) from allowed\n"
-    "\t -tx_receiver_blocked_add <value>:\t Add blocked tx receiver(s)\n"
-    "\t -tx_receiver_blocked_remove <value>:\t Remove tx receiver(s) from blocked\n"
-    "\n Tx sender addresses allowed/blocked updates:\n"
-    "\t -tx_sender_allowed_add <value>:\t Add allowed tx sender(s)\n"
-    "\t -tx_sender_allowed_remove <value>:\t Remove tx sender(s) from allowed\n"
-    "\t -tx_sender_blocked_add <value>:\t Add allowed tx sender(s)\n"
-    "\t -tx_sender_blocked_remove <value>:\t Remove tx sender(s) from blocked\n"
-    "\n"
- */
-int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
-{
-    int l_arg_index = 1;
-
-    const char * l_type_str = NULL;
-    uint16_t l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE;
-
-    const char * l_ticker = NULL;
-
-    uint16_t l_signs_total = 0;
-
-    dap_cert_t ** l_certs = NULL;
-    size_t l_certs_count = 0;
-
-    dap_chain_t * l_chain = NULL;
-    dap_chain_net_t * l_net = NULL;
-
-    const char * l_hash_out_type = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-H", &l_hash_out_type);
-    if(!l_hash_out_type)
-        l_hash_out_type = "hex";
-    if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
-    }
-
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net))
-        return -1;
-    // Token ticker
-    l_arg_index=dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_ticker);
-    // Check for ticker
-    if(!l_ticker) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_update requires parameter 'token'");
-        return -2;
-    }
-
-    // Token type
-    l_arg_index=dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-type", &l_type_str);
-
-    if (l_type_str && strcmp(l_type_str, "private")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_update can't accept type \"%s\"", l_type_str);
-        return -22;
-    }
-
-    dap_chain_datum_token_t * l_datum_token_update = NULL;
-    size_t l_datum_data_offset = 0;
-    uint32_t l_sign_counter = 0;
-
-    switch(l_type){
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE: // 256
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE: {
-            dap_list_t *l_tsd_list = dap_list_alloc();
-            size_t l_tsd_total_size = 0;
-            l_arg_index++;
-            while (l_arg_index<a_argc-1){
-                char * l_arg_param=  a_argv[l_arg_index+1];
-                if ( strcmp( a_argv[l_arg_index],"-flags_set" )==0){   // Flags
-                     char ** l_str_flags = NULL;
-                     l_str_flags = dap_strsplit( l_arg_param,",",0xffff );
-                     uint16_t l_flags = 0;
-                     while (l_str_flags && *l_str_flags){
-                         uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                         if ( l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
-                             dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
-                             return -20;
-                         }
-                         l_flags |= (1<<l_flag);
-                         l_str_flags++;
-                     }
-                     // Add flags as set_flags TDS section
-                     dap_tsd_t * l_tsd = dap_tsd_create_scalar(
-                                                    DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS, l_flags);
-                     dap_list_append( l_tsd_list, l_tsd);
-                     l_tsd_total_size+= dap_tsd_size( l_tsd);
-
-                }else if ( strcmp( a_argv[l_arg_index],"-flags_unset" )==0){   // Flags
-                    char ** l_str_flags = NULL;
-                    l_str_flags = dap_strsplit( l_arg_param,",",0xffff );
-                    uint16_t l_flags = 0;
-                    while (l_str_flags && *l_str_flags ){
-                        uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                        if ( l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
-                            return -20;
-                        }
-                        l_flags |= l_flag;
-                        l_str_flags++;
-                    }
-                    // Add flags as unset_flags TDS section
-                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS, l_flags);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-
-               }else if ( strcmp( a_argv[l_arg_index],"-signs" )==0){
-                    dap_cert_parse_str_list(l_arg_param, &l_certs, &l_certs_count);
-                    if(!l_certs_count) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                "token_update command requres at least one valid certificate to sign the basic transaction of emission");
-                        return -10;
-                    }
-                } else if ( strcmp( a_argv[l_arg_index],"-total_supply" )==0){ // Total supply
-                    dap_tsd_t * l_tsd;
-                    uint256_t l_param_value = dap_chain_balance_scan(l_arg_param);
-                    l_tsd = dap_tsd_create_scalar(
-                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY, l_param_value);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-total_signs_valid" )==0){ // Signs valid
-                    uint16_t l_param_value = (uint16_t)atoi(l_arg_param);
-                    l_signs_total = l_param_value;
-                    dap_tsd_t * l_tsd = dap_tsd_create_scalar(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-datum_type_allowed_add" )==0){ // Datum type allowed add
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-datum_type_allowed_remove" )==0){ // Datum type allowed remove
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-datum_type_blocked_add" )==0){ // Datum type blocked add
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-datum_type_blocked_remove" )==0){ // Datum type blocked remove
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed_add" )==0){ // TX Receiver add
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_allowed_remove" )==0){ // TX Receiver remove
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked_add" )==0){ // TX Receiver blocked add
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-tx_receiver_blocked_remove" )==0){ // TX Receiver blocked remove
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_allowed_add" )==0){ // TX Sender allowed add
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_allowed_remove" )==0){ // TX Sender allowed remove
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_blocked_add" )==0){  // TX Sender blocked add
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                }else if ( strcmp( a_argv[l_arg_index],"-tx_sender_blocked_remove" )==0){  // TX Sender blocked remove
-                    dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE, l_arg_param);
-                    dap_list_append( l_tsd_list, l_tsd);
-                    l_tsd_total_size+= dap_tsd_size( l_tsd);
-                } else if (strcmp( a_argv[l_arg_index], "-chain") && strcmp( a_argv[l_arg_index], "-net") &&
-                           strcmp( a_argv[l_arg_index], "-token") && !strcmp( a_argv[l_arg_index], "-type")) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown param \"%s\"",a_argv[l_arg_index]);
-                    return -20;
-                }
-                l_arg_index+=2;
-            }
-
-            if (!l_tsd_total_size) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "No valid params to update");
-                return -21;
-            }
-
-            // If we have more certs than we need signs - use only first part of the list
-            if(l_certs_count > l_signs_total)
-                l_certs_count = l_signs_total;
-
-            // Create new datum token
-            l_datum_token_update = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t)+l_tsd_total_size ) ;
-            l_datum_token_update->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE; // 256
-            dap_snprintf(l_datum_token_update->ticker, sizeof(l_datum_token_update->ticker), "%s", l_ticker);
-            l_datum_token_update->header_private_update.tsd_total_size = l_tsd_total_size;
-
-            // Sign header with all certificates in the list and add signs to the end of token update
-            uint16_t l_sign_counter = 0;
-            l_datum_token_update = s_sign_cert_in_cycle(l_certs, l_datum_token_update, l_certs_count, &l_tsd_total_size,
-                                                        &l_sign_counter);
-            l_datum_token_update->signs_total = l_sign_counter;
-
-            // Add TSD sections in the end
-            for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-                dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
-                size_t l_tsd_size = dap_tsd_size( l_tsd);
-                memcpy(l_datum_token_update->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
-                l_datum_data_offset += l_tsd_size;
-            }
-
-
-        }break;
-
-        default:
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "Unknown token type");
-            return -8;
-    }
-
-    if (l_sign_counter == 0)
-    {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "Token declaration failed. Successful count of certificate signing is 0");
-            return -9;
-    }
-
-    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE, l_datum_token_update,
-            sizeof(l_datum_token_update->header_simple) + l_datum_data_offset);
-    size_t l_datum_size = dap_chain_datum_size(l_datum);
-
-    // Calc datum's hash
-    dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
-    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    char * l_key_str_base58 = dap_enc_base58_encode_hash_to_str(&l_key_hash);
-
-    // Add datum to mempool with datum_token_update hash as a key
-    char * l_gdb_group_mempool;
-    if(l_chain) {
-        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-    }
-    else {
-        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
-
-    }
-    if(dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0) {
-        if(!dap_strcmp(l_hash_out_type,"hex"))
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "datum %s with token update %s is placed in datum pool ", l_key_str, l_ticker);
-        else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "datum %s with token update %s is placed in datum pool ", l_key_str_base58, l_ticker);
-        DAP_DELETE(l_datum);
-        DAP_DELETE(l_datum_token_update);
-        DAP_DELETE(l_gdb_group_mempool);
-        DAP_DELETE(l_key_str);
-        DAP_DELETE(l_key_str_base58);
-        return 0;
-    }
-    else {
-        if(!dap_strcmp(l_hash_out_type,"hex"))
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "datum tx %s is not placed in datum pool ", l_key_str);
-        else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "datum tx %s is not placed in datum pool ", l_key_str_base58);
-        DAP_DELETE(l_datum);
-        DAP_DELETE(l_datum_token_update);
-        DAP_DELETE(l_gdb_group_mempool);
-        DAP_DELETE(l_key_str);
-        DAP_DELETE(l_key_str_base58);
-        return -2;
-    }
-}
-
 /**
  * @brief
  *
@@ -2952,41 +2598,43 @@ typedef struct _dap_cli_token_additional_params {
     const char* tx_receiver_blocked;
     const char* tx_sender_allowed;
     const char* tx_sender_blocked;
+    uint16_t parsed_flags;
+    size_t tsd_total_size;
+    byte_t *parsed_tsd;
 } dap_cli_token_additional_params;
 
 typedef struct _dap_sdk_cli_params {
-    const char* l_hash_out_type;
-    dap_chain_t * l_chain;
-    dap_chain_net_t * l_net;
-    const char* l_chain_str;
-    const char* l_net_str;
-    const char* l_ticker;
-    const char* l_type_str;
-    uint16_t l_type;
-    const char* l_certs_str;
-    uint16_t l_signs_total;
-    uint16_t l_signs_emission;
-    uint256_t l_total_supply;
-    const char* l_decimals_str;
+    const char *hash_out_type;
+    const char *chain_str;
+    const char *net_str;
+    const char *ticker;
+    const char *type_str;
+    const char *certs_str;
+    dap_chain_t *chain;
+    dap_chain_net_t *net;
+    uint16_t type;
+    uint16_t signs_total;
+    uint16_t signs_emission;
+    uint256_t total_supply;
+    const char* decimals_str;
     dap_cli_token_additional_params ext;
 } dap_sdk_cli_params, *pdap_sdk_cli_params;
 
-
-int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* l_params)
+static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* a_params, bool a_update_token)
 {
-    l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-H", &l_params->l_hash_out_type);
-    if(!l_params->l_hash_out_type)
-        l_params->l_hash_out_type = "hex";
-    if(dap_strcmp(l_params->l_hash_out_type,"hex") && dap_strcmp(l_params->l_hash_out_type,"base58")) {
+    a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-H", &a_params->hash_out_type);
+    if(!a_params->hash_out_type)
+        a_params->hash_out_type = "hex";
+    if(dap_strcmp(a_params->hash_out_type,"hex") && dap_strcmp(a_params->hash_out_type,"base58")) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
     int l_arg_index = 0;
-    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_params->l_chain, &l_params->l_net);
+    int l_res = dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &a_params->chain, &a_params->net);
 
-    if(!l_params->l_net || !l_params->l_chain)
+    if(!a_params->net || !a_params->chain)
         return l_res;
     else {
         if(*a_str_reply) {
@@ -2995,44 +2643,56 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
         }
     }
     //net name
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_params->l_net_str);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &a_params->net_str);
     //chainname
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-chain", &l_params->l_chain_str);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-chain", &a_params->chain_str);
     //token_ticker
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-token", &l_params->l_ticker);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-token", &a_params->ticker);
 
     // Token type
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-type", &l_params->l_type_str);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-type", &a_params->type_str);
 
-    if (l_params->l_type_str) {
-        if (strcmp(l_params->l_type_str, "private") == 0){
-            l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL; // 256
-        }else if (strcmp(l_params->l_type_str, "private_simple") == 0){
-            l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
-        }else if (strcmp(l_params->l_type_str, "public_simple") == 0){
-            l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC; // 256
-        }else if (strcmp(l_params->l_type_str, "CF20") == 0){
-            l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
-        }else{
+    if (a_params->type_str) {
+        if (strcmp(a_params->type_str, "private") == 0) {
+            a_params->type = a_update_token ? DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE : DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL; // 256
+        } else if (strcmp(a_params->type_str, "CF20") == 0) {
+            a_params->type = a_update_token ? DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE : DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
+        } else if (strcmp(a_params->type_str, "private_simple") == 0 && !a_update_token) {
+            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
+        } else if (strcmp(a_params->type_str, "public_simple") == 0 && !a_update_token) {
+            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC; // 256
+        } else if (strcmp(a_params->type_str, "CF20") == 0) {
+            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
+        } else if (!a_update_token) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Unknown token type %s was specified. Supported types:\n"
                         "   private_simple\n"
                         "   private\n"
                         "   CF20\n"
-                        "Default token type is private_simple.\n", l_params->l_type_str);
+                        "Default token type is private_simple.\n", a_params->type_str);
             return -1;
+        } else {
+           dap_cli_server_cmd_set_reply_text(a_str_reply,
+                           "Unknown token type %s was specified. Supported types:\n"
+                       "   private\n"
+                       "   CF20\n", a_params->type_str);
+           return -1;
         }
+    } else if (a_update_token) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply,"update_token command required parameter:\n-type <CF20 or private>");
+        return -1;
     }
 
+
     // Certificates thats will be used to sign currend datum token
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-certs", &l_params->l_certs_str);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-certs", &a_params->certs_str);
     // Signs number thats own emissioncan't find
     const char* l_signs_total_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-signs_total", &l_signs_total_str);
     // Signs total
     char* l_tmp = NULL;
     if(l_signs_total_str){
-        if((l_params->l_signs_total = (uint16_t) strtol(l_signs_total_str, &l_tmp, 10)) == 0){
+        if((a_params->signs_total = (uint16_t) strtol(l_signs_total_str, &l_tmp, 10)) == 0){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                     "'signs_total' parameter must be unsigned integer value that fits in 2 bytes");
             return -8;
@@ -3043,9 +2703,9 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
     l_tmp = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-signs_emission", &l_signs_emission_str);
     if (l_signs_emission_str){
-        if((l_params->l_signs_emission = (uint16_t) strtol(l_signs_emission_str, &l_tmp, 10)) == 0){
+        if((a_params->signs_emission = (uint16_t) strtol(l_signs_emission_str, &l_tmp, 10)) == 0){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "token_decl requires parameter 'signs_emission' to be unsigned integer value that fits in 2 bytes");
+                "%s requires parameter 'signs_emission' to be unsigned integer value that fits in 2 bytes", a_update_token ? "token_update" : "token_decl");
             return -6;
         }
     }
@@ -3053,95 +2713,204 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
     const char* l_total_supply_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_supply", &l_total_supply_str);
     if (l_total_supply_str){
-        l_params->l_total_supply = dap_chain_balance_scan(l_total_supply_str);
-        if (IS_ZERO_256(l_params->l_total_supply)){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "'-total_supply' must be unsigned integer value that fits in 8 bytes");
-            return -4;
+        a_params->total_supply = dap_chain_balance_scan(l_total_supply_str);
+    } else if (!a_update_token) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "'-total_supply' must be unsigned integer value that fits in 32 bytes\n"
+                                                       "If your token is type native (CF20) you can use value 0 for infinite total_supply.");
+        return -4;
+    } else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "'-total_supply' must be unsigned integer value that fits in 32 bytes\n"
+                                                       "You are update a token, be careful!\n"
+                                                       "You can reset total_supply and make it infinite for native (CF20) tokens only, if set 0"
+                                                       "for private tokens, you must specify the same or more total_supply.");
+        return -4;
+    }
+    // Total supply value
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-decimals", &a_params->decimals_str);
+
+    return 0;
+}
+
+static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* a_params)
+{
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-delegated_token_from", &a_params->ext.delegated_token_from);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-datum_type_allowed", &a_params->ext.datum_type_allowed);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-datum_type_blocked", &a_params->ext.datum_type_blocked);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_params->ext.tx_receiver_allowed);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_blocked", &a_params->ext.tx_receiver_blocked);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_allowed", &a_params->ext.tx_sender_allowed);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_params->ext.tx_receiver_allowed);
+    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_blocked", &a_params->ext.tx_sender_blocked);
+
+    if (a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE)
+        return 0;
+
+    dap_list_t *l_tsd_list = NULL;
+    size_t l_tsd_total_size = 0;
+    uint16_t l_flags = 0;
+    char ** l_str_flags = NULL;
+
+    if (a_params->ext.flags){   // Flags
+         l_str_flags = dap_strsplit(a_params->ext.flags,",",0xffff );
+         while (l_str_flags && *l_str_flags){
+             uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
+             if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
+                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
+                 return -20;
+             }
+             l_flags |= l_flag; // if we have multiple flags
+             l_str_flags++;
         }
     }
+    a_params->ext.parsed_flags = l_flags;
+    if (a_params->ext.delegated_token_from) {
+        dap_chain_datum_token_t* l_delegated_token_from;
+        if (NULL == (l_delegated_token_from = dap_chain_ledger_token_ticker_check(a_params->net->pub.ledger, a_params->ext.delegated_token_from))) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "To create a delegated token %s, can't find token by ticker %s", a_params->ticker, a_params->ext.delegated_token_from);
+            return -91;
+        }
+        dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
+        strcpy(l_tsd_section.ticker_token_from, a_params->ext.delegated_token_from);
+        l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.001");
+        dap_tsd_t* l_tsd = dap_tsd_create_scalar(
+            DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        l_tsd_total_size += dap_tsd_size(l_tsd);
+    }
+    if (a_params->ext.total_signs_valid){ // Signs valid
+        uint16_t l_param_value = (uint16_t)atoi(a_params->ext.total_signs_valid);
+        a_params->signs_emission = l_param_value;
+        dap_tsd_t * l_tsd = dap_tsd_create_scalar(
+                                                DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        l_tsd_total_size+= dap_tsd_size(l_tsd);
+    }
+    if (a_params->ext.datum_type_allowed){
+        dap_tsd_t * l_tsd = dap_tsd_create_string(
+                                                DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, a_params->ext.datum_type_allowed);
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        l_tsd_total_size+= dap_tsd_size(l_tsd);
+    }
+    if (a_params->ext.datum_type_blocked){
+        dap_tsd_t * l_tsd = dap_tsd_create_string(
+                                                DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, a_params->ext.datum_type_blocked);
+        l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        l_tsd_total_size+= dap_tsd_size(l_tsd);
+    }
+    if (a_params->ext.tx_receiver_allowed)
+        l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_receiver_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD);
 
-    // Total supply value
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-decimals", &l_params->l_decimals_str);
+    if (a_params->ext.tx_receiver_blocked)
+        l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_receiver_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD);
+
+    if (a_params->ext.tx_sender_allowed)
+        l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_sender_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD);
+
+    if (a_params->ext.tx_sender_blocked)
+        l_tsd_list = s_parse_wallet_addresses(a_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);
+
+    if (!l_tsd_total_size)
+        return 0;
+
+    size_t l_tsd_offset = 0;
+    a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
+    for (dap_list_t *l_iter = dap_list_first(l_tsd_list); l_iter; l_iter = l_iter->next) {
+        dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
+        if (l_tsd == NULL){
+            log_it(L_ERROR, "NULL tsd in list!");
+            continue;
+        }
+        switch (l_tsd->type){
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
+                log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
+                        dap_tsd_get_scalar(l_tsd,uint16_t) );
+            break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
+                log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
+                       dap_tsd_get_string_const(l_tsd) );
+            break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
+                log_it(L_DEBUG,"== TX_SENDER_ALLOWED_ADD: binary data");
+            break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
+                log_it(L_DEBUG,"== TYPE_TX_SENDER_BLOCKED: binary data");
+            break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
+                log_it(L_DEBUG,"== TX_RECEIVER_ALLOWED_ADD: binary data");
+            break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
+                log_it(L_DEBUG,"== TX_RECEIVER_BLOCKED_ADD: binary data");
+            break;
+            default: log_it(L_DEBUG, "== 0x%04X: binary data %u size ",l_tsd->type, l_tsd->size );
+        }
+        size_t l_tsd_size = dap_tsd_size(l_tsd);
+        memcpy(a_params->ext.parsed_tsd + l_tsd_offset, l_tsd, l_tsd_size);
+        l_tsd_offset += l_tsd_size;
+    }
+    a_params->ext.tsd_total_size = l_tsd_total_size;
 
     return 0;
 }
 
-int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* l_params)
+static int s_token_decl_check_params(int a_argc, char **a_argv, char **a_str_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &l_params->ext.flags);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &l_params->ext.total_signs_valid);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-delegated_token_from", &l_params->ext.delegated_token_from);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-datum_type_allowed", &l_params->ext.datum_type_allowed);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-datum_type_blocked", &l_params->ext.datum_type_blocked);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &l_params->ext.tx_receiver_allowed);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_blocked", &l_params->ext.tx_receiver_blocked);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_allowed", &l_params->ext.tx_sender_allowed);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &l_params->ext.tx_receiver_allowed);
-    dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_blocked", &l_params->ext.tx_sender_blocked);
-    return 0;
-}
-
-int s_token_decl_check_params(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* l_params)
-{
-    int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv,a_str_reply,l_params);
+    int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv,a_str_reply,a_params, a_update_token);
     if (l_parse_params)
         return l_parse_params;
 
-    l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv,a_str_reply,l_params);
+    l_parse_params = s_parse_additional_token_decl_arg(a_argc,a_argv,a_str_reply,a_params);
     if (l_parse_params)
         return l_parse_params;
-
-
-    dap_chain_datum_token_t * l_datum_token = NULL;
-    size_t l_datum_data_offset = 0;
 
     //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL uses decimals parameter
-    if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE || l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL){
-        if(!l_params->l_decimals_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
+    if (a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE
+            ||	a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
+            ||	a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
+        if(!a_params->decimals_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-decimals'", a_update_token ? "token_update" : "token_decl");
             return -3;
-        } else if (dap_strcmp(l_params->l_decimals_str, "18")) {
+        } else if (dap_strcmp(a_params->decimals_str, "18")) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "token_decl support '-decimals' to be 18 only");
+                                              "%s support '-decimals' to be 18 only", a_update_token ? "token_update" : "token_decl");
             return -4;
         }
-        if(IS_ZERO_256(l_params->l_total_supply)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
+        if(IS_ZERO_256(a_params->total_supply)) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-total_supply'", a_update_token ? "token_update" : "token_decl");
             return -3;
         }
-    } else if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL){ //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
-        if(!l_params->l_decimals_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-decimals'");
+    } else if (	a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+    ||			a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE){
+        //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
+        if(!a_params->decimals_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-decimals'", a_update_token ? "token_update" : "token_decl");
             return -3;
-        } else if (dap_strcmp(l_params->l_decimals_str, "18")) {
+        } else if (dap_strcmp(a_params->decimals_str, "18")) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "token_decl support '-decimals' to be 18 only");
+                                              "%s support '-decimals' to be 18 only", a_update_token ? "token_update" : "token_decl");
             return -4;
-        }
-        if(IS_ZERO_256(l_params->l_total_supply)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-total_supply'");
-            return -3;
         }
     }
 
-    if (!l_params->l_signs_emission){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-signs_emission'");
+    if (!a_params->signs_emission){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-signs_emission'", a_update_token ? "token_update" : "token_decl");
         return -5;
     }
 
-    if (!l_params->l_signs_total){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter 'signs_total'");
+    if (!a_params->signs_total){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-signs_total'", a_update_token ? "token_update" : "token_decl");
         return -7;
     }
 
-    if(!l_params->l_ticker){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter '-token'");
+    if(!a_params->ticker){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-token'", a_update_token ? "token_update" : "token_decl");
         return -2;
     }
 
     // Check certs list
-    if(!l_params->l_certs_str){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl requires parameter 'certs'");
+    if(!a_params->certs_str){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter 'certs'", a_update_token ? "token_update" : "token_decl");
         return -9;
     }
     return 0;
@@ -3209,9 +2978,9 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     if (!l_params)
         return -1;
 
-    l_params->l_type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
+    l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
 
-    int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params);
+    int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params, false);
     if (l_parse_params)
         return l_parse_params;
 
@@ -3219,146 +2988,52 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     size_t l_datum_data_offset = 0;
 
     // Load certs lists
-    dap_cert_parse_str_list(l_params->l_certs_str, &l_certs, &l_certs_count);
+    dap_cert_parse_str_list(l_params->certs_str, &l_certs, &l_certs_count);
     if(!l_certs_count){
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "token_decl command requres at least one valid certificate to sign token");
         return -10;
     }
 
-    l_signs_emission = l_params->l_signs_emission;
-    l_signs_total = l_params->l_signs_total;
-    l_total_supply = l_params->l_total_supply;
-    l_chain = l_params->l_chain;
-    l_net = l_params->l_net;
-    l_ticker = l_params->l_ticker;
-    l_hash_out_type = l_params->l_hash_out_type;
+    l_signs_emission = l_params->signs_emission;
+    l_signs_total = l_params->signs_total;
+    l_total_supply = l_params->total_supply;
+    l_chain = l_params->chain;
+    l_net = l_params->net;
+    l_ticker = l_params->ticker;
+    l_hash_out_type = l_params->hash_out_type;
 
-    switch(l_params->l_type)
+    switch(l_params->type)
     {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
         case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
         { // 256
-            dap_list_t *l_tsd_list = NULL;
-            size_t l_tsd_total_size = 0;
-            uint16_t l_flags = 0;
-            char ** l_str_flags = NULL;
-
-            if (l_params->ext.flags){   // Flags
-                 l_str_flags = dap_strsplit(l_params->ext.flags,",",0xffff );
-                 while (l_str_flags && *l_str_flags){
-                     uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
-                     if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
-                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
-                         return -20;
-                     }
-                     l_flags |= l_flag; // if we have multiple flags
-                     l_str_flags++;
-                }
-            }
-            if (l_params->ext.delegated_token_from) {
-                dap_chain_datum_token_t* l_delegated_token_from;
-                if (NULL == (l_delegated_token_from = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "To create a delegated token %s, can't find token by ticket %s", l_ticker, l_params->ext.delegated_token_from);
-                    return -91;
-                }
-                dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
-                strcpy(l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
-                //				l_tsd_section.token_from = dap_hash_fast();
-                l_tsd_section.emission_rate = dap_chain_coins_to_balance("1.0");//TODO: ???
-                dap_tsd_t* l_tsd = dap_tsd_create_scalar(
-                    DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
-                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_tsd_total_size += dap_tsd_size(l_tsd);
-            }
-            if (l_params->ext.total_signs_valid){ // Signs valid
-                uint16_t l_param_value = (uint16_t)atoi(l_params->ext.total_signs_valid);
-                l_signs_total = l_param_value;
-                dap_tsd_t * l_tsd = dap_tsd_create_scalar(
-                                                        DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
-                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_tsd_total_size+= dap_tsd_size(l_tsd);
-            }
-            if (l_params->ext.datum_type_allowed){
-                dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                        DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD, l_params->ext.datum_type_allowed);
-                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_tsd_total_size+= dap_tsd_size(l_tsd);
-            }
-            if (l_params->ext.datum_type_blocked){
-                dap_tsd_t * l_tsd = dap_tsd_create_string(
-                                                        DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD, l_params->ext.datum_type_blocked);
-                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-                l_tsd_total_size+= dap_tsd_size(l_tsd);
-            }
-            if (l_params->ext.tx_receiver_allowed)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD);
-
-            if (l_params->ext.tx_receiver_blocked)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_receiver_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD);
-
-            if (l_params->ext.tx_sender_allowed)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_allowed, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD);
-
-            if (l_params->ext.tx_sender_blocked)
-                l_tsd_list = s_parse_wallet_addresses(l_params->ext.tx_sender_blocked, l_tsd_list, &l_tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD);
-
-
             // Create new datum token
-            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_tsd_total_size) ;
-            l_datum_token->type = l_params->l_type;
-            if (l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) {
-                log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_tsd_total_size);
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
+            l_datum_token->type = l_params->type;
+            if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) {
+                log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
-                l_datum_token->header_private_decl.flags = l_flags;
+                l_datum_token->header_private_decl.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
-                l_datum_token->header_private_decl.tsd_total_size = l_tsd_total_size;
-                l_datum_token->header_native_decl.decimals = atoi(l_params->l_decimals_str);
+                l_datum_token->header_private_decl.tsd_total_size = l_params->ext.tsd_total_size;
+                l_datum_token->header_private_decl.decimals = atoi(l_params->decimals_str);
             } else { //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
-                log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_tsd_total_size);
+                log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
                 dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
-                l_datum_token->header_native_decl.flags = l_flags;
+                l_datum_token->header_native_decl.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
-                l_datum_token->header_native_decl.tsd_total_size = l_tsd_total_size;
-                l_datum_token->header_native_decl.decimals = atoi(l_params->l_decimals_str);
+                l_datum_token->header_native_decl.tsd_total_size = l_params->ext.tsd_total_size;
+                l_datum_token->header_native_decl.decimals = atoi(l_params->decimals_str);
             }
             // Add TSD sections in the end
-            for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-                dap_tsd_t * l_tsd = (dap_tsd_t *) l_iter->data;
-                if (l_tsd == NULL){
-                    log_it(L_ERROR, "NULL tsd in list!");
-                    continue;
-                }
-                switch (l_tsd->type){
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
-                        log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
-                                dap_tsd_get_scalar(l_tsd,uint16_t) );
-                    break;
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
-                        log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
-                               dap_tsd_get_string_const(l_tsd) );
-                    break;
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
-                        log_it(L_DEBUG,"== TX_SENDER_ALLOWED_ADD: binary data");
-                    break;
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
-                        log_it(L_DEBUG,"== TYPE_TX_SENDER_BLOCKED: binary data");
-                    break;
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
-                        log_it(L_DEBUG,"== TX_RECEIVER_ALLOWED_ADD: binary data");
-                    break;
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
-                        log_it(L_DEBUG,"== TX_RECEIVER_BLOCKED_ADD: binary data");
-                    break;
-                    default: log_it(L_DEBUG, "== 0x%04X: binary data %u size ",l_tsd->type, l_tsd->size );
-                }
-                size_t l_tsd_size = dap_tsd_size(l_tsd);
-                memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
-                l_datum_data_offset += l_tsd_size;
+            if (l_params->ext.tsd_total_size) {
+                memcpy(l_datum_token->data_n_tsd, l_params->ext.parsed_tsd, l_params->ext.tsd_total_size);
+                DAP_DELETE(l_params->ext.parsed_tsd);
             }
-            log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ?
+            log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ?
                             "Private" : "CF20", l_datum_token->ticker);
         }break;//end
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
@@ -3367,7 +3042,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
-            l_datum_token->header_native_decl.decimals = atoi(l_params->l_decimals_str);
+            l_datum_token->header_simple.decimals = atoi(l_params->decimals_str);
         }break;
         default:
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -3431,7 +3106,201 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     return l_ret;
 }
 
+/**
+ * @brief com_token_decl_update
+ * @param argc
+ * @param argv
+ * @param arg_func
+ * @param str_reply
+ * @return
+ * @details token_update -net <net name> -chain <chain_name> -token <token ticker> [-type private] -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...  [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+ *  \t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>"
+ *  \t   and custom parameters list <Param 1>, <Param 2>...<Param N>."
+ *  \n"
+ *  ==Flags=="
+ *  \t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
+ *  \t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
+ *  \t ALL_FROZEN:\t All permissions are temprorary frozen\n"
+ *  \t ALL_UNFROZEN:\t Unfrozen permissions\n"
+ *  \t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
+ *  \t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
+ *  \t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
+ *  \t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
+ *  \t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
+ *  \t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
+    "\n"
+    "==Params==\n"
+    "General:\n"
+    "\t -flags_set <value>:\t Set list of flags from <value> to token declaration\n"
+    "\t -flags_unset <value>:\t Unset list of flags from <value> from token declaration\n"
+    "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
+    "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
+    "\t -total_signs_add <value>:\t Add signature's pkey fingerprint to the list of owners\n"
+    "\t -total_signs_remove <value>:\t Remove signature's pkey fingerprint from the owners\n"
+    "\nDatum type allowed/blocked updates:\n"
+    "\t -datum_type_allowed_add <value>:\t Add allowed datum type(s)\n"
+    "\t -datum_type_allowed_remove <value>:\t Remove datum type(s) from allowed\n"
+    "\t -datum_type_blocked_add <value>:\t Add blocked datum type(s)\n"
+    "\t -datum_type_blocked_remove <value>:\t Remove datum type(s) from blocked\n"
+    "\nTx receiver addresses allowed/blocked updates:\n"
+    "\t -tx_receiver_allowed_add <value>:\t Add allowed tx receiver(s)\n"
+    "\t -tx_receiver_allowed_remove <value>:\t Remove tx receiver(s) from allowed\n"
+    "\t -tx_receiver_blocked_add <value>:\t Add blocked tx receiver(s)\n"
+    "\t -tx_receiver_blocked_remove <value>:\t Remove tx receiver(s) from blocked\n"
+    "\n Tx sender addresses allowed/blocked updates:\n"
+    "\t -tx_sender_allowed_add <value>:\t Add allowed tx sender(s)\n"
+    "\t -tx_sender_allowed_remove <value>:\t Remove tx sender(s) from allowed\n"
+    "\t -tx_sender_blocked_add <value>:\t Add allowed tx sender(s)\n"
+    "\t -tx_sender_blocked_remove <value>:\t Remove tx sender(s) from blocked\n"
+    "\n"
+ */
+int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
+{
+    const char * l_ticker = NULL;
+    uint256_t l_total_supply = {}; // 256
+    uint16_t l_signs_emission = 0;
+    uint16_t l_signs_total = 0;
+    dap_cert_t ** l_certs = NULL;
+    size_t l_certs_count = 0;
 
+    dap_chain_t * l_chain = NULL;
+    dap_chain_net_t * l_net = NULL;
+    const char * l_hash_out_type = NULL;
+
+    dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
+
+    if (!l_params)
+        return -1;
+
+    l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
+
+    int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params, true);
+    if (l_parse_params)
+        return l_parse_params;
+
+    dap_chain_datum_token_t * l_datum_token = NULL;
+    size_t l_datum_data_offset = 0;
+
+    // Load certs lists
+    dap_cert_parse_str_list(l_params->certs_str, &l_certs, &l_certs_count);
+    if(!l_certs_count){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "com_token_update command requres at least one valid certificate to sign token");
+        return -10;
+    }
+
+    l_signs_emission = l_params->signs_emission;
+    l_signs_total = l_params->signs_total;
+    l_total_supply = l_params->total_supply;
+    l_chain = l_params->chain;
+    l_net = l_params->net;
+    l_ticker = l_params->ticker;
+    l_hash_out_type = l_params->hash_out_type;
+
+    switch(l_params->type)
+    {
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:
+        { // 256
+            // Create new datum token
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
+            l_datum_token->type = l_params->type;
+            if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE) {
+                log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
+                dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+                l_datum_token->header_native_update.flags = l_params->ext.parsed_flags;
+                l_datum_token->total_supply = l_total_supply;
+                l_datum_token->signs_valid = l_signs_emission;
+                l_datum_token->header_native_update.tsd_total_size = l_params->ext.tsd_total_size;
+                l_datum_token->header_native_update.decimals = atoi(l_params->decimals_str);
+            } else { // if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
+                log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
+                dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+                l_datum_token->header_private_update.flags = l_params->ext.parsed_flags;
+                l_datum_token->total_supply = l_total_supply;
+                l_datum_token->signs_valid = l_signs_emission;
+                l_datum_token->header_private_update.tsd_total_size = l_params->ext.tsd_total_size;
+                l_datum_token->header_private_update.decimals = atoi(l_params->decimals_str);
+            }
+            // Add TSD sections in the end
+            // Add TSD sections in the end
+            if (l_params->ext.tsd_total_size) {
+                memcpy(l_datum_token->data_n_tsd, l_params->ext.parsed_tsd, l_params->ext.tsd_total_size);
+                DAP_DELETE(l_params->ext.parsed_tsd);
+            }
+            log_it(L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
+                                                                          ||	l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)	?
+                                                                     "Private" : "CF20", l_datum_token->ticker);
+        }break;//end
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
+            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
+            dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+            l_datum_token->total_supply = l_total_supply;
+            l_datum_token->signs_valid = l_signs_emission;
+            if (l_params->decimals_str)
+                l_datum_token->header_simple.decimals = atoi(l_params->decimals_str);
+        }break;
+        default:
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                              "Unknown token type");
+            return -8;
+    }
+    // If we have more certs than we need signs - use only first part of the list
+    if(l_certs_count > l_signs_total)
+        l_certs_count = l_signs_total;
+    // Sign header with all certificates in the list and add signs to the end of TSD cetions
+    uint16_t l_sign_counter = 0;
+    l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_datum_data_offset, &l_sign_counter);
+    l_datum_token->signs_total = l_sign_counter;
+
+    // We skip datum creation opeartion, if count of signed certificates in s_sign_cert_in_cycle is 0.
+    // Usually it happen, when certificate in token_decl or token_update command doesn't contain private data or broken
+    if (!l_datum_token || l_datum_token->signs_total == 0){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "Token declaration update failed. Successful count of certificate signing is 0");
+        return -9;
+    }
+
+    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
+                                                         l_datum_token,
+                                                         sizeof(*l_datum_token) + l_datum_data_offset);
+    DAP_DELETE(l_datum_token);
+    size_t l_datum_size = dap_chain_datum_size(l_datum);
+
+    // Calc datum's hash
+    dap_chain_hash_fast_t l_key_hash;
+    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+    char * l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
+                           dap_enc_base58_encode_hash_to_str(&l_key_hash) : l_key_str;
+
+    // Add datum to mempool with datum_token hash as a key
+    char * l_gdb_group_mempool;
+    if (!l_chain)
+        dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
+    l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+    if (!l_gdb_group_mempool) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
+        DAP_DELETE(l_datum);
+        return -10;
+    }
+    int l_ret = 0;
+    bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, (uint8_t *)l_datum, l_datum_size, false);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
+                                      l_key_str_out, l_ticker, l_placed ? "" : " not");
+    //additional checking for incorrect key format
+    if (l_key_str_out != l_key_str)
+        DAP_DELETE(l_key_str);
+    else
+        DAP_DELETE(l_key_str);
+    DAP_DELETE(l_datum);
+    DAP_DELETE(l_params);
+    if (!l_placed) {
+        l_ret = -2;
+    }
+    return l_ret;
+}
 
 /**
  * @brief com_token_emit
@@ -3546,8 +3415,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
         if(l_chain_emission_str) {
             if((l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str)) == NULL) { // Can't find such chain
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "token_create requires parameter '-chain_emission' to be valid chain name in chain net %s or set default datum type in chain configuration file",
-                        l_net->pub.name);
+                                      "token_emit requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file "
+                                      "but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
                 return -45;
             }
         }
@@ -3580,21 +3449,21 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
 			DAP_DEL_Z(l_addr);
             return -47;
         }
-		goto CheckTicker;	// --->>
     } else if (no_base_tx < 0) {
 		if((l_chain_base_tx = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)) == NULL) { // Can't find such chain
 			dap_cli_server_cmd_set_reply_text(a_str_reply,
-						"token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
+                                      "token_emit requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file "
+                                      "but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
+
 			DAP_DEL_Z(l_addr);
 			return -47;
 		}
-		CheckTicker:		// <<---
-		if(!l_ticker) {
-			dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
-			DAP_DEL_Z(l_addr);
-			return -3;
-		}
-	}
+    }
+    if(!l_ticker) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
+        DAP_DEL_Z(l_addr);
+        return -3;
+    }
 
     if (!l_add_sign) {
         if (!l_chain_emission) {
@@ -4593,15 +4462,23 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
 
     if(l_tx_num_str)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
-    if(dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-fee", &str_tmp)) {
-        l_value_fee = dap_chain_balance_scan(str_tmp);
-    } else {
-        l_value_fee = dap_chain_coins_to_balance("0.1");
+
+    if(dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-value", &str_tmp))
+        l_value = dap_chain_balance_scan(str_tmp);
+    if(IS_ZERO_256(l_value)) {
+        dap_cli_server_cmd_set_reply_text(str_reply, "tx_create requires parameter '-value' to be valid uint256 value");
+        return -4;
     }
 
-    if(dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-value", &str_tmp)) {
-        l_value = dap_chain_balance_scan(str_tmp);
+    // Validator's fee
+    if(dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-fee", &str_tmp))
+        l_value_fee = dap_chain_balance_scan(str_tmp);
+    if (IS_ZERO_256(l_value_fee)) {
+        dap_cli_server_cmd_set_reply_text(str_reply,
+                "tx_create requires parameter '-fee' to be valid uint256");
+        return -5;
     }
+
     if(!l_from_wallet_name && !l_emission_hash_str) {
         dap_cli_server_cmd_set_reply_text(str_reply, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");
         return -1;
@@ -4654,15 +4531,6 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
                     "tx_create requires at least one valid certificate to sign the basic transaction of emission");
             return -5;
         }
-    }
-    if(IS_ZERO_256(l_value)) {
-        dap_cli_server_cmd_set_reply_text(str_reply, "tx_create requires parameter '-value' to be valid uint256 value");
-        return -4;
-    }
-    if (IS_ZERO_256(l_value_fee)) {
-        dap_cli_server_cmd_set_reply_text(str_reply,
-                "tx_create requires parameter '-value_fee' to be valid uint256");
-        return -5;
     }
 
     dap_chain_t *l_chain = NULL;
@@ -5236,6 +5104,141 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
     return 0;
 }
 
+dap_list_t *s_go_all_nets_offline()
+{
+    dap_list_t *l_net_returns = NULL;
+    uint16_t l_net_count;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (uint16_t i = 0; i < l_net_count; i++) {    // Shutdown all networks
+        if (dap_chain_net_stop(l_net_list[i]))
+            l_net_returns = dap_list_append(l_net_returns, l_net_list[i]);
+    }
+    sleep(2);   // waiting for networks to go offline
+    return l_net_returns;
+}
+
+int cmd_remove(int argc, char ** argv, char ** a_str_reply)
+{
+    //default init
+    const char		*return_message	=	NULL;
+    const char		*l_gdb_path		=	NULL;
+    const char		*l_chains_path	=	NULL;
+    const char		*l_net_str		=	NULL;
+    dap_chain_net_t	*l_net			=	NULL;
+    int 			all				=	0;
+
+    //for enum
+    uint8_t			error			=	0;
+    uint8_t			successful		=	0;
+
+    //enum for errors
+    enum {
+        GDB_FAIL_PATH				=	0x00000001,
+        CHAINS_FAIL_PATH			=	0x00000002,
+        COMMAND_NOT_CORRECT			=	0x00000004,
+        NET_NOT_VALID				=	0x00000008
+    };
+
+    //enum for successful
+    enum {
+        REMOVED_GDB					=	0x00000001,
+        REMOVED_CHAINS				=	0x00000002
+    };
+
+    //check path's from config file
+    if (dap_cli_server_cmd_check_option(argv, 1, argc, "-gdb") >= 0
+    &&	(NULL == (l_gdb_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path")))){
+        error |= GDB_FAIL_PATH;
+    }
+    if (dap_cli_server_cmd_check_option(argv, 1, argc, "-chains") >= 0
+    &&	(NULL == (l_chains_path = dap_config_get_item_str(g_config, "resources", "dap_chains_path")))) {
+        error |= CHAINS_FAIL_PATH;
+    }
+
+    dap_list_t *l_net_returns = NULL;
+    //perform deletion according to the specified parameters, if the path is specified
+    if (l_gdb_path) {
+        l_net_returns = s_go_all_nets_offline();
+        char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path,
+                                                dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "mdbx"));
+        dap_rm_rf(l_gdb_rm_path);
+        DAP_DELETE(l_gdb_rm_path);
+        if (!error)
+            successful |= REMOVED_GDB;
+    }
+
+    if (l_chains_path) {
+        dap_cli_server_cmd_find_option_val(argv, 1, argc, "-net", &l_net_str);
+        all = dap_cli_server_cmd_check_option(argv, 1, argc, "-all");
+
+        if	(NULL == l_net_str && all >= 0) {
+            if (NULL == l_gdb_path)
+                l_net_returns = s_go_all_nets_offline();
+            uint16_t l_net_count;
+            dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+            for (uint16_t i = 0; i < l_net_count; i++) {
+                char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path,
+                                                           l_net_list[i]->pub.gdb_groups_prefix);
+                dap_rm_rf(l_chains_rm_path);
+                DAP_DELETE(l_chains_rm_path);
+            }
+            if (!error)
+                successful |= REMOVED_CHAINS;
+
+        } else if	(NULL != l_net_str && all < 0) {
+            if (NULL != (l_net = dap_chain_net_by_name(l_net_str))) {
+                if (NULL == l_gdb_path && dap_chain_net_stop(l_net))
+                    l_net_returns = dap_list_append(l_net_returns, l_net);
+            } else {
+                error |= NET_NOT_VALID;
+            }
+            sleep(1);
+            char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path, l_net->pub.gdb_groups_prefix);
+            dap_rm_rf(l_chains_rm_path);
+            DAP_DELETE(l_chains_rm_path);
+            if (!error)
+                successful |= REMOVED_CHAINS;
+
+        } else {
+            error |= COMMAND_NOT_CORRECT;
+        }
+    }
+
+    //handling errors
+    if (error & GDB_FAIL_PATH
+    ||	error & CHAINS_FAIL_PATH) {
+        return_message = "The node configuration file does not specify the path to the database and/or chains.\n"
+                         "Please check the cellframe-node.cfg file in the [resources] item for subitems:\n"
+                         "dap_global_db_path=<PATH>\n"
+                         "dap_chains_path=<PATH>";
+    } else if (error & COMMAND_NOT_CORRECT) {
+        return_message = "You need to make a decision whether to remove all chains or a chain from a specific network.\n"
+                         "You cannot use two keys '-net' and '-all' at the same time.\n"
+                         "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!";
+    } else if (error & NET_NOT_VALID) {
+        return_message = "The specified network was not found.\n"
+                         "The list of available networks can be viewed using the command:"
+                         "'net list'";
+    }
+
+    if (error) {
+       dap_cli_server_cmd_set_reply_text(a_str_reply, "Error when deleting, because:\n%s", return_message);
+    }
+    else if (successful) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Successful removal: %s %s", successful & REMOVED_GDB ? "gdb" : "-", successful & REMOVED_CHAINS ? "chains" : "-");
+    } else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Nothing to delete. Check if the command is correct.\nUse flags: -gdb or/and -chains [-net <net_name> | -all]\n"
+                                                       "Be careful, the '-all' option will delete ALL CHAINS and won't ask you for permission!");
+    }
+
+    for (dap_list_t *it = l_net_returns; it; it = it->next)
+        dap_chain_net_start((dap_chain_net_t *)it->data);
+    dap_list_free(l_net_returns);
+
+    return error;
+}
+
+
 /*
  * block code signer
  */
@@ -5256,8 +5259,6 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
                        dap_sign_t **a_signed, dap_chain_hash_fast_t *a_hash);
 static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply);
 static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply);
-static uint8_t *s_byte_to_hex(const char *a_line, size_t *a_size);
-static uint8_t s_get_num(uint8_t a_byte, int a_pp);
 struct opts {
     char *name;
     uint32_t cmd;
@@ -5351,7 +5352,6 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
 
     dap_sign_t *l_sign = NULL;
     dap_chain_datum_t *l_datum = NULL;
-    dap_global_db_obj_t *l_objs = NULL;
     char *l_gdb_group = NULL;
 
     l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
@@ -5385,12 +5385,9 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
         dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash_tmp);
     }
 
-
-    dap_chain_cell_id_t l_cell_id = {0};
     dap_chain_atom_iter_t *l_iter = NULL;
     dap_chain_cell_t *l_cell_tmp = NULL;
     dap_chain_cell_t *l_cell = NULL;
-    dap_chain_datum_t *l_datum_tmp = NULL;
     size_t l_size = 0;
 
     HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
@@ -5511,7 +5508,6 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
     int l_ret = 0;
     dap_sign_t *l_sign = NULL;
     dap_chain_datum_t *l_datum = NULL;
-    dap_global_db_obj_t *l_objs = NULL;
 
     l_ret = s_get_key_from_file(l_opts_sign[OPT_FILE], l_opts_sign[OPT_MIME], l_opts_sign[OPT_CERT], &l_sign);
     if (!l_ret) {
@@ -5529,9 +5525,6 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
         goto end;
     }
 
-
-    dap_chain_cell_id_t l_cell_id = {0};
-    dap_chain_cell_create_fill(l_chain, l_cell_id);
     l_ret = l_chain->callback_add_datums(l_chain, &l_datum, 1);
 
     dap_hash_fast_t l_hash;
