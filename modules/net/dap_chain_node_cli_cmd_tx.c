@@ -40,6 +40,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd_tx.h"
+#include "dap_chain_net_tx.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 

@@ -2271,7 +2271,7 @@ static void s_message_chain_add(dap_chain_cs_block_ton_session_t *a_session, dap
     pthread_rwlock_wrlock(&a_session->rwlock);
     dap_chain_cs_block_ton_message_t *l_message = a_message;
     dap_chain_cs_block_ton_round_t *l_round = &a_session->cur_round;
-    l_message->hdr.is_genesis = dap_hash_fast_is_blank(l_round->last_message_hash);
+    l_message->hdr.is_genesis = dap_hash_fast_is_blank(&l_round->last_message_hash);
     if (!l_message->hdr.is_genesis) {
         l_message->hdr.prev_message_hash = l_round->last_message_hash;
     }

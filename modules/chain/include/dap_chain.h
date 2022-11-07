@@ -144,8 +144,6 @@ typedef struct dap_chain {
     dap_chain_callback_atom_verify_t callback_atom_verify;
 
     dap_chain_callback_add_datums_t callback_add_datums;
-    dap_chain_callback_add_datums_with_group_t callback_add_datums_with_group;
-
     dap_chain_callback_atom_get_hdr_size_t callback_atom_get_hdr_static_size; // Get atom header's size
 
     dap_chain_callback_atom_iter_create_t callback_atom_iter_create;

@@ -81,7 +81,7 @@ static bool s_debug_more = true;
 int dap_chain_net_srv_xchange_init()
 {
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL);
-    dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
+    dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -wallet <wallet_name>"
                                             " -coins <value> -rate <value> -fee <value>\n"

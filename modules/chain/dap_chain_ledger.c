@@ -65,10 +65,6 @@
 #include "dap_notify_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
-#include "dap_chain_net_srv_xchange.h"
-#include "dap_chain_net_srv_stake_lock.h"
-#include "dap_chain_net_srv_stake_pos_delegate.h"
-
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -1393,12 +1389,12 @@ dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger)
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 {
     dap_list_t *l_ret_list = NULL;
-    dap_string_t *l_str_tmp;
+    dap_string_t *l_str_tmp = dap_string_new("");
     dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
         const char *l_type_str;
-        const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);;
+        //const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);;
         switch (l_token_item->type) {
             case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: // 256
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
@@ -2183,7 +2179,7 @@ void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_chain_ledger_s
 {
     char *l_hash_str = dap_chain_hash_fast_to_str_new(&a_stake_lock_item->tx_for_stake_lock_hash);
     char *l_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_STAKE_LOCK_STR);
-    if (!dap_chain_global_db_gr_set(l_hash_str, &a_stake_lock_item->tx_used_out, sizeof(dap_hash_fast_t), l_group))
+    if (!dap_global_db_set(l_group, l_hash_str, &a_stake_lock_item->tx_used_out, sizeof(dap_hash_fast_t), false, NULL, NULL))
         log_it(L_WARNING, "Ledger cache mismatch");
     DAP_DEL_Z(l_hash_str);
     DAP_DEL_Z(l_group);
@@ -3052,8 +3048,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -13;
                 break;
             }
-            if (l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner) == false) {
-                l_err_num = -14;
+            if (l_verificator->callback(a_ledger, &l_tx_prev_hash, l_tx_prev_out_cond, a_tx, l_owner) == false) {
+                if (l_sub_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                    l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
+                } else {
+                    l_err_num = -14;
+                }
                 break;
             }
             // calculate sum of values from previous transactions
