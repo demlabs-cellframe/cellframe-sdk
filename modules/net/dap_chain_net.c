@@ -1626,7 +1626,12 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
         return NULL;
     dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
-
+    pthread_rwlock_init(&PVT(ret)->uplinks_lock, NULL);
+    pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
+    pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
+    pthread_rwlock_init(&PVT(ret)->states_lock, NULL);
+    pthread_rwlock_init(&PVT(ret)->gdbs_lock, NULL);
+    pthread_rwlock_init(&PVT(ret)->atoms_lock, NULL);
     if (dap_sscanf(a_id, "0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64) != 1) {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
         DAP_DELETE(ret);
@@ -1662,11 +1667,17 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
  */
 void dap_chain_net_delete( dap_chain_net_t * a_net )
 {
+    pthread_rwlock_destroy(&PVT(a_net)->uplinks_lock);
+    pthread_rwlock_destroy(&PVT(a_net)->downlinks_lock);
+    pthread_rwlock_destroy(&PVT(a_net)->balancer_lock);
+    pthread_rwlock_destroy(&PVT(a_net)->states_lock);
+    pthread_rwlock_destroy(&PVT(a_net)->gdbs_lock);
+    pthread_rwlock_destroy(&PVT(a_net)->atoms_lock);
     if(PVT(a_net)->seed_aliases) {
         DAP_DELETE(PVT(a_net)->seed_aliases);
         PVT(a_net)->seed_aliases = NULL;
     }
-    DAP_DELETE( PVT(a_net) );
+    DAP_DELETE(a_net);
 }
 
 
