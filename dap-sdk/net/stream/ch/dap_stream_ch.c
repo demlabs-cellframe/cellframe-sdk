@@ -165,7 +165,6 @@ dap_stream_ch_t * dap_stream_ch_find_by_uuid_unsafe(dap_stream_worker_t * a_work
 
 }
 
-
 /**
  * @brief dap_stream_ch_set_ready_to_read
  * @param a_ch
