@@ -461,7 +461,7 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
  * @param a_custom_headers
  * @param a_over_ssl
  */
-void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink_addr, uint16_t a_uplink_port, const char *a_method,
+int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink_addr, uint16_t a_uplink_port, const char *a_method,
         const char *a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size, char *a_cookie,
         dap_client_http_callback_data_t a_response_callback, dap_client_http_callback_error_t a_error_callback,
         void *a_callbacks_arg, char *a_custom_headers, bool a_over_ssl)
@@ -489,7 +489,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         if(a_error_callback)
             a_error_callback(errno, a_callbacks_arg);
 #endif
-        return NULL;
+        return -1;
     }
     // Get socket flags
 #if defined DAP_OS_WINDOWS
@@ -503,7 +503,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         if(a_error_callback)
             a_error_callback(errno, a_callbacks_arg);
 
-        return NULL;
+        return -2;
     }
     // Make it non-block
     if (fcntl( l_socket, F_SETFL,l_socket_flags| O_NONBLOCK) == -1){
@@ -511,7 +511,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         if(a_error_callback)
             a_error_callback(errno, a_callbacks_arg);
 
-        return NULL;
+        return -3;
     }
 #endif
     // set socket param
@@ -535,7 +535,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
 
     l_http_pvt->request = DAP_NEW_Z_SIZE(byte_t, a_request_size+1);
     if (! l_http_pvt->request)
-        return NULL;
+        return -4;
     l_http_pvt->request_size = a_request_size;
     memcpy(l_http_pvt->request, a_request, a_request_size);
 
@@ -562,7 +562,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
             if(a_error_callback)
                 a_error_callback(errno, a_callbacks_arg);
 
-            return NULL;
+            return -5;
         }
     }
     l_ev_socket->remote_addr_str = dap_strdup(a_uplink_addr);
@@ -588,7 +588,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
             s_http_ssl_connected(l_ev_socket);
 #endif
         }
-        return l_http_pvt;
+        return 0;
     }
 #ifdef DAP_OS_WINDOWS
     else if(l_err == SOCKET_ERROR) {
@@ -627,7 +627,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
                    l_http_pvt->worker->id, *l_ev_uuid_ptr);
             DAP_DEL_Z(l_ev_uuid_ptr);
         }
-        return l_http_pvt;
+        return 0;
     }
     else{
         char l_errbuf[128];
@@ -640,10 +640,10 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         if(a_error_callback)
             a_error_callback(errno, a_callbacks_arg);
 
-        return NULL;
+        return -5;
     }
 #endif
-    return NULL;
+    return -6;
 }
 
 #ifndef DAP_NET_CLIENT_NO_SSL
@@ -763,7 +763,7 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
  * @param a_callbacks_arg
  * @param a_custom_headers
  */
-void* dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr, uint16_t a_uplink_port, const char * a_method,
+int dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr, uint16_t a_uplink_port, const char * a_method,
         const char* a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size,
         char * a_cookie, dap_client_http_callback_data_t a_response_callback,
         dap_client_http_callback_error_t a_error_callback, void *a_callbacks_arg, char *a_custom_headers)
