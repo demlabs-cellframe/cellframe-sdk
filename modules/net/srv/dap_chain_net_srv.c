@@ -29,21 +29,11 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-#include <io.h>
-#endif
-
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
 #endif
 #include <json-c/json.h>
 #include <json-c/json_object.h>
-
 #include <pthread.h>
 #include <dirent.h>
 
