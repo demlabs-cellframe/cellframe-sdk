@@ -6,3 +6,4 @@ file(GLOB JSON_C_HEADERS FILES *.h)
 
 add_library(${PROJECT_NAME} STATIC ${JSON_C_SRCS} ${JSON_C_HEADERS})
 target_include_directories(${PROJECT_NAME} PUBLIC . )
+target_include_directories(${PROJECT_NAME} PUBLIC ../../3rdparty/)
