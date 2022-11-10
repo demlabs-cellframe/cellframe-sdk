@@ -457,7 +457,7 @@ void	_log_it_ext   (
 va_list arglist;
 const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
 char	out[1024] = {0};
-int     olen, len;
+size_t     olen, len;
 struct tm _tm;
 struct timespec now;
 
@@ -469,7 +469,7 @@ struct timespec now;
 	localtime_r((time_t *)&now, &_tm);
 #endif
 
-	olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
+	olen = snprintf (out, sizeof(out) - 1, lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
 			_tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
             dap_gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
 
@@ -484,7 +484,7 @@ struct timespec now;
 	** Format variable part of string line
 	*/
 	va_start (arglist, a_fmt);
-	olen += vsnprintf(out + olen, sizeof(out) - olen, a_fmt, arglist);
+	olen += vsnprintf(out + olen, sizeof(out) - olen - 1, a_fmt, arglist);
 	va_end (arglist);
 
 	olen = MIN(olen, sizeof(out) - 1);
