@@ -22,13 +22,13 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <string.h>
 #include "dap_chain_net_tx.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_tx.h"
 #include "dap_list.h"
-#include <string.h>
 
 #define LOG_TAG "dap_chain_net_tx"
 
@@ -613,9 +613,23 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
     return l_tx;
 }
 
-uint256_t dap_chain_net_calc_tx_fee(uint256_t a_value)
+static struct net_fee {
+    dap_chain_net_id_t net_id;
+    uint256_t value;            // Network fee value
+    dap_chain_addr_t fee_addr;  // Addr collector
+    UT_hash_handle hh;
+} *s_net_fees = NULL; // Governance statements for networks
+static pthread_rwlock_t s_net_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
+bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr)
 {
-    // TODO calculate comission with current decree
-    UNUSED(a_value);
-    return dap_chain_coins_to_balance("0.1");
+    struct net_fee *l_net_fee;
+    HASH_FIND(hh, s_net_fees, &a_net_id, sizeof(a_net_id), l_net_fee);
+    if (!l_net_fee || IS_ZERO_256(l_net_fee->value))
+        return false;
+    if (a_value)
+        *a_value = l_net_fee->value;
+    if (a_addr)
+        *a_addr = l_net_fee->fee_addr;
+    return true;
 }

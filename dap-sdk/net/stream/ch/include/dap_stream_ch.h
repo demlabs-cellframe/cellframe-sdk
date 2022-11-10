@@ -65,6 +65,9 @@ void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * a_ch,bool a_is_re
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch);
 
 dap_stream_ch_t * dap_stream_ch_find_by_uuid_unsafe(dap_stream_worker_t * a_worker, dap_stream_ch_uuid_t a_uuid);
-
+DAP_STATIC_INLINE bool dap_stream_ch_check_by_uuid_mt(dap_stream_worker_t * a_worker, dap_stream_ch_uuid_t a_ch_uuid)
+{
+    return dap_stream_ch_find_by_uuid_unsafe(a_worker, a_ch_uuid);
+}
 
 #endif

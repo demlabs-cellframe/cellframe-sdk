@@ -119,8 +119,6 @@ static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_ato
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size ); //    Get the fisrt block
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size );  //    Get the next block
-static dap_hash_fast_t * s_callback_atom_iter_get_hash( dap_chain_atom_iter_t * a_atom_iter );  //    Get the hash of iter block
-static const char * s_callback_atom_iter_get_hash_str( dap_chain_atom_iter_t * a_atom_iter );
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter_t * a_atom_iter , size_t *a_links_size,
                                                                   size_t ** a_links_size_ptr );  //    Get list of linked blocks
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
@@ -213,8 +211,6 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_callback_atom_iter_get_first; // Get the fisrt element from chain
     a_chain->callback_atom_iter_get_next = s_callback_atom_iter_get_next; // Get the next element from chain from the current one
-    a_chain->callback_atom_iter_get_hash = s_callback_atom_iter_get_hash;
-    a_chain->callback_atom_iter_get_hash_str = s_callback_atom_iter_get_hash_str;
 
     a_chain->callback_atom_get_datums = s_callback_atom_get_datums;
 
@@ -847,14 +843,15 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
              log_it(L_DEBUG, "... error adding (code %d)", l_consensus_check);
              ret = ATOM_REJECT;
         }
+        // !TODO make chunks add to blocks
     }else if(ret == ATOM_MOVE_TO_THRESHOLD){
         dap_chain_block_chunks_add( PVT(l_blocks)->chunks,l_block_cache);
-        dap_chain_block_chunks_sort(PVT(l_blocks)->chunks);
+        //dap_chain_block_chunks_sort(PVT(l_blocks)->chunks);
     }else if (ret == ATOM_REJECT ){
         DAP_DELETE(l_block_cache);
     }
 
-    s_bft_consensus_setup(l_blocks);
+    //s_bft_consensus_setup(l_blocks);      TODO move it to validators agreement
     return ret;
 }
 
@@ -1063,34 +1060,6 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_
 }
 
 /**
- * @brief Get the hash of iter block
- * @param a_atom_iter
- * @return
- */
-static dap_hash_fast_t * s_callback_atom_iter_get_hash( dap_chain_atom_iter_t * a_atom_iter )
-{
-    assert(a_atom_iter);
-    // assert(a_atom_size);
-    assert(a_atom_iter->cur_item);
-    return &((dap_chain_block_cache_t *) a_atom_iter->cur_item)->block_hash;
-
-}
-
-/**
- * @brief s_callback_atom_iter_get_hash_str
- * @param a_atom_iter
- * @return
- */
-static const char * s_callback_atom_iter_get_hash_str( dap_chain_atom_iter_t * a_atom_iter )
-{
-    assert(a_atom_iter);
-    // assert(a_atom_size);
-    assert(a_atom_iter->cur_item);
-    return ((dap_chain_block_cache_t *) a_atom_iter->cur_item)->block_hash_str;
-
-}
-
-/**
  * @brief s_callback_atom_iter_get_next
  * @param a_atom_iter
  * @param a_atom_size
@@ -1115,6 +1084,8 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t
         a_atom_iter->cur = NULL;
         a_atom_iter->cur_size = 0;
         a_atom_iter->cur_hash = NULL;
+        if(a_atom_size)
+            *a_atom_size = 0;
         return NULL;
     }
 }
@@ -1203,29 +1174,6 @@ static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size
     if (a_new_block_size)
         *a_new_block_size = l_ret_size;
     return l_ret;
-}
-
-static int s_new_block_complete(dap_chain_cs_blocks_t *a_blocks)
-{
-    dap_hash_fast_t l_merkle_root = {};     // TODO compute the merkle root of block's datums
-    a_blocks->block_new_size = dap_chain_block_meta_add(&a_blocks->block_new, a_blocks->block_new_size,
-                                                        DAP_CHAIN_BLOCK_META_MERKLE, &l_merkle_root, sizeof(l_merkle_root));
-    size_t l_signed_size = a_blocks->callback_block_sign(a_blocks, &a_blocks->block_new, a_blocks->block_new_size);
-    if (l_signed_size)
-        a_blocks->block_new_size = l_signed_size;
-    else {
-        log_it(L_WARNING, "Block signing failed");
-        return -1;
-    }
-    dap_chain_atom_verify_res_t l_res = s_callback_atom_add(a_blocks->chain, a_blocks->block_new, a_blocks->block_new_size);
-    DAP_DEL_Z(a_blocks->block_new);
-    if (l_res == ATOM_ACCEPT) {
-        if (dap_chain_atom_save(a_blocks->chain, (uint8_t *)a_blocks->block_new, a_blocks->block_new_size, a_blocks->chain->cells->id) < 0) {
-            log_it(L_ERROR, "Can't add new event to the file");
-        }
-        return 0;
-    }
-    return -2;
 }
 
 /**

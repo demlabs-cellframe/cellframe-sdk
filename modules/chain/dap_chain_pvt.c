@@ -41,7 +41,3 @@ void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_global_db_o
     l_notifier->cb_arg = a_cb_arg;
     DAP_CHAIN_PVT(a_chain)->mempool_notifires = dap_list_append(DAP_CHAIN_PVT(a_chain)->mempool_notifires, l_notifier);
 }
-
-
-
-

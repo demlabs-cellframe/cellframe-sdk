@@ -38,6 +38,7 @@ typedef struct dap_chain_net_srv_xchange_price {
     char token_buy[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t datoshi_buy;
     uint256_t rate;
+    uint256_t fee;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t order_hash;
     dap_enc_key_t *wallet_key;
@@ -58,5 +59,3 @@ extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid;
 
 int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
-bool s_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_cond,
-							dap_chain_datum_tx_t *a_tx_in, bool a_owner);

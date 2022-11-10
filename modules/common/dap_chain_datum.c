@@ -401,10 +401,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
             dap_string_append_printf(a_str_out, "\t OUT COND:\n"
                                                 "\t Header:\n"
-                                                "\t\t\t ts_expires: %s\t"
-                                                "\t\t\t value: %s (%s)\n"
-                                                "\t\t\t subtype: %s\n",
-                                     dap_ctime_r(&l_ts_exp, l_tmp_buf),
+                                                "\t\t ts_expires: %s"
+                                                "\t\t value: %s (%s)\n"
+                                                "\t\t subtype: %s\n",
+                                     l_ts_exp ? dap_ctime_r(&l_ts_exp, l_tmp_buf) : "never\n",
                                      l_coins_str,
                                      l_value_str,
                                      dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype));

@@ -10,7 +10,7 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_SRCS} ${DAP_CHAIN_HEADERS})
 #find_package(PkgConfig REQUIRED)
 #pkg_search_module(GLIB REQUIRED glib-2.0)
 
-target_link_libraries(${PROJECT_NAME} dap_chain_net_srv_xchange dap_chain_net_srv_stake_pos_delegate dap_chain_net_srv_stake_lock ${GLIB_LDFLAGS})
+target_link_libraries(${PROJECT_NAME} dap_chain_common dap_chain_global_db ${GLIB_LDFLAGS})
 target_include_directories(${PROJECT_NAME} INTERFACE . include/ ${GLIB_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/uthash/src)

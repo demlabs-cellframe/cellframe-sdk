@@ -146,7 +146,7 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
             if (l_node_item) {
                 dap_chain_node_client_t *l_usable = dap_chain_node_client_find(l_node_item->uuid);
                 if (l_usable && !dap_client_get_stream(l_usable->client)) {
-                        dap_chain_node_client_close(l_usable);
+                        dap_chain_node_client_close(l_node_item->uuid);
                         l_usable = NULL;
                 }
                 if (!l_usable) {
@@ -304,7 +304,6 @@ static bool s_packet_in_callback_handler(void *a_arg)
 	    s_pkt_items->pkts_in = NULL;
         pthread_rwlock_unlock(&s_pkt_items->rwlock_in);
         while(l_list_pkts) {
-            dap_list_t *l_list_next = l_list_pkts->next;
             dap_stream_ch_chain_voting_pkt_t * l_voting_pkt = (dap_stream_ch_chain_voting_pkt_t *)l_list_pkts->data;
             for (size_t i=0; i<s_pkt_in_callback_count; i++) {
 				voting_pkt_in_callback_t * l_callback = s_pkt_in_callback+i;
@@ -314,7 +313,7 @@ static bool s_packet_in_callback_handler(void *a_arg)
 				}
 			}
 			DAP_DELETE(l_voting_pkt);
-            l_list_pkts = l_list_next;
+            l_list_pkts = l_list_pkts->next;
 		}
 		dap_list_free(l_list_pkts);
     } else {
@@ -326,10 +325,14 @@ static bool s_packet_in_callback_handler(void *a_arg)
 
 static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg) {
 	dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
+    if (!l_ch_pkt)
+        return;
     pthread_rwlock_wrlock(&s_pkt_items->rwlock_in);
-	uint32_t l_voting_pkt_size = l_ch_pkt->hdr.size;
-	dap_stream_ch_chain_voting_pkt_t * l_voting_pkt = DAP_NEW_SIZE(dap_stream_ch_chain_voting_pkt_t, l_voting_pkt_size);
-	memcpy(l_voting_pkt, &l_ch_pkt->data, l_voting_pkt_size);
+    size_t l_voting_pkt_size = l_ch_pkt->hdr.size;
+    if (!l_voting_pkt_size || l_voting_pkt_size > UINT16_MAX) {
+        return;
+    }
+    dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = DAP_DUP_SIZE(&l_ch_pkt->data, l_voting_pkt_size);
 	s_pkt_items->pkts_in = dap_list_append(s_pkt_items->pkts_in, l_voting_pkt);
 	pthread_rwlock_unlock(&s_pkt_items->rwlock_in);
 }

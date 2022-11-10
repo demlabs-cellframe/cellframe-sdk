@@ -80,8 +80,8 @@ typedef struct dap_chain_net{
         bool mempool_autoproc;
 
         dap_chain_t * chains; // double-linked list of chains
-        dap_chain_t * default_chain;
-        dap_ledger_t  *ledger;
+        const char *native_ticker;
+        dap_ledger_t  *ledger;     
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;
@@ -97,15 +97,24 @@ void dap_chain_net_load_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
+void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
+dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
-inline static int dap_chain_net_stop(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_OFFLINE); }
+inline static int dap_chain_net_stop(dap_chain_net_t *a_net)
+{
+    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+        return true;
+    }
+    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE)
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+    return false;
+}
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
-void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
-dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 /**
  * @brief dap_chain_net_state_to_str
@@ -130,7 +139,7 @@ bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t *a_net, dap_chain_node_cl
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
-uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id);
+uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 dap_string_t* dap_cli_list_net();
@@ -174,9 +183,9 @@ DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_from_chain(dap_chain_t * l_
     return NULL;
 }
 
-dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
-dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
-char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
+dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
+dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
+char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
 bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr);
 
