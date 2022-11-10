@@ -182,8 +182,9 @@ void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
             DAP_DELETE(l_wallet_internal->addr);
         if(l_wallet_internal->file_name)
             DAP_DELETE(l_wallet_internal->file_name);
-        for(size_t i = 0; i<l_wallet_internal->certs_count;i++)
-            dap_cert_delete( l_wallet_internal->certs[i]);
+        if ( l_wallet_internal->certs )
+            for(size_t i = 0; i<l_wallet_internal->certs_count;i++)
+                dap_cert_delete( l_wallet_internal->certs[i]);
         DAP_DELETE(l_wallet_internal->certs);
 
         DAP_DELETE(l_wallet_internal);
