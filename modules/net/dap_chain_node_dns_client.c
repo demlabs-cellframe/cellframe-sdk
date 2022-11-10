@@ -156,8 +156,7 @@ static void s_dns_client_esocket_delete_callback(dap_events_socket_t * a_esocket
     struct dns_client * l_dns_client = (struct dns_client*) a_esocket->_inheritor;
     if(! l_dns_client->is_callbacks_called )
         l_dns_client->callback_error(a_esocket->worker, l_dns_client->callbacks_arg, EBUSY);
-    if(l_dns_client->name)
-        DAP_DELETE(l_dns_client->name);
+    DAP_DEL_Z(l_dns_client->name);
 }
 
 /**
@@ -203,8 +202,6 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
     l_dns_client->addr = a_addr;
 
     dap_dns_buf_init(&l_dns_client->dns_request, (char *)l_dns_client->buf);
-    l_dns_client->result->hdr.ext_addr_v4 = a_addr;                         // For error callbacks
-    l_dns_client->result->hdr.ext_port = a_port;
     dap_dns_buf_put_uint16(&l_dns_client->dns_request, rand() % 0xFFFF);    // ID
     dap_dns_message_flags_t l_flags = {};
     dap_dns_buf_put_uint16(&l_dns_client->dns_request, l_flags.val);
