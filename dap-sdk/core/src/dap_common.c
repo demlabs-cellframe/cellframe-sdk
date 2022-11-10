@@ -471,7 +471,7 @@ struct timespec now;
 
 	olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
 			_tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
-            dap_gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
+			(unsigned) gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
 
 
 	if ( 0 < (len = (74 - olen)) )
@@ -528,7 +528,7 @@ struct timespec now;
 
     olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
             _tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
-            (unsigned) dap_gettid(), a_rtn_name, a_line_no, 48, a_var_name, srclen);
+            (unsigned) gettid(), a_rtn_name, a_line_no, 48, a_var_name, srclen);
 
     if(s_log_file)
     {
@@ -601,22 +601,6 @@ struct timespec now;
     }
 }
 #endif
-
-unsigned dap_gettid()
-{
-
-#ifdef DAP_OS_BSD
-    uint64_t l_tid = 0;
-    pthread_threadid_np(pthread_self(),&l_tid);
-    return (unsigned) l_tid;
-#elif defined (DAP_OS_WINDOWS)
-    return (unsigned) GetCurrentThreadId();
-#elif defined(DAP_OS_LINUX)
-    return gettid();
-#else
-#error "Not defined dap_gettid() for your platform"
-#endif
-}
 
 static int s_check_and_fill_buffer_log(char **m, struct tm *a_tm_st, char *a_tmp)
 {
