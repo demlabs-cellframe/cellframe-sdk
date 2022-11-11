@@ -46,6 +46,7 @@
   #include <pthread.h>
   #include <syslog.h>
   #include <signal.h>
+  #include <sys/syscall.h>
 
 #else // WIN32
 
@@ -442,7 +443,25 @@ unsigned int dap_crc32c(unsigned int crc, const void *buf, size_t buflen)
     return crc ^ ~0U;
 }
 
+
 #ifdef DAP_SYS_DEBUG
+
+unsigned dap_gettid()
+{
+
+#ifdef DAP_OS_BSD
+    uint64_t l_tid = 0;
+    pthread_threadid_np(pthread_self(),&l_tid);
+    return (unsigned) l_tid;
+#elif defined (DAP_OS_WINDOWS)
+    return (unsigned) GetCurrentThreadId();
+#elif defined(DAP_OS_LINUX)
+    return syscall(SYS_gettid);;
+#else
+#error "Not defined dap_gettid() for your platform"
+#endif
+}
+
 const	char spaces[74] = {"                                                                          "};
 #define PID_FMT "%6d"
 
@@ -601,22 +620,6 @@ struct timespec now;
     }
 }
 #endif
-
-unsigned dap_gettid()
-{
-
-#ifdef DAP_OS_BSD
-    uint64_t l_tid = 0;
-    pthread_threadid_np(pthread_self(),&l_tid);
-    return (unsigned) l_tid;
-#elif defined (DAP_OS_WINDOWS)
-    return (unsigned) GetCurrentThreadId();
-#elif defined(DAP_OS_LINUX)
-    return gettid();
-#else
-#error "Not defined dap_gettid() for your platform"
-#endif
-}
 
 static int s_check_and_fill_buffer_log(char **m, struct tm *a_tm_st, char *a_tmp)
 {
