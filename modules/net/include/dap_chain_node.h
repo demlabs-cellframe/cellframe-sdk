@@ -101,11 +101,6 @@ typedef struct dap_chain_node_publ{
     dap_chain_node_info_t node_info;
 } DAP_ALIGN_PACKED dap_chain_node_publ_t;
 
-
-typedef dap_list_t dap_chain_node_info_list_t;
-
-#define DAP_CHAIN_NODE_MEMPOOL_INTERVAL 1000    // milliseconds
-
 /**
  * Calculate size of struct dap_chain_node_info_t
  */

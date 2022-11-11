@@ -39,9 +39,6 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
         const char *a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size, char *a_cookie,
         dap_client_http_callback_data_t a_response_callback, dap_client_http_callback_error_t a_error_callback,
         void *a_callbacks_arg, char *a_custom_headers, bool a_over_ssl);
-
-bool a_over_ssl);
-
 int dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr, uint16_t a_uplink_port, const char * a_method,
         const char* a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size,
         char * a_cookie, dap_client_http_callback_data_t a_response_callback,
