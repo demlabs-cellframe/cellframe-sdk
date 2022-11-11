@@ -571,7 +571,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 			}
 			else
             {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Enter block hash ");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Enter block hash ");
                 ret=-13;
             }
         }break;
