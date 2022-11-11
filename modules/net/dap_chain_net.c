@@ -875,7 +875,6 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
         dap_proc_queue_add_callback_inter(a_node_client->stream_worker->worker->proc_queue_input,s_net_states_proc,l_net );
     }
     pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);
-
 }
 
 /**
