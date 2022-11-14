@@ -730,15 +730,11 @@ int dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_
     a_client_internal->request_response_callback = a_response_proc;
     a_client_internal->request_error_callback = a_response_error;
     a_client_internal->is_encrypted = false;
-    a_client_internal->refs_count++;;
+    a_client_internal->refs_count++;
 
-    void *l_ret = dap_client_http_request(a_client_internal->worker,  a_client_internal->uplink_addr,a_client_internal->uplink_port,
+    return dap_client_http_request(a_client_internal->worker,  a_client_internal->uplink_addr,a_client_internal->uplink_port,
                                            a_request ? "POST" : "GET", "text/text", a_path, a_request,
-                                            a_request_size, NULL, s_request_response, s_request_error, a_client_internal, NULL);
-
-    if(l_ret)
-    	return 0;
-    return -1;
+                                           a_request_size, NULL, s_request_response, s_request_error, a_client_internal, NULL);
 }
 
 /**
