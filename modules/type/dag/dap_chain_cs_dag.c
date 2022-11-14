@@ -1453,7 +1453,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 if (s_callback_add_datums(l_chain, l_datums, l_datums_count) == l_datums_count) {
                     for ( size_t i = 0; i <l_datums_count; i++){
                        dap_chain_hash_fast_t l_datum_hash;
-                       dap_hash_fast(l_datums[i]->data,l_datums[i]->header.data_size),&l_datum_hash);
+                       dap_hash_fast(l_datums[i]->data,l_datums[i]->header.data_size, &l_datum_hash);
                        char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
                        if ( dap_chain_global_db_gr_del( dap_strdup(l_datums_datum_hash_str),l_gdb_group_mempool ) ){
                            dap_chain_node_cli_set_reply_text(a_str_reply,
