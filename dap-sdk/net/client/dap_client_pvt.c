@@ -728,15 +728,11 @@ int dap_client_pvt_request(dap_client_pvt_t * a_client_internal, const char * a_
     a_client_internal->request_response_callback = a_response_proc;
     a_client_internal->request_error_callback = a_response_error;
     a_client_internal->is_encrypted = false;
-    a_client_internal->refs_count++;;
+    a_client_internal->refs_count++;
 
-    void *l_ret = dap_client_http_request(a_client_internal->worker,  a_client_internal->uplink_addr,a_client_internal->uplink_port,
+    return dap_client_http_request(a_client_internal->worker,  a_client_internal->uplink_addr,a_client_internal->uplink_port,
                                            a_request ? "POST" : "GET", "text/text", a_path, a_request,
                                             a_request_size, NULL, s_request_response, s_request_error, a_client_internal, NULL);
-
-    if(l_ret)
-    	return 0;
-    return -1;
 }
 
 /**
@@ -762,8 +758,7 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
             a_query ? a_query : "NULL");
     size_t l_sub_url_size = a_sub_url ? strlen(a_sub_url) : 0;
     size_t l_query_size = a_query ? strlen(a_query) : 0;
-    size_t l_url_size;
-
+//    size_t l_url_size;
 //    char l_url[1024] = { 0 };
 //    snprintf(l_url, 1024, "http://%s:%u", a_client_internal->uplink_addr, a_client_internal->uplink_port);
 //    l_url_size = strlen(l_url);
@@ -785,7 +780,6 @@ void dap_client_pvt_request_enc(dap_client_pvt_t * a_client_internal, const char
     a_client_internal->request_response_callback = a_response_proc;
     a_client_internal->request_error_callback = a_response_error;
     a_client_internal->is_encrypted = true;
-    size_t i;
     dap_enc_data_type_t l_enc_type;
 
     if(a_client_internal->uplink_protocol_version >= 21)

@@ -49,9 +49,8 @@ typedef struct dap_http_client_internal {
 
     dap_client_http_callback_data_t response_callback;
     dap_client_http_callback_error_t error_callback;
-    dap_client_http_callback_error_ext_t error_ext_callback;
+    void *callbacks_arg;
 
-    void *obj; // dap_client_pvt_t *client_pvt;
     byte_t *request;
     size_t request_size;
     size_t request_sent_size;
@@ -195,7 +194,7 @@ static bool s_timer_timeout_after_connected_check(void * a_arg)
             log_it(L_WARNING, "Timeout for reading after connect for request http://%s:%u/%s, possible uplink is on heavy load or DPI between you",
                    l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
             if(l_http_pvt->error_callback) {
-                l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->obj);
+                l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->callbacks_arg);
                 l_http_pvt->were_callbacks_called = true;
             }
             l_http_pvt->is_closed_by_timeout = true;
@@ -231,7 +230,7 @@ static bool s_timer_timeout_check(void * a_arg)
             log_it(L_WARNING,"Connecting timeout for request http://%s:%u/%s, possible network problems or host is down",
                    l_http_pvt->uplink_addr, l_http_pvt->uplink_port, l_http_pvt->path);
             if(l_http_pvt->error_callback) {
-                l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->obj);
+                l_http_pvt->error_callback(ETIMEDOUT, l_http_pvt->callbacks_arg);
                 l_http_pvt->were_callbacks_called = true;
             }
             l_http_pvt->is_closed_by_timeout = true;
@@ -310,7 +309,7 @@ static void s_http_read(dap_events_socket_t * a_es, void * arg)
                 l_http_pvt->response_callback(
                         l_http_pvt->response + l_http_pvt->header_length,
                         l_http_pvt->content_length, //l_client_internal->response_size - l_client_internal->header_size,
-                        l_http_pvt->obj);
+                        l_http_pvt->callbacks_arg);
             l_http_pvt->response_size -= l_http_pvt->header_length;
             l_http_pvt->response_size -= l_http_pvt->content_length;
             l_http_pvt->header_length = 0;
@@ -356,7 +355,7 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
         return;
     }
     if(l_client_http_internal->error_callback)
-        l_client_http_internal->error_callback(a_errno, l_client_http_internal->obj);
+        l_client_http_internal->error_callback(a_errno, l_client_http_internal->callbacks_arg);
 
     l_client_http_internal->were_callbacks_called = true;
 
@@ -382,26 +381,26 @@ static void s_es_delete(dap_events_socket_t * a_es, void * a_arg)
         if (l_client_http_internal->content_length){
             log_it(L_WARNING, "Remote server disconnected before he sends all data: %zd data in buffer when expected %zd",
                l_client_http_internal->response_size, l_client_http_internal->content_length);
-            l_client_http_internal->error_callback(-666, l_client_http_internal->obj); // -666 means remote server disconnected before he sends all
+            l_client_http_internal->error_callback(-666, l_client_http_internal->callbacks_arg); // -666 means remote server disconnected before he sends all
         }else if (l_response_size){
             log_it(L_INFO, "Remote server replied without no content length but we have the response %zd bytes size",
                l_response_size);
 
-            //l_client_http_internal->error_callback(-10 , l_client_http_internal->obj);
+            //l_client_http_internal->error_callback(-10 , l_client_http_internal->callbacks_arg);
 
             if(l_client_http_internal->response_callback)
                 l_client_http_internal->response_callback(
                         l_client_http_internal->response + l_client_http_internal->header_length,
                         l_response_size,
-                        l_client_http_internal->obj);
+                        l_client_http_internal->callbacks_arg);
             l_client_http_internal->were_callbacks_called = true;
         }else if (l_client_http_internal->response_size){
             log_it(L_INFO, "Remote server disconnected with reply. Body is empty, only headers are in");
-            l_client_http_internal->error_callback(-667 , l_client_http_internal->obj); // -667 means remote server replied only with headers
+            l_client_http_internal->error_callback(-667 , l_client_http_internal->callbacks_arg); // -667 means remote server replied only with headers
             l_client_http_internal->were_callbacks_called = true;
         }else{
             log_it(L_WARNING, "Remote server disconnected without reply");
-            l_client_http_internal->error_callback(-668, l_client_http_internal->obj); // -668 means remote server disconnected before he sends anythinh
+            l_client_http_internal->error_callback(-668, l_client_http_internal->callbacks_arg); // -668 means remote server disconnected before he sends anythinh
             l_client_http_internal->were_callbacks_called = true;
         }
     }
@@ -458,14 +457,14 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
  * @param a_cookie
  * @param a_response_callback
  * @param a_error_callback
- * @param a_obj
- * @param a_custom
- * @param a_custom_count
+ * @param a_callbacks_arg
+ * @param a_custom_headers
+ * @param a_over_ssl
  */
-void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink_addr, uint16_t a_uplink_port, const char *a_method,
+int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink_addr, uint16_t a_uplink_port, const char *a_method,
         const char *a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size, char *a_cookie,
         dap_client_http_callback_data_t a_response_callback, dap_client_http_callback_error_t a_error_callback,
-        void *a_obj, char *a_custom, bool a_over_ssl)
+        void *a_callbacks_arg, char *a_custom_headers, bool a_over_ssl)
 {
 
     //log_it(L_DEBUG, "HTTP request on url '%s:%d'", a_uplink_addr, a_uplink_port);
@@ -489,9 +488,9 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
     if (l_socket == -1) {
         log_it(L_ERROR, "Error %d with socket create", errno);
         if(a_error_callback)
-            a_error_callback(errno,a_obj);
+            a_error_callback(errno, a_callbacks_arg);
 #endif
-        return NULL;
+        return -1;
     }
     // Get socket flags
 #if defined DAP_OS_WINDOWS
@@ -503,17 +502,17 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
     if (l_socket_flags == -1){
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
         if(a_error_callback)
-            a_error_callback(errno,a_obj);
+            a_error_callback(errno, a_callbacks_arg);
 
-        return NULL;
+        return -2;
     }
     // Make it non-block
     if (fcntl( l_socket, F_SETFL,l_socket_flags| O_NONBLOCK) == -1){
         log_it(L_ERROR, "Error %d can't get socket flags", errno);
         if(a_error_callback)
-            a_error_callback(errno,a_obj);
+            a_error_callback(errno, a_callbacks_arg);
 
-        return NULL;
+        return -3;
     }
 #endif
     // set socket param
@@ -530,21 +529,21 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
     l_http_pvt->error_callback = a_error_callback;
     l_http_pvt->response_callback = a_response_callback;
     //l_client_http_internal->socket = l_socket;
-    l_http_pvt->obj = a_obj;
+    l_http_pvt->callbacks_arg = a_callbacks_arg;
     l_http_pvt->method = dap_strdup(a_method);
     l_http_pvt->path = dap_strdup(a_path);
     l_http_pvt->request_content_type = dap_strdup(a_request_content_type);
 
     l_http_pvt->request = DAP_NEW_Z_SIZE(byte_t, a_request_size+1);
     if (! l_http_pvt->request)
-        return NULL;
+        return -4;
     l_http_pvt->request_size = a_request_size;
     memcpy(l_http_pvt->request, a_request, a_request_size);
 
     l_http_pvt->uplink_addr = dap_strdup(a_uplink_addr);
     l_http_pvt->uplink_port = a_uplink_port;
     l_http_pvt->cookie = a_cookie;
-    l_http_pvt->request_custom_headers = dap_strdup(a_custom);
+    l_http_pvt->request_custom_headers = dap_strdup(a_custom_headers);
 
     l_http_pvt->response_size_max = DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX;
     l_http_pvt->response = (uint8_t*) DAP_NEW_Z_SIZE(uint8_t, DAP_CLIENT_HTTP_RESPONSE_SIZE_MAX);
@@ -562,9 +561,9 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
             l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
             if(a_error_callback)
-                a_error_callback(errno,a_obj);
+                a_error_callback(errno, a_callbacks_arg);
 
-            return NULL;
+            return -5;
         }
     }
     l_ev_socket->remote_addr_str = dap_strdup(a_uplink_addr);
@@ -590,7 +589,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
             s_http_ssl_connected(l_ev_socket);
 #endif
         }
-        return l_http_pvt;
+        return 0;
     }
 #ifdef DAP_OS_WINDOWS
     else if(l_err == SOCKET_ERROR) {
@@ -629,7 +628,7 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
                    l_http_pvt->worker->id, *l_ev_uuid_ptr);
             DAP_DEL_Z(l_ev_uuid_ptr);
         }
-        return l_http_pvt;
+        return 0;
     }
     else{
         char l_errbuf[128];
@@ -640,12 +639,12 @@ void* dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_upli
         l_ev_socket->_inheritor = NULL;
         dap_events_socket_delete_unsafe( l_ev_socket, true);
         if(a_error_callback)
-            a_error_callback(errno,a_obj);
+            a_error_callback(errno, a_callbacks_arg);
 
-        return NULL;
+        return -6;
     }
 #endif
-    return NULL;
+    return -7;
 }
 
 #ifndef DAP_NET_CLIENT_NO_SSL
@@ -762,15 +761,15 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
  * @param a_cookie
  * @param a_response_callback
  * @param a_error_callback
- * @param a_obj
- * @param a_custom
+ * @param a_callbacks_arg
+ * @param a_custom_headers
  */
-void* dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr, uint16_t a_uplink_port, const char * a_method,
+int dap_client_http_request(dap_worker_t * a_worker,const char *a_uplink_addr, uint16_t a_uplink_port, const char * a_method,
         const char* a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size,
         char * a_cookie, dap_client_http_callback_data_t a_response_callback,
-        dap_client_http_callback_error_t a_error_callback, void *a_obj, void * a_custom)
+        dap_client_http_callback_error_t a_error_callback, void *a_callbacks_arg, char *a_custom_headers)
 {
     return dap_client_http_request_custom(a_worker, a_uplink_addr, a_uplink_port, a_method, a_request_content_type, a_path,
-            a_request, a_request_size, a_cookie, a_response_callback, a_error_callback, a_obj,
-            (char*)a_custom, false);
+            a_request, a_request_size, a_cookie, a_response_callback, a_error_callback, a_callbacks_arg,
+            a_custom_headers, false);
 }
