@@ -605,7 +605,7 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
                        l_http_pvt->worker->id, *l_ev_uuid_ptr);
                 DAP_DEL_Z(l_ev_uuid_ptr)
             }
-            return l_http_pvt;
+            return 0;
         } else {
             log_it(L_ERROR, "Socket %zu connecting error: %d", l_ev_socket->socket, l_err2);
             s_client_http_delete( l_http_pvt);
@@ -613,7 +613,7 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
             dap_events_socket_delete_unsafe( l_ev_socket, true);
             if(a_error_callback)
                 a_error_callback(l_err2, a_callbacks_arg);
-            return NULL;
+            return -6;
         }
     }
 #else
