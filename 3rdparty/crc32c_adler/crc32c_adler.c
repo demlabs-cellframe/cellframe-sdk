@@ -457,6 +457,7 @@ static int crc32c_hardware_checked = 0;
    on all Pentium and later processors. */
 int crc32c_hw_support()
 {
+#if defined(__x86_64__)                 /* @RRL: to compile for ARM */
     if (!crc32c_hardware_checked) {
         do {
             uint32_t eax, ecx;
@@ -470,6 +471,10 @@ int crc32c_hw_support()
         crc32c_hardware_checked = 1;
     }
     return crc32c_hardware_support;
+#else
+    return  0;
+#endif
+
 }
 
 /* Disable hardware algorithm even if supported by hardware. */
