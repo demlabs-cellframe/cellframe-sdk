@@ -482,7 +482,7 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
         int err = WSAGetLastError();
         log_it(L_ERROR, "Socket create error: %d", err);
         if(a_error_callback)
-            a_error_callback(err, a_obj);
+            a_error_callback(err, a_callbacks_arg);
 #else
     int l_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (l_socket == -1) {
@@ -612,7 +612,7 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
             l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
             if(a_error_callback)
-                a_error_callback(l_err2, a_obj);
+                a_error_callback(l_err2, a_callbacks_arg);
             return NULL;
         }
     }
@@ -685,8 +685,6 @@ static void s_http_connected(dap_events_socket_t * a_esocket)
 
     log_it(L_INFO, "Remote address connected (%s:%u) with sock_id %"DAP_FORMAT_SOCKET, l_http_pvt->uplink_addr, l_http_pvt->uplink_port, a_esocket->socket);
     // add to dap_worker
-    //dap_client_pvt_t * l_client_pvt = (dap_client_pvt_t*) a_obj;
-    //dap_events_new();
     dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
     *l_es_uuid_ptr = a_esocket->uuid;
     if(dap_timerfd_start_on_worker(l_http_pvt->worker, (unsigned long)s_client_timeout_read_after_connect_ms, s_timer_timeout_after_connected_check, l_es_uuid_ptr) == NULL ){
