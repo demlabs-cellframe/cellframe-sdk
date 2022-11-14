@@ -480,22 +480,22 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
     if (l_socket == INVALID_SOCKET) {
         int err = WSAGetLastError();
         log_it(L_ERROR, "Socket create error: %d", err);
-        if(a_error_callback)
-            a_error_callback(err, a_obj);
 #else
     int l_socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (l_socket == -1) {
         log_it(L_ERROR, "Error %d with socket create", errno);
+#endif
         if(a_error_callback)
             a_error_callback(errno, a_callbacks_arg);
-#endif
         return -1;
     }
     // Get socket flags
 #if defined DAP_OS_WINDOWS
     u_long l_socket_flags = 1;
-    if (ioctlsocket((SOCKET)l_socket, (long)FIONBIO, &l_socket_flags))
+    if (ioctlsocket((SOCKET)l_socket, (long)FIONBIO, &l_socket_flags)) {
         log_it(L_ERROR, "Error ioctl %d", WSAGetLastError());
+        return -3;
+    }
 #else
     int l_socket_flags = fcntl(l_socket, F_GETFL);
     if (l_socket_flags == -1){
@@ -611,7 +611,7 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
             l_ev_socket->_inheritor = NULL;
             dap_events_socket_delete_unsafe( l_ev_socket, true);
             if(a_error_callback)
-                a_error_callback(l_err2, a_obj);
+                a_error_callback(l_err2, a_callbacks_arg);
             return NULL;
         }
     }
