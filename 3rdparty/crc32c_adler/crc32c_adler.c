@@ -342,7 +342,13 @@ static uint32_t crc32c_short[4][256];
 /* Flag to indicate if crc32c_init_hw() has been called. */
 static int crc32c_hw_initialized = 0;
 
-/* Initialize tables for shifting crcs. */
+
+
+
+#if defined(__x86_64__)                 /* @RRL: to compile for ARM */
+
+
+
 static void crc32c_init_hw(void)
 {
     crc32c_zeros(crc32c_long, LONG);
@@ -440,6 +446,9 @@ uint32_t crc32c_hw(uint32_t crc, const void *buf, size_t len)
     return (uint32_t)crc0 ^ 0xffffffff;
 }
 
+
+
+#endif /* @RRL: to compile for ARM */
 
 /******************************************************************************
  *                                                                            *
