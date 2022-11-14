@@ -1157,6 +1157,7 @@ static bool s_balancer_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_
             s_net_balancer_link_prepare_error,
             l_balancer_request)) {
         log_it(L_ERROR, "Can't process balancer link DNS request");
+        DAP_DELETE(l_balancer_request->link_info);
         DAP_DELETE(l_balancer_request);
         return false;
     }    
@@ -1189,6 +1190,7 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
         return true;
     }
     log_it(L_ERROR, "Can't process balancer link HTTP request");
+    DAP_DELETE(l_balancer_request->link_info);
     DAP_DELETE(l_balancer_request);
     return false;
 }
