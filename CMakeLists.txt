@@ -105,7 +105,6 @@ if (BUILD_WITH_ZIP)
     include_directories(3rdparty/libzip/lib)
 endif()
 
-add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 if(DAPSDK_MODULES MATCHES "ssl-support")
     add_subdirectory(3rdparty/wolfssl)
