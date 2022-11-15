@@ -90,6 +90,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_balancer.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -1173,7 +1174,7 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
     l_balancer_request->link_info = DAP_DUP(a_link_node_info);
     l_balancer_request->worker = dap_events_worker_get_auto();
     l_balancer_request->link_replace = a_link_replace;
-    const char l_request[] = "/f0intlt4eyl03htogu?version=1,method=random";
+    const char l_request[] = "/"DAP_BALANCER_URI_HASH"?version=1,method=r";
     int l_ret = dap_client_http_request(l_balancer_request->worker, l_node_addr_str, a_link_node_info->hdr.ext_port,
                                         "GET", "text/text", DAP_UPLINK_PATH_BALANCER,
                                         l_request, sizeof(l_request), NULL,
